@@ -1,0 +1,2 @@
+-- Vobase SQLite fixtures
+-- Add --!include directives here for triggers, views, PRAGMAs, and other SQL setup

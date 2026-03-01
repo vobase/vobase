@@ -14,5 +14,8 @@
     "dev": "bun run build --watch",
     "lint": "biome lint src/",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.12.3"
   }
 }

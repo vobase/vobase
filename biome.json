@@ -17,6 +17,4 @@
       "semicolons": "always"
     }
   },
-    "ignoreUnknown": true
-  }
-}
+    }
