@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 
 import type { VobaseDb } from './db';
+import { createAuthAuditHooks } from './middleware/audit';
 
 export function createAuth(db: VobaseDb) {
   return betterAuth({
@@ -18,6 +19,7 @@ export function createAuth(db: VobaseDb) {
         },
       },
     },
+    hooks: createAuthAuditHooks(db),
   });
 }
 
