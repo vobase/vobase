@@ -7,8 +7,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '../../../src/components/ui/card';
-import { apiClient } from '../../../src/lib/api-client';
+} from '@/components/ui/card';
+import { apiClient } from '@/lib/api-client';
 
 interface SystemInfoResponse {
   version: string;
@@ -244,6 +244,6 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
   );
 }
 
-export const Route = createFileRoute('/system/')({
+export const Route = createFileRoute('/system/list')({
   component: SystemDashboardPage,
 });

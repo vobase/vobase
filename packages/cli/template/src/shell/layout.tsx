@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
-import { Sidebar } from './sidebar';
+import { Sidebar } from '@/shell/sidebar';
 
 export interface LayoutProps {
   children: ReactNode;

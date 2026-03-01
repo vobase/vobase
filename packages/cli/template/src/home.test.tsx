@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { HomePage } from './home';
+import { HomePage } from '@/home';
 
 describe('HomePage', () => {
   it('renders the dashboard shell without throwing', () => {

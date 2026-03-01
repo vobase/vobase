@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 
-import { moduleNames, shellNavigation } from '../data/mockData';
+import { moduleNames, shellNavigation } from '@/data/mockData';
 
 export interface SidebarProps {
   className?: string;

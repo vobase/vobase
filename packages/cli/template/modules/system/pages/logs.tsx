@@ -8,15 +8,15 @@ import {
 } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 
-import { Button } from '../../../src/components/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '../../../src/components/ui/card';
-import { apiClient } from '../../../src/lib/api-client';
+} from '@/components/ui/card';
+import { apiClient } from '@/lib/api-client';
 
 interface AuditEntry {
   id?: string;
@@ -122,7 +122,7 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
             </p>
           ) : (
             <div className="overflow-x-auto rounded-md border border-border">
-              <table className="w-full min-w-[640px] text-left text-sm">
+              <table className="w-full min-w-160 text-left text-sm">
                 <thead className="bg-muted/50">
                   {table.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>

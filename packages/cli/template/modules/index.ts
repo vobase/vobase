@@ -1,5 +1,5 @@
 import type { VobaseModule } from '@vobase/core';
 
-// Add your custom modules here
-// The system module is automatically included by @vobase/core
+// Register your custom modules here
+// The system module is auto-mounted by createApp — do not include it
 export const modules: VobaseModule[] = [];

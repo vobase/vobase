@@ -7,8 +7,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from './components/ui/card';
-import { apiClient } from './lib/api-client';
+} from '@/components/ui/card';
+import { apiClient } from '@/lib/api-client';
 
 async function fetchHealth(): Promise<string> {
   const response = await apiClient.health.$get();
