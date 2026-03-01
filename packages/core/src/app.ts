@@ -10,6 +10,7 @@ import { runMigrations } from './db/migrator';
 import { errorHandler } from './errors';
 import { createWorker } from './job';
 import { logger } from './logger';
+import { createMcpHandler } from './mcp';
 import { optionalSessionMiddleware } from './middleware/session';
 import type { VobaseModule } from './module';
 import { createScheduler } from './queue';
@@ -94,7 +95,11 @@ export function createApp(config: CreateAppConfig): Hono {
   );
 
   if (config.mcp?.enabled) {
-    routedApp.all('/mcp', (c) => c.json({ error: { code: 'NOT_IMPLEMENTED' } }, 501));
+    const mcpHandler = createMcpHandler({ db, modules: config.modules });
+    routedApp.all('/mcp', async (c) => {
+      const response = await mcpHandler(c.req.raw);
+      return response;
+    });
   }
 
   const allJobs = config.modules.flatMap((module) => module.jobs ?? []);
