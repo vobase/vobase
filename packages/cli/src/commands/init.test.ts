@@ -66,6 +66,7 @@ describe('runInit', () => {
         '.gitignore',
         '.env.example',
         'modules/index.ts',
+        'AGENTS.md',
       ];
 
       for (const relativePath of expectedFiles) {
