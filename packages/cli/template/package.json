@@ -1,0 +1,36 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vobase dev",
+    "generate": "vobase generate",
+    "migrate": "vobase migrate",
+    "migrate:generate": "vobase migrate:generate",
+    "build": "bun build ./server.ts --outdir ./dist --target=bun"
+  },
+  "dependencies": {
+    "@vobase/core": "^0.1.0",
+    "@vobase/cli": "^0.1.0",
+    "hono": "^4.6.0",
+    "drizzle-orm": "^0.42.0",
+    "better-auth": "^1.5.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@tanstack/react-router": "^1.113.0",
+    "@tanstack/react-query": "^5.72.0",
+    "@tanstack/virtual-file-routes": "^1.113.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@tanstack/router-vite-plugin": "^1.113.0",
+    "vite": "^6.2.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "drizzle-kit": "^0.30.0",
+    "typescript": "^5.7.0",
+    "biome": "^2.4.0"
+  }
+}
