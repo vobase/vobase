@@ -13,10 +13,12 @@ export async function runInit(
     throw new Error(`Target directory already exists: ${targetDirectory}`);
   }
 
+  const cliVersion = await resolveCliVersion();
   const templateDirectory = await resolveTemplateDirectory();
   await mkdir(targetDirectory, { recursive: true });
   await copyTemplateDirectory(templateDirectory, targetDirectory, {
     projectName: basename(targetDirectory),
+    cliVersion,
   });
 
   await runCommand(['bun', 'install'], targetDirectory);
@@ -29,18 +31,39 @@ export async function runInit(
   console.log(
     '  bun x @better-auth/cli generate  # Generate auth tables schema',
   );
-  console.log('  bunx vobase migrate               # Run initial migrations');
+  console.log('  bunx drizzle-kit push              # Push schema to dev database');
   console.log('  bunx vobase dev                   # Start dev server');
 }
+
+const SKIP_ENTRIES = new Set([
+  'node_modules',
+  'dist',
+  'data',
+  '.turbo',
+  '.tanstack',
+  '.env',
+  'packages',
+  'migrations',
+  'bun.lock',
+  'bun.lockb',
+]);
+
+const SKIP_FILENAMES = new Set([
+  'routeTree.gen.ts',
+]);
 
 async function copyTemplateDirectory(
   sourceDirectory: string,
   targetDirectory: string,
-  options: { projectName: string },
+  options: { projectName: string; cliVersion: string },
 ): Promise<void> {
   const entries = await readdir(sourceDirectory, { withFileTypes: true });
 
   for (const entry of entries) {
+    if (SKIP_ENTRIES.has(entry.name) || SKIP_FILENAMES.has(entry.name)) {
+      continue;
+    }
+
     const sourcePath = join(sourceDirectory, entry.name);
     const targetPath = join(targetDirectory, entry.name);
 
@@ -50,13 +73,32 @@ async function copyTemplateDirectory(
       continue;
     }
 
+    if (entry.isSymbolicLink()) {
+      continue;
+    }
+
     const sourceContent = await readFile(sourcePath, 'utf8');
-    const outputContent = sourceContent.replaceAll(
+    let outputContent = sourceContent.replaceAll(
       '{{PROJECT_NAME}}',
+      options.projectName,
+    );
+    outputContent = outputContent.replaceAll(
+      '"workspace:*"',
+      `"^${options.cliVersion}"`,
+    );
+    outputContent = outputContent.replaceAll(
+      '@vobase/template',
       options.projectName,
     );
     await writeFile(targetPath, outputContent, 'utf8');
   }
+}
+
+async function resolveCliVersion(): Promise<string> {
+  const currentDirectory = dirname(fileURLToPath(import.meta.url));
+  const packageJsonPath = resolve(currentDirectory, '../../package.json');
+  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
+  return packageJson.version ?? '0.1.0';
 }
 
 async function resolveTemplateDirectory(): Promise<string> {

@@ -94,9 +94,12 @@ describe('runInit', () => {
       await readFile(join(targetDir, 'package.json'), 'utf8'),
     ) as {
       name: string;
+      dependencies: Record<string, string>;
     };
 
     expect(packageJson.name).toBe('billing-api');
+    expect(packageJson.dependencies['@vobase/core']).not.toBe('workspace:*');
+    expect(packageJson.dependencies['@vobase/cli']).not.toBe('workspace:*');
   });
 
   it('throws when target directory already exists', async () => {

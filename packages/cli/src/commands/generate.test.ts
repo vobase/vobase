@@ -46,11 +46,11 @@ describe('generate', () => {
       "import { rootRoute, route, physical } from '@tanstack/virtual-file-routes';",
       '',
       "export const routes = rootRoute('root.tsx', [",
-      "  route('/crm', 'modules/crm/pages/layout.tsx', [",
-      "    physical('/crm', 'modules/crm/pages/'),",
+      "  route('/crm', '../modules/crm/pages/layout.tsx', [",
+    "    physical('../modules/crm/pages/'),",
       '  ]),',
-      "  route('/invoicing', 'modules/invoicing/pages/layout.tsx', [",
-      "    physical('/invoicing', 'modules/invoicing/pages/'),",
+      "  route('/invoicing', '../modules/invoicing/pages/layout.tsx', [",
+    "    physical('../modules/invoicing/pages/'),",
       '  ]),',
       ']);',
       '',
@@ -66,10 +66,10 @@ describe('generate', () => {
     await createModulePages(projectRoot, 'billing');
 
     await generate({ cwd: projectRoot });
-    const firstRoutes = await readFile(join(projectRoot, 'routes.ts'), 'utf8');
+    const firstRoutes = await readFile(join(projectRoot, 'src', 'routes.ts'), 'utf8');
 
     await generate({ cwd: projectRoot });
-    const secondRoutes = await readFile(join(projectRoot, 'routes.ts'), 'utf8');
+    const secondRoutes = await readFile(join(projectRoot, 'src', 'routes.ts'), 'utf8');
 
     expect(secondRoutes).toBe(firstRoutes);
   });

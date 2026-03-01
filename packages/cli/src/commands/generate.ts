@@ -112,7 +112,8 @@ export async function generate(
   const cwd = options.cwd ?? process.cwd();
   const modules = await findModulesWithPages(cwd);
 
-  const routesPath = join(cwd, 'routes.ts');
+  const routesPath = join(cwd, 'src', 'routes.ts');
+  await mkdir(dirname(routesPath), { recursive: true });
   await writeFile(routesPath, buildRoutesSource(modules), 'utf8');
 
   const schemaPath = join(cwd, 'modules', 'system', 'schema.ts');
@@ -128,8 +129,8 @@ export async function generate(
 
 function buildModuleRoute(moduleName: string): string {
   return [
-    `  route('/${moduleName}', 'modules/${moduleName}/pages/layout.tsx', [`,
-    `    physical('/${moduleName}', 'modules/${moduleName}/pages/'),`,
+    `  route('/${moduleName}', '../modules/${moduleName}/pages/layout.tsx', [`,
+    `    physical('../modules/${moduleName}/pages/'),`,
     '  ]),',
   ].join('\n');
 }
