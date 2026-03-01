@@ -6,7 +6,8 @@ export async function runInit(
   projectName: string,
   options: { targetDir?: string } = {},
 ): Promise<void> {
-  const targetDirectory = options.targetDir ?? resolve(process.cwd(), projectName);
+  const targetDirectory =
+    options.targetDir ?? resolve(process.cwd(), projectName);
 
   if (await pathExists(targetDirectory)) {
     throw new Error(`Target directory already exists: ${targetDirectory}`);
@@ -25,7 +26,9 @@ export async function runInit(
   console.log('');
   console.log('Next steps:');
   console.log(`  cd ${projectName}`);
-  console.log('  bun x @better-auth/cli generate  # Generate auth tables schema');
+  console.log(
+    '  bun x @better-auth/cli generate  # Generate auth tables schema',
+  );
   console.log('  bunx vobase migrate               # Run initial migrations');
   console.log('  bunx vobase dev                   # Start dev server');
 }
@@ -48,7 +51,10 @@ async function copyTemplateDirectory(
     }
 
     const sourceContent = await readFile(sourcePath, 'utf8');
-    const outputContent = sourceContent.replaceAll('{{PROJECT_NAME}}', options.projectName);
+    const outputContent = sourceContent.replaceAll(
+      '{{PROJECT_NAME}}',
+      options.projectName,
+    );
     await writeFile(targetPath, outputContent, 'utf8');
   }
 }
@@ -112,7 +118,10 @@ async function directoryExists(pathValue: string): Promise<boolean> {
   }
 }
 
-function isErrnoCode(error: unknown, code: string): error is NodeJS.ErrnoException {
+function isErrnoCode(
+  error: unknown,
+  code: string,
+): error is NodeJS.ErrnoException {
   return (
     typeof error === 'object' &&
     error !== null &&

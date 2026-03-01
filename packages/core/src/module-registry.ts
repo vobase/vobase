@@ -1,7 +1,9 @@
 import { conflict } from './errors';
 import type { VobaseModule } from './module';
 
-export function registerModules(modules: VobaseModule[]): Map<string, VobaseModule> {
+export function registerModules(
+  modules: VobaseModule[],
+): Map<string, VobaseModule> {
   const registry = new Map<string, VobaseModule>();
 
   for (const module of modules) {

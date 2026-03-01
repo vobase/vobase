@@ -1,6 +1,6 @@
-import { Outlet, createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Outlet } from '@tanstack/react-router';
 
-export interface SystemLayoutPageProps {}
+export type SystemLayoutPageProps = Record<string, never>;
 
 export function SystemLayoutPage(_: Readonly<SystemLayoutPageProps>) {
   return <Outlet />;

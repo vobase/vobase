@@ -1,7 +1,9 @@
-import { resolve } from 'node:path';
 import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
-export async function runMigrate(options: { cwd?: string } = {}): Promise<void> {
+export async function runMigrate(
+  options: { cwd?: string } = {},
+): Promise<void> {
   const cwd = options.cwd ?? process.cwd();
 
   // Step 1: Read DB path from vobase.config.ts, default to ./data/vobase.db
@@ -28,7 +30,8 @@ export async function runMigrate(options: { cwd?: string } = {}): Promise<void> 
 
     // Generate ISO timestamp with colons replaced by dashes
     const now = new Date();
-    const isoTimestamp = now.toISOString().split('.')[0]?.replace(/:/g, '-') ?? '';
+    const isoTimestamp =
+      now.toISOString().split('.')[0]?.replace(/:/g, '-') ?? '';
     const backupPath = resolve(backupDir, `vobase-${isoTimestamp}.db`);
 
     // Copy DB to backup

@@ -39,7 +39,11 @@ export function createSystemRoutes(auth: Auth): Hono {
   routes.use('*', sessionMiddleware(auth));
 
   routes.get('/', (c) => {
-    return c.json({ version: SYSTEM_VERSION, uptime: process.uptime(), modules: ['system'] });
+    return c.json({
+      version: SYSTEM_VERSION,
+      uptime: process.uptime(),
+      modules: ['system'],
+    });
   });
 
   routes.get('/health', (c) => {
@@ -51,14 +55,19 @@ export function createSystemRoutes(auth: Auth): Hono {
     const limit = parseLimit(c.req.query('limit'));
     const cursor = parseCursor(c.req.query('cursor'));
 
-    const entries = (cursor
-      ? db
-          .select()
-          .from(auditLog)
-          .where(lt(auditLog.createdAt, cursor))
-          .orderBy(desc(auditLog.createdAt))
-          .limit(limit + 1)
-      : db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(limit + 1)
+    const entries = (
+      cursor
+        ? db
+            .select()
+            .from(auditLog)
+            .where(lt(auditLog.createdAt, cursor))
+            .orderBy(desc(auditLog.createdAt))
+            .limit(limit + 1)
+        : db
+            .select()
+            .from(auditLog)
+            .orderBy(desc(auditLog.createdAt))
+            .limit(limit + 1)
     ).all();
 
     const hasMore = entries.length > limit;
@@ -74,7 +83,11 @@ export function createSystemRoutes(auth: Auth): Hono {
 
   routes.get('/sequences', (c) => {
     const { db } = getCtx(c);
-    const values = db.select().from(sequences).orderBy(desc(sequences.updatedAt)).all();
+    const values = db
+      .select()
+      .from(sequences)
+      .orderBy(desc(sequences.updatedAt))
+      .all();
     return c.json({ sequences: values });
   });
 
@@ -86,7 +99,12 @@ export function createSystemRoutes(auth: Auth): Hono {
     const entries = db
       .select()
       .from(recordAudits)
-      .where(and(eq(recordAudits.tableName, tableName), eq(recordAudits.recordId, recordId)))
+      .where(
+        and(
+          eq(recordAudits.tableName, tableName),
+          eq(recordAudits.recordId, recordId),
+        ),
+      )
       .orderBy(desc(recordAudits.createdAt))
       .all();
 

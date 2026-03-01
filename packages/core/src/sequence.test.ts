@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Database } from 'bun:sqlite';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 
 import type { VobaseDb } from './db';
@@ -49,6 +49,8 @@ describe('nextSequence()', () => {
 
   it('formats sequence with year prefix when enabled', () => {
     const year = new Date().getFullYear();
-    expect(nextSequence(db, 'INV', { yearPrefix: true })).toBe(`INV-${year}-0001`);
+    expect(nextSequence(db, 'INV', { yearPrefix: true })).toBe(
+      `INV-${year}-0001`,
+    );
   });
 });

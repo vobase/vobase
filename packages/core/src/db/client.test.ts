@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from 'bun:test';
-import type { Database } from 'bun:sqlite';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import type { Database } from 'bun:sqlite';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { createDatabase } from './client';
 
@@ -11,7 +11,10 @@ type DbWithClient = ReturnType<typeof createDatabase> & { $client: Database };
 const tempDbPaths = new Set<string>();
 
 function getPragmaValue(db: DbWithClient, pragma: string): string {
-  const result = db.$client.query(`PRAGMA ${pragma}`).get() as Record<string, unknown>;
+  const result = db.$client.query(`PRAGMA ${pragma}`).get() as Record<
+    string,
+    unknown
+  >;
   return String(Object.values(result)[0]);
 }
 

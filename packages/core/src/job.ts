@@ -1,10 +1,14 @@
-import { Worker, type Job, type WorkerOptions as BunqueueWorkerOptions } from 'bunqueue/client';
+import {
+  type WorkerOptions as BunqueueWorkerOptions,
+  type Job,
+  Worker,
+} from 'bunqueue/client';
 
 import { validation } from './errors';
 import {
+  configureQueueDataPath,
   DEFAULT_QUEUE_DB_PATH,
   DEFAULT_QUEUE_NAME,
-  configureQueueDataPath,
   type SchedulerOptions,
 } from './queue';
 
@@ -15,7 +19,8 @@ export interface JobDefinition {
   handler: JobHandler;
 }
 
-export interface WorkerOptions extends Pick<SchedulerOptions, 'dbPath' | 'queueName'> {
+export interface WorkerOptions
+  extends Pick<SchedulerOptions, 'dbPath' | 'queueName'> {
   concurrency?: number;
 }
 
@@ -29,7 +34,10 @@ function assertJobName(name: string): void {
 
 function assertConcurrency(concurrency: number): void {
   if (!Number.isInteger(concurrency) || concurrency < 1) {
-    throw validation({ concurrency }, 'Worker concurrency must be a positive integer');
+    throw validation(
+      { concurrency },
+      'Worker concurrency must be a positive integer',
+    );
   }
 }
 
@@ -41,7 +49,10 @@ function registerJob(definition: JobDefinition): void {
 async function processJob(job: Job<unknown>): Promise<void> {
   const handler = jobRegistry.get(job.name);
   if (!handler) {
-    throw validation({ jobName: job.name }, `No registered handler for job "${job.name}"`);
+    throw validation(
+      { jobName: job.name },
+      `No registered handler for job "${job.name}"`,
+    );
   }
 
   await handler(job.data);
@@ -55,7 +66,10 @@ export function defineJob(name: string, handler: JobHandler): JobDefinition {
   return definition;
 }
 
-export function createWorker(jobs: JobDefinition[], options?: WorkerOptions): Worker {
+export function createWorker(
+  jobs: JobDefinition[],
+  options?: WorkerOptions,
+): Worker {
   for (const job of jobs) {
     registerJob(job);
   }
@@ -70,5 +84,9 @@ export function createWorker(jobs: JobDefinition[], options?: WorkerOptions): Wo
     concurrency,
   };
 
-  return new Worker(options?.queueName ?? DEFAULT_QUEUE_NAME, processJob, workerOptions);
+  return new Worker(
+    options?.queueName ?? DEFAULT_QUEUE_NAME,
+    processJob,
+    workerOptions,
+  );
 }

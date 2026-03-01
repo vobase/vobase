@@ -70,13 +70,16 @@ export function createApp(config: CreateAppConfig): Hono {
   if (existsSync(migrationsFolder)) {
     runMigrations(db, migrationsFolder);
   } else {
-    logger.warn('Skipping migrations because folder is missing', { migrationsFolder });
+    logger.warn('Skipping migrations because folder is missing', {
+      migrationsFolder,
+    });
   }
 
   const auth = createAuth(db);
 
   const queueDbPath = deriveQueueDbPath(config.database);
-  const { scheduler, effectiveQueueDbPath } = createSchedulerWithFallback(queueDbPath);
+  const { scheduler, effectiveQueueDbPath } =
+    createSchedulerWithFallback(queueDbPath);
 
   const storage = createStorage(config.storage?.basePath ?? './data/files');
 
@@ -91,7 +94,7 @@ export function createApp(config: CreateAppConfig): Hono {
 
   const routedApp = config.modules.reduce(
     (acc, mod) => acc.route(`/api/${mod.name}`, mod.routes),
-    app as Hono
+    app as Hono,
   );
 
   if (config.mcp?.enabled) {

@@ -3,6 +3,13 @@ import { createMiddleware } from 'hono/factory';
 import type { Auth } from '../auth';
 import { unauthorized } from '../errors';
 
+interface SessionUser {
+  id: string;
+  email: string;
+  name: string;
+  role?: string;
+}
+
 declare module 'hono' {
   interface ContextVariableMap {
     user: { id: string; email: string; name: string; role: string } | null;
@@ -21,7 +28,7 @@ export function sessionMiddleware(auth: Auth) {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
-      role: (session.user as any).role ?? 'user',
+      role: (session.user as unknown as SessionUser).role ?? 'user',
     });
 
     await next();
@@ -39,9 +46,9 @@ export function optionalSessionMiddleware(auth: Auth) {
             id: session.user.id,
             email: session.user.email,
             name: session.user.name,
-            role: (session.user as any).role ?? 'user',
+            role: (session.user as unknown as SessionUser).role ?? 'user',
           }
-        : null
+        : null,
     );
 
     await next();

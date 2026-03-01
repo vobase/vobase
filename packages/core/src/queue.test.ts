@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { rmSync } from 'node:fs';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { Queue, shutdownManager } from 'bunqueue/client';
 
 import { createScheduler } from './queue';
@@ -14,7 +14,8 @@ function makeQueueName(prefix: string): string {
 }
 
 beforeAll(() => {
-  globalScope.__vobaseBunqueueTestRefs__ = (globalScope.__vobaseBunqueueTestRefs__ ?? 0) + 1;
+  globalScope.__vobaseBunqueueTestRefs__ =
+    (globalScope.__vobaseBunqueueTestRefs__ ?? 0) + 1;
 });
 
 afterAll(() => {

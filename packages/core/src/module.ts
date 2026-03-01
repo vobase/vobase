@@ -26,18 +26,24 @@ export interface DefineModuleConfig {
 
 export function defineModule(config: DefineModuleConfig): VobaseModule {
   if (!config.name.trim()) {
-    throw validation({ name: config.name }, 'Module name must be a non-empty string');
+    throw validation(
+      { name: config.name },
+      'Module name must be a non-empty string',
+    );
   }
 
   if (!MODULE_NAME_PATTERN.test(config.name)) {
     throw validation(
       { name: config.name },
-      'Module name must use lowercase alphanumeric characters and hyphens only'
+      'Module name must use lowercase alphanumeric characters and hyphens only',
     );
   }
 
   if (RESERVED_MODULE_NAMES.has(config.name)) {
-    throw validation({ name: config.name }, `Module name "${config.name}" is reserved`);
+    throw validation(
+      { name: config.name },
+      `Module name "${config.name}" is reserved`,
+    );
   }
 
   if (
@@ -46,7 +52,10 @@ export function defineModule(config: DefineModuleConfig): VobaseModule {
     Array.isArray(config.schema) ||
     Object.keys(config.schema).length === 0
   ) {
-    throw validation({ schema: config.schema }, 'Module schema must be a non-empty object');
+    throw validation(
+      { schema: config.schema },
+      'Module schema must be a non-empty object',
+    );
   }
 
   if (
@@ -54,7 +63,10 @@ export function defineModule(config: DefineModuleConfig): VobaseModule {
     config.routes === null ||
     typeof config.routes.get !== 'function'
   ) {
-    throw validation({ routes: config.routes }, 'Module routes must be a Hono router instance');
+    throw validation(
+      { routes: config.routes },
+      'Module routes must be a Hono router instance',
+    );
   }
 
   return Object.freeze({ ...config });

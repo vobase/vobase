@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../src/components/ui/card';
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../../src/components/ui/card';
 import { apiClient } from '../../../src/lib/api-client';
 
 interface SystemInfoResponse {
@@ -72,7 +79,7 @@ function formatTimestamp(value: AuditEntry['createdAt']): string {
   return date.toLocaleString();
 }
 
-export interface SystemDashboardPageProps {}
+export type SystemDashboardPageProps = Record<string, never>;
 
 export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
   const infoQuery = useQuery({
@@ -96,7 +103,9 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">System</p>
+        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+          System
+        </p>
         <h1 className="mt-2 text-3xl font-semibold">Operations dashboard</h1>
       </div>
 
@@ -108,7 +117,11 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
           </CardHeader>
           <CardContent>
             <p className="text-sm font-medium">
-              {infoQuery.isPending ? 'Loading...' : infoQuery.isError ? 'Unavailable' : infoQuery.data?.version}
+              {infoQuery.isPending
+                ? 'Loading...'
+                : infoQuery.isError
+                  ? 'Unavailable'
+                  : infoQuery.data?.version}
             </p>
           </CardContent>
         </Card>
@@ -116,7 +129,9 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
         <Card>
           <CardHeader>
             <CardTitle>Server uptime</CardTitle>
-            <CardDescription>From /api/system and /api/system/health</CardDescription>
+            <CardDescription>
+              From /api/system and /api/system/health
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
             <p className="text-sm font-medium">
@@ -127,7 +142,12 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
                   : formatUptime(infoQuery.data?.uptime ?? 0)}
             </p>
             <p className="text-xs text-muted-foreground">
-              Health: {healthQuery.isPending ? 'Checking...' : healthQuery.isError ? 'Unavailable' : healthQuery.data?.status}
+              Health:{' '}
+              {healthQuery.isPending
+                ? 'Checking...'
+                : healthQuery.isError
+                  ? 'Unavailable'
+                  : healthQuery.data?.status}
             </p>
           </CardContent>
         </Card>
@@ -139,7 +159,11 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
           </CardHeader>
           <CardContent>
             <p className="text-sm font-medium">
-              {healthQuery.isPending ? 'Loading...' : healthQuery.isError ? 'Unavailable' : healthQuery.data?.db}
+              {healthQuery.isPending
+                ? 'Loading...'
+                : healthQuery.isError
+                  ? 'Unavailable'
+                  : healthQuery.data?.db}
             </p>
           </CardContent>
         </Card>
@@ -153,19 +177,28 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
           </CardHeader>
           <CardContent>
             {infoQuery.isPending ? (
-              <p className="text-sm text-muted-foreground">Loading modules...</p>
+              <p className="text-sm text-muted-foreground">
+                Loading modules...
+              </p>
             ) : infoQuery.isError ? (
-              <p className="text-sm text-destructive">Unable to load modules.</p>
+              <p className="text-sm text-destructive">
+                Unable to load modules.
+              </p>
             ) : modules.length > 0 ? (
               <ul className="space-y-2 text-sm">
                 {modules.map((moduleName) => (
-                  <li key={moduleName} className="rounded-md border border-border bg-background/80 px-3 py-2">
+                  <li
+                    key={moduleName}
+                    className="rounded-md border border-border bg-background/80 px-3 py-2"
+                  >
                     {moduleName}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">No modules reported by the API.</p>
+              <p className="text-sm text-muted-foreground">
+                No modules reported by the API.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -177,9 +210,13 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
           </CardHeader>
           <CardContent>
             {auditQuery.isPending ? (
-              <p className="text-sm text-muted-foreground">Loading audit log...</p>
+              <p className="text-sm text-muted-foreground">
+                Loading audit log...
+              </p>
             ) : auditQuery.isError ? (
-              <p className="text-sm text-destructive">Unable to load audit log.</p>
+              <p className="text-sm text-destructive">
+                Unable to load audit log.
+              </p>
             ) : recentEntries.length > 0 ? (
               <ul className="space-y-3">
                 {recentEntries.map((entry, index) => (
@@ -189,13 +226,16 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
                   >
                     <p className="text-sm font-medium">{entry.event}</p>
                     <p className="text-xs text-muted-foreground">
-                      {entry.actorEmail ?? 'Unknown actor'} - {formatTimestamp(entry.createdAt)}
+                      {entry.actorEmail ?? 'Unknown actor'} -{' '}
+                      {formatTimestamp(entry.createdAt)}
                     </p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">No audit entries found.</p>
+              <p className="text-sm text-muted-foreground">
+                No audit entries found.
+              </p>
             )}
           </CardContent>
         </Card>

@@ -1,6 +1,5 @@
 import type { Auth } from '../auth';
 import { defineModule, type VobaseModule } from '../module';
-
 import { createSystemRoutes } from './handlers';
 import { auditLog, recordAudits, sequences } from './schema';
 

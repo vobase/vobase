@@ -1,6 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { Queue, shutdownManager, type JobOptions as BunqueueJobOptions } from 'bunqueue/client';
+import {
+  type JobOptions as BunqueueJobOptions,
+  Queue,
+  shutdownManager,
+} from 'bunqueue/client';
 
 import { validation } from './errors';
 
@@ -56,7 +60,7 @@ function parseDelay(delay?: number | string): number | undefined {
   if (!match) {
     throw validation(
       { delay },
-      'Invalid delay format. Use milliseconds or duration suffixes: ms, s, m, h, d'
+      'Invalid delay format. Use milliseconds or duration suffixes: ms, s, m, h, d',
     );
   }
 
@@ -72,20 +76,28 @@ function parseAttempts(options?: JobOptions): number | undefined {
   }
 
   if (!Number.isInteger(retryCount) || retryCount < 0) {
-    throw validation({ retryCount }, 'Retry count must be a non-negative integer');
+    throw validation(
+      { retryCount },
+      'Retry count must be a non-negative integer',
+    );
   }
 
   return retryCount + 1;
 }
 
-function toBunqueueJobOptions(options?: JobOptions): BunqueueJobOptions | undefined {
+function toBunqueueJobOptions(
+  options?: JobOptions,
+): BunqueueJobOptions | undefined {
   if (!options) {
     return undefined;
   }
 
   if (options.priority !== undefined) {
     if (!Number.isInteger(options.priority) || options.priority < 0) {
-      throw validation({ priority: options.priority }, 'Job priority must be a non-negative integer');
+      throw validation(
+        { priority: options.priority },
+        'Job priority must be a non-negative integer',
+      );
     }
   }
 
@@ -116,10 +128,16 @@ export function configureQueueDataPath(dbPath: string): string {
 
 export function createScheduler(options?: SchedulerOptions): Scheduler {
   configureQueueDataPath(options?.dbPath ?? DEFAULT_QUEUE_DB_PATH);
-  const queue = new Queue(options?.queueName ?? DEFAULT_QUEUE_NAME, { embedded: true });
+  const queue = new Queue(options?.queueName ?? DEFAULT_QUEUE_NAME, {
+    embedded: true,
+  });
 
   return {
-    async add(jobName: string, data: unknown, options?: JobOptions): Promise<void> {
+    async add(
+      jobName: string,
+      data: unknown,
+      options?: JobOptions,
+    ): Promise<void> {
       if (!jobName.trim()) {
         throw validation({ jobName }, 'Job name must be a non-empty string');
       }

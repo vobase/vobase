@@ -23,7 +23,7 @@ export function trackChanges(
   recordId: string,
   oldData: Record<string, unknown> | null,
   newData: Record<string, unknown> | null,
-  userId?: string
+  userId?: string,
 ): void {
   if (oldData === null && newData === null) {
     return;
@@ -56,8 +56,7 @@ export function trackChanges(
     }
   }
 
-  db
-    .insert(recordAudits)
+  db.insert(recordAudits)
     .values({
       tableName,
       recordId,

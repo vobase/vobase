@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from './components/ui/card';
 import { apiClient } from './lib/api-client';
 
 async function fetchHealth(): Promise<string> {
@@ -13,7 +20,7 @@ async function fetchHealth(): Promise<string> {
   return payload.status ?? 'unknown';
 }
 
-export interface HomePageProps {}
+export type HomePageProps = Record<string, never>;
 
 export function HomePage(_: Readonly<HomePageProps>) {
   const healthQuery = useQuery({
@@ -24,12 +31,16 @@ export function HomePage(_: Readonly<HomePageProps>) {
   return (
     <div className="space-y-4 p-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
-      <p className="text-muted-foreground mt-2">Welcome to your vobase project.</p>
+      <p className="text-muted-foreground mt-2">
+        Welcome to your vobase project.
+      </p>
 
       <Card>
         <CardHeader>
           <CardTitle>System status</CardTitle>
-          <CardDescription>Data fetched with TanStack Query + Hono RPC client.</CardDescription>
+          <CardDescription>
+            Data fetched with TanStack Query + Hono RPC client.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm">

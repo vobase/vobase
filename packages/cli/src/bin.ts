@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
+
+import { runDev } from './commands/dev';
 import { generate } from './commands/generate';
+import { runInit } from './commands/init';
 import { runMigrate } from './commands/migrate';
 import { runMigrateGenerate } from './commands/migrate-generate';
-import { runDev } from './commands/dev';
-import { runInit } from './commands/init';
 
 export const HELP_TEXT = `vobase <command>
 
@@ -15,7 +16,9 @@ Commands:
   init <name>        Create a new vobase project
 `;
 
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(
+  args: string[] = process.argv.slice(2),
+): Promise<void> {
   const [command, ...rest] = args;
 
   if (command === undefined || command === '--help' || command === '-h') {

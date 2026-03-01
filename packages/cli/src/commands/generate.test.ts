@@ -1,9 +1,9 @@
-import { afterAll, describe, expect, it } from 'bun:test';
-import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, describe, expect, it } from 'bun:test';
 
-import { SYSTEM_SCHEMA_SOURCE, buildRoutesSource, generate } from './generate';
+import { buildRoutesSource, generate, SYSTEM_SCHEMA_SOURCE } from './generate';
 
 const tempProjects: string[] = [];
 
@@ -13,16 +13,24 @@ async function createTempProject(): Promise<string> {
   return projectRoot;
 }
 
-async function createModulePages(projectRoot: string, moduleName: string): Promise<void> {
+async function createModulePages(
+  projectRoot: string,
+  moduleName: string,
+): Promise<void> {
   const pagesDirectory = join(projectRoot, 'modules', moduleName, 'pages');
   await mkdir(pagesDirectory, { recursive: true });
-  await Bun.write(join(pagesDirectory, 'layout.tsx'), 'export default function Layout() { return null; }\n');
+  await Bun.write(
+    join(pagesDirectory, 'layout.tsx'),
+    'export default function Layout() { return null; }\n',
+  );
 }
 
 describe('generate', () => {
   afterAll(async () => {
     await Promise.all(
-      tempProjects.map((projectRoot) => rm(projectRoot, { recursive: true, force: true })),
+      tempProjects.map((projectRoot) =>
+        rm(projectRoot, { recursive: true, force: true }),
+      ),
     );
   });
 

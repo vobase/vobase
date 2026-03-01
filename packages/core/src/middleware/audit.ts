@@ -22,7 +22,7 @@ function writeAuditLog(
   actorId: string | null,
   actorEmail: string | null,
   ip: string,
-  details: Record<string, string>
+  details: Record<string, string>,
 ): void {
   db.insert(auditLog)
     .values({
@@ -48,7 +48,7 @@ export function requestAuditMiddleware(db: VobaseDb) {
           user?.id ?? null,
           user?.email ?? null,
           getRequestIp(c.req.raw.headers),
-          { method: c.req.method, path: c.req.path }
+          { method: c.req.method, path: c.req.path },
         );
       }
     }
@@ -58,7 +58,8 @@ export function requestAuditMiddleware(db: VobaseDb) {
 export function createAuthAuditHooks(db: VobaseDb) {
   return {
     after: createAuthMiddleware(async (ctx) => {
-      const event = AUTH_EVENT_BY_PATH[ctx.path as keyof typeof AUTH_EVENT_BY_PATH];
+      const event =
+        AUTH_EVENT_BY_PATH[ctx.path as keyof typeof AUTH_EVENT_BY_PATH];
       if (!event) {
         return;
       }
@@ -70,7 +71,7 @@ export function createAuthAuditHooks(db: VobaseDb) {
         actor?.id ?? null,
         actor?.email ?? null,
         getRequestIp(ctx.headers),
-        { path: ctx.path }
+        { path: ctx.path },
       );
     }),
   };

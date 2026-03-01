@@ -25,7 +25,7 @@ export const authSession = sqliteTable(
       .notNull()
       .references(() => authUser.id, { onDelete: 'cascade' }),
   },
-  (table) => [index('session_user_id_idx').on(table.userId)]
+  (table) => [index('session_user_id_idx').on(table.userId)],
 );
 
 export const authAccount = sqliteTable(
@@ -40,14 +40,18 @@ export const authAccount = sqliteTable(
     accessToken: text('access_token'),
     refreshToken: text('refresh_token'),
     idToken: text('id_token'),
-    accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp_ms' }),
-    refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp_ms' }),
+    accessTokenExpiresAt: integer('access_token_expires_at', {
+      mode: 'timestamp_ms',
+    }),
+    refreshTokenExpiresAt: integer('refresh_token_expires_at', {
+      mode: 'timestamp_ms',
+    }),
     scope: text('scope'),
     password: text('password'),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
-  (table) => [index('account_user_id_idx').on(table.userId)]
+  (table) => [index('account_user_id_idx').on(table.userId)],
 );
 
 export const authVerification = sqliteTable(
@@ -60,7 +64,7 @@ export const authVerification = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
-  (table) => [index('verification_identifier_idx').on(table.identifier)]
+  (table) => [index('verification_identifier_idx').on(table.identifier)],
 );
 
 export const authSchema = {

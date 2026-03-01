@@ -17,7 +17,7 @@ export class VobaseError extends Error {
     message: string,
     public readonly code: ErrorCode,
     public readonly statusCode: number,
-    public readonly details?: object
+    public readonly details?: object,
   ) {
     super(message);
     this.name = 'VobaseError';
@@ -52,12 +52,12 @@ export const errorHandler = (err: Error, c: Context): Response => {
           details: err.details,
         },
       },
-      err.statusCode
+      err.statusCode,
     );
   }
   console.error('Unhandled error:', err);
   return c.json(
     { error: { code: 'INTERNAL', message: 'Internal server error' } },
-    500
+    500,
   );
 };

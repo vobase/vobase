@@ -1,11 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
+
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { authClient } from '../../lib/auth-client';
 
-export interface SignupPageProps {}
+export type SignupPageProps = Record<string, never>;
 
 export function SignupPage(_: Readonly<SignupPageProps>) {
   const [name, setName] = useState('');
@@ -40,7 +47,9 @@ export function SignupPage(_: Readonly<SignupPageProps>) {
       <Card className="w-full max-w-md border-border/70 bg-card/90">
         <CardHeader>
           <CardTitle>Create account</CardTitle>
-          <CardDescription>Start your vobase workspace in minutes.</CardDescription>
+          <CardDescription>
+            Start your vobase workspace in minutes.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -48,7 +57,12 @@ export function SignupPage(_: Readonly<SignupPageProps>) {
               <label htmlFor="signup-name" className="text-sm font-medium">
                 Name
               </label>
-              <Input id="signup-name" value={name} onChange={(event) => setName(event.target.value)} required />
+              <Input
+                id="signup-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <label htmlFor="signup-email" className="text-sm font-medium">
@@ -75,7 +89,9 @@ export function SignupPage(_: Readonly<SignupPageProps>) {
               />
             </div>
 
-            {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+            {message ? (
+              <p className="text-sm text-muted-foreground">{message}</p>
+            ) : null}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Creating...' : 'Create account'}

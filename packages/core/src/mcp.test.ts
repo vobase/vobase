@@ -36,7 +36,7 @@ function createTestDb() {
 
 async function postMcp(
   handler: (req: Request) => Promise<Response>,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
 ): Promise<{ response: Response; body: Record<string, unknown> }> {
   const request = new Request('http://localhost/mcp', {
     method: 'POST',
@@ -52,7 +52,9 @@ async function postMcp(
   return { response, body };
 }
 
-function parseStructuredToolResult(body: Record<string, unknown>): Record<string, unknown> {
+function parseStructuredToolResult(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
   const result = body.result as {
     structuredContent?: Record<string, unknown>;
     content?: Array<{ type: string; text?: string }>;
@@ -81,12 +83,17 @@ describe('createMcpHandler()', () => {
       method: 'tools/list',
     });
 
-    const tools = ((body.result as { tools?: Array<{ name: string }> }).tools ?? []).map(
-      (tool) => tool.name
-    );
+    const tools = (
+      (body.result as { tools?: Array<{ name: string }> }).tools ?? []
+    ).map((tool) => tool.name);
 
     expect(response.status).toBe(200);
-    expect(tools).toEqual(['list_modules', 'read_module', 'get_schema', 'view_logs']);
+    expect(tools).toEqual([
+      'list_modules',
+      'read_module',
+      'get_schema',
+      'view_logs',
+    ]);
   });
 
   it('list_modules returns registered module names', async () => {
@@ -136,9 +143,9 @@ describe('createMcpHandler()', () => {
       method: 'tools/list',
     });
 
-    const toolNames = ((body.result as { tools?: Array<{ name: string }> }).tools ?? []).map(
-      (tool) => tool.name
-    );
+    const toolNames = (
+      (body.result as { tools?: Array<{ name: string }> }).tools ?? []
+    ).map((tool) => tool.name);
 
     expect(toolNames).not.toContain('deploy_module');
     expect(toolNames).not.toContain('install_package');

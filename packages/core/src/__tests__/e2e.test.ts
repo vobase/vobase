@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { Database } from 'bun:sqlite';
 import { rmSync } from 'node:fs';
+import type { Database } from 'bun:sqlite';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { shutdownManager } from 'bunqueue/client';
 
 import { createApp } from '../app';
@@ -22,7 +22,10 @@ let previousAuthSecret: string | undefined;
 let previousAuthUrl: string | undefined;
 
 const getPragmaValue = (db: DbWithClient, pragma: string): string => {
-  const row = db.$client.query(`PRAGMA ${pragma}`).get() as Record<string, unknown>;
+  const row = db.$client.query(`PRAGMA ${pragma}`).get() as Record<
+    string,
+    unknown
+  >;
   return String(Object.values(row)[0]);
 };
 
@@ -62,33 +65,47 @@ afterAll(() => {
 describe('vobase engine e2e integration', () => {
   it('passes health, auth, system, mcp, and db pragma checks', async () => {
     const health = await app.request('http://localhost/health');
-    const healthBody = (await health.json()) as { status: string; uptime: number };
+    const healthBody = (await health.json()) as {
+      status: string;
+      uptime: number;
+    };
     expect(health.status).toBe(200);
     expect(healthBody).toMatchObject({ status: 'ok' });
     expect(typeof healthBody.uptime).toBe('number');
 
-    const signup = await app.request('http://localhost/api/auth/sign-up/email', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password, name: 'E2E Test' }),
-    });
+    const signup = await app.request(
+      'http://localhost/api/auth/sign-up/email',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password, name: 'E2E Test' }),
+      },
+    );
     const signupBody = (await signup.json()) as { user?: { email?: string } };
     expect(signup.status).toBe(200);
     expect(signupBody.user?.email).toBe(email);
 
-    const signin = await app.request('http://localhost/api/auth/sign-in/email', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    const signin = await app.request(
+      'http://localhost/api/auth/sign-in/email',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      },
+    );
     expect(signin.status).toBe(200);
-    sessionCookie = (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    sessionCookie =
+      (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
     expect(sessionCookie.length).toBeGreaterThan(0);
 
     const systemInfo = await app.request('http://localhost/api/system', {
       headers: { cookie: sessionCookie },
     });
-    const infoBody = (await systemInfo.json()) as { version: string; uptime: number; modules: string[] };
+    const infoBody = (await systemInfo.json()) as {
+      version: string;
+      uptime: number;
+      modules: string[];
+    };
     expect(systemInfo.status).toBe(200);
     expect(typeof infoBody.version).toBe('string');
     expect(typeof infoBody.uptime).toBe('number');
@@ -98,7 +115,9 @@ describe('vobase engine e2e integration', () => {
       headers: { cookie: sessionCookie },
     });
     expect(audit.status).toBe(200);
-    expect(Array.isArray(((await audit.json()) as { entries: unknown[] }).entries)).toBe(true);
+    expect(
+      Array.isArray(((await audit.json()) as { entries: unknown[] }).entries),
+    ).toBe(true);
 
     const mcp = await app.request('http://localhost/mcp', {
       method: 'POST',
@@ -109,15 +128,23 @@ describe('vobase engine e2e integration', () => {
       body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
     });
     expect(mcp.status).toBe(200);
-    expect(Array.isArray((((await mcp.json()) as { result?: { tools?: unknown[] } }).result?.tools))).toBe(
-      true
-    );
+    expect(
+      Array.isArray(
+        ((await mcp.json()) as { result?: { tools?: unknown[] } }).result
+          ?.tools,
+      ),
+    ).toBe(true);
 
     expect({
       journalMode: getPragmaValue(systemDb, 'journal_mode'),
       busyTimeout: getPragmaValue(systemDb, 'busy_timeout'),
       synchronous: getPragmaValue(systemDb, 'synchronous'),
       foreignKeys: getPragmaValue(systemDb, 'foreign_keys'),
-    }).toEqual({ journalMode: 'wal', busyTimeout: '5000', synchronous: '1', foreignKeys: '1' });
+    }).toEqual({
+      journalMode: 'wal',
+      busyTimeout: '5000',
+      synchronous: '1',
+      foreignKeys: '1',
+    });
   });
 });

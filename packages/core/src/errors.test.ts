@@ -1,14 +1,16 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
+import type { Context } from 'hono';
+
 import {
-  VobaseError,
-  ERROR_CODES,
-  unauthorized,
-  forbidden,
-  notFound,
-  validation,
   conflict,
   dbBusy,
+  ERROR_CODES,
   errorHandler,
+  forbidden,
+  notFound,
+  unauthorized,
+  VobaseError,
+  validation,
 } from './errors';
 
 describe('VobaseError', () => {
@@ -95,7 +97,7 @@ describe('errorHandler', () => {
     };
 
     const err = notFound('Invoice');
-    const result = errorHandler(err, mockContext as any);
+    errorHandler(err, mockContext as unknown as Context);
 
     expect(mockContext.json).toHaveBeenCalledWith(
       {
@@ -105,7 +107,7 @@ describe('errorHandler', () => {
           details: undefined,
         },
       },
-      404
+      404,
     );
   });
 
@@ -119,7 +121,7 @@ describe('errorHandler', () => {
 
     const details = { field: 'email' };
     const err = validation(details, 'Invalid email');
-    errorHandler(err, mockContext as any);
+    errorHandler(err, mockContext as unknown as Context);
 
     expect(mockContext.json).toHaveBeenCalledWith(
       {
@@ -129,7 +131,7 @@ describe('errorHandler', () => {
           details,
         },
       },
-      400
+      400,
     );
   });
 
@@ -145,7 +147,7 @@ describe('errorHandler', () => {
     console.error = consoleErrorMock;
 
     const err = new Error('Unknown error');
-    errorHandler(err, mockContext as any);
+    errorHandler(err, mockContext as unknown as Context);
 
     expect(mockContext.json).toHaveBeenCalledWith(
       {
@@ -154,7 +156,7 @@ describe('errorHandler', () => {
           message: 'Internal server error',
         },
       },
-      500
+      500,
     );
     expect(consoleErrorMock).toHaveBeenCalled();
   });

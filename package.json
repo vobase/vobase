@@ -11,8 +11,8 @@
     "dev": "turbo run dev",
     "test": "turbo run test",
     "lint": "turbo run lint",
+    "lint:fix": "biome check --write .",
     "typecheck": "turbo run typecheck"
-    "lint:fix": "biome check --fix --organize-imports-enabled=true .",
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { getTableColumns } from 'drizzle-orm';
-import { auditLog, sequences, recordAudits } from './system-schema';
+
+import { auditLog, recordAudits, sequences } from './system-schema';
 
 describe('System Schema - Table Definitions', () => {
   describe('auditLog table', () => {

@@ -1,14 +1,21 @@
+import { useQuery } from '@tanstack/react-query';
+import { createFileRoute } from '@tanstack/react-router';
 import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { useQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
+
 import { Button } from '../../../src/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../src/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../../src/components/ui/card';
 import { apiClient } from '../../../src/lib/api-client';
 
 interface AuditEntry {
@@ -46,7 +53,7 @@ async function fetchAuditLog(cursor: number | null): Promise<AuditLogResponse> {
   return (await response.json()) as AuditLogResponse;
 }
 
-export interface SystemLogsPageProps {}
+export type SystemLogsPageProps = Record<string, never>;
 
 export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   const [cursor, setCursor] = useState<number | null>(null);
@@ -72,7 +79,7 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
         cell: (info) => formatTimestamp(info.getValue()),
       }),
     ],
-    []
+    [],
   );
 
   const table = useReactTable({
@@ -87,22 +94,32 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">System</p>
+        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+          System
+        </p>
         <h1 className="mt-2 text-3xl font-semibold">Audit log</h1>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Activity stream</CardTitle>
-          <CardDescription>Cursor-based paginated events from /api/system/audit-log</CardDescription>
+          <CardDescription>
+            Cursor-based paginated events from /api/system/audit-log
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {auditQuery.isPending ? (
-            <p className="text-sm text-muted-foreground">Loading audit entries...</p>
+            <p className="text-sm text-muted-foreground">
+              Loading audit entries...
+            </p>
           ) : auditQuery.isError ? (
-            <p className="text-sm text-destructive">Unable to load audit log entries.</p>
+            <p className="text-sm text-destructive">
+              Unable to load audit log entries.
+            </p>
           ) : table.getRowModel().rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No audit log entries found.</p>
+            <p className="text-sm text-muted-foreground">
+              No audit log entries found.
+            </p>
           ) : (
             <div className="overflow-x-auto rounded-md border border-border">
               <table className="w-full min-w-[640px] text-left text-sm">
@@ -111,7 +128,12 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
                     <tr key={headerGroup.id}>
                       {headerGroup.headers.map((header) => (
                         <th key={header.id} className="px-4 py-3 font-semibold">
-                          {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
                         </th>
                       ))}
                     </tr>
@@ -121,8 +143,14 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
                   {table.getRowModel().rows.map((row) => (
                     <tr key={row.id} className="border-t border-border">
                       {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="px-4 py-3 text-muted-foreground">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        <td
+                          key={cell.id}
+                          className="px-4 py-3 text-muted-foreground"
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
                         </td>
                       ))}
                     </tr>
@@ -143,7 +171,8 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
                 }
 
                 setHistory((currentHistory) => {
-                  const previous = currentHistory[currentHistory.length - 1] ?? null;
+                  const previous =
+                    currentHistory[currentHistory.length - 1] ?? null;
                   setCursor(previous);
                   return currentHistory.slice(0, -1);
                 });

@@ -1,11 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
+
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { authClient } from '../../lib/auth-client';
 
-export interface LoginPageProps {}
+export type LoginPageProps = Record<string, never>;
 
 export function LoginPage(_: Readonly<LoginPageProps>) {
   const [email, setEmail] = useState('');
@@ -35,7 +42,9 @@ export function LoginPage(_: Readonly<LoginPageProps>) {
       <Card className="w-full max-w-md border-border/70 bg-card/90">
         <CardHeader>
           <CardTitle>Log in</CardTitle>
-          <CardDescription>Use your email and password to continue.</CardDescription>
+          <CardDescription>
+            Use your email and password to continue.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -64,7 +73,9 @@ export function LoginPage(_: Readonly<LoginPageProps>) {
               />
             </div>
 
-            {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+            {message ? (
+              <p className="text-sm text-muted-foreground">{message}</p>
+            ) : null}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Signing in...' : 'Sign in'}

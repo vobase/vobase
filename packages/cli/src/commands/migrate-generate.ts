@@ -1,4 +1,6 @@
-export async function runMigrateGenerate(options: { cwd?: string } = {}): Promise<void> {
+export async function runMigrateGenerate(
+  options: { cwd?: string } = {},
+): Promise<void> {
   const cwd = options.cwd ?? process.cwd();
 
   const spawnProcess = Bun.spawn(['bunx', 'drizzle-kit', 'generate'], {

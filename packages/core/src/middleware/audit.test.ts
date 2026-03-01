@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Database } from 'bun:sqlite';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { Hono } from 'hono';
 
@@ -52,7 +52,7 @@ describe('audit middleware and hooks', () => {
             details
           FROM _audit_log
           ORDER BY rowid ASC
-        `
+        `,
       )
       .all() as AuditRow[];
   }
@@ -126,7 +126,7 @@ describe('audit middleware and hooks', () => {
         session: null,
       },
       returnHeaders: true,
-    } as any);
+    } as unknown as Parameters<typeof hooks.after>[0]);
 
     const rows = getRows();
     expect(rows).toHaveLength(1);
@@ -153,7 +153,7 @@ describe('audit middleware and hooks', () => {
         session: null,
       },
       returnHeaders: true,
-    } as any);
+    } as unknown as Parameters<typeof hooks.after>[0]);
 
     const rows = getRows();
     expect(rows).toHaveLength(1);

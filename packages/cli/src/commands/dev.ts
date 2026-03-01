@@ -47,7 +47,8 @@ export async function buildDevCommands(cwd: string): Promise<DevCommand[]> {
   const viteConfigTsPath = resolve(cwd, 'vite.config.ts');
   const viteConfigJsPath = resolve(cwd, 'vite.config.js');
   const hasViteConfig =
-    (await Bun.file(viteConfigTsPath).exists()) || (await Bun.file(viteConfigJsPath).exists());
+    (await Bun.file(viteConfigTsPath).exists()) ||
+    (await Bun.file(viteConfigJsPath).exists());
 
   if (!hasViteConfig) {
     return [backendCommand];

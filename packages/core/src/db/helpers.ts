@@ -1,5 +1,5 @@
-import { customAlphabet } from 'nanoid';
 import { integer, text } from 'drizzle-orm/sqlite-core';
+import { customAlphabet } from 'nanoid';
 
 export const NANOID_LENGTH = { SHORT: 8, DEFAULT: 12, LONG: 16 } as const;
 export const NANOID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
@@ -11,7 +11,9 @@ const nanoidGenerators = new Map<number, () => string>();
  * Create or retrieve a cached nanoid generator with the specified length.
  * Uses a custom alphabet of lowercase alphanumeric characters.
  */
-export function createNanoid(length: number = NANOID_LENGTH.DEFAULT): () => string {
+export function createNanoid(
+  length: number = NANOID_LENGTH.DEFAULT,
+): () => string {
   if (!nanoidGenerators.has(length)) {
     nanoidGenerators.set(length, customAlphabet(NANOID_ALPHABET, length));
   }
@@ -29,7 +31,9 @@ export function createNanoid(length: number = NANOID_LENGTH.DEFAULT): () => stri
  * Generates a 12-character ID by default (customizable).
  */
 export const nanoidPrimaryKey = (length: number = NANOID_LENGTH.DEFAULT) =>
-  text('id').primaryKey().$defaultFn(() => createNanoid(length)());
+  text('id')
+    .primaryKey()
+    .$defaultFn(() => createNanoid(length)());
 
 /**
  * Default timestamp columns for SQLite using timestamp_ms mode.

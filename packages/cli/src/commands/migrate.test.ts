@@ -1,9 +1,17 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test';
-import { runMigrate } from './migrate';
-import { mkdir, rm, writeFile, readdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { tmpdir } from 'node:os';
 import { existsSync } from 'node:fs';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'bun:test';
+
+import { runMigrate } from './migrate';
 
 const testDir = resolve(tmpdir(), `vobase-migrate-test-${Bun.pid}`);
 
@@ -87,7 +95,9 @@ describe('runMigrate', () => {
 
       // Check filename format: vobase-YYYY-MM-DDTHH-mm-ss.db
       const backupFile = backupFiles[0];
-      expect(backupFile).toMatch(/^vobase-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.db$/);
+      expect(backupFile).toMatch(
+        /^vobase-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.db$/,
+      );
     } finally {
       // @ts-expect-error - restoring
       Bun.spawn = originalSpawn;

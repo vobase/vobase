@@ -1,9 +1,9 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { rmSync } from 'node:fs';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { shutdownManager } from 'bunqueue/client';
 
-import { createScheduler } from './queue';
 import { createWorker, defineJob, jobRegistry } from './job';
+import { createScheduler } from './queue';
 
 const TEST_DB_PATH = `/tmp/vobase-bunqueue-${Bun.pid}.db`;
 const globalScope = globalThis as typeof globalThis & {
@@ -15,7 +15,8 @@ function makeQueueName(prefix: string): string {
 }
 
 beforeAll(() => {
-  globalScope.__vobaseBunqueueTestRefs__ = (globalScope.__vobaseBunqueueTestRefs__ ?? 0) + 1;
+  globalScope.__vobaseBunqueueTestRefs__ =
+    (globalScope.__vobaseBunqueueTestRefs__ ?? 0) + 1;
 });
 
 afterAll(() => {

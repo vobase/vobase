@@ -12,7 +12,11 @@ interface SequenceRow {
   currentValue: number;
 }
 
-export function nextSequence(db: VobaseDb, prefix: string, options?: SequenceOptions): string {
+export function nextSequence(
+  db: VobaseDb,
+  prefix: string,
+  options?: SequenceOptions,
+): string {
   const padLength = options?.padLength ?? 4;
   const separator = options?.separator ?? '-';
   const yearPrefix = options?.yearPrefix ?? false;
@@ -26,7 +30,9 @@ export function nextSequence(db: VobaseDb, prefix: string, options?: SequenceOpt
     RETURNING current_value AS currentValue;
   `);
 
-  const row = statement.get(generateSequenceId(), prefix, now, now) as SequenceRow | undefined;
+  const row = statement.get(generateSequenceId(), prefix, now, now) as
+    | SequenceRow
+    | undefined;
   if (!row) {
     throw new Error(`Failed to generate next sequence for prefix: ${prefix}`);
   }

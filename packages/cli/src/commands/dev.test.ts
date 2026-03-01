@@ -1,7 +1,8 @@
-import { afterAll, describe, expect, it } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { afterAll, describe, expect, it } from 'bun:test';
+
 import { buildDevCommands } from './dev';
 
 const createdDirs: string[] = [];
@@ -76,7 +77,10 @@ describe('buildDevCommands', () => {
 
   it('uses backend port from vobase.config.ts when provided', async () => {
     const cwd = await createTempCwd();
-    await writeFile(resolve(cwd, 'vobase.config.ts'), 'export default { server: { port: 4100 } };');
+    await writeFile(
+      resolve(cwd, 'vobase.config.ts'),
+      'export default { server: { port: 4100 } };',
+    );
 
     const commands = await buildDevCommands(cwd);
 

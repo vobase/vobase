@@ -1,5 +1,5 @@
-import { afterAll, describe, expect, it } from 'bun:test';
 import { rmSync } from 'node:fs';
+import { afterAll, describe, expect, it } from 'bun:test';
 import { shutdownManager } from 'bunqueue/client';
 import { Hono } from 'hono';
 
@@ -14,7 +14,10 @@ afterAll(() => {
   rmSync('./data/bunqueue.db-wal', { force: true });
 });
 
-function makeModule(name: string, routeFactory: (routes: Hono) => void): VobaseModule {
+function makeModule(
+  name: string,
+  routeFactory: (routes: Hono) => void,
+): VobaseModule {
   const routes = new Hono();
   routeFactory(routes);
 

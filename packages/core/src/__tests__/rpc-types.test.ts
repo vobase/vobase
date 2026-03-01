@@ -21,9 +21,13 @@ const invoicingRouter = new Hono()
   .get('/list', (c) => c.json({ invoices: [] as Invoice[] }))
   .post('/create', (c) => c.json({ id: 'inv-001', total: 0 } as Invoice));
 
-const ordersRouter = new Hono().get('/list', (c) => c.json({ orders: [] as Array<{ id: string }> }));
+const ordersRouter = new Hono().get('/list', (c) =>
+  c.json({ orders: [] as Array<{ id: string }> }),
+);
 
-const chainedApp = new Hono().route('/api/invoicing', invoicingRouter).route('/api/orders', ordersRouter);
+const chainedApp = new Hono()
+  .route('/api/invoicing', invoicingRouter)
+  .route('/api/orders', ordersRouter);
 export type ChainedAppType = typeof chainedApp;
 
 const chainedClient = hc<ChainedAppType>('http://localhost:3000');
@@ -35,7 +39,7 @@ const modules = [
 
 const dynamicApp = modules.reduce(
   (acc, mod) => acc.route(`/api/${mod.name}`, mod.routes),
-  new Hono() as Hono
+  new Hono() as Hono,
 );
 
 type DynamicAppType = typeof dynamicApp;
@@ -70,12 +74,18 @@ describe('Hono RPC type inference', () => {
   });
 
   it('mounts routes correctly via reduce() pattern used by createApp', async () => {
-    const invoicingRes = await dynamicApp.request('http://localhost/api/invoicing/list');
+    const invoicingRes = await dynamicApp.request(
+      'http://localhost/api/invoicing/list',
+    );
     expect(invoicingRes.status).toBe(200);
 
-    const ordersRes = await dynamicApp.request('http://localhost/api/orders/list');
+    const ordersRes = await dynamicApp.request(
+      'http://localhost/api/orders/list',
+    );
     expect(ordersRes.status).toBe(200);
-    const ordersData = (await ordersRes.json()) as { orders: Array<{ id: string }> };
+    const ordersData = (await ordersRes.json()) as {
+      orders: Array<{ id: string }>;
+    };
     expect(ordersData).toHaveProperty('orders');
   });
 });

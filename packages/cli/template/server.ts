@@ -1,6 +1,7 @@
 import { createApp } from '@vobase/core';
-import config from './vobase.config';
+
 import { modules } from './modules';
+import config from './vobase.config';
 
 const app = createApp({ ...config, modules });
 

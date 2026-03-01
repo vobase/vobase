@@ -27,7 +27,7 @@ function getSortedTableNames(schema: Record<string, unknown>): string[] {
 
 function getSchemaTableNames(modules: VobaseModule[]): string[] {
   return Array.from(
-    new Set(modules.flatMap((module) => getSortedTableNames(module.schema)))
+    new Set(modules.flatMap((module) => getSortedTableNames(module.schema))),
   ).sort((left, right) => left.localeCompare(right));
 }
 
@@ -44,7 +44,7 @@ export function createMcpServer(deps: McpDeps): McpServer {
       return toToolResult({
         modules: deps.modules.map((module) => ({ name: module.name })),
       });
-    }
+    },
   );
 
   server.registerTool(
@@ -55,13 +55,17 @@ export function createMcpServer(deps: McpDeps): McpServer {
       annotations: { readOnlyHint: true },
     },
     async ({ name }) => {
-      const selectedModule = deps.modules.find((module) => module.name === name);
+      const selectedModule = deps.modules.find(
+        (module) => module.name === name,
+      );
 
       return toToolResult({
         name,
-        tables: selectedModule ? getSortedTableNames(selectedModule.schema) : [],
+        tables: selectedModule
+          ? getSortedTableNames(selectedModule.schema)
+          : [],
       });
-    }
+    },
   );
 
   server.registerTool(
@@ -72,14 +76,16 @@ export function createMcpServer(deps: McpDeps): McpServer {
     },
     async () => {
       return toToolResult({ tables: getSchemaTableNames(deps.modules) });
-    }
+    },
   );
 
   server.registerTool(
     'view_logs',
     {
       description: 'Return recent entries from _audit_log.',
-      inputSchema: z.object({ limit: z.number().int().positive().max(MAX_LOG_LIMIT).optional() }),
+      inputSchema: z.object({
+        limit: z.number().int().positive().max(MAX_LOG_LIMIT).optional(),
+      }),
       annotations: { readOnlyHint: true },
     },
     async ({ limit }) => {
@@ -98,17 +104,21 @@ export function createMcpServer(deps: McpDeps): McpServer {
           ip: entry.ip,
           details: entry.details,
           createdAt:
-            entry.createdAt instanceof Date ? entry.createdAt.toISOString() : String(entry.createdAt),
+            entry.createdAt instanceof Date
+              ? entry.createdAt.toISOString()
+              : String(entry.createdAt),
         }));
 
       return toToolResult({ entries });
-    }
+    },
   );
 
   return server;
 }
 
-export function createMcpHandler(deps: McpDeps): (req: Request) => Promise<Response> {
+export function createMcpHandler(
+  deps: McpDeps,
+): (req: Request) => Promise<Response> {
   return async (req: Request) => {
     const server = createMcpServer(deps);
     const transport = new WebStandardStreamableHTTPServerTransport({

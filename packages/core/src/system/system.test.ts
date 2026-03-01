@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Database } from 'bun:sqlite';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { Hono } from 'hono';
 
@@ -154,9 +154,12 @@ describe('system module handlers', () => {
   });
 
   it('GET /api/system/audit-log supports auth + cursor pagination', async () => {
-    const firstPage = await app.request('http://localhost/api/system/audit-log?limit=2', {
-      headers: { authorization: AUTHORIZATION_HEADER },
-    });
+    const firstPage = await app.request(
+      'http://localhost/api/system/audit-log?limit=2',
+      {
+        headers: { authorization: AUTHORIZATION_HEADER },
+      },
+    );
     const firstPageBody = (await firstPage.json()) as {
       entries: Array<{ id: string }>;
       nextCursor: string | null;
@@ -170,7 +173,7 @@ describe('system module handlers', () => {
 
     const secondPage = await app.request(
       `http://localhost/api/system/audit-log?limit=2&cursor=${firstPageBody.nextCursor}`,
-      { headers: { authorization: AUTHORIZATION_HEADER } }
+      { headers: { authorization: AUTHORIZATION_HEADER } },
     );
     const secondPageBody = (await secondPage.json()) as {
       entries: Array<{ id: string }>;
@@ -184,9 +187,12 @@ describe('system module handlers', () => {
   });
 
   it('GET /api/system/sequences returns sequence counters', async () => {
-    const response = await app.request('http://localhost/api/system/sequences', {
-      headers: { authorization: AUTHORIZATION_HEADER },
-    });
+    const response = await app.request(
+      'http://localhost/api/system/sequences',
+      {
+        headers: { authorization: AUTHORIZATION_HEADER },
+      },
+    );
     const body = (await response.json()) as {
       sequences: Array<{ prefix: string; currentValue: number }>;
     };
@@ -198,9 +204,12 @@ describe('system module handlers', () => {
   });
 
   it('GET /api/system/record-audits/:table/:id returns record history', async () => {
-    const response = await app.request('http://localhost/api/system/record-audits/invoices/inv_1', {
-      headers: { authorization: AUTHORIZATION_HEADER },
-    });
+    const response = await app.request(
+      'http://localhost/api/system/record-audits/invoices/inv_1',
+      {
+        headers: { authorization: AUTHORIZATION_HEADER },
+      },
+    );
     const body = (await response.json()) as {
       entries: Array<{ tableName: string; recordId: string }>;
     };

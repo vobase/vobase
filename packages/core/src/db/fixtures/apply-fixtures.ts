@@ -22,7 +22,8 @@ function readWithIncludes(filePath: string, visited: Set<string>): string {
     }
     const includePath = match[1]?.trim();
     if (!includePath) continue;
-    if (includePath.includes('*')) throw new Error(`Glob includes not supported: ${includePath}`);
+    if (includePath.includes('*'))
+      throw new Error(`Glob includes not supported: ${includePath}`);
     const absoluteIncludePath = resolve(dirname(filePath), includePath);
     resolved.push(readWithIncludes(absoluteIncludePath, visited));
   }

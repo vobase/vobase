@@ -1,10 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { Database } from 'bun:sqlite';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 
+import { trackChanges } from './audit';
 import type { VobaseDb } from './db';
 import * as schema from './db/system-schema';
-import { trackChanges } from './audit';
 
 interface AuditRow {
   tableName: string;
@@ -52,13 +52,20 @@ describe('trackChanges()', () => {
             changed_by AS changedBy
           FROM _record_audits
           ORDER BY rowid ASC
-        `
+        `,
       )
       .all() as AuditRow[];
   }
 
   it('stores full new data for create events', () => {
-    trackChanges(db, 'invoices', 'inv_1', null, { status: 'draft', total: 100 }, 'user_1');
+    trackChanges(
+      db,
+      'invoices',
+      'inv_1',
+      null,
+      { status: 'draft', total: 100 },
+      'user_1',
+    );
 
     const rows = getRows();
     expect(rows).toHaveLength(1);
@@ -78,13 +85,17 @@ describe('trackChanges()', () => {
       'inv_2',
       { status: 'draft', total: 100, note: 'A' },
       { status: 'sent', total: 100, note: 'B' },
-      'user_2'
+      'user_2',
     );
 
     const rows = getRows();
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.oldData).toBe(JSON.stringify({ status: 'draft', note: 'A' }));
-    expect(rows[0]?.newData).toBe(JSON.stringify({ status: 'sent', note: 'B' }));
+    expect(rows[0]?.oldData).toBe(
+      JSON.stringify({ status: 'draft', note: 'A' }),
+    );
+    expect(rows[0]?.newData).toBe(
+      JSON.stringify({ status: 'sent', note: 'B' }),
+    );
     expect(rows[0]?.changedBy).toBe('user_2');
   });
 
@@ -93,7 +104,9 @@ describe('trackChanges()', () => {
 
     const rows = getRows();
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.oldData).toBe(JSON.stringify({ status: 'void', total: 20 }));
+    expect(rows[0]?.oldData).toBe(
+      JSON.stringify({ status: 'void', total: 20 }),
+    );
     expect(rows[0]?.newData).toBeNull();
     expect(rows[0]?.changedBy).toBeNull();
   });
@@ -105,7 +118,7 @@ describe('trackChanges()', () => {
       'inv_4',
       { status: 'draft', total: 100 },
       { status: 'draft', total: 100 },
-      'user_3'
+      'user_3',
     );
 
     expect(getRows()).toHaveLength(0);

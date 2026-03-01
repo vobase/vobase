@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it } from 'bun:test';
-import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
+
 import { SystemDashboardPage } from './list';
 import { SystemLogsPage } from './logs';
 
@@ -22,7 +22,7 @@ describe('System module pages', () => {
     const markup = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
         <SystemDashboardPage />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     expect(markup).toContain('Operations dashboard');
@@ -34,7 +34,7 @@ describe('System module pages', () => {
     const markup = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
         <SystemLogsPage />
-      </QueryClientProvider>
+      </QueryClientProvider>,
     );
 
     expect(markup).toContain('Audit log');

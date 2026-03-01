@@ -56,7 +56,9 @@ export const recordAudits = sqliteTable('_record_audits', {
 `;
 
 export function buildRoutesSource(moduleNames: string[]): string {
-  const sortedModuleNames = [...moduleNames].sort((left, right) => left.localeCompare(right));
+  const sortedModuleNames = [...moduleNames].sort((left, right) =>
+    left.localeCompare(right),
+  );
   const children =
     sortedModuleNames.length === 0
       ? '[]'
@@ -70,7 +72,9 @@ export function buildRoutesSource(moduleNames: string[]): string {
   ].join('\n');
 }
 
-export async function findModulesWithPages(projectRoot: string): Promise<string[]> {
+export async function findModulesWithPages(
+  projectRoot: string,
+): Promise<string[]> {
   const modulesDirectory = join(projectRoot, 'modules');
 
   let moduleEntries: Array<{ name: string; isDirectory: () => boolean }>;
@@ -85,7 +89,9 @@ export async function findModulesWithPages(projectRoot: string): Promise<string[
   }
 
   const moduleNames = moduleEntries
-    .filter((entry) => entry.isDirectory() && MODULE_NAME_PATTERN.test(entry.name))
+    .filter(
+      (entry) => entry.isDirectory() && MODULE_NAME_PATTERN.test(entry.name),
+    )
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
 
@@ -100,7 +106,9 @@ export async function findModulesWithPages(projectRoot: string): Promise<string[
   return modulesWithPages;
 }
 
-export async function generate(options: GenerateOptions = {}): Promise<GenerateResult> {
+export async function generate(
+  options: GenerateOptions = {},
+): Promise<GenerateResult> {
   const cwd = options.cwd ?? process.cwd();
   const modules = await findModulesWithPages(cwd);
 
@@ -138,7 +146,10 @@ async function directoryExists(directoryPath: string): Promise<boolean> {
   }
 }
 
-function isErrnoCode(error: unknown, code: string): error is NodeJS.ErrnoException {
+function isErrnoCode(
+  error: unknown,
+  code: string,
+): error is NodeJS.ErrnoException {
   return (
     typeof error === 'object' &&
     error !== null &&

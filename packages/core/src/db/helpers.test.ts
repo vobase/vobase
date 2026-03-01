@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
+
 import {
-  NANOID_LENGTH,
-  NANOID_ALPHABET,
   createNanoid,
-  nanoidPrimaryKey,
   DEFAULT_COLUMNS,
+  NANOID_ALPHABET,
+  NANOID_LENGTH,
+  nanoidPrimaryKey,
 } from './helpers';
 
 describe('nanoid helpers', () => {
@@ -87,7 +88,7 @@ describe('nanoid helpers', () => {
       // createNanoid() returns a generator function
       const generator = createNanoid();
       const id = generator();
-      
+
       expect(id).toBeDefined();
       expect(typeof id).toBe('string');
       expect(id.length).toBe(NANOID_LENGTH.DEFAULT);

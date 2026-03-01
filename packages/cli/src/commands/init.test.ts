@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, it } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { afterAll, describe, expect, it } from 'bun:test';
 
 import { HELP_TEXT } from '../bin';
 import { runInit } from './init';
@@ -70,7 +70,9 @@ describe('runInit', () => {
       ];
 
       for (const relativePath of expectedFiles) {
-        expect(await Bun.file(join(targetDir, relativePath)).exists()).toBe(true);
+        expect(await Bun.file(join(targetDir, relativePath)).exists()).toBe(
+          true,
+        );
       }
 
       expect(calls).toEqual([
@@ -88,7 +90,9 @@ describe('runInit', () => {
       await runInit('billing-api', { targetDir });
     });
 
-    const packageJson = JSON.parse(await readFile(join(targetDir, 'package.json'), 'utf8')) as {
+    const packageJson = JSON.parse(
+      await readFile(join(targetDir, 'package.json'), 'utf8'),
+    ) as {
       name: string;
     };
 
