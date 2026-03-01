@@ -1,8 +1,8 @@
-node_modules/
-
+.opencode/
 .sisyphus/
+.turbo/
+node_modules/
 poc/
 dist/
 *.db
 data/
-.turbo/

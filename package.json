@@ -2,7 +2,7 @@
   "name": "vobase",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "bun@1.3.9",
+  "packageManager": "bun@1.3.10",
   "workspaces": [
     "packages/*"
   ],
@@ -12,6 +12,7 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck"
+    "lint:fix": "biome check --fix --organize-imports-enabled=true .",
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
