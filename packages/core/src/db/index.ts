@@ -5,3 +5,8 @@ export {
   nanoidPrimaryKey,
   DEFAULT_COLUMNS,
 } from './helpers';
+
+export { createDatabase, type VobaseDb } from './client';
+export { runMigrations } from './migrator';
+
+export * from './system-schema';

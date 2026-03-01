@@ -33,6 +33,10 @@ function readWithIncludes(filePath: string, visited: Set<string>): string {
 export function applyFixtures(db: Database): void {
   const entrypoint = resolve(fixturesDir, 'current.sql');
   const sql = readWithIncludes(entrypoint, new Set<string>());
-  if (!sql.trim()) return;
+  const executableSql = sql
+    .replace(/--.*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .trim();
+  if (!executableSql) return;
   db.exec(sql);
 }

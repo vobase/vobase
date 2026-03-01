@@ -16,6 +16,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "better-auth": "^1.5.0",
     "hono": "^4.12.3"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.9"
   }
 }
