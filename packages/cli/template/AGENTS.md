@@ -36,11 +36,13 @@ Each module lives in `modules/{name}/`:
 - Biome for formatting + linting (`bun run lint`).
 - Tests: `bun test` (Jest-compatible API).
 - Import order: external → @vobase/core → local.
+- Path aliases: `@/` → `src/`, `@modules/` → `modules/`. Use `@/components/ui/button` not `../../components/ui/button`.
+- Frontend routing: `src/routes.ts` defines TanStack Router virtual routes. Module pages use `../modules/` prefix since `routesDirectory` is `./src`.
 
 ## Commands
 - `bunx vobase dev`: Starts backend + Vite dev server.
-- `bunx vobase migrate`: Runs drizzle-kit migrations (with auto-backup).
-- `bunx vobase generate`: Regenerates `routes.ts` + system schema.
+- `bunx vobase migrate`: Runs drizzle-kit migrations (with auto-backup). For development, use `bunx drizzle-kit push` instead.
+- `bunx vobase generate`: Regenerates `src/routes.ts` + system schema.
 - `bun test`: Runs all tests.
 
 See @vobase/core documentation for complete API reference.
