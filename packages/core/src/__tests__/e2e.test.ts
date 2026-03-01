@@ -4,10 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { shutdownManager } from 'bunqueue/client';
 
 import { createApp } from '../app';
-import { createAuth } from '../auth';
 import { createDatabase, type VobaseDb } from '../db';
-import { createSystemModule } from '../system';
-
 type DbWithClient = VobaseDb & { $client: Database };
 
 const dbPath = `/tmp/vobase-e2e-${process.pid}-${Date.now()}.db`;
@@ -38,7 +35,7 @@ beforeAll(() => {
   systemDb = createDatabase(dbPath) as DbWithClient;
   app = createApp({
     database: dbPath,
-    modules: [createSystemModule(createAuth(systemDb))],
+    modules: [],
     mcp: { enabled: true },
   });
 });

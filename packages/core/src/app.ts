@@ -1,11 +1,13 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Database } from 'bun:sqlite';
 import { Hono } from 'hono';
 
 import { createAuth } from './auth';
 import { contextMiddleware } from './ctx';
-import { createDatabase } from './db/client';
+import { createDatabase, type VobaseDb } from './db/client';
+import { ensureCoreTables } from './db/ensure-core-tables';
 import { runMigrations } from './db/migrator';
 import { errorHandler } from './errors';
 import { createWorker } from './job';
@@ -15,6 +17,8 @@ import { optionalSessionMiddleware } from './middleware/session';
 import type { VobaseModule } from './module';
 import { createScheduler } from './queue';
 import { createStorage } from './storage';
+import { createSystemModule } from './system';
+import { createSystemRoutes } from './system/handlers';
 
 const DEFAULT_QUEUE_DB_PATH = '/data/bunqueue.db';
 const LOCAL_QUEUE_DB_PATH = './data/bunqueue.db';
@@ -61,10 +65,12 @@ export interface CreateAppConfig {
   database: string;
   storage?: { basePath: string };
   mcp?: { enabled?: boolean };
+  trustedOrigins?: string[];
 }
 
-export function createApp(config: CreateAppConfig): Hono {
+export function createApp(config: CreateAppConfig) {
   const db = createDatabase(config.database);
+  ensureCoreTables((db as VobaseDb & { $client: Database }).$client);
 
   const migrationsFolder = resolveMigrationsFolder();
   if (existsSync(migrationsFolder)) {
@@ -75,7 +81,7 @@ export function createApp(config: CreateAppConfig): Hono {
     });
   }
 
-  const auth = createAuth(db);
+  const auth = createAuth(db, { trustedOrigins: config.trustedOrigins });
 
   const queueDbPath = deriveQueueDbPath(config.database);
   const { scheduler, effectiveQueueDbPath } =
@@ -83,32 +89,41 @@ export function createApp(config: CreateAppConfig): Hono {
 
   const storage = createStorage(config.storage?.basePath ?? './data/files');
 
-  const app = new Hono();
+  // Base app with middleware (imperative — these don't affect RPC schema types)
+  const base = new Hono();
+  base.onError(errorHandler);
+  base.use('*', contextMiddleware({ db, scheduler, storage }));
+  base.use('/api/*', optionalSessionMiddleware(auth));
+  base.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
 
-  app.onError(errorHandler);
-  app.use('*', contextMiddleware({ db, scheduler, storage }));
-  app.use('/api/*', optionalSessionMiddleware(auth));
+  // Mount system module via chaining to preserve route types for hc<AppType>
+  const app = base
+    .get('/health', (c) => c.json({ status: 'ok', uptime: process.uptime() }))
+    .route('/api/system', createSystemRoutes(auth));
 
-  app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
-  app.get('/health', (c) => c.json({ status: 'ok', uptime: process.uptime() }));
+  // Mount user modules (types not preserved for RPC, but runtime works)
+  // Filter out 'system' since it's auto-mounted above
+  const userModules = config.modules.filter((mod) => mod.name !== 'system');
+  for (const mod of userModules) {
+    (app as Hono).route(`/api/${mod.name}`, mod.routes);
+  }
 
-  const routedApp = config.modules.reduce(
-    (acc, mod) => acc.route(`/api/${mod.name}`, mod.routes),
-    app as Hono,
-  );
+  // Include system module in the full modules list for MCP and jobs
+  const systemModule = createSystemModule(auth);
+  const allModules = [systemModule, ...userModules];
 
   if (config.mcp?.enabled) {
-    const mcpHandler = createMcpHandler({ db, modules: config.modules });
-    routedApp.all('/mcp', async (c) => {
+    const mcpHandler = createMcpHandler({ db, modules: allModules });
+    (app as Hono).all('/mcp', async (c) => {
       const response = await mcpHandler(c.req.raw);
       return response;
     });
   }
 
-  const allJobs = config.modules.flatMap((module) => module.jobs ?? []);
+  const allJobs = allModules.flatMap((module) => module.jobs ?? []);
   if (allJobs.length > 0) {
     createWorker(allJobs, { dbPath: effectiveQueueDbPath });
   }
 
-  return routedApp;
+  return app;
 }

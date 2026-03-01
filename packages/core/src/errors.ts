@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 export const ERROR_CODES = {
   UNAUTHORIZED: 'UNAUTHORIZED',
@@ -16,7 +17,7 @@ export class VobaseError extends Error {
   constructor(
     message: string,
     public readonly code: ErrorCode,
-    public readonly statusCode: number,
+    public readonly statusCode: ContentfulStatusCode,
     public readonly details?: object,
   ) {
     super(message);

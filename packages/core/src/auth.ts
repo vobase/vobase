@@ -5,7 +5,11 @@ import type { VobaseDb } from './db';
 import { authSchema } from './db/auth-schema';
 import { createAuthAuditHooks } from './middleware/audit';
 
-export function createAuth(db: VobaseDb) {
+export interface CreateAuthOptions {
+  trustedOrigins?: string[];
+}
+
+export function createAuth(db: VobaseDb, options?: CreateAuthOptions) {
   return betterAuth({
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     emailAndPassword: {
@@ -21,6 +25,7 @@ export function createAuth(db: VobaseDb) {
       },
     },
     hooks: createAuthAuditHooks(db),
+    ...(options?.trustedOrigins && { trustedOrigins: options.trustedOrigins }),
   });
 }
 

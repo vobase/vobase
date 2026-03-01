@@ -14,7 +14,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target=bun --sourcemap=inline",
+    "build": "bun build ./src/index.ts --outdir ./dist --target=bun --sourcemap=inline && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir ./dist",
     "dev": "bun run build --watch",
     "test": "bun test src/",
     "lint": "biome lint src/",

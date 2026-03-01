@@ -1,13 +1,13 @@
 // Engine
 export { type CreateAppConfig, createApp } from './app';
 // Auth
-export { type Auth, createAuth } from './auth';
+export { type Auth, type CreateAuthOptions, createAuth } from './auth';
 export type { VobaseCtx, VobaseUser } from './ctx';
 // Context
 export { contextMiddleware, getCtx } from './ctx';
 // DB
 export { createDatabase, runMigrations, type VobaseDb } from './db';
-export { applyFixtures } from './db/fixtures/apply-fixtures';
+export { ensureCoreTables } from './db/ensure-core-tables';
 export {
   createNanoid,
   DEFAULT_COLUMNS,
@@ -48,4 +48,4 @@ export { createScheduler, type JobOptions, type Scheduler } from './queue';
 // Sequences
 export { nextSequence, type SequenceOptions } from './sequence';
 // System
-export { createSystemModule } from './system';
+export { createSystemModule, createSystemRoutes, type SystemRoutes } from './system';
