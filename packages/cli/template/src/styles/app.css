@@ -1,0 +1,67 @@
+@import "tailwindcss";
+@source "../src/**/*.{ts,tsx}";
+@source "../modules/**/*.{ts,tsx}";
+
+:root {
+  --background: oklch(0.97 0.005 80);
+  --foreground: oklch(0.2 0.02 250);
+  --card: oklch(0.995 0.002 80);
+  --card-foreground: oklch(0.2 0.02 250);
+  --popover: oklch(0.995 0.002 80);
+  --popover-foreground: oklch(0.2 0.02 250);
+  --primary: oklch(0.54 0.13 235);
+  --primary-foreground: oklch(0.98 0.002 80);
+  --secondary: oklch(0.91 0.015 220);
+  --secondary-foreground: oklch(0.28 0.03 250);
+  --muted: oklch(0.92 0.01 88);
+  --muted-foreground: oklch(0.49 0.02 250);
+  --accent: oklch(0.78 0.11 85);
+  --accent-foreground: oklch(0.22 0.02 250);
+  --destructive: oklch(0.64 0.2 23);
+  --destructive-foreground: oklch(0.99 0.002 80);
+  --border: oklch(0.85 0.012 250);
+  --input: oklch(0.9 0.01 250);
+  --ring: oklch(0.56 0.12 235);
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 15%, color-mix(in oklch, var(--accent) 12%, transparent) 0%, transparent 50%),
+    radial-gradient(circle at 80% 0%, color-mix(in oklch, var(--primary) 15%, transparent) 0%, transparent 45%),
+    var(--background);
+  color: var(--foreground);
+  font-family: "Fraunces", "Source Sans 3", sans-serif;
+}
