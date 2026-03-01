@@ -12,6 +12,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vobase/core": "workspace:*"
+    "concurrently": "^9.2.1"
+  },
+  "peerDependencies": {
+    "@vobase/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.14"
   }
 }
