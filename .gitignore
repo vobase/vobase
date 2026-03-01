@@ -6,3 +6,5 @@ poc/
 dist/
 *.db
 data/
+
+__pycache__
