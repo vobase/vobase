@@ -16,6 +16,11 @@
       "sourceType": "github",
       "computedHash": "17a3fc2c1a49df9debce572c7b47521caa96f793597d944c4e648b3aa90738cf"
     },
+    "humanizer": {
+      "source": "blader/humanizer",
+      "sourceType": "github",
+      "computedHash": "67bd72223e92b4f520a1abbc9ff9db50641ed84128ba9521028d9b151dbd2429"
+    },
     "shadcn-ui": {
       "source": "google-labs-code/stitch-skills",
       "sourceType": "github",
