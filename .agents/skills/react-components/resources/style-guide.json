@@ -1,0 +1,43 @@
+{
+  "theme": {
+    "colors": {
+      "primary": "#19e66f",
+      "background": {
+        "light": "#f6f8f7",
+        "dark": "#112118",
+        "elevated": "#1A1A1A"
+      },
+      "accent": {
+        "purple": "#8A2BE2",
+        "lavender": "#D0A9F5"
+      }
+    },
+    "typography": {
+      "display": ["Space Grotesk", "sans-serif"],
+      "icons": "Material Symbols Outlined"
+    },
+    "spacing": {
+      "header-h": "72px",
+      "container-max": "960px"
+    }
+  },
+  "tailwindTheme": {
+    "_comment": "Add these CSS variables to src/globals.css under :root {} and reference via Tailwind.",
+    "cssVariables": {
+      "--brand": "145 85% 50%",
+      "--brand-foreground": "0 0% 100%",
+      "--accent-purple": "271 76% 53%",
+      "--accent-lavender": "275 82% 81%",
+      "--background-light": "144 14% 97%",
+      "--background-dark": "150 33% 10%",
+      "--background-elevated": "0 0% 10%"
+    },
+    "fontFamily": {
+      "display": "Space Grotesk, sans-serif"
+    },
+    "spacing": {
+      "header": "72px",
+      "container": "960px"
+    }
+  }
+}
