@@ -1,0 +1,8 @@
+node_modules/
+
+.sisyphus/
+poc/
+dist/
+*.db
+data/
+.turbo/

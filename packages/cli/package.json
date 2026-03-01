@@ -1,0 +1,17 @@
+{
+  "name": "@vobase/cli",
+  "version": "0.1.0",
+  "bin": {
+    "vobase": "./dist/bin.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./src/bin.ts --outdir ./dist --target=bun --sourcemap=inline",
+    "dev": "bun run build --watch",
+    "lint": "biome lint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vobase/core": "workspace:*"
+  }
+}
