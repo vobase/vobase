@@ -4,7 +4,7 @@ import { Queue, shutdownManager } from 'bunqueue/client';
 
 import { createScheduler } from './queue';
 
-const TEST_DB_PATH = `/tmp/vobase-bunqueue-${Bun.pid}.db`;
+const TEST_DB_PATH = `/tmp/vobase-bunqueue-${process.pid}.db`;
 const globalScope = globalThis as typeof globalThis & {
   __vobaseBunqueueTestRefs__?: number;
 };

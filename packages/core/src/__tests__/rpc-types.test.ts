@@ -45,7 +45,8 @@ const dynamicApp = modules.reduce(
 type DynamicAppType = typeof dynamicApp;
 const dynamicClient = hc<DynamicAppType>('http://localhost:3000');
 
-type IsFunction<T> = T extends (...args: unknown[]) => unknown ? true : false;
+// biome-ignore lint/complexity/noBannedTypes: intentional Function check for type-level test
+type IsFunction<T> = T extends Function ? true : false;
 type Expect<T extends true> = T;
 
 const chainedListGet = chainedClient.api.invoicing.list.$get;

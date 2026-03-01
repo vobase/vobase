@@ -5,7 +5,7 @@ import { shutdownManager } from 'bunqueue/client';
 import { createWorker, defineJob, jobRegistry } from './job';
 import { createScheduler } from './queue';
 
-const TEST_DB_PATH = `/tmp/vobase-bunqueue-${Bun.pid}.db`;
+const TEST_DB_PATH = `/tmp/vobase-bunqueue-${process.pid}.db`;
 const globalScope = globalThis as typeof globalThis & {
   __vobaseBunqueueTestRefs__?: number;
 };

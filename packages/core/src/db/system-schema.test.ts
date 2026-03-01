@@ -41,7 +41,7 @@ describe('System Schema - Table Definitions', () => {
 
     it('should NOT have updatedAt column (audit events are immutable)', () => {
       const columns = getTableColumns(auditLog);
-      expect(columns.updatedAt).toBeUndefined();
+      expect('updatedAt' in columns).toBe(false);
     });
 
     it('should have nullable actorId and actorEmail fields', () => {
@@ -148,7 +148,7 @@ describe('System Schema - Table Definitions', () => {
 
     it('should NOT have updatedAt column', () => {
       const columns = getTableColumns(recordAudits);
-      expect(columns.updatedAt).toBeUndefined();
+      expect('updatedAt' in columns).toBe(false);
     });
   });
 });

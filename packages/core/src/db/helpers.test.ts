@@ -8,6 +8,11 @@ import {
   nanoidPrimaryKey,
 } from './helpers';
 
+// Drizzle marks `.config` as protected; bracket access bypasses this for test inspection
+function getConfig(col: unknown): Record<string, unknown> {
+  return (col as Record<string, Record<string, unknown>>).config;
+}
+
 describe('nanoid helpers', () => {
   describe('NANOID_LENGTH constants', () => {
     it('should have SHORT, DEFAULT, and LONG lengths defined', () => {
@@ -71,12 +76,12 @@ describe('nanoid helpers', () => {
   describe('nanoidPrimaryKey()', () => {
     it('should create a text column named "id"', () => {
       const column = nanoidPrimaryKey();
-      expect(column.config.name).toBe('id');
+      expect(getConfig(column).name).toBe('id');
     });
 
     it('should be a primary key', () => {
       const column = nanoidPrimaryKey();
-      expect(column.config.primaryKey).toBe(true);
+      expect(getConfig(column).primaryKey).toBe(true);
     });
 
     it('should have a default function', () => {
@@ -98,8 +103,8 @@ describe('nanoid helpers', () => {
       const columnShort = nanoidPrimaryKey(NANOID_LENGTH.SHORT);
       const columnLong = nanoidPrimaryKey(NANOID_LENGTH.LONG);
 
-      expect(columnShort.config.name).toBe('id');
-      expect(columnLong.config.name).toBe('id');
+      expect(getConfig(columnShort).name).toBe('id');
+      expect(getConfig(columnLong).name).toBe('id');
     });
   });
 
@@ -111,18 +116,18 @@ describe('nanoid helpers', () => {
 
     it('createdAt should be an integer column with timestamp_ms mode', () => {
       const col = DEFAULT_COLUMNS.createdAt;
-      expect(col.config.name).toBe('created_at');
-      expect(col.config.mode).toBe('timestamp_ms');
-      expect(col.config.hasDefault).toBe(true);
-      expect(col.config.notNull).toBe(true);
+      expect(getConfig(col).name).toBe('created_at');
+      expect(getConfig(col).mode).toBe('timestamp_ms');
+      expect(getConfig(col).hasDefault).toBe(true);
+      expect(getConfig(col).notNull).toBe(true);
     });
 
     it('updatedAt should be an integer column with timestamp_ms mode', () => {
       const col = DEFAULT_COLUMNS.updatedAt;
-      expect(col.config.name).toBe('updated_at');
-      expect(col.config.mode).toBe('timestamp_ms');
-      expect(col.config.hasDefault).toBe(true);
-      expect(col.config.notNull).toBe(true);
+      expect(getConfig(col).name).toBe('updated_at');
+      expect(getConfig(col).mode).toBe('timestamp_ms');
+      expect(getConfig(col).hasDefault).toBe(true);
+      expect(getConfig(col).notNull).toBe(true);
     });
 
     it('timestamps should have default functions', () => {
@@ -135,8 +140,8 @@ describe('nanoid helpers', () => {
     });
 
     it('timestamp columns should use integer data type', () => {
-      expect(DEFAULT_COLUMNS.createdAt.config.dataType).toBe('date');
-      expect(DEFAULT_COLUMNS.updatedAt.config.dataType).toBe('date');
+      expect(getConfig(DEFAULT_COLUMNS.createdAt).dataType).toBe('date');
+      expect(getConfig(DEFAULT_COLUMNS.updatedAt).dataType).toBe('date');
     });
   });
 });

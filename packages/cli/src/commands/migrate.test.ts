@@ -13,7 +13,7 @@ import {
 
 import { runMigrate } from './migrate';
 
-const testDir = resolve(tmpdir(), `vobase-migrate-test-${Bun.pid}`);
+const testDir = resolve(tmpdir(), `vobase-migrate-test-${process.pid}`);
 
 beforeAll(async () => {
   await mkdir(testDir, { recursive: true });
@@ -59,8 +59,7 @@ describe('runMigrate', () => {
       expect(spawnCalls.length).toBe(1);
       expect(spawnCalls[0]?.args).toEqual(['bunx', 'drizzle-kit', 'migrate']);
     } finally {
-      // @ts-expect-error - restoring
-      Bun.spawn = originalSpawn;
+      Bun.spawn = originalSpawn as typeof Bun.spawn;
     }
   });
 
@@ -99,8 +98,7 @@ describe('runMigrate', () => {
         /^vobase-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.db$/,
       );
     } finally {
-      // @ts-expect-error - restoring
-      Bun.spawn = originalSpawn;
+      Bun.spawn = originalSpawn as typeof Bun.spawn;
     }
   });
 
@@ -135,8 +133,7 @@ describe('runMigrate', () => {
       const backupContent = await Bun.file(backupPath).text();
       expect(backupContent).toBe(originalContent);
     } finally {
-      // @ts-expect-error - restoring
-      Bun.spawn = originalSpawn;
+      Bun.spawn = originalSpawn as typeof Bun.spawn;
     }
   });
 
@@ -168,8 +165,7 @@ describe('runMigrate', () => {
         expect(files.length).toBe(0);
       }
     } finally {
-      // @ts-expect-error - restoring
-      Bun.spawn = originalSpawn;
+      Bun.spawn = originalSpawn as typeof Bun.spawn;
     }
   });
 
@@ -191,8 +187,7 @@ describe('runMigrate', () => {
         'drizzle-kit migrate exited with code 1',
       );
     } finally {
-      // @ts-expect-error - restoring
-      Bun.spawn = originalSpawn;
+      Bun.spawn = originalSpawn as typeof Bun.spawn;
     }
   });
 
@@ -218,8 +213,7 @@ describe('runMigrate', () => {
       expect(spawnCalls.length).toBe(1);
       expect(spawnCalls[0]?.cwd).toBe(testDir);
     } finally {
-      // @ts-expect-error - restoring
-      Bun.spawn = originalSpawn;
+      Bun.spawn = originalSpawn as typeof Bun.spawn;
     }
   });
 });
