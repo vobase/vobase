@@ -21,7 +21,7 @@ const MODULES: VobaseModule[] = [
 function createTestDb() {
   const db = createDatabase(':memory:');
   db.$client.run(`
-    CREATE TABLE _audit_log (
+    CREATE TABLE IF NOT EXISTS _audit_log (
       id TEXT PRIMARY KEY NOT NULL,
       event TEXT NOT NULL,
       actor_id TEXT,

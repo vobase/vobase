@@ -8,14 +8,13 @@
   "scripts": {
     "build": "bun build ./src/bin.ts --outdir ./dist --target=bun --sourcemap=inline",
     "dev": "bun run build --watch",
+    "test": "bun test src/commands/",
     "lint": "biome lint src/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vobase/core": "^0.1.0",
     "concurrently": "^9.2.1"
-  },
-  "peerDependencies": {
-    "@vobase/core": "^0.1.0"
   },
   "devDependencies": {
     "drizzle-kit": "^0.20.14"
