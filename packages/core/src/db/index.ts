@@ -7,4 +7,5 @@ export {
   nanoidPrimaryKey,
 } from './helpers';
 export { runMigrations } from './migrator';
+export { ensureCoreTables } from './ensure-core-tables';
 export * from './system-schema';

@@ -1,4 +1,25 @@
--- Vobase SQLite fixtures
+import type { Database } from 'bun:sqlite';
+
+/**
+ * Ensures all core framework tables exist in the database.
+ *
+ * Creates auth tables (user, session, account, verification) and system tables
+ * (_audit_log, _sequences, _record_audits) using idempotent CREATE TABLE IF NOT EXISTS.
+ *
+ * This runs before Drizzle migrations so that core tables are always available
+ * regardless of the user project's migration state.
+ */
+export function ensureCoreTables(db: Database): void {
+  db.exec(CORE_TABLES_SQL);
+}
+
+/**
+ * Inline SQL for all core framework tables.
+ * Uses SQLite-specific DEFAULT expressions for timestamps (epoch milliseconds).
+ * All statements are idempotent (CREATE TABLE/INDEX IF NOT EXISTS).
+ */
+const CORE_TABLES_SQL = `
+-- Auth tables (managed by better-auth via Drizzle adapter)
 
 CREATE TABLE IF NOT EXISTS user (
   id TEXT PRIMARY KEY NOT NULL,
@@ -55,6 +76,8 @@ CREATE TABLE IF NOT EXISTS verification (
 
 CREATE INDEX IF NOT EXISTS verification_identifier_idx ON verification(identifier);
 
+-- System tables (audit log, sequences, record audits)
+
 CREATE TABLE IF NOT EXISTS _audit_log (
   id TEXT PRIMARY KEY NOT NULL,
   event TEXT NOT NULL,
@@ -81,3 +104,4 @@ CREATE TABLE IF NOT EXISTS _record_audits (
   changed_by TEXT,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
 );
+`;
