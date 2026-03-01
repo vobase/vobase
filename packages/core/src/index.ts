@@ -38,6 +38,7 @@ export { createAuth, type Auth } from './auth';
 
 // DB
 export { createDatabase, type VobaseDb, runMigrations } from './db';
+export { applyFixtures } from './db/fixtures/apply-fixtures';
 export {
   createNanoid,
   nanoidPrimaryKey,

@@ -52,7 +52,7 @@ export const errorHandler = (err: Error, c: Context): Response => {
           details: err.details,
         },
       },
-      err.statusCode as any
+      err.statusCode
     );
   }
   console.error('Unhandled error:', err);

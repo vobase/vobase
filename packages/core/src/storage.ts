@@ -32,7 +32,6 @@ export function createStorage(basePath: string, db?: any): Storage {
       
       await Bun.write(fullPath, buffer);
       
-      // TODO: db.insert audit log when T8 schema ready
       if (db) {
         // Placeholder for audit logging
       }
@@ -54,7 +53,6 @@ export function createStorage(basePath: string, db?: any): Storage {
       const fullPath = join(basePath, safe);
       unlinkSync(fullPath);
       
-      // TODO: db.insert audit log when T8 schema ready
       if (db) {
         // Placeholder for audit logging
       }

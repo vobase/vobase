@@ -41,7 +41,7 @@ function registerJob(definition: JobDefinition): void {
 async function processJob(job: Job<unknown>): Promise<void> {
   const handler = jobRegistry.get(job.name);
   if (!handler) {
-    throw validation({ jobName: job.name }, `No registered handler for job \"${job.name}\"`);
+    throw validation({ jobName: job.name }, `No registered handler for job "${job.name}"`);
   }
 
   await handler(job.data);

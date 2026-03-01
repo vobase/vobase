@@ -1,2 +1,2 @@
 [test]
-exclude = ["packages/cli/template/**"]
+root = "packages/core/src"

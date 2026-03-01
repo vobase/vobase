@@ -15,7 +15,13 @@ export function createNanoid(length: number = NANOID_LENGTH.DEFAULT): () => stri
   if (!nanoidGenerators.has(length)) {
     nanoidGenerators.set(length, customAlphabet(NANOID_ALPHABET, length));
   }
-  return nanoidGenerators.get(length)!;
+  const generator = nanoidGenerators.get(length);
+
+  if (!generator) {
+    throw new Error(`No nanoid generator for length ${length}`);
+  }
+
+  return generator;
 }
 
 /**

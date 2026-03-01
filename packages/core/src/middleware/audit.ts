@@ -40,19 +40,17 @@ export function requestAuditMiddleware(db: VobaseDb) {
     try {
       await next();
     } finally {
-      if (!MUTATION_METHODS.has(c.req.method)) {
-        return;
+      if (MUTATION_METHODS.has(c.req.method)) {
+        const user = c.get('user');
+        writeAuditLog(
+          db,
+          'api_mutation',
+          user?.id ?? null,
+          user?.email ?? null,
+          getRequestIp(c.req.raw.headers),
+          { method: c.req.method, path: c.req.path }
+        );
       }
-
-      const user = c.get('user');
-      writeAuditLog(
-        db,
-        'api_mutation',
-        user?.id ?? null,
-        user?.email ?? null,
-        getRequestIp(c.req.raw.headers),
-        { method: c.req.method, path: c.req.path }
-      );
     }
   });
 }

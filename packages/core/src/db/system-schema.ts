@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { nanoidPrimaryKey, DEFAULT_COLUMNS } from './helpers';
+import { nanoidPrimaryKey } from './helpers';
 
 /**
  * Audit log table for tracking system events (sign-in, sign-up, role changes, etc.)
