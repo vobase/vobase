@@ -46,3 +46,32 @@ Each module lives in `modules/{name}/`:
 - `bun test`: Runs all tests.
 
 See @vobase/core documentation for complete API reference.
+
+
+## Agent Skills
+
+Skills are domain-specific AI knowledge packs that teach agents ERP conventions before they generate code.
+
+**Discover available skills:**
+```
+vobase add skill --list
+```
+
+**Install a skill:**
+```
+vobase add skill <name>
+```
+
+Installed skills land in `.agents/skills/<name>/SKILL.md`. Load a skill in your AI tool by referencing `.agents/skills/<skill-name>/SKILL.md`.
+
+**Available skills (horizontal ERP conventions):**
+- `gap-free-sequences` — Transaction-safe gap-free business number generation (INV-0001, PO-0042)
+- `integer-money` — Store monetary values as integer cents; eliminate float rounding in financial code
+- `status-machines` — Explicit finite state machines for document workflows (draft → sent → paid → void)
+
+**Available skills (Singapore accounting verticals):**
+- `sg-gst` — Singapore GST 9%, reverse charge, exemption handling, IRAS filing
+- `sg-chart-of-accounts` — Singapore standard CoA, IRAS-aligned, GST control accounts
+- `sg-invoicing` — Tax invoice fields, credit notes, InvoiceNow/Peppol readiness
+- `sg-cpf` — CPF contribution rates, OW/AW ceilings, age-banded tables
+- `sg-payroll` — Singapore payroll: SDL, SHG levies, payslip requirements

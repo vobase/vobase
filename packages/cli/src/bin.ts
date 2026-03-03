@@ -5,6 +5,7 @@ import { generate } from './commands/generate';
 import { runInit } from './commands/init';
 import { runMigrate } from './commands/migrate';
 import { runMigrateGenerate } from './commands/migrate-generate';
+import { runAddSkill } from './commands/add-skill';
 
 export const HELP_TEXT = `vobase <command>
 
@@ -14,6 +15,8 @@ Commands:
   migrate:generate   Generate migration files via drizzle-kit
   dev                Start backend (and frontend when vite config exists)
   init <name>        Create a new vobase project
+  add skill <name>      Add a skill to .agents/skills
+  add skill --list      List available skills
 `;
 
 export async function main(
@@ -61,6 +64,23 @@ export async function main(
     return;
   }
 
+  if (command === 'add') {
+    const [subcommand, ...skillArgs] = rest;
+    if (subcommand === 'skill') {
+      await runAddSkill(skillArgs);
+      return;
+    }
+    if (subcommand === undefined) {
+      console.error('Missing subcommand: vobase add <subcommand>');
+      console.log(HELP_TEXT);
+      process.exitCode = 1;
+      return;
+    }
+    console.error(`Unknown subcommand: vobase add ${subcommand}`);
+    console.log(HELP_TEXT);
+    process.exitCode = 1;
+    return;
+  }
   console.error(`Unknown command: ${command}`);
   console.log(HELP_TEXT);
   process.exitCode = 1;
