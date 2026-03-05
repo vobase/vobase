@@ -8,7 +8,7 @@ All fields except `name` and `description` are optional for backward compatibili
 
 - **`name`** (required): Unique identifier in lowercase-kebab-case.
 - **`description`** (required): Dense operational description with trigger phrases for the agent.
-- **`category`**: `horizontal` (system-wide), `vertical` (industry-specific), or `migration` (data extraction).
+- **`category`**: `core` (system-wide), `vertical` (industry-specific), or `migration` (data extraction).
 - **`domain`**: Array of tags like `[accounting, logistics, compliance]`.
 - **`enhances`**: Array of other skill names this skill complements.
 - **`version`**: Semantic version of the skill content.

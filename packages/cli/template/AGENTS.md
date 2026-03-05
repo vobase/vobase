@@ -64,7 +64,7 @@ vobase add skill <name>
 
 Installed skills land in `.agents/skills/<name>/SKILL.md`. Load a skill in your AI tool by referencing `.agents/skills/<skill-name>/SKILL.md`.
 
-**Available skills (horizontal ERP conventions):**
+**Available skills (core ERP conventions):**
 - `gap-free-sequences` — Transaction-safe gap-free business number generation (INV-0001, PO-0042)
 - `integer-money` — Store monetary values as integer cents; eliminate float rounding in financial code
 - `status-machines` — Explicit finite state machines for document workflows (draft → sent → paid → void)

@@ -4,7 +4,7 @@ description: >-
   Use when implementing ERP status fields and workflow transitions. Enforce explicit
   state maps in handlers, reject invalid jumps, and audit every status mutation to
   preserve data integrity.
-category: horizontal
+category: core
 domain: [erp, workflow, data-integrity]
 tier: core
 ---

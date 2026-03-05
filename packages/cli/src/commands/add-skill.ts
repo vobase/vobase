@@ -93,7 +93,7 @@ export async function runAddSkill(args: string[]): Promise<void> {
 }
 
 async function printSkillList(skills: SkillDefinition[]): Promise<void> {
-  await printCategory(skills, 'horizontal', 'Horizontal Skills');
+  await printCategory(skills, 'core', 'Core Skills');
   await printCategory(skills, 'vertical', 'Vertical Skills (Singapore)');
 }
 
