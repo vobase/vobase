@@ -72,7 +72,7 @@ No built-in AI agent. No browser IDE. No proprietary platform. Just a well-struc
 
 ### who is this for
 
-**Developers replacing legacy systems.** Oracle EBS, custom Access databases, the spreadsheet that runs half the company. You need to understand the business process and let AI handle the code. Vobase gives you the ERP conventions so you're not reinventing them from scratch.
+**Developers replacing legacy systems.** Custom Access databases, the spreadsheet that runs half the company, outdated industry-specific software. You need to understand the business process and let AI handle the code. Vobase gives you the ERP conventions so you're not reinventing them from scratch.
 
 **Technical founders building vertical SaaS** for industries still running on faxes and spreadsheets — medical billing, property management, logistics, agriculture, field services. Vobase provides the ERP primitives (auth, audit, jobs, MCP, storage) so you can focus entirely on the domain.
 
