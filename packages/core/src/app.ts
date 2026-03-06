@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { createAuth } from './auth';
 import { contextMiddleware } from './ctx';
 import { createDatabase, type VobaseDb } from './db/client';
+import { createHttpClient, type HttpClientOptions } from './http-client';
 import { ensureCoreTables } from './db/ensure-core-tables';
 import { runMigrations } from './db/migrator';
 import { errorHandler } from './errors';
@@ -64,6 +65,7 @@ export interface CreateAppConfig {
   modules: VobaseModule[];
   database: string;
   storage?: { basePath: string };
+  http?: HttpClientOptions;
   mcp?: { enabled?: boolean };
   trustedOrigins?: string[];
 }
@@ -88,11 +90,12 @@ export function createApp(config: CreateAppConfig) {
     createSchedulerWithFallback(queueDbPath);
 
   const storage = createStorage(config.storage?.basePath ?? './data/files');
+  const http = createHttpClient(config.http);
 
   // Base app with middleware (imperative — these don't affect RPC schema types)
   const base = new Hono();
   base.onError(errorHandler);
-  base.use('*', contextMiddleware({ db, scheduler, storage }));
+  base.use('*', contextMiddleware({ db, scheduler, storage, http }));
   base.use('/api/*', optionalSessionMiddleware(auth));
   base.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
 

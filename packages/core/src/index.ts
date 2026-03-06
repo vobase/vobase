@@ -3,8 +3,18 @@ export { type CreateAppConfig, createApp } from './app';
 // Auth
 export { type Auth, type CreateAuthOptions, createAuth } from './auth';
 export type { VobaseCtx, VobaseUser } from './ctx';
+// Circuit Breaker
+export { CircuitBreaker, type CircuitBreakerOptions } from './circuit-breaker';
 // Context
 export { contextMiddleware, getCtx } from './ctx';
+// HTTP Client
+export {
+  createHttpClient,
+  type HttpClient,
+  type HttpClientOptions,
+  type HttpResponse,
+  type RequestOptions,
+} from './http-client';
 // DB
 export { createDatabase, runMigrations, type VobaseDb } from './db';
 export { ensureCoreTables } from './db/ensure-core-tables';
