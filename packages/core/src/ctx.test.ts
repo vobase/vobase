@@ -26,23 +26,14 @@ const storage: Storage = {
   },
   async delete() {},
 };
+const mockResponse = { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
 const http: HttpClient = {
-  async fetch() {
-    return { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
-  },
-  async get() {
-    return { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
-  },
-  async post() {
-    return { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
-  },
-  async put() {
-    return { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
-  },
-  async delete() {
-    return { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
-  },
-};
+  fetch: async () => mockResponse,
+  get: async () => mockResponse,
+  post: async () => mockResponse,
+  put: async () => mockResponse,
+  delete: async () => mockResponse,
+} as HttpClient;
 
 function expectType<T>(_value: T): void {}
 

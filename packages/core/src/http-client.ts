@@ -112,7 +112,7 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
     const method = options?.method ?? 'GET';
 
     const headers: Record<string, string> = { ...options?.headers };
-    let body: BodyInit | undefined;
+    let body: string | Blob | FormData | ArrayBuffer | URLSearchParams | ReadableStream | undefined;
 
     if (options?.body !== undefined) {
       if (

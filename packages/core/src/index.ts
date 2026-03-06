@@ -59,3 +59,5 @@ export { createScheduler, type JobOptions, type Scheduler } from './queue';
 export { nextSequence, type SequenceOptions } from './sequence';
 // System
 export { createSystemModule, createSystemRoutes, type SystemRoutes } from './system';
+// Webhooks
+export { type WebhookConfig, verifyHmacSignature, createWebhookRoutes } from './webhooks';

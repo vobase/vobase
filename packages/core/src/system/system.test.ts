@@ -45,8 +45,10 @@ function createSystemTestApp(db: VobaseDb, auth: Auth): Hono {
     delete: async () => {},
   };
 
+  const http = {} as import('../http-client').HttpClient;
+
   app.onError(errorHandler);
-  app.use('*', contextMiddleware({ db, scheduler, storage }));
+  app.use('*', contextMiddleware({ db, scheduler, storage, http }));
   app.route('/api/system', createSystemRoutes(auth));
 
   return app;
