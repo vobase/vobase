@@ -283,24 +283,31 @@ Every HTTP handler gets a context object with runtime capabilities. Current surf
 
 For jobs, pass dependencies through closures/factories (or import what you need) when calling `defineJob(...)`.
 
-#### planned ctx extensions
+#### ctx extensions for external integrations
 
-The current `ctx` is local-only — database, user, scheduler, storage. External integrations need outbound connectivity. These are planned additions:
+Beyond local capabilities (database, user, scheduler, storage), `ctx` provides outbound connectivity and inbound event handling:
 
-| Property | What it will do | Status |
-|---|---|---|
-| `ctx.http` | Typed fetch wrapper with retries, timeouts, circuit breakers, and structured error responses. | Planned |
-| `ctx.webhooks` | Inbound webhook receiver with signature verification, deduplication, and automatic enqueue-to-job. For Stripe, payment processors, or any system pushing events. | Planned |
+| Property | What it does |
+|---|---|
+| `ctx.http` | Typed fetch wrapper with retries, timeouts, circuit breakers, and structured error responses. Configurable per-app via `http` in `vobase.config.ts`. |
+| `ctx.webhooks` | Inbound webhook receiver with HMAC signature verification, deduplication, and automatic enqueue-to-job. For Stripe, payment processors, or any system pushing events. |
 
 ```typescript
-// vobase.config.ts (planned)
+// vobase.config.ts
 export default defineConfig({
   database: './data/vobase.db',
+  http: {
+    timeout: 10_000,
+    retry: { maxAttempts: 3, baseDelay: 500 },
+    circuitBreaker: { threshold: 5, resetTimeout: 30_000 },
+  },
   webhooks: {
     'stripe-events': {
       path: '/webhooks/stripe',
       secret: process.env.STRIPE_WEBHOOK_SECRET,
       handler: 'system:processWebhook',
+      signatureHeader: 'stripe-signature',
+      dedup: true,
     },
   },
 })
@@ -462,12 +469,12 @@ Docker container (--restart=always)
         │     ├── /auth/*       → better-auth (sessions, passwords, CSRF)
         │     ├── /api/*        → module handlers (JWT-validated)
         │     ├── /mcp          → MCP server (same process, shared port)
-        │     ├── /webhooks/*   → inbound event receiver (planned)
+        │     ├── /webhooks/*   → inbound event receiver (signature verified, dedup)
         │     └── /*            → frontend (static, from dist/)
         ├── Drizzle (bun:sqlite, single file in /data/)
         │     └── WAL mode, 5s busy timeout, foreign keys ON
         ├── bunqueue (SQLite-backed job queue, 286K ops/sec)
-        ├── Outbound HTTP (typed fetch, retries, circuit breakers) (planned)
+        ├── Outbound HTTP (typed fetch, retries, circuit breakers)
         └── Audit middleware (all mutations → _audit_log)
 ```
 
