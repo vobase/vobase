@@ -20,6 +20,7 @@ import { createScheduler } from './queue';
 import { createStorage } from './storage';
 import { createSystemModule } from './system';
 import { createSystemRoutes } from './system/handlers';
+import { createWebhookRoutes, type WebhookConfig } from './webhooks';
 
 const DEFAULT_QUEUE_DB_PATH = '/data/bunqueue.db';
 const LOCAL_QUEUE_DB_PATH = './data/bunqueue.db';
@@ -66,6 +67,7 @@ export interface CreateAppConfig {
   database: string;
   storage?: { basePath: string };
   http?: HttpClientOptions;
+  webhooks?: Record<string, WebhookConfig>;
   mcp?: { enabled?: boolean };
   trustedOrigins?: string[];
 }
@@ -109,6 +111,13 @@ export function createApp(config: CreateAppConfig) {
   const userModules = config.modules.filter((mod) => mod.name !== 'system');
   for (const mod of userModules) {
     (app as Hono).route(`/api/${mod.name}`, mod.routes);
+  }
+
+  // Mount webhook routes if configured
+  if (config.webhooks && Object.keys(config.webhooks).length > 0) {
+    const rawDb = (db as VobaseDb & { $client: Database }).$client;
+    const webhookRouter = createWebhookRoutes(config.webhooks, { db: rawDb, scheduler });
+    (app as Hono).route('', webhookRouter);
   }
 
   // Include system module in the full modules list for MCP and jobs

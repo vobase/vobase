@@ -1,8 +1,10 @@
 import { Database } from 'bun:sqlite';
 import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, test } from 'bun:test';
+import type { Scheduler } from './queue';
 import {
   checkAndRecordWebhook,
+  createWebhookRoutes,
   ensureWebhookDedupTable,
   verifyHmacSignature,
   type WebhookConfig,
@@ -123,5 +125,231 @@ describe('webhook deduplication', () => {
   test('same ID with different source is still a duplicate (ID is primary key)', () => {
     expect(checkAndRecordWebhook(db, 'wh_shared', 'stripe')).toBe(false);
     expect(checkAndRecordWebhook(db, 'wh_shared', 'github')).toBe(true);
+  });
+});
+
+// --- Route handler tests ---
+
+function createMockScheduler(): Scheduler & { calls: Array<{ jobName: string; data: unknown }> } {
+  const calls: Array<{ jobName: string; data: unknown }> = [];
+  return {
+    calls,
+    async add(jobName: string, data: unknown) {
+      calls.push({ jobName, data });
+    },
+  };
+}
+
+function createWebhookTestApp(
+  configs: Record<string, WebhookConfig>,
+  mockScheduler: Scheduler,
+) {
+  const db = new Database(':memory:');
+  const router = createWebhookRoutes(configs, { db, scheduler: mockScheduler });
+  return { app: router, db };
+}
+
+function computeHmac(payload: string, secret: string): string {
+  return createHmac('sha256', secret).update(payload).digest('hex');
+}
+
+describe('createWebhookRoutes', () => {
+  const secret = 'test-secret';
+  const payload = JSON.stringify({ event: 'test', id: 'evt_1' });
+
+  test('receives webhook with valid signature and enqueues job', async () => {
+    const scheduler = createMockScheduler();
+    const { app } = createWebhookTestApp(
+      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+      scheduler,
+    );
+
+    const sig = computeHmac(payload, secret);
+    const res = await app.request('/webhooks/stripe', {
+      method: 'POST',
+      body: payload,
+      headers: {
+        'x-webhook-signature': sig,
+        'x-webhook-id': 'wh_001',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: true });
+    expect(scheduler.calls).toHaveLength(1);
+    expect(scheduler.calls[0].jobName).toBe('billing:processWebhook');
+    expect(scheduler.calls[0].data).toEqual({
+      source: 'stripe',
+      webhookId: 'wh_001',
+      payload: JSON.parse(payload),
+    });
+  });
+
+  test('rejects invalid signature with 401', async () => {
+    const scheduler = createMockScheduler();
+    const { app } = createWebhookTestApp(
+      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+      scheduler,
+    );
+
+    const res = await app.request('/webhooks/stripe', {
+      method: 'POST',
+      body: payload,
+      headers: {
+        'x-webhook-signature': 'invalidsignature',
+        'x-webhook-id': 'wh_002',
+      },
+    });
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Invalid signature' });
+    expect(scheduler.calls).toHaveLength(0);
+  });
+
+  test('deduplicates same webhook ID', async () => {
+    const scheduler = createMockScheduler();
+    const { app } = createWebhookTestApp(
+      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+      scheduler,
+    );
+
+    const sig = computeHmac(payload, secret);
+    const headers = {
+      'x-webhook-signature': sig,
+      'x-webhook-id': 'wh_dup',
+    };
+
+    const res1 = await app.request('/webhooks/stripe', { method: 'POST', body: payload, headers });
+    expect(res1.status).toBe(200);
+    expect(await res1.json()).toEqual({ received: true });
+
+    const res2 = await app.request('/webhooks/stripe', { method: 'POST', body: payload, headers });
+    expect(res2.status).toBe(200);
+    expect(await res2.json()).toEqual({ received: true, deduplicated: true });
+
+    expect(scheduler.calls).toHaveLength(1);
+  });
+
+  test('skips dedup when dedup: false in config', async () => {
+    const scheduler = createMockScheduler();
+    const { app } = createWebhookTestApp(
+      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook', dedup: false } },
+      scheduler,
+    );
+
+    const sig = computeHmac(payload, secret);
+    const headers = {
+      'x-webhook-signature': sig,
+      'x-webhook-id': 'wh_nodup',
+    };
+
+    await app.request('/webhooks/stripe', { method: 'POST', body: payload, headers });
+    await app.request('/webhooks/stripe', { method: 'POST', body: payload, headers });
+
+    expect(scheduler.calls).toHaveLength(2);
+  });
+
+  test('uses custom signatureHeader when configured', async () => {
+    const scheduler = createMockScheduler();
+    const { app } = createWebhookTestApp(
+      {
+        github: {
+          path: '/webhooks/github',
+          secret,
+          handler: 'gh:process',
+          signatureHeader: 'x-hub-signature-256',
+        },
+      },
+      scheduler,
+    );
+
+    const sig = computeHmac(payload, secret);
+    const res = await app.request('/webhooks/github', {
+      method: 'POST',
+      body: payload,
+      headers: {
+        'x-hub-signature-256': sig,
+        'x-webhook-id': 'gh_001',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(scheduler.calls).toHaveLength(1);
+  });
+
+  test('uses custom idHeader when configured', async () => {
+    const scheduler = createMockScheduler();
+    const { app } = createWebhookTestApp(
+      {
+        github: {
+          path: '/webhooks/github',
+          secret,
+          handler: 'gh:process',
+          idHeader: 'x-github-delivery',
+        },
+      },
+      scheduler,
+    );
+
+    const sig = computeHmac(payload, secret);
+    const headers = {
+      'x-webhook-signature': sig,
+      'x-github-delivery': 'gh_dup',
+    };
+
+    await app.request('/webhooks/github', { method: 'POST', body: payload, headers });
+    const res2 = await app.request('/webhooks/github', { method: 'POST', body: payload, headers });
+
+    expect(res2.status).toBe(200);
+    expect(await res2.json()).toEqual({ received: true, deduplicated: true });
+    expect(scheduler.calls).toHaveLength(1);
+  });
+
+  test('enqueues raw string payload when body is not valid JSON', async () => {
+    const scheduler = createMockScheduler();
+    const { app } = createWebhookTestApp(
+      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+      scheduler,
+    );
+
+    const rawBody = 'plain text payload';
+    const sig = computeHmac(rawBody, secret);
+    const res = await app.request('/webhooks/stripe', {
+      method: 'POST',
+      body: rawBody,
+      headers: {
+        'x-webhook-signature': sig,
+        'x-webhook-id': 'wh_raw',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: true });
+    expect(scheduler.calls).toHaveLength(1);
+    expect(scheduler.calls[0].data).toEqual({
+      source: 'stripe',
+      webhookId: 'wh_raw',
+      payload: 'plain text payload',
+    });
+  });
+
+  test('returns 401 when signature header is missing', async () => {
+    const scheduler = createMockScheduler();
+    const { app } = createWebhookTestApp(
+      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+      scheduler,
+    );
+
+    const res = await app.request('/webhooks/stripe', {
+      method: 'POST',
+      body: payload,
+      headers: {
+        'x-webhook-id': 'wh_nosig',
+      },
+    });
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Invalid signature' });
+    expect(scheduler.calls).toHaveLength(0);
   });
 });

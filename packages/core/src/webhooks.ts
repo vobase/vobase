@@ -1,5 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { Hono } from 'hono';
+import type { Scheduler } from './queue';
 
 export interface WebhookConfig {
   /** Route path, e.g. '/webhooks/stripe' */
@@ -83,4 +85,63 @@ export function checkAndRecordWebhook(
   const result = stmt.run(webhookId, source, Date.now());
   // If changes === 0 the row already existed — it's a duplicate
   return result.changes === 0;
+}
+
+/**
+ * Create a Hono router that handles incoming webhook POST requests.
+ *
+ * For each webhook config, registers a POST handler that:
+ * 1. Verifies HMAC signature
+ * 2. Optionally deduplicates by webhook ID
+ * 3. Enqueues the payload to the configured job
+ */
+export function createWebhookRoutes(
+  configs: Record<string, WebhookConfig>,
+  deps: { db: Database; scheduler: Scheduler },
+): Hono {
+  const { db, scheduler } = deps;
+  ensureWebhookDedupTable(db);
+
+  const router = new Hono();
+
+  for (const [source, config] of Object.entries(configs)) {
+    router.post(config.path, async (c) => {
+      const body = await c.req.text();
+
+      const sigHeader = config.signatureHeader ?? 'x-webhook-signature';
+      const signature = c.req.header(sigHeader) ?? '';
+
+      if (!verifyHmacSignature(body, signature, config.secret)) {
+        return c.json({ error: 'Invalid signature' }, 401);
+      }
+
+      const dedupEnabled = config.dedup !== false;
+
+      if (dedupEnabled) {
+        const idHeader = config.idHeader ?? 'x-webhook-id';
+        const webhookId = c.req.header(idHeader) ?? '';
+
+        if (webhookId && checkAndRecordWebhook(db, webhookId, source)) {
+          return c.json({ received: true, deduplicated: true }, 200);
+        }
+      }
+
+      let payload: unknown;
+      try {
+        payload = JSON.parse(body);
+      } catch {
+        payload = body;
+      }
+
+      await scheduler.add(config.handler, {
+        source,
+        webhookId: c.req.header(config.idHeader ?? 'x-webhook-id') ?? '',
+        payload,
+      });
+
+      return c.json({ received: true }, 200);
+    });
+  }
+
+  return router;
 }
