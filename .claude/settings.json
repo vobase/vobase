@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "echo \"$CLAUDE_FILE_PATH\" | grep -qE '(bun\\.lock|routeTree\\.gen\\.ts|node_modules/)' && echo 'BLOCK: Do not edit generated files' && exit 1 || exit 0"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "biome check --write --unsafe \"$CLAUDE_FILE_PATH\" 2>/dev/null || true"
+      }
+    ]
+  }
+}
