@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { type HttpClient, createHttpClient } from './http-client';
+import { createHttpClient } from './http-client';
 
 let server: ReturnType<typeof Bun.serve>;
 let baseUrl: string;
@@ -73,6 +73,12 @@ beforeAll(() => {
 afterAll(() => {
   server.stop(true);
 });
+
+/** Helper: create a local server with a custom handler, returns { baseUrl, stop } */
+function createTestServer(handler: (req: Request) => Response | Promise<Response>) {
+  const s = Bun.serve({ port: 0, fetch: handler });
+  return { baseUrl: `http://localhost:${s.port}`, stop: () => s.stop(true) };
+}
 
 describe('createHttpClient', () => {
   test('returns an object with fetch, get, post, put, delete methods', () => {
@@ -224,6 +230,153 @@ describe('baseUrl', () => {
     const res = await client.get(`${baseUrl}/json`);
     expect(res.ok).toBe(true);
     expect(res.data).toEqual({ message: 'hello' });
+  });
+});
+
+describe('retry logic', () => {
+  test('retries GET on 5xx and eventually succeeds', async () => {
+    let attempts = 0;
+    const ts = createTestServer(() => {
+      attempts++;
+      if (attempts < 3) {
+        return Response.json({ error: 'fail' }, { status: 500 });
+      }
+      return Response.json({ ok: true });
+    });
+
+    try {
+      const client = createHttpClient({ baseUrl: ts.baseUrl, retries: 3, retryDelay: 10 });
+      const res = await client.get('/test');
+      expect(res.ok).toBe(true);
+      expect(res.data).toEqual({ ok: true });
+      expect(attempts).toBe(3);
+    } finally {
+      ts.stop();
+    }
+  });
+
+  test('returns last 5xx response after exhausting retries for GET', async () => {
+    let attempts = 0;
+    const ts = createTestServer(() => {
+      attempts++;
+      return Response.json({ error: `fail-${attempts}` }, { status: 503 });
+    });
+
+    try {
+      const client = createHttpClient({ baseUrl: ts.baseUrl, retries: 2, retryDelay: 10 });
+      const res = await client.get('/test');
+      expect(res.ok).toBe(false);
+      expect(res.status).toBe(503);
+      expect(attempts).toBe(3); // 1 initial + 2 retries
+    } finally {
+      ts.stop();
+    }
+  });
+
+  test('retries POST on network error and eventually succeeds', async () => {
+    // First, grab a port by starting then stopping a server
+    const tempServer = Bun.serve({ port: 0, fetch: () => new Response('') });
+    const port = tempServer.port;
+    tempServer.stop(true);
+
+    // Client will hit a closed port (network error) on first attempts
+    const client = createHttpClient({
+      baseUrl: `http://localhost:${port}`,
+      retries: 3,
+      retryDelay: 10,
+      timeout: 500,
+    });
+
+    // Start the real server on the same port after a short delay
+    let realServer: ReturnType<typeof Bun.serve> | undefined;
+    setTimeout(() => {
+      realServer = Bun.serve({
+        port,
+        fetch: (req) => Response.json({ method: req.method, posted: true }),
+      });
+    }, 30);
+
+    try {
+      const res = await client.post('/test', { data: 1 });
+      expect(res.ok).toBe(true);
+      expect(res.data).toEqual({ method: 'POST', posted: true });
+    } finally {
+      realServer?.stop(true);
+    }
+  });
+
+  test('throws last network error after exhausting retries', async () => {
+    // Use a port with nothing listening
+    const tempServer = Bun.serve({ port: 0, fetch: () => new Response('') });
+    const port = tempServer.port;
+    tempServer.stop(true);
+
+    const client = createHttpClient({
+      baseUrl: `http://localhost:${port}`,
+      retries: 2,
+      retryDelay: 10,
+      timeout: 500,
+    });
+
+    await expect(client.post('/test', { data: 1 })).rejects.toThrow();
+  });
+
+  test('does NOT retry POST on 5xx (returns immediately)', async () => {
+    let attempts = 0;
+    const ts = createTestServer(() => {
+      attempts++;
+      return Response.json({ error: 'server error' }, { status: 500 });
+    });
+
+    try {
+      const client = createHttpClient({ baseUrl: ts.baseUrl, retries: 3, retryDelay: 10 });
+      const res = await client.post('/test', { data: 1 });
+      expect(res.ok).toBe(false);
+      expect(res.status).toBe(500);
+      expect(attempts).toBe(1); // No retries
+    } finally {
+      ts.stop();
+    }
+  });
+
+  test('per-request retries override works', async () => {
+    let attempts = 0;
+    const ts = createTestServer(() => {
+      attempts++;
+      if (attempts < 4) {
+        return Response.json({ error: 'fail' }, { status: 500 });
+      }
+      return Response.json({ ok: true });
+    });
+
+    try {
+      // Client default is 0 retries, but per-request overrides to 3
+      const client = createHttpClient({ baseUrl: ts.baseUrl, retries: 0, retryDelay: 10 });
+      const res = await client.get('/test', { retries: 3 });
+      expect(res.ok).toBe(true);
+      expect(res.data).toEqual({ ok: true });
+      expect(attempts).toBe(4);
+    } finally {
+      ts.stop();
+    }
+  });
+
+  test('no retries when retries=0 (default)', async () => {
+    let attempts = 0;
+    const ts = createTestServer(() => {
+      attempts++;
+      return Response.json({ error: 'fail' }, { status: 500 });
+    });
+
+    try {
+      const client = createHttpClient({ baseUrl: ts.baseUrl, retryDelay: 10 });
+      const res = await client.get('/test');
+      expect(res.ok).toBe(false);
+      expect(res.status).toBe(500);
+      expect(attempts).toBe(1);
+    } finally {
+      ts.stop();
+    }
   });
 });
 

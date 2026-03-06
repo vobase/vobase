@@ -76,9 +76,22 @@ async function parseResponseData(response: Response): Promise<unknown> {
   return text;
 }
 
+const DEFAULT_RETRIES = 0;
+const DEFAULT_RETRY_DELAY = 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableMethod(method: string): boolean {
+  return method === 'GET';
+}
+
 export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
   const baseUrl = defaults?.baseUrl ?? '';
   const defaultTimeout = defaults?.timeout ?? DEFAULT_TIMEOUT;
+  const defaultRetries = defaults?.retries ?? DEFAULT_RETRIES;
+  const defaultRetryDelay = defaults?.retryDelay ?? DEFAULT_RETRY_DELAY;
 
   async function doFetch<T = unknown>(
     url: string,
@@ -86,6 +99,8 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
   ): Promise<HttpResponse<T>> {
     const resolvedUrl = isAbsoluteUrl(url) ? url : `${baseUrl}${url}`;
     const timeout = options?.timeout ?? defaultTimeout;
+    const maxRetries = options?.retries ?? defaultRetries;
+    const method = options?.method ?? 'GET';
 
     const headers: Record<string, string> = { ...options?.headers };
     let body: BodyInit | undefined;
@@ -107,22 +122,50 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
       }
     }
 
-    const response = await fetch(resolvedUrl, {
-      method: options?.method ?? 'GET',
-      headers,
-      body,
-      signal: AbortSignal.timeout(timeout),
-    });
+    let lastError: unknown;
+    let lastResponse: HttpResponse<T> | undefined;
 
-    const data = (await parseResponseData(response)) as T;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        await sleep(defaultRetryDelay * 2 ** (attempt - 1));
+      }
 
-    return {
-      ok: response.ok,
-      status: response.status,
-      headers: response.headers,
-      data,
-      raw: response,
-    };
+      try {
+        const response = await fetch(resolvedUrl, {
+          method,
+          headers,
+          body,
+          signal: AbortSignal.timeout(timeout),
+        });
+
+        const data = (await parseResponseData(response)) as T;
+
+        lastResponse = {
+          ok: response.ok,
+          status: response.status,
+          headers: response.headers,
+          data,
+          raw: response,
+        };
+
+        // Retry on 5xx only for GET requests
+        if (response.status >= 500 && isRetryableMethod(method) && attempt < maxRetries) {
+          continue;
+        }
+
+        return lastResponse;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    // If we have a last response (5xx after exhausting retries), return it
+    if (lastResponse) {
+      return lastResponse;
+    }
+
+    // Otherwise throw the last network error
+    throw lastError;
   }
 
   return {
