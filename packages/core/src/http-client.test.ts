@@ -380,6 +380,56 @@ describe('retry logic', () => {
   });
 });
 
+describe('circuit breaker integration', () => {
+  test('HttpClient with circuit breaker opens after threshold failures', async () => {
+    const ts = createTestServer(() => {
+      return Response.json({ error: 'fail' }, { status: 500 });
+    });
+
+    try {
+      const client = createHttpClient({
+        baseUrl: ts.baseUrl,
+        circuitBreaker: { threshold: 3, resetTimeout: 5000 },
+      });
+
+      // 3 failures should open the circuit
+      await client.get('/test');
+      await client.get('/test');
+      await client.get('/test');
+
+      // Now the circuit should be open
+      await expect(client.get('/test')).rejects.toThrow('Circuit breaker is open');
+    } finally {
+      ts.stop();
+    }
+  });
+
+  test('HttpClient throws when circuit is open', async () => {
+    const ts = createTestServer(() => {
+      return Response.json({ error: 'fail' }, { status: 500 });
+    });
+
+    try {
+      const client = createHttpClient({
+        baseUrl: ts.baseUrl,
+        circuitBreaker: { threshold: 2, resetTimeout: 5000 },
+      });
+
+      // Trip the breaker
+      await client.post('/test', { data: 1 });
+      await client.post('/test', { data: 2 });
+
+      // All methods should be rejected
+      await expect(client.get('/test')).rejects.toThrow('Circuit breaker is open');
+      await expect(client.post('/test', {})).rejects.toThrow('Circuit breaker is open');
+      await expect(client.put('/test', {})).rejects.toThrow('Circuit breaker is open');
+      await expect(client.delete('/test')).rejects.toThrow('Circuit breaker is open');
+    } finally {
+      ts.stop();
+    }
+  });
+});
+
 describe('body serialization', () => {
   test('passes string body through without JSON.stringify', async () => {
     const client = createHttpClient({ baseUrl });

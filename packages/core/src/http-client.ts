@@ -1,8 +1,11 @@
+import { CircuitBreaker, type CircuitBreakerOptions } from './circuit-breaker';
+
 export interface HttpClientOptions {
   baseUrl?: string;
   timeout?: number;
   retries?: number;
   retryDelay?: number;
+  circuitBreaker?: CircuitBreakerOptions;
 }
 
 export interface RequestOptions {
@@ -92,11 +95,17 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
   const defaultTimeout = defaults?.timeout ?? DEFAULT_TIMEOUT;
   const defaultRetries = defaults?.retries ?? DEFAULT_RETRIES;
   const defaultRetryDelay = defaults?.retryDelay ?? DEFAULT_RETRY_DELAY;
+  const breaker = defaults?.circuitBreaker
+    ? new CircuitBreaker(defaults.circuitBreaker)
+    : undefined;
 
   async function doFetch<T = unknown>(
     url: string,
     options?: RequestOptions,
   ): Promise<HttpResponse<T>> {
+    if (breaker?.isOpen()) {
+      throw new Error('Circuit breaker is open');
+    }
     const resolvedUrl = isAbsoluteUrl(url) ? url : `${baseUrl}${url}`;
     const timeout = options?.timeout ?? defaultTimeout;
     const maxRetries = options?.retries ?? defaultRetries;
@@ -150,12 +159,20 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
 
         // Retry on 5xx only for GET requests
         if (response.status >= 500 && isRetryableMethod(method) && attempt < maxRetries) {
+          breaker?.recordFailure();
           continue;
+        }
+
+        if (response.status >= 500) {
+          breaker?.recordFailure();
+        } else {
+          breaker?.recordSuccess();
         }
 
         return lastResponse;
       } catch (error) {
         lastError = error;
+        breaker?.recordFailure();
       }
     }
 
