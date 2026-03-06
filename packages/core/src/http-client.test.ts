@@ -7,7 +7,7 @@ let baseUrl: string;
 beforeAll(() => {
   server = Bun.serve({
     port: 0,
-    fetch(req) {
+    async fetch(req) {
       const url = new URL(req.url);
 
       if (url.pathname === '/json') {
@@ -32,6 +32,15 @@ beforeAll(() => {
             contentType: req.headers.get('content-type'),
           }),
         );
+      }
+
+      if (url.pathname === '/echo-raw') {
+        const text = await req.text();
+        return Response.json({
+          method: req.method,
+          body: text,
+          contentType: req.headers.get('content-type'),
+        });
       }
 
       if (url.pathname === '/headers') {
@@ -215,5 +224,56 @@ describe('baseUrl', () => {
     const res = await client.get(`${baseUrl}/json`);
     expect(res.ok).toBe(true);
     expect(res.data).toEqual({ message: 'hello' });
+  });
+});
+
+describe('body serialization', () => {
+  test('passes string body through without JSON.stringify', async () => {
+    const client = createHttpClient({ baseUrl });
+    const res = await client.post<{ body: string; contentType: string | null }>(
+      '/echo-raw',
+      'raw string body',
+    );
+    expect(res.data.body).toBe('raw string body');
+    expect(res.data.contentType).not.toBe('application/json');
+  });
+
+  test('passes Blob body through without JSON.stringify', async () => {
+    const client = createHttpClient({ baseUrl });
+    const blob = new Blob(['blob content'], { type: 'text/plain' });
+    const res = await client.post<{ body: string; contentType: string | null }>(
+      '/echo-raw',
+      blob,
+    );
+    expect(res.data.body).toBe('blob content');
+  });
+
+  test('passes URLSearchParams body through without JSON.stringify', async () => {
+    const client = createHttpClient({ baseUrl });
+    const params = new URLSearchParams({ key: 'value' });
+    const res = await client.post<{ body: string; contentType: string | null }>(
+      '/echo-raw',
+      params,
+    );
+    expect(res.data.body).toBe('key=value');
+    expect(res.data.contentType).not.toBe('application/json');
+  });
+
+  test('JSON.stringifies plain objects and sets content-type', async () => {
+    const client = createHttpClient({ baseUrl });
+    const res = await client.post<{
+      body: unknown;
+      contentType: string;
+    }>('/echo', { key: 'value' });
+    expect(res.data.body).toEqual({ key: 'value' });
+    expect(res.data.contentType).toBe('application/json');
+  });
+
+  test('post with no body does not set content-type', async () => {
+    const client = createHttpClient({ baseUrl });
+    const res = await client.post<{ contentType: string | null }>(
+      '/echo-raw',
+    );
+    expect(res.data.contentType).toBeNull();
   });
 });

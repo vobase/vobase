@@ -91,8 +91,20 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
     let body: BodyInit | undefined;
 
     if (options?.body !== undefined) {
-      headers['content-type'] = headers['content-type'] ?? 'application/json';
-      body = JSON.stringify(options.body);
+      if (
+        typeof options.body === 'string' ||
+        options.body instanceof Blob ||
+        options.body instanceof FormData ||
+        options.body instanceof ArrayBuffer ||
+        options.body instanceof URLSearchParams ||
+        options.body instanceof ReadableStream
+      ) {
+        body = options.body;
+      } else {
+        headers['content-type'] =
+          headers['content-type'] ?? 'application/json';
+        body = JSON.stringify(options.body);
+      }
     }
 
     const response = await fetch(resolvedUrl, {
