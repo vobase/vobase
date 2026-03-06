@@ -20,7 +20,6 @@
   <a href="#quick-start">get started</a> ·
   <a href="#what-a-module-looks-like">code</a> ·
   <a href="#agent-skills">skills</a> ·
-  <a href="#sap-satellite-apps">SAP connectivity</a> ·
   <a href="#then-vs-now">why this works</a> ·
   <a href="https://docs.vobase.dev">docs</a> ·
   <a href="https://discord.gg/vobase">discord</a>
@@ -63,11 +62,7 @@
 
 Mid-market ERP implementations take 12-18 months and regularly exceed budget by 100%+. Most of that time goes into fighting the platform — configuring screens, debugging hooks, untangling inheritance — not understanding the business.
 
-Meanwhile, 70-80% of SAP customers are still running ECC with a 2027 end-of-mainstream-maintenance deadline. They need modern capabilities now: customer portals, approval workflows, custom dashboards, compliance tools. But extending a legacy system on its way out doesn't make sense, and a full S/4HANA migration takes 18-36 months.
-
-**Vobase is a TypeScript ERP engine that runs alongside your existing systems.** You describe what you need — an invoicing module, an inventory tracker, a vendor portal that syncs back to SAP. Claude Code, Cursor, Codex, or OpenClaw reads your schema, loads your ERP agent skills, and generates handlers, schemas, and React pages that follow strict conventions. Everything runs in a single Docker container with a single SQLite file.
-
-It connects to SAP (ECC or S/4HANA) via OData or RFC, handles its own domain data in SQLite, and pushes approved records back. For standalone use cases — replacing spreadsheets, Access databases, or legacy systems — it works entirely on its own.
+**Vobase is a TypeScript ERP engine that runs alongside your existing systems.** You describe what you need — an invoicing module, an inventory tracker. Claude Code, Cursor, Codex, or OpenClaw reads your schema, loads your ERP agent skills, and generates handlers, schemas, and React pages that follow strict conventions. Everything runs in a single Docker container with a single SQLite file.
 
 You own the code. You own the data. You own the infrastructure.
 
@@ -77,9 +72,7 @@ No built-in AI agent. No browser IDE. No proprietary platform. Just a well-struc
 
 ### who is this for
 
-**SAP consultants and partners** building extensions during ECC → S/4HANA migrations. Your clients need modern capabilities now — portals, workflows, dashboards — but can't justify heavy customization on a system that's being sunset. Vobase gives you a lightweight TypeScript engine that runs as a satellite app alongside SAP, connects via OData or RFC, and lets AI generate the business logic while you focus on understanding the client's processes.
-
-**Developers replacing legacy systems.** Oracle EBS, SAP Business One, custom Access databases, the spreadsheet that runs half the company. You don't need to learn ABAP or join a 12-month implementation team. You need to understand the business process and let AI handle the code. Vobase gives you the ERP conventions so you're not reinventing them from scratch.
+**Developers replacing legacy systems.** Custom Access databases, the spreadsheet that runs half the company, outdated industry-specific software. You need to understand the business process and let AI handle the code. Vobase gives you the ERP conventions so you're not reinventing them from scratch.
 
 **Technical founders building vertical SaaS** for industries still running on faxes and spreadsheets — medical billing, property management, logistics, agriculture, field services. Vobase provides the ERP primitives (auth, audit, jobs, MCP, storage) so you can focus entirely on the domain.
 
@@ -109,7 +102,6 @@ Every module is a self-contained directory: schema, handlers, jobs, pages. No pl
 | **CRM & Contacts** | Companies, contacts, interaction timelines, deal tracking. Cross-module references to invoicing and orders without hard foreign keys. |
 | **HR & People** | Employee directory, departments, leave management, onboarding checklists. Role-based visibility per department. |
 | **Order Management** | Purchase orders, sales orders, approval chains, fulfillment tracking. FlowProducer job chains for multi-step workflows. |
-| **SAP Satellite Apps** | Vendor portals, approval workflows, custom dashboards, compliance tools. Connect to ECC or S/4HANA via OData/RFC. Own data locally, sync back to SAP. |
 | **Your Client's Vertical** | Medical billing, property management, fleet tracking, agricultural co-ops — whatever the business needs. Describe it to your AI tool. It generates the module. |
 
 Module starters ship with the CLI: `vobase add invoicing`, `vobase add inventory`, `vobase add crm`. Like `npx shadcn add button` — files get copied, you own the code.
@@ -293,51 +285,28 @@ For jobs, pass dependencies through closures/factories (or import what you need)
 
 #### planned ctx extensions
 
-The current `ctx` is local-only — database, user, scheduler, storage. SAP satellite apps and external integrations need outbound connectivity. These are planned additions:
+The current `ctx` is local-only — database, user, scheduler, storage. External integrations need outbound connectivity. These are planned additions:
 
 | Property | What it will do | Status |
 |---|---|---|
-| `ctx.http` | Typed fetch wrapper with retries, timeouts, circuit breakers, and structured error responses. Not SAP-specific — any outbound integration uses this. | Planned |
-| `ctx.connections` | Named connection registry. `ctx.connections.get('sap-prod')` returns a configured client with credentials, base URL, and auth flow already wired. Defined in `vobase.config.ts`. | Planned |
-| `ctx.webhooks` | Inbound webhook receiver with signature verification, deduplication, and automatic enqueue-to-job. For SAP Event Mesh, Stripe, or any system pushing events. | Planned |
-
-Connection config will live in `vobase.config.ts`:
+| `ctx.http` | Typed fetch wrapper with retries, timeouts, circuit breakers, and structured error responses. | Planned |
+| `ctx.webhooks` | Inbound webhook receiver with signature verification, deduplication, and automatic enqueue-to-job. For Stripe, payment processors, or any system pushing events. | Planned |
 
 ```typescript
 // vobase.config.ts (planned)
 export default defineConfig({
   database: './data/vobase.db',
-  connections: {
-    'sap-prod': {
-      type: 'sap-odata',
-      baseUrl: process.env.SAP_BASE_URL,
-      auth: {
-        type: 'oauth2-client-credentials',
-        tokenUrl: process.env.SAP_TOKEN_URL,
-        clientId: process.env.SAP_CLIENT_ID,
-        clientSecret: process.env.SAP_CLIENT_SECRET,
-      },
-    },
-    'sap-ecc': {
-      type: 'sap-rfc',
-      ashost: process.env.SAP_ASHOST,
-      sysnr: process.env.SAP_SYSNR,
-      client: process.env.SAP_CLIENT,
-      user: process.env.SAP_USER,
-      passwd: process.env.SAP_PASSWD,
-    },
-  },
   webhooks: {
-    'sap-events': {
-      path: '/webhooks/sap',
-      secret: process.env.SAP_WEBHOOK_SECRET,
+    'stripe-events': {
+      path: '/webhooks/stripe',
+      secret: process.env.STRIPE_WEBHOOK_SECRET,
       handler: 'system:processWebhook',
     },
   },
 })
 ```
 
-Credentials stay in `.env`. Config declares the shape. Skills teach the AI how to use the connections in handler code.
+Credentials stay in `.env`. Config declares the shape.
 
 ---
 
@@ -351,7 +320,7 @@ This isn't a wrapper or compatibility layer. Vobase skills ARE Claude skills. Th
 
 Skills fall into three layers:
 
-#### horizontal skills — ERP conventions that apply across every module
+#### core skills — ERP conventions that apply across every module
 
 These are the rules that prevent the most common mistakes. Every module follows them.
 
@@ -360,60 +329,6 @@ These are the rules that prevent the most common mistakes. Every module follows 
 | `gap-free-sequences` | Transaction-safe gap-free sequence generation for business numbers (INV-0001, PO-0042). Never use auto-increment IDs as business numbers — they leave holes when transactions roll back. |
 | `integer-money` | All money as integer cents. Column: `amount_cents`. Display: `(cents / 100).toFixed(2)`. Safe to $90 billion. Never floats — IEEE 754 rounding will cost you real money at scale. |
 | `status-machines` | Explicit finite state machines for document workflows (`draft → sent → paid → void`) with validated transitions in handler code. No arbitrary string updates. |
-
-#### connectivity skills — SAP and external system integration
-
-These teach AI tools how to generate handlers that talk to SAP and other external systems. Each skill encodes the protocol-specific patterns, authentication flows, error handling, and gotchas that trip up developers who are new to SAP integration.
-
-| Skill | What it encodes |
-|---|---|
-| `sap-odata` | SAP OData connectivity via `@sap-cloud-sdk/http-client`. Destination config without BTP. CSRF token prefetch before writes. ETag-based optimistic locking on updates/deletes. Batch requests (multiple operations in one HTTP call). OData V2 vs V4 differences. Error response parsing. Works with S/4HANA Cloud, S/4HANA On-Prem, and ECC with Gateway. |
-| `sap-rfc` | SAP RFC/BAPI connectivity via `node-rfc`. Connection pooling. BAPI call patterns (commit/rollback sequences). IDoc send/receive for batch sync. SDK installation (BYOD — the consultant downloads the SAP NW RFC SDK with their S-user, Vobase never ships it). Docker deployment via volume mount. Only needed for ECC without Gateway. |
-| `sap-vendor-portal` | End-to-end satellite app pattern: vendor self-registration, document submission, approval workflows in Vobase, batch sync of approved records back to SAP via scheduled jobs. Reference-only SAP data (vendor numbers as plain text columns, real-time lookups for master data). Graceful degradation when SAP is unreachable. |
-
-<details>
-<summary><b>what a connectivity skill looks like</b> — sap-odata skill structure</summary>
-
-```
-.agents/skills/sap-odata/
-  SKILL.md                    ← Main instructions (~400 lines)
-  references/
-    csrf-and-etags.md         ← CSRF token flow, ETag handling patterns
-    odata-v2-vs-v4.md         ← API differences, metadata quirks
-    error-codes.md            ← SAP OData error response mapping
-  scripts/
-    test-connection.ts        ← Verify SAP connectivity from CLI
-```
-
-The `SKILL.md` teaches the AI how to generate a handler that reads SAP business partners:
-
-```typescript
-// What the AI generates when you say "add a handler that looks up SAP customers"
-routes.get('/customers/:id', async (c) => {
-  const ctx = getCtx(c)
-  const conn = ctx.connections.get('sap-prod')
-
-  // CSRF token fetch — required before any SAP write, harmless on reads
-  const csrf = await conn.fetchCsrfToken('/sap/opu/odata/sap/API_BUSINESS_PARTNER')
-
-  const response = await conn.get(
-    `/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_BusinessPartner('${c.req.param('id')}')`,
-    { headers: { 'x-csrf-token': csrf } }
-  )
-
-  if (!response.ok) {
-    // SAP returns structured error — skill teaches the AI to parse it
-    const sapError = parseSapODataError(response)
-    return c.json({ error: sapError.message, code: sapError.code }, response.status)
-  }
-
-  return c.json(response.data.d)
-})
-```
-
-The skill knows that SAP OData endpoints return `d.results` for collections and `d` for single entities. It knows that write operations need CSRF tokens fetched from the same service path. It knows that ETags come back in the `__metadata` object and must be sent as `If-Match` headers on updates. The AI doesn't have to guess any of this — the skill encodes it.
-
-</details>
 
 #### vertical skills — industry and country-specific logic
 
@@ -433,7 +348,6 @@ These guide the AI through extracting data and business logic from legacy platfo
 
 | Skill | What it covers |
 |---|---|
-| SAP Business One export | Connecting to HANA/SQL Server, mapping SAP document types to Vobase modules, handling SAP's numeric precision, preserving document numbering sequences. |
 | Spreadsheet import | Parsing the Excel file that runs half the company. Column mapping, data validation, duplicate detection, incremental sync for the transition period where both systems run in parallel. |
 | QuickBooks / Xero migration | Chart of accounts mapping, transaction history import, open invoice/bill migration, bank reconciliation state preservation. |
 
@@ -445,100 +359,49 @@ Install skills with `vobase add skill <name>`. They land in `.agents/skills/<nam
 
 ### skill quality — test, measure, refine
 
-Skills are only as good as the code they produce. A skill that generates handlers missing CSRF tokens or using wrong ETag patterns is worse than no skill at all. Vobase uses [Claude's skill-creator system](https://claude.com/blog/improving-skill-creator-test-measure-and-refine-agent-skills) to test and improve skills systematically.
+Skills are only as good as the code they produce. Vobase uses [Claude's skill-creator system](https://claude.com/blog/improving-skill-creator-test-measure-and-refine-agent-skills) to test and improve skills systematically.
 
 The process:
 
 1. **Write the skill** — `SKILL.md` with instructions, references, scripts
-2. **Write test prompts** — real requests a consultant would make ("add a handler that reads SAP purchase orders", "create a vendor portal submission form that syncs to SAP")
-3. **Define assertions** — concrete checks on the generated code (CSRF token present? ETag handling? Error parsing? Integer money?)
+2. **Write test prompts** — real requests users would make in your domain
+3. **Define assertions** — concrete checks on the generated code (required patterns present? error handling? integer money?)
 4. **Run evals** — Claude generates code with the skill loaded, assertions grade the output
 5. **Benchmark** — pass rate, token usage, elapsed time across multiple runs (mean ± stddev)
 6. **Iterate** — rewrite the skill, run again, compare
 
-```
-vobase eval run sap-odata          # run all test prompts against the skill
-vobase eval benchmark sap-odata    # 5 runs with variance analysis
-vobase eval compare sap-odata      # blind A/B: skill vs no-skill
+```bash
+vobase eval run gap-free-sequences          # run all test prompts against the skill
+vobase eval benchmark gap-free-sequences    # 5 runs with variance analysis
+vobase eval compare gap-free-sequences      # blind A/B: skill vs no-skill
 ```
 
-This is the same eval system Claude uses internally. Test prompts are JSON:
+Test prompts are JSON:
 
 ```json
 {
   "prompts": [
     {
-      "name": "read_business_partners",
-      "prompt": "Add a GET handler that reads SAP business partners and returns them as JSON",
+      "name": "create_invoice_handler",
+      "prompt": "Add a POST handler that creates an invoice with gap-free numbering and integer money",
       "assertions": [
-        { "type": "contains", "value": "fetchCsrfToken", "description": "Must fetch CSRF token" },
-        { "type": "contains", "value": "If-Match", "description": "Must handle ETags for updates" },
+        { "type": "contains", "value": "nextSequence", "description": "Must use gap-free sequence generation" },
+        { "type": "contains", "value": "amount_cents", "description": "Must store money as integer cents" },
         { "type": "not_contains", "value": "parseFloat", "description": "Must not use floats for money" },
-        { "type": "contains", "value": "parseSapODataError", "description": "Must parse SAP error responses" }
+        { "type": "contains", "value": "integer('amount_cents')", "description": "Must define money column as integer" }
       ]
     }
   ]
 }
 ```
 
+This is the same eval system Claude uses internally.
+
 The comparator runs blind A/B tests — one agent with the skill, one without, a third agent grades which output is better without knowing which had the skill. If the skill doesn't consistently win, it needs rewriting.
 
 Skills also have **description optimization**: the skill-creator tunes the `description` field in the SKILL.md frontmatter so the skill triggers accurately — fires when needed, stays quiet when not. This reduces false positives (skill loading when irrelevant) and false negatives (skill not loading when it should).
 
 The key insight: as AI models improve, the line between "skill" and "specification" blurs. Evals already describe the "what." Eventually, the eval suite may be the skill itself — a machine-readable contract for what correct ERP code looks like.
-
----
-
-### SAP satellite apps
-
-Vobase works as a **side-by-side extension** for SAP — exactly what SAP's own Clean Core strategy recommends. Instead of modifying ABAP code or building on BTP, you deploy a lightweight TypeScript app that connects to SAP for master data and pushes approved records back.
-
-This model is particularly valuable during ECC → S/4HANA brownfield migrations, where both systems may run in parallel for 18-36 months and clients need modern capabilities without heavy investment in a system being replaced.
-
-#### connectivity by SAP version
-
-| SAP System | How Vobase Connects | What You Need |
-|---|---|---|
-| **S/4HANA Cloud** | `@sap-cloud-sdk` (OData V4, pure JS) | OAuth2 credentials, API endpoint URL |
-| **S/4HANA On-Prem** | `@sap-cloud-sdk` (OData) + `node-rfc` for BAPI fallback | VPN or deploy inside client network |
-| **ECC with SAP Gateway** | `@sap-cloud-sdk` (OData V2) + `node-rfc` | VPN + OData endpoint or RFC connection |
-| **ECC without Gateway** | `node-rfc` (RFC/BAPI only) | VPN + SAP NW RFC SDK (client provides) |
-
-**SAP Cloud SDK works outside BTP.** `bun add @sap-cloud-sdk/http-client` gives you typed OData calls, destination management, and auth flows — no SAP BTP subscription required. For ECC systems without OData, `node-rfc` handles RFC/BAPI calls via SAP's native protocol (confirmed compatible with Bun's N-API layer).
-
-**SAP NW RFC SDK licensing:** The SDK is proprietary and cannot be redistributed. Vobase never ships it — same model as every open-source SAP connector (node-rfc, PyRFC). The consultant downloads it with their S-user credentials. Docker deployments use a volume mount for the SDK libraries. No legal gray area.
-
-#### typical satellite app patterns
-
-| Use Case | Data Flow | SAP Dependency |
-|---|---|---|
-| **Vendor/supplier portal** | Net-new data in Vobase, push approved entries to SAP via batch | Low — mostly independent |
-| **Approval workflows** | Read SAP documents, manage approvals in Vobase, write status back | Medium — needs SAP reads |
-| **Custom dashboards** | Read SAP data, aggregate/visualize in Vobase | Medium — read-only SAP calls |
-| **Compliance/audit tools** | Net-new compliance data, reference SAP master data | Low — mostly independent |
-| **Employee self-service** | Read SAP HR data, manage requests in Vobase | Medium — needs SAP reads |
-
-#### data architecture
-
-Vobase doesn't replicate SAP master data wholesale. The recommended pattern:
-
-- **Own data locally** — portal submissions, compliance records, approval workflows live in SQLite
-- **Call SAP in real-time** — customer lookups, material details, pricing via OData/RFC
-- **Store references only** — SAP document numbers and IDs as plain text columns
-- **Batch sync back** — background jobs (bunqueue) push approved records to SAP on a schedule
-
-This keeps the data footprint minimal, avoids GDPR concerns around duplicating personal data, and means your app works even when SAP is temporarily unreachable (graceful degradation with cached references).
-
-#### deployment
-
-Vobase is a Docker container. Deploy it wherever makes sense for the client's network:
-
-- **Same VPC as SAP** — private network access, no tunnel needed
-- **Client's on-prem Docker/K8s** — maximum security, IT-approved
-- **Any public cloud** — with VPN or SAP Cloud Connector for on-prem SAP access
-- **Managed hosting** — easiest for S/4HANA Cloud (public HTTPS APIs)
-
-SAP's own Kyma runtime expects Docker images. Vobase's deployment model is architecturally equivalent — but simpler, cheaper, and without BTP lock-in.
 
 ---
 
@@ -572,20 +435,17 @@ Some broader patterns worth noting:
 
 ### vs the alternatives
 
-| | **Vobase** | **ERPNext** | **Odoo** | **SAP ecosystem** | **Custom build** |
-|---|---|---|---|---|---|
-| Time to first module | Minutes (AI) | Hours (doctype GUI) | Hours (Python/XML) | Days-weeks (BTP/CAP) | Hours-days |
-| Language | TypeScript | Python + Frappe DSL | Python + XML views | ABAP / CAP (Node.js) / Fiori | Your choice |
-| Database | SQLite (one file) | MariaDB / Postgres | PostgreSQL | HANA | Your choice |
-| How you customize | Edit the code | Doctype GUI + hooks | Module inheritance | Config + ABAP / side-by-side ext. | Write code |
-| Upgrades | Your code, your schedule | [Resets layouts](https://github.com/frappe/erpnext/issues/4958) | [Breaks migrations](https://www.reddit.com/r/Odoo/comments/1izmd44/upgrade_to_v18_yet/) | Managed by SAP | Your schedule |
-| AI integration | MCP + agent skills | None | None | Joule (closed ecosystem) | Manual |
-| SAP connectivity | OData + RFC via skills | None | None | Native | Manual |
-| Hosting | as low as $15 | $25-50/mo | $24-46/user/mo | BTP from $500/mo | Varies |
-| Data isolation | Physical | Logical | Logical | Physical | Varies |
-| License | MIT | GPL v3 | LGPL / Proprietary | Commercial | Varies |
-
-For SAP shops, Vobase isn't a replacement — it's a complementary tool. SAP handles core ERP (financials, supply chain, HR master data). Vobase handles the extensions that SAP's Clean Core strategy says should live outside the core anyway: custom portals, approval workflows, compliance apps, operational dashboards. Same pattern SAP recommends, without the BTP overhead.
+| | **Vobase** | **ERPNext** | **Odoo** | **Custom build** |
+|---|---|---|---|---|
+| Time to first module | Minutes (AI) | Hours (doctype GUI) | Hours (Python/XML) | Hours-days |
+| Language | TypeScript | Python + Frappe DSL | Python + XML views | Your choice |
+| Database | SQLite (one file) | MariaDB / Postgres | PostgreSQL | Your choice |
+| How you customize | Edit the code | Doctype GUI + hooks | Module inheritance | Write code |
+| Upgrades | Your code, your schedule | [Resets layouts](https://github.com/frappe/erpnext/issues/4958) | [Breaks migrations](https://www.reddit.com/r/Odoo/comments/1izmd44/upgrade_to_v18_yet/) | Your schedule |
+| AI integration | MCP + agent skills | None | None | Manual |
+| Hosting | as low as $15 | $25-50/mo | $24-46/user/mo | Varies |
+| Data isolation | Physical | Logical | Logical | Varies |
+| License | MIT | GPL v3 | LGPL / Proprietary | Varies |
 
 Odoo is ["a mile wide but an inch deep — it demos like a dream, but the moment you scratch the surface, you're customizing."](https://www.reddit.com/r/Odoo/comments/1qz0p4o/what_is_odoo_actually_bad_at_looking_for/) Custom builds give you freedom but no domain conventions — you reinvent ERP patterns from scratch on every project. Vobase gives you the conventions and the freedom.
 
@@ -626,8 +486,6 @@ Conceptually similar to Cloudflare Workers — TypeScript handlers + database + 
 | ORM | **Drizzle** | Type-safe SQL, bun-sqlite adapter, migration generation via drizzle-kit. |
 | Jobs | **bunqueue** | Bun-native, SQLite-backed, BullMQ-compatible API. 286K ops/sec, retries, cron, FlowProducer. No Redis. |
 | MCP | **@modelcontextprotocol/sdk** | Official SDK. Tools, resources, prompts, SSE. Same process, shared port. |
-| SAP (OData) | **@sap-cloud-sdk/http-client** | Typed OData calls, auth flows, CSRF handling. Works outside BTP — no subscription required. |
-| SAP (RFC) | **node-rfc** | N-API native addon. RFC/BAPI calls for ECC without Gateway. Requires SAP NW RFC SDK (BYOD). |
 | Frontend | **React + TanStack** | Router (virtual file routes), Query, Table. Pure SPA, no SSR. Auto code-splitting. |
 | Components | **shadcn/ui + Tailwind v4** | You own the component source. v4's CSS-based config means no tailwind.config.js. |
 | Backups | **Litestream** | Continuous WAL streaming to S3. ~1 second RPO. Point-in-time recovery. ~$0.03/month. |
@@ -756,7 +614,6 @@ Roadmap commands (not implemented yet): `vobase add {module}`, `vobase seed`, `v
 | **No second language** | Originally planned Go for OpenFGA and workflow orchestration. Dropped both — zero justification for two languages, two build steps, IPC between processes. |
 | **No Supabase** | Self-hosted Supabase is 10+ Docker containers. RLS is poor developer experience. Over-engineered for single-tenant. |
 | **No libSQL/Turso** | Branching and PITR are locked to Turso Cloud (paid). bun:sqlite is built-in and synchronous. Litestream handles PITR for $0.03/month. |
-| **No BTP dependency** | SAP Cloud SDK works outside BTP. No reason to pay $500+/month for a cockpit that [breaks half the time](https://community.sap.com/t5/technology-blogs-by-members/sap-btp-cockpit-fiasco-a-cautionary-tale/ba-p/13815583). |
 
 ---
 
@@ -775,18 +632,8 @@ my-vobase/
   AGENTS.md               ← project context and guardrails
   .agents/
     skills/
-      sap-odata/
-        SKILL.md          ← SAP OData connectivity patterns
-        references/
-          csrf-and-etags.md
-      sap-rfc/
-        SKILL.md          ← SAP RFC/BAPI patterns
-      sap-vendor-portal/
-        SKILL.md          ← end-to-end satellite app recipe
       integer-money/
-        SKILL.md          ← horizontal: all money as integer cents
-      evals/
-        sap-odata.json    ← test prompts + assertions for skill QA
+        SKILL.md          ← core: all money as integer cents
   modules/
     system/               ← admin dashboard (scaffolded)
       schema.ts

@@ -3,7 +3,7 @@
     {
       "name": "gap-free-sequences",
       "description": "Database transaction-safe gap-free sequence generation for business numbers (invoices, POs, receipts)",
-      "category": "horizontal",
+      "category": "core",
       "domain": ["erp", "data-integrity"],
       "enhances": [],
       "tier": "core",
@@ -23,7 +23,7 @@
     {
       "name": "integer-money",
       "description": "Store monetary values as integer cents to eliminate floating-point rounding errors in financial calculations",
-      "category": "horizontal",
+      "category": "core",
       "domain": ["erp", "financial", "data-integrity"],
       "enhances": [],
       "tier": "core",
@@ -39,7 +39,7 @@
     {
       "name": "status-machines",
       "description": "Explicit finite state machines for document workflows (draft → sent → paid → void) with validated transitions",
-      "category": "horizontal",
+      "category": "core",
       "domain": ["erp", "workflow", "data-integrity"],
       "enhances": [],
       "tier": "core",

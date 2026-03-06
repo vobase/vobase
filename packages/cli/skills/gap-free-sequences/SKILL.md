@@ -4,7 +4,7 @@ description: >-
   Gap-free business number generation for ERP records with transaction-safe sequencing.
   Use when creating invoice, order, shipment, or document numbers that must be
   unique per prefix, auditable, and safe under concurrent writes.
-category: horizontal
+category: core
 domain: [erp, data-integrity]
 tier: core
 ---

@@ -3,7 +3,7 @@ name: integer-money
 description: >-
   Use when designing ERP schemas, handlers, and tests that store or compute
   money. Enforce integer-cent storage so totals stay exact and auditable.
-category: horizontal
+category: core
 domain: [erp, financial, data-integrity]
 tier: core
 ---
