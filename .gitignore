@@ -11,3 +11,5 @@ dogfood-output
 node_modules/
 poc/
 test-results
+.claude/ralph-loop.local.md
+.worktrees/
