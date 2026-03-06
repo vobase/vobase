@@ -1,6 +1,12 @@
+import { Database } from 'bun:sqlite';
 import { createHmac } from 'node:crypto';
-import { describe, expect, test } from 'bun:test';
-import { verifyHmacSignature, type WebhookConfig } from './webhooks';
+import { beforeEach, describe, expect, test } from 'bun:test';
+import {
+  checkAndRecordWebhook,
+  ensureWebhookDedupTable,
+  verifyHmacSignature,
+  type WebhookConfig,
+} from './webhooks';
 
 /** Helper: compute a valid HMAC-SHA256 hex signature for a given payload + secret */
 function computeSignature(payload: string, secret: string): string {
@@ -86,5 +92,36 @@ describe('verifyHmacSignature', () => {
   test('never throws on malformed input', () => {
     expect(verifyHmacSignature(payload, 'not-hex-at-all!!!', secret)).toBe(false);
     expect(verifyHmacSignature(payload, 'zzzz'.repeat(16), secret)).toBe(false);
+  });
+});
+
+describe('webhook deduplication', () => {
+  let db: Database;
+
+  beforeEach(() => {
+    db = new Database(':memory:');
+    ensureWebhookDedupTable(db);
+  });
+
+  test('first webhook ID is not a duplicate', () => {
+    const isDuplicate = checkAndRecordWebhook(db, 'wh_001', 'stripe');
+    expect(isDuplicate).toBe(false);
+  });
+
+  test('same webhook ID is a duplicate', () => {
+    checkAndRecordWebhook(db, 'wh_002', 'stripe');
+    const isDuplicate = checkAndRecordWebhook(db, 'wh_002', 'stripe');
+    expect(isDuplicate).toBe(true);
+  });
+
+  test('different webhook IDs are not duplicates', () => {
+    expect(checkAndRecordWebhook(db, 'wh_aaa', 'stripe')).toBe(false);
+    expect(checkAndRecordWebhook(db, 'wh_bbb', 'stripe')).toBe(false);
+    expect(checkAndRecordWebhook(db, 'wh_ccc', 'stripe')).toBe(false);
+  });
+
+  test('same ID with different source is still a duplicate (ID is primary key)', () => {
+    expect(checkAndRecordWebhook(db, 'wh_shared', 'stripe')).toBe(false);
+    expect(checkAndRecordWebhook(db, 'wh_shared', 'github')).toBe(true);
   });
 });

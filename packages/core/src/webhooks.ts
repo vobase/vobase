@@ -1,3 +1,4 @@
+import type { Database } from 'bun:sqlite';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export interface WebhookConfig {
@@ -45,4 +46,41 @@ export function verifyHmacSignature(
   } catch {
     return false;
   }
+}
+
+/**
+ * Creates the `_webhook_dedup` table if it doesn't exist.
+ *
+ * Uses raw SQL via the bun:sqlite Database handle, matching the pattern
+ * used by `ensureCoreTables`.
+ */
+export function ensureWebhookDedupTable(db: Database): void {
+  db.run(
+    `CREATE TABLE IF NOT EXISTS _webhook_dedup (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      received_at INTEGER NOT NULL
+    )`,
+  );
+}
+
+/**
+ * Check whether a webhook has already been processed and record it if not.
+ *
+ * Uses INSERT OR IGNORE and inspects changes to determine whether the
+ * row was newly inserted (not a duplicate) or already existed (duplicate).
+ *
+ * @returns `true` if the webhook is a duplicate, `false` if it's new.
+ */
+export function checkAndRecordWebhook(
+  db: Database,
+  webhookId: string,
+  source: string,
+): boolean {
+  const stmt = db.prepare(
+    'INSERT OR IGNORE INTO _webhook_dedup (id, source, received_at) VALUES (?, ?, ?)',
+  );
+  const result = stmt.run(webhookId, source, Date.now());
+  // If changes === 0 the row already existed — it's a duplicate
+  return result.changes === 0;
 }
