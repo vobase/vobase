@@ -122,9 +122,9 @@ describe('webhook deduplication', () => {
     expect(checkAndRecordWebhook(db, 'wh_ccc', 'stripe')).toBe(false);
   });
 
-  test('same ID with different source is still a duplicate (ID is primary key)', () => {
+  test('same ID with different source is not a duplicate (composite key)', () => {
     expect(checkAndRecordWebhook(db, 'wh_shared', 'stripe')).toBe(false);
-    expect(checkAndRecordWebhook(db, 'wh_shared', 'github')).toBe(true);
+    expect(checkAndRecordWebhook(db, 'wh_shared', 'github')).toBe(false);
   });
 });
 

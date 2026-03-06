@@ -290,7 +290,7 @@ Beyond local capabilities (database, user, scheduler, storage), `ctx` provides o
 | Property | What it does |
 |---|---|
 | `ctx.http` | Typed fetch wrapper with retries, timeouts, circuit breakers, and structured error responses. Configurable per-app via `http` in `vobase.config.ts`. |
-| `ctx.webhooks` | Inbound webhook receiver with HMAC signature verification, deduplication, and automatic enqueue-to-job. For Stripe, payment processors, or any system pushing events. |
+| `webhooks` (app-level) | Inbound webhook receiver with HMAC signature verification, deduplication, and automatic enqueue-to-job. Configured in `vobase.config.ts`, mounted as `/webhooks/*` routes — not a ctx property. |
 
 ```typescript
 // vobase.config.ts
@@ -298,7 +298,8 @@ export default defineConfig({
   database: './data/vobase.db',
   http: {
     timeout: 10_000,
-    retry: { maxAttempts: 3, baseDelay: 500 },
+    retries: 3,
+    retryDelay: 500,
     circuitBreaker: { threshold: 5, resetTimeout: 30_000 },
   },
   webhooks: {

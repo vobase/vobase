@@ -59,9 +59,10 @@ export function verifyHmacSignature(
 export function ensureWebhookDedupTable(db: Database): void {
   db.run(
     `CREATE TABLE IF NOT EXISTS _webhook_dedup (
-      id TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
       source TEXT NOT NULL,
-      received_at INTEGER NOT NULL
+      received_at INTEGER NOT NULL,
+      PRIMARY KEY (id, source)
     )`,
   );
 }

@@ -9,7 +9,8 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   // --- Outbound HTTP client (ctx.http) ---
   // http: {
   //   timeout: 10_000,
-  //   retry: { maxAttempts: 3, baseDelay: 500, maxDelay: 10_000 },
+  //   retries: 3,
+  //   retryDelay: 500,
   //   circuitBreaker: { threshold: 5, resetTimeout: 30_000 },
   // },
 
