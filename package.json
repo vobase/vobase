@@ -8,6 +8,7 @@
     "packages/cli/template"
   ],
   "scripts": {
+    "ncu": "ncu --packageManager bun --format group --interactive --workspaces",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
@@ -16,9 +17,10 @@
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.4",
-    "@types/bun": "^1.3.9",
-    "turbo": "^2.8.12",
+    "@biomejs/biome": "^2.4.6",
+    "@types/bun": "^1.3.10",
+    "npm-check-updates": "^19.6.3",
+    "turbo": "^2.8.14",
     "typescript": "^5.9.3"
   },
   "dependencies": {
