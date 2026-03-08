@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.1.8
+
+### Patch Changes
+
+- [`02e2604`](https://github.com/vobase/vobase/commit/02e260484fd132d2f6daec509a716f3869b5da48) Thanks [@mdluo](https://github.com/mdluo)! - fix: only skip data/dist/node_modules at root level during post-processing
+
 ## 0.1.7
 
 ### Patch Changes
