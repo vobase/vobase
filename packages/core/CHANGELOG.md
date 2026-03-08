@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.1.6
+
+### Patch Changes
+
+- [`9c1f3a2`](https://github.com/vobase/vobase/commit/9c1f3a28ffc5453045ee46bd2260db3d6cf8b970) Thanks [@mdluo](https://github.com/mdluo)! - feat: run drizzle-kit push during init for zero-config setup
+
 ## 0.1.5
 
 ### Patch Changes
