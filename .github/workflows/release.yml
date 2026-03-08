@@ -24,8 +24,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          registry-url: "https://registry.npmjs.org"
 
-      - run: npm config set registry https://registry.npmjs.org/
+      - name: Upgrade npm for Trusted Publishers OIDC support
+        run: |
+          npm install -g npm@latest
+          sed -i '/_authToken/d' ~/.npmrc
 
       - run: bun install --frozen-lockfile
 
