@@ -2,7 +2,7 @@
 name: sg-invoicing
 description: >-
   Singapore invoicing compliance patterns for IRAS tax invoices, credit notes,
-  GST-safe totals, and InvoiceNow/Peppol readiness in Vobase ERP modules.
+  GST-safe totals, and InvoiceNow/Peppol readiness in Vobase modules.
 category: vertical
 domain: [accounting, invoicing, singapore, compliance, e-invoicing]
 enhances: [integer-money, gap-free-sequences, sg-gst]

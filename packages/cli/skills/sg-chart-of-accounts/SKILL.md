@@ -1,7 +1,7 @@
 ---
 name: sg-chart-of-accounts
 description: >-
-  FRS-aligned Singapore chart of accounts patterns for Vobase ERP modules. Use
+  FRS-aligned Singapore chart of accounts patterns for Vobase modules. Use
   when designing account masters, numbering rules, GST control accounts, and
   validation checks for auditable SME financial reporting.
 category: vertical

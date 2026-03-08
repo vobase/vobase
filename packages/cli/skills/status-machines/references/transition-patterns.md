@@ -1,6 +1,6 @@
 # Transition Patterns
 
-Common ERP lifecycle maps with server-side transition validation snippets.
+Common lifecycle maps with server-side transition validation snippets.
 
 ```typescript
 function assertTransition(

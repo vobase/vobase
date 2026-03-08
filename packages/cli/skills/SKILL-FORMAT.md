@@ -1,6 +1,6 @@
-# Vobase ERP Skill Format
+# Vobase Skill Format
 
-Specification for ERP agent skills in the Vobase project. Skills teach AI agents domain knowledge, business rules, and implementation patterns beyond generic code generation.
+Specification for agent skills in the Vobase project. Skills teach AI agents domain knowledge, business rules, and implementation patterns beyond generic code generation.
 
 ## Frontmatter Fields
 
@@ -17,7 +17,7 @@ All fields except `name` and `description` are optional for backward compatibili
 
 ## Body Sections
 
-ERP skills should use these six sections to provide comprehensive domain guidance.
+Skills should use these six sections to provide comprehensive domain guidance.
 
 1. **Why This Matters**: Business context and risks. Explain what happens if this logic is ignored (e.g., "IEEE 754 rounding errors in financial reports").
 2. **Schema Patterns**: Drizzle table definitions using Vobase conventions (integer cents, UTC timestamps, status enums).

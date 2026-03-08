@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Vobase is an AI-native, self-hosted ERP engine monorepo for building custom business systems with Bun, Hono, Drizzle, and module-based domain code.
+Vobase is a full-stack TypeScript app framework built for AI coding agents — own-the-code scaffold with Bun, Hono, Drizzle, and module-based domain code.
 
 ## Essentials
 
@@ -30,7 +30,7 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 - Function types: use HTTP handlers for request/response logic and jobs for background execution.
 - Routing model: module APIs mount under `/api/{module}`; MCP can be exposed on `/mcp`.
 - Auth model: `better-auth` session-based auth with middleware-attached user context.
-- Data model: Drizzle + SQLite (`bun:sqlite`), with ERP-safe patterns (integer money, explicit status transitions, auditable mutations).
+- Data model: Drizzle + SQLite (`bun:sqlite`), with safe-by-default patterns (integer money, explicit status transitions, auditable mutations).
 
 Describe capabilities, not brittle file locations. Prefer domain language (module, handler, job, sequence, audit log, system module) over path-heavy instructions.
 

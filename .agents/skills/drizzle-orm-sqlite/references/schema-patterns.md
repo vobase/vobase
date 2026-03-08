@@ -165,7 +165,7 @@ type NewUser = InferInsertModel<typeof users>;      // { id?: number; email: str
 type UserEmail = Pick<User, 'id' | 'email'>;
 ```
 
-## Common ERP Patterns
+## Common App Patterns
 
 ### Audit columns
 

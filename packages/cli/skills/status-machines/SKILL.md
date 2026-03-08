@@ -1,11 +1,11 @@
 ---
 name: status-machines
 description: >-
-  Use when implementing ERP status fields and workflow transitions. Enforce explicit
+  Use when implementing status fields and workflow transitions. Enforce explicit
   state maps in handlers, reject invalid jumps, and audit every status mutation to
   preserve data integrity.
 category: core
-domain: [erp, workflow, data-integrity]
+domain: [workflow, data-integrity]
 tier: core
 ---
 

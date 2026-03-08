@@ -18,7 +18,7 @@ Primary sources:
 PINT SG (Peppol International Invoice for Singapore) is the Singapore-specific billing profile on Peppol.
 
 - Payloads are aligned to UBL 2.1 semantics for Invoice and Credit Note transactions.
-- ERP design should map internal invoice fields to PINT SG semantic groups (seller, buyer, tax totals, monetary totals, line details, references).
+- App design should map internal invoice fields to PINT SG semantic groups (seller, buyer, tax totals, monetary totals, line details, references).
 - Credit-note exchange is first-class, not an afterthought; model explicit linkage to original invoice IDs/numbers.
 
 Reference specifications:
@@ -31,7 +31,7 @@ Reference specifications:
 Sending via Peppol requires connection through an accredited Access Point (AP).
 
 - Businesses using InvoiceNow-ready accounting solutions typically onboard through the solution provider/AP.
-- In-house ERP systems must integrate with an IMDA-accredited Access Point to submit to the network and to IRAS GST InvoiceNow flows.
+- In-house systems must integrate with an IMDA-accredited Access Point to submit to the network and to IRAS GST InvoiceNow flows.
 
 Operational design implications:
 

@@ -24,7 +24,7 @@ Each module lives in `modules/{name}/`:
 - `trackChanges(tx, 'table', id, oldData, newData, userId)`: Record-level audit trail.
 - `VobaseError`: Use `notFound()`, `unauthorized()`, `validation(details)` factory functions.
 
-## ERP Conventions
+## Data Conventions
 - **Money**: Store as INTEGER cents (e.g., `amount_cents INTEGER NOT NULL`). Never REAL/FLOAT.
 - **Timestamps**: `integer('col', { mode: 'timestamp_ms' })` in DB, UTC always. Format in frontend.
 - **Status fields**: Use `status TEXT NOT NULL DEFAULT 'draft'` with explicit transition logic.
@@ -50,7 +50,7 @@ See @vobase/core documentation for complete API reference.
 
 ## Agent Skills
 
-Skills are domain-specific AI knowledge packs that teach agents ERP conventions before they generate code.
+Skills are domain-specific AI knowledge packs that teach agents conventions before they generate code.
 
 **Discover available skills:**
 ```
@@ -64,7 +64,7 @@ vobase add skill <name>
 
 Installed skills land in `.agents/skills/<name>/SKILL.md`. Load a skill in your AI tool by referencing `.agents/skills/<skill-name>/SKILL.md`.
 
-**Available skills (core ERP conventions):**
+**Available skills (core app patterns):**
 - `gap-free-sequences` — Transaction-safe gap-free business number generation (INV-0001, PO-0042)
 - `integer-money` — Store monetary values as integer cents; eliminate float rounding in financial code
 - `status-machines` — Explicit finite state machines for document workflows (draft → sent → paid → void)

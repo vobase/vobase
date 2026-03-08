@@ -1,11 +1,11 @@
 ---
 name: gap-free-sequences
 description: >-
-  Gap-free business number generation for ERP records with transaction-safe sequencing.
+  Gap-free business number generation with transaction-safe sequencing.
   Use when creating invoice, order, shipment, or document numbers that must be
   unique per prefix, auditable, and safe under concurrent writes.
 category: core
-domain: [erp, data-integrity]
+domain: [data-integrity]
 tier: core
 ---
 

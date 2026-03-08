@@ -1,10 +1,10 @@
 ---
 name: integer-money
 description: >-
-  Use when designing ERP schemas, handlers, and tests that store or compute
+  Use when designing schemas, handlers, and tests that store or compute
   money. Enforce integer-cent storage so totals stay exact and auditable.
 category: core
-domain: [erp, financial, data-integrity]
+domain: [financial, data-integrity]
 tier: core
 ---
 
@@ -14,7 +14,7 @@ Use this skill when any module stores or calculates financial values.
 
 ## Why This Matters
 
-IEEE 754 floating-point math introduces tiny errors that become real money discrepancies at ERP scale.
+IEEE 754 floating-point math introduces tiny errors that become real money discrepancies at scale.
 
 ```javascript
 0.1 + 0.2 // 0.30000000000000004 (not 0.3)

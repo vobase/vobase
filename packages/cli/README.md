@@ -17,7 +17,7 @@ bun add -g @vobase/cli
 | `vobase migrate` | Run database migrations |
 | `vobase migrate:generate` | Generate migration files |
 | `vobase generate` | Rebuild route tree and system schemas |
-| `vobase add skill <name>` | Install an ERP agent skill |
+| `vobase add skill <name>` | Install an agent skill |
 
 ## Quick Start
 

@@ -35,7 +35,7 @@ Example default quarterly due dates (without GIRO):
 
 Reference: [GST F5 Online Help](https://mytax.iras.gov.sg/ESVWeb/default.aspx?target=GSTF5OnlineHelp)
 
-| Box | Meaning | ERP mapping guidance |
+| Box | Meaning | App mapping guidance |
 | --- | --- | --- |
 | 1 | Total value of standard-rated supplies | Sum taxable value for `SR` output supplies; exclude GST amount |
 | 2 | Total value of zero-rated supplies | Sum taxable value for `ZR` supplies |

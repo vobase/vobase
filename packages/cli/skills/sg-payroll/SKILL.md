@@ -1,7 +1,7 @@
 ---
 name: sg-payroll
 description: >-
-  Singapore payroll implementation patterns for Vobase ERP modules. Use when
+  Singapore payroll implementation patterns for Vobase modules. Use when
   modeling SDL, FWL, self-help group levies, and MOM-compliant payslip issuance
   with integer-cent accounting and auditable payroll records.
 category: vertical

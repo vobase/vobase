@@ -1,7 +1,7 @@
 ---
 name: sg-gst
 description: >-
-  Singapore GST implementation patterns for Vobase ERP modules. Use when modeling
+  Singapore GST implementation patterns for Vobase modules. Use when modeling
   GST registration, tax codes, reverse charge, and IRAS F5 filing logic with
   integer-cent accounting and auditable return periods.
 category: vertical
@@ -115,7 +115,7 @@ Then the system must auto-generate paired output/input GST entries and include t
 - GST-inclusive vs GST-exclusive rounding discrepancy (forum-sourced): [QuickBooks SG thread showing 1-cent mismatch](https://quickbooks.intuit.com/learn-support/en-sg/gst/i-have-a-telco-invoice-as-such-subtotal-115-13gst-9-47quickbooks/01/1534549)
 
 ```text
-Given supplier invoices use GST-inclusive totals and ERP line math is GST-exclusive
+Given supplier invoices use GST-inclusive totals and app line math is GST-exclusive
 When computed GST differs by 1 cent from supplier tax line
 Then enforce deterministic rounding policy, log variance reason, and preserve supplier-declared tax amount for audit note
 ```
