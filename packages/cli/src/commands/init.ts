@@ -45,7 +45,7 @@ export async function runInit(
   if (projectName !== '.') {
     console.log(`  cd ${projectName}`);
   }
-  console.log('  bunx vobase dev   # Start dev server');
+  console.log('  bun run dev');
 }
 
 const ROOT_SKIP_ENTRIES = new Set([
