@@ -24,10 +24,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Remove _authToken placeholder for OIDC Trusted Publishers
-        run: sed -i '/_authToken/d' ~/.npmrc
 
       - run: bun install --frozen-lockfile
 
