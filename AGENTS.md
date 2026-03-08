@@ -91,3 +91,25 @@ Optional deep references for workflow/tooling:
 - Browser automation skill: `.agents/skills/agent-browser/SKILL.md`
 - QA/dogfooding skill: `.agents/skills/dogfood/SKILL.md`
 - Skill authoring workflow: `.agents/skills/skill-creator/SKILL.md`
+
+## Design Context
+
+### Users
+Developers and small teams who use AI coding agents to build full-stack apps. They open `vobase init`, see the template, and immediately start building their domain. The UI is a tool, not a destination — it should feel fast, capable, and invisible until needed.
+
+### Brand Personality
+**Confident, pragmatic, direct.** Vobase knows what it is and doesn't apologize. No marketing fluff in the UI. Every element earns its place. The tone mirrors the README: "You own the code. You own the data. You own the infrastructure."
+
+### Aesthetic Direction
+- **Visual tone:** Clean, professional, neutral canvas. The template is a starting point, not a brand statement. Think Linear's density and taste — information-forward, keyboard-first feel, restrained use of color.
+- **References:** Linear (clean density, tasteful color, fast feel).
+- **Anti-references:** Generic SaaS templates (gradient heroes, stock illustrations, rounded-everything), AI-generated UI slop (cyan-on-dark, purple gradients, glassmorphism, glowing accents), Enterprise bloatware (dense nav trees, cluttered toolbars, gray-on-gray).
+- **Theme:** Light + dark mode. Neutral gray palette with a single primary accent. OKLCH color model. No warm amber tones, no serif fonts, no decorative gradients.
+- **Component system:** shadcn/ui with Base UI primitives (`base-nova` preset). Components managed via CLI (`bunx --bun shadcn@latest add`).
+
+### Design Principles
+1. **Earn every pixel.** No decoration without purpose. If a border, shadow, or color doesn't improve comprehension, remove it.
+2. **Neutral by default.** The template is a canvas. Strong brand colors belong to the user's app, not the scaffold. Use one accent color sparingly.
+3. **Density over sprawl.** Prefer compact, information-rich layouts. Whitespace should create rhythm, not fill space.
+4. **Semantic over literal.** Use `bg-primary`, `text-muted-foreground` — never raw color values. The theme system handles light/dark; components should be color-agnostic.
+5. **Own the components.** shadcn means the source is yours. Customize freely, but respect the Base UI primitive APIs.
