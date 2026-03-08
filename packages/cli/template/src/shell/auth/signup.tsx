@@ -9,7 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { authClient } from '@/lib/auth-client';
 
 export type SignupPageProps = Record<string, never>;
@@ -19,12 +21,14 @@ export function SignupPage(_: Readonly<SignupPageProps>) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [isError, setIsError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setMessage(null);
+    setIsError(false);
 
     const result = await authClient.signUp.email({
       name,
@@ -34,6 +38,7 @@ export function SignupPage(_: Readonly<SignupPageProps>) {
 
     if (result.error) {
       setMessage(result.error.message ?? 'Unable to create account.');
+      setIsError(true);
       setIsSubmitting(false);
       return;
     }
@@ -43,8 +48,8 @@ export function SignupPage(_: Readonly<SignupPageProps>) {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
-      <Card className="w-full max-w-md border-border/70 bg-card/90">
+    <div className="flex min-h-[calc(100vh-56px)] items-center justify-center p-6">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Create account</CardTitle>
           <CardDescription>
@@ -52,48 +57,45 @@ export function SignupPage(_: Readonly<SignupPageProps>) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <label htmlFor="signup-name" className="text-sm font-medium">
-                Name
-              </label>
-              <Input
-                id="signup-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="signup-email" className="text-sm font-medium">
-                Email
-              </label>
-              <Input
-                id="signup-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="signup-password" className="text-sm font-medium">
-                Password
-              </label>
-              <Input
-                id="signup-password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-            </div>
+          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="signup-name">Name</FieldLabel>
+                <Input
+                  id="signup-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="signup-email">Email</FieldLabel>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="signup-password">Password</FieldLabel>
+                <Input
+                  id="signup-password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+              </Field>
+            </FieldGroup>
 
             {message ? (
-              <p className="text-sm text-muted-foreground">{message}</p>
+              <p className={`text-sm ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>{message}</p>
             ) : null}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? <Spinner /> : null}
               {isSubmitting ? 'Creating...' : 'Create account'}
             </Button>
           </form>

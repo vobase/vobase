@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Sidebar } from '@/shell/sidebar';
 
 export interface LayoutProps {
@@ -13,26 +14,19 @@ export function Layout({ children }: Readonly<LayoutProps>) {
       <Sidebar className="hidden lg:block" />
 
       <div className="flex min-h-screen flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/75 px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
           <div>
-            <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+            <p className="text-xs tracking-widest text-muted-foreground uppercase">
               Vobase Shell
             </p>
-            <p className="text-sm font-semibold">TanStack Router + Hono RPC</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              to="/login"
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold transition hover:bg-muted"
-            >
+            <Button variant="outline" size="sm" render={<Link to="/login" />} nativeButton={false}>
               Log in
-            </Link>
-            <Link
-              to="/signup"
-              className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
-            >
+            </Button>
+            <Button size="sm" render={<Link to="/signup" />} nativeButton={false}>
               Sign up
-            </Link>
+            </Button>
           </div>
         </header>
 

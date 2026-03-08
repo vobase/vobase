@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
+import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -8,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/lib/api-client';
 
 interface SystemInfoResponse {
@@ -101,9 +103,9 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
   const recentEntries = (auditQuery.data?.entries ?? []).slice(0, 5);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex flex-col gap-6 p-6">
       <div>
-        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+        <p className="text-xs tracking-widest text-muted-foreground uppercase">
           System
         </p>
         <h1 className="mt-2 text-3xl font-semibold">Operations dashboard</h1>
@@ -116,13 +118,13 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
             <CardDescription>Current backend release</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium">
-              {infoQuery.isPending
-                ? 'Loading...'
-                : infoQuery.isError
-                  ? 'Unavailable'
-                  : infoQuery.data?.version}
-            </p>
+            {infoQuery.isPending ? (
+              <Skeleton className="h-5 w-20" />
+            ) : infoQuery.isError ? (
+              <Badge variant="destructive">Unavailable</Badge>
+            ) : (
+              <p className="text-sm font-medium">{infoQuery.data?.version}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -133,21 +135,25 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
               From /api/system and /api/system/health
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-1">
-            <p className="text-sm font-medium">
-              {infoQuery.isPending
-                ? 'Loading...'
-                : infoQuery.isError
-                  ? 'Unavailable'
-                  : formatUptime(infoQuery.data?.uptime ?? 0)}
-            </p>
+          <CardContent className="flex flex-col gap-1">
+            {infoQuery.isPending ? (
+              <Skeleton className="h-5 w-28" />
+            ) : infoQuery.isError ? (
+              <Badge variant="destructive">Unavailable</Badge>
+            ) : (
+              <p className="text-sm font-medium">
+                {formatUptime(infoQuery.data?.uptime ?? 0)}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               Health:{' '}
-              {healthQuery.isPending
-                ? 'Checking...'
-                : healthQuery.isError
-                  ? 'Unavailable'
-                  : healthQuery.data?.status}
+              {healthQuery.isPending ? (
+                'Checking...'
+              ) : healthQuery.isError ? (
+                'Unavailable'
+              ) : (
+                healthQuery.data?.status
+              )}
             </p>
           </CardContent>
         </Card>
@@ -158,13 +164,13 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
             <CardDescription>Quick connectivity signal</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm font-medium">
-              {healthQuery.isPending
-                ? 'Loading...'
-                : healthQuery.isError
-                  ? 'Unavailable'
-                  : healthQuery.data?.db}
-            </p>
+            {healthQuery.isPending ? (
+              <Skeleton className="h-5 w-16" />
+            ) : healthQuery.isError ? (
+              <Badge variant="destructive">Unavailable</Badge>
+            ) : (
+              <Badge variant="outline">{healthQuery.data?.db}</Badge>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -177,24 +183,22 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
           </CardHeader>
           <CardContent>
             {infoQuery.isPending ? (
-              <p className="text-sm text-muted-foreground">
-                Loading modules...
-              </p>
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-5 w-24" />
+              </div>
             ) : infoQuery.isError ? (
               <p className="text-sm text-destructive">
                 Unable to load modules.
               </p>
             ) : modules.length > 0 ? (
-              <ul className="space-y-2 text-sm">
+              <div className="flex flex-wrap gap-2">
                 {modules.map((moduleName) => (
-                  <li
-                    key={moduleName}
-                    className="rounded-md border border-border bg-background/80 px-3 py-2"
-                  >
+                  <Badge key={moduleName} variant="secondary">
                     {moduleName}
-                  </li>
+                  </Badge>
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">
                 No modules reported by the API.
@@ -210,23 +214,25 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
           </CardHeader>
           <CardContent>
             {auditQuery.isPending ? (
-              <p className="text-sm text-muted-foreground">
-                Loading audit log...
-              </p>
+              <div className="flex flex-col gap-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
             ) : auditQuery.isError ? (
               <p className="text-sm text-destructive">
                 Unable to load audit log.
               </p>
             ) : recentEntries.length > 0 ? (
-              <ul className="space-y-3">
+              <ul className="flex flex-col gap-3">
                 {recentEntries.map((entry, index) => (
                   <li
                     key={entry.id ?? `${entry.event}-${index}`}
-                    className="rounded-md border border-border/80 bg-background/80 px-3 py-2"
+                    className="rounded-md border px-3 py-2"
                   >
                     <p className="text-sm font-medium">{entry.event}</p>
                     <p className="text-xs text-muted-foreground">
-                      {entry.actorEmail ?? 'Unknown actor'} -{' '}
+                      {entry.actorEmail ?? 'Unknown actor'} &middot;{' '}
                       {formatTimestamp(entry.createdAt)}
                     </p>
                   </li>

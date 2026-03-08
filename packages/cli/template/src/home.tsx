@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
+import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -8,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/lib/api-client';
 
 async function fetchHealth(): Promise<string> {
@@ -29,9 +31,9 @@ export function HomePage(_: Readonly<HomePageProps>) {
   });
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="flex flex-col gap-4 p-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
-      <p className="text-muted-foreground mt-2">
+      <p className="text-muted-foreground">
         Welcome to your vobase project.
       </p>
 
@@ -43,14 +45,13 @@ export function HomePage(_: Readonly<HomePageProps>) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm">
-            Health:{' '}
-            {healthQuery.isPending
-              ? 'Loading...'
-              : healthQuery.isError
-                ? 'Unavailable'
-                : healthQuery.data}
-          </p>
+          {healthQuery.isPending ? (
+            <Skeleton className="h-5 w-24" />
+          ) : healthQuery.isError ? (
+            <Badge variant="destructive">Unavailable</Badge>
+          ) : (
+            <Badge variant="outline">{healthQuery.data}</Badge>
+          )}
         </CardContent>
       </Card>
     </div>

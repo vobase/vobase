@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/lib/api-client';
 
 interface AuditEntry {
@@ -92,9 +93,9 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   const canGoNext = auditQuery.data?.nextCursor !== undefined;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex flex-col gap-6 p-6">
       <div>
-        <p className="text-xs tracking-[0.18em] text-muted-foreground uppercase">
+        <p className="text-xs tracking-widest text-muted-foreground uppercase">
           System
         </p>
         <h1 className="mt-2 text-3xl font-semibold">Audit log</h1>
@@ -107,11 +108,14 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
             Cursor-based paginated events from /api/system/audit-log
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="flex flex-col gap-4">
           {auditQuery.isPending ? (
-            <p className="text-sm text-muted-foreground">
-              Loading audit entries...
-            </p>
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
           ) : auditQuery.isError ? (
             <p className="text-sm text-destructive">
               Unable to load audit log entries.
@@ -121,7 +125,7 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
               No audit log entries found.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-md border border-border">
+            <div className="overflow-x-auto rounded-md border">
               <table className="w-full min-w-160 text-left text-sm">
                 <thead className="bg-muted/50">
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -141,7 +145,7 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
                 </thead>
                 <tbody>
                   {table.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="border-t border-border">
+                    <tr key={row.id} className="border-t">
                       {row.getVisibleCells().map((cell) => (
                         <td
                           key={cell.id}
