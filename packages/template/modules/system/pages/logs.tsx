@@ -93,12 +93,12 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   const canGoNext = auditQuery.data?.nextCursor !== undefined;
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-8 p-6 lg:p-10">
       <div>
-        <p className="text-xs tracking-widest text-muted-foreground uppercase">
+        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
           System
         </p>
-        <h1 className="mt-2 text-3xl font-semibold">Audit log</h1>
+        <h1 className="mt-1 text-4xl font-bold tracking-tight">Audit log</h1>
       </div>
 
       <Card>
@@ -206,6 +206,6 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   );
 }
 
-export const Route = createFileRoute('/system/logs')({
+export const Route = createFileRoute('/_app/system/logs')({
   component: SystemLogsPage,
 });

@@ -103,12 +103,12 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
   const recentEntries = (auditQuery.data?.entries ?? []).slice(0, 5);
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-8 p-6 lg:p-10">
       <div>
-        <p className="text-xs tracking-widest text-muted-foreground uppercase">
+        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
           System
         </p>
-        <h1 className="mt-2 text-3xl font-semibold">Operations dashboard</h1>
+        <h1 className="mt-1 text-4xl font-bold tracking-tight">Operations</h1>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -169,7 +169,7 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
             ) : healthQuery.isError ? (
               <Badge variant="destructive">Unavailable</Badge>
             ) : (
-              <Badge variant="outline">{healthQuery.data?.db}</Badge>
+              <Badge variant="success">{healthQuery.data?.db}</Badge>
             )}
           </CardContent>
         </Card>
@@ -250,6 +250,6 @@ export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
   );
 }
 
-export const Route = createFileRoute('/system/list')({
+export const Route = createFileRoute('/_app/system/list')({
   component: SystemDashboardPage,
 });
