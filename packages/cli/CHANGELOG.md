@@ -1,5 +1,14 @@
 # @vobase/cli
 
+## 0.4.1
+
+### Patch Changes
+
+- [`5ed3fd5`](https://github.com/vobase/vobase/commit/5ed3fd58de992cc1825d7de6648eba477c236738) Thanks [@mdluo](https://github.com/mdluo)! - Fix route generation to use auth/app layout groups instead of flat routes
+
+- Updated dependencies []:
+  - @vobase/core@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes
