@@ -1,4 +1,4 @@
-export async function runMigrateGenerate(
+export async function runDbGenerate(
   options: { cwd?: string } = {},
 ): Promise<void> {
   const cwd = options.cwd ?? process.cwd();

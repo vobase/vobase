@@ -3,16 +3,18 @@
 import { runDev } from './commands/dev';
 import { generate } from './commands/generate';
 import { runInit } from './commands/init';
-import { runMigrate } from './commands/migrate';
-import { runMigrateGenerate } from './commands/migrate-generate';
+import { runDbMigrate } from './commands/db-migrate';
+import { runDbGenerate } from './commands/db-generate';
+import { runDbPush } from './commands/db-push';
 import { runAddSkill } from './commands/add-skill';
 
 export const HELP_TEXT = `vobase <command>
 
 Commands:
   generate           Generate routes.ts and modules/system/schema.ts
-  migrate            Run drizzle-kit migrations with auto-backup
-  migrate:generate   Generate migration files via drizzle-kit
+  db:migrate         Run drizzle-kit migrations with auto-backup
+  db:generate        Generate migration files via drizzle-kit
+  db:push            Push schema changes directly to database
   dev                Start backend (and frontend when vite config exists)
   init [name]        Create a new vobase project (omit name for current dir)
   add skill <name>      Add a skill to .agents/skills
@@ -36,13 +38,18 @@ export async function main(
     return;
   }
 
-  if (command === 'migrate') {
-    await runMigrate();
+  if (command === 'db:migrate') {
+    await runDbMigrate();
     return;
   }
 
-  if (command === 'migrate:generate') {
-    await runMigrateGenerate();
+  if (command === 'db:generate') {
+    await runDbGenerate();
+    return;
+  }
+
+  if (command === 'db:push') {
+    await runDbPush();
     return;
   }
 

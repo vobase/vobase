@@ -11,7 +11,7 @@ import {
   it,
 } from 'bun:test';
 
-import { runMigrate } from './migrate';
+import { runDbMigrate } from './db-migrate';
 
 const testDir = resolve(tmpdir(), `vobase-migrate-test-${process.pid}`);
 
@@ -23,7 +23,7 @@ afterAll(async () => {
   await rm(testDir, { recursive: true, force: true });
 });
 
-describe('runMigrate', () => {
+describe('runDbMigrate', () => {
   beforeEach(async () => {
     // Clean up test directory for each test
     await rm(resolve(testDir, 'data'), { recursive: true, force: true });
@@ -51,7 +51,7 @@ describe('runMigrate', () => {
     };
 
     try {
-      await runMigrate({ cwd: testDir });
+      await runDbMigrate({ cwd: testDir });
 
       const backupDirPath = resolve(testDir, 'data/backups');
       const backupDirExists = existsSync(backupDirPath);
@@ -81,7 +81,7 @@ describe('runMigrate', () => {
     };
 
     try {
-      await runMigrate({ cwd: testDir });
+      await runDbMigrate({ cwd: testDir });
 
       // Check that backup was created
       const backupDirPath = resolve(testDir, 'data/backups');
@@ -121,7 +121,7 @@ describe('runMigrate', () => {
     };
 
     try {
-      await runMigrate({ cwd: testDir });
+      await runDbMigrate({ cwd: testDir });
 
       // Get backup file
       const backupDirPath = resolve(testDir, 'data/backups');
@@ -153,7 +153,7 @@ describe('runMigrate', () => {
     };
 
     try {
-      await runMigrate({ cwd: testDir });
+      await runDbMigrate({ cwd: testDir });
 
       // Verify drizzle-kit was called
       expect(spawnCalls.length).toBe(1);
@@ -183,7 +183,7 @@ describe('runMigrate', () => {
     };
 
     try {
-      await expect(runMigrate({ cwd: testDir })).rejects.toThrow(
+      await expect(runDbMigrate({ cwd: testDir })).rejects.toThrow(
         'drizzle-kit migrate exited with code 1',
       );
     } finally {
@@ -208,7 +208,7 @@ describe('runMigrate', () => {
 
     try {
       // Don't create vobase.config.ts - should fall back to default
-      await runMigrate({ cwd: testDir });
+      await runDbMigrate({ cwd: testDir });
 
       expect(spawnCalls.length).toBe(1);
       expect(spawnCalls[0]?.cwd).toBe(testDir);

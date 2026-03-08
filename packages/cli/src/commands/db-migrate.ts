@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-export async function runMigrate(
+export async function runDbMigrate(
   options: { cwd?: string } = {},
 ): Promise<void> {
   const cwd = options.cwd ?? process.cwd();

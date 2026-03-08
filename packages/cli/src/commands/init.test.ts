@@ -167,8 +167,9 @@ describe('runInit', () => {
 describe('cli help text', () => {
   it('lists all available commands', () => {
     expect(HELP_TEXT).toContain('generate');
-    expect(HELP_TEXT).toContain('migrate');
-    expect(HELP_TEXT).toContain('migrate:generate');
+    expect(HELP_TEXT).toContain('db:migrate');
+    expect(HELP_TEXT).toContain('db:generate');
+    expect(HELP_TEXT).toContain('db:push');
     expect(HELP_TEXT).toContain('dev');
     expect(HELP_TEXT).toContain('init [name]');
   });
