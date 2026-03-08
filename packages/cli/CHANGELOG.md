@@ -1,5 +1,16 @@
 # @vobase/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- [`8e88fd2`](https://github.com/vobase/vobase/commit/8e88fd28571f6710b83623cdefaaf107dff4b4d1) Thanks [@mdluo](https://github.com/mdluo)! - Migrate template frontend from Radix UI to Base UI with shadcn CLI (base-nova preset). Overhaul theme to neutral OKLCH palette with dark mode support, Geist Variable font, and 11 shadcn components. Rewrite all template pages with Base UI render prop patterns, FieldGroup forms, Skeleton loading states, and error/success differentiation.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vobase/core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
