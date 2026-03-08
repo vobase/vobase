@@ -1,4 +1,4 @@
-import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { downloadTemplate } from 'giget';
@@ -29,15 +29,16 @@ export async function runInit(
     cliVersion,
   });
 
+  await mkdir(join(targetDirectory, 'data'), { recursive: true });
   await runCommand(['bun', 'install'], targetDirectory);
   await runCommand(['bunx', 'vobase', 'generate'], targetDirectory);
+  await runCommand(['bunx', 'drizzle-kit', 'push'], targetDirectory);
 
   console.log(`✓ Created project: ${projectName}`);
   console.log('');
   console.log('Next steps:');
   console.log(`  cd ${projectName}`);
-  console.log('  bunx drizzle-kit push   # Push schema to dev database');
-  console.log('  bunx vobase dev         # Start dev server');
+  console.log('  bunx vobase dev   # Start dev server');
 }
 
 const SKIP_ENTRIES = new Set([

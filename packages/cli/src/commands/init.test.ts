@@ -124,6 +124,7 @@ describe('runInit', () => {
       expect(calls).toEqual([
         { command: ['bun', 'install'], cwd: targetDir },
         { command: ['bunx', 'vobase', 'generate'], cwd: targetDir },
+        { command: ['bunx', 'drizzle-kit', 'push'], cwd: targetDir },
       ]);
     });
   });
