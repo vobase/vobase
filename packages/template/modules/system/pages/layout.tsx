@@ -6,6 +6,6 @@ export function SystemLayoutPage(_: Readonly<SystemLayoutPageProps>) {
   return <Outlet />;
 }
 
-export const Route = createFileRoute('/system')({
+export const Route = createFileRoute('/_app/system')({
   component: SystemLayoutPage,
 });
