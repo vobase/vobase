@@ -17,7 +17,7 @@
     "typecheck": "turbo run typecheck",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "changeset publish"
+    "release": "bash scripts/release.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
