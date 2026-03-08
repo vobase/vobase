@@ -1,6 +1,9 @@
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { downloadTemplate } from 'giget';
+
+const TEMPLATE_SOURCE = 'github:vobase/vobase/packages/cli/template';
 
 export async function runInit(
   projectName: string,
@@ -14,9 +17,14 @@ export async function runInit(
   }
 
   const cliVersion = await resolveCliVersion();
-  const templateDirectory = await resolveTemplateDirectory();
-  await mkdir(targetDirectory, { recursive: true });
-  await copyTemplateDirectory(templateDirectory, targetDirectory, {
+
+  console.log(`Downloading template...`);
+  await downloadTemplate(TEMPLATE_SOURCE, {
+    dir: targetDirectory,
+    force: true,
+  });
+
+  await postProcess(targetDirectory, {
     projectName: basename(targetDirectory),
     cliVersion,
   });
@@ -52,24 +60,21 @@ const SKIP_FILENAMES = new Set([
   'routeTree.gen.ts',
 ]);
 
-async function copyTemplateDirectory(
-  sourceDirectory: string,
-  targetDirectory: string,
+async function postProcess(
+  directory: string,
   options: { projectName: string; cliVersion: string },
 ): Promise<void> {
-  const entries = await readdir(sourceDirectory, { withFileTypes: true });
+  const entries = await readdir(directory, { withFileTypes: true });
 
   for (const entry of entries) {
     if (SKIP_ENTRIES.has(entry.name) || SKIP_FILENAMES.has(entry.name)) {
       continue;
     }
 
-    const sourcePath = join(sourceDirectory, entry.name);
-    const targetPath = join(targetDirectory, entry.name);
+    const entryPath = join(directory, entry.name);
 
     if (entry.isDirectory()) {
-      await mkdir(targetPath, { recursive: true });
-      await copyTemplateDirectory(sourcePath, targetPath, options);
+      await postProcess(entryPath, options);
       continue;
     }
 
@@ -77,20 +82,23 @@ async function copyTemplateDirectory(
       continue;
     }
 
-    const sourceContent = await readFile(sourcePath, 'utf8');
-    let outputContent = sourceContent.replaceAll(
+    const content = await readFile(entryPath, 'utf8');
+    let output = content.replaceAll(
       '{{PROJECT_NAME}}',
       options.projectName,
     );
-    outputContent = outputContent.replaceAll(
+    output = output.replaceAll(
       '"workspace:*"',
       `"^${options.cliVersion}"`,
     );
-    outputContent = outputContent.replaceAll(
+    output = output.replaceAll(
       '@vobase/template',
       options.projectName,
     );
-    await writeFile(targetPath, outputContent, 'utf8');
+
+    if (output !== content) {
+      await writeFile(entryPath, output, 'utf8');
+    }
   }
 }
 
@@ -107,26 +115,6 @@ async function resolveCliVersion(): Promise<string> {
     } catch {}
   }
   return '0.1.0';
-}
-
-async function resolveTemplateDirectory(): Promise<string> {
-  const currentDirectory = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    resolve(currentDirectory, '../../template'),
-    resolve(currentDirectory, '../template'),
-    resolve(currentDirectory, './template'),
-    resolve(currentDirectory, '../../../template'),
-    resolve(process.cwd(), 'packages/cli/template'),
-    resolve(process.cwd(), 'template'),
-  ];
-
-  for (const candidate of candidates) {
-    if (await directoryExists(candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new Error('Unable to locate CLI template directory');
 }
 
 async function runCommand(command: string[], cwd: string): Promise<void> {
@@ -146,19 +134,6 @@ async function pathExists(pathValue: string): Promise<boolean> {
   try {
     await stat(pathValue);
     return true;
-  } catch (error) {
-    if (isErrnoCode(error, 'ENOENT')) {
-      return false;
-    }
-
-    throw error;
-  }
-}
-
-async function directoryExists(pathValue: string): Promise<boolean> {
-  try {
-    const pathStats = await stat(pathValue);
-    return pathStats.isDirectory();
   } catch (error) {
     if (isErrnoCode(error, 'ENOENT')) {
       return false;

@@ -32,7 +32,8 @@
   },
   "dependencies": {
     "@vobase/core": "workspace:*",
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "giget": "^3.1.2"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.9"

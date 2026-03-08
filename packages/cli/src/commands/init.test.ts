@@ -1,10 +1,9 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
 
 import { HELP_TEXT } from '../bin';
-import { runInit } from './init';
 
 const createdPaths: string[] = [];
 
@@ -16,6 +15,53 @@ function rememberPath(pathValue: string): string {
 async function createTempRoot(): Promise<string> {
   return rememberPath(await mkdtemp(join(tmpdir(), 'vobase-init-test-')));
 }
+
+// Create a fake template directory to use in tests
+let fakeTemplateDir: string;
+
+beforeAll(async () => {
+  fakeTemplateDir = await mkdtemp(join(tmpdir(), 'vobase-template-'));
+  createdPaths.push(fakeTemplateDir);
+
+  // Create minimal template files
+  const files: Record<string, string> = {
+    'package.json': JSON.stringify({
+      name: '@vobase/template',
+      dependencies: {
+        '@vobase/core': 'workspace:*',
+        '@vobase/cli': 'workspace:*',
+      },
+    }),
+    'server.ts': 'console.log("{{PROJECT_NAME}}")',
+    'vobase.config.ts': 'export default {}',
+    'vite.config.ts': 'export default {}',
+    'tsconfig.json': '{}',
+    'drizzle.config.ts': 'export default {}',
+    '.gitignore': 'node_modules',
+    '.env.example': 'DB_PATH=data/app.db',
+    'AGENTS.md': '# Agents',
+    'index.html': '<html></html>',
+  };
+
+  await mkdir(join(fakeTemplateDir, 'modules'), { recursive: true });
+  await writeFile(join(fakeTemplateDir, 'modules', 'index.ts'), 'export {}');
+
+  for (const [name, content] of Object.entries(files)) {
+    await writeFile(join(fakeTemplateDir, name), content);
+  }
+});
+
+// Mock giget to copy from the fake template directory instead of fetching from GitHub
+mock.module('giget', () => ({
+  downloadTemplate: async (_source: string, opts: { dir: string; force?: boolean }) => {
+    const { cp } = await import('node:fs/promises');
+    await cp(fakeTemplateDir, opts.dir, { recursive: true });
+    return { dir: opts.dir };
+  },
+}));
+
+// Import after mock setup
+const { runInit } = await import('./init');
 
 function withMockedSpawn(
   handler: (calls: Array<{ command: string[]; cwd?: string }>) => Promise<void>,
