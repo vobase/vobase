@@ -36,11 +36,8 @@ export async function runInit(
   console.log('');
   console.log('Next steps:');
   console.log(`  cd ${projectName}`);
-  console.log(
-    '  bun x @better-auth/cli generate  # Generate auth tables schema',
-  );
-  console.log('  bunx drizzle-kit push              # Push schema to dev database');
-  console.log('  bunx vobase dev                   # Start dev server');
+  console.log('  bunx drizzle-kit push   # Push schema to dev database');
+  console.log('  bunx vobase dev         # Start dev server');
 }
 
 const SKIP_ENTRIES = new Set([
