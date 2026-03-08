@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.1.5
+
+### Patch Changes
+
+- [`42b92e5`](https://github.com/vobase/vobase/commit/42b92e550482a73e8da88f1da172c103d5d9ed39) Thanks [@mdluo](https://github.com/mdluo)! - fix: remove misleading @better-auth/cli generate step from init output
+
 ## 0.1.4
 
 ### Patch Changes
