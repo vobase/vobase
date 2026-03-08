@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.1.7
+
+### Patch Changes
+
+- [`bf7bc85`](https://github.com/vobase/vobase/commit/bf7bc859f7dad9cdc6042228bf62ba89352d244c) Thanks [@mdluo](https://github.com/mdluo)! - feat: support `vobase init` in current directory with git-clean safety check
+
 ## 0.1.6
 
 ### Patch Changes
