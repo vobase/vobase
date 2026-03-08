@@ -59,15 +59,18 @@ export function buildRoutesSource(moduleNames: string[]): string {
   const sortedModuleNames = [...moduleNames].sort((left, right) =>
     left.localeCompare(right),
   );
-  const children =
-    sortedModuleNames.length === 0
-      ? '[]'
-      : `[\n${sortedModuleNames.map(buildModuleRoute).join('\n')}\n]`;
+  const appRoutes = [
+    "  route('/', 'home.tsx'),",
+    "  route('/login', 'shell/auth/login.tsx'),",
+    "  route('/signup', 'shell/auth/signup.tsx'),",
+  ];
+  const moduleRoutes = sortedModuleNames.map(buildModuleRoute);
+  const allRoutes = [...appRoutes, ...moduleRoutes];
 
   return [
     "import { rootRoute, route, physical } from '@tanstack/virtual-file-routes';",
     '',
-    `export const routes = rootRoute('root.tsx', ${children});`,
+    `export const routes = rootRoute('root.tsx', [\n${allRoutes.join('\n')}\n]);`,
     '',
   ].join('\n');
 }

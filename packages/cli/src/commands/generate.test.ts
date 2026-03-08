@@ -46,11 +46,14 @@ describe('generate', () => {
       "import { rootRoute, route, physical } from '@tanstack/virtual-file-routes';",
       '',
       "export const routes = rootRoute('root.tsx', [",
+      "  route('/', 'home.tsx'),",
+      "  route('/login', 'shell/auth/login.tsx'),",
+      "  route('/signup', 'shell/auth/signup.tsx'),",
       "  route('/crm', '../modules/crm/pages/layout.tsx', [",
-    "    physical('../modules/crm/pages/'),",
+      "    physical('../modules/crm/pages/'),",
       '  ]),',
       "  route('/invoicing', '../modules/invoicing/pages/layout.tsx', [",
-    "    physical('../modules/invoicing/pages/'),",
+      "    physical('../modules/invoicing/pages/'),",
       '  ]),',
       ']);',
       '',
@@ -95,6 +98,7 @@ describe('generate', () => {
 
     expect(result.modules).toEqual([]);
     expect(routes).toBe(buildRoutesSource([]));
-    expect(routes).toContain("rootRoute('root.tsx', [])");
+    expect(routes).toContain("route('/', 'home.tsx')");
+    expect(routes).toContain("route('/login', 'shell/auth/login.tsx')");
   });
 });

@@ -80,7 +80,7 @@ export function createApp(config: CreateAppConfig) {
   if (existsSync(migrationsFolder)) {
     runMigrations(db, migrationsFolder);
   } else {
-    logger.warn('Skipping migrations because folder is missing', {
+    logger.debug('Skipping migrations because folder is missing', {
       migrationsFolder,
     });
   }

@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { downloadTemplate } from 'giget';
@@ -32,6 +32,13 @@ export async function runInit(
     projectName: basename(targetDirectory),
     cliVersion,
   });
+
+  // Copy .env.example to .env for working defaults
+  const envExample = join(targetDirectory, '.env.example');
+  const envFile = join(targetDirectory, '.env');
+  if (await pathExists(envExample) && !(await pathExists(envFile))) {
+    await copyFile(envExample, envFile);
+  }
 
   await mkdir(join(targetDirectory, 'data'), { recursive: true });
   await runCommand(['bun', 'install'], targetDirectory);
