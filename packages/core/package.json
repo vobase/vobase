@@ -1,6 +1,14 @@
 {
   "name": "@vobase/core",
   "version": "0.1.0",
+  "license": "MIT",
+  "description": "The app framework built for AI coding agents - core runtime",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/voltade/vobase",
+    "directory": "packages/core"
+  },
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -13,6 +21,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target=bun --sourcemap=inline && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir ./dist",
     "dev": "bun run build --watch",

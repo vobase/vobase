@@ -1,10 +1,28 @@
 {
   "name": "@vobase/cli",
   "version": "0.1.0",
+  "license": "MIT",
+  "description": "The app framework built for AI coding agents - CLI and scaffolding",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/voltade/vobase",
+    "directory": "packages/cli"
+  },
   "bin": {
-    "vobase": "./dist/bin.js"
+    "vobase": "dist/bin.js"
   },
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/bin.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "bun build ./src/bin.ts --outdir ./dist --target=bun --sourcemap=inline",
     "dev": "bun run build --watch",
@@ -13,7 +31,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vobase/core": "^0.1.0",
+    "@vobase/core": "workspace:*",
     "concurrently": "^9.2.1"
   },
   "devDependencies": {
