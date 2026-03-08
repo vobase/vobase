@@ -1,5 +1,14 @@
 # @vobase/cli
 
+## 0.1.4
+
+### Patch Changes
+
+- feat: fetch template from GitHub instead of bundling in npm package
+
+- Updated dependencies []:
+  - @vobase/core@0.1.4
+
 ## 0.1.3
 
 ### Patch Changes
