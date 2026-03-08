@@ -91,7 +91,7 @@ describe('runAddSkill', () => {
 
     const manifestPath = resolve(
       process.cwd(),
-      'packages/cli/skills/manifest.json',
+      'skills/manifest.json',
     );
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
       skills: Array<{ name: string }>;
