@@ -8,8 +8,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@modules/*": ["./modules/*"]
-    },
-    "types": ["bun-types"]
+    }
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "dist"]

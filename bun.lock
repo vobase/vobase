@@ -20,7 +20,7 @@
     },
     "packages/cli": {
       "name": "@vobase/cli",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "bin": {
         "vobase": "dist/bin.js",
       },
@@ -33,7 +33,25 @@
         "drizzle-kit": "^0.31.9",
       },
     },
-    "packages/cli/template": {
+    "packages/core": {
+      "name": "@vobase/core",
+      "version": "0.3.0",
+      "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.27.1",
+        "bunqueue": "^2.6.6",
+        "nanoid": "^5.1.6",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "drizzle-kit": "^0.31.9",
+      },
+      "peerDependencies": {
+        "better-auth": "^1.5.0",
+        "drizzle-orm": ">=0.42.0",
+        "hono": "^4.6.0",
+      },
+    },
+    "packages/template": {
       "name": "@vobase/template",
       "version": "0.1.0",
       "dependencies": {
@@ -70,24 +88,6 @@
         "tailwindcss": "^4.2.1",
         "typescript": "^5.9.3",
         "vite": "^7.3.1",
-      },
-    },
-    "packages/core": {
-      "name": "@vobase/core",
-      "version": "0.2.0",
-      "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.27.1",
-        "bunqueue": "^2.6.6",
-        "nanoid": "^5.1.6",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "drizzle-kit": "^0.31.9",
-      },
-      "peerDependencies": {
-        "better-auth": "^1.5.0",
-        "drizzle-orm": ">=0.42.0",
-        "hono": "^4.6.0",
       },
     },
   },
@@ -584,7 +584,7 @@
 
     "@vobase/core": ["@vobase/core@workspace:packages/core"],
 
-    "@vobase/template": ["@vobase/template@workspace:packages/cli/template"],
+    "@vobase/template": ["@vobase/template@workspace:packages/template"],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 

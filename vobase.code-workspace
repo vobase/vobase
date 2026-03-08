@@ -4,7 +4,12 @@
       "path": ".",
     },
     {
-      "path": "packages/cli/template",
+      "path": "packages/template",
     },
   ],
+  "settings": {
+    "cSpell.words": [
+      "vobase"
+    ]
+  },
 }

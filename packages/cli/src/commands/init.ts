@@ -3,7 +3,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { downloadTemplate } from 'giget';
 
-const TEMPLATE_SOURCE = 'github:vobase/vobase/packages/cli/template';
+const TEMPLATE_SOURCE = 'github:vobase/vobase/packages/template';
 
 export async function runInit(
   projectName: string,

@@ -41,8 +41,10 @@ Each module lives in `modules/{name}/`:
 
 ## Commands
 - `bunx vobase dev`: Starts backend + Vite dev server.
-- `bunx vobase migrate`: Runs drizzle-kit migrations (with auto-backup). For development, use `bunx drizzle-kit push` instead.
 - `bunx vobase generate`: Regenerates `src/routes.ts` + system schema.
+- `bunx vobase db:migrate`: Runs drizzle-kit migrations (with auto-backup).
+- `bunx vobase db:generate`: Generates migration files via drizzle-kit.
+- `bunx vobase db:push`: Pushes schema changes directly to database (for development).
 - `bun test`: Runs all tests.
 
 See @vobase/core documentation for complete API reference.

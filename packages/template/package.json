@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vobase dev",
     "generate": "vobase generate",
-    "migrate": "vobase migrate",
-    "migrate:generate": "vobase migrate:generate",
+    "db:migrate": "vobase db:migrate",
+    "db:generate": "vobase db:generate",
+    "db:push": "vobase db:push",
     "build": "bun build ./server.ts --outdir ./dist --target=bun"
   },
   "dependencies": {
@@ -40,9 +41,9 @@
     "@vitejs/plugin-react": "^5.1.4",
     "better-sqlite3": "^12.6.2",
     "drizzle-kit": "^0.31.9",
+    "shadcn": "^4.0.2",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
-    "shadcn": "^4.0.2",
     "vite": "^7.3.1"
   }
 }
