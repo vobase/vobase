@@ -59,18 +59,28 @@ export function buildRoutesSource(moduleNames: string[]): string {
   const sortedModuleNames = [...moduleNames].sort((left, right) =>
     left.localeCompare(right),
   );
-  const appRoutes = [
-    "  route('/', 'home.tsx'),",
-    "  route('/login', 'shell/auth/login.tsx'),",
-    "  route('/signup', 'shell/auth/signup.tsx'),",
+  const appChildren = [
+    "    route('/', 'home.tsx'),",
+    ...sortedModuleNames.map(buildModuleRoute),
   ];
-  const moduleRoutes = sortedModuleNames.map(buildModuleRoute);
-  const allRoutes = [...appRoutes, ...moduleRoutes];
 
   return [
-    "import { rootRoute, route, physical } from '@tanstack/virtual-file-routes';",
+    "import {",
+    "  layout,",
+    "  physical,",
+    "  rootRoute,",
+    "  route,",
+    "} from '@tanstack/virtual-file-routes';",
     '',
-    `export const routes = rootRoute('root.tsx', [\n${allRoutes.join('\n')}\n]);`,
+    "export const routes = rootRoute('root.tsx', [",
+    "  layout('auth', 'shell/auth/layout.tsx', [",
+    "    route('/login', 'shell/auth/login.tsx'),",
+    "    route('/signup', 'shell/auth/signup.tsx'),",
+    '  ]),',
+    "  layout('app', 'shell/app-layout.tsx', [",
+    ...appChildren,
+    '  ]),',
+    ']);',
     '',
   ].join('\n');
 }
@@ -132,9 +142,9 @@ export async function generate(
 
 function buildModuleRoute(moduleName: string): string {
   return [
-    `  route('/${moduleName}', '../modules/${moduleName}/pages/layout.tsx', [`,
-    `    physical('../modules/${moduleName}/pages/'),`,
-    '  ]),',
+    `    route('/${moduleName}', '../modules/${moduleName}/pages/layout.tsx', [`,
+    `      physical('../modules/${moduleName}/pages/'),`,
+    '    ]),',
   ].join('\n');
 }
 
