@@ -83,10 +83,9 @@ No built-in AI agent. No browser IDE. No proprietary platform. Just a well-struc
 ### quick start
 
 ```bash
-bunx vobase init my-erp
-cd my-erp
-bun install
-bunx vobase dev
+bunx @vobase/cli@latest init my-app
+cd my-app
+bun run dev
 ```
 
 Backend on `:3000`, frontend on `:5173`. Ships with a dashboard, audit log viewer, and operations list out of the box.

@@ -22,10 +22,9 @@ bun add -g @vobase/cli
 ## Quick Start
 
 ```bash
-bunx @vobase/cli init my-erp
-cd my-erp
-bun install
-bunx vobase dev
+bunx @vobase/cli@latest init my-app
+cd my-app
+bun run dev
 ```
 
 See the [full documentation](https://github.com/vobase/vobase) for details.
