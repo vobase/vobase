@@ -1,5 +1,14 @@
 # @vobase/cli
 
+## 0.1.10
+
+### Patch Changes
+
+- [`a1036b0`](https://github.com/vobase/vobase/commit/a1036b078877f9870f2e8e883d78298c9df7da76) Thanks [@mdluo](https://github.com/mdluo)! - fix: include app routes in generate, add baseURL to auth, copy .env on init
+
+- Updated dependencies [[`a1036b0`](https://github.com/vobase/vobase/commit/a1036b078877f9870f2e8e883d78298c9df7da76)]:
+  - @vobase/core@0.1.10
+
 ## 0.1.9
 
 ### Patch Changes
