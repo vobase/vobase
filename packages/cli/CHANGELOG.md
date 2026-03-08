@@ -1,5 +1,16 @@
 # @vobase/cli
 
+## 0.4.0
+
+### Minor Changes
+
+- [`1ca25f6`](https://github.com/vobase/vobase/commit/1ca25f6a6cd92602eaef494df599872120654f8e) Thanks [@mdluo](https://github.com/mdluo)! - Move template to packages/template, rename CLI database commands to db:migrate/db:generate, and add db:push command
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vobase/core@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
