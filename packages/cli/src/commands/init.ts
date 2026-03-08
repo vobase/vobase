@@ -96,9 +96,17 @@ async function copyTemplateDirectory(
 
 async function resolveCliVersion(): Promise<string> {
   const currentDirectory = dirname(fileURLToPath(import.meta.url));
-  const packageJsonPath = resolve(currentDirectory, '../../package.json');
-  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
-  return packageJson.version ?? '0.1.0';
+  const candidates = [
+    resolve(currentDirectory, '../package.json'),
+    resolve(currentDirectory, '../../package.json'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      const packageJson = JSON.parse(await readFile(candidate, 'utf8'));
+      if (packageJson.name === '@vobase/cli') return packageJson.version ?? '0.1.0';
+    } catch {}
+  }
+  return '0.1.0';
 }
 
 async function resolveTemplateDirectory(): Promise<string> {
