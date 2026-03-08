@@ -13,7 +13,11 @@ export async function runInit(
     options.targetDir ?? resolve(process.cwd(), projectName);
 
   if (await pathExists(targetDirectory)) {
-    throw new Error(`Target directory already exists: ${targetDirectory}`);
+    const entries = await readdir(targetDirectory);
+    const nonEmpty = entries.filter((e) => e !== '.git' && e !== '.gitignore');
+    if (nonEmpty.length > 0) {
+      await ensureGitClean(targetDirectory);
+    }
   }
 
   const cliVersion = await resolveCliVersion();
@@ -34,10 +38,13 @@ export async function runInit(
   await runCommand(['bunx', 'vobase', 'generate'], targetDirectory);
   await runCommand(['bunx', 'drizzle-kit', 'push'], targetDirectory);
 
-  console.log(`✓ Created project: ${projectName}`);
+  const displayName = basename(targetDirectory);
+  console.log(`✓ Created project: ${displayName}`);
   console.log('');
   console.log('Next steps:');
-  console.log(`  cd ${projectName}`);
+  if (projectName !== '.') {
+    console.log(`  cd ${projectName}`);
+  }
   console.log('  bunx vobase dev   # Start dev server');
 }
 
@@ -113,6 +120,37 @@ async function resolveCliVersion(): Promise<string> {
     } catch {}
   }
   return '0.1.0';
+}
+
+async function ensureGitClean(directory: string): Promise<void> {
+  try {
+    const result = Bun.spawnSync(['git', 'status', '--porcelain'], {
+      cwd: directory,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `Directory "${directory}" is not empty and not a git repository. ` +
+          'Use an empty directory or a clean git repo.',
+      );
+    }
+    const output = result.stdout.toString().trim();
+    if (output.length > 0) {
+      throw new Error(
+        `Directory "${directory}" has uncommitted changes. ` +
+          'Please commit or stash your changes before running init.',
+      );
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Directory')) {
+      throw error;
+    }
+    throw new Error(
+      `Directory "${directory}" is not empty and not a git repository. ` +
+        'Use an empty directory or a clean git repo.',
+    );
+  }
 }
 
 async function runCommand(command: string[], cwd: string): Promise<void> {

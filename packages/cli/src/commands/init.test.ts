@@ -149,14 +149,15 @@ describe('runInit', () => {
     expect(packageJson.dependencies['@vobase/cli']).not.toBe('workspace:*');
   });
 
-  it('throws when target directory already exists', async () => {
+  it('throws when target directory has uncommitted changes', async () => {
     const tempRoot = await createTempRoot();
-    const targetDir = resolve(tempRoot, 'existing-app');
+    const targetDir = resolve(tempRoot, 'dirty-app');
     await mkdir(targetDir, { recursive: true });
+    await writeFile(join(targetDir, 'existing.txt'), 'content');
 
     await withMockedSpawn(async (calls) => {
-      await expect(runInit('existing-app', { targetDir })).rejects.toThrow(
-        `Target directory already exists: ${targetDir}`,
+      await expect(runInit('dirty-app', { targetDir })).rejects.toThrow(
+        'not empty and not a git repository',
       );
       expect(calls).toHaveLength(0);
     });
@@ -169,6 +170,6 @@ describe('cli help text', () => {
     expect(HELP_TEXT).toContain('migrate');
     expect(HELP_TEXT).toContain('migrate:generate');
     expect(HELP_TEXT).toContain('dev');
-    expect(HELP_TEXT).toContain('init <name>');
+    expect(HELP_TEXT).toContain('init [name]');
   });
 });

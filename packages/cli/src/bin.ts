@@ -14,7 +14,7 @@ Commands:
   migrate            Run drizzle-kit migrations with auto-backup
   migrate:generate   Generate migration files via drizzle-kit
   dev                Start backend (and frontend when vite config exists)
-  init <name>        Create a new vobase project
+  init [name]        Create a new vobase project (omit name for current dir)
   add skill <name>      Add a skill to .agents/skills
   add skill --list      List available skills
 `;
@@ -54,13 +54,10 @@ export async function main(
   if (command === 'init') {
     const [projectName] = rest;
     if (projectName === undefined || projectName.length === 0) {
-      console.error('Missing project name: vobase init <name>');
-      console.log(HELP_TEXT);
-      process.exitCode = 1;
-      return;
+      await runInit('.', { targetDir: process.cwd() });
+    } else {
+      await runInit(projectName);
     }
-
-    await runInit(projectName);
     return;
   }
 
