@@ -1,10 +1,12 @@
 <p align="center">
   <b>vobase</b><br>
-  ERP engine for AI agents.<br>
+  The app framework built for AI coding agents.<br>
   Validated skills replace configuration. Evals replace hope.
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/@vobase/core"><img src="https://img.shields.io/npm/v/@vobase/core.svg" alt="npm @vobase/core"></a>
+  <a href="https://www.npmjs.com/package/@vobase/cli"><img src="https://img.shields.io/npm/v/@vobase/cli.svg" alt="npm @vobase/cli"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT">
   <img src="https://img.shields.io/badge/Bun-1.3.10-black?logo=bun" alt="Bun 1.3.10">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg" alt="TypeScript">
