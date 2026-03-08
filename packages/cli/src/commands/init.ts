@@ -48,7 +48,7 @@ export async function runInit(
   console.log('  bunx vobase dev   # Start dev server');
 }
 
-const SKIP_ENTRIES = new Set([
+const ROOT_SKIP_ENTRIES = new Set([
   'node_modules',
   'dist',
   'data',
@@ -67,19 +67,18 @@ const SKIP_FILENAMES = new Set([
 
 async function postProcess(
   directory: string,
-  options: { projectName: string; cliVersion: string },
+  options: { projectName: string; cliVersion: string; isRoot?: boolean },
 ): Promise<void> {
   const entries = await readdir(directory, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (SKIP_ENTRIES.has(entry.name) || SKIP_FILENAMES.has(entry.name)) {
-      continue;
-    }
+    if (SKIP_FILENAMES.has(entry.name)) continue;
+    if (options.isRoot !== false && ROOT_SKIP_ENTRIES.has(entry.name)) continue;
 
     const entryPath = join(directory, entry.name);
 
     if (entry.isDirectory()) {
-      await postProcess(entryPath, options);
+      await postProcess(entryPath, { ...options, isRoot: false });
       continue;
     }
 
