@@ -1,5 +1,14 @@
 # @vobase/cli
 
+## 0.1.9
+
+### Patch Changes
+
+- [`1421074`](https://github.com/vobase/vobase/commit/14210745b50ba8acb8d8843deb92224eea099d5b) Thanks [@mdluo](https://github.com/mdluo)! - fix: track template src/data by scoping gitignore data/ to root only
+
+- Updated dependencies [[`1421074`](https://github.com/vobase/vobase/commit/14210745b50ba8acb8d8843deb92224eea099d5b)]:
+  - @vobase/core@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes
