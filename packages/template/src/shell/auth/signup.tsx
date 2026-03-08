@@ -1,22 +1,14 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { authClient } from '@/lib/auth-client';
 
-export type SignupPageProps = Record<string, never>;
-
-export function SignupPage(_: Readonly<SignupPageProps>) {
+export function SignupPage() {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,68 +35,84 @@ export function SignupPage(_: Readonly<SignupPageProps>) {
       return;
     }
 
-    setMessage('Account created. You can now log in.');
-    setIsSubmitting(false);
+    // Auto-login after signup
+    const loginResult = await authClient.signIn.email({ email, password });
+
+    if (loginResult.error) {
+      setMessage('Account created. You can now log in.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    navigate({ to: '/' });
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-56px)] items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Create account</CardTitle>
-          <CardDescription>
-            Start your vobase workspace in minutes.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="signup-name">Name</FieldLabel>
-                <Input
-                  id="signup-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="signup-email">Email</FieldLabel>
-                <Input
-                  id="signup-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="signup-password">Password</FieldLabel>
-                <Input
-                  id="signup-password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                />
-              </Field>
-            </FieldGroup>
+    <>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight">Create account</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Start your vobase workspace in minutes.
+        </p>
+      </div>
 
-            {message ? (
-              <p className={`text-sm ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>{message}</p>
-            ) : null}
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="signup-name">Name</FieldLabel>
+            <Input
+              id="signup-name"
+              placeholder="Jane Doe"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="signup-email">Email</FieldLabel>
+            <Input
+              id="signup-email"
+              type="email"
+              placeholder="name@company.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="signup-password">Password</FieldLabel>
+            <Input
+              id="signup-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+          </Field>
+        </FieldGroup>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? <Spinner /> : null}
-              {isSubmitting ? 'Creating...' : 'Create account'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+        {message ? (
+          <p className={`text-sm ${isError ? 'text-destructive' : 'text-success'}`}>
+            {message}
+          </p>
+        ) : null}
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? <Spinner /> : null}
+          {isSubmitting ? 'Creating...' : 'Create account'}
+        </Button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        Already have an account?{' '}
+        <Link to="/login" className="font-medium text-foreground hover:underline">
+          Log in
+        </Link>
+      </p>
+    </>
   );
 }
 
-export const Route = createFileRoute('/signup')({
+export const Route = createFileRoute('/_auth/signup')({
   component: SignupPage,
 });
