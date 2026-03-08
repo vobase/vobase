@@ -1,6 +1,6 @@
 # @vobase/cli
 
-CLI and project scaffolding for [Vobase](https://github.com/voltade/vobase) — the app framework built for AI coding agents.
+CLI and project scaffolding for [Vobase](https://github.com/vobase/vobase) — the app framework built for AI coding agents.
 
 ## Installation
 
@@ -28,7 +28,7 @@ bun install
 bunx vobase dev
 ```
 
-See the [full documentation](https://github.com/voltade/vobase) for details.
+See the [full documentation](https://github.com/vobase/vobase) for details.
 
 ## License
 
