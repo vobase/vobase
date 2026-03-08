@@ -95,7 +95,7 @@ export async function runDev(options: { cwd?: string } = {}): Promise<void> {
 
   const { result } = concurrently(commands, {
     cwd,
-    killOthers: ['failure'],
+    killOthersOn: ['failure'],
   });
 
   await result;

@@ -5,7 +5,7 @@ __pycache__
 .turbo/
 *.db
 *.tsbuildinfo
-data/
+/data/
 dist/
 dogfood-output
 node_modules/

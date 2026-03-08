@@ -33,7 +33,7 @@
   },
   "peerDependencies": {
     "hono": "^4.6.0",
-    "drizzle-orm": "^0.42.0",
+    "drizzle-orm": ">=0.42.0",
     "better-auth": "^1.5.0"
   },
   "dependencies": {
