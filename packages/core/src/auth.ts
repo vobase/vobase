@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import type { SocialProviders } from 'better-auth/social-providers';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 
 import type { VobaseDb } from './db';
@@ -8,6 +9,7 @@ import { createAuthAuditHooks } from './middleware/audit';
 export interface CreateAuthOptions {
   baseURL?: string;
   trustedOrigins?: string[];
+  socialProviders?: SocialProviders;
 }
 
 export function createAuth(db: VobaseDb, options?: CreateAuthOptions) {
@@ -18,6 +20,7 @@ export function createAuth(db: VobaseDb, options?: CreateAuthOptions) {
     emailAndPassword: {
       enabled: true,
     },
+    ...(options?.socialProviders && { socialProviders: options.socialProviders }),
     user: {
       additionalFields: {
         role: {
