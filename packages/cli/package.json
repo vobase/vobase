@@ -1,6 +1,6 @@
 {
   "name": "@vobase/cli",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "MIT",
   "description": "The app framework built for AI coding agents - CLI and scaffolding",
   "repository": {
