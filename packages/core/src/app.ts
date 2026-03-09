@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { Database } from 'bun:sqlite';
 import { Hono } from 'hono';
 
-import { createAuth } from './auth';
+import { createAuth, type CreateAuthOptions } from './auth';
 import { contextMiddleware } from './ctx';
 import { createDatabase, type VobaseDb } from './db/client';
 import { createHttpClient, type HttpClientOptions } from './http-client';
@@ -70,6 +70,7 @@ export interface CreateAppConfig {
   webhooks?: Record<string, WebhookConfig>;
   mcp?: { enabled?: boolean };
   trustedOrigins?: string[];
+  auth?: Omit<CreateAuthOptions, 'baseURL' | 'trustedOrigins'>;
 }
 
 export function createApp(config: CreateAppConfig) {
@@ -85,7 +86,7 @@ export function createApp(config: CreateAppConfig) {
     });
   }
 
-  const auth = createAuth(db, { trustedOrigins: config.trustedOrigins });
+  const auth = createAuth(db, { trustedOrigins: config.trustedOrigins, ...config.auth });
 
   const queueDbPath = deriveQueueDbPath(config.database);
   const { scheduler, effectiveQueueDbPath } =
