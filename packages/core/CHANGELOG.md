@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.5.0
+
+### Minor Changes
+
+- [`71cc62a`](https://github.com/vobase/vobase/commit/71cc62a55e14299e16154cb03c067b8b61bf8053) Thanks [@mdluo](https://github.com/mdluo)! - Add `socialProviders` option to `createAuth` for configuring OAuth social login providers (Google, GitHub, etc.) via better-auth
+
 ## 0.4.1
 
 ## 0.4.0
