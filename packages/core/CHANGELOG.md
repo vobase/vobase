@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.6.0
+
+### Minor Changes
+
+- [`4e46139`](https://github.com/vobase/vobase/commit/4e461395eab8add4e1a41ba9dd6c3c7de1466204) Thanks [@mdluo](https://github.com/mdluo)! - Expose `auth` option in `CreateAppConfig` to pass social providers and other auth config through to `createAuth`
+
 ## 0.5.0
 
 ### Minor Changes

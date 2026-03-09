@@ -1,5 +1,12 @@
 # @vobase/cli
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [[`4e46139`](https://github.com/vobase/vobase/commit/4e461395eab8add4e1a41ba9dd6c3c7de1466204)]:
+  - @vobase/core@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes
