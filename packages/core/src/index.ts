@@ -28,6 +28,8 @@ export { credentialsTable } from './db/credentials-schema';
 // DB
 export { createDatabase, runMigrations, type VobaseDb } from './db';
 export { ensureCoreTables } from './db/ensure-core-tables';
+// System Schema (Drizzle table definitions for core tables)
+export { auditLog, sequences, recordAudits } from './db/system-schema';
 export {
   createNanoid,
   DEFAULT_COLUMNS,
