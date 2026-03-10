@@ -33,7 +33,7 @@ describe('audit middleware and hooks', () => {
         created_at INTEGER NOT NULL
       )
     `);
-    db = drizzle(sqlite, { schema }) as unknown as VobaseDb;
+    db = drizzle({ client: sqlite, schema }) as unknown as VobaseDb;
   });
 
   afterEach(() => {

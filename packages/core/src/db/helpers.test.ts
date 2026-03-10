@@ -140,8 +140,8 @@ describe('nanoid helpers', () => {
     });
 
     it('timestamp columns should use integer data type', () => {
-      expect(getConfig(DEFAULT_COLUMNS.createdAt).dataType).toBe('date');
-      expect(getConfig(DEFAULT_COLUMNS.updatedAt).dataType).toBe('date');
+      expect(getConfig(DEFAULT_COLUMNS.createdAt).dataType).toBe('object date');
+      expect(getConfig(DEFAULT_COLUMNS.updatedAt).dataType).toBe('object date');
     });
   });
 });

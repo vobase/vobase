@@ -1,8 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 
-const schema: Record<string, never> = {};
-
 export type VobaseDb = ReturnType<typeof drizzle>;
 
 export function createDatabase(dbPath: string): VobaseDb {
@@ -13,5 +11,5 @@ export function createDatabase(dbPath: string): VobaseDb {
   sqlite.run('PRAGMA synchronous=NORMAL');
   sqlite.run('PRAGMA foreign_keys=ON');
 
-  return drizzle(sqlite, { schema });
+  return drizzle({ client: sqlite });
 }

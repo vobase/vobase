@@ -33,7 +33,7 @@ describe('trackChanges()', () => {
       )
     `);
 
-    db = drizzle(sqlite, { schema }) as unknown as VobaseDb;
+    db = drizzle({ client: sqlite, schema }) as unknown as VobaseDb;
   });
 
   afterEach(() => {

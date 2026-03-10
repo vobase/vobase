@@ -114,7 +114,7 @@ describe('system module handlers', () => {
         );
     `);
 
-    db = drizzle(sqlite, { schema }) as unknown as VobaseDb;
+    db = drizzle({ client: sqlite, schema }) as unknown as VobaseDb;
     app = createSystemTestApp(db, createAuthStub());
   });
 

@@ -87,7 +87,7 @@ describe('System Schema - Table Definitions', () => {
       const currentValueCol = columns.currentValue;
       expect(currentValueCol.notNull).toBe(true);
       expect(currentValueCol.default).toBe(0);
-      expect(currentValueCol.dataType).toBe('number');
+      expect(currentValueCol.dataType).toBe('number int53');
     });
 
     it('should have updatedAt with timestamp_ms mode and both default and onUpdate', () => {
