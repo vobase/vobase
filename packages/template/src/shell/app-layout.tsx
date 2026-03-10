@@ -22,10 +22,10 @@ function AppLayout() {
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-1 bg-background lg:grid-cols-[260px_1fr]">
-      <Sidebar className="hidden lg:block" />
+    <div className="grid h-screen grid-cols-1 bg-background lg:grid-cols-[260px_1fr]">
+      <Sidebar className="hidden lg:block sticky top-0 h-screen overflow-y-auto" />
 
-      <div className="flex min-h-screen flex-col">
+      <div className="flex h-screen flex-col overflow-hidden">
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
           <div>
             <p className="text-[10px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">
@@ -43,17 +43,17 @@ function AppLayout() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" render={<Link to="/login" />} nativeButton={false}>
-                Log in
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/login">Log in</Link>
               </Button>
-              <Button size="sm" render={<Link to="/signup" />} nativeButton={false}>
-                Sign up
+              <Button size="sm" asChild>
+                <Link to="/signup">Sign up</Link>
               </Button>
             </div>
           )}
         </header>
 
-        <main className="flex-1">
+        <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>
