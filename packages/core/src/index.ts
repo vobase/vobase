@@ -15,6 +15,16 @@ export {
   type HttpResponse,
   type RequestOptions,
 } from './http-client';
+// Credentials (opt-in encrypted credential store)
+export {
+  decrypt,
+  deleteCredential,
+  encrypt,
+  ensureCredentialTable,
+  getCredential,
+  setCredential,
+} from './credentials';
+export { credentialsTable } from './db/credentials-schema';
 // DB
 export { createDatabase, runMigrations, type VobaseDb } from './db';
 export { ensureCoreTables } from './db/ensure-core-tables';
