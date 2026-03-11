@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@vobase/core"><img src="https://img.shields.io/npm/v/@vobase/core.svg" alt="npm @vobase/core"></a>
-  <a href="https://www.npmjs.com/package/@vobase/cli"><img src="https://img.shields.io/npm/v/@vobase/cli.svg" alt="npm @vobase/cli"></a>
+  <a href="https://www.npmjs.com/package/create-vobase"><img src="https://img.shields.io/npm/v/create-vobase.svg" alt="npm create-vobase"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT">
   <img src="https://img.shields.io/badge/Bun-1.3.10-black?logo=bun" alt="Bun 1.3.10">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg" alt="TypeScript">
@@ -37,7 +37,7 @@ You own the code. You own the data. You own the infrastructure.
 
 ### what you get
 
-One `vobase init` and you have a working full-stack app:
+One `bun create vobase` and you have a working full-stack app:
 
 | Primitive | What it does |
 |---|---|
@@ -56,7 +56,7 @@ Everything runs in one Bun process. No Docker fleet. No external services. `bun 
 ### quick start
 
 ```bash
-bunx @vobase/cli@latest init my-app
+bun create vobase my-app
 cd my-app
 bun run dev
 ```
@@ -78,7 +78,7 @@ Every module is a self-contained directory: schema, handlers, jobs, pages. No pl
 | **Billing & Invoicing** | Invoices, line items, payments, aging reports. Integer money ensures exact arithmetic. Gap-free numbering via transactions. |
 | **Your Vertical** | Property management, fleet tracking, field services — whatever the business needs. Describe it to your AI tool. It generates the module. |
 
-Module starters ship with the CLI: `vobase add <module>`. Like `npx shadcn add button` — files get copied, you own the code.
+Module starters ship as skills: `vobase add skill <name>`. Like `npx shadcn add button` — files get copied, you own the code.
 
 ---
 
@@ -309,7 +309,7 @@ These encode domain knowledge for a particular business function, industry, or r
 | `sg-invoicing` | Tax invoice mandatory fields, credit note linkage, InvoiceNow/Peppol readiness, UEN validation. |
 | `sg-payroll` | CPF contribution rates, SDL/SHG levies, deduction ordering, payslip requirements, IR8A preparation. |
 
-More verticals coming. See `vobase add skill --list` for what's available. Write your own following the same format.
+More verticals coming. Write your own following the same format.
 
 ---
 
@@ -327,9 +327,9 @@ The process:
 6. **Iterate** — rewrite the skill, run again, compare
 
 ```bash
-vobase eval run gap-free-sequences          # run all test prompts against the skill
-vobase eval benchmark gap-free-sequences    # 5 runs with variance analysis
-vobase eval compare gap-free-sequences      # blind A/B: skill vs no-skill
+bun run eval gap-free-sequences             # run all test prompts against the skill
+bun run eval:benchmark gap-free-sequences   # 5 runs with variance analysis
+bun run eval:compare gap-free-sequences     # blind A/B: skill vs no-skill
 ```
 
 The comparator runs blind A/B tests — one agent with the skill, one without, a third agent grades which output is better without knowing which had the skill. If the skill doesn't consistently win, it needs rewriting.
@@ -412,7 +412,7 @@ Clone production for staging:
 
 ```bash
 cp data/vobase.db data/staging.db
-DATABASE=./data/staging.db PORT=3001 bunx vobase dev
+DATABASE=./data/staging.db PORT=3001 bun run dev
 ```
 
 One file copy. Exact production clone. No database dump/restore, no connection string changes.
@@ -479,16 +479,17 @@ Every app gets its own container, its own database, its own backup stream. Physi
 
 ---
 
-### cli commands
+### project commands
+
+After scaffolding, your project uses standard tools directly — no wrapper CLI:
 
 | Command | What it does |
 |---|---|
-| `vobase init` | Scaffold a new project with system module, `AGENTS.md`, and config. |
-| `vobase dev` | Start Bun backend with `--watch` and Vite frontend. Auto-restarts on changes. |
-| `vobase migrate` | Run `drizzle-kit migrate`. Backs up the database first, automatically. |
-| `vobase migrate:generate` | Generate migration files via `drizzle-kit generate`. |
-| `vobase generate` | Rebuild route tree and system schemas from module definitions. |
-| `vobase add skill <name>` | Install an agent skill into `.agents/skills/`. Use `--list` to see available skills. |
+| `bun run dev` | Start Bun backend with `--watch` and Vite frontend. Auto-restarts on changes. |
+| `drizzle-kit push` | Push schema to SQLite (dev). No migrations needed. |
+| `drizzle-kit generate` | Generate migration files for production. |
+| `drizzle-kit migrate` | Run migrations against the database. |
+| `bun run scripts/generate.ts` | Rebuild route tree from module definitions. |
 
 ---
 

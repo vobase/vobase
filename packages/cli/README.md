@@ -1,33 +1,24 @@
-# @vobase/cli
+# @vobase/cli (deprecated)
 
-CLI and project scaffolding for [Vobase](https://github.com/vobase/vobase) — the app framework built for AI coding agents.
+> **Note:** Project scaffolding has moved to [`create-vobase`](https://www.npmjs.com/package/create-vobase). Use `bun create vobase my-app` instead.
 
-## Installation
+CLI helpers for [Vobase](https://github.com/vobase/vobase). Most commands have been replaced by direct tool usage in scaffolded projects:
 
-```bash
-bun add -g @vobase/cli
-```
+| Old command | Replacement |
+|---|---|
+| `vobase init` | `bun create vobase my-app` |
+| `vobase dev` | `bun run dev` (concurrently) |
+| `vobase db:push` | `drizzle-kit push` |
+| `vobase db:migrate` | `drizzle-kit migrate` |
+| `vobase db:generate` | `drizzle-kit generate` |
+| `vobase generate` | `bun run scripts/generate.ts` |
 
-## Commands
+### Still available
 
 | Command | What it does |
 |---|---|
-| `vobase init` | Scaffold a new project |
-| `vobase dev` | Start dev server (backend + frontend) |
-| `vobase migrate` | Run database migrations |
-| `vobase migrate:generate` | Generate migration files |
-| `vobase generate` | Rebuild route tree and system schemas |
-| `vobase add skill <name>` | Install an agent skill |
-
-## Quick Start
-
-```bash
-bunx @vobase/cli@latest init my-app
-cd my-app
-bun run dev
-```
-
-See the [full documentation](https://github.com/vobase/vobase) for details.
+| `vobase migrate` | Bun-native migration runner with automatic backup (wraps drizzle-orm directly) |
+| `vobase add skill <name>` | Install an agent skill into `.agents/skills/` |
 
 ## License
 
