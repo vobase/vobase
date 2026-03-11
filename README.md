@@ -486,9 +486,9 @@ After scaffolding, your project uses standard tools directly — no wrapper CLI:
 | Command | What it does |
 |---|---|
 | `bun run dev` | Start Bun backend with `--watch` and Vite frontend. Auto-restarts on changes. |
-| `drizzle-kit push` | Push schema to SQLite (dev). No migrations needed. |
-| `drizzle-kit generate` | Generate migration files for production. |
-| `drizzle-kit migrate` | Run migrations against the database. |
+| `bun run db:push` | Push schema to SQLite (dev). No migrations needed. |
+| `bun run db:generate` | Generate migration files for production. |
+| `bun run db:migrate` | Run migrations against the database. |
 | `bun run scripts/generate.ts` | Rebuild route tree from module definitions. |
 
 ---

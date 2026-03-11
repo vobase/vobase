@@ -4,6 +4,7 @@ Vobase is a full-stack TypeScript app framework built for AI coding agents — o
 
 ## Essentials
 
+- Runtime: Bun only — no Node.js support. All packages target `bun` runtime.
 - Package manager: `bun` (`packageManager: bun@1.3.10`)
 - Workspace model: Bun workspaces + Turborepo (`packages/*`)
 - Root commands:
@@ -22,7 +23,7 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 | --- | --- |
 | `@vobase/core` | Runtime engine: app wiring, modules, auth, ctx, jobs, MCP, storage |
 | `@vobase/cli` | CLI helpers: `db:migrate` (bun-native), `add skill`, `dev` (deprecated — projects use drizzle-kit and scripts directly) |
-| `create-vobase` | Project scaffolder (`bun create vobase my-app`) — downloads template via giget |
+| `create-vobase` | Project scaffolder (`bun create vobase my-app`) — downloads template, resolves deps, generates routes, pushes schema |
 | `@vobase/template` | Scaffolding source for new projects (private, not published) |
 
 ## Stable Domain Concepts
@@ -47,7 +48,7 @@ Describe capabilities, not brittle file locations. Prefer domain language (modul
 
 - `packages/template` is a workspace member for local dogfooding, but it is **only scaffolding material** — it has no migration history.
 - The template must never contain generated artifacts (`migrations/`, `node_modules/`, `dist/`, `data/`, `routeTree.gen.ts`).
-- To run the template locally in dev mode, use `bunx drizzle-kit push` to sync the schema to SQLite — do **not** generate or run Drizzle migrations.
+- To run the template locally in dev mode, use `bun run db:push` to sync the schema to SQLite — do **not** generate or run Drizzle migrations.
 - When `bun create vobase` scaffolds a new project, it downloads the template via giget and runs `bun install`.
 
 ## Template QA (Dogfooding)
@@ -59,7 +60,7 @@ Describe capabilities, not brittle file locations. Prefer domain language (modul
 bun run build --filter=@vobase/core
 
 # 2. Sync schema to SQLite (no migrations in template)
-cd packages/template && bunx drizzle-kit push
+cd packages/template && bun run db:push
 
 # 3. Start dev server
 bun run dev  # backend :3000, frontend :5173
@@ -79,7 +80,7 @@ Use `dogfood` or `agent-browser` skill for browser QA.
 
 ### Data Reset
 
-Delete `packages/template/data/` and re-run `bunx drizzle-kit push`.
+Delete `packages/template/data/` and re-run `bun run db:push`.
 
 ### Post-Session Checklist
 

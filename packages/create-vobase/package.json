@@ -15,7 +15,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "bun build ./index.ts --outdir ./dist --target=node --packages=external"
+    "build": "bun build ./index.ts --outdir ./dist --target=bun --packages=external"
   },
   "dependencies": {
     "giget": "^2.0.0"
