@@ -15,7 +15,7 @@ export function LoginPage() {
 	const [message, setMessage] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [email, setEmail] = useState(isDev ? 'admin@example.com' : '');
-	const [password, setPassword] = useState(isDev ? 'password' : '');
+	const [password, setPassword] = useState(isDev ? 'Admin@vobase1' : '');
 
 	async function handleGoogleLogin() {
 		setIsSubmitting(true);

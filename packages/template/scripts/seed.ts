@@ -8,7 +8,7 @@ import { modules } from '../modules';
 import config from '../vobase.config';
 
 const ADMIN_EMAIL = 'admin@example.com';
-const ADMIN_PASSWORD = 'admin123';
+const ADMIN_PASSWORD = 'Admin@vobase1';
 const ADMIN_NAME = 'Admin';
 
 const app = createApp({ ...config, modules });
@@ -48,5 +48,6 @@ if (res.status !== 200) {
   process.exit(1);
 }
 
-console.log(`Created user: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
+console.log(`Created user: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`)
+console.log('(These credentials are pre-filled on the login page in dev mode)');
 process.exit(0);
