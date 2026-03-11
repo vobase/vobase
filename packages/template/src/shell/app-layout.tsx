@@ -1,5 +1,4 @@
-import { createFileRoute, Link, Outlet, useNavigate, useRouter } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouter } from '@tanstack/react-router';
 
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/lib/auth-client';
@@ -8,13 +7,6 @@ import { Sidebar } from '@/shell/sidebar';
 function AppLayout() {
   const { data: session, isPending } = authClient.useSession();
   const router = useRouter();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!isPending && !session?.user) {
-      navigate({ to: '/login' });
-    }
-  }, [isPending, session, navigate]);
 
   async function handleSignOut() {
     await authClient.signOut();
@@ -64,5 +56,11 @@ function AppLayout() {
 }
 
 export const Route = createFileRoute('/_app')({
+  beforeLoad: async () => {
+    const { data } = await authClient.getSession();
+    if (!data?.session) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: AppLayout,
 });

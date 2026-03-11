@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { authClient } from '@/lib/auth-client';
 const isDev = import.meta.env.DEV;
 
 export function LoginPage() {
+	const router = useRouter();
 	const navigate = useNavigate();
 	const [message, setMessage] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,6 +47,7 @@ export function LoginPage() {
 			setMessage(result.error.message ?? 'Unable to sign in.');
 			setIsSubmitting(false);
 		} else {
+			await router.invalidate();
 			navigate({ to: '/' });
 		}
 	}
