@@ -104,6 +104,10 @@ export async function runDbMigrate(
   console.log(`Database: ${absoluteDbPath}`);
   console.log(`Migrations: ${migrationsFolder}`);
 
+  // Ensure parent directory exists before opening SQLite
+  const dbDir = absoluteDbPath.substring(0, absoluteDbPath.lastIndexOf('/'));
+  if (dbDir) await mkdir(dbDir, { recursive: true });
+
   const sqlite = new Database(absoluteDbPath, { create: true });
 
   try {
