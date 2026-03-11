@@ -1,0 +1,4 @@
+[run]
+# equivalent to `bun --bun` for all `bun run` commands
+# This ensures all scripts use Bun runtime instead of Node.js
+bun = true

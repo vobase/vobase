@@ -4,12 +4,14 @@ import { TanStackRouterVite } from '@tanstack/router-vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+import { routes } from './src/routes';
+
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
     TanStackRouterVite({
-      virtualRouteConfig: './src/routes.ts',
+      virtualRouteConfig: routes,
       routesDirectory: './src',
       generatedRouteTree: './src/routeTree.gen.ts',
       routeFileIgnorePattern: '(layout|.test|.spec)',

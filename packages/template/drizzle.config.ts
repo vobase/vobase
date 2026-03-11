@@ -13,5 +13,6 @@ export default defineConfig({
     '!_audit_log',
     '!_sequences',
     '!_record_audits',
+    '!_credentials',
   ],
 });
