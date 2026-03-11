@@ -70,6 +70,10 @@ await $`bun run scripts/generate.ts`.cwd(dest);
 console.log('Setting up database...');
 await $`bun run db:push`.cwd(dest);
 
+// --- Seed default admin user ---
+console.log('Seeding admin user...');
+await $`bun run seed`.cwd(dest);
+
 console.log(`
 Done! Your vobase project is ready.
 

@@ -10,7 +10,8 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:generate": "drizzle-kit generate",
-    "build": "bun build ./server.ts --outdir ./dist --target=bun"
+    "build": "bun build ./server.ts --outdir ./dist --target=bun",
+    "seed": "bun run scripts/seed.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
