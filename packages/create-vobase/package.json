@@ -1,0 +1,19 @@
+{
+  "name": "create-vobase",
+  "version": "0.1.0",
+  "description": "Create a new vobase project",
+  "type": "module",
+  "bin": {
+    "create-vobase": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "bun build ./index.ts --outdir ./dist --target=node"
+  },
+  "dependencies": {
+    "giget": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
