@@ -1,5 +1,11 @@
 # create-vobase
 
+## 0.2.0
+
+### Minor Changes
+
+- [`0ec8c7d`](https://github.com/vobase/vobase/commit/0ec8c7deade6d64bd98accde44e10498684dc4db) Thanks [@mdluo](https://github.com/mdluo)! - Rewrite scaffolder for bun-only runtime with full setup flow: resolve workspace deps, generate .env with random secret, create data dir, generate routes, and push schema to SQLite.
+
 ## 0.1.2
 
 ### Patch Changes
