@@ -9,13 +9,15 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
+const KDF_SALT = Buffer.from('vobase-credential-store-v1');
+
 function getEncryptionKey(): Buffer {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret)
     throw new Error(
       'BETTER_AUTH_SECRET is required for credential encryption',
     );
-  return crypto.createHash('sha256').update(secret).digest();
+  return crypto.scryptSync(secret, KDF_SALT, 32);
 }
 
 /** Encrypt a plaintext string using AES-256-GCM. Returns base64-encoded ciphertext. */
@@ -35,12 +37,18 @@ export function encrypt(plaintext: string): string {
 export function decrypt(encoded: string): string {
   const key = getEncryptionKey();
   const data = Buffer.from(encoded, 'base64');
+  if (data.length < IV_LENGTH + TAG_LENGTH + 1) {
+    throw new Error('Invalid ciphertext: too short');
+  }
   const iv = data.subarray(0, IV_LENGTH);
   const tag = data.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
   const ciphertext = data.subarray(IV_LENGTH + TAG_LENGTH);
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(tag);
-  return decipher.update(ciphertext) + decipher.final('utf8');
+  return Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final(),
+  ]).toString('utf8');
 }
 
 /** Get a single credential value (decrypted). Returns null if not found or decryption fails. */
