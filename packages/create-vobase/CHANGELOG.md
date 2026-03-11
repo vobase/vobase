@@ -1,5 +1,11 @@
 # create-vobase
 
+## 0.1.2
+
+### Patch Changes
+
+- [`1afa072`](https://github.com/vobase/vobase/commit/1afa072849dd12631138de075c1105015c259133) Thanks [@mdluo](https://github.com/mdluo)! - Replace workspace:\* dependencies with latest published versions when scaffolding a new project.
+
 ## 0.1.1
 
 ### Patch Changes
