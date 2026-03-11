@@ -68,7 +68,7 @@ await $`bun run scripts/generate.ts`.cwd(dest);
 
 // --- Push schema to SQLite ---
 console.log('Setting up database...');
-await $`bun --bun drizzle-kit push`.cwd(dest);
+await $`bun run db:push`.cwd(dest);
 
 console.log(`
 Done! Your vobase project is ready.

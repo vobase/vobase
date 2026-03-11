@@ -7,9 +7,9 @@
     "dev:vite": "node node_modules/.bin/vite",
     "dev:server": "bun --watch run server.ts",
     "dev": "conc bun:dev:*",
-    "db:push": "bun --bun drizzle-kit push",
-    "db:migrate": "bun --bun drizzle-kit migrate",
-    "db:generate": "bun --bun drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate",
+    "db:generate": "drizzle-kit generate",
     "build": "bun build ./server.ts --outdir ./dist --target=bun"
   },
   "dependencies": {
