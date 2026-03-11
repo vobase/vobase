@@ -1,4 +1,3 @@
-"use client";
 
 import { useDirection } from "@radix-ui/react-direction";
 import type { Column, ColumnFilter, Table } from "@tanstack/react-table";

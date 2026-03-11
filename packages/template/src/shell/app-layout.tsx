@@ -32,7 +32,9 @@ function AppLayout() {
               Vobase
             </p>
           </div>
-          {session?.user ? (
+          {isPending ? (
+            <div className="h-8 w-24 animate-pulse rounded-md bg-muted" />
+          ) : session?.user ? (
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">
                 {session.user.name || session.user.email}

@@ -1,4 +1,3 @@
-"use client";
 
 import { useDirection } from "@radix-ui/react-direction";
 import type { ColumnSort, SortDirection, Table } from "@tanstack/react-table";

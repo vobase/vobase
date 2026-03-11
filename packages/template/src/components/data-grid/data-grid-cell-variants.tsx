@@ -1,4 +1,3 @@
-"use client";
 
 import { Check, Upload, X } from "lucide-react";
 import * as React from "react";
