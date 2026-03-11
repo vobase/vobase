@@ -1,5 +1,11 @@
 # create-vobase
 
+## 0.2.1
+
+### Patch Changes
+
+- [`eb36f3e`](https://github.com/vobase/vobase/commit/eb36f3e8b00547468e9e36a6d2bb2e0f7e12d112) Thanks [@mdluo](https://github.com/mdluo)! - Use stronger default password (Admin@vobase1) for dev admin to avoid browser warnings
+
 ## 0.2.0
 
 ### Minor Changes
