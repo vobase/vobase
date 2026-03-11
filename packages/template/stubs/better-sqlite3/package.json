@@ -1,0 +1,5 @@
+{
+  "name": "better-sqlite3",
+  "version": "0.0.0",
+  "description": "Stub to prevent drizzle-kit from using better-sqlite3 (not supported by Bun)"
+}

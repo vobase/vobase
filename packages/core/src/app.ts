@@ -80,10 +80,6 @@ export function createApp(config: CreateAppConfig) {
   const migrationsFolder = resolveMigrationsFolder();
   if (existsSync(migrationsFolder)) {
     runMigrations(db, migrationsFolder);
-  } else {
-    logger.debug('Skipping migrations because folder is missing', {
-      migrationsFolder,
-    });
   }
 
   const auth = createAuth(db, { trustedOrigins: config.trustedOrigins, ...config.auth });
