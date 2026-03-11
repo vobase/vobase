@@ -4,7 +4,7 @@
   "description": "Create a new vobase project",
   "type": "module",
   "bin": {
-    "create-vobase": "./dist/index.js"
+    "create-vobase": "dist/index.js"
   },
   "files": [
     "dist"

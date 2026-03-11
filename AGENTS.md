@@ -21,7 +21,9 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 | Package | Purpose |
 | --- | --- |
 | `@vobase/core` | Runtime engine: app wiring, modules, auth, ctx, jobs, MCP, storage |
-| `@vobase/cli` | CLI and project scaffolding (`vobase init/dev/generate/db:migrate/db:generate/db:push`) |
+| `@vobase/cli` | CLI helpers: `db:migrate` (bun-native), `add skill`, `dev` (deprecated — projects use drizzle-kit and scripts directly) |
+| `create-vobase` | Project scaffolder (`bun create vobase my-app`) — downloads template via giget |
+| `@vobase/template` | Scaffolding source for new projects (private, not published) |
 
 ## Stable Domain Concepts
 
@@ -46,7 +48,7 @@ Describe capabilities, not brittle file locations. Prefer domain language (modul
 - `packages/template` is a workspace member for local dogfooding, but it is **only scaffolding material** — it has no migration history.
 - The template must never contain generated artifacts (`migrations/`, `node_modules/`, `dist/`, `data/`, `routeTree.gen.ts`).
 - To run the template locally in dev mode, use `bunx drizzle-kit push` to sync the schema to SQLite — do **not** generate or run Drizzle migrations.
-- When `vobase init` scaffolds a new project, it copies the template and replaces `workspace:*` deps with real versions.
+- When `bun create vobase` scaffolds a new project, it downloads the template via giget and runs `bun install`.
 
 ## Template QA (Dogfooding)
 
