@@ -1,5 +1,11 @@
 # create-vobase
 
+## 0.2.3
+
+### Patch Changes
+
+- [`b2a205d`](https://github.com/vobase/vobase/commit/b2a205d35fc9c3c96ad4b99c532c2e44c9670ccc) Thanks [@mdluo](https://github.com/mdluo)! - Add colored output to scaffolder with green checkmarks and bold headings
+
 ## 0.2.2
 
 ### Patch Changes
