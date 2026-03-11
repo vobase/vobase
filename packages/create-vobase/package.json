@@ -1,12 +1,14 @@
 {
   "name": "create-vobase",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Create a new vobase project",
   "type": "module",
   "bin": {
     "create-vobase": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "bun build ./index.ts --outdir ./dist --target=node --packages=external"
   },

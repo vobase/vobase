@@ -1,6 +1,6 @@
 {
   "name": "@vobase/cli",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "license": "MIT",
   "description": "The app framework built for AI coding agents - CLI and scaffolding",
   "deprecated": "Use create-vobase and template package.json scripts instead. See migration guide.",
