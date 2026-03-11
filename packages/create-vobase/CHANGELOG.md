@@ -1,5 +1,11 @@
 # create-vobase
 
+## 0.2.4
+
+### Patch Changes
+
+- [`fc504cb`](https://github.com/vobase/vobase/commit/fc504cb37187caf1150d2e1dc781ba17f9646d7e) Thanks [@mdluo](https://github.com/mdluo)! - Fix login layout flash, first-click sign-in, and /system blank page redirect
+
 ## 0.2.3
 
 ### Patch Changes
