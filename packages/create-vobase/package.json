@@ -2,6 +2,11 @@
   "name": "create-vobase",
   "version": "0.1.1",
   "description": "Create a new vobase project",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vobase/vobase",
+    "directory": "packages/create-vobase"
+  },
   "type": "module",
   "bin": {
     "create-vobase": "dist/index.js"
