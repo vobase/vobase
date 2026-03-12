@@ -14,15 +14,23 @@ Each module lives in `modules/{name}/`:
 - `jobs.ts`: Background job definitions
 - `pages/`: React pages (optional)
 - `seed.ts`: Seed data (optional)
-- `index.ts`: `defineModule({ name, schema, routes, jobs })`
+- `index.ts`: `defineModule({ name, schema, routes, jobs, init? })`
+
+The `system` module is a regular user module (not built into core) with routes for health, audit log, sequences, and record audits. It uses `schema: {}` since its tables are managed by core's built-in modules.
 
 ## Key Patterns
 - `getCtx(c)`: Returns `{ db, user, scheduler, storage }` from Hono context.
-- `defineModule({ name, schema, routes })`: Registers a module. Name must be lowercase alphanumeric + hyphens.
+- `defineModule({ name, schema, routes, init? })`: Registers a module. Name must be lowercase alphanumeric + hyphens. Optional `init(ctx)` hook runs at boot.
 - `defineJob('module:name', async (ctx, data) => { ... })`: Background job.
 - `nextSequence(tx, 'INV')`: Returns gap-free business numbers: INV-0001, INV-0002...
 - `trackChanges(tx, 'table', id, oldData, newData, userId)`: Record-level audit trail.
+- `auditLog`, `recordAudits`, `sequences`: Built-in Drizzle table exports from `@vobase/core`.
 - `VobaseError`: Use `notFound()`, `unauthorized()`, `validation(details)` factory functions.
+
+## Schema Management
+- `db-schemas.ts` in project root is a Node.js-compatible barrel that declares core table schemas for drizzle-kit (which runs under Node.js and cannot import `bun:sqlite`).
+- `drizzle.config.ts` references both `db-schemas.ts` and `modules/*/schema.ts`.
+- Keep `db-schemas.ts` in sync with core schema changes when upgrading `@vobase/core`.
 
 ## Data Conventions
 - **Money**: Store as INTEGER cents (e.g., `amount_cents INTEGER NOT NULL`). Never REAL/FLOAT.
@@ -40,11 +48,11 @@ Each module lives in `modules/{name}/`:
 - Frontend routing: `src/routes.ts` defines TanStack Router virtual routes. Module pages use `../modules/` prefix since `routesDirectory` is `./src`.
 
 ## Commands
-- `bunx vobase dev`: Starts backend + Vite dev server.
-- `bunx vobase generate`: Regenerates `src/routes.ts` + system schema.
-- `bunx vobase db:migrate`: Runs drizzle-kit migrations (with auto-backup).
-- `bunx vobase db:generate`: Generates migration files via drizzle-kit.
-- `bunx vobase db:push`: Pushes schema changes directly to database (for development).
+- `bun run dev`: Starts backend (Bun --watch) + Vite frontend dev server.
+- `bun run db:push`: Pushes schema to SQLite (dev). No migrations needed.
+- `bun run db:generate`: Generates migration files via drizzle-kit (production).
+- `bun run db:migrate`: Runs migrations against the database.
+- `bun run scripts/generate.ts`: Rebuilds route tree from module definitions.
 - `bun test`: Runs all tests.
 
 See @vobase/core documentation for complete API reference.

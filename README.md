@@ -43,6 +43,8 @@ One `bun create vobase` and you have a working full-stack app:
 |---|---|
 | **Database** | SQLite via Drizzle. Real SQL with JOINs, transactions, migrations. One `.db` file. |
 | **Auth** | better-auth. Sessions, passwords, CSRF, RBAC. Works out of the box. |
+| **Audit** | Built-in audit log, record change tracking, and auth event hooks. Every mutation is traceable. |
+| **Sequences** | Gap-free business number generation (INV-0001, PO-0042). Transaction-safe, never skips. |
 | **Storage** | File uploads, downloads, deletions. Audit-ready. |
 | **Jobs** | Background tasks with retries, cron, and job chains. SQLite-backed, no Redis. |
 | **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing, code-splitting, you own the components. |
@@ -121,6 +123,9 @@ export default defineModule({
   jobs,
   pages,
   seed,
+  init: (ctx) => {
+    // Optional: run setup logic at boot with access to db, scheduler, http, storage, notify
+  },
 })
 ```
 
@@ -239,12 +244,24 @@ Every HTTP handler gets a context object with runtime capabilities. Current surf
 
 | Property | What it does |
 |---|---|
-| `ctx.db` | Drizzle instance. Full SQL via bun:sqlite — reads, writes, transactions, migrations. |
+| `ctx.db` | Drizzle instance. Full SQL via bun:sqlite — reads, writes, transactions. |
 | `ctx.user` | `{ id, email, name, role }`. From better-auth session. Used for authorization checks. |
 | `ctx.scheduler` | Job queue. `add(jobName, data, options)` to schedule background work. |
 | `ctx.storage` | File ops with audit logging. Upload, download, delete. |
 
 For jobs, pass dependencies through closures/factories (or import what you need) when calling `defineJob(...)`.
+
+#### module init context
+
+Modules can declare an `init` hook that receives a `ModuleInitContext` at boot:
+
+| Property | What it does |
+|---|---|
+| `ctx.db` | Drizzle instance. Same as request context. |
+| `ctx.scheduler` | Job queue. Same as request context. |
+| `ctx.http` | Typed HTTP client with retries and circuit breakers. |
+| `ctx.storage` | Storage provider (throws if not configured — use `createThrowProxy` pattern). |
+| `ctx.notify` | Email provider (throws if not configured). |
 
 #### ctx extensions for external integrations
 
@@ -259,6 +276,7 @@ Beyond local capabilities (database, user, scheduler, storage), `ctx` provides o
 // vobase.config.ts
 export default defineConfig({
   database: './data/vobase.db',
+  credentials: { enabled: true },      // opt-in: encrypted credential store
   http: {
     timeout: 10_000,
     retries: 3,
@@ -368,12 +386,16 @@ Docker container (--restart=always)
   └── Bun process (PID 1)
         ├── Hono server
         │     ├── /auth/*       → better-auth (sessions, passwords, CSRF)
-        │     ├── /api/*        → module handlers (JWT-validated)
+        │     ├── /api/*        → module handlers (session-validated)
         │     ├── /mcp          → MCP server (same process, shared port)
         │     ├── /webhooks/*   → inbound event receiver (signature verified, dedup)
         │     └── /*            → frontend (static, from dist/)
         ├── Drizzle (bun:sqlite, single file in /data/)
         │     └── WAL mode, 5s busy timeout, foreign keys ON
+        ├── Built-in modules
+        │     ├── _audit        → audit log, record tracking, auth hooks
+        │     ├── _sequences    → gap-free business number counters
+        │     └── _credentials  → encrypted credential store (opt-in)
         ├── bunqueue (SQLite-backed job queue, 286K ops/sec)
         ├── Outbound HTTP (typed fetch, retries, circuit breakers)
         └── Audit middleware (all mutations → _audit_log)
@@ -433,7 +455,7 @@ Runs in the same Bun process on the same port. When you connect Claude Code, Cod
 
 | Category | What's Exposed |
 |---|---|
-| **Read** | `list_modules`, `read_module`, `get_schema`, `view_logs`, `get_migration_status` |
+| **Read** | `list_modules`, `read_module`, `get_schema`, `view_logs` |
 | **Write** | `deploy_module`, `install_package` |
 | **Query** | `query_db`, `run_smoke_test` |
 | **Context** | Schema definitions, module signatures, ctx API docs, recent errors, domain knowledge from skills |
@@ -510,9 +532,12 @@ my-app/
     skills/
       integer-money/
         SKILL.md          ← core: all money as integer cents
+  db-schemas.ts            ← core table schemas for drizzle-kit (Node.js compat)
   modules/
     system/               ← admin dashboard (scaffolded)
+      index.ts            ← defineModule() — system as a user module
       schema.ts
+      handlers.ts         ← health, audit log, sequences, record audits
       pages/
         layout.tsx
         list.tsx

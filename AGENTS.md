@@ -21,19 +21,54 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 
 | Package | Purpose |
 | --- | --- |
-| `@vobase/core` | Runtime engine: app wiring, modules, auth, ctx, jobs, MCP, storage |
-| `@vobase/cli` | CLI helpers: `db:migrate` (bun-native), `add skill`, `dev` (deprecated — projects use drizzle-kit and scripts directly) |
+| `@vobase/core` | Runtime engine: app wiring, built-in modules (audit, sequences, credentials), auth, ctx, jobs, MCP, storage, contracts |
+| `@vobase/cli` | CLI helpers: `add skill`, module scaffolding (projects use drizzle-kit directly for DB ops) |
 | `create-vobase` | Project scaffolder (`bun create vobase my-app`) — downloads template, resolves deps, generates routes, pushes schema |
 | `@vobase/template` | Scaffolding source for new projects (private, not published) |
 
+## Architecture
+
+### Built-in Modules
+
+Core ships three built-in modules using `defineBuiltinModule()` (internal, `_` prefix names):
+
+- **`_audit`** — audit log, record audits, request audit middleware, auth audit hooks
+- **`_sequences`** — gap-free sequence counters for business numbers (INV-0001, etc.)
+- **`_credentials`** — encrypted credential store (opt-in via `config.credentials.enabled`)
+
+Built-in modules are initialized automatically by `createApp()` and receive a `ModuleInitContext` at boot.
+
+### Config-Driven Boot
+
+`createApp()` no longer creates tables or runs migrations. Table management is fully delegated to drizzle-kit:
+- Dev: `bun run db:push` syncs schema to SQLite
+- Production: `bun run db:generate` + `bun run db:migrate`
+
+Services not yet configured (storage, notify) use `createThrowProxy<T>()` — typed placeholders that throw descriptive errors if accessed before the provider is wired up.
+
+### Core Contracts
+
+TypeScript interfaces define boundaries between core and pluggable providers:
+- `StorageProvider` — local/S3 file storage
+- `EmailProvider`, `WhatsAppProvider` — notification channels
+- `AuthAdapter` — wraps better-auth
+- `ModuleInitContext` — `{ db, scheduler, http, storage, notify }` passed to module `init` hooks
+
+### Schema Management
+
+- `getActiveSchemas(config)` returns merged Drizzle table definitions based on which modules are enabled
+- Template uses a `db-schemas.ts` barrel to expose core table schemas to drizzle-kit (which runs under Node.js and cannot import `bun:sqlite`)
+
 ## Stable Domain Concepts
 
-- Module model: business capability is a module defined with `defineModule({ name, schema, routes, jobs?, pages?, seed? })`.
+- Module model: business capability is a module defined with `defineModule({ name, schema, routes, jobs?, pages?, seed?, init? })`.
+- Module init hook: `init(ctx: ModuleInitContext)` is called at boot with db, scheduler, http, storage, notify.
 - Request context: use `getCtx(c)` to access `ctx.db`, `ctx.user`, `ctx.scheduler`, `ctx.storage`.
 - Function types: use HTTP handlers for request/response logic and jobs for background execution.
 - Routing model: module APIs mount under `/api/{module}`; MCP can be exposed on `/mcp`.
 - Auth model: `better-auth` session-based auth with middleware-attached user context.
 - Data model: Drizzle + SQLite (`bun:sqlite`), with safe-by-default patterns (integer money, explicit status transitions, auditable mutations).
+- System module: lives in template (not core) as a regular user module with routes for health, audit log, sequences.
 
 Describe capabilities, not brittle file locations. Prefer domain language (module, handler, job, sequence, audit log, system module) over path-heavy instructions.
 
@@ -50,6 +85,8 @@ Describe capabilities, not brittle file locations. Prefer domain language (modul
 - The template must never contain generated artifacts (`migrations/`, `node_modules/`, `dist/`, `data/`, `routeTree.gen.ts`).
 - To run the template locally in dev mode, use `bun run db:push` to sync the schema to SQLite — do **not** generate or run Drizzle migrations.
 - When `bun create vobase` scaffolds a new project, it downloads the template via giget and runs `bun install`.
+- The system module lives in `packages/template/modules/system/` as a regular user module (not in core).
+- `db-schemas.ts` in the template root is a Node.js-compatible barrel that duplicates core table schemas for drizzle-kit. Keep it in sync with core schema changes.
 
 ## Template QA (Dogfooding)
 
