@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 
 import { VobaseError } from './errors';
-import { defineModule } from './module';
+import { defineBuiltinModule, defineModule } from './module';
 import { registerModules } from './module-registry';
 
 function createBaseConfig(name: string) {
@@ -72,12 +72,79 @@ describe('defineModule()', () => {
     expect(module.name).toBe('invoice-2024');
   });
 
-  it('throws for empty schema', () => {
+  it('allows empty schema for modules without tables', () => {
+    const module = defineModule({
+      ...createBaseConfig('billing'),
+      schema: {},
+    });
+    expect(module.name).toBe('billing');
+  });
+});
+
+describe('defineBuiltinModule()', () => {
+  it("succeeds for name='_audit'", () => {
+    const module = defineBuiltinModule({
+      name: '_audit',
+      schema: { auditLog: {} },
+      routes: new Hono(),
+    });
+    expect(module.name).toBe('_audit');
+    expect(Object.isFrozen(module)).toBe(true);
+  });
+
+  it("succeeds for name='_sequences'", () => {
+    const module = defineBuiltinModule({
+      name: '_sequences',
+      schema: { sequences: {} },
+      routes: new Hono(),
+    });
+    expect(module.name).toBe('_sequences');
+  });
+
+  it('accepts an init hook', () => {
+    const module = defineBuiltinModule({
+      name: '_credentials',
+      schema: { credentials: {} },
+      routes: new Hono(),
+      init: () => {},
+    });
+    expect(module.init).toBeDefined();
+  });
+
+  it('allows empty schema for built-in modules', () => {
+    const module = defineBuiltinModule({
+      name: '_system-proxy',
+      schema: {},
+      routes: new Hono(),
+    });
+    expect(module.name).toBe('_system-proxy');
+  });
+
+  it("throws for name without _ prefix (e.g., 'audit')", () => {
     expectValidationError(() => {
-      defineModule({
-        ...createBaseConfig('billing'),
-        schema: {},
+      defineBuiltinModule({
+        name: 'audit',
+        schema: { auditLog: {} },
+        routes: new Hono(),
       });
+    });
+  });
+
+  it("throws for name with uppercase (e.g., '_Audit')", () => {
+    expectValidationError(() => {
+      defineBuiltinModule({
+        name: '_Audit',
+        schema: { auditLog: {} },
+        routes: new Hono(),
+      });
+    });
+  });
+});
+
+describe('defineModule rejects _ prefix', () => {
+  it("throws for name='_audit' via defineModule", () => {
+    expectValidationError(() => {
+      defineModule(createBaseConfig('_audit'));
     });
   });
 });
