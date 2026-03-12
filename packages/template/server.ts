@@ -6,4 +6,6 @@ import config from './vobase.config';
 const app = createApp({ ...config, modules });
 
 export default app;
-export type AppType = typeof app;
+// Re-export the generated AppType which preserves Hono's literal route types
+// for use with hc<AppType>() in the frontend
+export type { AppType } from './src/api-types.generated';

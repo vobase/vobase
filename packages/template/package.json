@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
-    "build": "bun build ./server.ts --outdir ./dist --target=bun",
+    "generate": "bun run scripts/generate.ts",
+    "build": "bun run generate && bun build ./server.ts --outdir ./dist --target=bun",
     "seed": "bun run scripts/seed.ts"
   },
   "dependencies": {

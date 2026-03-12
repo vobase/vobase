@@ -9,6 +9,11 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   mcp: { enabled: true },
   trustedOrigins: ['http://localhost:5173'],
 
+  // --- Auth plugins ---
+  // auth: {
+  //   organization: true,  // Enable multi-tenant org/member/role support
+  // },
+
   // --- Outbound HTTP client (ctx.http) ---
   // http: {
   //   timeout: 10_000,
