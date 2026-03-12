@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "jsx": "react-jsx",
+    "skipLibCheck": true,
     "paths": {
       "@/*": ["./src/*"],
       "@modules/*": ["./modules/*"]
