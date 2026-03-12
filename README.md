@@ -47,7 +47,8 @@ One `bun create vobase` and you have a working full-stack app:
 | **Auth** | better-auth. Sessions, passwords, CSRF, RBAC. Works out of the box. |
 | **Audit** | Built-in audit log, record change tracking, and auth event hooks. Every mutation is traceable. |
 | **Sequences** | Gap-free business number generation (INV-0001, PO-0042). Transaction-safe, never skips. |
-| **Storage** | File uploads, downloads, deletions. Audit-ready. |
+| **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in SQLite. |
+| **Notify** | Email (Resend, SMTP) and WhatsApp (WABA) channels. All sends logged. |
 | **Jobs** | Background tasks with retries, cron, and job chains. SQLite-backed, no Redis. |
 | **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing, code-splitting, you own the components. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
@@ -249,21 +250,15 @@ Every HTTP handler gets a context object with runtime capabilities. Current surf
 | `ctx.db` | Drizzle instance. Full SQL via bun:sqlite — reads, writes, transactions. |
 | `ctx.user` | `{ id, email, name, role }`. From better-auth session. Used for authorization checks. |
 | `ctx.scheduler` | Job queue. `add(jobName, data, options)` to schedule background work. |
-| `ctx.storage` | File ops with audit logging. Upload, download, delete. |
+| `ctx.storage` | `StorageService` — virtual buckets with local/S3 backends. `ctx.storage.bucket('avatars').upload(key, data)`. |
+| `ctx.notify` | `NotifyService` — email and WhatsApp channels. `ctx.notify.email.send(msg)`. All sends logged. |
+| `ctx.http` | Typed HTTP client with retries, timeouts, and circuit breakers. |
 
 For jobs, pass dependencies through closures/factories (or import what you need) when calling `defineJob(...)`.
 
 #### module init context
 
-Modules can declare an `init` hook that receives a `ModuleInitContext` at boot:
-
-| Property | What it does |
-|---|---|
-| `ctx.db` | Drizzle instance. Same as request context. |
-| `ctx.scheduler` | Job queue. Same as request context. |
-| `ctx.http` | Typed HTTP client with retries and circuit breakers. |
-| `ctx.storage` | Storage provider (throws if not configured — use `createThrowProxy` pattern). |
-| `ctx.notify` | Email provider (throws if not configured). |
+Modules can declare an `init` hook that receives a `ModuleInitContext` at boot — same services as request context (`db`, `scheduler`, `http`, `storage`, `notify`). Unconfigured services use throw-proxies that give descriptive errors if accessed.
 
 #### ctx extensions for external integrations
 
@@ -279,6 +274,13 @@ Beyond local capabilities (database, user, scheduler, storage), `ctx` provides o
 export default defineConfig({
   database: './data/vobase.db',
   credentials: { enabled: true },      // opt-in: encrypted credential store
+  storage: {                            // opt-in: file storage
+    provider: { type: 'local', basePath: './data/files' },
+    buckets: { avatars: { maxSize: 5_000_000 }, documents: {} },
+  },
+  notify: {                             // opt-in: email + WhatsApp
+    email: { provider: 'resend', from: 'noreply@example.com', resend: { apiKey: '...' } },
+  },
   http: {
     timeout: 10_000,
     retries: 3,
@@ -395,9 +397,12 @@ Docker container (--restart=always)
         ├── Drizzle (bun:sqlite, single file in /data/)
         │     └── WAL mode, 5s busy timeout, foreign keys ON
         ├── Built-in modules
+        │     ├── _auth         → better-auth behind AuthAdapter contract
         │     ├── _audit        → audit log, record tracking, auth hooks
         │     ├── _sequences    → gap-free business number counters
-        │     └── _credentials  → encrypted credential store (opt-in)
+        │     ├── _credentials  → encrypted credential store (opt-in)
+        │     ├── _storage      → virtual buckets, local/S3 (opt-in)
+        │     └── _notify       → email + WhatsApp channels (opt-in)
         ├── bunqueue (SQLite-backed job queue, 286K ops/sec)
         ├── Outbound HTTP (typed fetch, retries, circuit breakers)
         └── Audit middleware (all mutations → _audit_log)

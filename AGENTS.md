@@ -21,7 +21,7 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 
 | Package | Purpose |
 | --- | --- |
-| `@vobase/core` | Runtime engine: app wiring, built-in modules (audit, sequences, credentials), auth, ctx, jobs, MCP, storage, contracts |
+| `@vobase/core` | Runtime engine: app wiring, built-in modules (auth, audit, sequences, credentials, storage, notify), ctx, jobs, MCP, contracts |
 | `create-vobase` | Project scaffolder (`bun create vobase my-app`) — downloads template, resolves deps, generates routes, pushes schema |
 | `@vobase/template` | Scaffolding source for new projects (private, not published) |
 
@@ -29,11 +29,14 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 
 ### Built-in Modules
 
-Core ships three built-in modules using `defineBuiltinModule()` (internal, `_` prefix names):
+Core ships six built-in modules using `defineBuiltinModule()` (internal, `_` prefix names):
 
-- **`_audit`** — audit log, record audits, request audit middleware, auth audit hooks
+- **`_auth`** — better-auth wrapped behind `AuthAdapter` contract, session middleware, auth audit hooks
+- **`_audit`** — audit log, record audits, request audit middleware
 - **`_sequences`** — gap-free sequence counters for business numbers (INV-0001, etc.)
 - **`_credentials`** — encrypted credential store (opt-in via `config.credentials.enabled`)
+- **`_storage`** — file storage with virtual buckets, local/S3 providers, metadata in SQLite (opt-in via `config.storage`)
+- **`_notify`** — email (Resend, SMTP) and WhatsApp (WABA) channels with logging (opt-in via `config.notify`)
 
 Built-in modules are initialized automatically by `createApp()` and receive a `ModuleInitContext` at boot.
 
@@ -48,9 +51,11 @@ Services not yet configured (storage, notify) use `createThrowProxy<T>()` — ty
 ### Core Contracts
 
 TypeScript interfaces define boundaries between core and pluggable providers:
-- `StorageProvider` — local/S3 file storage
-- `EmailProvider`, `WhatsAppProvider` — notification channels
-- `AuthAdapter` — wraps better-auth
+- `AuthAdapter` — wraps better-auth with `getSession(headers)` and `handler(request)`
+- `StorageProvider` — local/S3 file storage (upload, download, delete, exists, presign, list)
+- `EmailProvider`, `WhatsAppProvider` — notification channels (never throw, return `{ success, messageId, error }`)
+- `StorageService` — virtual bucket model: `service.bucket('avatars').upload(key, data)` with metadata tracking
+- `NotifyService` — channel-based notify: `service.email.send(msg)`, `service.whatsapp.send(msg)` with logging
 - `ModuleInitContext` — `{ db, scheduler, http, storage, notify }` passed to module `init` hooks
 
 ### Schema Management
@@ -62,7 +67,7 @@ TypeScript interfaces define boundaries between core and pluggable providers:
 
 - Module model: business capability is a module defined with `defineModule({ name, schema, routes, jobs?, pages?, seed?, init? })`.
 - Module init hook: `init(ctx: ModuleInitContext)` is called at boot with db, scheduler, http, storage, notify.
-- Request context: use `getCtx(c)` to access `ctx.db`, `ctx.user`, `ctx.scheduler`, `ctx.storage`.
+- Request context: use `getCtx(c)` to access `ctx.db`, `ctx.user`, `ctx.scheduler`, `ctx.storage`, `ctx.notify`, `ctx.http`.
 - Function types: use HTTP handlers for request/response logic and jobs for background execution.
 - Routing model: module APIs mount under `/api/{module}`; MCP can be exposed on `/mcp`.
 - Auth model: `better-auth` session-based auth with middleware-attached user context.
