@@ -10,6 +10,7 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
     "build": "bun build ./server.ts --outdir ./dist --target=bun",
     "seed": "bun run scripts/seed.ts"
   },
