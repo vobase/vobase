@@ -1,9 +1,8 @@
 import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import type { Database } from 'bun:sqlite';
 
-import type { VobaseDb } from './db/client';
-import { credentialsTable } from './db/credentials-schema';
+import type { VobaseDb } from '../../db/client';
+import { credentialsTable } from './schema';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
@@ -93,20 +92,4 @@ export async function deleteCredential(
   await db
     .delete(credentialsTable)
     .where(eq(credentialsTable.key, key));
-}
-
-const CREDENTIALS_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS _credentials (
-    key TEXT PRIMARY KEY NOT NULL,
-    value TEXT NOT NULL,
-    updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
-  )
-`;
-
-/**
- * Create the _credentials table if it doesn't exist.
- * This is opt-in — call during app startup if your project uses credential encryption.
- */
-export function ensureCredentialTable(db: Database): void {
-  db.run(CREDENTIALS_TABLE_SQL);
 }
