@@ -2,14 +2,11 @@ import type { Database } from 'bun:sqlite';
 import { describe, expect, it, mock } from 'bun:test';
 import type { Context, Next } from 'hono';
 
-import type { Auth } from './auth';
-import { createAuth } from './auth';
+import type { AuthAdapter, AuthSession } from './contracts/auth';
+import { createAuthModule } from './modules/auth';
+import { sessionMiddleware, optionalSessionMiddleware } from './modules/auth/middleware';
 import { createDatabase, type VobaseDb } from './db';
 import { VobaseError } from './errors';
-import {
-  optionalSessionMiddleware,
-  sessionMiddleware,
-} from './middleware/session';
 
 type DbWithClient = VobaseDb & { $client: Database };
 
@@ -29,18 +26,22 @@ function createMockContext() {
   } as unknown as Context;
 }
 
-function createMockAuth(getSession: () => Promise<unknown>): Auth {
-  return { api: { getSession } } as unknown as Auth;
+function createMockAdapter(getSession: () => Promise<AuthSession | null>): AuthAdapter {
+  return {
+    getSession,
+    handler: async () => new Response('ok'),
+  };
 }
 
-describe('createAuth', () => {
-  it('returns a better-auth instance with handler and api', () => {
+describe('createAuthModule', () => {
+  it('returns a module with adapter having handler and getSession', () => {
     const db = createDatabase(':memory:') as DbWithClient;
-    const auth = createAuth(db);
+    const authMod = createAuthModule(db);
 
-    expect(auth).toHaveProperty('handler');
-    expect(auth).toHaveProperty('api');
-    expect(auth.api).toHaveProperty('getSession');
+    expect(authMod).toHaveProperty('adapter');
+    expect(authMod.adapter).toHaveProperty('handler');
+    expect(authMod.adapter).toHaveProperty('getSession');
+    expect(authMod.name).toBe('_auth');
 
     db.$client.close();
   });
@@ -48,24 +49,24 @@ describe('createAuth', () => {
 
 describe('session middleware', () => {
   it('sessionMiddleware throws unauthorized when no session exists', async () => {
-    const auth = createMockAuth(async () => null);
+    const adapter = createMockAdapter(async () => null);
     const c = createMockContext();
 
     await expect(
-      sessionMiddleware(auth)(c, async () => {}),
+      sessionMiddleware(adapter)(c, async () => {}),
     ).rejects.toBeInstanceOf(VobaseError);
 
     await expect(
-      sessionMiddleware(auth)(c, async () => {}),
+      sessionMiddleware(adapter)(c, async () => {}),
     ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
   });
 
   it('optionalSessionMiddleware sets user to null and continues', async () => {
     const next = mock(async () => {}) as unknown as Next;
-    const auth = createMockAuth(async () => null);
+    const adapter = createMockAdapter(async () => null);
     const c = createMockContext();
 
-    await optionalSessionMiddleware(auth)(c, next);
+    await optionalSessionMiddleware(adapter)(c, next);
 
     expect(c.get('user')).toBeNull();
     expect(next).toHaveBeenCalledTimes(1);

@@ -5,7 +5,8 @@ import { Hono } from 'hono';
 
 import type { VobaseDb } from '../db';
 import * as schema from '../modules/audit/schema';
-import { createAuthAuditHooks, requestAuditMiddleware } from '../modules/audit/middleware';
+import { requestAuditMiddleware } from '../modules/audit/middleware';
+import { createAuthAuditHooks } from '../modules/auth/audit-hooks';
 
 interface AuditRow {
   event: string;

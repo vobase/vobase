@@ -1,14 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 
-import type { Auth } from '../auth';
-import { unauthorized } from '../errors';
-
-interface SessionUser {
-  id: string;
-  email: string;
-  name: string;
-  role?: string;
-}
+import type { AuthAdapter } from '../../contracts/auth';
+import { unauthorized } from '../../errors';
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -16,9 +9,9 @@ declare module 'hono' {
   }
 }
 
-export function sessionMiddleware(auth: Auth) {
+export function sessionMiddleware(adapter: AuthAdapter) {
   return createMiddleware(async (c, next) => {
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    const session = await adapter.getSession(c.req.raw.headers);
 
     if (!session) {
       throw unauthorized();
@@ -28,16 +21,16 @@ export function sessionMiddleware(auth: Auth) {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
-      role: (session.user as unknown as SessionUser).role ?? 'user',
+      role: session.user.role ?? 'user',
     });
 
     await next();
   });
 }
 
-export function optionalSessionMiddleware(auth: Auth) {
+export function optionalSessionMiddleware(adapter: AuthAdapter) {
   return createMiddleware(async (c, next) => {
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    const session = await adapter.getSession(c.req.raw.headers);
 
     c.set(
       'user',
@@ -46,7 +39,7 @@ export function optionalSessionMiddleware(auth: Auth) {
             id: session.user.id,
             email: session.user.email,
             name: session.user.name,
-            role: (session.user as unknown as SessionUser).role ?? 'user',
+            role: session.user.role ?? 'user',
           }
         : null,
     );
