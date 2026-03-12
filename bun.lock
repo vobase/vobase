@@ -18,24 +18,9 @@
         "typescript": "^5.9.3",
       },
     },
-    "packages/cli": {
-      "name": "@vobase/cli",
-      "version": "0.6.1",
-      "bin": {
-        "vobase": "dist/bin.js",
-      },
-      "dependencies": {
-        "@vobase/core": "workspace:*",
-        "concurrently": "^9.2.1",
-        "giget": "^3.1.2",
-      },
-      "devDependencies": {
-        "drizzle-kit": "^1.0.0-beta.16-ea816b6",
-      },
-    },
     "packages/core": {
       "name": "@vobase/core",
-      "version": "0.6.1",
+      "version": "0.6.2",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.27.1",
         "bunqueue": "^2.6.9",
@@ -53,7 +38,7 @@
     },
     "packages/create-vobase": {
       "name": "create-vobase",
-      "version": "0.2.1",
+      "version": "0.2.4",
       "bin": {
         "create-vobase": "dist/index.js",
       },
@@ -768,8 +753,6 @@
     "@typespec/ts-http-runtime": ["@typespec/ts-http-runtime@0.3.4", "", { "dependencies": { "http-proxy-agent": "^7.0.0", "https-proxy-agent": "^7.0.0", "tslib": "^2.6.2" } }, "sha512-CI0NhTrz4EBaa0U+HaaUZrJhPoso8sG7ZFya8uQoBA57fjzrjRSv87ekCjLZOFExN+gXE/z0xuN2QfH4H2HrLQ=="],
 
     "@vitejs/plugin-react": ["@vitejs/plugin-react@5.1.4", "", { "dependencies": { "@babel/core": "^7.29.0", "@babel/plugin-transform-react-jsx-self": "^7.27.1", "@babel/plugin-transform-react-jsx-source": "^7.27.1", "@rolldown/pluginutils": "1.0.0-rc.3", "@types/babel__core": "^7.20.5", "react-refresh": "^0.18.0" }, "peerDependencies": { "vite": "^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0" } }, "sha512-VIcFLdRi/VYRU8OL/puL7QXMYafHmqOnwTZY50U1JPlCNj30PxCMx65c494b1K9be9hX83KVt0+gTEwTWLqToA=="],
-
-    "@vobase/cli": ["@vobase/cli@workspace:packages/cli"],
 
     "@vobase/core": ["@vobase/core@workspace:packages/core"],
 

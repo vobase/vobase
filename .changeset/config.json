@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
   "changelog": ["@changesets/changelog-github", { "repo": "vobase/vobase" }],
   "commit": false,
-  "fixed": [["@vobase/core", "@vobase/cli"]],
+  "fixed": [["@vobase/core"]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

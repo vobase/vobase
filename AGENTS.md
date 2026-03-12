@@ -22,7 +22,6 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 | Package | Purpose |
 | --- | --- |
 | `@vobase/core` | Runtime engine: app wiring, built-in modules (audit, sequences, credentials), auth, ctx, jobs, MCP, storage, contracts |
-| `@vobase/cli` | CLI helpers: `add skill`, module scaffolding (projects use drizzle-kit directly for DB ops) |
 | `create-vobase` | Project scaffolder (`bun create vobase my-app`) — downloads template, resolves deps, generates routes, pushes schema |
 | `@vobase/template` | Scaffolding source for new projects (private, not published) |
 

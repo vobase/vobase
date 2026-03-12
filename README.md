@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@vobase/core"><img src="https://img.shields.io/npm/v/@vobase/core.svg" alt="npm @vobase/core"></a>
-  <a href="https://www.npmjs.com/package/create-vobase"><img src="https://img.shields.io/npm/v/create-vobase.svg" alt="npm create-vobase"></a>
+  <a href="https://www.npmjs.com/package/@vobase/core"><img src="https://img.shields.io/npm/dm/@vobase/core.svg" alt="npm downloads"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT">
   <img src="https://img.shields.io/badge/Bun-1.3.10-black?logo=bun" alt="Bun 1.3.10">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg" alt="TypeScript">

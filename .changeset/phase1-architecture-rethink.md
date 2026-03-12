@@ -1,6 +1,5 @@
 ---
 "@vobase/core": minor
-"@vobase/cli": minor
 ---
 
 Phase 1 architecture rethink: extract built-in modules, config-driven boot, core contracts
