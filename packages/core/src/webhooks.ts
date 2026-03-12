@@ -1,7 +1,11 @@
-import type { Database } from 'bun:sqlite';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import type { VobaseDb } from './db/client';
 import type { Scheduler } from './queue';
+import { webhookDedup } from './webhooks-schema';
+
+export { webhookDedup } from './webhooks-schema';
 
 export interface WebhookConfig {
   /** Route path, e.g. '/webhooks/stripe' */
@@ -51,41 +55,36 @@ export function verifyHmacSignature(
 }
 
 /**
- * Creates the `_webhook_dedup` table if it doesn't exist.
- *
- * Uses raw SQL via the bun:sqlite Database handle, matching the pattern
- * used by `ensureCoreTables`.
- */
-export function ensureWebhookDedupTable(db: Database): void {
-  db.run(
-    `CREATE TABLE IF NOT EXISTS _webhook_dedup (
-      id TEXT NOT NULL,
-      source TEXT NOT NULL,
-      received_at INTEGER NOT NULL,
-      PRIMARY KEY (id, source)
-    )`,
-  );
-}
-
-/**
  * Check whether a webhook has already been processed and record it if not.
  *
- * Uses INSERT OR IGNORE and inspects changes to determine whether the
- * row was newly inserted (not a duplicate) or already existed (duplicate).
+ * Checks for existing record first, then inserts if not found.
  *
  * @returns `true` if the webhook is a duplicate, `false` if it's new.
  */
 export function checkAndRecordWebhook(
-  db: Database,
+  db: VobaseDb,
   webhookId: string,
   source: string,
 ): boolean {
-  const stmt = db.prepare(
-    'INSERT OR IGNORE INTO _webhook_dedup (id, source, received_at) VALUES (?, ?, ?)',
-  );
-  const result = stmt.run(webhookId, source, Date.now());
-  // If changes === 0 the row already existed — it's a duplicate
-  return result.changes === 0;
+  const existing = db
+    .select({ id: webhookDedup.id })
+    .from(webhookDedup)
+    .where(and(eq(webhookDedup.id, webhookId), eq(webhookDedup.source, source)))
+    .get();
+
+  if (existing) {
+    return true;
+  }
+
+  db.insert(webhookDedup)
+    .values({
+      id: webhookId,
+      source,
+      receivedAt: new Date(),
+    })
+    .run();
+
+  return false;
 }
 
 /**
@@ -98,10 +97,9 @@ export function checkAndRecordWebhook(
  */
 export function createWebhookRoutes(
   configs: Record<string, WebhookConfig>,
-  deps: { db: Database; scheduler: Scheduler },
+  deps: { db: VobaseDb; scheduler: Scheduler },
 ): Hono {
   const { db, scheduler } = deps;
-  ensureWebhookDedupTable(db);
 
   const router = new Hono();
 

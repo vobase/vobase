@@ -1,11 +1,12 @@
 import { Database } from 'bun:sqlite';
 import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, test } from 'bun:test';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
+import type { VobaseDb } from './db/client';
 import type { Scheduler } from './queue';
 import {
   checkAndRecordWebhook,
   createWebhookRoutes,
-  ensureWebhookDedupTable,
   verifyHmacSignature,
   type WebhookConfig,
 } from './webhooks';
@@ -13,6 +14,18 @@ import {
 /** Helper: compute a valid HMAC-SHA256 hex signature for a given payload + secret */
 function computeSignature(payload: string, secret: string): string {
   return createHmac('sha256', secret).update(payload).digest('hex');
+}
+
+/** Create a Drizzle db with the webhook dedup table */
+function createTestDb(): VobaseDb {
+  const sqlite = new Database(':memory:');
+  sqlite.run(`CREATE TABLE _webhook_dedup (
+    id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    received_at INTEGER NOT NULL,
+    PRIMARY KEY (id, source)
+  )`);
+  return drizzle({ client: sqlite }) as VobaseDb;
 }
 
 describe('WebhookConfig', () => {
@@ -69,9 +82,6 @@ describe('verifyHmacSignature', () => {
   });
 
   test('uses timing-safe comparison (not ===)', () => {
-    // We verify this structurally: the function uses timingSafeEqual internally.
-    // Here we confirm that a valid signature passes and a same-length invalid one fails,
-    // which would also fail with ===, but the implementation uses timingSafeEqual.
     const valid = computeSignature(payload, secret);
     expect(verifyHmacSignature(payload, valid, secret)).toBe(true);
 
@@ -98,11 +108,10 @@ describe('verifyHmacSignature', () => {
 });
 
 describe('webhook deduplication', () => {
-  let db: Database;
+  let db: VobaseDb;
 
   beforeEach(() => {
-    db = new Database(':memory:');
-    ensureWebhookDedupTable(db);
+    db = createTestDb();
   });
 
   test('first webhook ID is not a duplicate', () => {
@@ -144,7 +153,7 @@ function createWebhookTestApp(
   configs: Record<string, WebhookConfig>,
   mockScheduler: Scheduler,
 ) {
-  const db = new Database(':memory:');
+  const db = createTestDb();
   const router = createWebhookRoutes(configs, { db, scheduler: mockScheduler });
   return { app: router, db };
 }
