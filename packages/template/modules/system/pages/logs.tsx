@@ -17,23 +17,25 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiClient } from '@/lib/api-client';
+import { systemClient } from '@/lib/api-client';
 
-interface AuditEntry {
-  id?: string;
-  event: string;
-  actorEmail: string | null;
-  createdAt: string | number | Date;
+async function fetchAuditLog(cursor: string | null) {
+  const response = await systemClient['audit-log'].$get({
+    query: cursor === null ? {} : { cursor },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch audit log page');
+  }
+
+  return response.json();
 }
 
-interface AuditLogResponse {
-  entries: AuditEntry[];
-  nextCursor?: number;
-}
+type AuditEntry = Awaited<ReturnType<typeof fetchAuditLog>>['entries'][number];
 
 const columnHelper = createColumnHelper<AuditEntry>();
 
-function formatTimestamp(value: AuditEntry['createdAt']): string {
+function formatTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return 'Unknown time';
@@ -42,23 +44,11 @@ function formatTimestamp(value: AuditEntry['createdAt']): string {
   return date.toLocaleString();
 }
 
-async function fetchAuditLog(cursor: number | null): Promise<AuditLogResponse> {
-  const response = await apiClient.api.system['audit-log'].$get({
-    query: cursor === null ? {} : { cursor: String(cursor) },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch audit log page');
-  }
-
-  return (await response.json()) as AuditLogResponse;
-}
-
 export type SystemLogsPageProps = Record<string, never>;
 
 export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
-  const [cursor, setCursor] = useState<number | null>(null);
-  const [history, setHistory] = useState<Array<number | null>>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [history, setHistory] = useState<Array<string | null>>([]);
 
   const auditQuery = useQuery({
     queryKey: ['system-audit-log', cursor],

@@ -10,57 +10,33 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiClient } from '@/lib/api-client';
+import { systemClient } from '@/lib/api-client';
 
-interface SystemInfoResponse {
-  version: string;
-  uptime: number;
-  modules: string[];
-}
-
-interface HealthResponse {
-  status: string;
-  db: string;
-  uptime: number;
-}
-
-interface AuditEntry {
-  id?: string;
-  event: string;
-  actorEmail: string | null;
-  createdAt: string | number | Date;
-}
-
-interface AuditLogResponse {
-  entries: AuditEntry[];
-  nextCursor?: number;
-}
-
-async function fetchSystemInfo(): Promise<SystemInfoResponse> {
-  const response = await apiClient.api.system.$get();
+async function fetchSystemInfo() {
+  const response = await systemClient.index.$get();
   if (!response.ok) {
     throw new Error('Failed to fetch system info');
   }
 
-  return (await response.json()) as SystemInfoResponse;
+  return response.json();
 }
 
-async function fetchSystemHealth(): Promise<HealthResponse> {
-  const response = await apiClient.api.system.health.$get();
+async function fetchSystemHealth() {
+  const response = await systemClient.health.$get();
   if (!response.ok) {
     throw new Error('Failed to fetch system health');
   }
 
-  return (await response.json()) as HealthResponse;
+  return response.json();
 }
 
-async function fetchRecentAuditEntries(): Promise<AuditLogResponse> {
-  const response = await apiClient.api.system['audit-log'].$get();
+async function fetchRecentAuditEntries() {
+  const response = await systemClient['audit-log'].$get();
   if (!response.ok) {
     throw new Error('Failed to fetch audit log');
   }
 
-  return (await response.json()) as AuditLogResponse;
+  return response.json();
 }
 
 function formatUptime(totalSeconds: number): string {
@@ -72,7 +48,7 @@ function formatUptime(totalSeconds: number): string {
   return `${hours}h ${minutes}m ${seconds}s`;
 }
 
-function formatTimestamp(value: AuditEntry['createdAt']): string {
+function formatTimestamp(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return 'Unknown time';

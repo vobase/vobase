@@ -35,7 +35,7 @@ function parseCursor(rawCursor: string | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export const systemRoutes = new Hono({ strict: false })
+const systemRoutes = new Hono({ strict: false })
   .get('/', (c) => {
     const { user } = getCtx(c);
     if (!user) throw unauthorized();
@@ -113,3 +113,6 @@ export const systemRoutes = new Hono({ strict: false })
 
     return c.json({ entries });
   });
+
+export { systemRoutes };
+export type SystemRoutes = typeof systemRoutes;

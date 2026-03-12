@@ -1,6 +1,5 @@
 import { hc } from 'hono/client';
 
-import type { AppType } from '../../server';
+import type { SystemRoutes } from '../../modules/system/handlers';
 
-/** System routes (health, audit, etc.) */
-export const apiClient = hc<AppType>('/');
+export const systemClient = hc<SystemRoutes>('/api/system');
