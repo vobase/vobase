@@ -21,7 +21,7 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 
 | Package | Purpose |
 | --- | --- |
-| `@vobase/core` | Runtime engine: app wiring, built-in modules (auth, audit, sequences, credentials, storage, notify), ctx, jobs, MCP, contracts |
+| `@vobase/core` | Runtime engine: app wiring, built-in modules (auth, audit, sequences, credentials, storage, notify), RBAC (roles + org + API keys), ctx, jobs, MCP (CRUD tools), contracts |
 | `create-vobase` | Project scaffolder (`bun create vobase my-app`) — downloads template, resolves deps, generates routes, pushes schema |
 | `@vobase/template` | Scaffolding source for new projects (private, not published) |
 
@@ -31,7 +31,7 @@ Keep this root file small. Put detailed language rules, implementation recipes, 
 
 Core ships six built-in modules using `defineBuiltinModule()` (internal, `_` prefix names):
 
-- **`_auth`** — better-auth wrapped behind `AuthAdapter` contract, session middleware, auth audit hooks
+- **`_auth`** — better-auth wrapped behind `AuthAdapter` contract, session middleware, auth audit hooks, RBAC (roles, organizations, API keys via better-auth plugins)
 - **`_audit`** — audit log, record audits, request audit middleware
 - **`_sequences`** — gap-free sequence counters for business numbers (INV-0001, etc.)
 - **`_credentials`** — encrypted credential store (opt-in via `config.credentials.enabled`)
@@ -51,7 +51,7 @@ Services not yet configured (storage, notify) use `createThrowProxy<T>()` — ty
 ### Core Contracts
 
 TypeScript interfaces define boundaries between core and pluggable providers:
-- `AuthAdapter` — wraps better-auth with `getSession(headers)` and `handler(request)`
+- `AuthAdapter` — wraps better-auth with `getSession(headers)` and `handler(request)`. User type includes optional `activeOrganizationId` for org-enabled apps.
 - `StorageProvider` — local/S3 file storage (upload, download, delete, exists, presign, list)
 - `EmailProvider`, `WhatsAppProvider` — notification channels (never throw, return `{ success, messageId, error }`)
 - `StorageService` — virtual bucket model: `service.bucket('avatars').upload(key, data)` with metadata tracking
@@ -60,8 +60,16 @@ TypeScript interfaces define boundaries between core and pluggable providers:
 
 ### Schema Management
 
-- `getActiveSchemas(config)` returns merged Drizzle table definitions based on which modules are enabled
+- `getActiveSchemas(config)` returns merged Drizzle table definitions based on which modules are enabled. API key schema is always included. Organization schema is opt-in via `config.organization`.
 - Template uses a `db-schemas.ts` barrel to expose core table schemas to drizzle-kit (which runs under Node.js and cannot import `bun:sqlite`)
+
+### Core Source Layout
+
+- `src/modules/` — built-in modules (auth, audit, sequences, credentials, storage, notify)
+- `src/mcp/` — MCP server and module-aware CRUD tools
+- `src/infra/` — infrastructure (errors, logger, queue, jobs, http-client, circuit-breaker, webhooks, throw-proxy)
+- `src/contracts/` — TypeScript interfaces (auth, module, permissions, storage, notify)
+- Root `src/` files: `app.ts`, `ctx.ts`, `module.ts`, `module-registry.ts`, `schemas.ts`, `db.ts`, `index.ts`
 
 ## Stable Domain Concepts
 
@@ -70,7 +78,7 @@ TypeScript interfaces define boundaries between core and pluggable providers:
 - Request context: use `getCtx(c)` to access `ctx.db`, `ctx.user`, `ctx.scheduler`, `ctx.storage`, `ctx.notify`, `ctx.http`.
 - Function types: use HTTP handlers for request/response logic and jobs for background execution.
 - Routing model: module APIs mount under `/api/{module}`; MCP can be exposed on `/mcp`.
-- Auth model: `better-auth` session-based auth with middleware-attached user context.
+- Auth model: `better-auth` session-based auth with middleware-attached user context. RBAC via `requireRole()`, `requirePermission()`, `requireOrg()` middlewares. API key auth for MCP and programmatic access. Organization support opt-in via config.
 - Data model: Drizzle + SQLite (`bun:sqlite`), with safe-by-default patterns (integer money, explicit status transitions, auditable mutations).
 - System module: lives in template (not core) as a regular user module with routes for health, audit log, sequences.
 

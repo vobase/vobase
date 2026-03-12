@@ -44,7 +44,7 @@ One `bun create vobase` and you have a working full-stack app:
 | Primitive | What it does |
 |---|---|
 | **Database** | SQLite via Drizzle. Real SQL with JOINs, transactions, migrations. One `.db` file. |
-| **Auth** | better-auth. Sessions, passwords, CSRF, RBAC. Works out of the box. |
+| **Auth** | better-auth. Sessions, passwords, CSRF. RBAC with role guards, API keys, and optional organization/team support. Works out of the box. |
 | **Audit** | Built-in audit log, record change tracking, and auth event hooks. Every mutation is traceable. |
 | **Sequences** | Gap-free business number generation (INV-0001, PO-0042). Transaction-safe, never skips. |
 | **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in SQLite. |
@@ -52,7 +52,7 @@ One `bun create vobase` and you have a working full-stack app:
 | **Jobs** | Background tasks with retries, cron, and job chains. SQLite-backed, no Redis. |
 | **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing, code-splitting, you own the components. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
-| **MCP** | Optional introspection server. AI tools can read your schema and modules before generating code. |
+| **MCP** | Module-aware CRUD tools with API key auth. AI tools can read your schema, query data, and modify records before generating code. |
 
 Everything runs in one Bun process. No Docker fleet. No external services. `bun run dev` and you're building.
 
@@ -248,7 +248,7 @@ Every HTTP handler gets a context object with runtime capabilities. Current surf
 | Property | What it does |
 |---|---|
 | `ctx.db` | Drizzle instance. Full SQL via bun:sqlite — reads, writes, transactions. |
-| `ctx.user` | `{ id, email, name, role }`. From better-auth session. Used for authorization checks. |
+| `ctx.user` | `{ id, email, name, role, activeOrganizationId? }`. From better-auth session. Used for authorization checks. RBAC middlewares: `requireRole()`, `requirePermission()`, `requireOrg()`. |
 | `ctx.scheduler` | Job queue. `add(jobName, data, options)` to schedule background work. |
 | `ctx.storage` | `StorageService` — virtual buckets with local/S3 backends. `ctx.storage.bucket('avatars').upload(key, data)`. |
 | `ctx.notify` | `NotifyService` — email and WhatsApp channels. `ctx.notify.email.send(msg)`. All sends logged. |
@@ -458,16 +458,16 @@ Cost: $0.03-0.05/month. Point-in-time recovery to any second.
 
 ### mcp server
 
-Runs in the same Bun process on the same port. When you connect Claude Code, Codex, Cursor, or any MCP-compatible tool, it sees everything:
+Runs in the same Bun process on the same port. Authenticated via API keys (better-auth apiKey plugin). When you connect Claude Code, Codex, Cursor, or any MCP-compatible tool, it sees everything:
 
 | Category | What's Exposed |
 |---|---|
 | **Read** | `list_modules`, `read_module`, `get_schema`, `view_logs` |
-| **Write** | `deploy_module`, `install_package` |
+| **CRUD** | Module-aware `list`, `get`, `create`, `update`, `delete` tools auto-generated from your Drizzle schema |
 | **Query** | `query_db`, `run_smoke_test` |
 | **Context** | Schema definitions, module signatures, ctx API docs, recent errors, domain knowledge from skills |
 
-The AI sees your exact data model, your existing modules, and the conventions before it writes a single line of code.
+The AI sees your exact data model, your existing modules, and the conventions before it writes a single line of code. CRUD tools are generated per-module — an AI tool can list invoices, create a project, or update a task record directly through MCP.
 
 ---
 
@@ -518,6 +518,7 @@ After scaffolding, your project uses standard tools directly — no wrapper CLI:
 | `bun run db:push` | Push schema to SQLite (dev). No migrations needed. |
 | `bun run db:generate` | Generate migration files for production. |
 | `bun run db:migrate` | Run migrations against the database. |
+| `bun run db:studio` | Open Drizzle Studio for visual database browsing. |
 | `bun run scripts/generate.ts` | Rebuild route tree from module definitions. |
 
 ---

@@ -26,6 +26,9 @@ The `system` module is a regular user module (not built into core) with routes f
 - `trackChanges(tx, 'table', id, oldData, newData, userId)`: Record-level audit trail.
 - `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `notifyLog`: Built-in Drizzle table exports from `@vobase/core`.
 - `VobaseError`: Use `notFound()`, `unauthorized()`, `validation(details)` factory functions.
+- `requireRole('admin')`: Route-level role guard middleware.
+- `requirePermission('invoices:write')`: Permission-based guard (requires organization plugin enabled).
+- `requireOrg()`: Requires active organization context on the user.
 
 ## Schema Management
 - `db-schemas.ts` in project root is a Node.js-compatible barrel that declares core table schemas for drizzle-kit (which runs under Node.js and cannot import `bun:sqlite`).
@@ -52,8 +55,16 @@ The `system` module is a regular user module (not built into core) with routes f
 - `bun run db:push`: Pushes schema to SQLite (dev). No migrations needed.
 - `bun run db:generate`: Generates migration files via drizzle-kit (production).
 - `bun run db:migrate`: Runs migrations against the database.
+- `bun run db:studio`: Opens Drizzle Studio for visual database browsing (https://local.drizzle.studio).
 - `bun run scripts/generate.ts`: Rebuilds route tree from module definitions.
 - `bun test`: Runs all tests.
+
+## Deploy
+
+The template includes Railway deployment files:
+- `Dockerfile`: Multi-stage Bun build with Litestream for SQLite backup to S3.
+- `railway.toml`: Build and deploy config for Railway.
+- Set `LITESTREAM_*` env vars for backup. Without them, the app runs without backup.
 
 See @vobase/core documentation for complete API reference.
 
