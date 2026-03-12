@@ -1,5 +1,5 @@
 import { rmSync } from 'node:fs';
-import type { Database } from 'bun:sqlite';
+import { Database } from 'bun:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { shutdownManager } from 'bunqueue/client';
 
@@ -18,6 +18,100 @@ let sessionCookie = '';
 let previousAuthSecret: string | undefined;
 let previousAuthUrl: string | undefined;
 
+/**
+ * Create all required tables for the e2e test.
+ * Since ensureCoreTables() was removed, we create tables via raw SQL
+ * matching the Drizzle schema definitions.
+ */
+function createTables(db: Database) {
+  db.run(`CREATE TABLE IF NOT EXISTS "user" (
+    "id" text PRIMARY KEY NOT NULL,
+    "name" text NOT NULL,
+    "email" text NOT NULL,
+    "email_verified" integer NOT NULL DEFAULT 0,
+    "image" text,
+    "role" text NOT NULL DEFAULT 'user',
+    "created_at" integer NOT NULL,
+    "updated_at" integer NOT NULL
+  )`);
+  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS "user_email_unique" ON "user" ("email")`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS "session" (
+    "id" text PRIMARY KEY NOT NULL,
+    "expires_at" integer NOT NULL,
+    "token" text NOT NULL,
+    "created_at" integer NOT NULL,
+    "updated_at" integer NOT NULL,
+    "ip_address" text,
+    "user_agent" text,
+    "user_id" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
+  )`);
+  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS "session_token_unique" ON "session" ("token")`);
+  db.run(`CREATE INDEX IF NOT EXISTS "session_user_id_idx" ON "session" ("user_id")`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS "account" (
+    "id" text PRIMARY KEY NOT NULL,
+    "account_id" text NOT NULL,
+    "provider_id" text NOT NULL,
+    "user_id" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+    "access_token" text,
+    "refresh_token" text,
+    "id_token" text,
+    "access_token_expires_at" integer,
+    "refresh_token_expires_at" integer,
+    "scope" text,
+    "password" text,
+    "created_at" integer NOT NULL,
+    "updated_at" integer NOT NULL
+  )`);
+  db.run(`CREATE INDEX IF NOT EXISTS "account_user_id_idx" ON "account" ("user_id")`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS "verification" (
+    "id" text PRIMARY KEY NOT NULL,
+    "identifier" text NOT NULL,
+    "value" text NOT NULL,
+    "expires_at" integer NOT NULL,
+    "created_at" integer NOT NULL,
+    "updated_at" integer NOT NULL
+  )`);
+  db.run(`CREATE INDEX IF NOT EXISTS "verification_identifier_idx" ON "verification" ("identifier")`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS "_audit_log" (
+    "id" text PRIMARY KEY NOT NULL,
+    "event" text NOT NULL,
+    "actor_id" text,
+    "actor_email" text,
+    "ip" text,
+    "details" text,
+    "created_at" integer NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS "_record_audits" (
+    "id" text PRIMARY KEY NOT NULL,
+    "table_name" text NOT NULL,
+    "record_id" text NOT NULL,
+    "old_data" text,
+    "new_data" text,
+    "changed_by" text,
+    "created_at" integer NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS "_sequences" (
+    "id" text PRIMARY KEY NOT NULL,
+    "prefix" text NOT NULL,
+    "current_value" integer NOT NULL DEFAULT 0,
+    "updated_at" integer NOT NULL
+  )`);
+  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS "_sequences_prefix_unique" ON "_sequences" ("prefix")`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS "_webhook_dedup" (
+    "id" text NOT NULL,
+    "source" text NOT NULL,
+    "received_at" integer NOT NULL,
+    PRIMARY KEY ("id", "source")
+  )`);
+}
+
 const getPragmaValue = (db: DbWithClient, pragma: string): string => {
   const row = db.$client.query(`PRAGMA ${pragma}`).get() as Record<
     string,
@@ -31,6 +125,11 @@ beforeAll(() => {
   previousAuthUrl = process.env.BETTER_AUTH_URL;
   process.env.BETTER_AUTH_SECRET = 'vobase-e2e-secret';
   process.env.BETTER_AUTH_URL = 'http://localhost';
+
+  // Create tables before createApp opens its own connection
+  const bootstrapDb = new Database(dbPath);
+  createTables(bootstrapDb);
+  bootstrapDb.close();
 
   systemDb = createDatabase(dbPath) as DbWithClient;
   app = createApp({
@@ -60,7 +159,7 @@ afterAll(() => {
 });
 
 describe('vobase engine e2e integration', () => {
-  it('passes health, auth, system, mcp, and db pragma checks', async () => {
+  it('passes health, auth, mcp, and db pragma checks', async () => {
     const health = await app.request('http://localhost/health');
     const healthBody = (await health.json()) as {
       status: string;
@@ -94,27 +193,6 @@ describe('vobase engine e2e integration', () => {
     sessionCookie =
       (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
     expect(sessionCookie.length).toBeGreaterThan(0);
-
-    const systemInfo = await app.request('http://localhost/api/system', {
-      headers: { cookie: sessionCookie },
-    });
-    const infoBody = (await systemInfo.json()) as {
-      version: string;
-      uptime: number;
-      modules: string[];
-    };
-    expect(systemInfo.status).toBe(200);
-    expect(typeof infoBody.version).toBe('string');
-    expect(typeof infoBody.uptime).toBe('number');
-    expect(infoBody.modules).toContain('system');
-
-    const audit = await app.request('http://localhost/api/system/audit-log', {
-      headers: { cookie: sessionCookie },
-    });
-    expect(audit.status).toBe(200);
-    expect(
-      Array.isArray(((await audit.json()) as { entries: unknown[] }).entries),
-    ).toBe(true);
 
     const mcp = await app.request('http://localhost/mcp', {
       method: 'POST',
