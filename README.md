@@ -7,6 +7,8 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@vobase/core"><img src="https://img.shields.io/npm/v/@vobase/core.svg" alt="npm @vobase/core"></a>
   <a href="https://www.npmjs.com/package/@vobase/core"><img src="https://img.shields.io/npm/dm/@vobase/core.svg" alt="npm downloads"></a>
+  <a href="https://github.com/vobase/vobase"><img src="https://img.shields.io/github/stars/vobase/vobase" alt="GitHub stars"></a>
+  <a href="https://github.com/vobase/vobase/commits/main"><img src="https://img.shields.io/github/last-commit/vobase/vobase" alt="Last commit"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT">
   <img src="https://img.shields.io/badge/Bun-1.3.10-black?logo=bun" alt="Bun 1.3.10">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg" alt="TypeScript">
@@ -21,8 +23,7 @@
   <a href="#what-a-module-looks-like">code</a> ·
   <a href="#agent-skills">skills</a> ·
   <a href="#vs-the-alternatives">compare</a> ·
-  <a href="https://docs.vobase.dev">docs</a> ·
-  <a href="https://discord.gg/vobase">discord</a>
+  <a href="https://docs.vobase.dev">docs</a>
 </p>
 
 ---
