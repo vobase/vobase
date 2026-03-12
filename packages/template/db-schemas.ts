@@ -7,7 +7,7 @@
  *
  * User module schemas are auto-included via the glob in drizzle.config.ts.
  */
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { customAlphabet } from 'nanoid';
 
 const createNanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 12);
@@ -96,3 +96,44 @@ export const webhookDedup = sqliteTable('_webhook_dedup', {
   source: text('source').notNull(),
   receivedAt: integer('received_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
 }, (table) => [primaryKey({ columns: [table.id, table.source] })]);
+
+export const credentialsTable = sqliteTable('_credentials', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()).$onUpdate(() => new Date()),
+});
+
+// === Storage tables (Phase 2) ===
+
+export const storageObjects = sqliteTable('_storage_objects', {
+  id: nanoidPrimaryKey(),
+  bucket: text('bucket').notNull(),
+  key: text('key').notNull(),
+  size: integer('size').notNull(),
+  contentType: text('content_type').notNull().default('application/octet-stream'),
+  metadata: text('metadata'),
+  uploadedBy: text('uploaded_by'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (table) => [
+  uniqueIndex('storage_objects_bucket_key_idx').on(table.bucket, table.key),
+  index('storage_objects_bucket_idx').on(table.bucket),
+  index('storage_objects_uploaded_by_idx').on(table.uploadedBy),
+]);
+
+// === Notify tables (Phase 3) ===
+
+export const notifyLog = sqliteTable('_notify_log', {
+  id: nanoidPrimaryKey(),
+  channel: text('channel').notNull(),
+  provider: text('provider').notNull(),
+  to: text('to').notNull(),
+  subject: text('subject'),
+  template: text('template'),
+  providerMessageId: text('provider_message_id'),
+  status: text('status').notNull().default('sent'),
+  error: text('error'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (table) => [
+  index('notify_log_channel_idx').on(table.channel),
+  index('notify_log_status_idx').on(table.status),
+]);
