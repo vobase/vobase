@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 
-import { VobaseError } from './errors';
+import { VobaseError } from './infra/errors';
 import { defineBuiltinModule, defineModule } from './module';
 import { registerModules } from './module-registry';
 

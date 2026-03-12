@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
-import type { VobaseDb } from './db/client';
+import type { VobaseDb } from '../db/client';
 import type { Scheduler } from './queue';
 import { webhookDedup } from './webhooks-schema';
 

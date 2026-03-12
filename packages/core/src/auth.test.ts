@@ -6,7 +6,7 @@ import type { AuthAdapter, AuthSession } from './contracts/auth';
 import { createAuthModule } from './modules/auth';
 import { sessionMiddleware, optionalSessionMiddleware } from './modules/auth/middleware';
 import { createDatabase, type VobaseDb } from './db';
-import { VobaseError } from './errors';
+import { VobaseError } from './infra/errors';
 
 type DbWithClient = VobaseDb & { $client: Database };
 

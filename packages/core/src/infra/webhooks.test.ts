@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
-import type { VobaseDb } from './db/client';
+import type { VobaseDb } from '../db/client';
 import type { Scheduler } from './queue';
 import {
   checkAndRecordWebhook,

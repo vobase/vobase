@@ -5,7 +5,7 @@ import type {
   StorageObjectInfo,
   S3ProviderConfig,
 } from '../../../contracts/storage';
-import { validation } from '../../../errors';
+import { validation } from '../../../infra/errors';
 
 export function createS3Provider(config: S3ProviderConfig): StorageProvider {
   const client = new S3Client({

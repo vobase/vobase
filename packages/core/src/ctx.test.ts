@@ -8,8 +8,8 @@ import {
   type VobaseUser,
 } from './ctx';
 import type { VobaseDb } from './db';
-import type { HttpClient } from './http-client';
-import type { Scheduler } from './queue';
+import type { HttpClient } from './infra/http-client';
+import type { Scheduler } from './infra/queue';
 import type { NotifyService } from './modules/notify/service';
 import type { StorageService } from './modules/storage/service';
 

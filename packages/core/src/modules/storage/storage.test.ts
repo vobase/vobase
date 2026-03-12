@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 
 import type { VobaseDb } from '../../db/client';
-import { VobaseError } from '../../errors';
+import { VobaseError } from '../../infra/errors';
 import { createLocalProvider } from './providers/local';
 import { createStorageService, type BucketConfig } from './service';
 import * as storageSchemaModule from './schema';

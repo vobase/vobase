@@ -1,7 +1,7 @@
 import { mkdirSync, unlinkSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, normalize, dirname } from 'node:path';
 
-import { validation } from '../../../errors';
+import { validation } from '../../../infra/errors';
 import type {
   StorageProvider,
   StorageObjectInfo,

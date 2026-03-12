@@ -1,8 +1,8 @@
 import type { Hono } from 'hono';
 
 import type { ModuleInitContext } from './contracts/module';
-import { validation } from './errors';
-import type { JobDefinition } from './job';
+import { validation } from './infra/errors';
+import type { JobDefinition } from './infra/job';
 
 const MODULE_NAME_PATTERN = /^[a-z0-9-]+$/;
 const BUILTIN_NAME_PATTERN = /^_[a-z0-9-]+$/;

@@ -1,4 +1,4 @@
-import { conflict } from './errors';
+import { conflict } from './infra/errors';
 import type { VobaseModule } from './module';
 
 export function registerModules(

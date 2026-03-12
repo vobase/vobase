@@ -7,7 +7,7 @@ import type {
   WhatsAppMessage,
   WhatsAppResult,
 } from '../../contracts/notify';
-import { createThrowProxy } from '../../throw-proxy';
+import { createThrowProxy } from '../../infra/throw-proxy';
 import { notifyLog } from './schema';
 
 export interface EmailChannel {

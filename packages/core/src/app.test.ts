@@ -4,7 +4,7 @@ import { shutdownManager } from 'bunqueue/client';
 import { Hono } from 'hono';
 
 import { createApp } from './app';
-import { notFound } from './errors';
+import { notFound } from './infra/errors';
 import type { VobaseModule } from './module';
 
 afterAll(() => {

@@ -2,8 +2,8 @@ import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 
 import type { VobaseDb } from './db';
-import type { HttpClient } from './http-client';
-import type { Scheduler } from './queue';
+import type { HttpClient } from './infra/http-client';
+import type { Scheduler } from './infra/queue';
 import type { NotifyService } from './modules/notify/service';
 import type { StorageService } from './modules/storage/service';
 
@@ -12,6 +12,8 @@ export interface VobaseUser {
   email: string;
   name: string;
   role: string;
+  /** Set when the user has an active organization (better-auth organization plugin) */
+  activeOrganizationId?: string;
 }
 
 export interface VobaseCtx {

@@ -7,7 +7,7 @@ import type {
   PresignOptions,
   StorageListResult,
 } from '../../contracts/storage';
-import { validation } from '../../errors';
+import { validation } from '../../infra/errors';
 import { storageObjects } from './schema';
 
 export interface BucketConfig {

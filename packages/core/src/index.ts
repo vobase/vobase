@@ -34,7 +34,7 @@ export type { VobaseCtx, VobaseUser } from './ctx';
 export { contextMiddleware, getCtx } from './ctx';
 
 // Circuit Breaker
-export { CircuitBreaker, type CircuitBreakerOptions } from './circuit-breaker';
+export { CircuitBreaker, type CircuitBreakerOptions } from './infra/circuit-breaker';
 
 // HTTP Client
 export {
@@ -43,7 +43,7 @@ export {
   type HttpClientOptions,
   type HttpResponse,
   type RequestOptions,
-} from './http-client';
+} from './infra/http-client';
 
 // DB
 export { createDatabase, type VobaseDb } from './db';
@@ -67,14 +67,14 @@ export {
   unauthorized,
   VobaseError,
   validation,
-} from './errors';
+} from './infra/errors';
 
 // Jobs
-export type { JobDefinition, JobHandler, WorkerOptions } from './job';
-export { createWorker, defineJob } from './job';
+export type { JobDefinition, JobHandler, WorkerOptions } from './infra/job';
+export { createWorker, defineJob } from './infra/job';
 
 // Logger
-export { logger } from './logger';
+export { logger } from './infra/logger';
 
 // Auth Audit Hooks (re-exported from auth module)
 export { createAuthAuditHooks } from './modules/auth/audit-hooks';
@@ -87,7 +87,7 @@ export { defineModule } from './module';
 export { registerModules } from './module-registry';
 
 // Queue
-export { createScheduler, type JobOptions, type Scheduler } from './queue';
+export { createScheduler, type JobOptions, type Scheduler } from './infra/queue';
 
 // Built-in Modules: Audit
 export { createAuditModule, auditLog, recordAudits } from './modules/audit';
@@ -106,7 +106,7 @@ export { encrypt, decrypt, getCredential, setCredential, deleteCredential } from
 export { getActiveSchemas, type SchemaConfig } from './schemas';
 
 // Throw Proxy
-export { createThrowProxy } from './throw-proxy';
+export { createThrowProxy } from './infra/throw-proxy';
 
 // Built-in Modules: Storage
 export { createStorageModule, type StorageModuleConfig } from './modules/storage';
@@ -125,4 +125,4 @@ export { createWabaProvider, type WabaConfig } from './modules/notify/providers/
 export type { NotifyService, EmailChannel, WhatsAppChannel } from './modules/notify/service';
 
 // Webhooks
-export { type WebhookConfig, verifyHmacSignature, createWebhookRoutes, webhookDedup } from './webhooks';
+export { type WebhookConfig, verifyHmacSignature, createWebhookRoutes, webhookDedup } from './infra/webhooks';

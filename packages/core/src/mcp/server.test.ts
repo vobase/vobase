@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 
-import { createDatabase } from './db/client';
-import { createMcpHandler } from './mcp';
-import type { VobaseModule } from './module';
+import { createDatabase } from '../db/client';
+import { createMcpHandler } from './server';
+import type { VobaseModule } from '../module';
 
 const MODULES: VobaseModule[] = [
   {
