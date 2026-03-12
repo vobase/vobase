@@ -1,6 +1,6 @@
 {
   "name": "@vobase/core",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "license": "MIT",
   "description": "The app framework built for AI coding agents - core runtime",
   "repository": {
