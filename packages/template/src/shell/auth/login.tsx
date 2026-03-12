@@ -17,6 +17,10 @@ export function LoginPage() {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [email, setEmail] = useState(isDev ? 'admin@example.com' : '');
 	const [password, setPassword] = useState(isDev ? 'Admin@vobase1' : '');
+	const [showGoogle] = useState(() => {
+		// Only show Google button if the provider is configured (non-dev) or explicitly enabled
+		return !isDev;
+	});
 
 	async function handleGoogleLogin() {
 		setIsSubmitting(true);
@@ -76,7 +80,7 @@ export function LoginPage() {
 								id="email"
 								type="email"
 								value={email}
-								onChange={(e) => setEmail(e.target.value)}
+								onChange={(e) => { setEmail(e.target.value); setMessage(null); }}
 								required
 							/>
 						</div>
@@ -86,7 +90,7 @@ export function LoginPage() {
 								id="password"
 								type="password"
 								value={password}
-								onChange={(e) => setPassword(e.target.value)}
+								onChange={(e) => { setPassword(e.target.value); setMessage(null); }}
 								required
 							/>
 						</div>
@@ -95,25 +99,30 @@ export function LoginPage() {
 							{isSubmitting ? 'Signing in...' : 'Sign in'}
 						</Button>
 					</form>
-
-					<div className="relative my-6">
-						<Separator />
-						<div className="absolute inset-0 flex items-center justify-center">
-							<span className="bg-background px-2 text-xs uppercase text-muted-foreground">or</span>
-						</div>
-					</div>
 				</>
 			) : null}
 
-			<Button
-				className="w-full"
-				variant={isDev ? 'outline' : 'default'}
-				disabled={isSubmitting}
-				onClick={handleGoogleLogin}
-			>
-				{isSubmitting ? <Spinner /> : null}
-				{isSubmitting ? 'Redirecting...' : 'Sign in with Google'}
-			</Button>
+			{showGoogle ? (
+				<>
+					{isDev ? (
+						<div className="relative my-6">
+							<Separator />
+							<div className="absolute inset-0 flex items-center justify-center">
+								<span className="bg-background px-2 text-xs uppercase text-muted-foreground">or</span>
+							</div>
+						</div>
+					) : null}
+					<Button
+						className="w-full"
+						variant={isDev ? 'outline' : 'default'}
+						disabled={isSubmitting}
+						onClick={handleGoogleLogin}
+					>
+						{isSubmitting ? <Spinner /> : null}
+						{isSubmitting ? 'Redirecting...' : 'Sign in with Google'}
+					</Button>
+				</>
+			) : null}
 
 			<p className="mt-6 text-center text-sm text-muted-foreground">
 				Don&apos;t have an account?{' '}
