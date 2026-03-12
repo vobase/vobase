@@ -5,7 +5,6 @@ import type {
   StorageProvider,
   UploadOptions,
   PresignOptions,
-  ListOptions,
   StorageListResult,
 } from '../../contracts/storage';
 import { validation } from '../../errors';

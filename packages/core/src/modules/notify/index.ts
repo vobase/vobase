@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 
+import type { EmailProvider, WhatsAppProvider } from '../../contracts/notify';
 import { defineBuiltinModule } from '../../module';
 import { createResendProvider, type ResendConfig } from './providers/resend';
 import { createSmtpProvider, type SmtpConfig } from './providers/smtp';
-import { createWabaProvider, type WabaConfig } from './providers/waba';
-import { createNotifyService, type NotifyService } from './service';
+import { createWabaProvider } from './providers/waba';
+import { createNotifyService } from './service';
 import { notifySchema } from './schema';
 import type { VobaseDb } from '../../db/client';
 
@@ -27,7 +28,7 @@ export interface NotifyModuleConfig {
 }
 
 export function createNotifyModule(db: VobaseDb, config: NotifyModuleConfig) {
-  let emailProvider;
+  let emailProvider: EmailProvider | undefined;
   let emailProviderName: string | undefined;
 
   if (config.email) {
@@ -52,7 +53,7 @@ export function createNotifyModule(db: VobaseDb, config: NotifyModuleConfig) {
     }
   }
 
-  let whatsappProvider;
+  let whatsappProvider: WhatsAppProvider | undefined;
   let whatsappProviderName: string | undefined;
 
   if (config.whatsapp) {

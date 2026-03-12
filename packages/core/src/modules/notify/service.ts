@@ -57,28 +57,36 @@ export function createNotifyService(deps: NotifyServiceDeps): NotifyService {
   const { db } = deps;
 
   const email: EmailChannel = deps.emailProvider
-    ? {
-        async send(message) {
-          const result = await deps.emailProvider!.send(message);
-          const to = Array.isArray(message.to) ? message.to.join(',') : message.to;
-          logNotification(db, 'email', deps.emailProviderName!, to, result, {
-            subject: message.subject,
-          });
-          return result;
-        },
-      }
+    ? (() => {
+        const provider = deps.emailProvider;
+        const providerName = deps.emailProviderName ?? 'unknown';
+        return {
+          async send(message) {
+            const result = await provider.send(message);
+            const to = Array.isArray(message.to) ? message.to.join(',') : message.to;
+            logNotification(db, 'email', providerName, to, result, {
+              subject: message.subject,
+            });
+            return result;
+          },
+        };
+      })()
     : createThrowProxy<EmailChannel>('email notify channel');
 
   const whatsapp: WhatsAppChannel = deps.whatsappProvider
-    ? {
-        async send(message) {
-          const result = await deps.whatsappProvider!.send(message);
-          logNotification(db, 'whatsapp', deps.whatsappProviderName!, message.to, result, {
-            template: message.template?.name,
-          });
-          return result;
-        },
-      }
+    ? (() => {
+        const provider = deps.whatsappProvider;
+        const providerName = deps.whatsappProviderName ?? 'unknown';
+        return {
+          async send(message) {
+            const result = await provider.send(message);
+            logNotification(db, 'whatsapp', providerName, message.to, result, {
+              template: message.template?.name,
+            });
+            return result;
+          },
+        };
+      })()
     : createThrowProxy<WhatsAppChannel>('WhatsApp notify channel');
 
   return { email, whatsapp };

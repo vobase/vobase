@@ -4,10 +4,6 @@ import { join, normalize, dirname } from 'node:path';
 import { validation } from '../../../errors';
 import type {
   StorageProvider,
-  UploadOptions,
-  PresignOptions,
-  ListOptions,
-  StorageListResult,
   StorageObjectInfo,
   LocalProviderConfig,
 } from '../../../contracts/storage';
@@ -71,7 +67,7 @@ export function createLocalProvider(config: LocalProviderConfig): StorageProvide
       return existsSync(join(basePath, safe));
     },
 
-    presign(fullKey, opts) {
+    presign(fullKey, _opts) {
       const safe = sanitizePath(fullKey);
       // Local provider returns a proxy URL — the server handles the actual I/O
       return `${baseUrl}/${safe}`;

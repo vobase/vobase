@@ -1,5 +1,3 @@
-import { Hono } from 'hono';
-
 import { defineBuiltinModule } from '../../module';
 import { createLocalProvider } from './providers/local';
 import { createS3Provider } from './providers/s3';

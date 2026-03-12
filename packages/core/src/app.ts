@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 
 import { contextMiddleware } from './ctx';
-import { createDatabase, type VobaseDb } from './db/client';
+import { createDatabase } from './db/client';
 import { createHttpClient, type HttpClientOptions } from './http-client';
 import { errorHandler } from './errors';
 import { createWorker } from './job';

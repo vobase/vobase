@@ -2,10 +2,6 @@ import { S3Client } from 'bun';
 
 import type {
   StorageProvider,
-  UploadOptions,
-  PresignOptions,
-  ListOptions,
-  StorageListResult,
   StorageObjectInfo,
   S3ProviderConfig,
 } from '../../../contracts/storage';
@@ -40,7 +36,7 @@ export function createS3Provider(config: S3ProviderConfig): StorageProvider {
       try {
         const buf = await file.arrayBuffer();
         return new Uint8Array(buf);
-      } catch (err) {
+      } catch {
         throw validation({ key: fullKey }, `File not found: ${fullKey}`);
       }
     },
@@ -74,8 +70,8 @@ export function createS3Provider(config: S3ProviderConfig): StorageProvider {
         params.set('start-after', opts.cursor);
       }
 
-      const endpoint = config.endpoint ?? `https://s3.${config.region ?? 'us-east-1'}.amazonaws.com`;
-      const url = `${endpoint}/${config.bucket}?${params}`;
+      // const endpoint = config.endpoint ?? `https://s3.${config.region ?? 'us-east-1'}.amazonaws.com`;
+      // const url = `${endpoint}/${config.bucket}?${params}`;
 
       // Bun's S3Client doesn't expose ListObjectsV2 — full listing requires XML parsing.
       // Most use cases rely on metadata in SQLite; enhance here when needed.

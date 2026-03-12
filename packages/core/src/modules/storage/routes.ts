@@ -11,14 +11,14 @@ export function createStorageRoutes(service: StorageService): Hono {
     const bucket = service.bucket(bucketName);
 
     const body = await c.req.parseBody();
-    const file = body['file'];
+    const file = body.file;
 
     if (!file || !(file instanceof File)) {
       return c.json({ error: 'Missing file in request body' }, 400);
     }
 
     const data = new Uint8Array(await file.arrayBuffer());
-    const key = (body['key'] as string) || file.name;
+    const key = (body.key as string) || file.name;
     const contentType = file.type || 'application/octet-stream';
 
     const obj = await bucket.upload(key, data, { contentType });

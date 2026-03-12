@@ -161,7 +161,7 @@ describe('StorageService', () => {
 
     const meta = await handle.metadata('user-1/pic.jpg');
     expect(meta).not.toBeNull();
-    expect(meta!.size).toBe(3);
+    expect(meta?.size).toBe(3);
   });
 
   it('downloads uploaded file', async () => {
