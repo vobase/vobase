@@ -2,9 +2,9 @@ import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 
-import { trackChanges } from './audit';
 import type { VobaseDb } from './db';
-import * as schema from './db/system-schema';
+import { trackChanges } from './modules/audit/track-changes';
+import * as schema from './modules/audit/schema';
 
 interface AuditRow {
   tableName: string;

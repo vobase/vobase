@@ -4,8 +4,8 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { Hono } from 'hono';
 
 import type { VobaseDb } from '../db';
-import * as schema from '../db/system-schema';
-import { createAuthAuditHooks, requestAuditMiddleware } from './audit';
+import * as schema from '../modules/audit/schema';
+import { createAuthAuditHooks, requestAuditMiddleware } from '../modules/audit/middleware';
 
 interface AuditRow {
   event: string;

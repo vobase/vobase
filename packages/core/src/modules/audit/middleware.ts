@@ -1,7 +1,9 @@
 import { createAuthMiddleware } from 'better-auth/api';
 import { createMiddleware } from 'hono/factory';
 
-import { auditLog, type VobaseDb } from '../db';
+import type { VobaseDb } from '../../db/client';
+
+import { auditLog } from './schema';
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 

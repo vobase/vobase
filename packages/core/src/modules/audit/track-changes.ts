@@ -1,4 +1,6 @@
-import { recordAudits, type VobaseDb } from './db';
+import type { VobaseDb } from '../../db/client';
+
+import { recordAudits } from './schema';
 
 function valuesAreEqual(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) {
