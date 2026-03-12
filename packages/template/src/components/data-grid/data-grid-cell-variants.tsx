@@ -1577,7 +1577,7 @@ export function FileCell<TData>({
           const filesWithTemp = [...files, ...tempFiles];
           setFiles(filesWithTemp);
 
-          const uploadingIds = new Set(tempFiles.map((f) => f.id));
+          const uploadingIds: Set<string> = new Set(tempFiles.map((f) => f.id));
           setUploadingFiles(uploadingIds);
 
           let uploadedFiles: FileCellData[] = [];

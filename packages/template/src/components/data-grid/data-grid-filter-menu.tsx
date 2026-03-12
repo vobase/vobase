@@ -722,7 +722,7 @@ function DataGridFilterInput<TData>({
                     ? { from: startDate, to: startDate }
                     : undefined
               }
-              onSelect={(range) => {
+              onSelect={(range: { from?: Date; to?: Date } | undefined) => {
                 const fromValue = range?.from
                   ? range.from.toISOString()
                   : undefined;
@@ -776,7 +776,7 @@ function DataGridFilterInput<TData>({
             captionLayout="dropdown"
             mode="single"
             selected={dateValue}
-            onSelect={(date) => {
+            onSelect={(date: Date | undefined) => {
               const newValue = date ? date.toISOString() : undefined;
               setLocalValue(newValue);
               onValueChange(newValue);

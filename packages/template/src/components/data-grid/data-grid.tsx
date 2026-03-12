@@ -1,4 +1,5 @@
 
+import type { VirtualItem } from "@tanstack/react-virtual";
 import { Plus } from "lucide-react";
 import * as React from "react";
 import { DataGridColumnHeader } from "@/components/data-grid/data-grid-column-header";
@@ -208,7 +209,7 @@ export function DataGrid<TData>({
             contain: adjustLayout ? "layout paint" : "strict",
           }}
         >
-          {virtualItems.map((virtualItem) => {
+          {virtualItems.map((virtualItem: VirtualItem) => {
             const row = rows[virtualItem.index];
             if (!row) return null;
 

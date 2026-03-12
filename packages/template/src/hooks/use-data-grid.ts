@@ -2224,7 +2224,7 @@ function useDataGrid<TData>({
     estimateSize: () => rowHeightValue,
     overscan,
     measureElement: !isFirefox
-      ? (element) => element?.getBoundingClientRect().height
+      ? (element: Element) => element?.getBoundingClientRect().height
       : undefined,
   });
 
