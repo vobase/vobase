@@ -93,10 +93,7 @@ describe('generate', () => {
     const schema = await readFile(result.schemaPath, 'utf8');
 
     expect(schema).toBe(SYSTEM_SCHEMA_SOURCE);
-    expect(schema.includes('export const auditLog')).toBe(true);
-    expect(schema.includes('export const sequences')).toBe(true);
-    expect(schema.includes('export const recordAudits')).toBe(true);
-    expect(schema.includes('export * from')).toBe(false);
+    expect(schema.includes('managed by @vobase/core')).toBe(true);
   });
 
   it('writes empty routes output when no modules are present', async () => {
