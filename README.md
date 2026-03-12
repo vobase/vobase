@@ -2,6 +2,9 @@
   <b>vobase</b><br>
   The app framework built for AI coding agents.<br>
   Own every line. Your AI already knows how to build on it.
+  <a href="https://discord.gg/sVsPBHtvTZ"><img 
+  src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"               
+  alt="Discord"></a>
 </p>
 
 <p align="center">
@@ -16,9 +19,6 @@
   <img src="https://img.shields.io/badge/Database-SQLite-07405e?logo=sqlite" alt="SQLite">
   <img src="https://img.shields.io/badge/Auth-better--auth-16a34a" alt="better-auth">
   <img src="https://img.shields.io/badge/Deployment-self--hosted-0ea5e9" alt="Self-hosted">
-  <a href="https://discord.gg/sVsPBHtvTZ"><img 
-  src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"               
-  alt="Discord"></a>
 </p>
 
 <p align="center">
