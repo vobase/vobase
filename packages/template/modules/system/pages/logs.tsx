@@ -80,7 +80,7 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   });
 
   const canGoBack = history.length > 0;
-  const canGoNext = auditQuery.data?.nextCursor !== undefined;
+  const canGoNext = auditQuery.data?.nextCursor != null;
 
   return (
     <div className="flex flex-col gap-8 p-6 lg:p-10">
