@@ -18,14 +18,30 @@ if (!name) {
   process.exit(1);
 }
 
+const isCurrent = name === '.';
 const dest = resolve(process.cwd(), name);
 const projectName = basename(dest);
+
+// When scaffolding into the current directory, require a clean git working tree
+if (isCurrent) {
+  try {
+    const status = (await $`git status --porcelain`.cwd(dest).text()).trim();
+    if (status) {
+      console.error(
+        'Error: Current directory has uncommitted changes. Commit or stash them first.',
+      );
+      process.exit(1);
+    }
+  } catch {
+    // Not a git repo — that's fine, proceed without the check
+  }
+}
 
 console.log(`\n${bold('Creating vobase project')} in ${cyan(dest)}\n`);
 
 await downloadTemplate('github:vobase/vobase/packages/template', {
   dir: dest,
-  force: false,
+  force: isCurrent,
 });
 console.log(`${green('✓')} Downloaded template`);
 
@@ -87,7 +103,7 @@ await $`bun run seed`.cwd(dest);
 
 console.log(`
 ${green('Done!')} Your vobase project is ready.
-
-  ${dim('$')} cd ${name}
+${isCurrent ? '' : `
+  ${dim('$')} cd ${name}`}
   ${dim('$')} bun run dev
 `);
