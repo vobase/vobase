@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 
-import { createAuth, type CreateAuthOptions } from './auth';
 import { contextMiddleware } from './ctx';
 import { createDatabase, type VobaseDb } from './db/client';
 import { createHttpClient, type HttpClientOptions } from './http-client';
@@ -8,17 +7,18 @@ import { errorHandler } from './errors';
 import { createWorker } from './job';
 import { logger } from './logger';
 import { createMcpHandler } from './mcp';
-import { optionalSessionMiddleware } from './middleware/session';
 import { createAuditModule } from './modules/audit';
+import { createAuthModule, optionalSessionMiddleware, type AuthModuleConfig } from './modules/auth';
 import { createCredentialsModule } from './modules/credentials';
+import { createNotifyModule, type NotifyModuleConfig } from './modules/notify';
+import type { NotifyService } from './modules/notify/service';
 import { createSequencesModule } from './modules/sequences';
+import { createStorageModule, type StorageModuleConfig } from './modules/storage';
+import type { StorageService } from './modules/storage/service';
 import type { VobaseModule } from './module';
 import { createScheduler } from './queue';
-import { createStorage } from './storage';
 import { createThrowProxy } from './throw-proxy';
 import { createWebhookRoutes, type WebhookConfig } from './webhooks';
-import type { EmailProvider } from './contracts/notify';
-import type { StorageProvider } from './contracts/storage';
 
 const DEFAULT_QUEUE_DB_PATH = '/data/bunqueue.db';
 const LOCAL_QUEUE_DB_PATH = './data/bunqueue.db';
@@ -58,12 +58,13 @@ function createSchedulerWithFallback(queueDbPath: string) {
 export interface CreateAppConfig {
   modules: VobaseModule[];
   database: string;
-  storage?: { basePath: string };
+  storage?: StorageModuleConfig;
+  notify?: NotifyModuleConfig;
   http?: HttpClientOptions;
   webhooks?: Record<string, WebhookConfig>;
   mcp?: { enabled?: boolean };
   trustedOrigins?: string[];
-  auth?: Omit<CreateAuthOptions, 'baseURL' | 'trustedOrigins'>;
+  auth?: Omit<AuthModuleConfig, 'trustedOrigins'>;
   /** Enable the credentials module (encrypted credential store). Default: false */
   credentials?: { enabled: boolean };
 }
@@ -71,19 +72,41 @@ export interface CreateAppConfig {
 export function createApp(config: CreateAppConfig) {
   const db = createDatabase(config.database);
 
-  const auth = createAuth(db, { trustedOrigins: config.trustedOrigins, ...config.auth });
-
   const queueDbPath = deriveQueueDbPath(config.database);
   const { scheduler, effectiveQueueDbPath } =
     createSchedulerWithFallback(queueDbPath);
 
-  const storage = createStorage(config.storage?.basePath ?? './data/files');
   const http = createHttpClient(config.http);
 
+  // === Auth Module (always active) ===
+  const authMod = createAuthModule(db, {
+    ...config.auth,
+    trustedOrigins: config.trustedOrigins,
+  });
+  const authAdapter = authMod.adapter;
+
+  // === Storage Module (config-driven) ===
+  let storageMod: ReturnType<typeof createStorageModule> | undefined;
+  let storageService: StorageService;
+  if (config.storage) {
+    storageMod = createStorageModule(db, config.storage);
+    storageService = storageMod.service;
+  } else {
+    storageService = createThrowProxy<StorageService>('storage');
+  }
+
+  // === Notify Module (config-driven) ===
+  let notifyMod: ReturnType<typeof createNotifyModule> | undefined;
+  let notifyService: NotifyService;
+  if (config.notify) {
+    notifyMod = createNotifyModule(db, config.notify);
+    notifyService = notifyMod.service;
+  } else {
+    notifyService = createThrowProxy<NotifyService>('notify');
+  }
+
   // === Built-in Module Init ===
-  const storageProvider = createThrowProxy<StorageProvider>('storage');
-  const notify = createThrowProxy<EmailProvider>('notify');
-  const initCtx = { db, scheduler, http, storage: storageProvider, notify };
+  const initCtx = { db, scheduler, http, storage: storageService, notify: notifyService };
 
   const auditMod = createAuditModule();
   auditMod.init?.(initCtx);
@@ -100,13 +123,18 @@ export function createApp(config: CreateAppConfig) {
   // === Base app with middleware ===
   const base = new Hono();
   base.onError(errorHandler);
-  base.use('*', contextMiddleware({ db, scheduler, storage, http }));
-  base.use('/api/*', optionalSessionMiddleware(auth));
-  base.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
+  base.use('*', contextMiddleware({ db, scheduler, storage: storageService, notify: notifyService, http }));
+  base.use('/api/*', optionalSessionMiddleware(authAdapter));
+  base.on(['POST', 'GET'], '/api/auth/*', (c) => authAdapter.handler(c.req.raw));
 
   // Mount via chaining to preserve route types for hc<AppType>
   const app = base
     .get('/health', (c) => c.json({ status: 'ok', uptime: process.uptime() }));
+
+  // === Storage routes ===
+  if (storageMod) {
+    (app as Hono).route('/api/storage', storageMod.routes);
+  }
 
   // === User Modules ===
   const userModules = config.modules;
@@ -122,7 +150,9 @@ export function createApp(config: CreateAppConfig) {
   }
 
   // === MCP + Jobs ===
-  const builtInModules: VobaseModule[] = [auditMod, seqMod];
+  const builtInModules: VobaseModule[] = [authMod, auditMod, seqMod];
+  if (storageMod) builtInModules.push(storageMod);
+  if (notifyMod) builtInModules.push(notifyMod);
   if (credMod) builtInModules.push(credMod);
   const allModules = [...builtInModules, ...userModules];
 

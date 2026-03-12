@@ -1,8 +1,9 @@
 // Engine
 export { type CreateAppConfig, createApp } from './app';
 
-// Auth
-export { type Auth, type CreateAuthOptions, createAuth } from './auth';
+// Auth Module
+export { createAuthModule, type AuthModuleConfig, type AuthModule } from './modules/auth';
+export { sessionMiddleware, optionalSessionMiddleware } from './modules/auth/middleware';
 
 // Contracts
 export type { AuthAdapter, AuthSession, AuthUser } from './contracts/auth';
@@ -75,11 +76,8 @@ export { createWorker, defineJob } from './job';
 // Logger
 export { logger } from './logger';
 
-// Middleware
-export {
-  optionalSessionMiddleware,
-  sessionMiddleware,
-} from './middleware/session';
+// Auth Audit Hooks (re-exported from auth module)
+export { createAuthAuditHooks } from './modules/auth/audit-hooks';
 
 // Module
 export type { DefineModuleConfig, VobaseModule } from './module';
@@ -94,7 +92,7 @@ export { createScheduler, type JobOptions, type Scheduler } from './queue';
 // Built-in Modules: Audit
 export { createAuditModule, auditLog, recordAudits } from './modules/audit';
 export { trackChanges } from './modules/audit/track-changes';
-export { requestAuditMiddleware, createAuthAuditHooks } from './modules/audit/middleware';
+export { requestAuditMiddleware } from './modules/audit/middleware';
 
 // Built-in Modules: Sequences
 export { createSequencesModule, sequences } from './modules/sequences';
@@ -110,8 +108,21 @@ export { getActiveSchemas, type SchemaConfig } from './schemas';
 // Throw Proxy
 export { createThrowProxy } from './throw-proxy';
 
-// Storage (Phase 1: simple local storage, will be replaced by storage module in Phase 2)
-export { createStorage, type Storage } from './storage';
+// Built-in Modules: Storage
+export { createStorageModule, type StorageModuleConfig } from './modules/storage';
+export { createLocalProvider } from './modules/storage/providers/local';
+export { createS3Provider } from './modules/storage/providers/s3';
+export { createStorageRoutes } from './modules/storage/routes';
+export { storageObjects } from './modules/storage/schema';
+export type { StorageService, BucketConfig, BucketHandle, StorageObject, BucketListOptions } from './modules/storage/service';
+
+// Built-in Modules: Notify
+export { createNotifyModule, type NotifyModuleConfig } from './modules/notify';
+export { notifyLog } from './modules/notify/schema';
+export { createResendProvider, type ResendConfig } from './modules/notify/providers/resend';
+export { createSmtpProvider, type SmtpConfig } from './modules/notify/providers/smtp';
+export { createWabaProvider, type WabaConfig } from './modules/notify/providers/waba';
+export type { NotifyService, EmailChannel, WhatsAppChannel } from './modules/notify/service';
 
 // Webhooks
 export { type WebhookConfig, verifyHmacSignature, createWebhookRoutes, webhookDedup } from './webhooks';

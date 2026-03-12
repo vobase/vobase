@@ -10,21 +10,21 @@ import {
 import type { VobaseDb } from './db';
 import type { HttpClient } from './http-client';
 import type { Scheduler } from './queue';
-import type { Storage } from './storage';
+import type { NotifyService } from './modules/notify/service';
+import type { StorageService } from './modules/storage/service';
 
 const db = {} as VobaseDb;
 const scheduler: Scheduler = {
   async add() {},
 };
-const storage: Storage = {
-  async upload() {},
-  async download() {
-    return new Uint8Array();
+const storage: StorageService = {
+  bucket() {
+    throw new Error('not implemented');
   },
-  getUrl(path) {
-    return path;
-  },
-  async delete() {},
+};
+const notify: NotifyService = {
+  email: { send: async () => ({ success: true }) },
+  whatsapp: { send: async () => ({ success: true }) },
 };
 const mockResponse = { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
 const http: HttpClient = {
@@ -51,6 +51,7 @@ describe('ctx helpers', () => {
       c.set('db', db);
       c.set('scheduler', scheduler);
       c.set('storage', storage);
+      c.set('notify', notify);
       c.set('http', http);
       c.set('user', user);
       await next();
@@ -61,6 +62,7 @@ describe('ctx helpers', () => {
         hasDb: ctx.db === db,
         hasScheduler: ctx.scheduler === scheduler,
         hasStorage: ctx.storage === storage,
+        hasNotify: ctx.notify === notify,
         hasHttp: ctx.http === http,
         user: ctx.user,
       });
@@ -71,6 +73,7 @@ describe('ctx helpers', () => {
       hasDb: boolean;
       hasScheduler: boolean;
       hasStorage: boolean;
+      hasNotify: boolean;
       hasHttp: boolean;
       user: VobaseUser | null;
     };
@@ -79,13 +82,14 @@ describe('ctx helpers', () => {
     expect(body.hasDb).toBe(true);
     expect(body.hasScheduler).toBe(true);
     expect(body.hasStorage).toBe(true);
+    expect(body.hasNotify).toBe(true);
     expect(body.hasHttp).toBe(true);
     expect(body.user).toEqual(user);
   });
 
   it('returns null user when session middleware did not set user', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, http }));
+    app.use('*', contextMiddleware({ db, scheduler, storage, notify, http }));
     app.get('/', (c) => c.json({ user: getCtx(c).user }));
 
     const response = await app.request('http://localhost/');
@@ -97,7 +101,7 @@ describe('ctx helpers', () => {
 
   it('contextMiddleware sets db, scheduler, storage, and http', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, http }));
+    app.use('*', contextMiddleware({ db, scheduler, storage, notify, http }));
     app.get('/', (c) => {
       return c.json({
         hasDb: c.get('db') === db,
@@ -124,7 +128,7 @@ describe('ctx helpers', () => {
 
   it('getCtx(c) includes http client', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, http }));
+    app.use('*', contextMiddleware({ db, scheduler, storage, notify, http }));
     app.get('/', (c) => {
       const ctx = getCtx(c);
       return c.json({ hasHttp: ctx.http === http });
@@ -139,14 +143,15 @@ describe('ctx helpers', () => {
 
   it('exposes correctly typed properties on VobaseCtx', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, http }));
+    app.use('*', contextMiddleware({ db, scheduler, storage, notify, http }));
     app.get('/', (c) => {
       const ctx = getCtx(c);
       expectType<VobaseCtx>(ctx);
       expectType<VobaseDb>(ctx.db);
       expectType<VobaseUser | null>(ctx.user);
       expectType<Scheduler>(ctx.scheduler);
-      expectType<Storage>(ctx.storage);
+      expectType<StorageService>(ctx.storage);
+      expectType<NotifyService>(ctx.notify);
       expectType<HttpClient>(ctx.http);
       return c.text('ok');
     });

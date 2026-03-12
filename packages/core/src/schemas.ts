@@ -1,7 +1,9 @@
-import { authSchema } from './db/auth-schema';
+import { authSchema } from './modules/auth/schema';
 import { auditLog, recordAudits } from './modules/audit/schema';
 import { credentialsTable } from './modules/credentials/schema';
 import { sequences } from './modules/sequences/schema';
+import { notifyLog } from './modules/notify/schema';
+import { storageObjects } from './modules/storage/schema';
 import { webhookDedup } from './webhooks-schema';
 
 export interface SchemaConfig {
@@ -38,7 +40,15 @@ export function getActiveSchemas(config?: SchemaConfig): Record<string, unknown>
     schema.credentialsTable = credentialsTable;
   }
 
-  // Storage and notify schemas will be added in Phase 2 and Phase 3
+  // Storage (Phase 2)
+  if (config?.storage) {
+    schema.storageObjects = storageObjects;
+  }
+
+  // Notify (Phase 3)
+  if (config?.notify) {
+    schema.notifyLog = notifyLog;
+  }
 
   return schema;
 }

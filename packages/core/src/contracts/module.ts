@@ -1,7 +1,7 @@
 import type { VobaseDb } from '../db/client';
 import type { HttpClient } from '../http-client';
-import type { EmailProvider } from './notify';
-import type { StorageProvider } from './storage';
+import type { NotifyService } from '../modules/notify/service';
+import type { StorageService } from '../modules/storage/service';
 import type { Scheduler } from '../queue';
 
 /**
@@ -11,7 +11,7 @@ import type { Scheduler } from '../queue';
 export interface ModuleInitContext {
   db: VobaseDb;
   scheduler: Scheduler;
-  storage: StorageProvider;
+  storage: StorageService;
   http: HttpClient;
-  notify: EmailProvider;
+  notify: NotifyService;
 }
