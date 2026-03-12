@@ -4,7 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 
 import type { VobaseDb } from './db';
 import { authSchema } from './db/auth-schema';
-import { createAuthAuditHooks } from './middleware/audit';
+import { createAuthAuditHooks } from './modules/audit/middleware';
 
 export interface CreateAuthOptions {
   baseURL?: string;

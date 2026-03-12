@@ -1,26 +1,24 @@
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import type { Database } from 'bun:sqlite';
 import { Hono } from 'hono';
 
 import { createAuth, type CreateAuthOptions } from './auth';
 import { contextMiddleware } from './ctx';
 import { createDatabase, type VobaseDb } from './db/client';
 import { createHttpClient, type HttpClientOptions } from './http-client';
-import { ensureCoreTables } from './db/ensure-core-tables';
-import { runMigrations } from './db/migrator';
 import { errorHandler } from './errors';
 import { createWorker } from './job';
 import { logger } from './logger';
 import { createMcpHandler } from './mcp';
 import { optionalSessionMiddleware } from './middleware/session';
+import { createAuditModule } from './modules/audit';
+import { createCredentialsModule } from './modules/credentials';
+import { createSequencesModule } from './modules/sequences';
 import type { VobaseModule } from './module';
 import { createScheduler } from './queue';
 import { createStorage } from './storage';
-import { createSystemModule } from './system';
-import { createSystemRoutes } from './system/handlers';
+import { createThrowProxy } from './throw-proxy';
 import { createWebhookRoutes, type WebhookConfig } from './webhooks';
+import type { EmailProvider } from './contracts/notify';
+import type { StorageProvider } from './contracts/storage';
 
 const DEFAULT_QUEUE_DB_PATH = '/data/bunqueue.db';
 const LOCAL_QUEUE_DB_PATH = './data/bunqueue.db';
@@ -31,11 +29,6 @@ function deriveQueueDbPath(databasePath: string): string {
   }
 
   return DEFAULT_QUEUE_DB_PATH;
-}
-
-function resolveMigrationsFolder(): string {
-  const srcDir = dirname(fileURLToPath(import.meta.url));
-  return resolve(srcDir, '../migrations');
 }
 
 function createSchedulerWithFallback(queueDbPath: string) {
@@ -71,16 +64,12 @@ export interface CreateAppConfig {
   mcp?: { enabled?: boolean };
   trustedOrigins?: string[];
   auth?: Omit<CreateAuthOptions, 'baseURL' | 'trustedOrigins'>;
+  /** Enable the credentials module (encrypted credential store). Default: false */
+  credentials?: { enabled: boolean };
 }
 
 export function createApp(config: CreateAppConfig) {
   const db = createDatabase(config.database);
-  ensureCoreTables((db as VobaseDb & { $client: Database }).$client);
-
-  const migrationsFolder = resolveMigrationsFolder();
-  if (existsSync(migrationsFolder)) {
-    runMigrations(db, migrationsFolder);
-  }
 
   const auth = createAuth(db, { trustedOrigins: config.trustedOrigins, ...config.auth });
 
@@ -91,35 +80,51 @@ export function createApp(config: CreateAppConfig) {
   const storage = createStorage(config.storage?.basePath ?? './data/files');
   const http = createHttpClient(config.http);
 
-  // Base app with middleware (imperative — these don't affect RPC schema types)
+  // === Built-in Module Init ===
+  const storageProvider = createThrowProxy<StorageProvider>('storage');
+  const notify = createThrowProxy<EmailProvider>('notify');
+  const initCtx = { db, scheduler, http, storage: storageProvider, notify };
+
+  const auditMod = createAuditModule();
+  auditMod.init?.(initCtx);
+
+  const seqMod = createSequencesModule();
+  seqMod.init?.(initCtx);
+
+  let credMod: VobaseModule | undefined;
+  if (config.credentials?.enabled) {
+    credMod = createCredentialsModule();
+    credMod.init?.(initCtx);
+  }
+
+  // === Base app with middleware ===
   const base = new Hono();
   base.onError(errorHandler);
   base.use('*', contextMiddleware({ db, scheduler, storage, http }));
   base.use('/api/*', optionalSessionMiddleware(auth));
   base.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
 
-  // Mount system module via chaining to preserve route types for hc<AppType>
+  // Mount via chaining to preserve route types for hc<AppType>
   const app = base
-    .get('/health', (c) => c.json({ status: 'ok', uptime: process.uptime() }))
-    .route('/api/system', createSystemRoutes(auth));
+    .get('/health', (c) => c.json({ status: 'ok', uptime: process.uptime() }));
 
-  // Mount user modules (types not preserved for RPC, but runtime works)
-  // Filter out 'system' since it's auto-mounted above
-  const userModules = config.modules.filter((mod) => mod.name !== 'system');
+  // === User Modules ===
+  const userModules = config.modules;
   for (const mod of userModules) {
+    mod.init?.(initCtx);
     (app as Hono).route(`/api/${mod.name}`, mod.routes);
   }
 
-  // Mount webhook routes if configured
+  // === Webhooks ===
   if (config.webhooks && Object.keys(config.webhooks).length > 0) {
-    const rawDb = (db as VobaseDb & { $client: Database }).$client;
-    const webhookRouter = createWebhookRoutes(config.webhooks, { db: rawDb, scheduler });
+    const webhookRouter = createWebhookRoutes(config.webhooks, { db, scheduler });
     (app as Hono).route('', webhookRouter);
   }
 
-  // Include system module in the full modules list for MCP and jobs
-  const systemModule = createSystemModule(auth);
-  const allModules = [systemModule, ...userModules];
+  // === MCP + Jobs ===
+  const builtInModules: VobaseModule[] = [auditMod, seqMod];
+  if (credMod) builtInModules.push(credMod);
+  const allModules = [...builtInModules, ...userModules];
 
   if (config.mcp?.enabled) {
     const mcpHandler = createMcpHandler({ db, modules: allModules });

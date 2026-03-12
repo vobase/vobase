@@ -3,7 +3,8 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { desc } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { auditLog, type VobaseDb } from './db';
+import type { VobaseDb } from './db';
+import { auditLog } from './modules/audit/schema';
 import type { VobaseModule } from './module';
 
 const DEFAULT_LOG_LIMIT = 50;
