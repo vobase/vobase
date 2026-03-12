@@ -57,31 +57,76 @@ The `system` module is a regular user module (not built into core) with routes f
 
 See @vobase/core documentation for complete API reference.
 
+## Upgrading from Upstream Template
 
-## Agent Skills
+Vobase projects are scaffolded from `packages/template` via `bun create vobase`. After scaffolding, the project is fully owned — there is no automatic sync. Use this procedure to pull upstream improvements.
 
-Skills are domain-specific AI knowledge packs that teach agents conventions before they generate code.
+### What to upgrade
 
-**Discover available skills:**
+| Layer | Source of truth | How to update |
+|-------|----------------|---------------|
+| `@vobase/core` engine | npm registry | `bun update @vobase/core` |
+| `db-schemas.ts` | Core schema exports | Manual sync (see below) |
+| Shell UI (`src/shell/`, `src/components/ui/`) | Upstream template | Diff and merge |
+| System module (`modules/system/`) | Upstream template | Diff and merge |
+| Config files (`vite.config.ts`, `drizzle.config.ts`, `tsconfig.json`) | Upstream template | Diff and merge |
+| Custom modules (`modules/*` except system) | Your project | No action needed |
+
+### Step-by-step
+
+```bash
+# 1. Bump @vobase/core
+bun update @vobase/core
+
+# 2. Download latest template to a temp directory for diffing
+bunx giget github:vobase/vobase/packages/template /tmp/vobase-upstream --force
+
+# 3. Diff upstream against your project
+diff -rq /tmp/vobase-upstream/src/shell/ src/shell/
+diff -rq /tmp/vobase-upstream/src/components/ui/ src/components/ui/
+diff -rq /tmp/vobase-upstream/modules/system/ modules/system/
+diff -rq /tmp/vobase-upstream/src/lib/ src/lib/
+diff /tmp/vobase-upstream/db-schemas.ts db-schemas.ts
+diff /tmp/vobase-upstream/drizzle.config.ts drizzle.config.ts
+diff /tmp/vobase-upstream/vite.config.ts vite.config.ts
 ```
-vobase add skill --list
+
+Review each diff. Apply changes that make sense — upstream may have new UI components, bug fixes, or convention changes.
+
+### Critical: sync `db-schemas.ts`
+
+`db-schemas.ts` duplicates core table schemas for drizzle-kit (which runs under Node.js and cannot import `bun:sqlite`). After upgrading `@vobase/core`, check if core added, removed, or changed any built-in table columns. If so, update `db-schemas.ts` to match, then:
+
+```bash
+# Dev: push schema changes
+bun run db:push
+
+# Production: generate and run a migration
+bun run db:generate
+bun run db:migrate
 ```
 
-**Install a skill:**
-```
-vobase add skill <name>
-```
+### Post-upgrade checklist
 
-Installed skills land in `.agents/skills/<name>/SKILL.md`. Load a skill in your AI tool by referencing `.agents/skills/<skill-name>/SKILL.md`.
+1. `bun install` — resolve any new or changed dependencies
+2. `bun run scripts/generate.ts` — regenerate route tree if module pages changed
+3. `bun run db:push` — sync schema to dev SQLite
+4. `bun run dev` — verify app starts cleanly
+5. `bun test` — run tests
+6. Check browser console on key pages for runtime errors
 
-**Available skills (core app patterns):**
-- `gap-free-sequences` — Transaction-safe gap-free business number generation (INV-0001, PO-0042)
-- `integer-money` — Store monetary values as integer cents; eliminate float rounding in financial code
-- `status-machines` — Explicit finite state machines for document workflows (draft → sent → paid → void)
+### Safe to overwrite
 
-**Available skills (Singapore accounting verticals):**
-- `sg-gst` — Singapore GST 9%, reverse charge, exemption handling, IRAS filing
-- `sg-chart-of-accounts` — Singapore standard CoA, IRAS-aligned, GST control accounts
-- `sg-invoicing` — Tax invoice fields, credit notes, InvoiceNow/Peppol readiness
-- `sg-cpf` — CPF contribution rates, OW/AW ceilings, age-banded tables
-- `sg-payroll` — Singapore payroll: SDL, SHG levies, payslip requirements
+These files are template infrastructure with no user customization expected. Safe to replace wholesale from upstream:
+- `src/components/ui/*` (shadcn components)
+- `src/lib/utils.ts`
+- `scripts/generate.ts`
+- `components.json`
+
+### Never overwrite
+
+These files contain project-specific configuration or business logic:
+- `modules/*` (except `modules/system/` which can be diffed)
+- `vobase.config.ts`
+- `.env`
+- `src/home.tsx` (likely customized)
