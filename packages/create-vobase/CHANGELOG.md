@@ -1,5 +1,11 @@
 # create-vobase
 
+## 0.3.0
+
+### Minor Changes
+
+- [`39d2ff1`](https://github.com/vobase/vobase/commit/39d2ff137d841090f21e585661631be581edb973) Thanks [@mdluo](https://github.com/mdluo)! - Support scaffolding into the current directory with `bunx create-vobase@latest .`, requiring a clean git working tree
+
 ## 0.2.4
 
 ### Patch Changes
