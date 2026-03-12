@@ -5,6 +5,10 @@ export { type CreateAppConfig, createApp } from './app';
 export { createAuthModule, type AuthModuleConfig, type AuthModule } from './modules/auth';
 export { sessionMiddleware, optionalSessionMiddleware } from './modules/auth/middleware';
 
+// RBAC
+export { requireRole, requirePermission, requireOrg } from './modules/auth/permissions';
+export type { Permission, OrganizationContext } from './contracts/permissions';
+
 // Contracts
 export type { AuthAdapter, AuthSession, AuthUser } from './contracts/auth';
 export type {
