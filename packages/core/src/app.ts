@@ -157,7 +157,12 @@ export function createApp(config: CreateAppConfig) {
   const allModules = [...builtInModules, ...userModules];
 
   if (config.mcp?.enabled) {
-    const mcpHandler = createMcpHandler({ db, modules: allModules });
+    const mcpHandler = createMcpHandler({
+      db,
+      modules: allModules,
+      verifyApiKey: authMod.verifyApiKey,
+      organizationEnabled: authMod.organizationEnabled,
+    });
     (app as Hono).all('/mcp', async (c) => {
       const response = await mcpHandler(c.req.raw);
       return response;

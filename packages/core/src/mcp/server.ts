@@ -3,9 +3,11 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { desc } from 'drizzle-orm';
 import { z } from 'zod';
 
+import type { AuthUser } from '../contracts/auth';
 import type { VobaseDb } from '../db';
 import { auditLog } from '../modules/audit/schema';
 import type { VobaseModule } from '../module';
+import { registerCrudTools } from './crud';
 
 const DEFAULT_LOG_LIMIT = 50;
 const MAX_LOG_LIMIT = 100;
@@ -13,6 +15,10 @@ const MAX_LOG_LIMIT = 100;
 export interface McpDeps {
   db: VobaseDb;
   modules: VobaseModule[];
+  /** Validate an API key. Returns user ID if valid, null if invalid. */
+  verifyApiKey?: (key: string) => Promise<{ userId: string } | null>;
+  /** Whether the organization plugin is enabled (affects CRUD authorization). */
+  organizationEnabled?: boolean;
 }
 
 function toToolResult(payload: Record<string, unknown>) {
@@ -121,7 +127,40 @@ export function createMcpHandler(
   deps: McpDeps,
 ): (req: Request) => Promise<Response> {
   return async (req: Request) => {
+    // API key authentication (optional — CRUD tools require it, discovery tools don't)
+    let authenticatedUser: AuthUser | null = null;
+
+    if (deps.verifyApiKey) {
+      const authHeader = req.headers.get('authorization');
+      const key = authHeader?.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : null;
+
+      if (key) {
+        const result = await deps.verifyApiKey(key);
+        if (result) {
+          authenticatedUser = {
+            id: result.userId,
+            email: '',
+            name: '',
+            role: 'admin', // API key holders get admin role for CRUD
+          };
+        }
+      }
+    }
+
     const server = createMcpServer(deps);
+
+    // Register CRUD tools only when authenticated via API key
+    if (authenticatedUser) {
+      const excludeMap = new Map<string, Set<string>>();
+      registerCrudTools(server, deps.modules, {
+        db: deps.db,
+        user: authenticatedUser,
+        organizationEnabled: deps.organizationEnabled ?? false,
+      }, excludeMap);
+    }
+
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,

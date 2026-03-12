@@ -58,7 +58,13 @@ export function registerCrudTools(
       }
 
       const table = tableObj as SQLiteTable;
-      const columns = getTableColumns(table);
+      let columns: ReturnType<typeof getTableColumns>;
+      try {
+        columns = getTableColumns(table);
+      } catch {
+        continue;
+      }
+      if (!columns) continue;
 
       // Find primary key column
       const pkEntry = Object.entries(columns).find(([, col]) => (col as any).primary);
