@@ -1,4 +1,5 @@
-import { createNanoid, type VobaseDb } from './db';
+import { createNanoid } from '../../db/helpers';
+import type { VobaseDb } from '../../db/client';
 
 export interface SequenceOptions {
   padLength?: number;

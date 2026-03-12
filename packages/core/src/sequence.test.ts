@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 
 import type { VobaseDb } from './db';
-import * as schema from './db/system-schema';
-import { nextSequence } from './sequence';
+import * as schema from './modules/sequences/schema';
+import { nextSequence } from './modules/sequences/next-sequence';
 
 describe('nextSequence()', () => {
   let sqlite: Database;
