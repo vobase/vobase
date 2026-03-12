@@ -1,10 +1,9 @@
 <p align="center">
-  <b>vobase</b><br>
+  <b>vobase</b><a href="https://discord.gg/sVsPBHtvTZ"><img 
+  src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"               
+  alt="Discord"></a><br>
   The app framework built for AI coding agents.<br>
   Own every line. Your AI already knows how to build on it.
-  <a href="https://discord.gg/sVsPBHtvTZ"><img 
-  src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"               
-  alt="Discord"></a>
 </p>
 
 <p align="center">
