@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/Database-SQLite-07405e?logo=sqlite" alt="SQLite">
   <img src="https://img.shields.io/badge/Auth-better--auth-16a34a" alt="better-auth">
   <img src="https://img.shields.io/badge/Deployment-self--hosted-0ea5e9" alt="Self-hosted">
-  <iframe src="https://discord.com/widget?id=1481745870415335658&theme=dark" width="350" height="500" allowtransparency="true" frameborder="0" sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"></iframe>
+  <a href="https://discord.gg/sVsPBHtvTZ"><img src="https://img.shields.io/discord/1481745870415335658?logo=discord&label=discord&color=5865F2" alt="Discord"></a>
 </p>
 
 <p align="center">
