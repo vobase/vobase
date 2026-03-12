@@ -10,6 +10,7 @@
   <a href="https://github.com/vobase/vobase"><img src="https://img.shields.io/github/stars/vobase/vobase" alt="GitHub stars"></a>
   <a href="https://github.com/vobase/vobase/commits/main"><img src="https://img.shields.io/github/last-commit/vobase/vobase" alt="Last commit"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT">
+  <br>
   <img src="https://img.shields.io/badge/Bun-1.3.10-black?logo=bun" alt="Bun 1.3.10">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/Database-SQLite-07405e?logo=sqlite" alt="SQLite">
