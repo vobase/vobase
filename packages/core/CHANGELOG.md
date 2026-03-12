@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.8.0
+
+### Minor Changes
+
+- [`87891b5`](https://github.com/vobase/vobase/commit/87891b52d117a20638f086df970b0f0e3b703428) Thanks [@mdluo](https://github.com/mdluo)! - Extract auth, storage, and notify into built-in modules with config-driven boot. Auth uses an `AuthAdapter` interface, storage provides a virtual bucket model (`StorageService` + `BucketHandle`) with local and S3 providers, and notify offers channel-based delivery (email via Resend/SMTP, WhatsApp via WABA) with automatic logging. Template syncs `db-schemas.ts` with new core tables and fixes pagination, login UI, and dark mode sidebar color.
+
 ## 0.7.0
 
 ### Minor Changes
