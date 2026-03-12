@@ -1,11 +1,11 @@
 import { createMiddleware } from 'hono/factory';
 
 import type { AuthAdapter } from '../../contracts/auth';
-import { unauthorized } from '../../errors';
+import { unauthorized } from '../../infra/errors';
 
 declare module 'hono' {
   interface ContextVariableMap {
-    user: { id: string; email: string; name: string; role: string } | null;
+    user: { id: string; email: string; name: string; role: string; activeOrganizationId?: string } | null;
   }
 }
 
@@ -22,6 +22,7 @@ export function sessionMiddleware(adapter: AuthAdapter) {
       email: session.user.email,
       name: session.user.name,
       role: session.user.role ?? 'user',
+      activeOrganizationId: session.user.activeOrganizationId,
     });
 
     await next();
@@ -40,6 +41,7 @@ export function optionalSessionMiddleware(adapter: AuthAdapter) {
             email: session.user.email,
             name: session.user.name,
             role: session.user.role ?? 'user',
+            activeOrganizationId: session.user.activeOrganizationId,
           }
         : null,
     );

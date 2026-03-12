@@ -89,9 +89,96 @@ export const authVerification = sqliteTable(
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 );
 
+// API Key table (better-auth apiKey plugin)
+export const authApikey = sqliteTable('apikey', {
+  id: text('id').primaryKey(),
+  name: text('name'),
+  start: text('start'),
+  prefix: text('prefix'),
+  key: text('key').notNull(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => authUser.id, { onDelete: 'cascade' }),
+  refillInterval: text('refill_interval'),
+  refillAmount: integer('refill_amount'),
+  lastRefillAt: integer('last_refill_at', { mode: 'timestamp_ms' }),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  rateLimitEnabled: integer('rate_limit_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  rateLimitTimeWindow: integer('rate_limit_time_window'),
+  rateLimitMax: integer('rate_limit_max'),
+  requestCount: integer('request_count').notNull().default(0),
+  remaining: integer('remaining'),
+  lastRequest: integer('last_request', { mode: 'timestamp_ms' }),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date())
+    .$onUpdate(() => new Date()),
+  permissions: text('permissions'),
+  metadata: text('metadata'),
+});
+
+// Organization tables (better-auth organization plugin)
+export const authOrganization = sqliteTable('organization', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  logo: text('logo'),
+  metadata: text('metadata'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const authMember = sqliteTable('member', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => authUser.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => authOrganization.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default('member'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const authInvitation = sqliteTable('invitation', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull(),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => authOrganization.id, { onDelete: 'cascade' }),
+  inviterId: text('inviter_id')
+    .notNull()
+    .references(() => authUser.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default('member'),
+  status: text('status').notNull().default('pending'),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const authSchema = {
   user: authUser,
   session: authSession,
   account: authAccount,
   verification: authVerification,
+};
+
+export const apikeySchema = {
+  apikey: authApikey,
+};
+
+export const organizationSchema = {
+  organization: authOrganization,
+  member: authMember,
+  invitation: authInvitation,
 };

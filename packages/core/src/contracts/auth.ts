@@ -32,4 +32,6 @@ export interface AuthUser {
   email: string;
   name: string;
   role: string;
+  /** Set when the user has an active organization (better-auth organization plugin) */
+  activeOrganizationId?: string;
 }
