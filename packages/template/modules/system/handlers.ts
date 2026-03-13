@@ -7,6 +7,7 @@ import {
   sequences,
   unauthorized,
 } from '@vobase/core';
+import { modules } from '../index';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
@@ -43,7 +44,7 @@ const systemRoutes = new Hono({ strict: false })
     return c.json({
       version: SYSTEM_VERSION,
       uptime: process.uptime(),
-      modules: ['system'],
+      modules: modules.map((m) => m.name),
     });
   })
   .get('/health', (c) => {
