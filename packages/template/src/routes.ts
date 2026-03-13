@@ -12,6 +12,12 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'home.tsx'),
+    route('/chatbot', '../modules/chatbot/pages/layout.tsx', [
+      physical('../modules/chatbot/pages/'),
+    ]),
+    route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx', [
+      physical('../modules/knowledge-base/pages/'),
+    ]),
     route('/system', '../modules/system/pages/layout.tsx', [
       physical('../modules/system/pages/'),
     ]),
