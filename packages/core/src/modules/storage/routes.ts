@@ -67,7 +67,7 @@ export function createStorageRoutes(service: StorageService): Hono {
     const meta = await bucket.metadata(key);
     const contentType = meta?.contentType ?? 'application/octet-stream';
 
-    return new Response(data, {
+    return new Response(data.buffer as ArrayBuffer, {
       headers: { 'content-type': contentType },
     });
   });

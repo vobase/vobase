@@ -5,6 +5,18 @@ export { type CreateAppConfig, createApp } from './app';
 export { createAuthModule, type AuthModuleConfig, type AuthModule } from './modules/auth';
 export { sessionMiddleware, optionalSessionMiddleware } from './modules/auth/middleware';
 
+// Auth Schema (tables managed by better-auth)
+export {
+  authUser,
+  authSession,
+  authAccount,
+  authVerification,
+  authApikey,
+  authOrganization,
+  authMember,
+  authInvitation,
+} from './modules/auth/schema';
+
 // RBAC
 export { requireRole, requirePermission, requireOrg } from './modules/auth/permissions';
 export type { Permission, OrganizationContext } from './contracts/permissions';
