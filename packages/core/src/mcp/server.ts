@@ -1,5 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { desc } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -38,7 +37,8 @@ function getSchemaTableNames(modules: VobaseModule[]): string[] {
   ).sort((left, right) => left.localeCompare(right));
 }
 
-export function createMcpServer(deps: McpDeps): McpServer {
+export async function createMcpServer(deps: McpDeps): Promise<McpServer> {
+  const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
   const server = new McpServer({ name: 'vobase', version: '0.1.0' });
 
   server.registerTool(
@@ -149,7 +149,7 @@ export function createMcpHandler(
       }
     }
 
-    const server = createMcpServer(deps);
+    const server = await createMcpServer(deps);
 
     // Register CRUD tools only when authenticated via API key
     if (authenticatedUser) {
@@ -161,6 +161,7 @@ export function createMcpHandler(
       }, excludeMap);
     }
 
+    const { WebStandardStreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js');
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,

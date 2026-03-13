@@ -1,6 +1,6 @@
-import {
-  type WorkerOptions as BunqueueWorkerOptions,
-  type Job,
+import type {
+  WorkerOptions as BunqueueWorkerOptions,
+  Job,
   Worker,
 } from 'bunqueue/client';
 
@@ -66,10 +66,12 @@ export function defineJob(name: string, handler: JobHandler): JobDefinition {
   return definition;
 }
 
-export function createWorker(
+export async function createWorker(
   jobs: JobDefinition[],
   options?: WorkerOptions,
-): Worker {
+): Promise<Worker> {
+  const { Worker } = await import('bunqueue/client');
+
   for (const job of jobs) {
     registerJob(job);
   }
@@ -77,7 +79,7 @@ export function createWorker(
   const concurrency = options?.concurrency ?? 5;
   assertConcurrency(concurrency);
 
-  configureQueueDataPath(options?.dbPath ?? DEFAULT_QUEUE_DB_PATH);
+  await configureQueueDataPath(options?.dbPath ?? DEFAULT_QUEUE_DB_PATH);
 
   const workerOptions: BunqueueWorkerOptions = {
     embedded: true,

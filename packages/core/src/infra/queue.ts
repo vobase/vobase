@@ -1,10 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import {
-  type JobOptions as BunqueueJobOptions,
-  Queue,
-  shutdownManager,
-} from 'bunqueue/client';
+import type { JobOptions as BunqueueJobOptions } from 'bunqueue/client';
 
 import { validation } from './errors';
 
@@ -111,13 +107,14 @@ function toBunqueueJobOptions(
   };
 }
 
-export function configureQueueDataPath(dbPath: string): string {
+export async function configureQueueDataPath(dbPath: string): Promise<string> {
   if (!dbPath.trim()) {
     throw validation({ dbPath }, 'Queue dbPath must be a non-empty string');
   }
 
   const existingDataPath = Bun.env.DATA_PATH;
   if (existingDataPath && existingDataPath !== dbPath) {
+    const { shutdownManager } = await import('bunqueue/client');
     shutdownManager();
   }
 
@@ -126,8 +123,10 @@ export function configureQueueDataPath(dbPath: string): string {
   return dbPath;
 }
 
-export function createScheduler(options?: SchedulerOptions): Scheduler {
-  configureQueueDataPath(options?.dbPath ?? DEFAULT_QUEUE_DB_PATH);
+export async function createScheduler(options?: SchedulerOptions): Promise<Scheduler> {
+  const { Queue } = await import('bunqueue/client');
+
+  await configureQueueDataPath(options?.dbPath ?? DEFAULT_QUEUE_DB_PATH);
   const queue = new Queue(options?.queueName ?? DEFAULT_QUEUE_NAME, {
     embedded: true,
   });
