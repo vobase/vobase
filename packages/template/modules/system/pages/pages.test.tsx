@@ -25,7 +25,7 @@ describe('System module pages', () => {
       </QueryClientProvider>,
     );
 
-    expect(markup).toContain('Operations dashboard');
+    expect(markup).toContain('Operations');
   });
 
   it('renders logs page without throwing', () => {

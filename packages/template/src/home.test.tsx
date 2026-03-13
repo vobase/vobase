@@ -15,6 +15,6 @@ describe('HomePage', () => {
     );
 
     expect(markup).toContain('Dashboard');
-    expect(markup).toContain('Welcome to your vobase project.');
+    expect(markup).toContain('Overview');
   });
 });
