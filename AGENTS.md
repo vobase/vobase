@@ -61,7 +61,7 @@ TypeScript interfaces define boundaries between core and pluggable providers:
 ### Schema Management
 
 - `getActiveSchemas(config)` returns merged Drizzle table definitions based on which modules are enabled. API key schema is always included. Organization schema is opt-in via `config.organization`.
-- Template uses a `db-schemas.ts` barrel to expose core table schemas to drizzle-kit (which runs under Node.js and cannot import `bun:sqlite`)
+- Template's `drizzle.config.ts` points directly at core's schema files via relative paths — no barrel file needed. `bunfig.toml` forces Bun runtime for all scripts, so drizzle-kit resolves `bun:sqlite` fine.
 
 ### Core Source Layout
 
@@ -98,7 +98,8 @@ Describe capabilities, not brittle file locations. Prefer domain language (modul
 - To run the template locally in dev mode, use `bun run db:push` to sync the schema to SQLite — do **not** generate or run Drizzle migrations.
 - When `bun create vobase` scaffolds a new project, it downloads the template via giget and runs `bun install`.
 - The system module lives in `packages/template/modules/system/` as a regular user module (not in core).
-- `db-schemas.ts` in the template root is a Node.js-compatible barrel that duplicates core table schemas for drizzle-kit. Keep it in sync with core schema changes.
+- Template ships with example modules: `system` (operations dashboard, audit log), `knowledge-base` (document search with vector embeddings), `chatbot` (AI chat threads with assistants).
+- All frontend navigation must use TanStack Router's `<Link>` and `navigate()` — never `<a href>` for internal routes. Layout routes must define `beforeLoad` redirects to their default child route.
 
 ## Template QA (Dogfooding)
 

@@ -63,9 +63,10 @@ One `bun create vobase` and you have a working full-stack app:
 | **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in SQLite. |
 | **Notify** | Email (Resend, SMTP) and WhatsApp (WABA) channels. All sends logged. |
 | **Jobs** | Background tasks with retries, cron, and job chains. SQLite-backed, no Redis. |
-| **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing, code-splitting, you own the components. |
+| **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing with codegen, code-splitting, you own the components. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
-| **MCP** | Module-aware CRUD tools with API key auth. AI tools can read your schema, query data, and modify records before generating code. |
+| **MCP** | Module-aware tools with API key auth. AI tools can read your schema, list modules, and view logs before generating code. |
+| **Deploy** | Dockerfile + railway.toml included. One `railway up` or `docker build` and you're live. Litestream for SQLite backup to S3. |
 
 Everything runs in one Bun process. No Docker fleet. No external services. `bun run dev` and you're building.
 
@@ -215,16 +216,18 @@ routes.post('/projects', async (c) => {
 })
 ```
 
-The frontend gets typed API calls for free via Hono RPC:
+The frontend gets fully typed API calls via codegen:
 
 ```typescript
 import { hc } from 'hono/client'
-import type { AppType } from '../server'
+import type { AppType } from './api-types.generated'
 
 const client = hc<AppType>('/')
 const res = await client.api.projects.$get()
-const projects = await res.json()  // fully typed, no codegen
+const projects = await res.json()  // fully typed — autocomplete on every route and response
 ```
+
+`AppType` is code-generated from your server's route tree, giving you end-to-end type safety from handler return values to frontend consumption.
 
 </details>
 
@@ -471,22 +474,32 @@ Cost: $0.03-0.05/month. Point-in-time recovery to any second.
 
 ### mcp server
 
-Runs in the same Bun process on the same port. Authenticated via API keys (better-auth apiKey plugin). When you connect Claude Code, Codex, Cursor, or any MCP-compatible tool, it sees everything:
+Runs in the same Bun process on the same port. Authenticated via API keys (better-auth apiKey plugin). When you connect Claude Code, Codex, Cursor, or any MCP-compatible tool, it sees your app:
 
-| Category | What's Exposed |
+| Tool | What it does |
 |---|---|
-| **Read** | `list_modules`, `read_module`, `get_schema`, `view_logs` |
-| **CRUD** | Module-aware `list`, `get`, `create`, `update`, `delete` tools auto-generated from your Drizzle schema |
-| **Query** | `query_db`, `run_smoke_test` |
-| **Context** | Schema definitions, module signatures, ctx API docs, recent errors, domain knowledge from skills |
+| `list_modules` | List all registered modules (built-in + user) |
+| `read_module` | Read table names from a specific module schema |
+| `get_schema` | List all table names across every module |
+| `view_logs` | Return recent audit log entries |
 
-The AI sees your exact data model, your existing modules, and the conventions before it writes a single line of code. CRUD tools are generated per-module — an AI tool can list invoices, create a project, or update a task record directly through MCP.
+The AI sees your exact data model, your existing modules, and the conventions before it writes a single line of code.
 
 ---
 
 ### deployment
 
-Ship a Docker image. Add Caddy for HTTPS. Done.
+Ship a Docker image. Railway, Fly.io, or any Docker host. Add Caddy for HTTPS if self-hosting.
+
+**Railway (quickest):**
+
+```bash
+railway up
+```
+
+The template ships with `Dockerfile` and `railway.toml` pre-configured. Set `LITESTREAM_*` env vars for automatic SQLite backup to S3.
+
+**Docker Compose:**
 
 ```yaml
 # docker-compose.yml
@@ -553,7 +566,6 @@ my-app/
     skills/
       integer-money/
         SKILL.md          ← core: all money as integer cents
-  db-schemas.ts            ← core table schemas for drizzle-kit (Node.js compat)
   modules/
     system/               ← admin dashboard (scaffolded)
       index.ts            ← defineModule() — system as a user module
@@ -563,8 +575,18 @@ my-app/
         layout.tsx
         list.tsx
         logs.tsx
+    knowledge-base/       ← AI search with vector embeddings (example)
+      index.ts
+      schema.ts
+      handlers.ts
+      pages/
+    chatbot/              ← AI chat with assistants and threads (example)
+      index.ts
+      schema.ts
+      handlers.ts
+      pages/
     index.ts              ← module registry
-    projects/             ← example module you add
+    your-module/          ← modules you add
       index.ts            ← defineModule()
       schema.ts
       handlers.ts

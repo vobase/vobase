@@ -31,9 +31,8 @@ The `system` module is a regular user module (not built into core) with routes f
 - `requireOrg()`: Requires active organization context on the user.
 
 ## Schema Management
-- `db-schemas.ts` in project root is a Node.js-compatible barrel that declares core table schemas for drizzle-kit (which runs under Node.js and cannot import `bun:sqlite`).
-- `drizzle.config.ts` references both `db-schemas.ts` and `modules/*/schema.ts`.
-- Keep `db-schemas.ts` in sync with core schema changes when upgrading `@vobase/core`.
+- `drizzle.config.ts` points directly at core's schema files via relative paths (`../core/src/modules/*/schema.ts`) and your module schemas (`modules/*/schema.ts`). No barrel file needed — `bunfig.toml` forces Bun runtime for all scripts, so drizzle-kit resolves `bun:sqlite` fine.
+- After upgrading `@vobase/core`, run `bun run db:push` (dev) or `bun run db:generate && bun run db:migrate` (production) to sync schema changes.
 
 ## Data Conventions
 - **Money**: Store as INTEGER cents (e.g., `amount_cents INTEGER NOT NULL`). Never REAL/FLOAT.
@@ -49,6 +48,12 @@ The `system` module is a regular user module (not built into core) with routes f
 - Import order: external → @vobase/core → local.
 - Path aliases: `@/` → `src/`, `@modules/` → `modules/`. Use `@/components/ui/button` not `../../components/ui/button`.
 - Frontend routing: `src/routes.ts` defines TanStack Router virtual routes. Module pages use `../modules/` prefix since `routesDirectory` is `./src`.
+
+## Frontend Navigation
+- **All internal links must use TanStack Router's `<Link>` component and `navigate()` function** — never `<a href>` for internal routes. This ensures type-checked routing against the generated route tree.
+- Import `Link` and `useNavigate` from `@tanstack/react-router`.
+- Layout routes (e.g., `/chatbot`, `/knowledge-base`) must define a `beforeLoad` redirect to their default child route — layout parents have no index component.
+- Navigation data in `src/data/mockData.ts` must use child route paths (e.g., `/chatbot/threads` not `/chatbot`).
 
 ## Commands
 - `bun run dev`: Starts backend (Bun --watch) + Vite frontend dev server.
@@ -104,19 +109,6 @@ diff /tmp/vobase-upstream/vite.config.ts vite.config.ts
 
 Review each diff. Apply changes that make sense — upstream may have new UI components, bug fixes, or convention changes.
 
-### Critical: sync `db-schemas.ts`
-
-`db-schemas.ts` duplicates core table schemas for drizzle-kit (which runs under Node.js and cannot import `bun:sqlite`). After upgrading `@vobase/core`, check if core added, removed, or changed any built-in table columns. If so, update `db-schemas.ts` to match, then:
-
-```bash
-# Dev: push schema changes
-bun run db:push
-
-# Production: generate and run a migration
-bun run db:generate
-bun run db:migrate
-```
-
 ### Post-upgrade checklist
 
 1. `bun install` — resolve any new or changed dependencies
@@ -141,3 +133,4 @@ These files contain project-specific configuration or business logic:
 - `vobase.config.ts`
 - `.env`
 - `src/home.tsx` (likely customized)
+- `src/data/mockData.ts` (navigation structure)
