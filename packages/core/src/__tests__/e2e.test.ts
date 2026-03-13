@@ -12,7 +12,7 @@ const queueDbPath = dbPath.replace(/\.db$/, '-queue.db');
 const email = `e2e-${Date.now()}@test.com`;
 const password = 'Test1234!';
 
-let app: ReturnType<typeof createApp>;
+let app: Awaited<ReturnType<typeof createApp>>;
 let systemDb: DbWithClient;
 let sessionCookie = '';
 let previousAuthSecret: string | undefined;
@@ -120,7 +120,7 @@ const getPragmaValue = (db: DbWithClient, pragma: string): string => {
   return String(Object.values(row)[0]);
 };
 
-beforeAll(() => {
+beforeAll(async () => {
   previousAuthSecret = process.env.BETTER_AUTH_SECRET;
   previousAuthUrl = process.env.BETTER_AUTH_URL;
   process.env.BETTER_AUTH_SECRET = 'vobase-e2e-secret';
@@ -132,7 +132,7 @@ beforeAll(() => {
   bootstrapDb.close();
 
   systemDb = createDatabase(dbPath) as DbWithClient;
-  app = createApp({
+  app = await createApp({
     database: dbPath,
     modules: [],
     mcp: { enabled: true },

@@ -29,13 +29,13 @@ function makeModule(
 }
 
 describe('createApp()', () => {
-  it('creates a Hono app for in-memory database', () => {
-    const app = createApp({ modules: [], database: ':memory:' });
+  it('creates a Hono app for in-memory database', async () => {
+    const app = await createApp({ modules: [], database: ':memory:' });
     expect(app).toBeInstanceOf(Hono);
   });
 
   it('serves GET /health with status and uptime', async () => {
-    const app = createApp({ modules: [], database: ':memory:' });
+    const app = await createApp({ modules: [], database: ':memory:' });
 
     const response = await app.request('http://localhost/health');
     const body = (await response.json()) as { status: string; uptime: number };
@@ -46,7 +46,7 @@ describe('createApp()', () => {
   });
 
   it('mounts /api/auth/* routes (not 404)', async () => {
-    const app = createApp({ modules: [], database: ':memory:' });
+    const app = await createApp({ modules: [], database: ':memory:' });
 
     const response = await app.request('http://localhost/api/auth/get-session');
 
@@ -57,7 +57,7 @@ describe('createApp()', () => {
     const testModule = makeModule('testmod', (routes) => {
       routes.get('/ping', (c) => c.json({ pong: true }));
     });
-    const app = createApp({ modules: [testModule], database: ':memory:' });
+    const app = await createApp({ modules: [testModule], database: ':memory:' });
 
     const response = await app.request('http://localhost/api/testmod/ping');
     const body = (await response.json()) as { pong: boolean };
@@ -72,7 +72,7 @@ describe('createApp()', () => {
         throw notFound('Record');
       });
     });
-    const app = createApp({ modules: [throwingModule], database: ':memory:' });
+    const app = await createApp({ modules: [throwingModule], database: ':memory:' });
 
     const response = await app.request('http://localhost/api/errors/boom');
     const body = (await response.json()) as {
@@ -88,7 +88,7 @@ describe('createApp()', () => {
     const openModule = makeModule('open', (routes) => {
       routes.get('/status', (c) => c.json({ user: c.get('user') }));
     });
-    const app = createApp({ modules: [openModule], database: ':memory:' });
+    const app = await createApp({ modules: [openModule], database: ':memory:' });
 
     const response = await app.request('http://localhost/api/open/status');
     const body = (await response.json()) as { user: unknown };

@@ -33,7 +33,7 @@ afterAll(() => {
 describe('createScheduler()', () => {
   it('enqueues a job via scheduler.add()', async () => {
     const queueName = makeQueueName('scheduler-add');
-    const scheduler = createScheduler({ dbPath: TEST_DB_PATH, queueName });
+    const scheduler = await createScheduler({ dbPath: TEST_DB_PATH, queueName });
 
     await scheduler.add('email.send', { to: 'user@example.com' });
 

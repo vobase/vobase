@@ -52,7 +52,7 @@ describe('defineJob()', () => {
 describe('createWorker()', () => {
   it('processes an enqueued job end-to-end', async () => {
     const queueName = makeQueueName('worker-roundtrip');
-    const scheduler = createScheduler({ dbPath: TEST_DB_PATH, queueName });
+    const scheduler = await createScheduler({ dbPath: TEST_DB_PATH, queueName });
 
     let processedData: unknown;
     let resolveProcessed!: () => void;
@@ -65,7 +65,7 @@ describe('createWorker()', () => {
       resolveProcessed();
     });
 
-    const worker = createWorker([job], { dbPath: TEST_DB_PATH, queueName });
+    const worker = await createWorker([job], { dbPath: TEST_DB_PATH, queueName });
 
     try {
       await scheduler.add('invoice.sync', { id: 'inv_1' });
