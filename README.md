@@ -15,11 +15,20 @@
   <a href="https://github.com/vobase/vobase/commits/main"><img src="https://img.shields.io/github/last-commit/vobase/vobase" alt="Last commit"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT">
   <br>
-  <img src="https://img.shields.io/badge/Bun-1.3.10-black?logo=bun" alt="Bun 1.3.10">
-  <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg" alt="TypeScript">
-  <img src="https://img.shields.io/badge/Database-SQLite-07405e?logo=sqlite" alt="SQLite">
-  <img src="https://img.shields.io/badge/Auth-better--auth-16a34a" alt="better-auth">
-  <img src="https://img.shields.io/badge/Deployment-self--hosted-0ea5e9" alt="Self-hosted">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Bun-000?style=for-the-badge&logo=bun&logoColor=white" alt="Bun">
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Hono-E36002?style=for-the-badge&logo=hono&logoColor=white" alt="Hono">
+  <img src="https://img.shields.io/badge/Drizzle-C5F74F?style=for-the-badge&logo=drizzle&logoColor=black" alt="Drizzle">
+  <img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite">
+  <img src="https://img.shields.io/badge/Better_Auth-16a34a?style=for-the-badge" alt="Better Auth">
+  <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React">
+  <img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite">
+  <img src="https://img.shields.io/badge/TanStack-EF4444?style=for-the-badge&logo=reactquery&logoColor=white" alt="TanStack">
+  <img src="https://img.shields.io/badge/Tailwind-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS">
+  <img src="https://img.shields.io/badge/shadcn/ui-000?style=for-the-badge&logo=shadcnui&logoColor=white" alt="shadcn/ui">
 </p>
 
 <p align="center">
