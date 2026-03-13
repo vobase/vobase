@@ -14,7 +14,7 @@ const ADMIN_NAME = 'Admin';
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 
-const app = createApp({ ...config, modules });
+const app = await createApp({ ...config, modules });
 
 const res = await app.request(
   'http://localhost/api/auth/sign-up/email',

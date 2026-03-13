@@ -2,10 +2,15 @@ import type { CreateAppConfig } from '@vobase/core';
 
 const config: Omit<CreateAppConfig, 'modules'> = {
   database: './data/vobase.db',
-  // storage: {
-  //   provider: { type: 'local', basePath: './data/files' },
-  //   buckets: { uploads: { prefix: 'uploads' } },
-  // },
+  storage: {
+    provider: { type: 'local', basePath: './data/files' },
+    buckets: {
+      uploads: { access: 'private' },
+      'kb-documents': { access: 'private' },
+      'chat-attachments': { access: 'private' },
+    },
+  },
+  credentials: { enabled: true },
   mcp: { enabled: true },
   trustedOrigins: ['http://localhost:5173'],
 
