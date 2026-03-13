@@ -31,10 +31,10 @@ function deriveQueueDbPath(databasePath: string): string {
   return DEFAULT_QUEUE_DB_PATH;
 }
 
-function createSchedulerWithFallback(queueDbPath: string) {
+async function createSchedulerWithFallback(queueDbPath: string) {
   try {
     return {
-      scheduler: createScheduler({ dbPath: queueDbPath }),
+      scheduler: await createScheduler({ dbPath: queueDbPath }),
       effectiveQueueDbPath: queueDbPath,
     };
   } catch (error) {
@@ -49,7 +49,7 @@ function createSchedulerWithFallback(queueDbPath: string) {
     });
 
     return {
-      scheduler: createScheduler({ dbPath: LOCAL_QUEUE_DB_PATH }),
+      scheduler: await createScheduler({ dbPath: LOCAL_QUEUE_DB_PATH }),
       effectiveQueueDbPath: LOCAL_QUEUE_DB_PATH,
     };
   }
@@ -69,12 +69,12 @@ export interface CreateAppConfig {
   credentials?: { enabled: boolean };
 }
 
-export function createApp(config: CreateAppConfig) {
+export async function createApp(config: CreateAppConfig) {
   const db = createDatabase(config.database);
 
   const queueDbPath = deriveQueueDbPath(config.database);
   const { scheduler, effectiveQueueDbPath } =
-    createSchedulerWithFallback(queueDbPath);
+    await createSchedulerWithFallback(queueDbPath);
 
   const http = createHttpClient(config.http);
 
@@ -171,7 +171,7 @@ export function createApp(config: CreateAppConfig) {
 
   const allJobs = allModules.flatMap((module) => module.jobs ?? []);
   if (allJobs.length > 0) {
-    createWorker(allJobs, { dbPath: effectiveQueueDbPath });
+    await createWorker(allJobs, { dbPath: effectiveQueueDbPath });
   }
 
   return app;
