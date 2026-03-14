@@ -4,7 +4,7 @@
 
 # Knowledge Base: Document Extraction + Hybrid Search
 
-![Vobase Knowledge Base v0.12.0](og-kb-extraction-0.12.0.png)
+![Vobase Knowledge Base v0.12.0](https://raw.githubusercontent.com/vobase/vobase/main/.changeset/og-kb-extraction-0.12.0.png)
 
 ## Document Extraction Layer
 

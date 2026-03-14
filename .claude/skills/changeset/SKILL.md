@@ -252,10 +252,20 @@ with exact colors, sizes, and relationships between elements].
 Dense layout, no wasted space. Think Supabase launch week graphics.
 ```
 
+## Image References
+
+Changeset markdown gets consumed into CHANGELOG.md, GitHub PR descriptions, and release pages. Relative image paths (e.g., `og-image.png`) won't resolve in those contexts. Always use absolute raw GitHub URLs:
+
+```markdown
+![Feature Name](https://raw.githubusercontent.com/vobase/vobase/main/.changeset/og-<feature>-<version>.png)
+```
+
+The image file still lives in `.changeset/` and gets committed to the repo — the URL points to the raw file on the `main` branch.
+
 ## File Locations
 
 - Changesets: `.changeset/<feature-slug>.md`
-- OG images: `.changeset/og-<feature>-<version>.png`
+- OG images: `.changeset/og-<feature>-<version>.png` (referenced via raw GitHub URL)
 - Specs (input): `.omc/specs/*.md`
 - Plans (input): `.omc/plans/*.md`
 - PRD (input): `.omc/prd.json`
