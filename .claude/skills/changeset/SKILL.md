@@ -218,7 +218,19 @@ Summary of test files and counts.
 - Bug fixes section should explain what was wrong and how it was fixed
 - Don't use marketing language — be direct and technical
 
-### Step 5: Verify
+### Step 5: Update Documentation
+
+After writing the changeset, update project documentation to reflect the new features:
+
+1. **`README.md`** (root) — update "what you get" table, project structure tree, and any feature descriptions that changed. The README is user-facing marketing — lead with capabilities.
+
+2. **`CLAUDE.md`** (root) — update module descriptions, architecture notes, and any conventions that changed. This is the agent-facing project context — be precise about patterns and APIs.
+
+3. **`packages/template/CLAUDE.md`** — update key patterns, module-specific sections, and environment variables. This is the template-specific agent context — include function signatures, status flows, and configuration.
+
+Focus on sections that reference the changed modules. Don't rewrite unrelated sections.
+
+### Step 6: Verify
 
 Before finishing:
 1. Read back the changeset file to confirm formatting

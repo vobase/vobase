@@ -63,6 +63,7 @@ One `bun create vobase` and you have a working full-stack app:
 | **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in SQLite. |
 | **Notify** | Email (Resend, SMTP) and WhatsApp (WABA) channels. All sends logged. |
 | **Jobs** | Background tasks with retries, cron, and job chains. SQLite-backed, no Redis. |
+| **Knowledge Base** | Upload PDF, DOCX, XLSX, PPTX, images, HTML. Auto-extract to Markdown, chunk, embed, and search. Hybrid search with RRF + HyDE. Gemini OCR for scanned docs. |
 | **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing with codegen, code-splitting, you own the components. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
 | **MCP** | Module-aware tools with API key auth. AI tools can read your schema, list modules, and view logs before generating code. |
@@ -575,10 +576,17 @@ my-app/
         layout.tsx
         list.tsx
         logs.tsx
-    knowledge-base/       ← AI search with vector embeddings (example)
+    knowledge-base/       ← document ingestion + hybrid search (example)
       index.ts
       schema.ts
       handlers.ts
+      jobs.ts             ← async document processing via queue
+      lib/
+        extract.ts        ← PDF, DOCX, XLSX, PPTX, HTML, image extraction
+        chunker.ts        ← recursive text chunking
+        embeddings.ts     ← vector embeddings via AI SDK
+        pipeline.ts       ← chunk → embed → store pipeline
+        search.ts         ← RRF hybrid search with fast/deep modes
       pages/
     chatbot/              ← AI chat with assistants and threads (example)
       index.ts
