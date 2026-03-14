@@ -5,7 +5,6 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   Conversation,
   ConversationContent,
-  ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
 import {
@@ -26,7 +25,7 @@ import { SourceCitation } from '@/components/chat/source-citation';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { ThreadList } from '@/components/chat/thread-list';
 import { authClient } from '@/lib/auth-client';
-import { CopyIcon, MessageSquare } from 'lucide-react';
+import { BookOpenIcon, CodeIcon, CopyIcon, LightbulbIcon, MessageSquare, SearchIcon } from 'lucide-react';
 
 interface Thread {
   id: string;
@@ -160,6 +159,23 @@ function ChatbotPage() {
 
   const hasAssistants = (assistants?.length ?? 0) > 0;
 
+  async function handleWelcomeSend(text: string) {
+    if (!text.trim() || !hasAssistants) return;
+    // Auto-create a thread, then send the message
+    const assistantId = assistants![0].id;
+    const res = await fetch('/api/chatbot/threads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assistantId }),
+    });
+    if (!res.ok) return;
+    const thread = await res.json() as Thread;
+    queryClient.invalidateQueries({ queryKey: ['chatbot-threads'] });
+    setActiveThreadId(thread.id);
+    // Send the message after a tick so activeThreadId is set
+    setTimeout(() => handleSend(text), 50);
+  }
+
   return (
     <div className="flex h-full">
       {/* Thread sidebar - 280px */}
@@ -177,22 +193,71 @@ function ChatbotPage() {
       {/* Chat area */}
       <div className="flex-1 flex flex-col min-w-0">
         {!activeThreadId ? (
-          <div className="flex-1 flex items-center justify-center">
-            <ConversationEmptyState
-              icon={<MessageSquare className="size-12" />}
-              title={hasAssistants ? 'Start a new conversation' : 'Create an assistant first'}
-              description={hasAssistants ? 'Select a thread or start a new chat' : 'You need at least one assistant to start chatting'}
-            >
-              {hasAssistants ? (
-                <Button onClick={() => createThreadMutation.mutate()} disabled={createThreadMutation.isPending} className="mt-4">
-                  New chat
-                </Button>
-              ) : (
-                <Button asChild className="mt-4">
-                  <Link to="/chatbot/assistants">Create assistant</Link>
-                </Button>
+          <div className="flex-1 flex flex-col items-center justify-center px-4">
+            <div className="w-full max-w-xl space-y-8 -mt-12">
+              {/* Greeting */}
+              <div className="space-y-2 text-center">
+                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <MessageSquare className="h-5 w-5 text-primary" />
+                </div>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {hasAssistants ? 'What can I help you with?' : 'Create an assistant to get started'}
+                </h1>
+                {!hasAssistants && (
+                  <p className="text-sm text-muted-foreground">
+                    You need at least one assistant before you can start chatting.
+                  </p>
+                )}
+              </div>
+
+              {/* Suggestion cards */}
+              {hasAssistants && (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { icon: CodeIcon, label: 'Write code', prompt: 'Help me write a function that' },
+                    { icon: SearchIcon, label: 'Search knowledge base', prompt: 'Search the knowledge base for' },
+                    { icon: BookOpenIcon, label: 'Explain a concept', prompt: 'Explain how' },
+                    { icon: LightbulbIcon, label: 'Brainstorm ideas', prompt: 'Give me ideas for' },
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion.label}
+                      type="button"
+                      onClick={() => handleWelcomeSend(suggestion.prompt)}
+                      className="flex items-center gap-3 rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:bg-accent"
+                    >
+                      <suggestion.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span>{suggestion.label}</span>
+                    </button>
+                  ))}
+                </div>
               )}
-            </ConversationEmptyState>
+
+              {/* Input box */}
+              {hasAssistants ? (
+                <PromptInput onSubmit={(msg) => handleWelcomeSend(msg.text)} className="w-full">
+                  <PromptInputTextarea
+                    value={input}
+                    onChange={(e) => setInput(e.currentTarget.value)}
+                    placeholder="Ask anything..."
+                    className="pr-12"
+                  />
+                  <PromptInputSubmit
+                    disabled={!input.trim()}
+                    className="absolute bottom-1 right-1"
+                  />
+                </PromptInput>
+              ) : (
+                <div className="flex justify-center">
+                  <Button asChild>
+                    <Link to="/chatbot/assistants">Create assistant</Link>
+                  </Button>
+                </div>
+              )}
+
+              <p className="text-center text-xs text-muted-foreground">
+                AI can make mistakes. Verify important information.
+              </p>
+            </div>
           </div>
         ) : (
           <>
