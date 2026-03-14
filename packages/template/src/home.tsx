@@ -1,13 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-
-import { Badge } from '@/components/ui/badge';
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+  Bot,
+  Database,
+  FileText,
+  Heart,
+  MessageSquare,
+  Package,
+  Search,
+} from 'lucide-react';
+
+import { PageHeader } from '@/components/page-header';
+import { StatCard } from '@/components/stat-card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { systemClient } from '@/lib/api-client';
@@ -36,6 +41,33 @@ function formatTimestamp(value: string): string {
   return date.toLocaleString();
 }
 
+const quickLinks = [
+  {
+    label: 'Chatbot',
+    description: 'AI chat threads with KB-powered assistants',
+    to: '/chatbot/threads' as const,
+    icon: MessageSquare,
+  },
+  {
+    label: 'Assistants',
+    description: 'Manage assistant configurations',
+    to: '/chatbot/assistants' as const,
+    icon: Bot,
+  },
+  {
+    label: 'Knowledge Base',
+    description: 'Search and manage knowledge documents',
+    to: '/knowledge-base/search' as const,
+    icon: Search,
+  },
+  {
+    label: 'Documents',
+    description: 'Upload and process source documents',
+    to: '/knowledge-base/documents' as const,
+    icon: FileText,
+  },
+];
+
 export function HomePage() {
   const healthQuery = useQuery({
     queryKey: ['health'],
@@ -56,81 +88,47 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-10">
-      <div>
-        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-          Overview
-        </p>
-        <h1 className="mt-1 text-4xl font-bold tracking-tight">Dashboard</h1>
-      </div>
+      <PageHeader title="Dashboard" />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              System Health
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {healthQuery.isPending ? (
-              <Skeleton className="h-7 w-16" />
-            ) : healthQuery.isError ? (
-              <Badge variant="destructive">Unavailable</Badge>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-success" />
-                <span className="text-xl font-bold">
-                  {healthQuery.data.status}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Database
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {healthQuery.isPending ? (
-              <Skeleton className="h-7 w-24" />
-            ) : healthQuery.isError ? (
-              <Badge variant="destructive">Unavailable</Badge>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-success" />
-                <span className="text-xl font-bold">
-                  {healthQuery.data.db}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Modules
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {infoQuery.isPending ? (
-              <Skeleton className="h-7 w-8" />
-            ) : infoQuery.isError ? (
-              <Badge variant="destructive">Unavailable</Badge>
-            ) : (
-              <span className="text-xl font-bold">
-                {infoQuery.data.modules.length}
-              </span>
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          icon={Heart}
+          label="System Health"
+          value={
+            healthQuery.isPending
+              ? '—'
+              : healthQuery.isError
+                ? 'Unavailable'
+                : (healthQuery.data.status ?? '—')
+          }
+        />
+        <StatCard
+          icon={Database}
+          label="Database"
+          value={
+            healthQuery.isPending
+              ? '—'
+              : healthQuery.isError
+                ? 'Unavailable'
+                : (healthQuery.data.db ?? '—')
+          }
+        />
+        <StatCard
+          icon={Package}
+          label="Modules"
+          value={
+            infoQuery.isPending
+              ? '—'
+              : infoQuery.isError
+                ? 'Unavailable'
+                : infoQuery.data.modules.length
+          }
+        />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
           {auditQuery.isPending ? (
@@ -144,54 +142,70 @@ export function HomePage() {
               Unable to load recent activity.
             </p>
           ) : recentEntries.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="text-xs font-medium text-muted-foreground uppercase">
-                    <th className="pb-3 pr-4">Event</th>
-                    <th className="pb-3 pr-4">Actor</th>
-                    <th className="pb-3">Timestamp</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentEntries.map((entry, index) => (
-                    <tr
-                      key={entry.id ?? `${entry.event}-${index}`}
-                      className="border-t"
-                    >
-                      <td className="py-3 pr-4 font-medium">
-                        {entry.event}
-                      </td>
-                      <td className="py-3 pr-4 text-muted-foreground">
-                        {entry.actorEmail ?? 'System'}
-                      </td>
-                      <td className="py-3 text-muted-foreground">
-                        {formatTimestamp(entry.createdAt)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No recent activity.
-            </p>
-          )}
-
-          {recentEntries.length > 0 ? (
             <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b text-xs font-medium text-muted-foreground">
+                      <th className="pb-2 pr-4">Event</th>
+                      <th className="pb-2 pr-4">Actor</th>
+                      <th className="pb-2">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentEntries.map((entry, index) => (
+                      <tr
+                        key={entry.id ?? `${entry.event}-${index}`}
+                        className="border-b last:border-0"
+                      >
+                        <td className="py-2.5 pr-4 font-medium">
+                          {entry.event}
+                        </td>
+                        <td className="py-2.5 pr-4 text-muted-foreground">
+                          {entry.actorEmail ?? 'System'}
+                        </td>
+                        <td className="py-2.5 text-muted-foreground">
+                          {formatTimestamp(entry.createdAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <Separator className="my-4" />
               <Link
                 to="/system/logs"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 View all audit logs &rarr;
               </Link>
             </>
-          ) : null}
+          ) : (
+            <p className="text-sm text-muted-foreground">No recent activity.</p>
+          )}
         </CardContent>
       </Card>
+
+      <div>
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+          Quick Links
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {quickLinks.map((link) => (
+            <Link key={link.to} to={link.to}>
+              <Card className="h-full transition-colors hover:bg-muted/50">
+                <CardContent className="pt-5">
+                  <link.icon className="mb-2 h-4 w-4 text-muted-foreground" />
+                  <p className="font-medium text-sm">{link.label}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {link.description}
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

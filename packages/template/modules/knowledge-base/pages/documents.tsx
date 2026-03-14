@@ -1,10 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
+import {
+  FileText,
+  FileSpreadsheet,
+  FileImage,
+  FileCode,
+  File,
+  Upload,
+  Trash2,
+} from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/page-header';
 
 async function fetchDocuments() {
   const res = await fetch('/api/knowledge-base/documents');
@@ -22,13 +32,26 @@ async function fetchDocuments() {
   >;
 }
 
-const statusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  processing: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  ready: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  error: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  needs_ocr: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+
+const statusConfig: Record<string, { variant: StatusVariant; label: string }> = {
+  ready: { variant: 'default', label: 'Ready' },
+  processing: { variant: 'secondary', label: 'Processing' },
+  pending: { variant: 'outline', label: 'Pending' },
+  error: { variant: 'destructive', label: 'Error' },
+  needs_ocr: { variant: 'secondary', label: 'Needs OCR' },
 };
+
+function getFileIcon(mimeType: string) {
+  if (mimeType.startsWith('image/')) return FileImage;
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv'))
+    return FileSpreadsheet;
+  if (mimeType.includes('html') || mimeType.includes('xml') || mimeType.includes('json'))
+    return FileCode;
+  if (mimeType.includes('pdf') || mimeType.includes('word') || mimeType.includes('text'))
+    return FileText;
+  return File;
+}
 
 function DocumentsPage() {
   const queryClient = useQueryClient();
@@ -72,59 +95,74 @@ function DocumentsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-semibold">Documents</h2>
-          <p className="text-sm text-muted-foreground">Manage knowledge base documents</p>
-        </div>
-        <Button onClick={handleFileUpload} disabled={uploadMutation.isPending}>
-          {uploadMutation.isPending ? 'Uploading...' : 'Upload document'}
+      <PageHeader title="Documents" description="Manage knowledge base documents">
+        <Button onClick={handleFileUpload} disabled={uploadMutation.isPending} size="sm">
+          <Upload className="mr-2 h-4 w-4" />
+          {uploadMutation.isPending ? 'Uploading…' : 'Upload document'}
         </Button>
-      </div>
+      </PageHeader>
 
       {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-lg" />
           ))}
         </div>
       )}
 
-      {documents && documents.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-12">
-          No documents yet. Upload a document to get started.
-        </p>
+      {!isLoading && documents && documents.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <FileText className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium">No documents yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Upload a document to start building your knowledge base.
+          </p>
+          <Button onClick={handleFileUpload} size="sm" className="mt-4">
+            <Upload className="mr-2 h-4 w-4" />
+            Upload document
+          </Button>
+        </div>
       )}
 
       {documents && documents.length > 0 && (
         <div className="space-y-2">
-          {documents.map((doc) => (
-            <Card key={doc.id}>
-              <CardContent className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <p className="text-sm font-medium">{doc.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {doc.chunkCount} chunks &middot; {doc.sourceType}
-                    </p>
+          {documents.map((doc) => {
+            const Icon = getFileIcon(doc.mimeType);
+            const status = statusConfig[doc.status] ?? { variant: 'outline' as StatusVariant, label: doc.status };
+            return (
+              <Card key={doc.id} className="transition-colors hover:bg-muted/30">
+                <CardContent className="flex items-center justify-between py-3 px-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{doc.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {doc.chunkCount} {doc.chunkCount === 1 ? 'chunk' : 'chunks'} &middot;{' '}
+                        {doc.sourceType}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className={statusColors[doc.status] ?? ''} variant="secondary">
-                    {doc.status}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteMutation.mutate(doc.id)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex shrink-0 items-center gap-2 ml-4">
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteMutation.mutate(doc.id)}
+                      disabled={deleteMutation.isPending}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

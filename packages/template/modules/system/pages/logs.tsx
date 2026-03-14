@@ -2,20 +2,21 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import {
   createColumnHelper,
-  flexRender,
   getCoreRowModel,
+  getSortedRowModel,
+  type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
+import { ScrollText } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { DataTable } from '@/components/data-table/data-table';
+import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
+import { DataTableViewOptions } from '@/components/data-table/data-table-view-options';
+import { EmptyState } from '@/components/empty-state';
+import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { systemClient } from '@/lib/api-client';
 
@@ -49,6 +50,7 @@ export type SystemLogsPageProps = Record<string, never>;
 export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   const [cursor, setCursor] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<string | null>>([]);
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const auditQuery = useQuery({
     queryKey: ['system-audit-log', cursor],
@@ -58,16 +60,39 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   const columns = useMemo(
     () => [
       columnHelper.accessor('event', {
-        header: 'Event',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Event" />
+        ),
         cell: (info) => <span className="font-medium">{info.getValue()}</span>,
+        enableSorting: true,
+        enableHiding: true,
+        meta: { label: 'Event' },
       }),
       columnHelper.accessor('actorEmail', {
-        header: 'Actor',
-        cell: (info) => info.getValue() ?? 'Unknown actor',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Actor" />
+        ),
+        cell: (info) => (
+          <span className="text-muted-foreground">
+            {info.getValue() ?? 'Unknown actor'}
+          </span>
+        ),
+        enableSorting: true,
+        enableHiding: true,
+        meta: { label: 'Actor' },
       }),
       columnHelper.accessor('createdAt', {
-        header: 'Created at',
-        cell: (info) => formatTimestamp(info.getValue()),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Timestamp" />
+        ),
+        cell: (info) => (
+          <span className="text-muted-foreground">
+            {formatTimestamp(info.getValue())}
+          </span>
+        ),
+        enableSorting: true,
+        enableHiding: true,
+        meta: { label: 'Timestamp' },
       }),
     ],
     [],
@@ -76,31 +101,24 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   const table = useReactTable({
     data: auditQuery.data?.entries ?? [],
     columns,
+    state: { sorting },
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   });
 
   const canGoBack = history.length > 0;
   const canGoNext = auditQuery.data?.nextCursor != null;
 
   return (
-    <div className="flex flex-col gap-8 p-6 lg:p-10">
-      <div>
-        <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-          System
-        </p>
-        <h1 className="mt-1 text-4xl font-bold tracking-tight">Audit log</h1>
-      </div>
+    <div className="flex flex-col gap-6 p-6 lg:p-10">
+      <PageHeader title="Audit Log" description="All system and user events" />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Activity stream</CardTitle>
-          <CardDescription>
-            Cursor-based paginated events from /api/system/audit-log
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        <CardContent className="pt-6">
           {auditQuery.isPending ? (
             <div className="flex flex-col gap-3">
+              <Skeleton className="h-8 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -111,59 +129,26 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
               Unable to load audit log entries.
             </p>
           ) : table.getRowModel().rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No audit log entries found.
-            </p>
+            <EmptyState
+              icon={ScrollText}
+              title="No audit entries"
+              description="Events will appear here once activity occurs."
+            />
           ) : (
-            <div className="overflow-x-auto rounded-md border">
-              <table className="w-full min-w-160 text-left text-sm">
-                <thead className="bg-muted/50">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <th key={header.id} className="px-4 py-3 font-semibold">
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="border-t">
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className="px-4 py-3 text-muted-foreground"
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable table={table}>
+              <div className="flex items-center justify-end p-1">
+                <DataTableViewOptions table={table} align="end" />
+              </div>
+            </DataTable>
           )}
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="mt-4 flex items-center justify-end gap-2">
             <Button
               variant="outline"
               size="sm"
               disabled={!canGoBack || auditQuery.isPending}
               onClick={() => {
-                if (!canGoBack) {
-                  return;
-                }
-
+                if (!canGoBack) return;
                 setHistory((currentHistory) => {
                   const previous =
                     currentHistory[currentHistory.length - 1] ?? null;
@@ -179,10 +164,7 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
               disabled={!canGoNext || auditQuery.isPending}
               onClick={() => {
                 const nextCursor = auditQuery.data?.nextCursor;
-                if (nextCursor === undefined) {
-                  return;
-                }
-
+                if (nextCursor === undefined) return;
                 setHistory((currentHistory) => [...currentHistory, cursor]);
                 setCursor(nextCursor);
               }}

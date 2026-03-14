@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
+import { Search } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +27,27 @@ async function searchKnowledgeBase(query: string) {
       chunkIndex: number;
     }>;
   }>;
+}
+
+function highlightTerms(text: string, query: string): React.ReactNode {
+  if (!query.trim()) return text;
+  const terms = query
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length > 2)
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (terms.length === 0) return text;
+  const regex = new RegExp(`(${terms.join('|')})`, 'gi');
+  const parts = text.split(regex);
+  return parts.map((part, i) =>
+    regex.test(part) ? (
+      <mark key={i} className="bg-transparent font-semibold text-foreground not-italic">
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
+  );
 }
 
 function KnowledgeBaseSearch() {
@@ -63,39 +85,78 @@ function KnowledgeBaseSearch() {
       {isLoading && (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
-        </div>
-      )}
-
-      {data?.results && data.results.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">
-          No results found for &ldquo;{searchQuery}&rdquo;
-        </p>
-      )}
-
-      {data?.results && data.results.length > 0 && (
-        <div className="space-y-3">
-          {data.results.map((result) => (
-            <Card key={result.chunkId}>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium">{result.documentTitle}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {Math.round(result.score * 100)}% match
-                  </Badge>
+            <Card key={i}>
+              <CardContent className="pt-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-3">{result.content}</p>
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-4/5" />
+                <Skeleton className="h-3 w-3/5" />
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
+      {data?.results && data.results.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <Search className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium">No results found</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            No matches for &ldquo;{searchQuery}&rdquo;. Try different keywords.
+          </p>
+        </div>
+      )}
+
+      {data?.results && data.results.length > 0 && (
+        <div className="space-y-3">
+          {data.results.map((result) => {
+            const scorePct = Math.round(result.score * 100);
+            return (
+              <Card key={result.chunkId} className="transition-colors hover:bg-muted/30">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="secondary" className="shrink-0 text-xs font-normal">
+                        {result.documentTitle}
+                      </Badge>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div
+                        className="h-1.5 w-16 rounded-full bg-muted overflow-hidden"
+                        title={`${scorePct}% relevance`}
+                      >
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${scorePct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs tabular-nums text-muted-foreground">{scorePct}%</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                    {highlightTerms(result.content, searchQuery)}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
       {!searchQuery && (
-        <p className="text-sm text-muted-foreground text-center py-12">
-          Enter a search query to find relevant documents
-        </p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <Search className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Enter a query above to search your knowledge base
+          </p>
+        </div>
       )}
     </div>
   );

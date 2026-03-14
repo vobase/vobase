@@ -37,6 +37,6 @@ describe('System module pages', () => {
       </QueryClientProvider>,
     );
 
-    expect(markup).toContain('Audit log');
+    expect(markup).toContain('Audit Log');
   });
 });

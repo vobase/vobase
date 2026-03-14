@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
+import { cn } from '@/lib/utils';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/page-header';
 
 interface KBSource {
   id: string;
@@ -21,6 +23,16 @@ async function fetchSources() {
   const res = await fetch('/api/knowledge-base/sources');
   if (!res.ok) throw new Error('Failed to fetch sources');
   return res.json() as Promise<KBSource[]>;
+}
+
+function StatusDot({ status }: { status: string }) {
+  const dotClass = cn('h-2 w-2 rounded-full shrink-0', {
+    'bg-emerald-500': status === 'active' || status === 'connected',
+    'bg-amber-500 animate-pulse': status === 'syncing',
+    'bg-red-500': status === 'error' || status === 'failed',
+    'bg-muted-foreground': status !== 'active' && status !== 'connected' && status !== 'syncing' && status !== 'error' && status !== 'failed',
+  });
+  return <span className={dotClass} aria-hidden="true" />;
 }
 
 function SourcesPage() {
@@ -80,13 +92,11 @@ function SourcesPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-semibold">Sources</h2>
-          <p className="text-sm text-muted-foreground">Connect external document sources</p>
-        </div>
-        <Button onClick={() => setShowAdd(!showAdd)}>{showAdd ? 'Cancel' : 'Add source'}</Button>
-      </div>
+      <PageHeader title="Sources" description="Connect external document sources">
+        <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
+          {showAdd ? 'Cancel' : 'Add source'}
+        </Button>
+      </PageHeader>
 
       {showAdd && (
         <Card className="mb-6">
@@ -128,39 +138,46 @@ function SourcesPage() {
       {isLoading && (
         <div className="space-y-3">
           {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full" />
+            <Skeleton key={i} className="h-20 w-full rounded-lg" />
           ))}
         </div>
       )}
 
-      {sources && sources.length === 0 && !showAdd && (
-        <p className="text-sm text-muted-foreground text-center py-12">
-          No sources configured. Add a source to start syncing documents.
-        </p>
+      {!isLoading && sources && sources.length === 0 && !showAdd && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-sm font-medium">No sources configured</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Add a source to start syncing documents automatically.
+          </p>
+          <Button size="sm" className="mt-4" onClick={() => setShowAdd(true)}>
+            Add source
+          </Button>
+        </div>
       )}
 
       {sources && sources.length > 0 && (
         <div className="space-y-3">
           {sources.map((source) => (
-            <Card key={source.id}>
-              <CardContent className="flex items-center justify-between py-4">
-                <div>
-                  <p className="text-sm font-medium">{source.name}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className="text-xs">
+            <Card key={source.id} className="transition-colors hover:bg-muted/30">
+              <CardContent className="flex items-center justify-between py-4 px-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <StatusDot status={source.status} />
+                    <p className="text-sm font-medium">{source.name}</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5 ml-4">
+                    <Badge variant="outline" className="text-xs font-normal">
                       {source.type}
                     </Badge>
-                    <Badge variant="secondary" className="text-xs">
-                      {source.status}
-                    </Badge>
+                    <span className="text-xs text-muted-foreground capitalize">{source.status}</span>
                     {source.lastSyncAt && (
                       <span className="text-xs text-muted-foreground">
-                        Last sync: {new Date(source.lastSyncAt).toLocaleString()}
+                        &middot; synced {new Date(source.lastSyncAt).toLocaleString()}
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2 ml-4">
                   {(source.type === 'google-drive' || source.type === 'sharepoint') && (
                     <Button variant="outline" size="sm" onClick={() => handleConnect(source)}>
                       Connect
@@ -179,6 +196,7 @@ function SourcesPage() {
                     size="sm"
                     onClick={() => deleteMutation.mutate(source.id)}
                     disabled={deleteMutation.isPending}
+                    className="text-muted-foreground hover:text-destructive"
                   >
                     Delete
                   </Button>
