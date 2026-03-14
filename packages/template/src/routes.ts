@@ -21,5 +21,11 @@ export const routes = rootRoute('root.tsx', [
     route('/system', '../modules/system/pages/layout.tsx', [
       physical('../modules/system/pages/'),
     ]),
+    route('/settings', 'shell/settings/layout.tsx', [
+      route('/profile', 'shell/settings/profile.tsx'),
+      route('/appearance', 'shell/settings/appearance.tsx'),
+      route('/api-keys', 'shell/settings/api-keys.tsx'),
+      route('/organization', 'shell/settings/organization.tsx'),
+    ]),
   ]),
 ]);
