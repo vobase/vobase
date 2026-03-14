@@ -3,7 +3,6 @@ import { MenuIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Breadcrumbs } from '@/shell/breadcrumbs'
 import { CommandPalette } from '@/shell/command-palette'
-import { UserMenu } from '@/shell/user-menu'
 
 export interface ShellHeaderProps {
   onMobileMenuOpen: () => void
@@ -46,7 +45,6 @@ export function ShellHeader({ onMobileMenuOpen }: Readonly<ShellHeaderProps>) {
               ⌘K
             </kbd>
           </button>
-          <UserMenu />
         </div>
       </header>
       <CommandPalette />

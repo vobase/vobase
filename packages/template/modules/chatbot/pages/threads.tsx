@@ -84,6 +84,7 @@ function ChatbotPage() {
   const [input, setInput] = useState('');
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
 
   const { data: session } = authClient.useSession();
   const userName = session?.user?.name ?? 'You';
@@ -114,10 +115,10 @@ function ChatbotPage() {
     },
   });
 
-  async function handleSend() {
-    if (!input.trim() || !activeThreadId || isStreaming) return;
-    const message = input;
+  async function handleSend(messageText: string) {
+    if (!messageText.trim() || !activeThreadId || isStreaming) return;
     setInput('');
+    setPendingUserMessage(messageText);
     setIsStreaming(true);
     setStreamingContent('');
 
@@ -125,7 +126,7 @@ function ChatbotPage() {
       const res = await fetch(`/api/chatbot/threads/${activeThreadId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: message }),
+        body: JSON.stringify({ content: messageText }),
       });
 
       if (!res.ok) throw new Error('Send failed');
@@ -145,6 +146,7 @@ function ChatbotPage() {
     } finally {
       setIsStreaming(false);
       setStreamingContent('');
+      setPendingUserMessage(null);
       queryClient.invalidateQueries({ queryKey: ['chatbot-thread', activeThreadId] });
       queryClient.invalidateQueries({ queryKey: ['chatbot-threads'] });
     }
@@ -152,9 +154,7 @@ function ChatbotPage() {
 
   function handlePromptSubmit(msg: PromptInputMessage) {
     if (msg.text.trim()) {
-      setInput(msg.text);
-      // Trigger send on next tick after state updates
-      setTimeout(() => handleSend(), 0);
+      handleSend(msg.text);
     }
   }
 
@@ -221,6 +221,13 @@ function ChatbotPage() {
                     </Message>
                   );
                 })}
+                {pendingUserMessage && (
+                  <Message from="user">
+                    <MessageContent>
+                      <MessageResponse>{pendingUserMessage}</MessageResponse>
+                    </MessageContent>
+                  </Message>
+                )}
                 {isStreaming && streamingContent && (
                   <Message from="assistant">
                     <MessageContent>

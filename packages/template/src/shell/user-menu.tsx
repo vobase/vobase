@@ -2,6 +2,7 @@ import { CheckIcon, ChevronDownIcon, LogOutIcon, MonitorIcon, MoonIcon, Settings
 import { Link, useRouter } from '@tanstack/react-router'
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +35,11 @@ const themeOptions: { value: Theme; label: string; icon: typeof SunIcon }[] = [
   { value: 'system', label: 'System', icon: MonitorIcon },
 ]
 
-export function UserMenu() {
+interface UserMenuProps {
+  collapsed?: boolean
+}
+
+export function UserMenu({ collapsed }: UserMenuProps = {}) {
   const { data: session } = authClient.useSession()
   const { theme, setTheme } = useTheme()
   const router = useRouter()
@@ -53,15 +58,23 @@ export function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(
+            'flex items-center rounded-md text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            collapsed ? 'justify-center p-1' : 'w-full gap-2.5 px-2 py-1.5',
+          )}
         >
-          <Avatar size="sm">
+          <Avatar size="sm" className="shrink-0">
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
-          <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground" />
+          {!collapsed && (
+            <>
+              <span className="flex-1 truncate text-left text-sm">{displayName}</span>
+              <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </>
+          )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent align={collapsed ? 'start' : 'end'} side={collapsed ? 'right' : 'bottom'} className="w-52">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col gap-0.5">
             <span className="text-sm font-medium">{displayName}</span>

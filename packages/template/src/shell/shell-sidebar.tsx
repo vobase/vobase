@@ -1,31 +1,18 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { navigation } from '@/data/mockData'
 import { useSidebar } from '@/hooks/use-sidebar'
-import { authClient } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
+import { UserMenu } from '@/shell/user-menu'
 
 export interface ShellSidebarProps {
   className?: string
 }
 
-function getInitials(name: string | undefined | null, email: string | undefined | null): string {
-  if (name) {
-    const parts = name.trim().split(/\s+/)
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    return name.slice(0, 2).toUpperCase()
-  }
-  if (email) return email.slice(0, 2).toUpperCase()
-  return '??'
-}
-
 export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
   const { isCollapsed, toggle } = useSidebar()
-  const { data: session } = authClient.useSession()
-  const user = session?.user
 
   return (
     <TooltipProvider>
@@ -96,30 +83,12 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
           ))}
         </nav>
 
-        {/* Footer: user + toggle */}
+        {/* Footer: user menu + toggle */}
         <div className="shrink-0 border-t">
-          {/* User row */}
-          {isCollapsed ? (
-            <div className="flex justify-center py-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Avatar size="sm" className="cursor-default">
-                    <AvatarFallback>{getInitials(user?.name, user?.email)}</AvatarFallback>
-                  </Avatar>
-                </TooltipTrigger>
-                <TooltipContent side="right">{user?.name ?? user?.email ?? 'Account'}</TooltipContent>
-              </Tooltip>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2.5 px-3 py-2">
-              <Avatar size="sm" className="shrink-0">
-                <AvatarFallback>{getInitials(user?.name, user?.email)}</AvatarFallback>
-              </Avatar>
-              <span className="truncate text-sm text-sidebar-foreground">
-                {user?.name ?? user?.email ?? 'Account'}
-              </span>
-            </div>
-          )}
+          {/* User menu */}
+          <div className={cn('py-1', isCollapsed ? 'flex justify-center' : 'px-2')}>
+            <UserMenu collapsed={isCollapsed} />
+          </div>
 
           {/* Toggle button */}
           <button
