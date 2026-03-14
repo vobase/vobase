@@ -21,7 +21,7 @@ The `system` module is a regular user module (not built into core) with routes f
 ## Key Patterns
 - `getCtx(c)`: Returns `{ db, user, scheduler, storage, notify, http }` from Hono context.
 - `defineModule({ name, schema, routes, init? })`: Registers a module. Name must be lowercase alphanumeric + hyphens. Optional `init(ctx)` hook runs at boot.
-- `defineJob('module:name', async (ctx, data) => { ... })`: Background job.
+- `defineJob('module:name', async (data) => { ... })`: Background job. Handler receives `data: unknown` (no ctx — use module-level db ref via `setModuleDb()` in init hook).
 - `nextSequence(tx, 'INV')`: Returns gap-free business numbers: INV-0001, INV-0002...
 - `trackChanges(tx, 'table', id, oldData, newData, userId)`: Record-level audit trail.
 - `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `notifyLog`: Built-in Drizzle table exports from `@vobase/core`.
@@ -54,6 +54,32 @@ The `system` module is a regular user module (not built into core) with routes f
 - Import `Link` and `useNavigate` from `@tanstack/react-router`.
 - Layout routes (e.g., `/chatbot`, `/knowledge-base`) must define a `beforeLoad` redirect to their default child route — layout parents have no index component.
 - Navigation data in `src/data/mockData.ts` must use child route paths (e.g., `/chatbot/threads` not `/chatbot`).
+
+## Knowledge Base Module
+
+The `knowledge-base` module provides document ingestion, extraction, chunking, embedding, and hybrid search.
+
+### Document Extraction
+- `modules/knowledge-base/lib/extract.ts` — `extractDocument(filePath, mimeType)` returns `{ text, status: 'ok'|'needs_ocr', warning? }`
+- Supported formats: PDF (text + scanned), DOCX, XLSX, PPTX, images (PNG/JPG), HTML, plain text
+- Local extraction: `unpdf` (PDF), `mammoth`+`turndown` (DOCX), `SheetJS` (XLSX), `officeparser` (PPTX), `turndown` (HTML)
+- OCR fallback: Gemini 2.5 Flash via `@ai-sdk/google` when `GEMINI_API_KEY` is set
+- Scanned PDF detection: auto-detects by measuring chars/page (threshold: 100)
+
+### Processing Pipeline
+- Upload handler writes temp file, enqueues `knowledge-base:process-document` job, returns in <100ms
+- Job extracts text → `recursiveChunk()` → `embedChunks()` → inserts into kb_chunks + kb_embeddings (vec0) + kb_chunks_fts (FTS5)
+- Document status: `pending` → `processing` → `ready` | `error` | `needs_ocr`
+
+### Hybrid Search
+- `hybridSearch(db, query, options)` with `mode: 'fast' | 'deep'`
+- **fast** (default): RRF (k=60) merges vector similarity + FTS5 keyword. No LLM calls. Sub-300ms.
+- **deep**: adds HyDE query expansion (LLM generates hypothetical answer → embed → additional vector search) + optional LLM re-ranking. Used by chatbot KB tool.
+- All LLM calls in search path have try/catch with graceful degradation to fast mode.
+
+### Environment Variables
+- `OPENAI_API_KEY` — required for embeddings (text-embedding-3-small via Vercel AI SDK)
+- `GEMINI_API_KEY` — optional, enables OCR for scanned PDFs and images via Gemini 2.5 Flash
 
 ## Commands
 - `bun run dev`: Starts backend (Bun --watch) + Vite frontend dev server.

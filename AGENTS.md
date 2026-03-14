@@ -98,7 +98,8 @@ Describe capabilities, not brittle file locations. Prefer domain language (modul
 - To run the template locally in dev mode, use `bun run db:push` to sync the schema to SQLite — do **not** generate or run Drizzle migrations.
 - When `bun create vobase` scaffolds a new project, it downloads the template via giget and runs `bun install`.
 - The system module lives in `packages/template/modules/system/` as a regular user module (not in core).
-- Template ships with example modules: `system` (operations dashboard, audit log), `knowledge-base` (document search with vector embeddings), `chatbot` (AI chat threads with assistants).
+- Template ships with example modules: `system` (operations dashboard, audit log), `knowledge-base` (document extraction + hybrid search), `chatbot` (AI chat threads with KB-powered assistants).
+- Knowledge base module supports uploading PDF, DOCX, XLSX, PPTX, images, and HTML. Documents are extracted to Markdown (locally via unpdf/mammoth/SheetJS/officeparser, or via Gemini OCR for scanned docs), chunked, embedded, and indexed in vec0 + FTS5. Search uses Reciprocal Rank Fusion (RRF) with fast mode (vector + keyword) and deep mode (+ HyDE query expansion + LLM re-ranking). Processing is async via the job queue.
 - All frontend navigation must use TanStack Router's `<Link>` and `navigate()` — never `<a href>` for internal routes. Layout routes must define `beforeLoad` redirects to their default child route.
 
 ## Template QA (Dogfooding)
