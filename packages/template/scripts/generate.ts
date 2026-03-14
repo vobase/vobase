@@ -54,9 +54,19 @@ function buildRoutesSource(moduleNames: string[]): string {
   const sortedModuleNames = [...moduleNames].sort((left, right) =>
     left.localeCompare(right),
   );
+  const settingsRoutes = [
+    "    route('/settings', 'shell/settings/layout.tsx', [",
+    "      route('/profile', 'shell/settings/profile.tsx'),",
+    "      route('/appearance', 'shell/settings/appearance.tsx'),",
+    "      route('/api-keys', 'shell/settings/api-keys.tsx'),",
+    "      route('/organization', 'shell/settings/organization.tsx'),",
+    "    ]),",
+  ];
+
   const appChildren = [
     "    route('/', 'home.tsx'),",
     ...sortedModuleNames.map(buildModuleRoute),
+    ...settingsRoutes,
   ];
 
   return [

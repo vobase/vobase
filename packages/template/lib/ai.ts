@@ -12,7 +12,7 @@ export interface AIConfig {
 
 const defaults: AIConfig = {
   provider: 'openai',
-  model: process.env.AI_MODEL ?? 'gpt-4o-mini',
+  model: process.env.AI_MODEL ?? 'gpt-5-mini',
   embeddingModel: process.env.AI_EMBEDDING_MODEL ?? 'text-embedding-3-small',
   embeddingDimensions: Number(process.env.AI_EMBEDDING_DIMENSIONS) || 1536,
 };

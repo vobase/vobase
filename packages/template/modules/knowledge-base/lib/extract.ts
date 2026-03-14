@@ -153,7 +153,7 @@ async function ocrWithGemini(buffer: ArrayBuffer, mimeType: string): Promise<str
   const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
 
   const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
-  const model = google('gemini-2.5-flash-preview-05-20');
+  const model = google('gemini-flash-latest');
   const base64 = Buffer.from(buffer).toString('base64');
 
   const { text } = await generateText({

@@ -12,7 +12,7 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   },
   credentials: { enabled: true },
   mcp: { enabled: true },
-  trustedOrigins: ['http://localhost:5173'],
+  trustedOrigins: ['http://localhost:5173', 'http://localhost:5174'],
 
   // --- Auth plugins ---
   // auth: {
