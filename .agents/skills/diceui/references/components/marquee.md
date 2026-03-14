@@ -1,0 +1,181 @@
+# Marquee
+
+An animated scrolling component that continuously moves content horizontally or vertically.
+
+## Installation
+
+### CLI
+
+```package-install
+npx shadcn@latest add @diceui/marquee
+```
+
+### Manual
+
+
+  
+     Install the following dependencies:
+
+     ```package-install
+     @radix-ui/react-slot
+     ```
+  
+  
+    Copy and paste the following code into your project.
+
+    
+  
+  
+    Add the following CSS animations to your `globals.css` file:
+
+    ```css
+    :root {
+      --animate-marquee-left: marquee-left var(--marquee-duration) linear var(--marquee-loop-count);
+      --animate-marquee-right: marquee-right var(--marquee-duration) linear var(--marquee-loop-count);
+      --animate-marquee-left-rtl: marquee-left-rtl var(--marquee-duration) linear var(--marquee-loop-count);
+      --animate-marquee-right-rtl: marquee-right-rtl var(--marquee-duration) linear var(--marquee-loop-count);
+      --animate-marquee-up: marquee-up var(--marquee-duration) linear var(--marquee-loop-count);
+      --animate-marquee-down: marquee-down var(--marquee-duration) linear var(--marquee-loop-count);
+
+    @keyframes marquee-left {
+      0% {
+        transform: translateX(0%);
+      }
+      100% {
+        transform: translateX(calc(-100% - var(--marquee-gap)));
+      }
+    }
+
+    @keyframes marquee-right {
+      0% {
+        transform: translateX(calc(-100% - var(--marquee-gap)));
+      }
+      100% {
+        transform: translateX(0%);
+      }
+    }
+
+    @keyframes marquee-up {
+      0% {
+        transform: translateY(0%);
+      }
+      100% {
+        transform: translateY(calc(-100% - var(--marquee-gap)));
+      }
+    }
+
+    @keyframes marquee-down {
+      0% {
+        transform: translateY(calc(-100% - var(--marquee-gap)));
+      }
+      100% {
+        transform: translateY(0%);
+      }
+    }
+
+    @keyframes marquee-left-rtl {
+      0% {
+        transform: translateX(0%);
+      }
+      100% {
+        transform: translateX(calc(100% + var(--marquee-gap)));
+      }
+    }
+
+    @keyframes marquee-right-rtl {
+      0% {
+        transform: translateX(calc(100% + var(--marquee-gap)));
+      }
+      100% {
+        transform: translateX(0%);
+      }
+    }
+    }
+    ```
+  
+
+
+## Layout
+
+Import the parts and compose them together.
+
+```tsx
+
+
+return (
+  <Marquee.Root>
+    <Marquee.Content>
+      <Marquee.Item />
+    </Marquee.Content>
+    <Marquee.Edge side="left" />
+    <Marquee.Edge side="right" />
+  </Marquee.Root>
+)
+```
+
+## Examples
+
+### Logo Showcase
+
+Use the marquee to showcase logos or brands in a continuous scroll.
+
+
+### Vertical Layout
+
+Use `side` to control the direction of the marquee.
+
+
+### With RTL
+
+The marquee component automatically adapts to RTL (right-to-left) layouts.
+
+
+## API Reference
+
+### Marquee
+
+The main marquee component that creates continuous scrolling animations.
+
+> Props: `MarqueeProps`
+
+> Data attributes available — see [docs](https://diceui.com/docs/components/marquee)
+
+> CSS variables available — see [docs](https://diceui.com/docs/components/marquee)
+
+### MarqueeContent
+
+Contains the scrolling content and handles repetition for seamless animation.
+
+> Props: `MarqueeContentProps`
+
+> Data attributes available — see [docs](https://diceui.com/docs/components/marquee)
+
+### MarqueeItem
+
+Individual items within the marquee content.
+
+> Props: `MarqueeItemProps`
+
+### MarqueeEdge
+
+Edge overlay components for smooth gradient transitions.
+
+> Props: `MarqueeEdgeProps`
+
+> Data attributes available — see [docs](https://diceui.com/docs/components/marquee)
+
+## Accessibility
+
+### Keyboard Interactions
+
+> Keyboard shortcuts available — see [docs](https://diceui.com/docs/components/marquee)
+
+## Features
+
+- **RTL Support**: Automatically adapts to RTL (right-to-left) layouts
+- **Screen Reader Support**: Content remains accessible to assistive technologies
+- **Reduced Motion**: Respects user's `prefers-reduced-motion` setting
+- **Pause Controls**:
+  - **Hover**: Can be configured to pause animation when hovered
+  - **Keyboard**: Press Space key to pause/resume (when `pauseOnKeyboard` is enabled)
+- **Focus Management**: Proper focus indicators and keyboard navigation when `pauseOnKeyboard` is enabled

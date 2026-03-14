@@ -1,0 +1,117 @@
+# Hitbox
+
+A utility component that extends the clickable area of child elements for improved accessibility and user experience.
+
+## Installation
+
+### CLI
+
+```package-install
+npx shadcn@latest add @diceui/hitbox
+```
+
+### Manual
+
+
+  
+     Install the following dependencies:
+
+     ```package-install
+     @radix-ui/react-slot
+     ```
+  
+  
+    Copy and paste the following code into your project.
+
+    
+  
+
+
+## Layout
+
+Import the component and wrap it around any element to extend its clickable area.
+
+```tsx
+
+
+<Hitbox>
+  <Button>Click me</Button>
+</Hitbox>
+```
+
+## Examples
+
+### Sizes
+
+Control the size of the extended hitbox area.
+
+
+### Positions
+
+Control which sides of the element the hitbox extends to.
+
+
+### Radii
+
+Control the border radius of the hitbox area.
+
+
+### Debug Mode
+
+Enable debug mode to visualize the hitbox area during development.
+
+
+## API Reference
+
+### Hitbox
+
+The main hitbox component that extends the clickable area of its child element.
+
+> Props: `HitboxProps`
+
+## Sizes
+
+The hitbox provides three predefined sizes:
+
+- **`sm`**: 8px extension - Minimal extension for elements that need slight touch area improvement
+- **`default`**: 12px extension - Standard extension that helps most elements meet accessibility requirements  
+- **`lg`**: 16px extension - Generous extension for dense interfaces or critical interactive elements
+
+### Custom Sizes
+
+You can also use custom CSS values for precise control:
+
+```tsx
+<Hitbox size="18px">
+  <Checkbox />
+</Hitbox>
+```
+
+## Accessibility
+
+The Hitbox component improves accessibility by:
+
+- **Larger touch targets**: Extends clickable areas to meet minimum touch target size requirements (44px × 44px recommended by WCAG)
+- **Better mobile experience**: Reduces precision required for touch interactions
+- **Maintains semantics**: Uses Radix UI's Slot component to preserve the underlying element's accessibility properties
+- **Visual feedback**: Debug mode helps developers ensure adequate touch target sizes
+
+### Touch Target Guidelines
+
+- **Minimum size**: 44px × 44px (iOS) or 48dp × 48dp (Android)
+- **Recommended size**: 48px × 48px or larger
+- **Spacing**: At least 8px between adjacent touch targets
+
+### Size Recommendations
+
+- **Small buttons (32px)**: Use `default` size (12px) to reach 56px total target
+- **Default buttons (36px)**: Use `default` size (12px) to reach 60px total target
+- **Large buttons (40px)**: Use `sm` size (8px) to reach 56px total target
+- **Icon buttons**: Use `lg` size (16px) for maximum accessibility
+
+### Best Practices
+
+- Use larger hitboxes for small interactive elements like checkboxes, icons, or close buttons
+- Consider different positions (top, bottom, left, right) based on surrounding content
+- Test with debug mode enabled to ensure adequate coverage
+- Be mindful of overlapping hitboxes that might interfere with each other

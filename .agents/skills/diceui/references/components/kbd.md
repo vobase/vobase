@@ -1,0 +1,10 @@
+# Kbd
+
+A keyboard key primitive for displaying keyboard shortcuts and key combinations.
+
+<Alert>
+  <AlertTitle>The kbd component has been deprecated</AlertTitle>
+  <AlertDescription>
+    Please use the shadcn/ui <Link href="https://ui.shadcn.com/docs/components/kbd">kbd</Link> component instead.
+  </AlertDescription>
+</Alert>
