@@ -49,8 +49,8 @@ export function SignupPage() {
 
   return (
     <>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Create account</h1>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight">Create account</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Start your vobase workspace in minutes.
         </p>
@@ -92,9 +92,11 @@ export function SignupPage() {
         </FieldGroup>
 
         {message ? (
-          <p className={`text-sm ${isError ? 'text-destructive' : 'text-success'}`}>
-            {message}
-          </p>
+          <div className={`rounded-md px-3 py-2 ${isError ? 'bg-destructive/10' : 'bg-muted'}`}>
+            <p className={`text-sm ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {message}
+            </p>
+          </div>
         ) : null}
 
         <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -103,10 +105,10 @@ export function SignupPage() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-xs text-muted-foreground">
         Already have an account?{' '}
         <Link to="/login" className="font-medium text-foreground hover:underline">
-          Log in
+          Sign in
         </Link>
       </p>
     </>

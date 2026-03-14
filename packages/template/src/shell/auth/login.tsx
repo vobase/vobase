@@ -18,7 +18,6 @@ export function LoginPage() {
 	const [email, setEmail] = useState(isDev ? 'admin@example.com' : '');
 	const [password, setPassword] = useState(isDev ? 'Admin@vobase1' : '');
 	const [showGoogle] = useState(() => {
-		// Only show Google button if the provider is configured (non-dev) or explicitly enabled
 		return !isDev;
 	});
 
@@ -58,8 +57,8 @@ export function LoginPage() {
 
 	return (
 		<>
-			<div className="mb-8">
-				<h1 className="text-2xl font-bold tracking-tight">Log in</h1>
+			<div className="mb-6">
+				<h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
 				<p className="mt-1 text-sm text-muted-foreground">
 					{isDev
 						? 'Sign in with your dev account or Google.'
@@ -68,38 +67,38 @@ export function LoginPage() {
 			</div>
 
 			{message ? (
-				<p className="mb-4 text-sm text-destructive">{message}</p>
+				<div className="mb-4 rounded-md bg-destructive/10 px-3 py-2">
+					<p className="text-sm text-destructive">{message}</p>
+				</div>
 			) : null}
 
 			{isDev ? (
-				<>
-					<form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="email">Email</Label>
-							<Input
-								id="email"
-								type="email"
-								value={email}
-								onChange={(e) => { setEmail(e.target.value); setMessage(null); }}
-								required
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="password">Password</Label>
-							<Input
-								id="password"
-								type="password"
-								value={password}
-								onChange={(e) => { setPassword(e.target.value); setMessage(null); }}
-								required
-							/>
-						</div>
-						<Button type="submit" className="w-full" disabled={isSubmitting}>
-							{isSubmitting ? <Spinner /> : null}
-							{isSubmitting ? 'Signing in...' : 'Sign in'}
-						</Button>
-					</form>
-				</>
+				<form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="email">Email</Label>
+						<Input
+							id="email"
+							type="email"
+							value={email}
+							onChange={(e) => { setEmail(e.target.value); setMessage(null); }}
+							required
+						/>
+					</div>
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="password">Password</Label>
+						<Input
+							id="password"
+							type="password"
+							value={password}
+							onChange={(e) => { setPassword(e.target.value); setMessage(null); }}
+							required
+						/>
+					</div>
+					<Button type="submit" className="w-full" disabled={isSubmitting}>
+						{isSubmitting ? <Spinner /> : null}
+						{isSubmitting ? 'Signing in...' : 'Sign in'}
+					</Button>
+				</form>
 			) : null}
 
 			{showGoogle ? (
@@ -114,7 +113,7 @@ export function LoginPage() {
 					) : null}
 					<Button
 						className="w-full"
-						variant={isDev ? 'outline' : 'default'}
+						variant="outline"
 						disabled={isSubmitting}
 						onClick={handleGoogleLogin}
 					>
@@ -124,7 +123,7 @@ export function LoginPage() {
 				</>
 			) : null}
 
-			<p className="mt-6 text-center text-sm text-muted-foreground">
+			<p className="mt-6 text-center text-xs text-muted-foreground">
 				Don&apos;t have an account?{' '}
 				<Link to="/signup" className="font-medium text-foreground hover:underline">
 					Sign up
