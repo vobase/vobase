@@ -1,11 +1,13 @@
 {
   "folders": [
     {
-      "path": ".",
+      "name": "vobase",
+      "path": "."
     },
     {
-      "path": "packages/template",
-    },
+      "name": "template",
+      "path": "packages/template"
+    }
   ],
   "settings": {
     "cSpell.words": [

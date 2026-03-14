@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "bunqueue": "^2.6.9",
+    "bunqueue": "^2.6.19",
     "nanoid": "^5.1.6",
     "zod": "^4.3.6"
   },
