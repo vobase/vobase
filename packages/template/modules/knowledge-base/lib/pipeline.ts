@@ -32,7 +32,7 @@ export async function processDocument(db: VobaseDb, documentId: string, content:
     //    to avoid TOCTOU race on rowId assignment.
     const raw = db.$client;
     const insertChunk = raw.prepare(
-      `INSERT INTO kb_chunks (id, row_id, document_id, content, chunk_index, token_count) VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO kb_chunks (id, row_id, document_id, content, chunk_index, token_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertEmbedding = raw.prepare(`INSERT INTO kb_embeddings (rowid, embedding) VALUES (?, ?)`);
     const insertFts = raw.prepare(`INSERT INTO kb_chunks_fts (rowid, content) VALUES (?, ?)`);
@@ -49,7 +49,7 @@ export async function processDocument(db: VobaseDb, documentId: string, content:
         const rowId = nextRowId++;
         const id = nanoid(12);
 
-        insertChunk.run(id, rowId, documentId, chunk.content, chunk.index, chunk.tokenCount);
+        insertChunk.run(id, rowId, documentId, chunk.content, chunk.index, chunk.tokenCount, Date.now());
         insertEmbedding.run(rowId, JSON.stringify(embeddings[i]));
         insertFts.run(rowId, chunk.content);
       }

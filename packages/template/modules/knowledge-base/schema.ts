@@ -8,7 +8,7 @@ export const kbDocuments = sqliteTable('kb_documents', {
   sourceId: text('source_id'), // FK to kbSources (cross-module, no .references())
   sourceUrl: text('source_url'),
   mimeType: text('mime_type').notNull().default('text/plain'),
-  status: text('status').notNull().default('pending'), // pending | processing | ready | error
+  status: text('status').notNull().default('pending'), // pending | processing | ready | error | needs_ocr
   chunkCount: integer('chunk_count').notNull().default(0),
   metadata: text('metadata'), // JSON
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),

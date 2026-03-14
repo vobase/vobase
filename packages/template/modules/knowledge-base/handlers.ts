@@ -105,16 +105,36 @@ knowledgeBaseRoutes.use('*', async (c, next) => {
   return next();
 });
 
-// Documents
+// Documents — accepts multipart/form-data with a 'file' field
 knowledgeBaseRoutes.post('/documents', async (c) => {
   const ctx = getCtx(c);
-  const body = await c.req.json();
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) {
+    return c.json({ error: 'Missing file field in form data' }, 400);
+  }
+
+  // 1. Insert document with pending status
   const [doc] = await ctx.db.insert(kbDocuments).values({
-    title: body.title,
-    sourceType: body.sourceType ?? 'upload',
-    mimeType: body.mimeType ?? 'text/plain',
-    metadata: body.metadata ? JSON.stringify(body.metadata) : null,
+    title: file.name,
+    sourceType: 'upload',
+    mimeType: file.type || 'text/plain',
   }).returning();
+
+  // 2. Write file to temp location for async job processing
+  const tmpDir = `${process.cwd()}/data/tmp`;
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(tmpDir, { recursive: true });
+  const tmpPath = `${tmpDir}/${doc.id}-${file.name}`;
+  await Bun.write(tmpPath, await file.arrayBuffer());
+
+  // 3. Enqueue processing job (extraction + chunking + embedding happen async)
+  await ctx.scheduler.add('knowledge-base:process-document', {
+    documentId: doc.id,
+    filePath: tmpPath,
+    mimeType: file.type || 'text/plain',
+  });
+
   return c.json(doc, 201);
 });
 

@@ -11,13 +11,16 @@ import { kbDocuments, kbSources, kbSyncLogs } from './schema';
 
 const BASE = 'http://localhost/api/knowledge-base';
 
+const schedulerJobs: Array<{ name: string; data: unknown }> = [];
+
 function createApp(db: VobaseDb, user: { id: string; email: string; name: string; role: string } | null = { id: 'user-1', email: 'test@test.com', name: 'Test', role: 'user' }) {
+  schedulerJobs.length = 0;
   const app = new Hono();
   app.onError(errorHandler);
   app.use('*', async (c, next) => {
     c.set('db', db);
     c.set('user', user);
-    c.set('scheduler', {} as never);
+    c.set('scheduler', { add: async (name: string, data: unknown) => { schedulerJobs.push({ name, data }); } } as never);
     c.set('storage', {} as never);
     c.set('notify', {} as never);
     c.set('http', {} as never);
@@ -52,19 +55,42 @@ describe('Knowledge Base Routes', () => {
   });
 
   describe('Documents', () => {
-    it('POST /documents creates a document', async () => {
+    it('POST /documents creates a document from multipart upload and enqueues job', async () => {
+      const formData = new FormData();
+      formData.append('file', new File(['Hello world'], 'test.txt', { type: 'text/plain' }));
+
       const res = await app.request(`${BASE}/documents`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'My Doc', sourceType: 'upload', mimeType: 'text/plain' }),
+        body: formData,
       });
 
       expect(res.status).toBe(201);
       const doc = await res.json();
-      expect(doc.title).toBe('My Doc');
+      expect(doc.title).toBe('test.txt');
       expect(doc.sourceType).toBe('upload');
       expect(doc.status).toBe('pending');
-      expect(doc.chunkCount).toBe(0);
+      expect(doc.mimeType).toContain('text/plain');
+
+      // Verify job was enqueued
+      expect(schedulerJobs).toHaveLength(1);
+      expect(schedulerJobs[0].name).toBe('knowledge-base:process-document');
+      const jobData = schedulerJobs[0].data as { documentId: string; filePath: string; mimeType: string };
+      expect(jobData.documentId).toBe(doc.id);
+      expect(jobData.mimeType).toContain('text/plain');
+      expect(jobData.filePath).toContain(doc.id);
+
+      // Clean up temp file
+      try { (await import('node:fs')).unlinkSync(jobData.filePath); } catch {}
+    });
+
+    it('POST /documents returns 400 when no file provided', async () => {
+      const res = await app.request(`${BASE}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'No File' }),
+      });
+
+      expect(res.status).toBe(400);
     });
 
     it('GET /documents lists documents', async () => {
