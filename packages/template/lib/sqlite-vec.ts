@@ -41,10 +41,35 @@ export function loadSqliteVec(db: InstanceType<typeof Database>): boolean {
     return true;
   } catch {
     try {
-      // Try the npm package path
-      const vecPath = require.resolve('sqlite-vec').replace(/\/[^/]+$/, '/vec0');
-      db.loadExtension(vecPath);
-      return true;
+      // Walk node_modules/.bun to find the sqlite-vec platform package
+      // Check both cwd and monorepo root (Bun hoists to root node_modules)
+      const { readdirSync } = require('node:fs');
+      const { join, resolve } = require('node:path');
+      const candidates = [
+        join(process.cwd(), 'node_modules', '.bun'),
+        join(resolve(process.cwd(), '..', '..'), 'node_modules', '.bun'),
+        join(resolve(import.meta.dir, '..'), 'node_modules', '.bun'),
+        join(resolve(import.meta.dir, '..', '..', '..'), 'node_modules', '.bun'),
+      ];
+      let bunModules = '';
+      for (const c of candidates) {
+        if (existsSync(c)) { bunModules = c; break; }
+      }
+      if (!bunModules) throw new Error('node_modules/.bun not found');
+      const dirs = readdirSync(bunModules).filter((d: string) => d.startsWith('sqlite-vec-'));
+      for (const dir of dirs) {
+        const innerPath = join(bunModules, dir, 'node_modules');
+        if (!existsSync(innerPath)) continue;
+        const innerDirs = readdirSync(innerPath).filter((d: string) => d.startsWith('sqlite-vec-'));
+        for (const inner of innerDirs) {
+          const vecPath = join(innerPath, inner, 'vec0');
+          if (existsSync(`${vecPath}.dylib`) || existsSync(`${vecPath}.so`)) {
+            db.loadExtension(vecPath);
+            return true;
+          }
+        }
+      }
+      throw new Error('vec0 extension not found in node_modules');
     } catch (err) {
       console.warn(
         '[sqlite-vec] Failed to load vec0 extension. Vector search will not be available.\n' +
