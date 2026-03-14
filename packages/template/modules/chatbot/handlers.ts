@@ -129,7 +129,7 @@ chatbotRoutes.post('/threads/:id/messages', async (c) => {
         threadId,
         role: 'assistant',
         content:
-          'AI is not configured. Please set an API key (OPENAI_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, or ANTHROPIC_API_KEY) in your .env file.',
+          'AI is not configured. Please set an API key (OPENAI_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY) in your .env file.',
       })
       .returning();
     return c.json(msg);

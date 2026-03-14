@@ -27,7 +27,7 @@ export function getAIConfig(): AIConfig {
 export function isAIConfigured(): boolean {
   return !!(
     process.env.OPENAI_API_KEY ||
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+    process.env.GEMINI_API_KEY ||
     process.env.ANTHROPIC_API_KEY
   );
 }
