@@ -28,6 +28,7 @@ export function createKnowledgeBaseTool(db: VobaseDb, sourceIds?: string[]) {
       const results = await hybridSearch(db, input.query, {
         limit: 5,
         sourceIds,
+        mode: 'deep',
       });
 
       if (results.length === 0) {
