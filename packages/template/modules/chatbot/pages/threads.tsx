@@ -1,11 +1,32 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 
+import {
+  Conversation,
+  ConversationContent,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from '@/components/ai-elements/conversation';
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+  MessageActions,
+  MessageAction,
+} from '@/components/ai-elements/message';
+import {
+  PromptInput,
+  type PromptInputMessage,
+  PromptInputTextarea,
+  PromptInputSubmit,
+} from '@/components/ai-elements/prompt-input';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
+import { SourceCitation } from '@/components/chat/source-citation';
+import { TypingIndicator } from '@/components/chat/typing-indicator';
+import { ThreadList } from '@/components/chat/thread-list';
+import { authClient } from '@/lib/auth-client';
+import { CopyIcon, MessageSquare } from 'lucide-react';
 
 interface Thread {
   id: string;
@@ -14,7 +35,7 @@ interface Thread {
   createdAt: string;
 }
 
-interface Message {
+interface ChatMessage {
   id: string;
   threadId: string;
   role: string;
@@ -36,7 +57,7 @@ async function fetchThreads(): Promise<Thread[]> {
   return res.json();
 }
 
-async function fetchThread(id: string): Promise<Thread & { messages: Message[] }> {
+async function fetchThread(id: string): Promise<Thread & { messages: ChatMessage[] }> {
   const res = await fetch(`/api/chatbot/threads/${id}`);
   if (!res.ok) throw new Error('Failed to fetch thread');
   return res.json();
@@ -48,25 +69,32 @@ async function fetchAssistants(): Promise<Assistant[]> {
   return res.json();
 }
 
+function parseSources(raw: string | null): Array<{ documentTitle: string; relevanceScore?: number }> {
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as Array<{ documentTitle: string; relevanceScore?: number }>;
+  } catch {
+    return [];
+  }
+}
+
 function ChatbotPage() {
   const queryClient = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: threads } = useQuery({ queryKey: ['chatbot-threads'], queryFn: fetchThreads });
+  const { data: session } = authClient.useSession();
+  const userName = session?.user?.name ?? 'You';
+
+  const { data: threads = [] } = useQuery({ queryKey: ['chatbot-threads'], queryFn: fetchThreads });
   const { data: assistants } = useQuery({ queryKey: ['chatbot-assistants'], queryFn: fetchAssistants });
   const { data: activeThread } = useQuery({
     queryKey: ['chatbot-thread', activeThreadId],
     queryFn: () => fetchThread(activeThreadId!),
     enabled: !!activeThreadId,
   });
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeThread?.messages, streamingContent]);
 
   const createThreadMutation = useMutation({
     mutationFn: async () => {
@@ -122,130 +150,103 @@ function ChatbotPage() {
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+  function handlePromptSubmit(msg: PromptInputMessage) {
+    if (msg.text.trim()) {
+      setInput(msg.text);
+      // Trigger send on next tick after state updates
+      setTimeout(() => handleSend(), 0);
     }
   }
 
+  const hasAssistants = (assistants?.length ?? 0) > 0;
+
   return (
     <div className="flex h-full">
-      {/* Thread sidebar */}
-      <div className="w-64 border-r flex flex-col">
-        <div className="p-3">
-          <Button
-            className="w-full"
-            size="sm"
-            onClick={() => createThreadMutation.mutate()}
-            disabled={createThreadMutation.isPending || !assistants?.length}
-          >
-            New chat
-          </Button>
-        </div>
-        <Separator />
-        <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1">
-            {threads?.map((thread) => (
-              <button
-                key={thread.id}
-                onClick={() => setActiveThreadId(thread.id)}
-                className={`w-full text-left rounded-md px-3 py-2 text-sm transition-colors ${
-                  activeThreadId === thread.id
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50'
-                }`}
-              >
-                {thread.title ?? 'New chat'}
-              </button>
-            ))}
-          </div>
-        </ScrollArea>
+      {/* Thread sidebar - 280px */}
+      <div className="w-[280px] border-r flex flex-col">
+        <ThreadList
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onSelectThread={setActiveThreadId}
+          onNewChat={() => createThreadMutation.mutate()}
+          isCreating={createThreadMutation.isPending}
+          hasAssistants={hasAssistants}
+        />
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {!activeThreadId ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <h3 className="text-lg font-medium mb-1">Chatbot</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                {assistants?.length ? 'Start a new conversation' : 'Create an assistant first'}
-              </p>
-              {assistants?.length ? (
-                <Button onClick={() => createThreadMutation.mutate()}>New chat</Button>
+            <ConversationEmptyState
+              icon={<MessageSquare className="size-12" />}
+              title={hasAssistants ? 'Start a new conversation' : 'Create an assistant first'}
+              description={hasAssistants ? 'Select a thread or start a new chat' : 'You need at least one assistant to start chatting'}
+            >
+              {hasAssistants ? (
+                <Button onClick={() => createThreadMutation.mutate()} disabled={createThreadMutation.isPending} className="mt-4">
+                  New chat
+                </Button>
               ) : (
-                <Button asChild>
+                <Button asChild className="mt-4">
                   <Link to="/chatbot/assistants">Create assistant</Link>
                 </Button>
               )}
-            </div>
+            </ConversationEmptyState>
           </div>
         ) : (
           <>
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-              <div className="max-w-2xl mx-auto space-y-4">
-                {activeThread?.messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`rounded-lg px-4 py-2 max-w-[80%] text-sm ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
-                      }`}
-                    >
-                      {msg.content}
-                      {msg.sources && (
-                        <div className="mt-2 pt-2 border-t border-border/50">
-                          <p className="text-xs font-medium mb-1">Sources:</p>
-                          {(JSON.parse(msg.sources) as Array<{ documentTitle: string }>).map((s, i) => (
-                            <p key={i} className="text-xs opacity-70">{s.documentTitle}</p>
-                          ))}
-                        </div>
+            <Conversation className="flex-1">
+              <ConversationContent className="max-w-2xl mx-auto p-4">
+                {activeThread?.messages.map((msg) => {
+                  const sources = parseSources(msg.sources);
+                  return (
+                    <Message key={msg.id} from={msg.role === 'user' ? 'user' : 'assistant'}>
+                      <MessageContent>
+                        <MessageResponse>{msg.content ?? ''}</MessageResponse>
+                        {sources.length > 0 && (
+                          <SourceCitation sources={sources} />
+                        )}
+                      </MessageContent>
+                      {msg.role === 'assistant' && (
+                        <MessageActions>
+                          <MessageAction
+                            label="Copy"
+                            onClick={() => navigator.clipboard.writeText(msg.content ?? '')}
+                          >
+                            <CopyIcon className="size-3" />
+                          </MessageAction>
+                        </MessageActions>
                       )}
-                    </div>
-                  </div>
-                ))}
-                {streamingContent && (
-                  <div className="flex justify-start">
-                    <div className="rounded-lg px-4 py-2 max-w-[80%] text-sm bg-muted">
-                      {streamingContent}
-                    </div>
-                  </div>
+                    </Message>
+                  );
+                })}
+                {isStreaming && streamingContent && (
+                  <Message from="assistant">
+                    <MessageContent>
+                      <MessageResponse>{streamingContent}</MessageResponse>
+                    </MessageContent>
+                  </Message>
                 )}
-                {isStreaming && !streamingContent && (
-                  <div className="flex justify-start">
-                    <div className="rounded-lg px-4 py-2 bg-muted">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 rounded-full bg-foreground/30 animate-pulse" />
-                        <div className="w-2 h-2 rounded-full bg-foreground/30 animate-pulse [animation-delay:150ms]" />
-                        <div className="w-2 h-2 rounded-full bg-foreground/30 animate-pulse [animation-delay:300ms]" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
+                {isStreaming && !streamingContent && <TypingIndicator />}
+              </ConversationContent>
+              <ConversationScrollButton />
+            </Conversation>
 
-            {/* Input */}
             <div className="border-t p-4">
-              <div className="max-w-2xl mx-auto flex gap-2">
-                <Textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Type a message..."
-                  className="min-h-[44px] max-h-[200px] resize-none"
-                  rows={1}
-                />
-                <Button onClick={handleSend} disabled={!input.trim() || isStreaming}>
-                  Send
-                </Button>
+              <div className="max-w-2xl mx-auto">
+                <PromptInput onSubmit={handlePromptSubmit}>
+                  <PromptInputTextarea
+                    value={input}
+                    onChange={(e) => setInput(e.currentTarget.value)}
+                    placeholder="Type a message…"
+                    className="pr-12"
+                  />
+                  <PromptInputSubmit
+                    disabled={!input.trim() || isStreaming}
+                    className="absolute bottom-1 right-1"
+                  />
+                </PromptInput>
               </div>
             </div>
           </>
