@@ -1,8 +1,8 @@
-import { streamText, stepCountIs, type LanguageModel } from 'ai';
+import { streamText, stepCountIs, convertToModelMessages, type LanguageModel, type UIMessage } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { eq } from 'drizzle-orm';
 import type { VobaseDb } from '@vobase/core';
-import { chatAssistants, chatMessages } from '../schema';
+import { chatAssistants } from '../schema';
 import { createKnowledgeBaseTool } from './tools';
 import { getAIConfig } from '../../../lib/ai';
 
@@ -24,16 +24,16 @@ async function resolveModel(modelId: string): Promise<LanguageModel> {
 
 export interface StreamChatOptions {
   db: VobaseDb;
-  threadId: string;
   assistantId: string;
-  userMessage: string;
+  messages: UIMessage[];
 }
 
 /**
  * Stream a chat response using AI SDK with tool calling and agent loops.
+ * Accepts UIMessage[] from useChat — uses convertToModelMessages for the LLM call.
  */
 export async function streamChat(options: StreamChatOptions) {
-  const { db, threadId, assistantId, userMessage } = options;
+  const { db, assistantId, messages } = options;
 
   // Load assistant config
   const assistant = await db
@@ -44,21 +44,6 @@ export async function streamChat(options: StreamChatOptions) {
 
   const config = getAIConfig();
   const modelId = assistant?.model ?? config.model;
-
-  // Build message history
-  const history = await db
-    .select()
-    .from(chatMessages)
-    .where(eq(chatMessages.threadId, threadId))
-    .orderBy(chatMessages.createdAt);
-
-  const messages = history.map((msg) => ({
-    role: msg.role as 'user' | 'assistant',
-    content: msg.content ?? '',
-  }));
-
-  // Add current user message
-  messages.push({ role: 'user', content: userMessage });
 
   // Build tools based on assistant config
   const tools: Record<string, ReturnType<typeof createKnowledgeBaseTool>> = {};
@@ -74,16 +59,19 @@ export async function streamChat(options: StreamChatOptions) {
     tools.search_knowledge_base = createKnowledgeBaseTool(db, kbSourceIds);
   }
 
-  // Stream the response with agent loops (stopWhen)
+  // Convert UIMessages to model messages
+  const modelMessages = await convertToModelMessages(messages);
+
+  // Stream the response with agent loops
   const model = await resolveModel(modelId);
   const result = streamText({
     model,
     system:
       assistant?.systemPrompt ??
       'You are a helpful assistant. When answering questions, search the knowledge base for relevant information and cite your sources.',
-    messages,
+    messages: modelMessages,
     tools,
-    stopWhen: stepCountIs(5), // Allow up to 5 tool-calling rounds
+    stopWhen: stepCountIs(5),
   });
 
   return result;

@@ -107,35 +107,43 @@ chatbotRoutes.delete('/threads/:id', async (c) => {
   return c.json({ success: true });
 });
 
+// Legacy endpoint — save a single message (used by seed/tests)
 chatbotRoutes.post('/threads/:id/messages', async (c) => {
   const ctx = getCtx(c);
   const threadId = c.req.param('id');
   const body = await c.req.json();
-  const { isAIConfigured } = await import('../../lib/ai');
-
-  // Save user message
   await ctx.db.insert(chatMessages).values({
     threadId,
-    role: 'user',
+    role: body.role ?? 'user',
     content: body.content,
-    attachments: body.attachments ? JSON.stringify(body.attachments) : null,
   });
+  return c.json({ success: true }, 201);
+});
 
-  // If AI not configured, return a helpful message
-  if (!isAIConfigured()) {
-    const [msg] = await ctx.db
-      .insert(chatMessages)
-      .values({
-        threadId,
-        role: 'assistant',
-        content:
-          'AI is not configured. Please set an API key (OPENAI_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY) in your .env file.',
-      })
-      .returning();
-    return c.json(msg);
+// Chat endpoint — accepts UIMessage[] from useChat, returns UIMessageStreamResponse
+chatbotRoutes.post('/threads/:id/chat', async (c) => {
+  const ctx = getCtx(c);
+  const threadId = c.req.param('id');
+  const { messages } = await c.req.json() as { messages: Array<{ id: string; role: string; parts: unknown[]; createdAt?: string }> };
+  const { isAIConfigured } = await import('../../lib/ai');
+
+  // Extract latest user message text for DB persistence
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+  const userText = lastUserMsg?.parts
+    ?.filter((p: any) => p.type === 'text')
+    .map((p: any) => p.text)
+    .join('') ?? '';
+
+  // Save user message to DB
+  if (userText) {
+    await ctx.db.insert(chatMessages).values({
+      threadId,
+      role: 'user',
+      content: userText,
+    });
   }
 
-  // Get thread to find assistant
+  // Auto-set thread title from first user message
   const thread = await ctx.db
     .select()
     .from(chatThreads)
@@ -143,20 +151,30 @@ chatbotRoutes.post('/threads/:id/messages', async (c) => {
     .get();
   if (!thread) throw notFound('Thread not found');
 
-  // Stream response
+  if (!thread.title && userText) {
+    await ctx.db.update(chatThreads)
+      .set({ title: userText.slice(0, 100) })
+      .where(eq(chatThreads.id, threadId));
+  }
+
+  // If AI not configured, return error as JSON
+  if (!isAIConfigured()) {
+    return c.json(
+      { error: 'AI is not configured. Set OPENAI_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY in your .env file.' },
+      503,
+    );
+  }
+
+  // Stream response using UIMessage protocol
   const { streamChat } = await import('./lib/chat');
   const result = await streamChat({
     db: ctx.db,
-    threadId,
     assistantId: thread.assistantId,
-    userMessage: body.content,
+    messages: messages as any,
   });
 
-  // Use toTextStreamResponse for streaming to the client
-  const response = result.toTextStreamResponse();
-
-  // Save the final message in the background
-  Promise.resolve(result.text)
+  // Save assistant response to DB in background
+  result.text
     .then(async (text) => {
       await ctx.db.insert(chatMessages).values({
         threadId,
@@ -166,5 +184,5 @@ chatbotRoutes.post('/threads/:id/messages', async (c) => {
     })
     .catch(console.error);
 
-  return response;
+  return result.toUIMessageStreamResponse();
 });
