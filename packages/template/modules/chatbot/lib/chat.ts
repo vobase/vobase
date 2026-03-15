@@ -1,10 +1,17 @@
-import { streamText, stepCountIs, convertToModelMessages, type LanguageModel, type UIMessage } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { eq } from 'drizzle-orm';
 import type { VobaseDb } from '@vobase/core';
+import {
+  convertToModelMessages,
+  type LanguageModel,
+  stepCountIs,
+  streamText,
+  type UIMessage,
+} from 'ai';
+import { eq } from 'drizzle-orm';
+
+import { getAIConfig } from '../../../lib/ai';
 import { chatAssistants } from '../schema';
 import { createKnowledgeBaseTool } from './tools';
-import { getAIConfig } from '../../../lib/ai';
 
 /**
  * Resolve a model ID to the correct AI SDK provider.

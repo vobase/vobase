@@ -1,7 +1,6 @@
-import { Database } from 'bun:sqlite';
-import { platform } from 'node:os';
 import { existsSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { platform } from 'node:os';
+import { Database } from 'bun:sqlite';
 
 /**
  * Set up sqlite-vec extension support.
@@ -13,13 +12,15 @@ export function setupSqliteVec(): void {
 
   // macOS: Bun ships its own SQLite which doesn't support loadable extensions.
   // We need Homebrew's SQLite which has extension loading enabled.
-  const brewPrefix = existsSync('/opt/homebrew') ? '/opt/homebrew' : '/usr/local';
+  const brewPrefix = existsSync('/opt/homebrew')
+    ? '/opt/homebrew'
+    : '/usr/local';
   const sqlitePath = `${brewPrefix}/opt/sqlite/lib/libsqlite3.dylib`;
 
   if (!existsSync(sqlitePath)) {
     console.warn(
       '[sqlite-vec] Homebrew SQLite not found. Install with: brew install sqlite\n' +
-      '[sqlite-vec] Vector search will not be available until SQLite is installed.'
+        '[sqlite-vec] Vector search will not be available until SQLite is installed.',
     );
     return;
   }
@@ -49,18 +50,29 @@ export function loadSqliteVec(db: InstanceType<typeof Database>): boolean {
         join(process.cwd(), 'node_modules', '.bun'),
         join(resolve(process.cwd(), '..', '..'), 'node_modules', '.bun'),
         join(resolve(import.meta.dir, '..'), 'node_modules', '.bun'),
-        join(resolve(import.meta.dir, '..', '..', '..'), 'node_modules', '.bun'),
+        join(
+          resolve(import.meta.dir, '..', '..', '..'),
+          'node_modules',
+          '.bun',
+        ),
       ];
       let bunModules = '';
       for (const c of candidates) {
-        if (existsSync(c)) { bunModules = c; break; }
+        if (existsSync(c)) {
+          bunModules = c;
+          break;
+        }
       }
       if (!bunModules) throw new Error('node_modules/.bun not found');
-      const dirs = readdirSync(bunModules).filter((d: string) => d.startsWith('sqlite-vec-'));
+      const dirs = readdirSync(bunModules).filter((d: string) =>
+        d.startsWith('sqlite-vec-'),
+      );
       for (const dir of dirs) {
         const innerPath = join(bunModules, dir, 'node_modules');
         if (!existsSync(innerPath)) continue;
-        const innerDirs = readdirSync(innerPath).filter((d: string) => d.startsWith('sqlite-vec-'));
+        const innerDirs = readdirSync(innerPath).filter((d: string) =>
+          d.startsWith('sqlite-vec-'),
+        );
         for (const inner of innerDirs) {
           const vecPath = join(innerPath, inner, 'vec0');
           if (existsSync(`${vecPath}.dylib`) || existsSync(`${vecPath}.so`)) {
@@ -70,10 +82,10 @@ export function loadSqliteVec(db: InstanceType<typeof Database>): boolean {
         }
       }
       throw new Error('vec0 extension not found in node_modules');
-    } catch (err) {
+    } catch (_err) {
       console.warn(
         '[sqlite-vec] Failed to load vec0 extension. Vector search will not be available.\n' +
-        'On macOS, ensure Homebrew SQLite is installed: brew install sqlite'
+          'On macOS, ensure Homebrew SQLite is installed: brew install sqlite',
       );
       return false;
     }

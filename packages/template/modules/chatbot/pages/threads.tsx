@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useChat } from '@ai-sdk/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type UIMessage } from 'ai';
+import { CopyIcon, MessageSquare } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 import {
   Conversation,
@@ -11,24 +13,28 @@ import {
 } from '@/components/ai-elements/conversation';
 import {
   Message,
+  MessageAction,
+  MessageActions,
   MessageContent,
   MessageResponse,
-  MessageActions,
-  MessageAction,
 } from '@/components/ai-elements/message';
 import {
   PromptInput,
   type PromptInputMessage,
-  PromptInputTextarea,
   PromptInputSubmit,
+  PromptInputTextarea,
 } from '@/components/ai-elements/prompt-input';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ThreadList } from '@/components/chat/thread-list';
-import { CopyIcon, MessageSquare } from 'lucide-react';
-import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Thread {
   id: string;
@@ -60,7 +66,9 @@ async function fetchThreads(): Promise<Thread[]> {
   return res.json();
 }
 
-async function fetchThread(id: string): Promise<Thread & { messages: DbMessage[] }> {
+async function fetchThread(
+  id: string,
+): Promise<Thread & { messages: DbMessage[] }> {
   const res = await fetch(`/api/chatbot/threads/${id}`);
   if (!res.ok) throw new Error('Failed to fetch thread');
   return res.json();
@@ -81,28 +89,57 @@ function toUIMessages(dbMessages: DbMessage[]): UIMessage[] {
   }));
 }
 
-function getAssistantSuggestions(assistants: Assistant[] | undefined, assistantId?: string): string[] {
-  const assistant = assistants?.find(a => a.id === assistantId);
-  if (!assistant?.suggestions) return [
-    'Help me write a function that',
-    'Search the knowledge base for',
-    'Explain how',
-    'Give me ideas for',
-  ];
+function getAssistantSuggestions(
+  assistants: Assistant[] | undefined,
+  assistantId?: string,
+): string[] {
+  const assistant = assistants?.find((a) => a.id === assistantId);
+  if (!assistant?.suggestions)
+    return [
+      'Help me write a function that',
+      'Search the knowledge base for',
+      'Explain how',
+      'Give me ideas for',
+    ];
   try {
     const parsed = JSON.parse(assistant.suggestions) as string[];
-    return parsed.length > 0 ? parsed : ['Help me write a function that', 'Search the knowledge base for', 'Explain how', 'Give me ideas for'];
-  } catch { return ['Help me write a function that', 'Search the knowledge base for', 'Explain how', 'Give me ideas for']; }
+    return parsed.length > 0
+      ? parsed
+      : [
+          'Help me write a function that',
+          'Search the knowledge base for',
+          'Explain how',
+          'Give me ideas for',
+        ];
+  } catch {
+    return [
+      'Help me write a function that',
+      'Search the knowledge base for',
+      'Explain how',
+      'Give me ideas for',
+    ];
+  }
 }
 
 /** Chat view for an active thread */
-function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: string; initialMessages: UIMessage[]; autoSendMessage?: string }) {
+function ThreadChat({
+  threadId,
+  initialMessages,
+  autoSendMessage,
+}: {
+  threadId: string;
+  initialMessages: UIMessage[];
+  autoSendMessage?: string;
+}) {
   const queryClient = useQueryClient();
   const [input, setInput] = useState('');
   const [autoSent, setAutoSent] = useState(false);
 
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: `/api/chatbot/threads/${threadId}/chat` }),
+    () =>
+      new DefaultChatTransport({
+        api: `/api/chatbot/threads/${threadId}/chat`,
+      }),
     [threadId],
   );
 
@@ -111,7 +148,10 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
     transport,
     messages: initialMessages,
     onError: (error) => {
-      toast.error(error.message || 'Failed to send message. Check your API key and model configuration.');
+      toast.error(
+        error.message ||
+          'Failed to send message. Check your API key and model configuration.',
+      );
     },
     onFinish: () => {
       queryClient.invalidateQueries({ queryKey: ['chatbot-threads'] });
@@ -132,10 +172,15 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
 
   const isStreaming = status === 'streaming' || status === 'submitted';
   const lastMessage = messages[messages.length - 1];
-  const lastAssistantText = lastMessage?.role === 'assistant'
-    ? lastMessage.parts.filter(p => p.type === 'text').map(p => (p as any).text).join('')
-    : '';
-  const showShimmer = isStreaming && (lastMessage?.role === 'user' || !lastAssistantText.trim());
+  const lastAssistantText =
+    lastMessage?.role === 'assistant'
+      ? lastMessage.parts
+          .filter((p) => p.type === 'text')
+          .map((p) => (p as any).text)
+          .join('')
+      : '';
+  const showShimmer =
+    isStreaming && (lastMessage?.role === 'user' || !lastAssistantText.trim());
 
   return (
     <>
@@ -144,9 +189,13 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
           {messages.map((msg) => (
             <Message key={msg.id} from={msg.role}>
               <MessageContent>
-                {msg.parts.map((part, i) => {
+                {msg.parts.map((part) => {
                   if (part.type === 'text') {
-                    return <MessageResponse key={`${msg.id}-${i}`}>{part.text}</MessageResponse>;
+                    return (
+                      <MessageResponse key={`${msg.id}-${part.type}`}>
+                        {part.text}
+                      </MessageResponse>
+                    );
                   }
                   return null;
                 })}
@@ -156,7 +205,10 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
                   <MessageAction
                     label="Copy"
                     onClick={() => {
-                      const text = msg.parts.filter(p => p.type === 'text').map(p => (p as any).text).join('');
+                      const text = msg.parts
+                        .filter((p) => p.type === 'text')
+                        .map((p) => (p as any).text)
+                        .join('');
                       navigator.clipboard.writeText(text);
                     }}
                   >
@@ -169,7 +221,9 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
           {showShimmer && (
             <Message from="assistant">
               <MessageContent>
-                <Shimmer className="text-sm" duration={1.5}>Thinking...</Shimmer>
+                <Shimmer className="text-sm" duration={1.5}>
+                  Thinking...
+                </Shimmer>
               </MessageContent>
             </Message>
           )}
@@ -201,12 +255,20 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
 function ChatbotPage() {
   const queryClient = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [selectedAssistantId, setSelectedAssistantId] = useState<string | null>(null);
+  const [selectedAssistantId, setSelectedAssistantId] = useState<string | null>(
+    null,
+  );
   const [welcomeInput, setWelcomeInput] = useState('');
 
-  const { data: allThreads = [] } = useQuery({ queryKey: ['chatbot-threads'], queryFn: fetchThreads });
-  const threads = allThreads.filter(t => t.title);
-  const { data: assistants } = useQuery({ queryKey: ['chatbot-assistants'], queryFn: fetchAssistants });
+  const { data: allThreads = [] } = useQuery({
+    queryKey: ['chatbot-threads'],
+    queryFn: fetchThreads,
+  });
+  const threads = allThreads.filter((t) => t.title);
+  const { data: assistants } = useQuery({
+    queryKey: ['chatbot-assistants'],
+    queryFn: fetchAssistants,
+  });
   const { data: activeThread } = useQuery({
     queryKey: ['chatbot-thread', activeThreadId],
     queryFn: () => fetchThread(activeThreadId!),
@@ -215,7 +277,10 @@ function ChatbotPage() {
 
   const activeAssistantId = selectedAssistantId ?? assistants?.[0]?.id ?? null;
   const hasAssistants = (assistants?.length ?? 0) > 0;
-  const suggestions = getAssistantSuggestions(assistants, activeAssistantId ?? undefined);
+  const suggestions = getAssistantSuggestions(
+    assistants,
+    activeAssistantId ?? undefined,
+  );
 
   async function handleWelcomeSend(text: string) {
     if (!text.trim() || !activeAssistantId) return;
@@ -228,7 +293,7 @@ function ChatbotPage() {
       toast.error('Failed to create thread');
       return;
     }
-    const thread = await res.json() as Thread;
+    const thread = (await res.json()) as Thread;
     queryClient.invalidateQueries({ queryKey: ['chatbot-threads'] });
     setActiveThreadId(thread.id);
     setWelcomeInput(text);
@@ -247,7 +312,9 @@ function ChatbotPage() {
             <MessageSquare className="h-5 w-5 text-primary" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {hasAssistants ? 'What can I help you with?' : 'Create an assistant to get started'}
+            {hasAssistants
+              ? 'What can I help you with?'
+              : 'Create an assistant to get started'}
           </h1>
           {!hasAssistants && (
             <p className="text-sm text-muted-foreground">
@@ -259,13 +326,18 @@ function ChatbotPage() {
         {/* Assistant selector */}
         {hasAssistants && (assistants?.length ?? 0) > 1 && (
           <div className="flex justify-center">
-            <Select value={activeAssistantId ?? ''} onValueChange={setSelectedAssistantId}>
+            <Select
+              value={activeAssistantId ?? ''}
+              onValueChange={setSelectedAssistantId}
+            >
               <SelectTrigger className="w-auto gap-2">
                 <SelectValue placeholder="Select assistant" />
               </SelectTrigger>
               <SelectContent>
-                {assistants!.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                {assistants?.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -287,7 +359,10 @@ function ChatbotPage() {
 
         {/* Input box */}
         {hasAssistants ? (
-          <PromptInput onSubmit={(msg) => handleWelcomeSend(msg.text)} className="w-full">
+          <PromptInput
+            onSubmit={(msg) => handleWelcomeSend(msg.text)}
+            className="w-full"
+          >
             <PromptInputTextarea
               value={welcomeInput}
               onChange={(e) => setWelcomeInput(e.currentTarget.value)}
@@ -320,8 +395,14 @@ function ChatbotPage() {
         <ThreadList
           threads={threads}
           activeThreadId={activeThreadId}
-          onSelectThread={(id) => { setActiveThreadId(id); setWelcomeInput(''); }}
-          onNewChat={() => { setActiveThreadId(null); setWelcomeInput(''); }}
+          onSelectThread={(id) => {
+            setActiveThreadId(id);
+            setWelcomeInput('');
+          }}
+          onNewChat={() => {
+            setActiveThreadId(null);
+            setWelcomeInput('');
+          }}
           hasAssistants={hasAssistants}
         />
       </div>
@@ -331,7 +412,9 @@ function ChatbotPage() {
           renderWelcome()
         ) : !activeThread ? (
           <div className="flex-1 flex items-center justify-center">
-            <Shimmer className="text-sm text-muted-foreground">Loading conversation...</Shimmer>
+            <Shimmer className="text-sm text-muted-foreground">
+              Loading conversation...
+            </Shimmer>
           </div>
         ) : (
           <ThreadChat
