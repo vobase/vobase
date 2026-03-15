@@ -1,8 +1,5 @@
 <p align="center">
-  <b>vobase</b><br>
-  <a href="https://discord.gg/sVsPBHtvTZ"><img 
-  src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"               
-  alt="Discord"></a>
+  <b>vobase</b>
   <br>
   The app framework built for AI coding agents.<br>
   Own every line. Your AI already knows how to build on it.
@@ -14,6 +11,9 @@
   <a href="https://github.com/vobase/vobase"><img src="https://img.shields.io/github/stars/vobase/vobase" alt="GitHub stars"></a>
   <a href="https://github.com/vobase/vobase/commits/main"><img src="https://img.shields.io/github/last-commit/vobase/vobase" alt="Last commit"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT">
+  <a href="https://discord.gg/sVsPBHtvTZ"><img 
+  src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"               
+  alt="Discord"></a>
   <br>
 </p>
 
@@ -317,61 +317,6 @@ export default defineConfig({
 ```
 
 Credentials stay in `.env`. Config declares the shape.
-
----
-
-### agent skills
-
-Agent skills are the domain knowledge layer. AI tools load skills before generating code. Skill quality determines code quality — these conventions are what separate working modules from broken ones.
-
-Vobase skills use the same format as [Claude's native skill system](https://claude.com/blog/improving-skill-creator-test-measure-and-refine-agent-skills). A skill is a `SKILL.md` file in `.agents/skills/<name>/` with optional bundled resources. Claude (and any compatible AI tool) automatically discovers and loads them through progressive disclosure.
-
-Skills fall into two layers:
-
-#### core skills — app patterns that apply across every module
-
-These are the rules that prevent the most common mistakes. Every module follows them.
-
-| Skill | What it encodes |
-|---|---|
-| `gap-free-sequences` | Transaction-safe gap-free sequence generation for business numbers (INV-0001, PO-0042). Never use auto-increment IDs as business numbers — they leave holes when transactions roll back. |
-| `integer-money` | All money as integer cents. Column: `amount_cents`. Display: `(cents / 100).toFixed(2)`. Safe to $90 billion. Never floats — IEEE 754 rounding will cost real money at scale. |
-| `status-machines` | Explicit finite state machines for document workflows (`draft → sent → paid → void`) with validated transitions in handler code. No arbitrary string updates. |
-
-#### domain skills — industry and vertical-specific logic
-
-These encode domain knowledge for a particular business function, industry, or regulatory environment. Each skill teaches the AI how that domain actually works.
-
-| Skill | What it encodes |
-|---|---|
-| `sg-gst` | Singapore GST 9% rate, reverse charge, exemption handling, IRAS filing requirements, rounding policy. |
-| `sg-invoicing` | Tax invoice mandatory fields, credit note linkage, InvoiceNow/Peppol readiness, UEN validation. |
-| `sg-payroll` | CPF contribution rates, SDL/SHG levies, deduction ordering, payslip requirements, IR8A preparation. |
-
-More verticals coming. Write your own following the same format.
-
----
-
-### skill quality — test, measure, refine
-
-Skills are only as good as the code they produce. Vobase uses [Claude's skill-creator system](https://claude.com/blog/improving-skill-creator-test-measure-and-refine-agent-skills) to test and improve skills systematically.
-
-The process:
-
-1. **Write the skill** — `SKILL.md` with instructions, references, scripts
-2. **Write test prompts** — real requests users would make
-3. **Define assertions** — concrete checks on the generated code
-4. **Run evals** — Claude generates code with the skill loaded, assertions grade the output
-5. **Benchmark** — pass rate, token usage, elapsed time across multiple runs
-6. **Iterate** — rewrite the skill, run again, compare
-
-```bash
-bun run eval gap-free-sequences             # run all test prompts against the skill
-bun run eval:benchmark gap-free-sequences   # 5 runs with variance analysis
-bun run eval:compare gap-free-sequences     # blind A/B: skill vs no-skill
-```
-
-The comparator runs blind A/B tests — one agent with the skill, one without, a third agent grades which output is better without knowing which had the skill. If the skill doesn't consistently win, it needs rewriting.
 
 ---
 
