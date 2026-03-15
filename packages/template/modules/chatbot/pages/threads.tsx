@@ -21,11 +21,13 @@ import {
   PromptInputSubmit,
 } from '@/components/ai-elements/prompt-input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SourceCitation } from '@/components/chat/source-citation';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { ThreadList } from '@/components/chat/thread-list';
 import { authClient } from '@/lib/auth-client';
-import { BookOpenIcon, CodeIcon, CopyIcon, LightbulbIcon, MessageSquare, SearchIcon } from 'lucide-react';
+import { AlertCircleIcon, BookOpenIcon, CodeIcon, CopyIcon, LightbulbIcon, MessageSquare, SearchIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Thread {
   id: string;
@@ -81,6 +83,7 @@ function parseSources(raw: string | null): Array<{ documentTitle: string; releva
 function ChatbotPage() {
   const queryClient = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [selectedAssistantId, setSelectedAssistantId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [streamingContent, setStreamingContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -97,14 +100,16 @@ function ChatbotPage() {
     enabled: !!activeThreadId,
   });
 
+  // Auto-select first assistant if none selected
+  const activeAssistantId = selectedAssistantId ?? assistants?.[0]?.id ?? null;
+
   const createThreadMutation = useMutation({
     mutationFn: async () => {
-      const assistantId = assistants?.[0]?.id;
-      if (!assistantId) throw new Error('No assistants available. Create one first.');
+      if (!activeAssistantId) throw new Error('No assistants available. Create one first.');
       const res = await fetch('/api/chatbot/threads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assistantId }),
+        body: JSON.stringify({ assistantId: activeAssistantId }),
       });
       if (!res.ok) throw new Error('Failed to create thread');
       return res.json() as Promise<Thread>;
@@ -129,7 +134,16 @@ function ChatbotPage() {
         body: JSON.stringify({ content: messageText }),
       });
 
-      if (!res.ok) throw new Error('Send failed');
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        const message = errorText.includes('API key')
+          ? 'API key not configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY in your .env file.'
+          : errorText.includes('does not exist')
+            ? `Model not found. Check the model name in your assistant settings.`
+            : `Failed to send message (${res.status})`;
+        toast.error(message);
+        return;
+      }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -143,6 +157,9 @@ function ChatbotPage() {
           setStreamingContent(accumulated);
         }
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong';
+      toast.error(msg);
     } finally {
       setIsStreaming(false);
       setStreamingContent('');
@@ -183,13 +200,12 @@ function ChatbotPage() {
   }
 
   async function handleWelcomeSend(text: string) {
-    if (!text.trim() || !hasAssistants) return;
+    if (!text.trim() || !activeAssistantId) return;
     // Auto-create a thread, then send the message
-    const assistantId = assistants![0].id;
     const res = await fetch('/api/chatbot/threads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assistantId }),
+      body: JSON.stringify({ assistantId: activeAssistantId }),
     });
     if (!res.ok) return;
     const thread = await res.json() as Thread;
@@ -233,10 +249,26 @@ function ChatbotPage() {
                 )}
               </div>
 
+              {/* Assistant selector */}
+              {hasAssistants && (assistants?.length ?? 0) > 1 && (
+                <div className="flex justify-center">
+                  <Select value={activeAssistantId ?? ''} onValueChange={setSelectedAssistantId}>
+                    <SelectTrigger className="w-auto gap-2">
+                      <SelectValue placeholder="Select assistant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assistants!.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Suggestion cards */}
               {hasAssistants && (
                 <div className="grid grid-cols-2 gap-2">
-                  {getAssistantSuggestions().map((suggestion) => (
+                  {getAssistantSuggestions(activeAssistantId ?? undefined).map((suggestion) => (
                     <button
                       key={suggestion.label}
                       type="button"
