@@ -132,7 +132,10 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
 
   const isStreaming = status === 'streaming' || status === 'submitted';
   const lastMessage = messages[messages.length - 1];
-  const showShimmer = isStreaming && lastMessage?.role === 'user';
+  const lastAssistantText = lastMessage?.role === 'assistant'
+    ? lastMessage.parts.filter(p => p.type === 'text').map(p => (p as any).text).join('')
+    : '';
+  const showShimmer = isStreaming && (lastMessage?.role === 'user' || !lastAssistantText.trim());
 
   return (
     <>
