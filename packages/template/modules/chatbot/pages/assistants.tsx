@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -166,28 +166,28 @@ function AssistantsPage() {
                 ) : (
                   <p className="text-xs text-muted-foreground/50 italic mb-2">No system prompt</p>
                 )}
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground mb-3">
                   Created {formatDate(assistant.createdAt)}
                 </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => openEdit(assistant)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteConfirmId(assistant.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </CardContent>
-              <CardFooter className="gap-2 pt-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => openEdit(assistant)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => setDeleteConfirmId(assistant.id)}
-                >
-                  Delete
-                </Button>
-              </CardFooter>
             </Card>
           ))}
         </div>
