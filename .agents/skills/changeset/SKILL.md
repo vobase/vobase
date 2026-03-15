@@ -125,15 +125,18 @@ If multiple packages changed, list each with its own bump level.
 
 ### Step 3: Generate OG Cover Image via Stitch
 
-Create a project and generate the cover image. The image must be:
-- **Aspect ratio**: 1200x630 (standard OG image)
-- **Device type**: DESKTOP
+Create a project and generate the cover image. Stitch generates desktop screens at 1280x1024 (exported at 2x = 2560x2048). We crop locally to the standard OG size of 1200x630.
+
+- **Device type**: DESKTOP (generates 1280x1024 canvas)
 - **Model**: GEMINI_3_PRO (best quality)
+- **Final output**: 1200x630 (cropped locally from center of the 1280x1024 canvas)
 
 **CRITICAL styling rules** (learned from iteration):
-- Background `#09090b` must extend **edge-to-edge** — NO outer padding, NO card wrapper, NO border-radius on the root container
+- Background `#09090b` must extend **edge-to-edge** — NO outer padding, NO card wrapper
+- **NO border-radius anywhere** — not on root, not on outer containers. The final image is center-cropped, so rounded corners at edges will look broken
+- **NO borders on outer edges** — any border near the canvas edge will be partially cut off by cropping
 - `html, body { margin: 0; padding: 0; background: #09090b; overflow: hidden }`
-- Content padding: 40px from edges (internal only)
+- Content padding: 40px from edges (internal only). Keep important content away from the top/bottom 200px since those get cropped
 - Subtle dot grid overlay at 4% white opacity on the background
 - Font: clean sans-serif (Inter or similar)
 
@@ -156,7 +159,7 @@ RIGHT SIDE (45%):
 - Small muted labels on icons/nodes
 - The visualization should tell the story of the feature at a glance
 
-**Stitch MCP calls**:
+**Stitch MCP calls + local crop**:
 ```
 1. mcp__stitch__create_project({ title: "Vobase [Feature] Release" })
 2. mcp__stitch__generate_screen_from_text({
@@ -165,15 +168,23 @@ RIGHT SIDE (45%):
      modelId: "GEMINI_3_PRO",
      prompt: <detailed prompt following the template above>
    })
-3. Download the screenshot URL from the response
-4. Save to .changeset/og-<feature>-<version>.png
+3. Download the screenshot URL at full resolution (append =s2560 to the URL):
+   curl -sL "<screenshot_url>=s2560" -o /tmp/og-full.png
+4. Scale from 2560x2048 to 1280x1024:
+   sips -z 1024 1280 /tmp/og-full.png --out /tmp/og-scaled.png
+5. Center-crop to 1200x630 (cuts 40px from sides, 197px from top/bottom):
+   sips -c 630 1200 /tmp/og-scaled.png --out .changeset/og-<feature>-<version>.png
+6. Verify: sips -g pixelWidth -g pixelHeight .changeset/og-<feature>-<version>.png
+   → should be 1200x630, file size > 50KB
 ```
 
 **Common Stitch pitfalls to avoid**:
+- **NO border-radius on any outer container** — the image gets center-cropped, so rounded corners at canvas edges produce ugly artifacts
+- **NO borders near canvas edges** — they'll be partially cut off by the crop
+- Keep all important content within the center 1200x630 safe zone of the 1280x1024 canvas (40px horizontal margin, ~200px vertical margin from edges)
 - First generation often has too much padding — emphasize "edge-to-edge, NO outer padding" in the prompt
 - Specify exact hex colors — don't say "dark" or "muted", give the hex code
 - Describe the pipeline/diagram in detail — vague descriptions produce generic results
-- Always specify "NO card container, NO border-radius on root, background covers entire viewport"
 
 ### Step 4: Write the Changeset
 
@@ -243,25 +254,30 @@ Before finishing:
 Here's a proven prompt pattern that produces good results (customize the specifics):
 
 ```
-Design a release announcement OG image for "Vobase". CRITICAL: The ENTIRE
-canvas background must be #09090b edge-to-edge with ZERO outer padding,
-ZERO card wrapper, ZERO border-radius on root. Background goes from pixel
-0,0 to the very last pixel. html/body: margin 0, padding 0, background
-#09090b, overflow hidden.
+Design a release announcement image for "Vobase" at DESKTOP size (1280x1024).
 
-Content padding: 40px from edges internally. Subtle white dot grid at 4%
+CRITICAL RULES — the image will be CENTER-CROPPED to 1200x630:
+- Background #09090b edge-to-edge, ZERO outer padding, ZERO card wrapper
+- ZERO border-radius on ANY outer container (cropping will cut corners)
+- ZERO borders near canvas edges (they'll be partially cut off)
+- html, body { margin: 0; padding: 0; background: #09090b; overflow: hidden }
+- Keep all important content in the CENTER SAFE ZONE: ~40px from left/right
+  edges and ~200px from top/bottom edges (the crop removes the extremes)
+
+Content padding: 32px from edges internally. Subtle white dot grid at 3%
 opacity on background.
 
-LEFT SIDE (55%): "VOBASE" muted gray #71717a uppercase label. "[Feature]"
-64px bold blue #3b82f6 headline. "[Subtitle]" 24px white #fafafa. Three
-feature pills with colored left borders (blue #3b82f6, green #22c55e,
-amber #f59e0b): "[Pill 1]", "[Pill 2]", "[Pill 3]". "v[X.Y.Z]" monospace
-#52525b bottom-left.
+LEFT SIDE (55%): "VOBASE" 11px muted gray #71717a uppercase label.
+"[Feature]" 48px bold blue #3b82f6 headline. "[Subtitle]" 16px #a1a1aa.
+Feature pills stacked vertically with colored left borders (blue #3b82f6,
+green #22c55e, amber #f59e0b, purple #a855f7): "[Pill 1]", "[Pill 2]",
+"[Pill 3]". "v[X.Y.Z]" 12px monospace #52525b bottom-left.
 
 RIGHT SIDE (45%): [Describe the specific visual/diagram for this feature
 with exact colors, sizes, and relationships between elements].
 
 Dense layout, no wasted space. Think Supabase launch week graphics.
+No decorative borders or rounded corners on any outer elements.
 ```
 
 ## Image References
