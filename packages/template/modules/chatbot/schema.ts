@@ -9,6 +9,7 @@ export const chatAssistants = sqliteTable('chat_assistants', {
   tools: text('tools'), // JSON array of tool names
   kbSourceIds: text('kb_source_ids'), // JSON array of KB source IDs to scope search
   model: text('model'), // AI model identifier
+  suggestions: text('suggestions'), // JSON array of quick-start prompt strings
   userId: text('user_id').notNull(),
   isPublished: integer('is_published', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),

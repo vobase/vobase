@@ -7,11 +7,13 @@ const assistantPersonas = [
     name: 'Vobase Assistant',
     prompt: 'You are a helpful assistant for the Vobase platform. You help users understand the framework, its modules, and how to build applications with it. Be concise and practical.',
     model: 'gpt-5-mini',
+    suggestions: ['Help me create a new module', 'Search the knowledge base for', 'Explain how the auth system works', 'Write a Hono route handler that'],
   },
   {
     name: 'Quick Helper',
     prompt: 'You are a fast, lightweight assistant. Answer questions concisely. Prefer short code snippets over long explanations. Skip preamble.',
     model: 'claude-haiku-4-5',
+    suggestions: ['Write a TypeScript function that', 'Debug this error', 'Refactor this code to be cleaner', 'What does this code do?'],
   },
 ];
 
@@ -33,6 +35,7 @@ export function seedChatbot(db: VobaseDb, userId: string): { assistants: number;
       name: persona.name,
       systemPrompt: persona.prompt,
       model: persona.model,
+      suggestions: JSON.stringify(persona.suggestions),
       tools: JSON.stringify(['knowledge-base']),
       userId,
       isPublished: true,

@@ -22,6 +22,7 @@ interface Assistant {
   name: string;
   model: string | null;
   systemPrompt: string | null;
+  suggestions: string | null;
   createdAt: string;
 }
 
@@ -29,6 +30,7 @@ interface EditForm {
   name: string;
   model: string;
   systemPrompt: string;
+  suggestions: string;
 }
 
 async function fetchAssistants(): Promise<Assistant[]> {
@@ -44,7 +46,7 @@ function formatDate(iso: string): string {
 function AssistantsPage() {
   const queryClient = useQueryClient();
   const [editingAssistant, setEditingAssistant] = useState<Assistant | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ name: '', model: '', systemPrompt: '' });
+  const [editForm, setEditForm] = useState<EditForm>({ name: '', model: '', systemPrompt: '', suggestions: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const { data: assistants, isLoading } = useQuery({
@@ -94,21 +96,28 @@ function AssistantsPage() {
 
   function openEdit(assistant: Assistant) {
     setEditingAssistant(assistant);
+    const parsedSuggestions = (() => {
+      try { return JSON.parse(assistant.suggestions ?? '[]') as string[]; }
+      catch { return []; }
+    })();
     setEditForm({
       name: assistant.name,
       model: assistant.model ?? '',
       systemPrompt: assistant.systemPrompt ?? '',
+      suggestions: parsedSuggestions.join('\n'),
     });
   }
 
   function handleSaveEdit() {
     if (!editingAssistant) return;
+    const suggestionLines = editForm.suggestions.split('\n').map(s => s.trim()).filter(Boolean);
     updateMutation.mutate({
       id: editingAssistant.id,
       data: {
         name: editForm.name,
         model: editForm.model || undefined,
         systemPrompt: editForm.systemPrompt || undefined,
+        suggestions: suggestionLines.length > 0 ? JSON.stringify(suggestionLines) : undefined,
       },
     });
   }
@@ -218,6 +227,17 @@ function AssistantsPage() {
                 placeholder="You are a helpful assistant…"
                 className="min-h-[120px] resize-none"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="assistant-suggestions">Quick suggestions</Label>
+              <Textarea
+                id="assistant-suggestions"
+                value={editForm.suggestions}
+                onChange={(e) => setEditForm((f) => ({ ...f, suggestions: e.target.value }))}
+                placeholder={"Help me write a function that\nExplain how\nSearch the knowledge base for"}
+                className="min-h-[80px] resize-none"
+              />
+              <p className="text-xs text-muted-foreground">One suggestion per line. Shown as quick-start prompts in new chats.</p>
             </div>
           </div>
           <DialogFooter>
