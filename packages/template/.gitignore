@@ -6,4 +6,3 @@ dist/
 *.db
 .turbo/
 .tanstack/
-src/routeTree.gen.ts
