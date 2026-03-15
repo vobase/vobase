@@ -17,6 +17,7 @@
     "reset": "bun run scripts/reset.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.58",
     "@ai-sdk/google": "^3.0.43",
     "@ai-sdk/openai": "^3.0.41",
     "@dnd-kit/core": "^6.3.1",

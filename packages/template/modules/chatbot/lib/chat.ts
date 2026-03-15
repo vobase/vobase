@@ -1,10 +1,26 @@
-import { streamText, stepCountIs } from 'ai';
+import { streamText, stepCountIs, type LanguageModel } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { eq } from 'drizzle-orm';
 import type { VobaseDb } from '@vobase/core';
 import { chatAssistants, chatMessages } from '../schema';
 import { createKnowledgeBaseTool } from './tools';
 import { getAIConfig } from '../../../lib/ai';
+
+/**
+ * Resolve a model ID to the correct AI SDK provider.
+ * Supports OpenAI (gpt-*), Anthropic (claude-*), and Google (gemini-*) models.
+ */
+async function resolveModel(modelId: string): Promise<LanguageModel> {
+  if (modelId.startsWith('claude-')) {
+    const { anthropic } = await import('@ai-sdk/anthropic');
+    return anthropic(modelId);
+  }
+  if (modelId.startsWith('gemini-')) {
+    const { google } = await import('@ai-sdk/google');
+    return google(modelId);
+  }
+  return openai(modelId);
+}
 
 export interface StreamChatOptions {
   db: VobaseDb;
@@ -59,8 +75,9 @@ export async function streamChat(options: StreamChatOptions) {
   }
 
   // Stream the response with agent loops (stopWhen)
+  const model = await resolveModel(modelId);
   const result = streamText({
-    model: openai(modelId),
+    model,
     system:
       assistant?.systemPrompt ??
       'You are a helpful assistant. When answering questions, search the knowledge base for relevant information and cite your sources.',
