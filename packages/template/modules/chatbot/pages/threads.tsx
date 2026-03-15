@@ -92,7 +92,9 @@ function ChatbotPage() {
   const { data: session } = authClient.useSession();
   const userName = session?.user?.name ?? 'You';
 
-  const { data: threads = [] } = useQuery({ queryKey: ['chatbot-threads'], queryFn: fetchThreads });
+  const { data: allThreads = [] } = useQuery({ queryKey: ['chatbot-threads'], queryFn: fetchThreads });
+  // Hide threads with no title (empty, never used)
+  const threads = allThreads.filter(t => t.title);
   const { data: assistants } = useQuery({ queryKey: ['chatbot-assistants'], queryFn: fetchAssistants });
   const { data: activeThread } = useQuery({
     queryKey: ['chatbot-thread', activeThreadId],
@@ -223,8 +225,7 @@ function ChatbotPage() {
           threads={threads}
           activeThreadId={activeThreadId}
           onSelectThread={setActiveThreadId}
-          onNewChat={() => createThreadMutation.mutate()}
-          isCreating={createThreadMutation.isPending}
+          onNewChat={() => setActiveThreadId(null)}
           hasAssistants={hasAssistants}
         />
       </div>
