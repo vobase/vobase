@@ -174,7 +174,7 @@ chatbotRoutes.post('/threads/:id/chat', async (c) => {
   });
 
   // Save assistant response to DB in background
-  result.text
+  Promise.resolve(result.text)
     .then(async (text) => {
       await ctx.db.insert(chatMessages).values({
         threadId,

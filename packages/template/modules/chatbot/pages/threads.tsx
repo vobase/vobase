@@ -22,10 +22,12 @@ import {
   PromptInputTextarea,
   PromptInputSubmit,
 } from '@/components/ai-elements/prompt-input';
+import { Shimmer } from '@/components/ai-elements/shimmer';
+import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ThreadList } from '@/components/chat/thread-list';
-import { BookOpenIcon, CodeIcon, CopyIcon, LightbulbIcon, MessageSquare, SearchIcon } from 'lucide-react';
+import { CopyIcon, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Thread {
@@ -70,7 +72,6 @@ async function fetchAssistants(): Promise<Assistant[]> {
   return res.json();
 }
 
-/** Convert DB messages to UIMessage format for useChat initialization */
 function toUIMessages(dbMessages: DbMessage[]): UIMessage[] {
   return dbMessages.map((msg) => ({
     id: msg.id,
@@ -80,7 +81,21 @@ function toUIMessages(dbMessages: DbMessage[]): UIMessage[] {
   }));
 }
 
-/** Chat view for an active thread — uses useChat for streaming */
+function getAssistantSuggestions(assistants: Assistant[] | undefined, assistantId?: string): string[] {
+  const assistant = assistants?.find(a => a.id === assistantId);
+  if (!assistant?.suggestions) return [
+    'Help me write a function that',
+    'Search the knowledge base for',
+    'Explain how',
+    'Give me ideas for',
+  ];
+  try {
+    const parsed = JSON.parse(assistant.suggestions) as string[];
+    return parsed.length > 0 ? parsed : ['Help me write a function that', 'Search the knowledge base for', 'Explain how', 'Give me ideas for'];
+  } catch { return ['Help me write a function that', 'Search the knowledge base for', 'Explain how', 'Give me ideas for']; }
+}
+
+/** Chat view for an active thread */
 function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: string; initialMessages: UIMessage[]; autoSendMessage?: string }) {
   const queryClient = useQueryClient();
   const [input, setInput] = useState('');
@@ -104,7 +119,6 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
     },
   });
 
-  // Auto-send the welcome message when thread is first created from a suggestion
   if (autoSendMessage && !autoSent && initialMessages.length === 0) {
     setAutoSent(true);
     sendMessage({ text: autoSendMessage });
@@ -117,6 +131,8 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
   }
 
   const isStreaming = status === 'streaming' || status === 'submitted';
+  const lastMessage = messages[messages.length - 1];
+  const showShimmer = isStreaming && lastMessage?.role === 'user';
 
   return (
     <>
@@ -132,7 +148,7 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
                   return null;
                 })}
               </MessageContent>
-              {msg.role === 'assistant' && (
+              {msg.role === 'assistant' && !isStreaming && (
                 <MessageActions>
                   <MessageAction
                     label="Copy"
@@ -147,6 +163,13 @@ function ThreadChat({ threadId, initialMessages, autoSendMessage }: { threadId: 
               )}
             </Message>
           ))}
+          {showShimmer && (
+            <Message from="assistant">
+              <MessageContent>
+                <Shimmer className="text-sm" duration={1.5}>Thinking...</Shimmer>
+              </MessageContent>
+            </Message>
+          )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -189,28 +212,7 @@ function ChatbotPage() {
 
   const activeAssistantId = selectedAssistantId ?? assistants?.[0]?.id ?? null;
   const hasAssistants = (assistants?.length ?? 0) > 0;
-
-  const defaultSuggestions = [
-    { icon: CodeIcon, label: 'Write code', prompt: 'Help me write a function that' },
-    { icon: SearchIcon, label: 'Search knowledge base', prompt: 'Search the knowledge base for' },
-    { icon: BookOpenIcon, label: 'Explain a concept', prompt: 'Explain how' },
-    { icon: LightbulbIcon, label: 'Brainstorm ideas', prompt: 'Give me ideas for' },
-  ];
-
-  function getAssistantSuggestions(assistantId?: string) {
-    const assistant = assistants?.find(a => a.id === assistantId);
-    if (!assistant?.suggestions) return defaultSuggestions;
-    try {
-      const parsed = JSON.parse(assistant.suggestions) as string[];
-      if (parsed.length === 0) return defaultSuggestions;
-      const icons = [CodeIcon, SearchIcon, BookOpenIcon, LightbulbIcon];
-      return parsed.map((prompt, i) => ({
-        icon: icons[i % icons.length],
-        label: prompt.length > 40 ? `${prompt.slice(0, 40)}…` : prompt,
-        prompt,
-      }));
-    } catch { return defaultSuggestions; }
-  }
+  const suggestions = getAssistantSuggestions(assistants, activeAssistantId ?? undefined);
 
   async function handleWelcomeSend(text: string) {
     if (!text.trim() || !activeAssistantId) return;
@@ -229,21 +231,14 @@ function ChatbotPage() {
     setWelcomeInput(text);
   }
 
-  // Convert DB messages to UIMessage[] for the chat component
   const initialMessages = useMemo(() => {
-    const dbMsgs = activeThread?.messages ?? [];
-    const uiMsgs = toUIMessages(dbMsgs);
-    // If we have a pending welcome message, add it so useChat sends it
-    if (welcomeInput && uiMsgs.length === 0) {
-      // Don't add — let the chat component send it via sendMessage after mount
-    }
-    return uiMsgs;
-  }, [activeThread?.messages, welcomeInput]);
+    return toUIMessages(activeThread?.messages ?? []);
+  }, [activeThread?.messages]);
 
-  // Welcome screen
   const renderWelcome = () => (
     <div className="flex-1 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-xl space-y-8 -mt-12">
+        {/* Greeting */}
         <div className="space-y-2 text-center">
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
             <MessageSquare className="h-5 w-5 text-primary" />
@@ -258,6 +253,7 @@ function ChatbotPage() {
           )}
         </div>
 
+        {/* Assistant selector */}
         {hasAssistants && (assistants?.length ?? 0) > 1 && (
           <div className="flex justify-center">
             <Select value={activeAssistantId ?? ''} onValueChange={setSelectedAssistantId}>
@@ -273,22 +269,20 @@ function ChatbotPage() {
           </div>
         )}
 
+        {/* Suggestion chips — AI Elements Suggestion component */}
         {hasAssistants && (
-          <div className="grid grid-cols-2 gap-2">
-            {getAssistantSuggestions(activeAssistantId ?? undefined).map((suggestion) => (
-              <button
-                key={suggestion.label}
-                type="button"
-                onClick={() => handleWelcomeSend(suggestion.prompt)}
-                className="flex items-center gap-3 rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:bg-accent"
-              >
-                <suggestion.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span>{suggestion.label}</span>
-              </button>
+          <Suggestions className="justify-center">
+            {suggestions.map((s) => (
+              <Suggestion
+                key={s}
+                suggestion={s}
+                onClick={(text) => handleWelcomeSend(text)}
+              />
             ))}
-          </div>
+          </Suggestions>
         )}
 
+        {/* Input box */}
         {hasAssistants ? (
           <PromptInput onSubmit={(msg) => handleWelcomeSend(msg.text)} className="w-full">
             <PromptInputTextarea
@@ -333,9 +327,8 @@ function ChatbotPage() {
         {!activeThreadId ? (
           renderWelcome()
         ) : !activeThread ? (
-          // Loading thread data
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <Shimmer className="text-sm text-muted-foreground">Loading conversation...</Shimmer>
           </div>
         ) : (
           <ThreadChat
