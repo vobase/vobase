@@ -100,7 +100,7 @@ function SourcesPage() {
 
       {showAdd && (
         <Card className="mb-6">
-          <CardContent className="pt-4 space-y-3">
+          <CardContent className="space-y-3">
             <Input
               placeholder="Source name"
               value={newName}

@@ -16,8 +16,8 @@ export function StatCard({
   description,
 }: StatCardProps) {
   return (
-    <Card>
-      <CardContent className="pt-6">
+    <Card size="sm">
+      <CardContent>
         <div className="flex items-start gap-3">
           <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0">

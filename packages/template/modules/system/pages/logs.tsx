@@ -115,7 +115,7 @@ export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
       <PageHeader title="Audit Log" description="All system and user events" />
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {auditQuery.isPending ? (
             <div className="flex flex-col gap-3">
               <Skeleton className="h-8 w-full" />

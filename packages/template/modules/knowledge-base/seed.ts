@@ -35,7 +35,7 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
  * We wait for all documents to finish processing before returning.
  */
 export async function seedKnowledgeBase(
-  app: { request: (url: string, init?: RequestInit) => Promise<Response> },
+  app: { request: (url: string, init?: RequestInit) => Response | Promise<Response> },
   sessionCookie: string,
   db: VobaseDb,
 ): Promise<number> {

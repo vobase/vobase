@@ -152,7 +152,7 @@ function AssistantsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {assistants.map((assistant) => (
             <Card key={assistant.id} className="flex flex-col">
-              <CardContent className="flex-1 pt-4">
+              <CardContent className="flex-1">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <p className="font-semibold text-sm leading-tight">{assistant.name}</p>
                   <Badge variant="secondary" className="shrink-0 text-xs">

@@ -86,7 +86,7 @@ function KnowledgeBaseSearch() {
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
-              <CardContent className="pt-4 space-y-2">
+              <CardContent className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Skeleton className="h-4 w-40" />
                   <Skeleton className="h-5 w-16 rounded-full" />
@@ -118,7 +118,7 @@ function KnowledgeBaseSearch() {
             const scorePct = Math.round(result.score * 100);
             return (
               <Card key={result.chunkId} className="transition-colors hover:bg-muted/30">
-                <CardContent className="pt-4 pb-4">
+                <CardContent>
                   <div className="flex items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <Badge variant="secondary" className="shrink-0 text-xs font-normal">
