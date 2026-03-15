@@ -81,6 +81,26 @@ The `knowledge-base` module provides document ingestion, extraction, chunking, e
 - `OPENAI_API_KEY` — required for embeddings (text-embedding-3-small via Vercel AI SDK)
 - `GEMINI_API_KEY` — optional, enables OCR for scanned PDFs and images via Gemini 2.5 Flash
 
+## Chatbot Module
+
+The `chatbot` module provides AI chat with streaming, tool calling, and knowledge base integration.
+
+### Architecture
+- **Backend**: `POST /threads/:id/chat` accepts `UIMessage[]` from `useChat`, returns `toUIMessageStreamResponse()`
+- **Frontend**: `useChat` from `@ai-sdk/react` with `DefaultChatTransport` — handles streaming, message state, errors automatically
+- **AI Elements**: `Conversation` (auto-scroll), `Message` + `MessageResponse` (Shiki highlighting, GFM), `PromptInput`, `Shimmer` (loading), `Suggestion` (quick-start chips)
+- **Multi-provider**: `resolveModel()` routes `claude-*` → `@ai-sdk/anthropic`, `gemini-*` → `@ai-sdk/google`, `gpt-*` → `@ai-sdk/openai`
+
+### Schema
+- `chatAssistants`: name, model, systemPrompt, suggestions (JSON string[]), tools, kbSourceIds
+- `chatThreads`: title (auto-set from first message), assistantId, userId
+- `chatMessages`: role (user/assistant), content, sources (JSON), toolCalls (JSON)
+
+### Environment Variables
+- `OPENAI_API_KEY` — for GPT models and embeddings
+- `ANTHROPIC_API_KEY` — for Claude models
+- `GEMINI_API_KEY` — for Gemini models
+
 ## Commands
 - `bun run dev`: Starts backend (Bun --watch) + Vite frontend dev server.
 - `bun run db:push`: Pushes schema to SQLite (dev). No migrations needed.
@@ -88,6 +108,8 @@ The `knowledge-base` module provides document ingestion, extraction, chunking, e
 - `bun run db:migrate`: Runs migrations against the database.
 - `bun run db:studio`: Opens Drizzle Studio for visual database browsing (https://local.drizzle.studio).
 - `bun run scripts/generate.ts`: Rebuilds route tree from module definitions.
+- `bun run seed`: Creates admin user + sample KB documents + chatbot assistants.
+- `bun run reset`: Wipe database, push schema, and seed — one command for fresh start.
 - `bun test`: Runs all tests.
 
 ## Deploy
