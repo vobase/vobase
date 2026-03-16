@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "cdd25b149ccf824b029644cff565d04dd49f1743bb1a5e8a649a3adfe82e977c"
     },
+    "data-table-filters": {
+      "source": "openstatushq/data-table-filters",
+      "sourceType": "github",
+      "computedHash": "79d105df2f0210ae5f061a10125d9aab51e1b119fc82573bc95c402a0461bec1"
+    },
     "dogfood": {
       "source": "vercel-labs/agent-browser",
       "sourceType": "github",
