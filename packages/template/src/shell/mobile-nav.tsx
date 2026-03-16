@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { XIcon } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
-import { navigation } from '@/data/mockData'
+import { sidebarNavigation } from '@/constants/navigation'
 import { cn } from '@/lib/utils'
 
 export interface MobileNavProps {
@@ -68,7 +68,7 @@ export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
 
         {/* Nav */}
         <nav className="overflow-y-auto py-3">
-          {navigation.map((group, groupIdx) => (
+          {sidebarNavigation.map((group, groupIdx) => (
             <div key={group.label} className={cn(groupIdx > 0 && 'mt-4')}>
               <p className="mb-1 px-4 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
                 {group.label}

@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { navigation } from '@/data/mockData'
+import { sidebarNavigation } from '@/constants/navigation'
 import { useSidebar } from '@/hooks/use-sidebar'
 import { cn } from '@/lib/utils'
 import { UserMenu } from '@/shell/user-menu'
@@ -34,7 +34,7 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
 
         {/* Nav groups */}
         <nav className="flex-1 overflow-y-auto py-3">
-          {navigation.map((group, groupIdx) => (
+          {sidebarNavigation.map((group, groupIdx) => (
             <div key={group.label} className={cn(groupIdx > 0 && 'mt-4')}>
               {!isCollapsed && (
                 <p className="mb-1 px-3 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">

@@ -9,7 +9,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { navigation } from '@/data/mockData'
+import { navigation } from '@/constants/navigation'
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
@@ -40,10 +40,12 @@ export function CommandPalette() {
           <CommandGroup key={group.label} heading={group.label}>
             {group.items.map((item) => {
               const Icon = item.icon
+              // Include keywords in the searchable value so "whatsapp" finds "Integrations"
+              const searchValue = [item.label, ...(item.keywords ?? [])].join(' ')
               return (
                 <CommandItem
                   key={item.to}
-                  value={item.label}
+                  value={searchValue}
                   onSelect={() => handleSelect(item.to)}
                 >
                   <Icon className="h-4 w-4" />

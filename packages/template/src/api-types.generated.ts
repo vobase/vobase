@@ -2,8 +2,9 @@
 // Do not edit manually.
 import { Hono } from 'hono';
 
-import { chatbotModule } from '../modules/chatbot';
+import { integrationsModule } from '../modules/integrations';
 import { knowledgeBaseModule } from '../modules/knowledge-base';
+import { messagingModule } from '../modules/messaging';
 import { systemModule } from '../modules/system';
 
 // Type-only chain — mirrors createApp() route mounting but preserves Hono's literal types.
@@ -11,8 +12,9 @@ import { systemModule } from '../modules/system';
 function _typedApp() {
   return new Hono()
     .get('/health', (c) => c.json({ status: 'ok' as const, uptime: 0 }))
-    .route('/api/chatbot', chatbotModule.routes)
+    .route('/api/integrations', integrationsModule.routes)
     .route('/api/knowledge-base', knowledgeBaseModule.routes)
+    .route('/api/messaging', messagingModule.routes)
     .route('/api/system', systemModule.routes)
   ;
 }

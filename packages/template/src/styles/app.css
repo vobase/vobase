@@ -43,6 +43,9 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0.004 255);
   --sidebar-ring: oklch(0.708 0 0);
+  --warning: hsl(24.6 95% 53.1%);
+  --error: hsl(0 84.2% 60.2%);
+  --info: hsl(198.63 88.66% 48.43%);
 }
 
 @theme inline {
@@ -88,6 +91,9 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
 }
 
 .dark {
@@ -125,6 +131,9 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0.01 255 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --warning: hsl(24.6 95% 53.1%);
+  --error: hsl(0 84.2% 60.2%);
+  --info: hsl(198.63 88.66% 48.43%);
 }
 
 @layer base {

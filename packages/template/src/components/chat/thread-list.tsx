@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 interface Thread {
   id: string
   title: string | null
-  assistantId: string
+  agentId: string
   createdAt: string
 }
 

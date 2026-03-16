@@ -1,7 +1,7 @@
 import { ChevronRight } from 'lucide-react'
 import { useMatches } from '@tanstack/react-router'
 
-import { allNavItems } from '@/data/mockData'
+import { allNavItems } from '@/constants/navigation'
 import { cn } from '@/lib/utils'
 
 function labelFromPathname(pathname: string): string | null {

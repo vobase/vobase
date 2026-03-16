@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router';
 
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { chatbotNavigation, knowledgeBaseNavigation, moduleNames, shellNavigation, systemNavigation } from '@/data/mockData';
+import { messagingNavigation, knowledgeBaseNavigation, moduleNames, shellNavigation, systemNavigation } from '@/constants/navigation';
 
 export interface SidebarProps {
   className?: string;
@@ -35,10 +35,10 @@ export function Sidebar({ className }: Readonly<SidebarProps>) {
       <Separator className="my-4" />
 
       <p className="text-[10px] font-medium tracking-[0.2em] text-muted-foreground uppercase">
-        Chatbot
+        Messaging
       </p>
       <nav className="mt-2 flex flex-col gap-1">
-        {chatbotNavigation.map((item) => (
+        {messagingNavigation.map((item) => (
           <Link
             key={item.to}
             to={item.to}

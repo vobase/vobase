@@ -1,10 +1,11 @@
-import { BuildingIcon, KeyIcon, PaletteIcon, UserIcon } from 'lucide-react'
+import { BuildingIcon, CableIcon, KeyIcon, PaletteIcon, UserIcon } from 'lucide-react'
 import { createFileRoute, Link, Outlet, redirect } from '@tanstack/react-router'
 
 const settingsNav = [
   { label: 'Profile', to: '/settings/profile', icon: UserIcon },
   { label: 'Appearance', to: '/settings/appearance', icon: PaletteIcon },
   { label: 'API Keys', to: '/settings/api-keys', icon: KeyIcon },
+  { label: 'Integrations', to: '/settings/integrations', icon: CableIcon },
   { label: 'Organization', to: '/settings/organization', icon: BuildingIcon },
 ] as const
 
