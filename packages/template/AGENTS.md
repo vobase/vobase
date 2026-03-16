@@ -1,184 +1,98 @@
-# AGENTS.md
+# Vobase Project
 
-This is a vobase project. The engine is @vobase/core.
+Engine: `@vobase/core`. Backend: `server.ts`. Modules: `modules/`. Frontend: `src/`.
 
-## Project Overview
-- **Backend Entry**: `server.ts`
-- **Business Logic**: `modules/`
-- **Frontend SPA**: `src/`
+## Quality Rules
+
+Every change must be clean, type-safe, tested, and maintainable.
+
+- End-to-end type safety is mandatory: Drizzle for queries, Zod for all handler input validation, Hono typed RPC client for API calls, TanStack Router generated routes (not manual route strings), TanStack Query for data fetching (not raw fetch)
+- No `any`, no unsafe `as` casts, no `// @ts-ignore`. TypeScript strict mode.
+- Every handler validates input with Zod schemas. Return errors via `notFound()`, `unauthorized()`, `validation()`, `forbidden()`, `conflict()`.
+- Tests for every feature, colocated as `*.test.ts`. Run `bun test` before done.
+- Biome formatting + linting. Run `bun run lint`.
+- Frontend: use `<Link>` and `navigate()` from TanStack Router — never `<a href>` for internal routes
+- Path aliases: `@/` = `src/`, `@modules/` = `modules/`
+- Import order: external, then `@vobase/core`, then local
 
 ## Module Convention
-Each module lives in `modules/{name}/`:
-- `schema.ts`: Drizzle table definitions
-- `handlers.ts`: Hono route handlers
-- `jobs.ts`: Background job definitions
-- `pages/`: React pages (optional)
-- `seed.ts`: Seed data (optional)
-- `index.ts`: `defineModule({ name, schema, routes, jobs, init? })`
 
-The `system` module is a regular user module (not built into core) with routes for health, audit log, sequences, and record audits. It uses `schema: {}` since its tables are managed by core's built-in modules.
+Each module in `modules/{name}/`: `schema.ts` (Drizzle tables), `handlers.ts` (Hono routes), `jobs.ts` (background tasks), `pages/` (React), `seed.ts`, `index.ts` (`defineModule()`).
 
-## Key Patterns
-- `getCtx(c)`: Returns `{ db, user, scheduler, storage, channels, http }` from Hono context.
-- `defineModule({ name, schema, routes, init? })`: Registers a module. Name must be lowercase alphanumeric + hyphens. Optional `init(ctx)` hook runs at boot.
-- `defineJob('module:name', async (data) => { ... })`: Background job. Handler receives `data: unknown` (no ctx — use module-level db ref via `setModuleDb()` in init hook).
-- `nextSequence(tx, 'INV')`: Returns gap-free business numbers: INV-0001, INV-0002...
-- `trackChanges(tx, 'table', id, oldData, newData, userId)`: Record-level audit trail.
-- `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`: Built-in Drizzle table exports from `@vobase/core`.
-- `VobaseError`: Use `notFound()`, `unauthorized()`, `validation(details)` factory functions.
-- `requireRole('admin')`: Route-level role guard middleware.
-- `requirePermission('invoices:write')`: Permission-based guard (requires organization plugin enabled).
-- `requireOrg()`: Requires active organization context on the user.
-
-## Schema Management
-- `drizzle.config.ts` points directly at core's schema files via relative paths (`../core/src/modules/*/schema.ts`) and your module schemas (`modules/*/schema.ts`). No barrel file needed — `bunfig.toml` forces Bun runtime for all scripts, so drizzle-kit resolves `bun:sqlite` fine.
-- After upgrading `@vobase/core`, run `bun run db:push` (dev) or `bun run db:generate && bun run db:migrate` (production) to sync schema changes.
+Name: lowercase alphanumeric + hyphens. Routes mount at `/api/{name}`.
 
 ## Data Conventions
-- **Money**: Store as INTEGER cents (e.g., `amount_cents INTEGER NOT NULL`). Never REAL/FLOAT.
-- **Timestamps**: `integer('col', { mode: 'timestamp_ms' })` in DB, UTC always. Format in frontend.
-- **Status fields**: Use `status TEXT NOT NULL DEFAULT 'draft'` with explicit transition logic.
-- **Cross-module references**: Use plain integer/text columns. NO `.references()` foreign keys across modules.
-- **IDs**: nanoid via `nanoidPrimaryKey()` helper (default 12 chars, lowercase alphanumeric).
 
-## Code Style
-- TypeScript strict mode, no `any`.
-- Biome for formatting + linting (`bun run lint`).
-- Tests: `bun test` (Jest-compatible API).
-- Import order: external → @vobase/core → local.
-- Path aliases: `@/` → `src/`, `@modules/` → `modules/`. Use `@/components/ui/button` not `../../components/ui/button`.
-- Frontend routing: `src/routes.ts` defines TanStack Router virtual routes. Module pages use `../modules/` prefix since `routesDirectory` is `./src`.
+- Money: INTEGER cents, never float
+- Timestamps: `integer('col', { mode: 'timestamp_ms' })`, UTC always
+- Status: TEXT with explicit transition logic, not arbitrary strings
+- IDs: `nanoidPrimaryKey()` (12 chars, lowercase alphanumeric)
+- Cross-module refs: plain text columns, no `.references()` across modules
 
-## Frontend Navigation
-- **All internal links must use TanStack Router's `<Link>` component and `navigate()` function** — never `<a href>` for internal routes. This ensures type-checked routing against the generated route tree.
-- Import `Link` and `useNavigate` from `@tanstack/react-router`.
-- Layout routes (e.g., `/chatbot`, `/knowledge-base`) must define a `beforeLoad` redirect to their default child route — layout parents have no index component.
-- Navigation data in `src/data/mockData.ts` must use child route paths (e.g., `/chatbot/threads` not `/chatbot`).
+## Why Things Are This Way
 
-## Knowledge Base Module
+Core identity: "AI agents need a codebase they can understand." Every convention follows from this.
 
-The `knowledge-base` module provides document ingestion, extraction, chunking, embedding, and hybrid search.
+- Adapters live in core, not separate packages. AI agents don't read node_modules, so separate packages don't improve readability. Revisit only if adapter count exceeds 10 or install size becomes a problem.
+- No plugin system. Adapters are factory functions in config — no lifecycle hooks, no registration ceremony.
+- No outbound webhooks. Vobase is code-first — outbound events are `fetch()` in job handlers. No webhook delivery system needed.
+- No developer admin UI. The template UI is for end-users/clients. For dev data browsing, use `bun run db:studio`.
+- No realtime / WebSocket. Polling and SSE cover actual use cases.
+- For any new feature, ask "is this genuinely blocking someone?" Prefer direct implementations over "nice-to-have from competitor research."
+- What goes in core vs template modules: core owns infrastructure primitives every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. Template modules own business logic, UI, domain features — anything an AI agent would modify per-app (messaging threads, knowledge base, chatbot agents, etc.).
+- This file documents core's full public API so you never need to read node_modules. Keep it accurate when core changes.
 
-### Document Extraction
-- `modules/knowledge-base/lib/extract.ts` — `extractDocument(filePath, mimeType)` returns `{ text, status: 'ok'|'needs_ocr', warning? }`
-- Supported formats: PDF (text + scanned), DOCX, XLSX, PPTX, images (PNG/JPG), HTML, plain text
-- Local extraction: `unpdf` (PDF), `mammoth`+`turndown` (DOCX), `SheetJS` (XLSX), `officeparser` (PPTX), `turndown` (HTML)
-- OCR fallback: Gemini 2.5 Flash via `@ai-sdk/google` when `GEMINI_API_KEY` is set
-- Scanned PDF detection: auto-detects by measuring chars/page (threshold: 100)
+## How Core Works
 
-### Processing Pipeline
-- Upload handler writes temp file, enqueues `knowledge-base:process-document` job, returns in <100ms
-- Job extracts text → `recursiveChunk()` → `embedChunks()` → inserts into kb_chunks + kb_embeddings (vec0) + kb_chunks_fts (FTS5)
-- Document status: `pending` → `processing` → `ready` | `error` | `needs_ocr`
+Import everything from `@vobase/core`. This section documents the full public API.
 
-### Hybrid Search
-- `hybridSearch(db, query, options)` with `mode: 'fast' | 'deep'`
-- **fast** (default): RRF (k=60) merges vector similarity + FTS5 keyword. No LLM calls. Sub-300ms.
-- **deep**: adds HyDE query expansion (LLM generates hypothetical answer → embed → additional vector search) + optional LLM re-ranking. Used by chatbot KB tool.
-- All LLM calls in search path have try/catch with graceful degradation to fast mode.
+### Request Context
 
-### Environment Variables
-- `OPENAI_API_KEY` — required for embeddings (text-embedding-3-small via Vercel AI SDK)
-- `GEMINI_API_KEY` — optional, enables OCR for scanned PDFs and images via Gemini 2.5 Flash
+`getCtx(c)` in any handler returns: `db` (Drizzle), `user` (AuthUser), `scheduler` (job queue), `storage` (file buckets), `channels` (messaging), `integrations` (credential vault), `http` (typed HTTP client with retries + circuit breaker).
 
-## Chatbot Module
+### Auth + RBAC
 
-The `chatbot` module provides AI chat with streaming, tool calling, and knowledge base integration.
+better-auth sessions. User: `{ id, email, name, role, activeOrganizationId? }`. Guards: `requireRole('admin')`, `requirePermission('resource:action')`, `requireOrg()`. API key auth for MCP/programmatic access. Org support opt-in.
 
-### Architecture
-- **Backend**: `POST /threads/:id/chat` accepts `UIMessage[]` from `useChat`, returns `toUIMessageStreamResponse()`
-- **Frontend**: `useChat` from `@ai-sdk/react` with `DefaultChatTransport` — handles streaming, message state, errors automatically
-- **AI Elements**: `Conversation` (auto-scroll), `Message` + `MessageResponse` (Shiki highlighting, GFM), `PromptInput`, `Shimmer` (loading), `Suggestion` (quick-start chips)
-- **Multi-provider**: `resolveModel()` routes `claude-*` → `@ai-sdk/anthropic`, `gemini-*` → `@ai-sdk/google`, `gpt-*` → `@ai-sdk/openai`
+### Channels (messaging)
 
-### Schema
-- `chatAssistants`: name, model, systemPrompt, suggestions (JSON string[]), tools, kbSourceIds
-- `chatThreads`: title (auto-set from first message), assistantId, userId
-- `chatMessages`: role (user/assistant), content, sources (JSON), toolCalls (JSON)
+Adapters (WhatsApp, Resend, SMTP) registered at boot via config. Outbound: `ctx.channels.email.send({ to, subject, html })`, `ctx.channels.whatsapp.send({ to, text })`. Send never throws — returns `{ success, messageId, error, retryable }`. Inbound: webhooks at `/api/channels/webhook/:channel` fire events. Listen via `ctx.channels.on('message_received', handler)` in init hook. Events: `message_received`, `status_update`, `reaction`. All sends logged to `channelsLog` table.
 
-### Environment Variables
-- `OPENAI_API_KEY` — for GPT models and embeddings
-- `ANTHROPIC_API_KEY` — for Claude models
-- `GEMINI_API_KEY` — for Gemini models
+### Storage
+
+Virtual buckets via config. `ctx.storage.bucket('name').upload(key, data, opts)`, `.download(key)`, `.delete(key)`, `.exists(key)`, `.presign(key, opts)`, `.list(prefix, opts)`. Local or S3 adapters. Metadata in `storageObjects` table.
+
+### Integrations
+
+Encrypted credential vault for external services. `ctx.integrations.getActive(provider)` returns decrypted config or null. `connect(provider, config, opts)`, `disconnect(id)`. AES-256-GCM, key from `BETTER_AUTH_SECRET`.
+
+### Module Init Hook
+
+`init(ctx: ModuleInitContext)` runs at boot with `{ db, scheduler, http, storage, channels, integrations }`. Use for: event listeners (`ctx.channels.on`), recurring jobs (`ctx.scheduler.add`), setup logic.
+
+### Jobs
+
+`defineJob('module:name', async (data) => { ... })` for background work. Schedule via `ctx.scheduler.add(jobName, data, opts)`. SQLite-backed, retries, cron, job chains. No Redis.
+
+### Key Exports
+
+Helpers: `nanoidPrimaryKey()`, `nextSequence(tx, prefix)`, `trackChanges(tx, table, id, old, new, userId)`, `createHttpClient(opts)`.
+Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `validation(details)`, `dbBusy()`.
+Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
+Auth schemas: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`.
+
+### Config Shape
+
+`vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled).
+
+### Schema Management
+
+`drizzle.config.ts` points at core schemas via relative paths + your module schemas. `bunfig.toml` forces Bun runtime so drizzle-kit resolves `bun:sqlite`. Dev: `bun run db:push`. Prod: `bun run db:generate` + `bun run db:migrate`.
 
 ## Commands
-- `bun run dev`: Starts backend (Bun --watch) + Vite frontend dev server.
-- `bun run db:push`: Pushes schema to SQLite (dev). No migrations needed.
-- `bun run db:generate`: Generates migration files via drizzle-kit (production).
-- `bun run db:migrate`: Runs migrations against the database.
-- `bun run db:studio`: Opens Drizzle Studio for visual database browsing (https://local.drizzle.studio).
-- `bun run scripts/generate.ts`: Rebuilds route tree from module definitions.
-- `bun run seed`: Creates admin user + sample KB documents + chatbot assistants.
-- `bun run reset`: Wipe database, push schema, and seed — one command for fresh start.
-- `bun test`: Runs all tests.
+
+`bun run dev` (backend :3000 + frontend :5173) | `bun run db:push` | `bun run db:generate` | `bun run db:migrate` | `bun run db:studio` | `bun run seed` | `bun run reset` | `bun test`
 
 ## Deploy
 
-The template includes Railway deployment files:
-- `Dockerfile`: Multi-stage Bun build with Litestream for SQLite backup to S3.
-- `railway.toml`: Build and deploy config for Railway.
-- Set `LITESTREAM_*` env vars for backup. Without them, the app runs without backup.
-
-See @vobase/core documentation for complete API reference.
-
-## Upgrading from Upstream Template
-
-Vobase projects are scaffolded from `packages/template` via `bun create vobase`. After scaffolding, the project is fully owned — there is no automatic sync. Use this procedure to pull upstream improvements.
-
-### What to upgrade
-
-| Layer | Source of truth | How to update |
-|-------|----------------|---------------|
-| `@vobase/core` engine | npm registry | `bun update @vobase/core` |
-| `db-schemas.ts` | Core schema exports | Manual sync (see below) |
-| Shell UI (`src/shell/`, `src/components/ui/`) | Upstream template | Diff and merge |
-| System module (`modules/system/`) | Upstream template | Diff and merge |
-| Config files (`vite.config.ts`, `drizzle.config.ts`, `tsconfig.json`) | Upstream template | Diff and merge |
-| Custom modules (`modules/*` except system) | Your project | No action needed |
-
-### Step-by-step
-
-```bash
-# 1. Bump @vobase/core
-bun update @vobase/core
-
-# 2. Download latest template to a temp directory for diffing
-bunx giget github:vobase/vobase/packages/template /tmp/vobase-upstream --force
-
-# 3. Diff upstream against your project
-diff -rq /tmp/vobase-upstream/src/shell/ src/shell/
-diff -rq /tmp/vobase-upstream/src/components/ui/ src/components/ui/
-diff -rq /tmp/vobase-upstream/modules/system/ modules/system/
-diff -rq /tmp/vobase-upstream/src/lib/ src/lib/
-diff /tmp/vobase-upstream/db-schemas.ts db-schemas.ts
-diff /tmp/vobase-upstream/drizzle.config.ts drizzle.config.ts
-diff /tmp/vobase-upstream/vite.config.ts vite.config.ts
-```
-
-Review each diff. Apply changes that make sense — upstream may have new UI components, bug fixes, or convention changes.
-
-### Post-upgrade checklist
-
-1. `bun install` — resolve any new or changed dependencies
-2. `bun run scripts/generate.ts` — regenerate route tree if module pages changed
-3. `bun run db:push` — sync schema to dev SQLite
-4. `bun run dev` — verify app starts cleanly
-5. `bun test` — run tests
-6. Check browser console on key pages for runtime errors
-
-### Safe to overwrite
-
-These files are template infrastructure with no user customization expected. Safe to replace wholesale from upstream:
-- `src/components/ui/*` (shadcn components)
-- `src/lib/utils.ts`
-- `scripts/generate.ts`
-- `components.json`
-
-### Never overwrite
-
-These files contain project-specific configuration or business logic:
-- `modules/*` (except `modules/system/` which can be diffed)
-- `vobase.config.ts`
-- `.env`
-- `src/home.tsx` (likely customized)
-- `src/data/mockData.ts` (navigation structure)
+Dockerfile + railway.toml included. Litestream for SQLite backup to S3 via `LITESTREAM_*` env vars.
