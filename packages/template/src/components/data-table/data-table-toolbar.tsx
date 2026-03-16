@@ -1,104 +1,98 @@
-'use client';
+"use client";
 
-import type { Column, Table } from '@tanstack/react-table';
-import { X } from 'lucide-react';
-import * as React from 'react';
+import { useDataTable } from "@/components/data-table/data-table-provider";
+import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useHotKey } from "@/hooks/use-hot-key";
+import { formatCompactNumber } from "@/lib/format";
+import { useControls } from "@/providers/controls";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { DataTableFilterControlsDrawer } from "./data-table-filter-controls-drawer";
+import { DataTableResetButton } from "./data-table-reset-button";
+import { DataTableViewOptions } from "./data-table-view-options";
 
-import { DataTableFacetedFilter } from '@/components/data-table/data-table-faceted-filter';
-import { DataTableViewOptions } from '@/components/data-table/data-table-view-options';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
-
-interface DataTableToolbarProps<TData> extends React.ComponentProps<'div'> {
-  table: Table<TData>;
+interface DataTableToolbarProps {
+  renderActions?: () => React.ReactNode;
 }
 
-export function DataTableToolbar<TData>({
-  table,
-  children,
-  className,
-  ...props
-}: DataTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0;
-
-  const columns = React.useMemo(
-    () => table.getAllColumns().filter((column) => column.getCanFilter()),
-    [table],
-  );
-
-  const onReset = React.useCallback(() => {
-    table.resetColumnFilters();
-  }, [table]);
+export function DataTableToolbar({ renderActions }: DataTableToolbarProps) {
+  const { table, isLoading, columnFilters, totalRows, filterRows } =
+    useDataTable();
+  const { open, setOpen } = useControls();
+  useHotKey(() => setOpen((prev) => !prev), "b");
+  const rows = {
+    total: totalRows ?? table.getCoreRowModel().rows.length,
+    filtered: filterRows ?? table.getFilteredRowModel().rows.length,
+  };
 
   return (
-    <div
-      role="toolbar"
-      aria-orientation="horizontal"
-      className={cn(
-        'flex w-full items-start justify-between gap-2 p-1',
-        className,
-      )}
-      {...props}
-    >
-      <div className="flex flex-1 flex-wrap items-center gap-2">
-        {columns.map((column) => (
-          <DataTableToolbarFilter key={column.id} column={column} />
-        ))}
-        {isFiltered && (
-          <Button
-            aria-label="Reset filters"
-            variant="outline"
-            size="sm"
-            className="border-dashed"
-            onClick={onReset}
-          >
-            <X />
-            Reset
-          </Button>
-        )}
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <TooltipProvider>
+          <Tooltip delayDuration={100}>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                onClick={() => setOpen((prev) => !prev)}
+                className="hidden gap-2 sm:flex"
+              >
+                {open ? (
+                  <>
+                    <PanelLeftClose className="h-4 w-4" />
+                    <span className="hidden md:block">Hide Controls</span>
+                  </>
+                ) : (
+                  <>
+                    <PanelLeftOpen className="h-4 w-4" />
+                    <span className="hidden md:block">Show Controls</span>
+                  </>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>
+                Toggle controls with{" "}
+                <Kbd className="text-muted-foreground group-hover:text-accent-foreground ml-1">
+                  <span className="mr-1">⌘</span>
+                  <span>B</span>
+                </Kbd>
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <div className="block sm:hidden">
+          <DataTableFilterControlsDrawer />
+        </div>
+        <div>
+          <p className="text-muted-foreground hidden text-sm sm:block">
+            <span className="font-mono font-medium">
+              {formatCompactNumber(rows.filtered)}
+            </span>{" "}
+            of{" "}
+            <span className="font-mono font-medium">
+              {formatCompactNumber(rows.total)}
+            </span>{" "}
+            row(s) <span className="sr-only sm:not-sr-only">filtered</span>
+          </p>
+          <p className="text-muted-foreground block text-sm sm:hidden">
+            <span className="font-mono font-medium">
+              {formatCompactNumber(rows.filtered)}
+            </span>{" "}
+            row(s)
+          </p>
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        {children}
-        <DataTableViewOptions table={table} align="end" />
+      <div className="ml-auto flex items-center gap-2">
+        {columnFilters.length ? <DataTableResetButton /> : null}
+        {renderActions?.()}
+        <DataTableViewOptions />
       </div>
     </div>
   );
-}
-
-interface DataTableToolbarFilterProps<TData> {
-  column: Column<TData>;
-}
-
-function DataTableToolbarFilter<TData>({
-  column,
-}: DataTableToolbarFilterProps<TData>) {
-  const columnMeta = column.columnDef.meta;
-  if (!columnMeta?.variant) return null;
-
-  switch (columnMeta.variant) {
-    case 'text':
-      return (
-        <Input
-          placeholder={columnMeta.placeholder ?? columnMeta.label}
-          value={(column.getFilterValue() as string) ?? ''}
-          onChange={(event) => column.setFilterValue(event.target.value)}
-          className="h-8 w-40 lg:w-56"
-        />
-      );
-
-    case 'select':
-    case 'multiSelect':
-      return (
-        <DataTableFacetedFilter
-          column={column}
-          title={columnMeta.label ?? column.id}
-          options={columnMeta.options ?? []}
-          multiple={columnMeta.variant === 'multiSelect'}
-        />
-      );
-
-    default:
-      return null;
-  }
 }
