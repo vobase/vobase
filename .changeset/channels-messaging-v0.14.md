@@ -4,6 +4,8 @@
 
 # Channels, Messaging & Type Safety
 
+![Channels & Messaging](https://raw.githubusercontent.com/vobase/vobase/main/.changeset/og-channels-messaging-v0.14.png)
+
 ## Channels Module (Core)
 
 New built-in `_channels` module provides a unified multi-channel messaging infrastructure with pluggable adapters.
