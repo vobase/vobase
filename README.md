@@ -578,3 +578,12 @@ my-app/
 ### license
 
 MIT. Own everything.
+
+---
+
+<p align="center">
+Star if the repo has helped you: 
+<img src="https://i.imgur.com/I5EeSBh.png">
+</p>
+
+---
