@@ -22,7 +22,7 @@ function createApp(db: VobaseDb, user: { id: string; email: string; name: string
     c.set('user', user);
     c.set('scheduler', { add: async (name: string, data: unknown) => { schedulerJobs.push({ name, data }); } } as never);
     c.set('storage', {} as never);
-    c.set('notify', {} as never);
+    c.set('channels', {} as never);
     c.set('http', {} as never);
     await next();
   });

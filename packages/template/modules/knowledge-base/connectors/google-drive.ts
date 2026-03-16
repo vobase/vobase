@@ -1,23 +1,21 @@
-import { getCredential, setCredential } from '@vobase/core';
-import type { VobaseDb } from '@vobase/core';
+import type { IntegrationsService } from '@vobase/core';
 
 import type { ConnectorConfig, DocumentContent, DocumentSource, ExternalDocument } from './types';
 
 export interface GoogleDriveConfig extends ConnectorConfig {
   folderId?: string;
+  integrationId?: string;
 }
 
 /**
  * Google Drive connector with OAuth2 user-delegated flow.
- * Tokens stored encrypted via credentials module.
+ * Tokens stored encrypted via integrations module.
  */
 export function createGoogleDriveConnector(
   config: GoogleDriveConfig,
-  db: VobaseDb,
-  sourceId: string,
+  integrations: IntegrationsService,
+  integrationId: string,
 ): DocumentSource {
-  const credKey = `kb-gdrive-${sourceId}`;
-
   async function getAuth() {
     // googleapis is an optional peer dependency (marked --external in build)
     // @ts-expect-error — googleapis may not be installed
@@ -28,15 +26,15 @@ export function createGoogleDriveConnector(
       `${process.env.BETTER_AUTH_URL}/api/knowledge-base/oauth/google/callback`,
     );
 
-    const tokens = await getCredential(db, credKey);
-    if (tokens) {
-      auth.setCredentials(JSON.parse(tokens));
+    const integration = await integrations.getById(integrationId);
+    if (integration?.config) {
+      auth.setCredentials(integration.config);
     }
 
     auth.on('tokens', async (newTokens: Record<string, unknown>) => {
       const existing = auth.credentials;
       const merged = { ...existing, ...newTokens };
-      await setCredential(db, credKey, JSON.stringify(merged));
+      await integrations.updateConfig(integrationId, merged);
     });
 
     return { auth, drive: google.drive({ version: 'v3', auth }) };
@@ -128,13 +126,14 @@ export async function getGoogleAuthUrl(sourceId: string): Promise<string> {
 }
 
 /**
- * Exchange the OAuth2 authorization code for tokens.
+ * Exchange the OAuth2 authorization code for tokens and create an integration.
  */
 export async function exchangeGoogleCode(
-  db: VobaseDb,
+  integrations: IntegrationsService,
   sourceId: string,
   code: string,
-): Promise<void> {
+  opts?: { createdBy?: string; label?: string },
+): Promise<string> {
   // @ts-ignore - googleapis is an optional peer dependency
   const { google } = await import('googleapis');
   const auth = new google.auth.OAuth2(
@@ -144,5 +143,15 @@ export async function exchangeGoogleCode(
   );
 
   const { tokens } = await auth.getToken(code);
-  await setCredential(db, `kb-gdrive-${sourceId}`, JSON.stringify(tokens));
+  const integration = await integrations.connect(
+    'google-drive',
+    tokens as Record<string, unknown>,
+    {
+      authType: 'oauth2',
+      scopes: ['drive.readonly'],
+      createdBy: opts?.createdBy,
+      label: opts?.label ?? `KB source ${sourceId}`,
+    },
+  );
+  return integration.id;
 }

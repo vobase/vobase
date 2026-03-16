@@ -1,11 +1,11 @@
-import { getCredential, setCredential } from '@vobase/core';
-import type { VobaseDb } from '@vobase/core';
+import type { IntegrationsService } from '@vobase/core';
 
 import type { ConnectorConfig, DocumentContent, DocumentSource, ExternalDocument } from './types';
 
 export interface SharePointConfig extends ConnectorConfig {
   siteId?: string;
   driveId?: string;
+  integrationId?: string;
 }
 
 /**
@@ -14,16 +14,14 @@ export interface SharePointConfig extends ConnectorConfig {
  */
 export function createSharePointConnector(
   config: SharePointConfig,
-  db: VobaseDb,
-  sourceId: string,
+  integrations: IntegrationsService,
+  integrationId: string,
 ): DocumentSource {
-  const credKey = `kb-sharepoint-${sourceId}`;
-
   async function getAccessToken(): Promise<string> {
-    const tokenData = await getCredential(db, credKey);
-    if (!tokenData) throw new Error('SharePoint not connected. Please authorize first.');
+    const integration = await integrations.getById(integrationId);
+    if (!integration) throw new Error('SharePoint not connected. Please authorize first.');
 
-    const parsed = JSON.parse(tokenData) as {
+    const parsed = integration.config as {
       accessToken: string;
       refreshToken: string;
       expiresAt: number;
@@ -54,7 +52,7 @@ export function createSharePointConnector(
         refreshToken: parsed.refreshToken,
         expiresAt: result.expiresOn?.getTime() ?? Date.now() + 3600_000,
       };
-      await setCredential(db, credKey, JSON.stringify(newTokenData));
+      await integrations.updateConfig(integrationId, newTokenData);
       return result.accessToken;
     }
 
@@ -149,13 +147,14 @@ export function getSharePointAuthUrl(sourceId: string): string {
 }
 
 /**
- * Exchange the OAuth2 authorization code for tokens.
+ * Exchange the OAuth2 authorization code for tokens and create an integration.
  */
 export async function exchangeSharePointCode(
-  db: VobaseDb,
+  integrations: IntegrationsService,
   sourceId: string,
   code: string,
-): Promise<void> {
+  opts?: { createdBy?: string; label?: string },
+): Promise<string> {
   // @ts-ignore - @azure/msal-node is an optional peer dependency
   const { ConfidentialClientApplication } = await import('@azure/msal-node');
   const cca = new ConfidentialClientApplication({
@@ -178,5 +177,15 @@ export async function exchangeSharePointCode(
     refreshToken: (result as any).refreshToken ?? '',
     expiresAt: result.expiresOn?.getTime() ?? Date.now() + 3600_000,
   };
-  await setCredential(db, `kb-sharepoint-${sourceId}`, JSON.stringify(tokenData));
+  const integration = await integrations.connect(
+    'sharepoint',
+    tokenData,
+    {
+      authType: 'oauth2',
+      scopes: ['Files.Read.All', 'Sites.Read.All'],
+      createdBy: opts?.createdBy,
+      label: opts?.label ?? `KB source ${sourceId}`,
+    },
+  );
+  return integration.id;
 }

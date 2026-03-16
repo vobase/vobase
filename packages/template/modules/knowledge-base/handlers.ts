@@ -2,13 +2,14 @@ import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { getCtx, notFound, unauthorized } from '@vobase/core';
-import type { VobaseDb } from '@vobase/core';
+import type { IntegrationsService, VobaseDb } from '@vobase/core';
 
 import type { DocumentSource } from './connectors/types';
 import { kbChunks, kbDocuments, kbSources, kbSyncLogs } from './schema';
 
 async function syncSource(
   db: VobaseDb,
+  integrations: IntegrationsService,
   source: { id: string; type: string; config: string | null },
 ) {
   // Create sync log
@@ -29,10 +30,12 @@ async function syncSource(
       connector = createCrawlConnector(config);
     } else if (source.type === 'google-drive') {
       const { createGoogleDriveConnector } = await import('./connectors/google-drive');
-      connector = createGoogleDriveConnector(config, db, source.id);
+      if (!config.integrationId) throw new Error('Google Drive source missing integrationId');
+      connector = createGoogleDriveConnector(config, integrations, config.integrationId);
     } else if (source.type === 'sharepoint') {
       const { createSharePointConnector } = await import('./connectors/sharepoint');
-      connector = createSharePointConnector(config, db, source.id);
+      if (!config.integrationId) throw new Error('SharePoint source missing integrationId');
+      connector = createSharePointConnector(config, integrations, config.integrationId);
     } else {
       throw new Error(`Unknown source type: ${source.type}`);
     }
@@ -259,7 +262,7 @@ knowledgeBaseRoutes.post('/sources/:id/sync', async (c) => {
   if (!source) throw notFound('Source not found');
 
   // Trigger sync in background (fire and forget)
-  syncSource(ctx.db, source).catch(console.error);
+  syncSource(ctx.db, ctx.integrations, source).catch(console.error);
   return c.json({ message: 'Sync started' });
 });
 
@@ -277,8 +280,22 @@ knowledgeBaseRoutes.get('/oauth/google/callback', async (c) => {
   const code = c.req.query('code');
   const sourceId = c.req.query('state');
   if (!code || !sourceId) return c.text('Missing code or state', 400);
+
+  // Look up the source to get its name for the integration label
+  const source = await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId)).get();
   const { exchangeGoogleCode } = await import('./connectors/google-drive');
-  await exchangeGoogleCode(ctx.db, sourceId, code);
+  const integrationId = await exchangeGoogleCode(ctx.integrations, sourceId, code, {
+    createdBy: ctx.user?.id,
+    label: source?.name ?? `KB source ${sourceId}`,
+  });
+
+  // Store integrationId in source config
+  const existingConfig = source?.config ? JSON.parse(source.config) : {};
+  await ctx.db
+    .update(kbSources)
+    .set({ config: JSON.stringify({ ...existingConfig, integrationId }) })
+    .where(eq(kbSources.id, sourceId));
+
   return c.redirect('/knowledge-base/sources');
 });
 
@@ -287,8 +304,22 @@ knowledgeBaseRoutes.get('/oauth/microsoft/callback', async (c) => {
   const code = c.req.query('code');
   const sourceId = c.req.query('state');
   if (!code || !sourceId) return c.text('Missing code or state', 400);
+
+  // Look up the source to get its name for the integration label
+  const source = await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId)).get();
   const { exchangeSharePointCode } = await import('./connectors/sharepoint');
-  await exchangeSharePointCode(ctx.db, sourceId, code);
+  const integrationId = await exchangeSharePointCode(ctx.integrations, sourceId, code, {
+    createdBy: ctx.user?.id,
+    label: source?.name ?? `KB source ${sourceId}`,
+  });
+
+  // Store integrationId in source config
+  const existingConfig = source?.config ? JSON.parse(source.config) : {};
+  await ctx.db
+    .update(kbSources)
+    .set({ config: JSON.stringify({ ...existingConfig, integrationId }) })
+    .where(eq(kbSources.id, sourceId));
+
   return c.redirect('/knowledge-base/sources');
 });
 
