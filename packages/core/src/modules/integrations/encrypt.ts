@@ -4,7 +4,7 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
-// Preserve the same salt as _credentials for backward compatibility
+// Salt for KDF key derivation — do not change (would break existing encrypted data)
 const KDF_SALT = Buffer.from('vobase-credential-store-v1');
 
 function getEncryptionKey(): Buffer {

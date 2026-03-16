@@ -1,6 +1,6 @@
 /**
  * Creates a proxy that throws a descriptive error when any property is accessed.
- * Used for optional services (storage, notify) that are typed as non-optional
+ * Used for optional services (storage, channels) that are typed as non-optional
  * in VobaseCtx but may not be configured.
  */
 export function createThrowProxy<T>(serviceName: string): T {

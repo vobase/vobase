@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { Hono } from 'hono';
 
-import type { VobaseDb } from '../db';
-import * as schema from '../modules/audit/schema';
-import { requestAuditMiddleware } from '../modules/audit/middleware';
-import { createAuthAuditHooks } from '../modules/auth/audit-hooks';
+import type { VobaseDb } from '../../db';
+import * as schema from './schema';
+import { requestAuditMiddleware } from './middleware';
+import { createAuthAuditHooks } from '../auth/audit-hooks';
 
 interface AuditRow {
   event: string;

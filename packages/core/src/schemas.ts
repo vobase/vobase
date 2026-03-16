@@ -22,7 +22,7 @@ export interface SchemaConfig {
  * definitions based on config. Use with drizzle-kit for migration generation.
  *
  * Always included: auth, audit, sequences, webhook dedup.
- * Conditionally included: credentials, storage (Phase 2), notify (Phase 3).
+ * Conditionally included: integrations, storage, channels.
  */
 export function getActiveSchemas(config?: SchemaConfig): Record<string, unknown> {
   const schema: Record<string, unknown> = {
@@ -54,7 +54,7 @@ export function getActiveSchemas(config?: SchemaConfig): Record<string, unknown>
     schema.storageObjects = storageObjects;
   }
 
-  // Channels (replaces notify)
+  // Channels
   if (config?.channels) {
     schema.channelsLog = channelsLog;
     schema.channelsTemplates = channelsTemplates;
