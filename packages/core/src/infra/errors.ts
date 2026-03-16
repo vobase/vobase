@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { ZodError } from 'zod';
 
 export const ERROR_CODES = {
   UNAUTHORIZED: 'UNAUTHORIZED',
@@ -54,6 +55,18 @@ export const errorHandler = (err: Error, c: Context): Response => {
         },
       },
       err.statusCode,
+    );
+  }
+  if (err instanceof ZodError) {
+    return c.json(
+      {
+        error: {
+          code: 'VALIDATION',
+          message: 'Validation failed',
+          details: err.flatten(),
+        },
+      },
+      400,
     );
   }
   console.error('Unhandled error:', err);

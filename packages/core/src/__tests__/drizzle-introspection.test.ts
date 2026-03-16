@@ -4,6 +4,9 @@ import { getTableColumns, getTableName } from 'drizzle-orm';
 import { auditLog } from '../modules/audit/schema';
 import { authUser } from '../modules/auth/schema';
 
+/** Drizzle column metadata not exposed in public types */
+interface ColumnMeta { primary?: boolean }
+
 /**
  * Drizzle Introspection Spike (US-005)
  *
@@ -56,8 +59,8 @@ describe('Drizzle table introspection', () => {
 
   it('extracts primary key flag via .primary', () => {
     const columns = getTableColumns(auditLog);
-    expect((columns.id as any).primary).toBe(true);
-    expect((columns.event as any).primary).toBe(false);
+    expect((columns.id as unknown as ColumnMeta).primary).toBe(true);
+    expect((columns.event as unknown as ColumnMeta).primary).toBe(false);
   });
 
   it('extracts SQL table name', () => {
@@ -67,7 +70,7 @@ describe('Drizzle table introspection', () => {
 
   it('works on auth user table with all field types', () => {
     const columns = getTableColumns(authUser);
-    expect((columns.id as any).primary).toBe(true);
+    expect((columns.id as unknown as ColumnMeta).primary).toBe(true);
     expect(columns.email.notNull).toBe(true);
     expect(columns.image.notNull).toBe(false);
     expect(columns.role.hasDefault).toBe(true);

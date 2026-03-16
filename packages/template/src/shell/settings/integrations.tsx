@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertCircleIcon, CheckCircleIcon, Loader2Icon, MessageSquareIcon, MailIcon, DatabaseIcon, SendIcon, UnplugIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -7,21 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
-// ─── Types ────────────────────────────────────────────────────────────
-
-interface WhatsAppStatus {
-  connected: boolean
-  id?: string
-  phoneNumberId?: string
-  wabaId?: string
-  webhookReady?: boolean
-}
-
-interface IntegrationsConfig {
-  metaAppId: string | null
-  metaConfigId: string | null
-}
+import { integrationsClient } from '@/lib/api-client'
 
 // ─── FB SDK Lazy Loader ───────────────────────────────────────────────
 
@@ -80,61 +67,67 @@ function loadFacebookSDK(appId: string): Promise<void> {
   })
 }
 
-// ─── API helpers ──────────────────────────────────────────────────────
-
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    credentials: 'include',
-  })
-  return res.json() as Promise<T>
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function IntegrationsPage() {
-  const [config, setConfig] = useState<IntegrationsConfig | null>(null)
-  const [waStatus, setWaStatus] = useState<WhatsAppStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [connecting, setConnecting] = useState(false)
-  const [disconnecting, setDisconnecting] = useState(false)
-  const [testing, setTesting] = useState(false)
+  const [connectError, setConnectError] = useState<string | null>(null)
   const [testPhone, setTestPhone] = useState('')
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    try {
-      const [cfg, status] = await Promise.all([
-        fetchJson<IntegrationsConfig>('/api/integrations/config'),
-        fetchJson<WhatsAppStatus>('/api/integrations/whatsapp/status'),
-      ])
-      setConfig(cfg)
-      setWaStatus(status)
-    } catch {
-      setError('Failed to load integration status')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const { data: config, isLoading: configLoading } = useQuery({
+    queryKey: ['integrations-config'],
+    queryFn: async () => {
+      const res = await integrationsClient.config.$get()
+      return res.json()
+    },
+  })
 
-  useEffect(() => {
-    refresh()
-  }, [refresh])
+  const { data: waStatus, isLoading: statusLoading } = useQuery({
+    queryKey: ['integrations-whatsapp-status'],
+    queryFn: async () => {
+      const res = await integrationsClient.whatsapp.status.$get()
+      return res.json()
+    },
+    refetchInterval: (query) => {
+      const data = query.state.data
+      return data?.connected && !data?.webhookReady ? 3000 : false
+    },
+  })
 
-  // Poll for webhook setup completion when connected but not ready
-  useEffect(() => {
-    if (!waStatus?.connected || waStatus.webhookReady) return
-    const interval = setInterval(refresh, 3000)
-    return () => clearInterval(interval)
-  }, [waStatus?.connected, waStatus?.webhookReady, refresh])
+  const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await integrationsClient.whatsapp.disconnect.$post()
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
+    },
+  })
 
-  const handleConnect = useCallback(async () => {
+  const testMutation = useMutation({
+    mutationFn: async (to: string) => {
+      const res = await integrationsClient.whatsapp.test.$post({ json: { to } })
+      return res.json()
+    },
+    onSuccess: (data) => {
+      if ('success' in data) {
+        setTestResult({ success: data.success, error: data.error })
+      } else {
+        setTestResult({ success: false, error: data.error })
+      }
+    },
+    onError: () => {
+      setTestResult({ success: false, error: 'Request failed' })
+    },
+  })
+
+  const handleConnect = async () => {
     if (!config?.metaAppId || !config?.metaConfigId) return
 
     setConnecting(true)
-    setError(null)
+    setConnectError(null)
 
     // Register session info listener BEFORE calling FB.login
     // This receives phone_number_id and waba_id directly from the popup
@@ -150,10 +143,10 @@ function IntegrationsPage() {
             sessionWabaId = data.data.waba_id
             sessionPhoneNumberId = data.data.phone_number_id
           } else if (data.event === 'CANCEL') {
-            setError(`Signup cancelled at step: ${data.data.current_step ?? 'unknown'}`)
+            setConnectError(`Signup cancelled at step: ${data.data.current_step ?? 'unknown'}`)
             setConnecting(false)
           } else if (data.event === 'ERROR') {
-            setError(`Signup error: ${data.data.error_message ?? 'unknown error'}`)
+            setConnectError(`Signup error: ${data.data.error_message ?? 'unknown error'}`)
             setConnecting(false)
           }
         }
@@ -175,39 +168,36 @@ function IntegrationsPage() {
 
           if (response.authResponse?.code) {
             // Send code + session data to backend — code expires in ~60 seconds
-            fetchJson<{ success?: boolean; error?: string }>(
-              '/api/integrations/whatsapp/connect',
-              {
-                method: 'POST',
-                body: JSON.stringify({
-                  code: response.authResponse.code,
-                  wabaId: sessionWabaId,
-                  phoneNumberId: sessionPhoneNumberId,
-                }),
+            integrationsClient.whatsapp.connect.$post({
+              json: {
+                code: response.authResponse.code,
+                wabaId: sessionWabaId,
+                phoneNumberId: sessionPhoneNumberId,
               },
-            ).then((result) => {
-              if (result.error) {
-                setError(result.error)
+            }).then(async (res) => {
+              const result = await res.json()
+              if ('error' in result && result.error) {
+                setConnectError(result.error as string)
               }
-              refresh()
+              queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
             }).catch(() => {
-              setError('Failed to complete WhatsApp connection')
-              refresh()
+              setConnectError('Failed to complete WhatsApp connection')
+              queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
             }).finally(() => {
               setConnecting(false)
             })
           } else if (response.status === 'connected') {
             // Already authorized — no new code issued. Just refresh status.
             console.log('[WhatsApp Connect] Already authorized, refreshing status')
-            refresh()
+            queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
             setConnecting(false)
           } else {
             setConnecting(false)
             if (response.status === 'not_authorized') {
-              setError('App not authorized. Please grant permissions and try again.')
+              setConnectError('App not authorized. Please grant permissions and try again.')
             }
             // Popup closed or cancelled — silently reset
-            refresh()
+            queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
           }
         },
         {
@@ -223,43 +213,19 @@ function IntegrationsPage() {
       )
     } catch (err) {
       window.removeEventListener('message', sessionInfoListener)
-      setError(err instanceof Error ? err.message : 'Connection failed')
+      setConnectError(err instanceof Error ? err.message : 'Connection failed')
       setConnecting(false)
     }
-  }, [config, refresh])
+  }
 
-  const handleDisconnect = useCallback(async () => {
-    setDisconnecting(true)
-    setError(null)
-    try {
-      await fetchJson('/api/integrations/whatsapp/disconnect', { method: 'POST' })
-      await refresh()
-    } catch {
-      setError('Failed to disconnect')
-    } finally {
-      setDisconnecting(false)
-    }
-  }, [refresh])
-
-  const handleTest = useCallback(async () => {
+  const handleTest = async () => {
     if (!testPhone.trim()) return
-    setTesting(true)
     setTestResult(null)
-    try {
-      const result = await fetchJson<{ success: boolean; error?: string }>(
-        '/api/integrations/whatsapp/test',
-        {
-          method: 'POST',
-          body: JSON.stringify({ to: testPhone.trim() }),
-        },
-      )
-      setTestResult(result)
-    } catch {
-      setTestResult({ success: false, error: 'Request failed' })
-    } finally {
-      setTesting(false)
-    }
-  }, [testPhone])
+    testMutation.mutate(testPhone.trim())
+  }
+
+  const loading = configLoading || statusLoading
+  const error = connectError ?? (disconnectMutation.error ? 'Failed to disconnect' : null)
 
   if (loading) {
     return (
@@ -352,10 +318,10 @@ function IntegrationsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleDisconnect}
-                    disabled={disconnecting}
+                    onClick={() => disconnectMutation.mutate()}
+                    disabled={disconnectMutation.isPending}
                   >
-                    {disconnecting ? (
+                    {disconnectMutation.isPending ? (
                       <Loader2Icon className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <UnplugIcon className="mr-1.5 h-3.5 w-3.5" />
@@ -380,9 +346,9 @@ function IntegrationsPage() {
                       variant="outline"
                       size="sm"
                       onClick={handleTest}
-                      disabled={testing || !testPhone.trim()}
+                      disabled={testMutation.isPending || !testPhone.trim()}
                     >
-                      {testing ? (
+                      {testMutation.isPending ? (
                         <Loader2Icon className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <SendIcon className="mr-1.5 h-3.5 w-3.5" />

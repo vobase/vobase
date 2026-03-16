@@ -2,6 +2,9 @@ import { describe, expect, it } from 'bun:test';
 
 import { nanoidPrimaryKey } from './schema-helpers';
 
+/** Drizzle column config internals not in public types */
+interface ColumnConfig { defaultFn?: () => string; config?: { defaultFn?: () => string } }
+
 describe('nanoidPrimaryKey()', () => {
   it('returns a drizzle column builder', () => {
     const col = nanoidPrimaryKey();
@@ -11,8 +14,8 @@ describe('nanoidPrimaryKey()', () => {
   it('generates unique IDs via $defaultFn', () => {
     const col = nanoidPrimaryKey();
     // Access the default function from the column config
-    const config = (col as any).config;
-    const defaultFn = config?.defaultFn ?? (col as any).defaultFn;
+    const meta = col as unknown as ColumnConfig;
+    const defaultFn = meta.config?.defaultFn ?? meta.defaultFn;
 
     if (defaultFn) {
       const id1 = defaultFn();

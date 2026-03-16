@@ -1,5 +1,8 @@
+import { sql } from 'drizzle-orm';
+
 import { createNanoid } from '../../db/helpers';
 import type { VobaseDb } from '../../db/client';
+import { sequences } from './schema';
 
 export interface SequenceOptions {
   padLength?: number;
@@ -9,10 +12,6 @@ export interface SequenceOptions {
 
 const generateSequenceId = createNanoid();
 
-interface SequenceRow {
-  currentValue: number;
-}
-
 export function nextSequence(
   db: VobaseDb,
   prefix: string,
@@ -21,26 +20,33 @@ export function nextSequence(
   const padLength = options?.padLength ?? 4;
   const separator = options?.separator ?? '-';
   const yearPrefix = options?.yearPrefix ?? false;
-  const now = Date.now();
+  const now = new Date();
 
-  const statement = db.$client.prepare(`
-    INSERT INTO _sequences (id, prefix, current_value, updated_at)
-    VALUES (?, ?, 1, ?)
-    ON CONFLICT (prefix) DO UPDATE
-    SET current_value = current_value + 1, updated_at = ?
-    RETURNING current_value AS currentValue;
-  `);
+  const row = db
+    .insert(sequences)
+    .values({
+      id: generateSequenceId(),
+      prefix,
+      currentValue: 1,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: sequences.prefix,
+      set: {
+        currentValue: sql`${sequences.currentValue} + 1`,
+        updatedAt: now,
+      },
+    })
+    .returning({ currentValue: sequences.currentValue })
+    .get();
 
-  const row = statement.get(generateSequenceId(), prefix, now, now) as
-    | SequenceRow
-    | undefined;
   if (!row) {
     throw new Error(`Failed to generate next sequence for prefix: ${prefix}`);
   }
 
   const formattedValue = String(row.currentValue).padStart(padLength, '0');
   if (yearPrefix) {
-    const year = new Date(now).getFullYear();
+    const year = now.getFullYear();
     return `${prefix}${separator}${year}${separator}${formattedValue}`;
   }
 

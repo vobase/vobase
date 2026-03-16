@@ -1,15 +1,64 @@
 import { getCtx, notFound } from '@vobase/core';
 import { and, desc, eq, isNotNull, or } from 'drizzle-orm';
 import { Hono } from 'hono';
+import type { TextUIPart, UIMessage } from 'ai';
+import { z } from 'zod';
 
 import { msgAgents, msgContacts, msgMessages, msgThreads } from './schema';
+
+const createAgentSchema = z.object({
+  name: z.string().min(1),
+  avatar: z.string().nullable().optional(),
+  systemPrompt: z.string().nullable().optional(),
+  tools: z.array(z.string()).nullable().optional(),
+  kbSourceIds: z.array(z.string()).nullable().optional(),
+  model: z.string().nullable().optional(),
+  channels: z.array(z.string()).nullable().optional(),
+  isPublished: z.boolean().optional(),
+});
+
+const updateAgentSchema = createAgentSchema.partial();
+
+const createThreadSchema = z.object({
+  title: z.string().nullable().optional(),
+  agentId: z.string(),
+});
+
+const createMessageSchema = z.object({
+  direction: z.enum(['inbound', 'outbound']).optional(),
+  senderType: z.enum(['user', 'agent', 'contact', 'staff']).optional(),
+  aiRole: z.enum(['user', 'assistant']).optional(),
+  content: z.string(),
+});
+
+const chatSchema = z.object({
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      role: z.enum(['user', 'assistant', 'system']),
+      parts: z.array(z.unknown()),
+      createdAt: z.string().optional(),
+    }),
+  ),
+});
+
+const createContactSchema = z.object({
+  phone: z.string().nullable().optional(),
+  email: z.string().email().nullable().optional(),
+  name: z.string().nullable().optional(),
+  channel: z.string().optional(),
+});
+
+const sendMessageSchema = z.object({
+  content: z.string().min(1),
+});
 
 export const messagingRoutes = new Hono();
 
 // Agents CRUD
 messagingRoutes.post('/agents', async (c) => {
   const ctx = getCtx(c);
-  const body = await c.req.json();
+  const body = createAgentSchema.parse(await c.req.json());
   const [agent] = await ctx.db
     .insert(msgAgents)
     .values({
@@ -50,7 +99,7 @@ messagingRoutes.get('/agents/:id', async (c) => {
 
 messagingRoutes.put('/agents/:id', async (c) => {
   const ctx = getCtx(c);
-  const body = await c.req.json();
+  const body = updateAgentSchema.parse(await c.req.json());
   const [agent] = await ctx.db
     .update(msgAgents)
     .set({
@@ -92,7 +141,7 @@ messagingRoutes.delete('/agents/:id', async (c) => {
 // Threads
 messagingRoutes.post('/threads', async (c) => {
   const ctx = getCtx(c);
-  const body = await c.req.json();
+  const body = createThreadSchema.parse(await c.req.json());
   const [thread] = await ctx.db
     .insert(msgThreads)
     .values({
@@ -108,11 +157,10 @@ messagingRoutes.get('/threads', async (c) => {
   const ctx = getCtx(c);
   const channelFilter = c.req.query('channel');
 
-  // Show user's own web threads + all external channel threads (monitoring inbox)
-  // External threads have contactId set and channel != 'web'
+  // Show user's own threads, optionally filtered by channel
   const conditions = channelFilter && channelFilter !== 'all'
-    ? eq(msgThreads.channel, channelFilter)
-    : undefined;
+    ? and(eq(msgThreads.userId, ctx.user!.id), eq(msgThreads.channel, channelFilter))
+    : eq(msgThreads.userId, ctx.user!.id);
 
   const threads = await ctx.db
     .select()
@@ -128,7 +176,7 @@ messagingRoutes.get('/threads/:id', async (c) => {
     .select()
     .from(msgThreads)
     .where(
-      eq(msgThreads.id, c.req.param('id')),
+      and(eq(msgThreads.id, c.req.param('id')), eq(msgThreads.userId, ctx.user!.id)),
     )
     .get();
   if (!thread) throw notFound('Thread not found');
@@ -159,7 +207,7 @@ messagingRoutes.delete('/threads/:id', async (c) => {
 messagingRoutes.post('/threads/:id/messages', async (c) => {
   const ctx = getCtx(c);
   const threadId = c.req.param('id');
-  const body = await c.req.json();
+  const body = createMessageSchema.parse(await c.req.json());
   await ctx.db.insert(msgMessages).values({
     threadId,
     direction: body.direction ?? 'inbound',
@@ -174,22 +222,15 @@ messagingRoutes.post('/threads/:id/messages', async (c) => {
 messagingRoutes.post('/threads/:id/chat', async (c) => {
   const ctx = getCtx(c);
   const threadId = c.req.param('id');
-  const { messages } = (await c.req.json()) as {
-    messages: Array<{
-      id: string;
-      role: string;
-      parts: unknown[];
-      createdAt?: string;
-    }>;
-  };
+  const { messages } = chatSchema.parse(await c.req.json());
   const { isAIConfigured } = await import('../../lib/ai');
 
   // Extract latest user message text for DB persistence
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
   const userText =
     lastUserMsg?.parts
-      ?.filter((p: any) => p.type === 'text')
-      .map((p: any) => p.text)
+      ?.filter((p): p is TextUIPart => typeof p === 'object' && p !== null && (p as TextUIPart).type === 'text')
+      .map((p) => p.text)
       .join('') ?? '';
 
   // Save user message to DB
@@ -234,7 +275,7 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
   const result = await streamChat({
     db: ctx.db,
     agentId: thread.agentId!,
-    messages: messages as any,
+    messages: messages as UIMessage[],
   });
 
   // Save assistant response to DB in background
@@ -280,7 +321,7 @@ messagingRoutes.get('/contacts/:id', async (c) => {
 });
 
 messagingRoutes.post('/contacts', async (c) => {
-  const body = await c.req.json();
+  const body = createContactSchema.parse(await c.req.json());
   const ctx = getCtx(c);
   const [contact] = await ctx.db
     .insert(msgContacts)
@@ -321,7 +362,7 @@ messagingRoutes.post('/threads/:id/resume-ai', async (c) => {
 messagingRoutes.post('/threads/:id/send', async (c) => {
   const ctx = getCtx(c);
   const threadId = c.req.param('id');
-  const body = await c.req.json();
+  const body = sendMessageSchema.parse(await c.req.json());
 
   const thread = await ctx.db
     .select()

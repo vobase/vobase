@@ -1,7 +1,7 @@
 import { useChat } from '@ai-sdk/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { DefaultChatTransport, type UIMessage } from 'ai';
+import { DefaultChatTransport, type TextUIPart, type UIMessage } from 'ai';
 import { CopyIcon, MessageSquare } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -178,8 +178,8 @@ function ThreadChat({
   const lastAssistantText =
     lastMessage?.role === 'assistant'
       ? lastMessage.parts
-          .filter((p) => p.type === 'text')
-          .map((p) => (p as any).text)
+          .filter((p): p is TextUIPart => p.type === 'text')
+          .map((p) => p.text)
           .join('')
       : '';
   const showShimmer =
@@ -209,8 +209,8 @@ function ThreadChat({
                     label="Copy"
                     onClick={() => {
                       const text = msg.parts
-                        .filter((p) => p.type === 'text')
-                        .map((p) => (p as any).text)
+                        .filter((p): p is TextUIPart => p.type === 'text')
+                        .map((p) => p.text)
                         .join('');
                       navigator.clipboard.writeText(text);
                     }}

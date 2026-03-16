@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type { MessageReceivedEvent, StatusUpdateEvent, ReactionEvent } from '../../../contracts/channels';
 import { createWhatsAppAdapter, WhatsAppApiError, _chunkText, _ERROR_CODE_MAP } from './whatsapp';
 
 // ─── Test Helpers ────────────────────────────────────────────────────
@@ -194,7 +195,7 @@ describe('WhatsApp Adapter', () => {
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('message_received');
-      const msg = events[0] as any;
+      const msg = events[0] as MessageReceivedEvent;
       expect(msg.content).toBe('Hello');
       expect(msg.messageType).toBe('text');
       expect(msg.from).toBe('16315555555');
@@ -215,7 +216,7 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const msg = events[0] as any;
+      const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('image');
       expect(msg.content).toBe('A photo');
     });
@@ -233,7 +234,7 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      expect((events[0] as any).messageType).toBe('document');
+      expect((events[0] as MessageReceivedEvent).messageType).toBe('document');
     });
 
     it('parses audio message', async () => {
@@ -249,7 +250,7 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      expect((events[0] as any).messageType).toBe('audio');
+      expect((events[0] as MessageReceivedEvent).messageType).toBe('audio');
     });
 
     it('parses video message', async () => {
@@ -265,7 +266,7 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      expect((events[0] as any).messageType).toBe('video');
+      expect((events[0] as MessageReceivedEvent).messageType).toBe('video');
     });
 
     it('parses location message', async () => {
@@ -282,12 +283,12 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const msg = events[0] as any;
+      const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('unsupported');
       expect(msg.content).toContain('Santo Domingo');
       expect(msg.content).toContain('18.4861');
-      expect(msg.metadata.location.latitude).toBe(18.4861);
-      expect(msg.metadata.location.longitude).toBe(-69.9312);
+      expect((msg.metadata!.location as Record<string, unknown>).latitude).toBe(18.4861);
+      expect((msg.metadata!.location as Record<string, unknown>).longitude).toBe(-69.9312);
     });
 
     it('parses contacts message', async () => {
@@ -304,10 +305,10 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const msg = events[0] as any;
+      const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('unsupported');
       expect(msg.content).toBe('Jane Smith');
-      expect(msg.metadata.contacts).toHaveLength(1);
+      expect(msg.metadata!.contacts).toHaveLength(1);
     });
 
     it('parses sticker message', async () => {
@@ -323,7 +324,7 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const msg = events[0] as any;
+      const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('image');
       expect(msg.metadata?.sticker).toBe(true);
     });
@@ -338,7 +339,7 @@ describe('WhatsApp Adapter', () => {
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('reaction');
-      const r = events[0] as any;
+      const r = events[0] as ReactionEvent;
       expect(r.emoji).toBe('\u{1F44D}');
       expect(r.messageId).toBe('wamid.ORIGINAL');
     });
@@ -353,7 +354,7 @@ describe('WhatsApp Adapter', () => {
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('reaction');
-      expect((events[0] as any).emoji).toBe('');
+      expect((events[0] as ReactionEvent).emoji).toBe('');
     });
 
     it('parses button reply (interactive)', async () => {
@@ -365,10 +366,10 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const msg = events[0] as any;
+      const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('button_reply');
       expect(msg.content).toBe('Yes');
-      expect(msg.metadata.buttonId).toBe('btn_yes');
+      expect(msg.metadata!.buttonId).toBe('btn_yes');
     });
 
     it('parses list reply (interactive)', async () => {
@@ -383,10 +384,10 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const msg = events[0] as any;
+      const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('list_reply');
       expect(msg.content).toBe('Option 1');
-      expect(msg.metadata.listId).toBe('option_1');
+      expect(msg.metadata!.listId).toBe('option_1');
     });
 
     it('parses button (template quick reply)', async () => {
@@ -398,10 +399,10 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const msg = events[0] as any;
+      const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('button_reply');
       expect(msg.content).toBe('Yes, confirm');
-      expect(msg.metadata.buttonPayload).toBe('CONFIRM_ORDER_123');
+      expect(msg.metadata!.buttonPayload).toBe('CONFIRM_ORDER_123');
     });
 
     it('handles unsupported message type', async () => {
@@ -410,7 +411,7 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      expect((events[0] as any).messageType).toBe('unsupported');
+      expect((events[0] as MessageReceivedEvent).messageType).toBe('unsupported');
     });
 
     it('parses sent status', async () => {
@@ -424,7 +425,7 @@ describe('WhatsApp Adapter', () => {
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('status_update');
-      expect((events[0] as any).status).toBe('sent');
+      expect((events[0] as StatusUpdateEvent).status).toBe('sent');
     });
 
     it('parses delivered status', async () => {
@@ -437,7 +438,7 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      expect((events[0] as any).status).toBe('delivered');
+      expect((events[0] as StatusUpdateEvent).status).toBe('delivered');
     });
 
     it('parses read status', async () => {
@@ -450,7 +451,7 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      expect((events[0] as any).status).toBe('read');
+      expect((events[0] as StatusUpdateEvent).status).toBe('read');
     });
 
     it('parses failed status with errors', async () => {
@@ -469,10 +470,10 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const evt = events[0] as any;
+      const evt = events[0] as StatusUpdateEvent;
       expect(evt.status).toBe('failed');
-      expect(evt.metadata.errors).toHaveLength(1);
-      expect(evt.metadata.errors[0].code).toBe(131047);
+      expect(evt.metadata!.errors).toHaveLength(1);
+      expect((evt.metadata!.errors as Array<Record<string, unknown>>)[0].code).toBe(131047);
     });
 
     it('parses deleted status', async () => {
@@ -485,10 +486,10 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      const evt = events[0] as any;
+      const evt = events[0] as StatusUpdateEvent;
       // 'deleted' is mapped to 'failed' since our contract only has sent/delivered/read/failed
       expect(evt.status).toBe('failed');
-      expect(evt.metadata.deleted).toBe(true);
+      expect(evt.metadata!.deleted).toBe(true);
     });
 
     it('handles empty entry array', async () => {

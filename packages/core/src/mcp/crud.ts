@@ -1,7 +1,13 @@
 import { eq, getTableColumns, getTableName } from 'drizzle-orm';
+import type { Table } from 'drizzle-orm';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+
+interface ColumnMeta {
+  primary?: boolean;
+  dataType?: string;
+}
 
 import type { AuthUser } from '../contracts/auth';
 import type { VobaseDb } from '../db';
@@ -52,7 +58,7 @@ export function registerCrudTools(
       // Verify it's a Drizzle table
       let tableName: string;
       try {
-        tableName = getTableName(tableObj as any);
+        tableName = getTableName(tableObj as unknown as Table);
       } catch {
         continue;
       }
@@ -67,11 +73,11 @@ export function registerCrudTools(
       if (!columns) continue;
 
       // Find primary key column
-      const pkEntry = Object.entries(columns).find(([, col]) => (col as any).primary);
+      const pkEntry = Object.entries(columns).find(([, col]) => (col as unknown as ColumnMeta).primary);
       if (!pkEntry) continue;
       const [pkKey] = pkEntry;
       const pkCol = columns[pkKey]!;
-      const pkZod = (pkCol as any).dataType === 'number' ? z.number() : z.string();
+      const pkZod = (pkCol as unknown as ColumnMeta).dataType === 'number' ? z.number() : z.string();
 
       // Clean name for tools (strip _ prefix from built-in tables)
       const cleanName = tableName.replace(/^_/, '');
@@ -119,10 +125,10 @@ export function registerCrudTools(
           const permError = checkWritePermission(ctx);
           if (permError) return errorResult(permError);
           try {
-            const result = ctx.db.insert(table).values(data as any).returning().get();
+            const result = ctx.db.insert(table).values(data as Record<string, unknown>).returning().get();
             return jsonResult(result as Record<string, unknown>);
-          } catch (e: any) {
-            return errorResult(e.message);
+          } catch (e: unknown) {
+            return errorResult(e instanceof Error ? e.message : String(e));
           }
         },
       );
@@ -138,11 +144,11 @@ export function registerCrudTools(
           const permError = checkWritePermission(ctx);
           if (permError) return errorResult(permError);
           try {
-            const result = ctx.db.update(table).set(data as any).where(eq(pkCol, id)).returning().get();
+            const result = ctx.db.update(table).set(data as Record<string, unknown>).where(eq(pkCol, id)).returning().get();
             if (!result) return errorResult('Not found');
             return jsonResult(result as Record<string, unknown>);
-          } catch (e: any) {
-            return errorResult(e.message);
+          } catch (e: unknown) {
+            return errorResult(e instanceof Error ? e.message : String(e));
           }
         },
       );
@@ -161,8 +167,8 @@ export function registerCrudTools(
             const result = ctx.db.delete(table).where(eq(pkCol, id)).returning().get();
             if (!result) return errorResult('Not found');
             return jsonResult({ deleted: true });
-          } catch (e: any) {
-            return errorResult(e.message);
+          } catch (e: unknown) {
+            return errorResult(e instanceof Error ? e.message : String(e));
           }
         },
       );

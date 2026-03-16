@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'bun:test';
 import { Hono } from 'hono';
 
+import type { AuthUser } from '../contracts/auth';
 import { requireRole, requirePermission, requireOrg } from '../modules/auth/permissions';
 import { setOrganizationEnabled } from '../modules/auth/permissions';
 
@@ -10,9 +11,9 @@ function createTestApp() {
   return app;
 }
 
-function withUser(app: Hono, user: { id: string; email: string; name: string; role: string; activeOrganizationId?: string; orgRole?: string } | null) {
+function withUser(app: Hono, user: AuthUser | null) {
   app.use('*', async (c, next) => {
-    c.set('user', user as any);
+    c.set('user', user);
     await next();
   });
   return app;

@@ -7,6 +7,11 @@ import { auditLog } from '../modules/audit/schema';
 import { registerCrudTools } from './crud';
 import type { VobaseModule } from '../module';
 
+/** MCP SDK internal — not in public types, used only for test assertions */
+interface McpServerInternals {
+  _registeredTools: Record<string, unknown>;
+}
+
 function createTestDb() {
   const db = createDatabase(':memory:');
   db.$client.run(`
@@ -43,7 +48,7 @@ describe('registerCrudTools', () => {
     }, new Map());
 
     // Access the registered tools via the server's internal state
-    const tools = (server as any)._registeredTools;
+    const tools = (server as unknown as McpServerInternals)._registeredTools;
     const toolNames = Object.keys(tools);
 
     expect(toolNames).toContain('list_audit_log');
@@ -72,7 +77,7 @@ describe('registerCrudTools', () => {
       organizationEnabled: false,
     }, new Map());
 
-    const tools = (server as any)._registeredTools;
+    const tools = (server as unknown as McpServerInternals)._registeredTools;
     const toolNames = Object.keys(tools);
     // No CRUD tools registered for non-Drizzle schema
     expect(toolNames.filter((n: string) => n.includes('fakeThing'))).toEqual([]);
@@ -98,7 +103,7 @@ describe('registerCrudTools', () => {
       organizationEnabled: false,
     }, excludeMap);
 
-    const tools = (server as any)._registeredTools;
+    const tools = (server as unknown as McpServerInternals)._registeredTools;
     const toolNames = Object.keys(tools);
     expect(toolNames.filter((n: string) => n.includes('audit_log'))).toEqual([]);
   });
@@ -122,7 +127,7 @@ describe('registerCrudTools', () => {
       organizationEnabled: false,
     }, new Map());
 
-    const tools = (server as any)._registeredTools;
+    const tools = (server as unknown as McpServerInternals)._registeredTools;
     expect(tools.create_audit_log).toBeDefined();
   });
 });

@@ -61,7 +61,7 @@ export async function handleInboundMessage(
     channel: event.channel,
     hasMedia: !!event.media?.length,
     mediaCount: event.media?.length ?? 0,
-    messageType: (event as any).messageType,
+    messageType: event.messageType,
     contentLength: event.content?.length ?? 0,
   });
 

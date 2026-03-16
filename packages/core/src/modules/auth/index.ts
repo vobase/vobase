@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { betterAuth } from 'better-auth';
-import type { SocialProviders } from 'better-auth/social-providers';
+import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { apiKey } from '@better-auth/api-key';
+import type { ApiKey } from '@better-auth/api-key';
 import { organization } from 'better-auth/plugins';
 
-import type { AuthAdapter } from '../../contracts/auth';
+import type { AuthAdapter, AuthSession } from '../../contracts/auth';
 import type { VobaseDb } from '../../db/client';
 import { defineBuiltinModule } from '../../module';
 import type { VobaseModule } from '../../module';
@@ -36,10 +37,13 @@ export function createAuthModule(db: VobaseDb, config?: AuthModuleConfig): AuthM
   // Tell the permission middleware whether org is enabled
   setOrganizationEnabled(orgEnabled);
 
-  // Build plugin list
-  const plugins: any[] = [apiKey()];
+  // Build plugin list. The concrete return types of apiKey() and organization() are
+  // structurally compatible with BetterAuthPlugin but TypeScript's deep conditional
+  // type resolution makes the union assignment fail. Casting here is safe — both
+  // plugins implement the BetterAuthPlugin interface at runtime.
+  const plugins: BetterAuthPlugin[] = [apiKey() as BetterAuthPlugin];
   if (orgEnabled) {
-    plugins.push(organization());
+    plugins.push(organization() as BetterAuthPlugin);
   }
 
   // Build schema for the adapter — always includes apikey, conditionally includes org
@@ -71,15 +75,25 @@ export function createAuthModule(db: VobaseDb, config?: AuthModuleConfig): AuthM
   });
 
   const adapter: AuthAdapter = {
-    getSession: (headers) => auth.api.getSession({ headers }),
+    // better-auth's getSession return type doesn't include additionalFields (role) in its
+    // static types, but the value is present at runtime. Cast to AuthSession which includes role.
+    getSession: (headers) => auth.api.getSession({ headers }) as Promise<AuthSession | null>,
     handler: (request) => auth.handler(request),
+  };
+
+  // The apiKey() plugin adds verifyApiKey to auth.api at runtime, but the dynamic plugin
+  // composition means TypeScript can't statically infer the merged API type. Cast to a
+  // minimal interface rather than using `any`. ApiKey.referenceId holds the userId.
+  type VerifyApiKeyResult = { valid: boolean; key: ApiKey | null };
+  type AuthApiWithVerifyApiKey = typeof auth.api & {
+    verifyApiKey: (opts: { body: { key: string } }) => Promise<VerifyApiKeyResult>;
   };
 
   const verifyApiKey = async (key: string): Promise<{ userId: string } | null> => {
     try {
-      const result = await (auth.api as any).verifyApiKey({ body: { key } });
-      if (result && result.valid && result.key?.userId) {
-        return { userId: result.key.userId };
+      const result = await (auth.api as AuthApiWithVerifyApiKey).verifyApiKey({ body: { key } });
+      if (result && result.valid && result.key?.referenceId) {
+        return { userId: result.key.referenceId };
       }
       return null;
     } catch {
