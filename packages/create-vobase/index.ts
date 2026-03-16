@@ -74,9 +74,9 @@ const envFile = resolve(dest, '.env');
 if (existsSync(envExample) && !existsSync(envFile)) {
   let env = readFileSync(envExample, 'utf8');
   const secret = randomBytes(32).toString('base64url');
-  env = env.replace(/AUTH_SECRET=.*/, `AUTH_SECRET=${secret}`);
+  env = env.replace(/BETTER_AUTH_SECRET=.*/, `BETTER_AUTH_SECRET=${secret}`);
   writeFileSync(envFile, env);
-  console.log(`${green('✓')} Generated .env with AUTH_SECRET`);
+  console.log(`${green('✓')} Generated .env with BETTER_AUTH_SECRET`);
 }
 
 // --- Create data directory ---
