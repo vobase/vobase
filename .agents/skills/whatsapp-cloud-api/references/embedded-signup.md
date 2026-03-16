@@ -325,6 +325,25 @@ extras: {
 
 Coexistence allows a business to use the WhatsApp Business App **and** the Cloud API simultaneously on the same number. This is the most common Embedded Signup scenario — businesses already chatting on the WhatsApp Business App who want to add API capabilities.
 
+**To enable coexistence, add `featureType: 'whatsapp_business_app_onboarding'` to the `extras` object:**
+
+```javascript
+FB.login(callback, {
+  config_id: '<CONFIGURATION_ID>',
+  response_type: 'code',
+  override_default_response_type: true,
+  extras: {
+    setup: {},
+    featureType: 'whatsapp_business_app_onboarding',
+    sessionInfoVersion: '3',
+  },
+});
+```
+
+This replaces the default WABA selection screen with a screen that lets the user **connect their existing WhatsApp Business App number** instead of migrating it.
+
+> **Without `featureType`**, the default flow will show: *"This phone number is already registered to a WhatsApp account. To continue, migrate this phone number or disconnect it from the existing account."* — which is **not** coexistence.
+
 Key points:
 - Requires WhatsApp Business App **v2.24.17+** and at least 7 days of active usage
 - 1:1 chat history (6 months) and contacts sync at onboarding; group chats do not sync
@@ -372,6 +391,7 @@ For full details, feature compatibility matrix, SMB echo webhooks, and gotchas, 
 
 ### Common Pitfalls
 
+0. **Silent message drops** — Meta may return 200 + `wamid` but silently not deliver messages. Common causes: stale coexistence links from multiple onboarding attempts, permission conflicts on the WABA, or the phone number being in a bad state. Fix: use a fresh phone number or delete and recreate the WhatsApp Business Account on the affected number.
 1. **Code expiration** — The authorization `code` expires in ~60 seconds. Exchange it immediately server-side.
 2. **Development mode** — Only test users can complete the flow in Dev mode. Switch to Live mode for real users.
 3. **Localhost** — The code works locally, but the `redirect_uri` in the token exchange must match a registered domain.
