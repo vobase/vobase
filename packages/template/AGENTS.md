@@ -19,12 +19,12 @@ Each module lives in `modules/{name}/`:
 The `system` module is a regular user module (not built into core) with routes for health, audit log, sequences, and record audits. It uses `schema: {}` since its tables are managed by core's built-in modules.
 
 ## Key Patterns
-- `getCtx(c)`: Returns `{ db, user, scheduler, storage, notify, http }` from Hono context.
+- `getCtx(c)`: Returns `{ db, user, scheduler, storage, channels, http }` from Hono context.
 - `defineModule({ name, schema, routes, init? })`: Registers a module. Name must be lowercase alphanumeric + hyphens. Optional `init(ctx)` hook runs at boot.
 - `defineJob('module:name', async (data) => { ... })`: Background job. Handler receives `data: unknown` (no ctx — use module-level db ref via `setModuleDb()` in init hook).
 - `nextSequence(tx, 'INV')`: Returns gap-free business numbers: INV-0001, INV-0002...
 - `trackChanges(tx, 'table', id, oldData, newData, userId)`: Record-level audit trail.
-- `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `notifyLog`: Built-in Drizzle table exports from `@vobase/core`.
+- `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`: Built-in Drizzle table exports from `@vobase/core`.
 - `VobaseError`: Use `notFound()`, `unauthorized()`, `validation(details)` factory functions.
 - `requireRole('admin')`: Route-level role guard middleware.
 - `requirePermission('invoices:write')`: Permission-based guard (requires organization plugin enabled).

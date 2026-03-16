@@ -13,7 +13,7 @@ import { sql } from 'drizzle-orm';
 
 import { setupSqliteVec } from '../lib/sqlite-vec';
 import { modules } from '../modules';
-import { seedChatbot } from '../modules/chatbot/seed';
+import { seedMessaging } from '../modules/messaging/seed';
 import { seedKnowledgeBase } from '../modules/knowledge-base/seed';
 import config from '../vobase.config';
 
@@ -84,7 +84,7 @@ if (!sessionCookie) {
 }
 
 // --- 2. Module seeds ---
-// Open a read-only Drizzle connection for checking existing data + chatbot inserts
+// Open a read-only Drizzle connection for checking existing data + messaging inserts
 const db = createDatabase(dbPath);
 
 if (!userId) {
@@ -98,15 +98,15 @@ if (kbCount > 0)
   console.log(`${green('✓')} Processed ${kbCount} KB documents from fixtures`);
 else console.log(dim('✓ KB documents already exist. Skipping.'));
 
-// Chatbot: direct Drizzle inserts (no async pipeline needed)
-const chatResult = seedChatbot(db, userId);
-if (chatResult.assistants > 0) {
+// Messaging: direct Drizzle inserts (no async pipeline needed)
+const msgResult = seedMessaging(db, userId);
+if (msgResult.agents > 0) {
   console.log(
     green('✓') +
-      ` Created ${chatResult.assistants} chatbot assistants + ${chatResult.threads} sample thread with messages`,
+      ` Created ${msgResult.agents} messaging agents + ${msgResult.threads} sample thread with messages`,
   );
 } else {
-  console.log(dim('✓ Chatbot data already exists. Skipping.'));
+  console.log(dim('✓ Messaging data already exists. Skipping.'));
 }
 
 process.exit(0);

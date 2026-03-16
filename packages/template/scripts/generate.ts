@@ -59,6 +59,7 @@ function buildRoutesSource(moduleNames: string[]): string {
     "      route('/profile', 'shell/settings/profile.tsx'),",
     "      route('/appearance', 'shell/settings/appearance.tsx'),",
     "      route('/api-keys', 'shell/settings/api-keys.tsx'),",
+    "      route('/integrations', 'shell/settings/integrations.tsx'),",
     "      route('/organization', 'shell/settings/organization.tsx'),",
     "    ]),",
   ];

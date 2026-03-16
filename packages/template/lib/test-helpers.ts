@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import type { VobaseDb } from '@vobase/core';
 import * as kbSchema from '../modules/knowledge-base/schema';
-import * as chatSchema from '../modules/chatbot/schema';
+import * as messagingSchema from '../modules/messaging/schema';
 
 const CUSTOM_SQLITE = '/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib';
 const VEC_EXTENSION_PATH =
@@ -11,7 +11,7 @@ const VEC_EXTENSION_PATH =
 let customSqliteSet = false;
 
 /**
- * Create an in-memory test database with KB and chatbot tables.
+ * Create an in-memory test database with KB and messaging tables.
  * Returns both the raw SQLite handle and the Drizzle wrapper.
  */
 export function createTestDb(options?: { withVec?: boolean }) {
@@ -83,9 +83,9 @@ export function createTestDb(options?: { withVec?: boolean }) {
     )
   `);
 
-  // Create chatbot tables
+  // Create messaging tables
   sqlite.run(`
-    CREATE TABLE chat_assistants (
+    CREATE TABLE msg_agents (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       avatar TEXT,
@@ -93,6 +93,8 @@ export function createTestDb(options?: { withVec?: boolean }) {
       tools TEXT,
       kb_source_ids TEXT,
       model TEXT,
+      suggestions TEXT,
+      channels TEXT,
       user_id TEXT NOT NULL,
       is_published INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL DEFAULT (unixepoch('now') * 1000),
@@ -101,27 +103,51 @@ export function createTestDb(options?: { withVec?: boolean }) {
   `);
 
   sqlite.run(`
-    CREATE TABLE chat_threads (
+    CREATE TABLE msg_threads (
       id TEXT PRIMARY KEY,
       title TEXT,
-      assistant_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
+      agent_id TEXT,
+      user_id TEXT,
+      contact_id TEXT,
+      channel TEXT NOT NULL DEFAULT 'web',
+      status TEXT NOT NULL DEFAULT 'ai',
+      ai_paused_at INTEGER,
+      ai_resume_at INTEGER,
+      window_expires_at INTEGER,
+      archived_at INTEGER,
       created_at INTEGER NOT NULL DEFAULT (unixepoch('now') * 1000),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch('now') * 1000)
     )
   `);
 
   sqlite.run(`
-    CREATE TABLE chat_messages (
+    CREATE TABLE msg_messages (
       id TEXT PRIMARY KEY,
       thread_id TEXT NOT NULL,
-      role TEXT NOT NULL,
+      direction TEXT NOT NULL DEFAULT 'inbound',
+      sender_type TEXT NOT NULL DEFAULT 'user',
+      ai_role TEXT,
       content TEXT,
       tool_calls TEXT,
       tool_results TEXT,
       sources TEXT,
       attachments TEXT,
+      external_message_id TEXT UNIQUE,
+      status TEXT DEFAULT 'sent',
       created_at INTEGER NOT NULL DEFAULT (unixepoch('now') * 1000)
+    )
+  `);
+
+  sqlite.run(`
+    CREATE TABLE msg_contacts (
+      id TEXT PRIMARY KEY,
+      phone TEXT UNIQUE,
+      email TEXT UNIQUE,
+      name TEXT,
+      channel TEXT,
+      metadata TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch('now') * 1000),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch('now') * 1000)
     )
   `);
 
@@ -142,7 +168,7 @@ export function createTestDb(options?: { withVec?: boolean }) {
     `);
   }
 
-  const schema = { ...kbSchema, ...chatSchema };
+  const schema = { ...kbSchema, ...messagingSchema };
   const db = drizzle({ client: sqlite, schema }) as unknown as VobaseDb;
 
   return { sqlite, db };

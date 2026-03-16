@@ -10,7 +10,6 @@ const config: Omit<CreateAppConfig, 'modules'> = {
       'chat-attachments': { access: 'private' },
     },
   },
-  credentials: { enabled: true },
   mcp: { enabled: true },
   trustedOrigins: ['http://localhost:5173', 'http://localhost:5174'],
 
