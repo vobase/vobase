@@ -1,18 +1,18 @@
 import { authSchema, apikeySchema, organizationSchema } from './modules/auth/schema';
 import { auditLog, recordAudits } from './modules/audit/schema';
-import { credentialsTable } from './modules/credentials/schema';
+import { integrationsTable } from './modules/integrations/schema';
 import { sequences } from './modules/sequences/schema';
-import { notifyLog } from './modules/notify/schema';
+import { channelsLog, channelsTemplates } from './modules/channels/schema';
 import { storageObjects } from './modules/storage/schema';
 import { webhookDedup } from './infra/webhooks-schema';
 
 export interface SchemaConfig {
-  /** Include credentials table. Default: true */
-  credentials?: boolean;
-  /** Include storage tables (Phase 2). Default: false */
+  /** Include integrations table. Default: true */
+  integrations?: boolean;
+  /** Include storage tables. Default: false */
   storage?: boolean;
-  /** Include notify tables (Phase 3). Default: false */
-  notify?: boolean;
+  /** Include channels tables (log + templates). Default: false */
+  channels?: boolean;
   /** Include organization tables (better-auth organization plugin). Default: false */
   organization?: boolean;
 }
@@ -44,9 +44,9 @@ export function getActiveSchemas(config?: SchemaConfig): Record<string, unknown>
     Object.assign(schema, organizationSchema);
   }
 
-  // Credentials (default: included)
-  if (config?.credentials !== false) {
-    schema.credentialsTable = credentialsTable;
+  // Integrations (default: included)
+  if (config?.integrations !== false) {
+    schema.integrationsTable = integrationsTable;
   }
 
   // Storage (Phase 2)
@@ -54,9 +54,10 @@ export function getActiveSchemas(config?: SchemaConfig): Record<string, unknown>
     schema.storageObjects = storageObjects;
   }
 
-  // Notify (Phase 3)
-  if (config?.notify) {
-    schema.notifyLog = notifyLog;
+  // Channels (replaces notify)
+  if (config?.channels) {
+    schema.channelsLog = channelsLog;
+    schema.channelsTemplates = channelsTemplates;
   }
 
   return schema;

@@ -1,6 +1,7 @@
 import type { VobaseDb } from '../db/client';
 import type { HttpClient } from '../infra/http-client';
-import type { NotifyService } from '../modules/notify/service';
+import type { ChannelsService } from '../modules/channels/service';
+import type { IntegrationsService } from '../modules/integrations/service';
 import type { StorageService } from '../modules/storage/service';
 import type { Scheduler } from '../infra/queue';
 
@@ -13,5 +14,6 @@ export interface ModuleInitContext {
   scheduler: Scheduler;
   storage: StorageService;
   http: HttpClient;
-  notify: NotifyService;
+  channels: ChannelsService;
+  integrations: IntegrationsService;
 }

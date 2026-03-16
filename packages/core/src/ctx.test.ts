@@ -10,7 +10,8 @@ import {
 import type { VobaseDb } from './db';
 import type { HttpClient } from './infra/http-client';
 import type { Scheduler } from './infra/queue';
-import type { NotifyService } from './modules/notify/service';
+import type { ChannelsService } from './modules/channels/service';
+import type { IntegrationsService } from './modules/integrations/service';
 import type { StorageService } from './modules/storage/service';
 
 const db = {} as VobaseDb;
@@ -22,10 +23,13 @@ const storage: StorageService = {
     throw new Error('not implemented');
   },
 };
-const notify: NotifyService = {
+const channels: ChannelsService = {
   email: { send: async () => ({ success: true }) },
   whatsapp: { send: async () => ({ success: true }) },
+  on() {},
+  registerAdapter() {},
 };
+const integrations = {} as IntegrationsService;
 const mockResponse = { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
 const http: HttpClient = {
   fetch: async () => mockResponse,
@@ -51,7 +55,8 @@ describe('ctx helpers', () => {
       c.set('db', db);
       c.set('scheduler', scheduler);
       c.set('storage', storage);
-      c.set('notify', notify);
+      c.set('channels', channels);
+      c.set('integrations', integrations);
       c.set('http', http);
       c.set('user', user);
       await next();
@@ -62,7 +67,8 @@ describe('ctx helpers', () => {
         hasDb: ctx.db === db,
         hasScheduler: ctx.scheduler === scheduler,
         hasStorage: ctx.storage === storage,
-        hasNotify: ctx.notify === notify,
+        hasChannels: ctx.channels === channels,
+        hasIntegrations: ctx.integrations === integrations,
         hasHttp: ctx.http === http,
         user: ctx.user,
       });
@@ -73,7 +79,8 @@ describe('ctx helpers', () => {
       hasDb: boolean;
       hasScheduler: boolean;
       hasStorage: boolean;
-      hasNotify: boolean;
+      hasChannels: boolean;
+      hasIntegrations: boolean;
       hasHttp: boolean;
       user: VobaseUser | null;
     };
@@ -82,14 +89,15 @@ describe('ctx helpers', () => {
     expect(body.hasDb).toBe(true);
     expect(body.hasScheduler).toBe(true);
     expect(body.hasStorage).toBe(true);
-    expect(body.hasNotify).toBe(true);
+    expect(body.hasChannels).toBe(true);
+    expect(body.hasIntegrations).toBe(true);
     expect(body.hasHttp).toBe(true);
     expect(body.user).toEqual(user);
   });
 
   it('returns null user when session middleware did not set user', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, notify, http }));
+    app.use('*', contextMiddleware({ db, scheduler, storage, channels, integrations, http }));
     app.get('/', (c) => c.json({ user: getCtx(c).user }));
 
     const response = await app.request('http://localhost/');
@@ -101,7 +109,7 @@ describe('ctx helpers', () => {
 
   it('contextMiddleware sets db, scheduler, storage, and http', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, notify, http }));
+    app.use('*', contextMiddleware({ db, scheduler, storage, channels, integrations, http }));
     app.get('/', (c) => {
       return c.json({
         hasDb: c.get('db') === db,
@@ -128,7 +136,7 @@ describe('ctx helpers', () => {
 
   it('getCtx(c) includes http client', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, notify, http }));
+    app.use('*', contextMiddleware({ db, scheduler, storage, channels, integrations, http }));
     app.get('/', (c) => {
       const ctx = getCtx(c);
       return c.json({ hasHttp: ctx.http === http });
@@ -143,7 +151,7 @@ describe('ctx helpers', () => {
 
   it('exposes correctly typed properties on VobaseCtx', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, notify, http }));
+    app.use('*', contextMiddleware({ db, scheduler, storage, channels, integrations, http }));
     app.get('/', (c) => {
       const ctx = getCtx(c);
       expectType<VobaseCtx>(ctx);
@@ -151,7 +159,8 @@ describe('ctx helpers', () => {
       expectType<VobaseUser | null>(ctx.user);
       expectType<Scheduler>(ctx.scheduler);
       expectType<StorageService>(ctx.storage);
-      expectType<NotifyService>(ctx.notify);
+      expectType<ChannelsService>(ctx.channels);
+      expectType<IntegrationsService>(ctx.integrations);
       expectType<HttpClient>(ctx.http);
       return c.text('ok');
     });

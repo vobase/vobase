@@ -35,14 +35,17 @@ export type {
   StorageProviderConfig,
 } from './contracts/storage';
 export type {
-  EmailProvider,
-  EmailMessage,
-  EmailAttachment,
-  EmailResult,
-  WhatsAppProvider,
-  WhatsAppMessage,
-  WhatsAppResult,
-} from './contracts/notify';
+  ChannelAdapter,
+  ChannelEvent,
+  MessageReceivedEvent,
+  StatusUpdateEvent,
+  ReactionEvent,
+  ChannelMedia,
+  ChannelCapabilities,
+  OutboundMessage,
+  OutboundMedia,
+  SendResult,
+} from './contracts/channels';
 export type { ModuleInitContext } from './contracts/module';
 
 // Context
@@ -114,9 +117,9 @@ export { requestAuditMiddleware } from './modules/audit/middleware';
 export { createSequencesModule, sequences } from './modules/sequences';
 export { nextSequence, type SequenceOptions } from './modules/sequences/next-sequence';
 
-// Built-in Modules: Credentials
-export { createCredentialsModule, credentialsTable } from './modules/credentials';
-export { encrypt, decrypt, getCredential, setCredential, deleteCredential } from './modules/credentials/encrypt';
+// Built-in Modules: Integrations (replaces Credentials)
+export { createIntegrationsModule, integrationsTable } from './modules/integrations';
+export type { IntegrationsService, Integration, ConnectOptions } from './modules/integrations/service';
 
 // Schemas
 export { getActiveSchemas, type SchemaConfig } from './schemas';
@@ -132,13 +135,13 @@ export { createStorageRoutes } from './modules/storage/routes';
 export { storageObjects } from './modules/storage/schema';
 export type { StorageService, BucketConfig, BucketHandle, StorageObject, BucketListOptions } from './modules/storage/service';
 
-// Built-in Modules: Notify
-export { createNotifyModule, type NotifyModuleConfig } from './modules/notify';
-export { notifyLog } from './modules/notify/schema';
-export { createResendProvider, type ResendConfig } from './modules/notify/providers/resend';
-export { createSmtpProvider, type SmtpConfig } from './modules/notify/providers/smtp';
-export { createWabaProvider, type WabaConfig } from './modules/notify/providers/waba';
-export type { NotifyService, EmailChannel, WhatsAppChannel } from './modules/notify/service';
+// Built-in Modules: Channels (replaces Notify)
+export { createChannelsModule, type ChannelsModuleConfig, type WhatsAppChannelConfig, type EmailChannelConfig } from './modules/channels';
+export { channelsLog, channelsTemplates } from './modules/channels/schema';
+export { createResendAdapter, type ResendAdapterConfig } from './modules/channels/adapters/resend';
+export { createSmtpAdapter, type SmtpAdapterConfig } from './modules/channels/adapters/smtp';
+export { createWhatsAppAdapter } from './modules/channels/adapters/whatsapp';
+export type { ChannelsService, ChannelSend } from './modules/channels/service';
 
 // Webhooks
 export { type WebhookConfig, verifyHmacSignature, createWebhookRoutes, webhookDedup } from './infra/webhooks';

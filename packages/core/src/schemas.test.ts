@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { getActiveSchemas } from './schemas';
 
 describe('getActiveSchemas', () => {
-  test('returns auth, audit, sequences, webhook_dedup, and credentials by default', () => {
+  test('returns auth, audit, sequences, webhook_dedup, and integrations by default', () => {
     const schemas = getActiveSchemas();
     // Auth tables (always active)
     expect(schemas.user).toBeDefined();
@@ -17,12 +17,12 @@ describe('getActiveSchemas', () => {
     // Webhook dedup (always active)
     expect(schemas.webhookDedup).toBeDefined();
     // Credentials (default: included)
-    expect(schemas.credentialsTable).toBeDefined();
+    expect(schemas.integrationsTable).toBeDefined();
   });
 
-  test('excludes credentials when credentials: false', () => {
-    const schemas = getActiveSchemas({ credentials: false });
-    expect(schemas.credentialsTable).toBeUndefined();
+  test('excludes integrations when integrations: false', () => {
+    const schemas = getActiveSchemas({ integrations: false });
+    expect(schemas.integrationsTable).toBeUndefined();
     // Other tables still present
     expect(schemas.user).toBeDefined();
     expect(schemas.auditLog).toBeDefined();
@@ -30,15 +30,15 @@ describe('getActiveSchemas', () => {
     expect(schemas.webhookDedup).toBeDefined();
   });
 
-  test('includes credentials when credentials: true', () => {
-    const schemas = getActiveSchemas({ credentials: true });
-    expect(schemas.credentialsTable).toBeDefined();
+  test('includes integrations when integrations: true', () => {
+    const schemas = getActiveSchemas({ integrations: true });
+    expect(schemas.integrationsTable).toBeDefined();
   });
 
   test('returns a plain object with all table definitions', () => {
     const schemas = getActiveSchemas();
     const keys = Object.keys(schemas);
-    // At minimum: 4 auth + 2 audit + 1 sequences + 1 webhook + 1 credentials = 9
+    // At minimum: 4 auth + 2 audit + 1 sequences + 1 webhook + 1 integrations = 9
     expect(keys.length).toBeGreaterThanOrEqual(9);
   });
 });

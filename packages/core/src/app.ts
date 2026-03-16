@@ -9,9 +9,10 @@ import { logger } from './infra/logger';
 import { createMcpHandler } from './mcp/server';
 import { createAuditModule } from './modules/audit';
 import { createAuthModule, optionalSessionMiddleware, type AuthModuleConfig } from './modules/auth';
-import { createCredentialsModule } from './modules/credentials';
-import { createNotifyModule, type NotifyModuleConfig } from './modules/notify';
-import type { NotifyService } from './modules/notify/service';
+import { createChannelsModule, type ChannelsModuleConfig } from './modules/channels';
+import { createResendAdapter } from './modules/channels/adapters/resend';
+import { createSmtpAdapter } from './modules/channels/adapters/smtp';
+import { createIntegrationsModule } from './modules/integrations';
 import { createSequencesModule } from './modules/sequences';
 import { createStorageModule, type StorageModuleConfig } from './modules/storage';
 import type { StorageService } from './modules/storage/service';
@@ -59,14 +60,12 @@ export interface CreateAppConfig {
   modules: VobaseModule[];
   database: string;
   storage?: StorageModuleConfig;
-  notify?: NotifyModuleConfig;
+  channels?: ChannelsModuleConfig;
   http?: HttpClientOptions;
   webhooks?: Record<string, WebhookConfig>;
   mcp?: { enabled?: boolean };
   trustedOrigins?: string[];
   auth?: Omit<AuthModuleConfig, 'trustedOrigins'>;
-  /** Enable the credentials module (encrypted credential store). Default: false */
-  credentials?: { enabled: boolean };
 }
 
 export async function createApp(config: CreateAppConfig) {
@@ -95,18 +94,67 @@ export async function createApp(config: CreateAppConfig) {
     storageService = createThrowProxy<StorageService>('storage');
   }
 
-  // === Notify Module (config-driven) ===
-  let notifyMod: ReturnType<typeof createNotifyModule> | undefined;
-  let notifyService: NotifyService;
-  if (config.notify) {
-    notifyMod = createNotifyModule(db, config.notify);
-    notifyService = notifyMod.service;
-  } else {
-    notifyService = createThrowProxy<NotifyService>('notify');
+  // === Integrations Module (always active — credential vault) ===
+  const integrationsMod = createIntegrationsModule(db);
+  const integrationsService = integrationsMod.service;
+
+  // === Channels Module (always created — adapters registered lazily) ===
+  const channelsMod = createChannelsModule(db, config.channels ?? {});
+
+  // Register adapters from integrations (DB-first)
+  const waIntegration = await integrationsService.getActive('whatsapp');
+  if (waIntegration) {
+    const { createWhatsAppAdapter } = await import('./modules/channels/adapters/whatsapp');
+    channelsMod.registerAdapter('whatsapp', createWhatsAppAdapter({
+      phoneNumberId: waIntegration.config.phoneNumberId as string,
+      accessToken: waIntegration.config.accessToken as string,
+      appSecret: waIntegration.config.appSecret as string,
+      apiVersion: waIntegration.config.apiVersion as string | undefined,
+    }, http));
   }
 
+  const emailIntegration = await integrationsService.getActive('resend') ?? await integrationsService.getActive('smtp');
+  if (emailIntegration) {
+    if (emailIntegration.provider === 'resend') {
+      channelsMod.registerAdapter('email', createResendAdapter({
+        apiKey: emailIntegration.config.apiKey as string,
+        from: emailIntegration.config.from as string,
+      }));
+    } else if (emailIntegration.provider === 'smtp') {
+      channelsMod.registerAdapter('email', createSmtpAdapter({
+        host: emailIntegration.config.host as string,
+        port: emailIntegration.config.port as number,
+        from: emailIntegration.config.from as string,
+        secure: emailIntegration.config.secure as boolean | undefined,
+        auth: emailIntegration.config.auth as { user: string; pass: string } | undefined,
+      }));
+    }
+  }
+
+  // Fall back to static config if no integrations found
+  if (!waIntegration && config.channels?.whatsapp) {
+    const { createWhatsAppAdapter } = await import('./modules/channels/adapters/whatsapp');
+    channelsMod.registerAdapter('whatsapp', createWhatsAppAdapter(config.channels.whatsapp, http));
+  }
+  if (!emailIntegration && config.channels?.email) {
+    const emailConfig = config.channels.email;
+    if (emailConfig.provider === 'resend' && emailConfig.resend) {
+      channelsMod.registerAdapter('email', createResendAdapter({
+        apiKey: emailConfig.resend.apiKey,
+        from: emailConfig.from,
+      }));
+    } else if (emailConfig.provider === 'smtp' && emailConfig.smtp) {
+      channelsMod.registerAdapter('email', createSmtpAdapter({
+        ...emailConfig.smtp,
+        from: emailConfig.from,
+      }));
+    }
+  }
+
+  const channelsService = channelsMod.service;
+
   // === Built-in Module Init ===
-  const initCtx = { db, scheduler, http, storage: storageService, notify: notifyService };
+  const initCtx = { db, scheduler, http, storage: storageService, channels: channelsService, integrations: integrationsService };
 
   const auditMod = createAuditModule();
   auditMod.init?.(initCtx);
@@ -114,16 +162,10 @@ export async function createApp(config: CreateAppConfig) {
   const seqMod = createSequencesModule();
   seqMod.init?.(initCtx);
 
-  let credMod: VobaseModule | undefined;
-  if (config.credentials?.enabled) {
-    credMod = createCredentialsModule();
-    credMod.init?.(initCtx);
-  }
-
   // === Base app with middleware ===
   const base = new Hono();
   base.onError(errorHandler);
-  base.use('*', contextMiddleware({ db, scheduler, storage: storageService, notify: notifyService, http }));
+  base.use('*', contextMiddleware({ db, scheduler, storage: storageService, channels: channelsService, integrations: integrationsService, http }));
   base.use('/api/*', optionalSessionMiddleware(authAdapter));
   base.on(['POST', 'GET'], '/api/auth/*', (c) => authAdapter.handler(c.req.raw));
 
@@ -150,10 +192,11 @@ export async function createApp(config: CreateAppConfig) {
   }
 
   // === MCP + Jobs ===
-  const builtInModules: VobaseModule[] = [authMod, auditMod, seqMod];
+  // === Channel webhook routes (always mounted) ===
+  (app as Hono).route('/api/channels', channelsMod.routes);
+
+  const builtInModules: VobaseModule[] = [authMod, auditMod, seqMod, integrationsMod, channelsMod];
   if (storageMod) builtInModules.push(storageMod);
-  if (notifyMod) builtInModules.push(notifyMod);
-  if (credMod) builtInModules.push(credMod);
   const allModules = [...builtInModules, ...userModules];
 
   if (config.mcp?.enabled) {
