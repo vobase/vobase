@@ -24,15 +24,15 @@ export type { Permission, OrganizationContext } from './contracts/permissions';
 // Contracts
 export type { AuthAdapter, AuthSession, AuthUser } from './contracts/auth';
 export type {
-  StorageProvider,
+  StorageAdapter,
   UploadOptions,
   PresignOptions,
   ListOptions,
   StorageListResult,
   StorageObjectInfo,
-  LocalProviderConfig,
-  S3ProviderConfig,
-  StorageProviderConfig,
+  LocalAdapterConfig,
+  S3AdapterConfig,
+  StorageAdapterConfig,
 } from './contracts/storage';
 export type {
   ChannelAdapter,
@@ -129,13 +129,13 @@ export { createThrowProxy } from './infra/throw-proxy';
 
 // Built-in Modules: Storage
 export { createStorageModule, type StorageModuleConfig } from './modules/storage';
-export { createLocalProvider } from './modules/storage/providers/local';
-export { createS3Provider } from './modules/storage/providers/s3';
+export { createLocalAdapter } from './modules/storage/adapters/local';
+export { createS3Adapter } from './modules/storage/adapters/s3';
 export { createStorageRoutes } from './modules/storage/routes';
 export { storageObjects } from './modules/storage/schema';
 export type { StorageService, BucketConfig, BucketHandle, StorageObject, BucketListOptions } from './modules/storage/service';
 
-// Built-in Modules: Channels (replaces Notify)
+// Built-in Modules: Channels
 export { createChannelsModule, type ChannelsModuleConfig, type WhatsAppChannelConfig, type EmailChannelConfig } from './modules/channels';
 export { channelsLog, channelsTemplates } from './modules/channels/schema';
 export { createResendAdapter, type ResendAdapterConfig } from './modules/channels/adapters/resend';

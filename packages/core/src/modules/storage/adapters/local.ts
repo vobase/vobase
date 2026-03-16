@@ -3,9 +3,9 @@ import { join, normalize, dirname } from 'node:path';
 
 import { validation } from '../../../infra/errors';
 import type {
-  StorageProvider,
+  StorageAdapter,
   StorageObjectInfo,
-  LocalProviderConfig,
+  LocalAdapterConfig,
 } from '../../../contracts/storage';
 
 function sanitizePath(inputPath: string): string {
@@ -18,7 +18,7 @@ function sanitizePath(inputPath: string): string {
   return normalize(inputPath).replace(/^\/+/, '');
 }
 
-export function createLocalProvider(config: LocalProviderConfig): StorageProvider {
+export function createLocalAdapter(config: LocalAdapterConfig): StorageAdapter {
   const basePath = config.basePath;
   const baseUrl = config.baseUrl ?? '/api/storage';
 

@@ -1,9 +1,9 @@
 /**
- * Provider interface for storage backends. Each provider implements
+ * Adapter interface for storage backends. Each adapter implements
  * the physical operations; the storage module handles bucket resolution,
  * metadata tracking, and access control on top.
  */
-export interface StorageProvider {
+export interface StorageAdapter {
   upload(fullKey: string, data: Buffer | Uint8Array, opts?: UploadOptions): Promise<void>;
   download(fullKey: string): Promise<Uint8Array>;
   delete(fullKey: string): Promise<void>;
@@ -41,15 +41,15 @@ export interface StorageObjectInfo {
   lastModified: Date;
 }
 
-/** Local filesystem provider */
-export interface LocalProviderConfig {
+/** Local filesystem adapter */
+export interface LocalAdapterConfig {
   type: 'local';
   basePath: string; // e.g. './data/files'
   baseUrl?: string; // for presign proxy URLs, default '/api/storage'
 }
 
-/** S3-compatible provider (AWS, R2, MinIO) using Bun native S3 */
-export interface S3ProviderConfig {
+/** S3-compatible adapter (AWS, R2, MinIO) using Bun native S3 */
+export interface S3AdapterConfig {
   type: 's3';
   bucket: string;
   region?: string;
@@ -58,4 +58,4 @@ export interface S3ProviderConfig {
   secretAccessKey: string;
 }
 
-export type StorageProviderConfig = LocalProviderConfig | S3ProviderConfig;
+export type StorageAdapterConfig = LocalAdapterConfig | S3AdapterConfig;

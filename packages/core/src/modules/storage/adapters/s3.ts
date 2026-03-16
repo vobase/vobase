@@ -1,13 +1,13 @@
 import { S3Client } from 'bun';
 
 import type {
-  StorageProvider,
+  StorageAdapter,
   StorageObjectInfo,
-  S3ProviderConfig,
+  S3AdapterConfig,
 } from '../../../contracts/storage';
 import { validation } from '../../../infra/errors';
 
-export function createS3Provider(config: S3ProviderConfig): StorageProvider {
+export function createS3Adapter(config: S3AdapterConfig): StorageAdapter {
   const client = new S3Client({
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,

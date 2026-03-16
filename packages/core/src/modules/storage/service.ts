@@ -2,7 +2,7 @@ import { eq, and } from 'drizzle-orm';
 
 import type { VobaseDb } from '../../db/client';
 import type {
-  StorageProvider,
+  StorageAdapter,
   UploadOptions,
   PresignOptions,
   StorageListResult,
@@ -47,7 +47,7 @@ export interface StorageService {
 }
 
 export function createStorageService(
-  provider: StorageProvider,
+  provider: StorageAdapter,
   buckets: Record<string, BucketConfig>,
   db: VobaseDb,
 ): StorageService {
