@@ -6,6 +6,7 @@ FROM oven/bun:1 AS build
 WORKDIR /app
 
 COPY package.json bun.lock ./
+COPY patches ./patches
 COPY packages/core/package.json packages/core/package.json
 COPY packages/template/package.json packages/template/package.json
 COPY packages/template/stubs packages/template/stubs
