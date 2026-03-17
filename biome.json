@@ -1,5 +1,26 @@
 {
   "$schema": "node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "packages/core/**",
+      "packages/template/**",
+      "packages/create-vobase/**",
+      "!**/dist",
+      "!**/*.gen.ts",
+      "!**/*.generated.ts",
+      "!**/src/components/ai-elements",
+      "!**/src/components/data-table",
+      "!**/src/components/ui",
+      "!**/src/lib/store",
+      "!**/src/lib/table-schema",
+      "!**/src/lib/compose-refs.ts"
+    ]
+  },
   "linter": {
     "enabled": true,
     "rules": {
