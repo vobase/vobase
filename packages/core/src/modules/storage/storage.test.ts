@@ -1,36 +1,46 @@
-import { Database } from 'bun:sqlite';
 import { mkdirSync, rmSync } from 'node:fs';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
-import { drizzle } from 'drizzle-orm/bun-sqlite';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'bun:test';
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
 
 import type { VobaseDb } from '../../db/client';
 import { VobaseError } from '../../infra/errors';
 import { createLocalAdapter } from './adapters/local';
-import { createStorageService, type BucketConfig } from './service';
 import * as storageSchemaModule from './schema';
+import { type BucketConfig, createStorageService } from './service';
 
 const testBasePath = '/tmp/vobase-test-storage-v2';
 
-function createTestDb(): { db: VobaseDb; sqlite: Database } {
-  const sqlite = new Database(':memory:');
-  sqlite.run('PRAGMA journal_mode=WAL');
-  sqlite.exec(`
+async function createTestDb(): Promise<{ db: VobaseDb; pglite: PGlite }> {
+  const pglite = new PGlite();
+  await pglite.query(`
     CREATE TABLE _storage_objects (
-      id TEXT PRIMARY KEY,
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
       bucket TEXT NOT NULL,
       key TEXT NOT NULL,
       size INTEGER NOT NULL,
       content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
       metadata TEXT,
       uploaded_by TEXT,
-      created_at INTEGER NOT NULL
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  sqlite.exec(
+  await pglite.query(
     'CREATE UNIQUE INDEX storage_objects_bucket_key_idx ON _storage_objects(bucket, key)',
   );
-  const db = drizzle({ client: sqlite, schema: storageSchemaModule }) as unknown as VobaseDb;
-  return { db, sqlite };
+  const db = drizzle({
+    client: pglite,
+    schema: storageSchemaModule,
+  }) as unknown as VobaseDb;
+  return { db, pglite };
 }
 
 describe('Local Provider', () => {
@@ -48,7 +58,10 @@ describe('Local Provider', () => {
   });
 
   it('uploads and downloads a file', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: testBasePath });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: testBasePath,
+    });
     const data = new Uint8Array([1, 2, 3, 4, 5]);
 
     await provider.upload('test-bucket/file.bin', data);
@@ -58,7 +71,10 @@ describe('Local Provider', () => {
   });
 
   it('checks file existence', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: testBasePath });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: testBasePath,
+    });
     const data = new Uint8Array([42]);
 
     await provider.upload('test-bucket/exists.bin', data);
@@ -68,7 +84,10 @@ describe('Local Provider', () => {
   });
 
   it('deletes a file', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: testBasePath });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: testBasePath,
+    });
     const data = new Uint8Array([99]);
 
     await provider.upload('test-bucket/to-delete.bin', data);
@@ -78,20 +97,29 @@ describe('Local Provider', () => {
   });
 
   it('rejects directory traversal', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: testBasePath });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: testBasePath,
+    });
 
     expect(() => provider.presign('../etc/passwd', {})).toThrow(VobaseError);
   });
 
   it('returns proxy URL from presign', () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: testBasePath });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: testBasePath,
+    });
     const url = provider.presign('avatars/user-123/pic.jpg', {});
 
     expect(url).toBe('/api/storage/avatars/user-123/pic.jpg');
   });
 
   it('enforces maxSize on upload', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: testBasePath });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: testBasePath,
+    });
     const largeData = new Uint8Array(1000);
 
     await expect(
@@ -111,48 +139,64 @@ describe('Local Provider', () => {
     const result = await provider.list('mybucket');
 
     expect(result.objects.length).toBe(2);
-    expect(result.objects.map((o) => o.key).sort()).toEqual(['mybucket/a.txt', 'mybucket/b.txt']);
+    expect(result.objects.map((o) => o.key).sort()).toEqual([
+      'mybucket/a.txt',
+      'mybucket/b.txt',
+    ]);
   });
 });
 
 describe('StorageService', () => {
   let db: VobaseDb;
-  let sqlite: Database;
+  let pglite: PGlite;
 
   const buckets: Record<string, BucketConfig> = {
     avatars: { access: 'public', maxSize: 5 * 1024 * 1024 },
-    documents: { access: 'private', allowedTypes: ['application/pdf', 'image/*'] },
+    documents: {
+      access: 'private',
+      allowedTypes: ['application/pdf', 'image/*'],
+    },
   };
 
-  beforeEach(() => {
-    const result = createTestDb();
+  beforeEach(async () => {
+    const result = await createTestDb();
     db = result.db;
-    sqlite = result.sqlite;
+    pglite = result.pglite;
     try {
       rmSync(`${testBasePath}/svc`, { recursive: true, force: true });
     } catch {}
     mkdirSync(`${testBasePath}/svc`, { recursive: true });
   });
 
-  afterEach(() => {
-    sqlite.close();
+  afterEach(async () => {
+    await pglite.close();
   });
 
   it('throws for unknown bucket name', () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: `${testBasePath}/svc` });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: `${testBasePath}/svc`,
+    });
     const svc = createStorageService(provider, buckets, db);
 
     expect(() => svc.bucket('nonexistent')).toThrow(VobaseError);
   });
 
-  it('uploads and tracks metadata in SQLite', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: `${testBasePath}/svc` });
+  it('uploads and tracks metadata in database', async () => {
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: `${testBasePath}/svc`,
+    });
     const svc = createStorageService(provider, buckets, db);
 
     const handle = svc.bucket('avatars');
-    const obj = await handle.upload('user-1/pic.jpg', new Uint8Array([1, 2, 3]), {
-      contentType: 'image/jpeg',
-    });
+    const obj = await handle.upload(
+      'user-1/pic.jpg',
+      new Uint8Array([1, 2, 3]),
+      {
+        contentType: 'image/jpeg',
+      },
+    );
 
     expect(obj.bucket).toBe('avatars');
     expect(obj.key).toBe('user-1/pic.jpg');
@@ -165,7 +209,10 @@ describe('StorageService', () => {
   });
 
   it('downloads uploaded file', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: `${testBasePath}/svc` });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: `${testBasePath}/svc`,
+    });
     const svc = createStorageService(provider, buckets, db);
 
     const data = new Uint8Array([10, 20, 30]);
@@ -176,7 +223,10 @@ describe('StorageService', () => {
   });
 
   it('deletes file and removes metadata', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: `${testBasePath}/svc` });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: `${testBasePath}/svc`,
+    });
     const svc = createStorageService(provider, buckets, db);
 
     await svc.bucket('avatars').upload('del-test.bin', new Uint8Array([1]));
@@ -187,7 +237,10 @@ describe('StorageService', () => {
   });
 
   it('enforces bucket maxSize', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: `${testBasePath}/svc` });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: `${testBasePath}/svc`,
+    });
     const smallBuckets = { tiny: { access: 'private' as const, maxSize: 10 } };
     const svc = createStorageService(provider, smallBuckets, db);
 
@@ -197,7 +250,10 @@ describe('StorageService', () => {
   });
 
   it('enforces allowedTypes', async () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: `${testBasePath}/svc` });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: `${testBasePath}/svc`,
+    });
     const svc = createStorageService(provider, buckets, db);
 
     await svc.bucket('documents').upload('doc.pdf', new Uint8Array([1]), {
@@ -216,7 +272,10 @@ describe('StorageService', () => {
   });
 
   it('presign returns proxy URL with bucket prefix', () => {
-    const provider = createLocalAdapter({ type: 'local', basePath: `${testBasePath}/svc` });
+    const provider = createLocalAdapter({
+      type: 'local',
+      basePath: `${testBasePath}/svc`,
+    });
     const svc = createStorageService(provider, buckets, db);
 
     const url = svc.bucket('avatars').presign('user-1/pic.jpg');

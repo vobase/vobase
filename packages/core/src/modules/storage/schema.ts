@@ -1,20 +1,29 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
 import { nanoidPrimaryKey } from '../../db/helpers';
 
-export const storageObjects = sqliteTable(
+export const storageObjects = pgTable(
   '_storage_objects',
   {
     id: nanoidPrimaryKey(),
     bucket: text('bucket').notNull(),
     key: text('key').notNull(),
     size: integer('size').notNull(),
-    contentType: text('content_type').notNull().default('application/octet-stream'),
+    contentType: text('content_type')
+      .notNull()
+      .default('application/octet-stream'),
     metadata: text('metadata'),
     uploadedBy: text('uploaded_by'),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
-      .$defaultFn(() => new Date()),
+      .defaultNow(),
   },
   (table) => [
     uniqueIndex('storage_objects_bucket_key_idx').on(table.bucket, table.key),

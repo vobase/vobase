@@ -1,46 +1,45 @@
-import { rmSync } from 'node:fs';
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { Queue, shutdownManager } from 'bunqueue/client';
+import { describe, expect, it } from 'bun:test';
+import { PGlite } from '@electric-sql/pglite';
 
 import { createScheduler } from './queue';
 
-const TEST_DB_PATH = `/tmp/vobase-bunqueue-${process.pid}.db`;
-const globalScope = globalThis as typeof globalThis & {
-  __vobaseBunqueueTestRefs__?: number;
-};
-
-function makeQueueName(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-beforeAll(() => {
-  globalScope.__vobaseBunqueueTestRefs__ =
-    (globalScope.__vobaseBunqueueTestRefs__ ?? 0) + 1;
-});
-
-afterAll(() => {
-  const refs = (globalScope.__vobaseBunqueueTestRefs__ ?? 1) - 1;
-  globalScope.__vobaseBunqueueTestRefs__ = refs;
-
-  if (refs === 0) {
-    shutdownManager();
-    rmSync(TEST_DB_PATH, { force: true });
-    rmSync(`${TEST_DB_PATH}-shm`, { force: true });
-    rmSync(`${TEST_DB_PATH}-wal`, { force: true });
-  }
-});
-
 describe('createScheduler()', () => {
   it('enqueues a job via scheduler.add()', async () => {
-    const queueName = makeQueueName('scheduler-add');
-    const scheduler = await createScheduler({ dbPath: TEST_DB_PATH, queueName });
+    const pglite = new PGlite();
+    const scheduler = await createScheduler({ connection: pglite });
 
     await scheduler.add('email.send', { to: 'user@example.com' });
 
-    const queue = new Queue(queueName, { embedded: true });
-    const waitingCount = await queue.getWaitingCount();
-    queue.close();
+    const result = await pglite.query<{ name: string }>(
+      "SELECT name FROM pgboss.job WHERE name = 'email.send' LIMIT 1",
+    );
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].name).toBe('email.send');
+  });
 
-    expect(waitingCount).toBe(1);
+  it('send() returns a job ID string', async () => {
+    const pglite = new PGlite();
+    const scheduler = await createScheduler({ connection: pglite });
+
+    const id = await scheduler.send('invoice.generate', { number: 'INV-001' });
+
+    expect(typeof id).toBe('string');
+    expect(id).toBeTruthy();
+  });
+
+  it('send() with retryLimit stores job with correct name', async () => {
+    const pglite = new PGlite();
+    const scheduler = await createScheduler({ connection: pglite });
+
+    await scheduler.add(
+      'report.build',
+      { period: 'weekly' },
+      { retryLimit: 3 },
+    );
+
+    const result = await pglite.query<{ name: string }>(
+      "SELECT name FROM pgboss.job WHERE name = 'report.build' LIMIT 1",
+    );
+    expect(result.rows).toHaveLength(1);
   });
 });

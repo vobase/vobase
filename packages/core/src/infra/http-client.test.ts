@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+
 import { createHttpClient } from './http-client';
 
 let server: ReturnType<typeof Bun.serve>;
@@ -75,7 +76,9 @@ afterAll(() => {
 });
 
 /** Helper: create a local server with a custom handler, returns { baseUrl, stop } */
-function createTestServer(handler: (req: Request) => Response | Promise<Response>) {
+function createTestServer(
+  handler: (req: Request) => Response | Promise<Response>,
+) {
   const s = Bun.serve({ port: 0, fetch: handler });
   return { baseUrl: `http://localhost:${s.port}`, stop: () => s.stop(true) };
 }
@@ -176,10 +179,9 @@ describe('HttpClient.get', () => {
 describe('HttpClient.post', () => {
   test('sends POST with JSON body', async () => {
     const client = createHttpClient({ baseUrl });
-    const res = await client.post<{ method: string; body: unknown }>(
-      '/echo',
-      { key: 'value' },
-    );
+    const res = await client.post<{ method: string; body: unknown }>('/echo', {
+      key: 'value',
+    });
     expect(res.data.method).toBe('POST');
     expect(res.data.body).toEqual({ key: 'value' });
   });
@@ -188,10 +190,9 @@ describe('HttpClient.post', () => {
 describe('HttpClient.put', () => {
   test('sends PUT with JSON body', async () => {
     const client = createHttpClient({ baseUrl });
-    const res = await client.put<{ method: string; body: unknown }>(
-      '/echo',
-      { updated: true },
-    );
+    const res = await client.put<{ method: string; body: unknown }>('/echo', {
+      updated: true,
+    });
     expect(res.data.method).toBe('PUT');
     expect(res.data.body).toEqual({ updated: true });
   });
@@ -245,7 +246,11 @@ describe('retry logic', () => {
     });
 
     try {
-      const client = createHttpClient({ baseUrl: ts.baseUrl, retries: 3, retryDelay: 10 });
+      const client = createHttpClient({
+        baseUrl: ts.baseUrl,
+        retries: 3,
+        retryDelay: 10,
+      });
       const res = await client.get('/test');
       expect(res.ok).toBe(true);
       expect(res.data).toEqual({ ok: true });
@@ -263,7 +268,11 @@ describe('retry logic', () => {
     });
 
     try {
-      const client = createHttpClient({ baseUrl: ts.baseUrl, retries: 2, retryDelay: 10 });
+      const client = createHttpClient({
+        baseUrl: ts.baseUrl,
+        retries: 2,
+        retryDelay: 10,
+      });
       const res = await client.get('/test');
       expect(res.ok).toBe(false);
       expect(res.status).toBe(503);
@@ -329,7 +338,11 @@ describe('retry logic', () => {
     });
 
     try {
-      const client = createHttpClient({ baseUrl: ts.baseUrl, retries: 3, retryDelay: 10 });
+      const client = createHttpClient({
+        baseUrl: ts.baseUrl,
+        retries: 3,
+        retryDelay: 10,
+      });
       const res = await client.post('/test', { data: 1 });
       expect(res.ok).toBe(false);
       expect(res.status).toBe(500);
@@ -351,7 +364,11 @@ describe('retry logic', () => {
 
     try {
       // Client default is 0 retries, but per-request overrides to 3
-      const client = createHttpClient({ baseUrl: ts.baseUrl, retries: 0, retryDelay: 10 });
+      const client = createHttpClient({
+        baseUrl: ts.baseUrl,
+        retries: 0,
+        retryDelay: 10,
+      });
       const res = await client.get('/test', { retries: 3 });
       expect(res.ok).toBe(true);
       expect(res.data).toEqual({ ok: true });
@@ -398,7 +415,9 @@ describe('circuit breaker integration', () => {
       await client.get('/test');
 
       // Now the circuit should be open
-      await expect(client.get('/test')).rejects.toThrow('Circuit breaker is open');
+      await expect(client.get('/test')).rejects.toThrow(
+        'Circuit breaker is open',
+      );
     } finally {
       ts.stop();
     }
@@ -420,10 +439,18 @@ describe('circuit breaker integration', () => {
       await client.post('/test', { data: 2 });
 
       // All methods should be rejected
-      await expect(client.get('/test')).rejects.toThrow('Circuit breaker is open');
-      await expect(client.post('/test', {})).rejects.toThrow('Circuit breaker is open');
-      await expect(client.put('/test', {})).rejects.toThrow('Circuit breaker is open');
-      await expect(client.delete('/test')).rejects.toThrow('Circuit breaker is open');
+      await expect(client.get('/test')).rejects.toThrow(
+        'Circuit breaker is open',
+      );
+      await expect(client.post('/test', {})).rejects.toThrow(
+        'Circuit breaker is open',
+      );
+      await expect(client.put('/test', {})).rejects.toThrow(
+        'Circuit breaker is open',
+      );
+      await expect(client.delete('/test')).rejects.toThrow(
+        'Circuit breaker is open',
+      );
     } finally {
       ts.stop();
     }
@@ -474,9 +501,7 @@ describe('body serialization', () => {
 
   test('post with no body does not set content-type', async () => {
     const client = createHttpClient({ baseUrl });
-    const res = await client.post<{ contentType: string | null }>(
-      '/echo-raw',
-    );
+    const res = await client.post<{ contentType: string | null }>('/echo-raw');
     expect(res.data.contentType).toBeNull();
   });
 });

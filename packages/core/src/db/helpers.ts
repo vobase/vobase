@@ -1,4 +1,5 @@
-import { integer, text } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+import { text, timestamp } from 'drizzle-orm/pg-core';
 import { customAlphabet } from 'nanoid';
 
 export const NANOID_LENGTH = { SHORT: 8, DEFAULT: 12, LONG: 16 } as const;
@@ -27,25 +28,26 @@ export function createNanoid(
 }
 
 /**
- * Create a nanoid-based primary key column for SQLite.
- * Generates a 12-character ID by default (customizable).
+ * Create a nanoid-based primary key column for Postgres.
+ * Uses the database-side nanoid() function as default (requires nanoid extension).
  */
 export const nanoidPrimaryKey = (length: number = NANOID_LENGTH.DEFAULT) =>
   text('id')
     .primaryKey()
-    .$defaultFn(() => createNanoid(length)());
+    .notNull()
+    .default(sql`nanoid(${sql.raw(String(length))})`);
 
 /**
- * Default timestamp columns for SQLite using timestamp_ms mode.
- * createdAt: set on insert and never updated
- * updatedAt: set on insert and updated on every row modification
+ * Default timestamp columns for Postgres using timestamptz.
+ * createdAt: set on insert via database default
+ * updatedAt: set on insert via database default, updated on every row modification
  */
 export const DEFAULT_COLUMNS = {
-  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+  createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
-    .$defaultFn(() => new Date())
+    .defaultNow()
     .$onUpdate(() => new Date()),
 } as const;

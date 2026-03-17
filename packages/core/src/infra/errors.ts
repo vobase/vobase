@@ -9,7 +9,6 @@ export const ERROR_CODES = {
   VALIDATION: 'VALIDATION',
   CONFLICT: 'CONFLICT',
   INTERNAL: 'INTERNAL',
-  DB_BUSY: 'DB_BUSY',
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;
@@ -40,9 +39,6 @@ export const validation = (details: object, message = 'Validation failed') =>
 
 export const conflict = (resource: string) =>
   new VobaseError(`${resource} already exists`, 'CONFLICT', 409);
-
-export const dbBusy = () =>
-  new VobaseError('Database busy, try again', 'DB_BUSY', 503);
 
 export const errorHandler = (err: Error, c: Context): Response => {
   if (err instanceof VobaseError) {

@@ -6,7 +6,11 @@
 export function createThrowProxy<T>(serviceName: string): T {
   return new Proxy(Object.create(null), {
     get(_target, prop) {
-      if (prop === Symbol.toPrimitive || prop === Symbol.toStringTag || prop === 'inspect') {
+      if (
+        prop === Symbol.toPrimitive ||
+        prop === Symbol.toStringTag ||
+        prop === 'inspect'
+      ) {
         return undefined;
       }
       throw new Error(

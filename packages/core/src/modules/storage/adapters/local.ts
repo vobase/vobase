@@ -1,12 +1,18 @@
-import { mkdirSync, unlinkSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { join, normalize, dirname } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+} from 'node:fs';
+import { dirname, join, normalize } from 'node:path';
 
-import { validation } from '../../../infra/errors';
 import type {
+  LocalAdapterConfig,
   StorageAdapter,
   StorageObjectInfo,
-  LocalAdapterConfig,
 } from '../../../contracts/storage';
+import { validation } from '../../../infra/errors';
 
 function sanitizePath(inputPath: string): string {
   if (inputPath.includes('..')) {

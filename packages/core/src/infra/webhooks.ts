@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+
 import type { VobaseDb } from '../db/client';
 import type { Scheduler } from './queue';
 import { webhookDedup } from './webhooks-schema';
@@ -61,28 +62,27 @@ export function verifyHmacSignature(
  *
  * @returns `true` if the webhook is a duplicate, `false` if it's new.
  */
-export function checkAndRecordWebhook(
+export async function checkAndRecordWebhook(
   db: VobaseDb,
   webhookId: string,
   source: string,
-): boolean {
-  const existing = db
+): Promise<boolean> {
+  const [existing] = await db
     .select({ id: webhookDedup.id })
     .from(webhookDedup)
-    .where(and(eq(webhookDedup.id, webhookId), eq(webhookDedup.source, source)))
-    .get();
+    .where(
+      and(eq(webhookDedup.id, webhookId), eq(webhookDedup.source, source)),
+    );
 
   if (existing) {
     return true;
   }
 
-  db.insert(webhookDedup)
-    .values({
-      id: webhookId,
-      source,
-      receivedAt: new Date(),
-    })
-    .run();
+  await db.insert(webhookDedup).values({
+    id: webhookId,
+    source,
+    receivedAt: new Date(),
+  });
 
   return false;
 }
@@ -120,7 +120,7 @@ export function createWebhookRoutes(
         const idHeader = config.idHeader ?? 'x-webhook-id';
         const webhookId = c.req.header(idHeader) ?? '';
 
-        if (webhookId && checkAndRecordWebhook(db, webhookId, source)) {
+        if (webhookId && (await checkAndRecordWebhook(db, webhookId, source))) {
           return c.json({ received: true, deduplicated: true }, 200);
         }
       }

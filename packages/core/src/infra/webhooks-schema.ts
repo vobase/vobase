@@ -1,17 +1,17 @@
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
  * Webhook deduplication table. Tracks processed webhook IDs
  * to prevent duplicate processing.
  */
-export const webhookDedup = sqliteTable(
+export const webhookDedup = pgTable(
   '_webhook_dedup',
   {
     id: text('id').notNull(),
     source: text('source').notNull(),
-    receivedAt: integer('received_at', { mode: 'timestamp_ms' })
+    receivedAt: timestamp('received_at', { withTimezone: true })
       .notNull()
-      .$defaultFn(() => new Date()),
+      .defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.id, table.source] })],
 );

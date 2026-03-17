@@ -4,8 +4,8 @@ import { z } from 'zod';
 
 import type { AuthUser } from '../contracts/auth';
 import type { VobaseDb } from '../db';
-import { auditLog } from '../modules/audit/schema';
 import type { VobaseModule } from '../module';
+import { auditLog } from '../modules/audit/schema';
 import { registerCrudTools } from './crud';
 
 const DEFAULT_LOG_LIMIT = 50;
@@ -97,24 +97,24 @@ export async function createMcpServer(deps: McpDeps): Promise<McpServer> {
     },
     async ({ limit }) => {
       const effectiveLimit = limit ?? DEFAULT_LOG_LIMIT;
-      const entries = deps.db
+      const rows = await deps.db
         .select()
         .from(auditLog)
         .orderBy(desc(auditLog.createdAt))
-        .limit(effectiveLimit)
-        .all()
-        .map((entry) => ({
-          id: entry.id,
-          event: entry.event,
-          actorId: entry.actorId,
-          actorEmail: entry.actorEmail,
-          ip: entry.ip,
-          details: entry.details,
-          createdAt:
-            entry.createdAt instanceof Date
-              ? entry.createdAt.toISOString()
-              : String(entry.createdAt),
-        }));
+        .limit(effectiveLimit);
+
+      const entries = rows.map((entry) => ({
+        id: entry.id,
+        event: entry.event,
+        actorId: entry.actorId,
+        actorEmail: entry.actorEmail,
+        ip: entry.ip,
+        details: entry.details,
+        createdAt:
+          entry.createdAt instanceof Date
+            ? entry.createdAt.toISOString()
+            : String(entry.createdAt),
+      }));
 
       return toToolResult({ entries });
     },
@@ -154,14 +154,21 @@ export function createMcpHandler(
     // Register CRUD tools only when authenticated via API key
     if (authenticatedUser) {
       const excludeMap = new Map<string, Set<string>>();
-      registerCrudTools(server, deps.modules, {
-        db: deps.db,
-        user: authenticatedUser,
-        organizationEnabled: deps.organizationEnabled ?? false,
-      }, excludeMap);
+      registerCrudTools(
+        server,
+        deps.modules,
+        {
+          db: deps.db,
+          user: authenticatedUser,
+          organizationEnabled: deps.organizationEnabled ?? false,
+        },
+        excludeMap,
+      );
     }
 
-    const { WebStandardStreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js');
+    const { WebStandardStreamableHTTPServerTransport } = await import(
+      '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+    );
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,

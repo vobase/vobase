@@ -1,4 +1,9 @@
-import type { ChannelAdapter, OutboundMessage, SendResult, ChannelCapabilities } from '../../../contracts/channels';
+import type {
+  ChannelAdapter,
+  ChannelCapabilities,
+  OutboundMessage,
+  SendResult,
+} from '../../../contracts/channels';
 
 export interface ResendAdapterConfig {
   apiKey: string;
@@ -15,7 +20,9 @@ const EMAIL_CAPABILITIES: ChannelCapabilities = {
   messagingWindow: false,
 };
 
-export function createResendAdapter(config: ResendAdapterConfig): ChannelAdapter {
+export function createResendAdapter(
+  config: ResendAdapterConfig,
+): ChannelAdapter {
   return {
     name: 'resend',
     inboundMode: 'pull',
@@ -32,7 +39,7 @@ export function createResendAdapter(config: ResendAdapterConfig): ChannelAdapter
         ?.filter((m) => m.data != null)
         .map((m) => ({
           filename: m.filename ?? 'attachment',
-          content: m.data!.toString('base64'),
+          content: m.data?.toString('base64'),
           content_type: m.mimeType,
         }));
 

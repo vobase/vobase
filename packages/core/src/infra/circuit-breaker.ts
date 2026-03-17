@@ -1,6 +1,6 @@
 export interface CircuitBreakerOptions {
-  threshold: number;      // failures before opening
-  resetTimeout: number;   // ms before transitioning from open to half-open
+  threshold: number; // failures before opening
+  resetTimeout: number; // ms before transitioning from open to half-open
 }
 
 type CircuitState = 'closed' | 'open' | 'half-open';

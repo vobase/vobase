@@ -1,7 +1,8 @@
-import { Database } from 'bun:sqlite';
 import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { drizzle } from 'drizzle-orm/bun-sqlite';
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
+
 import type { VobaseDb } from '../db/client';
 import type { Scheduler } from './queue';
 import {
@@ -16,16 +17,18 @@ function computeSignature(payload: string, secret: string): string {
   return createHmac('sha256', secret).update(payload).digest('hex');
 }
 
-/** Create a Drizzle db with the webhook dedup table */
-function createTestDb(): VobaseDb {
-  const sqlite = new Database(':memory:');
-  sqlite.run(`CREATE TABLE _webhook_dedup (
-    id TEXT NOT NULL,
-    source TEXT NOT NULL,
-    received_at INTEGER NOT NULL,
-    PRIMARY KEY (id, source)
-  )`);
-  return drizzle({ client: sqlite }) as VobaseDb;
+/** Create a PGlite db with the webhook dedup table */
+async function createTestDb(): Promise<VobaseDb> {
+  const pglite = new PGlite();
+  await pglite.exec(`
+    CREATE TABLE _webhook_dedup (
+      id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (id, source)
+    )
+  `);
+  return drizzle({ client: pglite });
 }
 
 describe('WebhookConfig', () => {
@@ -68,7 +71,8 @@ describe('verifyHmacSignature', () => {
   test('rejects invalid signature', () => {
     const signature = computeSignature(payload, secret);
     // Flip last character
-    const tampered = signature.slice(0, -1) + (signature.endsWith('0') ? '1' : '0');
+    const tampered =
+      signature.slice(0, -1) + (signature.endsWith('0') ? '1' : '0');
     expect(verifyHmacSignature(payload, tampered, secret)).toBe(false);
   });
 
@@ -102,7 +106,9 @@ describe('verifyHmacSignature', () => {
   });
 
   test('never throws on malformed input', () => {
-    expect(verifyHmacSignature(payload, 'not-hex-at-all!!!', secret)).toBe(false);
+    expect(verifyHmacSignature(payload, 'not-hex-at-all!!!', secret)).toBe(
+      false,
+    );
     expect(verifyHmacSignature(payload, 'zzzz'.repeat(16), secret)).toBe(false);
   });
 });
@@ -110,50 +116,55 @@ describe('verifyHmacSignature', () => {
 describe('webhook deduplication', () => {
   let db: VobaseDb;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    db = await createTestDb();
   });
 
-  test('first webhook ID is not a duplicate', () => {
-    const isDuplicate = checkAndRecordWebhook(db, 'wh_001', 'stripe');
+  test('first webhook ID is not a duplicate', async () => {
+    const isDuplicate = await checkAndRecordWebhook(db, 'wh_001', 'stripe');
     expect(isDuplicate).toBe(false);
   });
 
-  test('same webhook ID is a duplicate', () => {
-    checkAndRecordWebhook(db, 'wh_002', 'stripe');
-    const isDuplicate = checkAndRecordWebhook(db, 'wh_002', 'stripe');
+  test('same webhook ID is a duplicate', async () => {
+    await checkAndRecordWebhook(db, 'wh_002', 'stripe');
+    const isDuplicate = await checkAndRecordWebhook(db, 'wh_002', 'stripe');
     expect(isDuplicate).toBe(true);
   });
 
-  test('different webhook IDs are not duplicates', () => {
-    expect(checkAndRecordWebhook(db, 'wh_aaa', 'stripe')).toBe(false);
-    expect(checkAndRecordWebhook(db, 'wh_bbb', 'stripe')).toBe(false);
-    expect(checkAndRecordWebhook(db, 'wh_ccc', 'stripe')).toBe(false);
+  test('different webhook IDs are not duplicates', async () => {
+    expect(await checkAndRecordWebhook(db, 'wh_aaa', 'stripe')).toBe(false);
+    expect(await checkAndRecordWebhook(db, 'wh_bbb', 'stripe')).toBe(false);
+    expect(await checkAndRecordWebhook(db, 'wh_ccc', 'stripe')).toBe(false);
   });
 
-  test('same ID with different source is not a duplicate (composite key)', () => {
-    expect(checkAndRecordWebhook(db, 'wh_shared', 'stripe')).toBe(false);
-    expect(checkAndRecordWebhook(db, 'wh_shared', 'github')).toBe(false);
+  test('same ID with different source is not a duplicate (composite key)', async () => {
+    expect(await checkAndRecordWebhook(db, 'wh_shared', 'stripe')).toBe(false);
+    expect(await checkAndRecordWebhook(db, 'wh_shared', 'github')).toBe(false);
   });
 });
 
 // --- Route handler tests ---
 
-function createMockScheduler(): Scheduler & { calls: Array<{ jobName: string; data: unknown }> } {
+function createMockScheduler(): Scheduler & {
+  calls: Array<{ jobName: string; data: unknown }>;
+} {
   const calls: Array<{ jobName: string; data: unknown }> = [];
   return {
     calls,
     async add(jobName: string, data: unknown) {
       calls.push({ jobName, data });
     },
+    async send() {
+      return null;
+    },
   };
 }
 
-function createWebhookTestApp(
+async function createWebhookTestApp(
   configs: Record<string, WebhookConfig>,
   mockScheduler: Scheduler,
 ) {
-  const db = createTestDb();
+  const db = await createTestDb();
   const router = createWebhookRoutes(configs, { db, scheduler: mockScheduler });
   return { app: router, db };
 }
@@ -168,8 +179,14 @@ describe('createWebhookRoutes', () => {
 
   test('receives webhook with valid signature and enqueues job', async () => {
     const scheduler = createMockScheduler();
-    const { app } = createWebhookTestApp(
-      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+    const { app } = await createWebhookTestApp(
+      {
+        stripe: {
+          path: '/webhooks/stripe',
+          secret,
+          handler: 'billing:processWebhook',
+        },
+      },
       scheduler,
     );
 
@@ -196,8 +213,14 @@ describe('createWebhookRoutes', () => {
 
   test('rejects invalid signature with 401', async () => {
     const scheduler = createMockScheduler();
-    const { app } = createWebhookTestApp(
-      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+    const { app } = await createWebhookTestApp(
+      {
+        stripe: {
+          path: '/webhooks/stripe',
+          secret,
+          handler: 'billing:processWebhook',
+        },
+      },
       scheduler,
     );
 
@@ -217,8 +240,14 @@ describe('createWebhookRoutes', () => {
 
   test('deduplicates same webhook ID', async () => {
     const scheduler = createMockScheduler();
-    const { app } = createWebhookTestApp(
-      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+    const { app } = await createWebhookTestApp(
+      {
+        stripe: {
+          path: '/webhooks/stripe',
+          secret,
+          handler: 'billing:processWebhook',
+        },
+      },
       scheduler,
     );
 
@@ -228,11 +257,19 @@ describe('createWebhookRoutes', () => {
       'x-webhook-id': 'wh_dup',
     };
 
-    const res1 = await app.request('/webhooks/stripe', { method: 'POST', body: payload, headers });
+    const res1 = await app.request('/webhooks/stripe', {
+      method: 'POST',
+      body: payload,
+      headers,
+    });
     expect(res1.status).toBe(200);
     expect(await res1.json()).toEqual({ received: true });
 
-    const res2 = await app.request('/webhooks/stripe', { method: 'POST', body: payload, headers });
+    const res2 = await app.request('/webhooks/stripe', {
+      method: 'POST',
+      body: payload,
+      headers,
+    });
     expect(res2.status).toBe(200);
     expect(await res2.json()).toEqual({ received: true, deduplicated: true });
 
@@ -241,8 +278,15 @@ describe('createWebhookRoutes', () => {
 
   test('skips dedup when dedup: false in config', async () => {
     const scheduler = createMockScheduler();
-    const { app } = createWebhookTestApp(
-      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook', dedup: false } },
+    const { app } = await createWebhookTestApp(
+      {
+        stripe: {
+          path: '/webhooks/stripe',
+          secret,
+          handler: 'billing:processWebhook',
+          dedup: false,
+        },
+      },
       scheduler,
     );
 
@@ -252,15 +296,23 @@ describe('createWebhookRoutes', () => {
       'x-webhook-id': 'wh_nodup',
     };
 
-    await app.request('/webhooks/stripe', { method: 'POST', body: payload, headers });
-    await app.request('/webhooks/stripe', { method: 'POST', body: payload, headers });
+    await app.request('/webhooks/stripe', {
+      method: 'POST',
+      body: payload,
+      headers,
+    });
+    await app.request('/webhooks/stripe', {
+      method: 'POST',
+      body: payload,
+      headers,
+    });
 
     expect(scheduler.calls).toHaveLength(2);
   });
 
   test('uses custom signatureHeader when configured', async () => {
     const scheduler = createMockScheduler();
-    const { app } = createWebhookTestApp(
+    const { app } = await createWebhookTestApp(
       {
         github: {
           path: '/webhooks/github',
@@ -288,7 +340,7 @@ describe('createWebhookRoutes', () => {
 
   test('uses custom idHeader when configured', async () => {
     const scheduler = createMockScheduler();
-    const { app } = createWebhookTestApp(
+    const { app } = await createWebhookTestApp(
       {
         github: {
           path: '/webhooks/github',
@@ -306,8 +358,16 @@ describe('createWebhookRoutes', () => {
       'x-github-delivery': 'gh_dup',
     };
 
-    await app.request('/webhooks/github', { method: 'POST', body: payload, headers });
-    const res2 = await app.request('/webhooks/github', { method: 'POST', body: payload, headers });
+    await app.request('/webhooks/github', {
+      method: 'POST',
+      body: payload,
+      headers,
+    });
+    const res2 = await app.request('/webhooks/github', {
+      method: 'POST',
+      body: payload,
+      headers,
+    });
 
     expect(res2.status).toBe(200);
     expect(await res2.json()).toEqual({ received: true, deduplicated: true });
@@ -316,8 +376,14 @@ describe('createWebhookRoutes', () => {
 
   test('enqueues raw string payload when body is not valid JSON', async () => {
     const scheduler = createMockScheduler();
-    const { app } = createWebhookTestApp(
-      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+    const { app } = await createWebhookTestApp(
+      {
+        stripe: {
+          path: '/webhooks/stripe',
+          secret,
+          handler: 'billing:processWebhook',
+        },
+      },
       scheduler,
     );
 
@@ -344,8 +410,14 @@ describe('createWebhookRoutes', () => {
 
   test('returns 401 when signature header is missing', async () => {
     const scheduler = createMockScheduler();
-    const { app } = createWebhookTestApp(
-      { stripe: { path: '/webhooks/stripe', secret, handler: 'billing:processWebhook' } },
+    const { app } = await createWebhookTestApp(
+      {
+        stripe: {
+          path: '/webhooks/stripe',
+          secret,
+          handler: 'billing:processWebhook',
+        },
+      },
       scheduler,
     );
 

@@ -1,124 +1,156 @@
-import { rmSync } from 'node:fs';
-import { Database } from 'bun:sqlite';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { shutdownManager } from 'bunqueue/client';
+import { PGlite } from '@electric-sql/pglite';
+import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import { vector } from '@electric-sql/pglite/vector';
 
 import { createApp } from '../app';
-import { createDatabase, type VobaseDb } from '../db';
-type DbWithClient = VobaseDb & { $client: Database };
 
-const dbPath = `/tmp/vobase-e2e-${process.pid}-${Date.now()}.db`;
-const queueDbPath = dbPath.replace(/\.db$/, '-queue.db');
+const tempDir = `/tmp/vobase-e2e-${process.pid}-${Date.now()}`;
+const nanoidSql = readFileSync(
+  join(import.meta.dir, '../../../template/db/extensions/nanoid.sql'),
+  'utf-8',
+);
+
 const email = `e2e-${Date.now()}@test.com`;
 const password = 'Test1234!';
 
 let app: Awaited<ReturnType<typeof createApp>>;
-let systemDb: DbWithClient;
 let sessionCookie = '';
 let previousAuthSecret: string | undefined;
 let previousAuthUrl: string | undefined;
 
 /**
- * Create all required tables for the e2e test.
- * Since ensureCoreTables() was removed, we create tables via raw SQL
- * matching the Drizzle schema definitions.
+ * Bootstrap a PGlite directory with all tables required by the app.
+ * Called before createApp so the auth/audit tables exist when better-auth initialises.
  */
-function createTables(db: Database) {
-  db.run(`CREATE TABLE IF NOT EXISTS "user" (
-    "id" text PRIMARY KEY NOT NULL,
-    "name" text NOT NULL,
-    "email" text NOT NULL,
-    "email_verified" integer NOT NULL DEFAULT 0,
-    "image" text,
-    "role" text NOT NULL DEFAULT 'user',
-    "created_at" integer NOT NULL,
-    "updated_at" integer NOT NULL
-  )`);
-  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS "user_email_unique" ON "user" ("email")`);
+async function bootstrapDatabase(dir: string): Promise<void> {
+  mkdirSync(dir, { recursive: true });
 
-  db.run(`CREATE TABLE IF NOT EXISTS "session" (
-    "id" text PRIMARY KEY NOT NULL,
-    "expires_at" integer NOT NULL,
-    "token" text NOT NULL,
-    "created_at" integer NOT NULL,
-    "updated_at" integer NOT NULL,
-    "ip_address" text,
-    "user_agent" text,
-    "user_id" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
-  )`);
-  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS "session_token_unique" ON "session" ("token")`);
-  db.run(`CREATE INDEX IF NOT EXISTS "session_user_id_idx" ON "session" ("user_id")`);
+  const pg = new PGlite(dir, { extensions: { pgcrypto, vector } });
+  const run = pg.exec.bind(pg);
 
-  db.run(`CREATE TABLE IF NOT EXISTS "account" (
-    "id" text PRIMARY KEY NOT NULL,
-    "account_id" text NOT NULL,
-    "provider_id" text NOT NULL,
-    "user_id" text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
-    "access_token" text,
-    "refresh_token" text,
-    "id_token" text,
-    "access_token_expires_at" integer,
-    "refresh_token_expires_at" integer,
-    "scope" text,
-    "password" text,
-    "created_at" integer NOT NULL,
-    "updated_at" integer NOT NULL
-  )`);
-  db.run(`CREATE INDEX IF NOT EXISTS "account_user_id_idx" ON "account" ("user_id")`);
+  await run('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+  await run('CREATE EXTENSION IF NOT EXISTS vector');
+  await run(nanoidSql);
 
-  db.run(`CREATE TABLE IF NOT EXISTS "verification" (
-    "id" text PRIMARY KEY NOT NULL,
-    "identifier" text NOT NULL,
-    "value" text NOT NULL,
-    "expires_at" integer NOT NULL,
-    "created_at" integer NOT NULL,
-    "updated_at" integer NOT NULL
-  )`);
-  db.run(`CREATE INDEX IF NOT EXISTS "verification_identifier_idx" ON "verification" ("identifier")`);
+  await run(`
+    CREATE TABLE IF NOT EXISTS "user" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "name" TEXT NOT NULL,
+      "email" TEXT NOT NULL UNIQUE,
+      "email_verified" BOOLEAN NOT NULL DEFAULT FALSE,
+      "image" TEXT,
+      "role" TEXT NOT NULL DEFAULT 'user',
+      "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS "session" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "expires_at" TIMESTAMPTZ NOT NULL,
+      "token" TEXT NOT NULL UNIQUE,
+      "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "ip_address" TEXT,
+      "user_agent" TEXT,
+      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS "account" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "account_id" TEXT NOT NULL,
+      "provider_id" TEXT NOT NULL,
+      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+      "access_token" TEXT,
+      "refresh_token" TEXT,
+      "id_token" TEXT,
+      "access_token_expires_at" TIMESTAMPTZ,
+      "refresh_token_expires_at" TIMESTAMPTZ,
+      "scope" TEXT,
+      "password" TEXT,
+      "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS "verification" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "identifier" TEXT NOT NULL,
+      "value" TEXT NOT NULL,
+      "expires_at" TIMESTAMPTZ NOT NULL,
+      "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS "apikey" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "name" TEXT,
+      "start" TEXT,
+      "prefix" TEXT,
+      "key" TEXT NOT NULL,
+      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+      "refill_interval" TEXT,
+      "refill_amount" INTEGER,
+      "last_refill_at" TIMESTAMPTZ,
+      "enabled" BOOLEAN NOT NULL DEFAULT TRUE,
+      "rate_limit_enabled" BOOLEAN NOT NULL DEFAULT FALSE,
+      "rate_limit_time_window" INTEGER,
+      "rate_limit_max" INTEGER,
+      "request_count" INTEGER NOT NULL DEFAULT 0,
+      "remaining" INTEGER,
+      "last_request" TIMESTAMPTZ,
+      "expires_at" TIMESTAMPTZ,
+      "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "permissions" TEXT,
+      "metadata" TEXT
+    );
+    CREATE TABLE IF NOT EXISTS "_audit_log" (
+      "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
+      "event" TEXT NOT NULL,
+      "actor_id" TEXT,
+      "actor_email" TEXT,
+      "ip" TEXT,
+      "details" TEXT,
+      "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS "_record_audits" (
+      "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
+      "table_name" TEXT NOT NULL,
+      "record_id" TEXT NOT NULL,
+      "old_data" TEXT,
+      "new_data" TEXT,
+      "changed_by" TEXT,
+      "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS "_sequences" (
+      "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
+      "prefix" TEXT NOT NULL UNIQUE,
+      "current_value" INTEGER NOT NULL DEFAULT 0,
+      "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS "_webhook_dedup" (
+      "id" TEXT NOT NULL,
+      "source" TEXT NOT NULL,
+      "received_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY ("id", "source")
+    );
+    CREATE TABLE IF NOT EXISTS "_integrations" (
+      "id" TEXT PRIMARY KEY DEFAULT nanoid(12),
+      "provider" TEXT NOT NULL,
+      "auth_type" TEXT NOT NULL,
+      "label" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "config" TEXT NOT NULL,
+      "scopes" TEXT,
+      "config_expires_at" TIMESTAMPTZ,
+      "last_refresh_at" TIMESTAMPTZ,
+      "auth_failed_at" TIMESTAMPTZ,
+      "created_by" TEXT,
+      "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 
-  db.run(`CREATE TABLE IF NOT EXISTS "_audit_log" (
-    "id" text PRIMARY KEY NOT NULL,
-    "event" text NOT NULL,
-    "actor_id" text,
-    "actor_email" text,
-    "ip" text,
-    "details" text,
-    "created_at" integer NOT NULL
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS "_record_audits" (
-    "id" text PRIMARY KEY NOT NULL,
-    "table_name" text NOT NULL,
-    "record_id" text NOT NULL,
-    "old_data" text,
-    "new_data" text,
-    "changed_by" text,
-    "created_at" integer NOT NULL
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS "_sequences" (
-    "id" text PRIMARY KEY NOT NULL,
-    "prefix" text NOT NULL,
-    "current_value" integer NOT NULL DEFAULT 0,
-    "updated_at" integer NOT NULL
-  )`);
-  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS "_sequences_prefix_unique" ON "_sequences" ("prefix")`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS "_webhook_dedup" (
-    "id" text NOT NULL,
-    "source" text NOT NULL,
-    "received_at" integer NOT NULL,
-    PRIMARY KEY ("id", "source")
-  )`);
+  await pg.close();
 }
-
-const getPragmaValue = (db: DbWithClient, pragma: string): string => {
-  const row = db.$client.query(`PRAGMA ${pragma}`).get() as Record<
-    string,
-    unknown
-  >;
-  return String(Object.values(row)[0]);
-};
 
 beforeAll(async () => {
   previousAuthSecret = process.env.BETTER_AUTH_SECRET;
@@ -126,40 +158,26 @@ beforeAll(async () => {
   process.env.BETTER_AUTH_SECRET = 'vobase-e2e-secret';
   process.env.BETTER_AUTH_URL = 'http://localhost';
 
-  // Create tables before createApp opens its own connection
-  const bootstrapDb = new Database(dbPath);
-  createTables(bootstrapDb);
-  bootstrapDb.close();
+  await bootstrapDatabase(tempDir);
 
-  systemDb = createDatabase(dbPath) as DbWithClient;
   app = await createApp({
-    database: dbPath,
+    database: tempDir,
     modules: [],
     mcp: { enabled: true },
   });
 });
 
 afterAll(() => {
-  shutdownManager();
-  systemDb?.$client.close();
   if (previousAuthSecret === undefined) delete process.env.BETTER_AUTH_SECRET;
   else process.env.BETTER_AUTH_SECRET = previousAuthSecret;
   if (previousAuthUrl === undefined) delete process.env.BETTER_AUTH_URL;
   else process.env.BETTER_AUTH_URL = previousAuthUrl;
 
-  rmSync(dbPath, { force: true });
-  rmSync(`${dbPath}-wal`, { force: true });
-  rmSync(`${dbPath}-shm`, { force: true });
-  rmSync(queueDbPath, { force: true });
-  rmSync(`${queueDbPath}-wal`, { force: true });
-  rmSync(`${queueDbPath}-shm`, { force: true });
-  rmSync('./data/bunqueue.db', { force: true });
-  rmSync('./data/bunqueue.db-wal', { force: true });
-  rmSync('./data/bunqueue.db-shm', { force: true });
+  rmSync(tempDir, { force: true, recursive: true });
 });
 
 describe('vobase engine e2e integration', () => {
-  it('passes health, auth, mcp, and db pragma checks', async () => {
+  it('health endpoint returns ok', async () => {
     const health = await app.request('http://localhost/health');
     const healthBody = (await health.json()) as {
       status: string;
@@ -168,7 +186,9 @@ describe('vobase engine e2e integration', () => {
     expect(health.status).toBe(200);
     expect(healthBody).toMatchObject({ status: 'ok' });
     expect(typeof healthBody.uptime).toBe('number');
+  });
 
+  it('auth signup and signin work', async () => {
     const signup = await app.request(
       'http://localhost/api/auth/sign-up/email',
       {
@@ -193,7 +213,9 @@ describe('vobase engine e2e integration', () => {
     sessionCookie =
       (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
     expect(sessionCookie.length).toBeGreaterThan(0);
+  });
 
+  it('MCP tools/list returns tools array', async () => {
     const mcp = await app.request('http://localhost/mcp', {
       method: 'POST',
       headers: {
@@ -209,17 +231,5 @@ describe('vobase engine e2e integration', () => {
           ?.tools,
       ),
     ).toBe(true);
-
-    expect({
-      journalMode: getPragmaValue(systemDb, 'journal_mode'),
-      busyTimeout: getPragmaValue(systemDb, 'busy_timeout'),
-      synchronous: getPragmaValue(systemDb, 'synchronous'),
-      foreignKeys: getPragmaValue(systemDb, 'foreign_keys'),
-    }).toEqual({
-      journalMode: 'wal',
-      busyTimeout: '5000',
-      synchronous: '1',
-      foreignKeys: '1',
-    });
   });
 });

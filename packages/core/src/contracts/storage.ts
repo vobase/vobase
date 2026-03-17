@@ -4,7 +4,11 @@
  * metadata tracking, and access control on top.
  */
 export interface StorageAdapter {
-  upload(fullKey: string, data: Buffer | Uint8Array, opts?: UploadOptions): Promise<void>;
+  upload(
+    fullKey: string,
+    data: Buffer | Uint8Array,
+    opts?: UploadOptions,
+  ): Promise<void>;
   download(fullKey: string): Promise<Uint8Array>;
   delete(fullKey: string): Promise<void>;
   exists(fullKey: string): Promise<boolean>;

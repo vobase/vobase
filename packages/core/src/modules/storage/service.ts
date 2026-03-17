@@ -1,12 +1,12 @@
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
-import type { VobaseDb } from '../../db/client';
 import type {
-  StorageAdapter,
-  UploadOptions,
   PresignOptions,
+  StorageAdapter,
   StorageListResult,
+  UploadOptions,
 } from '../../contracts/storage';
+import type { VobaseDb } from '../../db/client';
 import { validation } from '../../infra/errors';
 import { storageObjects } from './schema';
 
@@ -28,7 +28,11 @@ export interface StorageObject {
 }
 
 export interface BucketHandle {
-  upload(key: string, data: Buffer | Uint8Array, opts?: UploadOptions): Promise<StorageObject>;
+  upload(
+    key: string,
+    data: Buffer | Uint8Array,
+    opts?: UploadOptions,
+  ): Promise<StorageObject>;
   download(key: string): Promise<Uint8Array>;
   delete(key: string): Promise<void>;
   presign(key: string, opts?: PresignOptions): string;
@@ -100,22 +104,23 @@ export function createStorageService(
 
           await provider.upload(fk, data, { ...opts, maxSize: config.maxSize });
 
-          // Upsert metadata in SQLite
-          const existing = db
+          // Upsert metadata in Postgres
+          const [existing] = await db
             .select()
             .from(storageObjects)
-            .where(and(eq(storageObjects.bucket, name), eq(storageObjects.key, key)))
-            .get();
+            .where(
+              and(eq(storageObjects.bucket, name), eq(storageObjects.key, key)),
+            );
 
           if (existing) {
-            db.update(storageObjects)
+            await db
+              .update(storageObjects)
               .set({
                 size: data.byteLength,
                 contentType,
                 metadata: opts?.metadata ? JSON.stringify(opts.metadata) : null,
               })
-              .where(eq(storageObjects.id, existing.id))
-              .run();
+              .where(eq(storageObjects.id, existing.id));
 
             return {
               ...existing,
@@ -126,7 +131,7 @@ export function createStorageService(
             };
           }
 
-          const row = db
+          const [row] = await db
             .insert(storageObjects)
             .values({
               bucket: name,
@@ -136,8 +141,7 @@ export function createStorageService(
               metadata: opts?.metadata ? JSON.stringify(opts.metadata) : null,
               uploadedBy: opts?.metadata?.uploadedBy ?? null,
             })
-            .returning()
-            .get();
+            .returning();
 
           return {
             id: row.id,
@@ -157,9 +161,11 @@ export function createStorageService(
 
         async delete(key) {
           await provider.delete(fullKey(name, key));
-          db.delete(storageObjects)
-            .where(and(eq(storageObjects.bucket, name), eq(storageObjects.key, key)))
-            .run();
+          await db
+            .delete(storageObjects)
+            .where(
+              and(eq(storageObjects.bucket, name), eq(storageObjects.key, key)),
+            );
         },
 
         presign(key, opts) {
@@ -167,9 +173,7 @@ export function createStorageService(
         },
 
         async list(opts) {
-          const prefix = opts?.prefix
-            ? fullKey(name, opts.prefix)
-            : `${name}/`;
+          const prefix = opts?.prefix ? fullKey(name, opts.prefix) : `${name}/`;
           return provider.list(prefix, {
             cursor: opts?.cursor,
             limit: opts?.limit,
@@ -177,11 +181,12 @@ export function createStorageService(
         },
 
         async metadata(key) {
-          const row = db
+          const [row] = await db
             .select()
             .from(storageObjects)
-            .where(and(eq(storageObjects.bucket, name), eq(storageObjects.key, key)))
-            .get();
+            .where(
+              and(eq(storageObjects.bucket, name), eq(storageObjects.key, key)),
+            );
 
           if (!row) return null;
 

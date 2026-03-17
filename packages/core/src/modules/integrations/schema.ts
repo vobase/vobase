@@ -1,8 +1,8 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
-import { nanoidPrimaryKey, DEFAULT_COLUMNS } from '../../db/helpers';
+import { DEFAULT_COLUMNS, nanoidPrimaryKey } from '../../db/helpers';
 
-export const integrationsTable = sqliteTable(
+export const integrationsTable = pgTable(
   '_integrations',
   {
     id: nanoidPrimaryKey(),
@@ -12,9 +12,9 @@ export const integrationsTable = sqliteTable(
     status: text('status').notNull().default('active'),
     config: text('config').notNull(), // encrypted JSON blob
     scopes: text('scopes'), // JSON array of granted scopes
-    configExpiresAt: integer('config_expires_at', { mode: 'timestamp_ms' }),
-    lastRefreshAt: integer('last_refresh_at', { mode: 'timestamp_ms' }),
-    authFailedAt: integer('auth_failed_at', { mode: 'timestamp_ms' }),
+    configExpiresAt: timestamp('config_expires_at', { withTimezone: true }),
+    lastRefreshAt: timestamp('last_refresh_at', { withTimezone: true }),
+    authFailedAt: timestamp('auth_failed_at', { withTimezone: true }),
     createdBy: text('created_by'),
     ...DEFAULT_COLUMNS,
   },

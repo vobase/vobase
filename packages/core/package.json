@@ -14,7 +14,13 @@
   "exports": {
     ".": {
       "import": "./src/index.ts",
-      "types": "./src/index.ts"
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./schema": {
+      "import": "./src/db/helpers.ts",
+      "types": "./src/db/helpers.ts",
+      "default": "./src/db/helpers.ts"
     }
   },
   "files": [
@@ -31,17 +37,18 @@
   },
   "peerDependencies": {
     "hono": "^4.6.0",
-    "drizzle-orm": ">=1.0.0-beta.1",
+    "drizzle-orm": "^1.0.0-beta.18-7eb39f0",
     "better-auth": "^1.5.0",
     "@better-auth/api-key": "^1.5.0"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.3.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "bunqueue": "^2.6.29",
+    "pg-boss": "^10.1.7",
     "nanoid": "^5.1.7",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "drizzle-kit": "^1.0.0-beta.16-ea816b6"
+    "drizzle-kit": "^1.0.0-beta.18-7eb39f0"
   }
 }

@@ -84,19 +84,9 @@ describe('nanoid helpers', () => {
       expect(getConfig(column).primaryKey).toBe(true);
     });
 
-    it('should have a default function', () => {
+    it('should have a database-side default', () => {
       const column = nanoidPrimaryKey();
-      expect(typeof column.$default).toBe('function');
-    });
-
-    it('should generate valid nanoid', () => {
-      // createNanoid() returns a generator function
-      const generator = createNanoid();
-      const id = generator();
-
-      expect(id).toBeDefined();
-      expect(typeof id).toBe('string');
-      expect(id.length).toBe(NANOID_LENGTH.DEFAULT);
+      expect(getConfig(column).hasDefault).toBe(true);
     });
 
     it('should support custom lengths', () => {
@@ -114,34 +104,22 @@ describe('nanoid helpers', () => {
       expect(DEFAULT_COLUMNS.updatedAt).toBeDefined();
     });
 
-    it('createdAt should be an integer column with timestamp_ms mode', () => {
+    it('createdAt should be a timestamptz column with database default', () => {
       const col = DEFAULT_COLUMNS.createdAt;
       expect(getConfig(col).name).toBe('created_at');
-      expect(getConfig(col).mode).toBe('timestamp_ms');
       expect(getConfig(col).hasDefault).toBe(true);
       expect(getConfig(col).notNull).toBe(true);
     });
 
-    it('updatedAt should be an integer column with timestamp_ms mode', () => {
+    it('updatedAt should be a timestamptz column with database default', () => {
       const col = DEFAULT_COLUMNS.updatedAt;
       expect(getConfig(col).name).toBe('updated_at');
-      expect(getConfig(col).mode).toBe('timestamp_ms');
       expect(getConfig(col).hasDefault).toBe(true);
       expect(getConfig(col).notNull).toBe(true);
-    });
-
-    it('timestamps should have default functions', () => {
-      expect(typeof DEFAULT_COLUMNS.createdAt.$default).toBe('function');
-      expect(typeof DEFAULT_COLUMNS.updatedAt.$default).toBe('function');
     });
 
     it('updatedAt should have onUpdate function', () => {
       expect(typeof DEFAULT_COLUMNS.updatedAt.$onUpdate).toBe('function');
-    });
-
-    it('timestamp columns should use integer data type', () => {
-      expect(getConfig(DEFAULT_COLUMNS.createdAt).dataType).toBe('object date');
-      expect(getConfig(DEFAULT_COLUMNS.updatedAt).dataType).toBe('object date');
     });
   });
 });

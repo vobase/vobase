@@ -1,12 +1,11 @@
-import type { VobaseDb } from '../../db/client';
 import type {
   ChannelAdapter,
-  ChannelEvent,
   OutboundMessage,
   SendResult,
 } from '../../contracts/channels';
+import type { VobaseDb } from '../../db/client';
 import { logger } from '../../infra/logger';
-import { ChannelEventEmitter } from './events';
+import type { ChannelEventEmitter } from './events';
 import { channelsLog } from './schema';
 
 export interface ChannelSend {
@@ -27,26 +26,24 @@ interface ChannelsServiceDeps {
   emitter: ChannelEventEmitter;
 }
 
-function logChannelEvent(
+async function logChannelEvent(
   db: VobaseDb,
   channel: string,
   direction: string,
   to: string,
   result: { success?: boolean; messageId?: string; error?: string },
   extra?: { from?: string; content?: string },
-) {
-  db.insert(channelsLog)
-    .values({
-      channel,
-      direction,
-      to,
-      from: extra?.from ?? null,
-      messageId: result.messageId ?? null,
-      status: result.success !== false ? 'sent' : 'failed',
-      content: extra?.content?.slice(0, 500) ?? null,
-      error: result.error ?? null,
-    })
-    .run();
+): Promise<void> {
+  await db.insert(channelsLog).values({
+    channel,
+    direction,
+    to,
+    from: extra?.from ?? null,
+    messageId: result.messageId ?? null,
+    status: result.success !== false ? 'sent' : 'failed',
+    content: extra?.content?.slice(0, 500) ?? null,
+    error: result.error ?? null,
+  });
 }
 
 /**
@@ -77,19 +74,22 @@ function createChannelSend(
 
       try {
         const result = await adapter.send(message);
-        logChannelEvent(db, channelName, 'outbound', message.to, result, {
+        await logChannelEvent(db, channelName, 'outbound', message.to, result, {
           content: message.text ?? message.template?.name,
         });
         return result;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        logger.error(`${channelName} channel send error`, { error: errorMsg, to: message.to });
+        logger.error(`${channelName} channel send error`, {
+          error: errorMsg,
+          to: message.to,
+        });
         const result: SendResult = {
           success: false,
           error: errorMsg,
           retryable: true,
         };
-        logChannelEvent(db, channelName, 'outbound', message.to, result, {
+        await logChannelEvent(db, channelName, 'outbound', message.to, result, {
           content: message.text ?? message.template?.name,
         });
         return result;
@@ -98,12 +98,18 @@ function createChannelSend(
   };
 }
 
-export function createChannelsService(deps: ChannelsServiceDeps): ChannelsService {
+export function createChannelsService(
+  deps: ChannelsServiceDeps,
+): ChannelsService {
   const { db, adapters, emitter } = deps;
 
   return {
     // Lazy lookup: email tries 'email', then 'resend', then 'smtp'
-    email: createChannelSend(db, 'email', adapters, ['email', 'resend', 'smtp']),
+    email: createChannelSend(db, 'email', adapters, [
+      'email',
+      'resend',
+      'smtp',
+    ]),
     // Lazy lookup: whatsapp checks adapters Map at send-time
     whatsapp: createChannelSend(db, 'whatsapp', adapters),
     on: emitter.on.bind(emitter),

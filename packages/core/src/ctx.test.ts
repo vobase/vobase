@@ -17,6 +17,9 @@ import type { StorageService } from './modules/storage/service';
 const db = {} as VobaseDb;
 const scheduler: Scheduler = {
   async add() {},
+  async send() {
+    return null;
+  },
 };
 const storage: StorageService = {
   bucket() {
@@ -30,7 +33,13 @@ const channels: ChannelsService = {
   registerAdapter() {},
 };
 const integrations = {} as IntegrationsService;
-const mockResponse = { ok: true, status: 200, headers: new Headers(), data: null, raw: new Response() };
+const mockResponse = {
+  ok: true,
+  status: 200,
+  headers: new Headers(),
+  data: null,
+  raw: new Response(),
+};
 const http: HttpClient = {
   fetch: async () => mockResponse,
   get: async () => mockResponse,
@@ -97,7 +106,17 @@ describe('ctx helpers', () => {
 
   it('returns null user when session middleware did not set user', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, channels, integrations, http }));
+    app.use(
+      '*',
+      contextMiddleware({
+        db,
+        scheduler,
+        storage,
+        channels,
+        integrations,
+        http,
+      }),
+    );
     app.get('/', (c) => c.json({ user: getCtx(c).user }));
 
     const response = await app.request('http://localhost/');
@@ -109,7 +128,17 @@ describe('ctx helpers', () => {
 
   it('contextMiddleware sets db, scheduler, storage, and http', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, channels, integrations, http }));
+    app.use(
+      '*',
+      contextMiddleware({
+        db,
+        scheduler,
+        storage,
+        channels,
+        integrations,
+        http,
+      }),
+    );
     app.get('/', (c) => {
       return c.json({
         hasDb: c.get('db') === db,
@@ -136,7 +165,17 @@ describe('ctx helpers', () => {
 
   it('getCtx(c) includes http client', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, channels, integrations, http }));
+    app.use(
+      '*',
+      contextMiddleware({
+        db,
+        scheduler,
+        storage,
+        channels,
+        integrations,
+        http,
+      }),
+    );
     app.get('/', (c) => {
       const ctx = getCtx(c);
       return c.json({ hasHttp: ctx.http === http });
@@ -151,7 +190,17 @@ describe('ctx helpers', () => {
 
   it('exposes correctly typed properties on VobaseCtx', async () => {
     const app = new Hono();
-    app.use('*', contextMiddleware({ db, scheduler, storage, channels, integrations, http }));
+    app.use(
+      '*',
+      contextMiddleware({
+        db,
+        scheduler,
+        storage,
+        channels,
+        integrations,
+        http,
+      }),
+    );
     app.get('/', (c) => {
       const ctx = getCtx(c);
       expectType<VobaseCtx>(ctx);

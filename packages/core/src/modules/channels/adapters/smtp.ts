@@ -1,4 +1,9 @@
-import type { ChannelAdapter, OutboundMessage, SendResult, ChannelCapabilities } from '../../../contracts/channels';
+import type {
+  ChannelAdapter,
+  ChannelCapabilities,
+  OutboundMessage,
+  SendResult,
+} from '../../../contracts/channels';
 
 export interface SmtpAdapterConfig {
   host: string;
@@ -64,7 +69,9 @@ export function createSmtpAdapter(config: SmtpAdapterConfig): ChannelAdapter {
 
       // AUTH if configured
       if (config.auth) {
-        const credentials = Buffer.from(`\0${config.auth.user}\0${config.auth.pass}`).toString('base64');
+        const credentials = Buffer.from(
+          `\0${config.auth.user}\0${config.auth.pass}`,
+        ).toString('base64');
         send(`AUTH PLAIN ${credentials}`);
         await wait(200);
       }

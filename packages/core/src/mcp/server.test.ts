@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'bun:test';
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
 
-import { createDatabase } from '../db/client';
-import { createMcpHandler } from './server';
+import type { VobaseDb } from '../db/client';
 import type { VobaseModule } from '../module';
+import { createMcpHandler } from './server';
 
 const MODULES: VobaseModule[] = [
   {
@@ -18,9 +20,9 @@ const MODULES: VobaseModule[] = [
   },
 ];
 
-function createTestDb() {
-  const db = createDatabase(':memory:');
-  db.$client.run(`
+async function createTestDb(): Promise<VobaseDb> {
+  const pg = new PGlite();
+  await pg.query(`
     CREATE TABLE IF NOT EXISTS _audit_log (
       id TEXT PRIMARY KEY NOT NULL,
       event TEXT NOT NULL,
@@ -28,10 +30,10 @@ function createTestDb() {
       actor_email TEXT,
       ip TEXT,
       details TEXT,
-      created_at INTEGER NOT NULL
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  return db;
+  return drizzle({ client: pg }) as unknown as VobaseDb;
 }
 
 async function postMcp(
@@ -69,13 +71,19 @@ function parseStructuredToolResult(
 }
 
 describe('createMcpHandler()', () => {
-  it('creates a request handler function', () => {
-    const handler = createMcpHandler({ db: createTestDb(), modules: MODULES });
+  it('creates a request handler function', async () => {
+    const handler = createMcpHandler({
+      db: await createTestDb(),
+      modules: MODULES,
+    });
     expect(typeof handler).toBe('function');
   });
 
   it('returns all four read-only tools for tools/list', async () => {
-    const handler = createMcpHandler({ db: createTestDb(), modules: MODULES });
+    const handler = createMcpHandler({
+      db: await createTestDb(),
+      modules: MODULES,
+    });
 
     const { response, body } = await postMcp(handler, {
       jsonrpc: '2.0',
@@ -97,16 +105,16 @@ describe('createMcpHandler()', () => {
   });
 
   it('list_modules returns registered module names', async () => {
-    const handler = createMcpHandler({ db: createTestDb(), modules: MODULES });
+    const handler = createMcpHandler({
+      db: await createTestDb(),
+      modules: MODULES,
+    });
 
     const { response, body } = await postMcp(handler, {
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
-      params: {
-        name: 'list_modules',
-        arguments: {},
-      },
+      params: { name: 'list_modules', arguments: {} },
     });
 
     expect(response.status).toBe(200);
@@ -116,16 +124,16 @@ describe('createMcpHandler()', () => {
   });
 
   it('get_schema returns table names across modules', async () => {
-    const handler = createMcpHandler({ db: createTestDb(), modules: MODULES });
+    const handler = createMcpHandler({
+      db: await createTestDb(),
+      modules: MODULES,
+    });
 
     const { response, body } = await postMcp(handler, {
       jsonrpc: '2.0',
       id: 3,
       method: 'tools/call',
-      params: {
-        name: 'get_schema',
-        arguments: {},
-      },
+      params: { name: 'get_schema', arguments: {} },
     });
 
     expect(response.status).toBe(200);
@@ -135,7 +143,10 @@ describe('createMcpHandler()', () => {
   });
 
   it('does not expose write tools', async () => {
-    const handler = createMcpHandler({ db: createTestDb(), modules: MODULES });
+    const handler = createMcpHandler({
+      db: await createTestDb(),
+      modules: MODULES,
+    });
 
     const { body } = await postMcp(handler, {
       jsonrpc: '2.0',

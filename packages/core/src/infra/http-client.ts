@@ -112,7 +112,14 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
     const method = options?.method ?? 'GET';
 
     const headers: Record<string, string> = { ...options?.headers };
-    let body: string | Blob | FormData | ArrayBuffer | URLSearchParams | ReadableStream | undefined;
+    let body:
+      | string
+      | Blob
+      | FormData
+      | ArrayBuffer
+      | URLSearchParams
+      | ReadableStream
+      | undefined;
 
     if (options?.body !== undefined) {
       if (
@@ -125,8 +132,7 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
       ) {
         body = options.body;
       } else {
-        headers['content-type'] =
-          headers['content-type'] ?? 'application/json';
+        headers['content-type'] = headers['content-type'] ?? 'application/json';
         body = JSON.stringify(options.body);
       }
     }
@@ -158,7 +164,11 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
         };
 
         // Retry on 5xx only for GET requests
-        if (response.status >= 500 && isRetryableMethod(method) && attempt < maxRetries) {
+        if (
+          response.status >= 500 &&
+          isRetryableMethod(method) &&
+          attempt < maxRetries
+        ) {
           breaker?.recordFailure();
           continue;
         }

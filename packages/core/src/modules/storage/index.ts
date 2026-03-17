@@ -1,11 +1,15 @@
+import type { StorageAdapterConfig } from '../../contracts/storage';
+import type { VobaseDb } from '../../db/client';
 import { defineBuiltinModule } from '../../module';
 import { createLocalAdapter } from './adapters/local';
 import { createS3Adapter } from './adapters/s3';
 import { createStorageRoutes } from './routes';
-import { createStorageService, type StorageService, type BucketConfig } from './service';
 import { storageSchema } from './schema';
-import type { StorageAdapterConfig } from '../../contracts/storage';
-import type { VobaseDb } from '../../db/client';
+import {
+  type BucketConfig,
+  createStorageService,
+  type StorageService,
+} from './service';
 
 export interface StorageModuleConfig {
   provider: StorageAdapterConfig;
@@ -36,9 +40,15 @@ export function createStorageModule(db: VobaseDb, config: StorageModuleConfig) {
   return { ...mod, service };
 }
 
-export { storageObjects, storageSchema } from './schema';
-export { createStorageService } from './service';
-export type { StorageService, BucketConfig, BucketHandle, StorageObject, BucketListOptions } from './service';
 export { createLocalAdapter } from './adapters/local';
 export { createS3Adapter } from './adapters/s3';
 export { createStorageRoutes } from './routes';
+export { storageObjects, storageSchema } from './schema';
+export type {
+  BucketConfig,
+  BucketHandle,
+  BucketListOptions,
+  StorageObject,
+  StorageService,
+} from './service';
+export { createStorageService } from './service';

@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 
 import type { VobaseDb } from '../../db/client';
 import { logger } from '../../infra/logger';
-import { encrypt, decrypt } from './encrypt';
+import { decrypt, encrypt } from './encrypt';
 import { integrationsTable } from './schema';
 
 export interface Integration {
@@ -57,7 +57,9 @@ function decryptConfig(encrypted: string): Record<string, unknown> {
   }
 }
 
-function rowToIntegration(row: typeof integrationsTable.$inferSelect): Integration {
+function rowToIntegration(
+  row: typeof integrationsTable.$inferSelect,
+): Integration {
   return {
     id: row.id,
     provider: row.provider,
@@ -134,7 +136,10 @@ export function createIntegrationsService(db: VobaseDb): IntegrationsService {
         .returning();
 
       const row = rows[0];
-      logger.info(`Integration connected: ${provider}`, { id: row.id, label: opts.label });
+      logger.info(`Integration connected: ${provider}`, {
+        id: row.id,
+        label: opts.label,
+      });
       return rowToIntegration(row);
     },
 

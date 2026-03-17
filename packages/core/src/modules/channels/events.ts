@@ -2,7 +2,9 @@ import type { ChannelEvent } from '../../contracts/channels';
 import { logger } from '../../infra/logger';
 
 type EventType = ChannelEvent['type'];
-type EventHandler<T extends ChannelEvent = ChannelEvent> = (event: T) => Promise<void> | void;
+type EventHandler<T extends ChannelEvent = ChannelEvent> = (
+  event: T,
+) => Promise<void> | void;
 
 /**
  * Typed event emitter for channel events.

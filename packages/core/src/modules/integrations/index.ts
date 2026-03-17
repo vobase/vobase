@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 
-import { defineBuiltinModule } from '../../module';
-import { createIntegrationsService } from './service';
-import { integrationsSchema } from './schema';
 import type { VobaseDb } from '../../db/client';
+import { defineBuiltinModule } from '../../module';
+import { integrationsSchema } from './schema';
+import { createIntegrationsService } from './service';
 
 export function createIntegrationsModule(db: VobaseDb) {
   const service = createIntegrationsService(db);
@@ -17,6 +17,10 @@ export function createIntegrationsModule(db: VobaseDb) {
   return { ...mod, service };
 }
 
-export { integrationsTable, integrationsSchema } from './schema';
+export { integrationsSchema, integrationsTable } from './schema';
+export type {
+  ConnectOptions,
+  Integration,
+  IntegrationsService,
+} from './service';
 export { createIntegrationsService } from './service';
-export type { IntegrationsService, Integration, ConnectOptions } from './service';

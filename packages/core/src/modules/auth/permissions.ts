@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory';
+
 import { forbidden } from '../../infra/errors';
 
 let _organizationEnabled = false;

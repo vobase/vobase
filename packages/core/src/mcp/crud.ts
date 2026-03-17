@@ -1,7 +1,7 @@
-import { eq, getTableColumns, getTableName } from 'drizzle-orm';
-import type { Table } from 'drizzle-orm';
-import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Table } from 'drizzle-orm';
+import { eq, getTableColumns, getTableName } from 'drizzle-orm';
+import type { PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 
 interface ColumnMeta {
@@ -26,12 +26,18 @@ function checkWritePermission(ctx: CrudContext): string | null {
     return null;
   }
   // Without org, require admin role for writes
-  if (ctx.user.role !== 'admin') return 'Forbidden: admin role required for write operations';
+  if (ctx.user.role !== 'admin')
+    return 'Forbidden: admin role required for write operations';
   return null;
 }
 
 function errorResult(message: string) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }], isError: true as const };
+  return {
+    content: [
+      { type: 'text' as const, text: JSON.stringify({ error: message }) },
+    ],
+    isError: true as const,
+  };
 }
 
 function jsonResult(data: Record<string, unknown>) {
@@ -63,7 +69,7 @@ export function registerCrudTools(
         continue;
       }
 
-      const table = tableObj as SQLiteTable;
+      const table = tableObj as PgTable;
       let columns: ReturnType<typeof getTableColumns>;
       try {
         columns = getTableColumns(table);
@@ -73,11 +79,16 @@ export function registerCrudTools(
       if (!columns) continue;
 
       // Find primary key column
-      const pkEntry = Object.entries(columns).find(([, col]) => (col as unknown as ColumnMeta).primary);
+      const pkEntry = Object.entries(columns).find(
+        ([, col]) => (col as unknown as ColumnMeta).primary,
+      );
       if (!pkEntry) continue;
       const [pkKey] = pkEntry;
       const pkCol = columns[pkKey]!;
-      const pkZod = (pkCol as unknown as ColumnMeta).dataType === 'number' ? z.number() : z.string();
+      const pkZod =
+        (pkCol as unknown as ColumnMeta).dataType === 'number'
+          ? z.number()
+          : z.string();
 
       // Clean name for tools (strip _ prefix from built-in tables)
       const cleanName = tableName.replace(/^_/, '');
@@ -94,7 +105,11 @@ export function registerCrudTools(
           annotations: { readOnlyHint: true },
         },
         async ({ limit, offset }) => {
-          const rows = ctx.db.select().from(table).limit(limit ?? 50).offset(offset ?? 0).all();
+          const rows = await ctx.db
+            .select()
+            .from(table)
+            .limit(limit ?? 50)
+            .offset(offset ?? 0);
           return jsonResult({ rows, count: rows.length });
         },
       );
@@ -108,7 +123,7 @@ export function registerCrudTools(
           annotations: { readOnlyHint: true },
         },
         async ({ id }) => {
-          const row = ctx.db.select().from(table).where(eq(pkCol, id)).get();
+          const [row] = await ctx.db.select().from(table).where(eq(pkCol, id));
           if (!row) return errorResult('Not found');
           return jsonResult(row as Record<string, unknown>);
         },
@@ -125,7 +140,10 @@ export function registerCrudTools(
           const permError = checkWritePermission(ctx);
           if (permError) return errorResult(permError);
           try {
-            const result = ctx.db.insert(table).values(data as Record<string, unknown>).returning().get();
+            const [result] = await ctx.db
+              .insert(table)
+              .values(data as Record<string, unknown>)
+              .returning();
             return jsonResult(result as Record<string, unknown>);
           } catch (e: unknown) {
             return errorResult(e instanceof Error ? e.message : String(e));
@@ -138,13 +156,20 @@ export function registerCrudTools(
         `update_${cleanName}`,
         {
           description: `Update a row in ${tableName} by ID.`,
-          inputSchema: z.object({ id: pkZod, data: z.record(z.string(), z.unknown()) }),
+          inputSchema: z.object({
+            id: pkZod,
+            data: z.record(z.string(), z.unknown()),
+          }),
         },
         async ({ id, data }) => {
           const permError = checkWritePermission(ctx);
           if (permError) return errorResult(permError);
           try {
-            const result = ctx.db.update(table).set(data as Record<string, unknown>).where(eq(pkCol, id)).returning().get();
+            const [result] = await ctx.db
+              .update(table)
+              .set(data as Record<string, unknown>)
+              .where(eq(pkCol, id))
+              .returning();
             if (!result) return errorResult('Not found');
             return jsonResult(result as Record<string, unknown>);
           } catch (e: unknown) {
@@ -164,7 +189,10 @@ export function registerCrudTools(
           const permError = checkWritePermission(ctx);
           if (permError) return errorResult(permError);
           try {
-            const result = ctx.db.delete(table).where(eq(pkCol, id)).returning().get();
+            const [result] = (await ctx.db
+              .delete(table)
+              .where(eq(pkCol, id))
+              .returning()) as Record<string, unknown>[];
             if (!result) return errorResult('Not found');
             return jsonResult({ deleted: true });
           } catch (e: unknown) {

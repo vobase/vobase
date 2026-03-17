@@ -1,7 +1,6 @@
 import { createMiddleware } from 'hono/factory';
 
 import type { VobaseDb } from '../../db/client';
-
 import { auditLog } from './schema';
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -18,15 +17,13 @@ export function requestAuditMiddleware(db: VobaseDb) {
     } finally {
       if (MUTATION_METHODS.has(c.req.method)) {
         const user = c.get('user');
-        db.insert(auditLog)
-          .values({
-            event: 'api_mutation',
-            actorId: user?.id ?? null,
-            actorEmail: user?.email ?? null,
-            ip: getRequestIp(c.req.raw.headers),
-            details: JSON.stringify({ method: c.req.method, path: c.req.path }),
-          })
-          .run();
+        await db.insert(auditLog).values({
+          event: 'api_mutation',
+          actorId: user?.id ?? null,
+          actorEmail: user?.email ?? null,
+          ip: getRequestIp(c.req.raw.headers),
+          details: JSON.stringify({ method: c.req.method, path: c.req.path }),
+        });
       }
     }
   });

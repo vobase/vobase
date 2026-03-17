@@ -1,12 +1,12 @@
-import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { drizzle } from 'drizzle-orm/bun-sqlite';
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
 
 import type { VobaseDb } from '../../db';
-import * as schema from './schema';
-import { requestAuditMiddleware } from './middleware';
 import { createAuthAuditHooks } from '../auth/audit-hooks';
+import { requestAuditMiddleware } from './middleware';
+import * as schema from './schema';
 
 interface AuditRow {
   event: string;
@@ -17,45 +17,41 @@ interface AuditRow {
 }
 
 describe('audit middleware and hooks', () => {
-  let sqlite: Database;
+  let pglite: PGlite;
   let db: VobaseDb;
 
-  beforeEach(() => {
-    sqlite = new Database(':memory:');
-    sqlite.run('PRAGMA journal_mode=WAL');
-    sqlite.exec(`
+  beforeEach(async () => {
+    pglite = new PGlite();
+    await pglite.query(`
       CREATE TABLE _audit_log (
-        id TEXT PRIMARY KEY,
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
         event TEXT NOT NULL,
         actor_id TEXT,
         actor_email TEXT,
         ip TEXT,
         details TEXT,
-        created_at INTEGER NOT NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-    db = drizzle({ client: sqlite, schema }) as unknown as VobaseDb;
+    db = drizzle({ client: pglite, schema }) as unknown as VobaseDb;
   });
 
-  afterEach(() => {
-    sqlite.close();
+  afterEach(async () => {
+    await pglite.close();
   });
 
-  function getRows(): AuditRow[] {
-    return sqlite
-      .prepare(
-        `
-          SELECT
-            event,
-            actor_id AS actorId,
-            actor_email AS actorEmail,
-            ip,
-            details
-          FROM _audit_log
-          ORDER BY rowid ASC
-        `,
-      )
-      .all() as AuditRow[];
+  async function getRows(): Promise<AuditRow[]> {
+    const result = await pglite.query<AuditRow>(`
+      SELECT
+        event,
+        actor_id AS "actorId",
+        actor_email AS "actorEmail",
+        ip,
+        details
+      FROM _audit_log
+      ORDER BY created_at ASC
+    `);
+    return result.rows;
   }
 
   it('logs api_mutation for POST requests', async () => {
@@ -79,7 +75,7 @@ describe('audit middleware and hooks', () => {
 
     expect(response.status).toBe(200);
 
-    const rows = getRows();
+    const rows = await getRows();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual({
       event: 'api_mutation',
@@ -110,7 +106,7 @@ describe('audit middleware and hooks', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(getRows()).toHaveLength(0);
+    expect(await getRows()).toHaveLength(0);
   });
 
   it('logs signin events from auth hooks', async () => {
@@ -129,7 +125,7 @@ describe('audit middleware and hooks', () => {
       returnHeaders: true,
     } as unknown as Parameters<typeof hooks.after>[0]);
 
-    const rows = getRows();
+    const rows = await getRows();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual({
       event: 'signin',
@@ -156,7 +152,7 @@ describe('audit middleware and hooks', () => {
       returnHeaders: true,
     } as unknown as Parameters<typeof hooks.after>[0]);
 
-    const rows = getRows();
+    const rows = await getRows();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual({
       event: 'signup',

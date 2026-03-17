@@ -1,20 +1,22 @@
 import { describe, expect, it } from 'bun:test';
-import { Hono } from 'hono';
+import { PGlite } from '@electric-sql/pglite';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { drizzle } from 'drizzle-orm/pglite';
+import { Hono } from 'hono';
 
-import { createDatabase } from '../db/client';
+import type { VobaseDb } from '../db/client';
+import type { VobaseModule } from '../module';
 import { auditLog } from '../modules/audit/schema';
 import { registerCrudTools } from './crud';
-import type { VobaseModule } from '../module';
 
 /** MCP SDK internal — not in public types, used only for test assertions */
 interface McpServerInternals {
   _registeredTools: Record<string, unknown>;
 }
 
-function createTestDb() {
-  const db = createDatabase(':memory:');
-  db.$client.run(`
+async function createTestDb(): Promise<VobaseDb> {
+  const pg = new PGlite();
+  await pg.query(`
     CREATE TABLE IF NOT EXISTS _audit_log (
       id TEXT PRIMARY KEY NOT NULL,
       event TEXT NOT NULL,
@@ -22,16 +24,16 @@ function createTestDb() {
       actor_email TEXT,
       ip TEXT,
       details TEXT,
-      created_at INTEGER NOT NULL
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  return db;
+  return drizzle({ client: pg }) as unknown as VobaseDb;
 }
 
 describe('registerCrudTools', () => {
-  it('registers 5 CRUD tools per real Drizzle table', () => {
+  it('registers 5 CRUD tools per real Drizzle table', async () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
-    const db = createTestDb();
+    const db = await createTestDb();
 
     const modules: VobaseModule[] = [
       {
@@ -41,13 +43,17 @@ describe('registerCrudTools', () => {
       },
     ];
 
-    registerCrudTools(server, modules, {
-      db,
-      user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'admin' },
-      organizationEnabled: false,
-    }, new Map());
+    registerCrudTools(
+      server,
+      modules,
+      {
+        db,
+        user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'admin' },
+        organizationEnabled: false,
+      },
+      new Map(),
+    );
 
-    // Access the registered tools via the server's internal state
     const tools = (server as unknown as McpServerInternals)._registeredTools;
     const toolNames = Object.keys(tools);
 
@@ -58,9 +64,9 @@ describe('registerCrudTools', () => {
     expect(toolNames).toContain('delete_audit_log');
   });
 
-  it('skips non-Drizzle schema entries gracefully', () => {
+  it('skips non-Drizzle schema entries gracefully', async () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
-    const db = createTestDb();
+    const db = await createTestDb();
 
     const modules: VobaseModule[] = [
       {
@@ -70,22 +76,27 @@ describe('registerCrudTools', () => {
       },
     ];
 
-    // Should not throw
-    registerCrudTools(server, modules, {
-      db,
-      user: null,
-      organizationEnabled: false,
-    }, new Map());
+    registerCrudTools(
+      server,
+      modules,
+      {
+        db,
+        user: null,
+        organizationEnabled: false,
+      },
+      new Map(),
+    );
 
     const tools = (server as unknown as McpServerInternals)._registeredTools;
     const toolNames = Object.keys(tools);
-    // No CRUD tools registered for non-Drizzle schema
-    expect(toolNames.filter((n: string) => n.includes('fakeThing'))).toEqual([]);
+    expect(toolNames.filter((n: string) => n.includes('fakeThing'))).toEqual(
+      [],
+    );
   });
 
-  it('respects exclude map', () => {
+  it('respects exclude map', async () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
-    const db = createTestDb();
+    const db = await createTestDb();
 
     const modules: VobaseModule[] = [
       {
@@ -97,20 +108,27 @@ describe('registerCrudTools', () => {
 
     const excludeMap = new Map([['audit', new Set(['auditLog'])]]);
 
-    registerCrudTools(server, modules, {
-      db,
-      user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'admin' },
-      organizationEnabled: false,
-    }, excludeMap);
+    registerCrudTools(
+      server,
+      modules,
+      {
+        db,
+        user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'admin' },
+        organizationEnabled: false,
+      },
+      excludeMap,
+    );
 
     const tools = (server as unknown as McpServerInternals)._registeredTools;
     const toolNames = Object.keys(tools);
-    expect(toolNames.filter((n: string) => n.includes('audit_log'))).toEqual([]);
+    expect(toolNames.filter((n: string) => n.includes('audit_log'))).toEqual(
+      [],
+    );
   });
 
-  it('write tools check admin role when org is disabled', () => {
+  it('write tools check admin role when org is disabled', async () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
-    const db = createTestDb();
+    const db = await createTestDb();
 
     const modules: VobaseModule[] = [
       {
@@ -120,12 +138,16 @@ describe('registerCrudTools', () => {
       },
     ];
 
-    // User with non-admin role
-    registerCrudTools(server, modules, {
-      db,
-      user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'user' },
-      organizationEnabled: false,
-    }, new Map());
+    registerCrudTools(
+      server,
+      modules,
+      {
+        db,
+        user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'user' },
+        organizationEnabled: false,
+      },
+      new Map(),
+    );
 
     const tools = (server as unknown as McpServerInternals)._registeredTools;
     expect(tools.create_audit_log).toBeDefined();

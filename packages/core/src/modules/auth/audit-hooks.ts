@@ -14,23 +14,21 @@ function getRequestIp(headers: Headers | undefined): string {
   return forwardedFor || headers?.get('x-real-ip') || 'unknown';
 }
 
-function writeAuditLog(
+async function writeAuditLog(
   db: VobaseDb,
   event: string,
   actorId: string | null,
   actorEmail: string | null,
   ip: string,
   details: Record<string, string>,
-): void {
-  db.insert(auditLog)
-    .values({
-      event,
-      actorId,
-      actorEmail,
-      ip,
-      details: JSON.stringify(details),
-    })
-    .run();
+): Promise<void> {
+  await db.insert(auditLog).values({
+    event,
+    actorId,
+    actorEmail,
+    ip,
+    details: JSON.stringify(details),
+  });
 }
 
 export function createAuthAuditHooks(db: VobaseDb) {
@@ -61,7 +59,7 @@ export function createAuthAuditHooks(db: VobaseDb) {
         pendingSignout.delete(ctx.headers);
       }
 
-      writeAuditLog(
+      await writeAuditLog(
         db,
         event,
         actor?.id ?? null,

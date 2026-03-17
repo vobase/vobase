@@ -1,8 +1,8 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { nanoidPrimaryKey } from '../../db/helpers';
 
-export const channelsLog = sqliteTable(
+export const channelsLog = pgTable(
   '_channels_log',
   {
     id: nanoidPrimaryKey(),
@@ -15,9 +15,9 @@ export const channelsLog = sqliteTable(
     content: text('content'),
     error: text('error'),
     metadata: text('metadata'), // JSON
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
-      .$defaultFn(() => new Date()),
+      .defaultNow(),
   },
   (table) => [
     index('channels_log_channel_idx').on(table.channel),
@@ -26,7 +26,7 @@ export const channelsLog = sqliteTable(
   ],
 );
 
-export const channelsTemplates = sqliteTable(
+export const channelsTemplates = pgTable(
   '_channels_templates',
   {
     id: nanoidPrimaryKey(),
@@ -37,10 +37,10 @@ export const channelsTemplates = sqliteTable(
     category: text('category'),
     status: text('status'),
     components: text('components'), // JSON
-    syncedAt: integer('synced_at', { mode: 'timestamp_ms' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    syncedAt: timestamp('synced_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
-      .$defaultFn(() => new Date()),
+      .defaultNow(),
   },
   (table) => [
     index('channels_templates_channel_idx').on(table.channel),

@@ -3,7 +3,6 @@ import type { Context } from 'hono';
 
 import {
   conflict,
-  dbBusy,
   ERROR_CODES,
   errorHandler,
   forbidden,
@@ -78,12 +77,6 @@ describe('Factory functions', () => {
     expect(err.code).toBe('CONFLICT');
     expect(err.message).toContain('User');
     expect(err.message).toBe('User already exists');
-  });
-
-  it('dbBusy() should produce 503 error', () => {
-    const err = dbBusy();
-    expect(err.statusCode).toBe(503);
-    expect(err.code).toBe('DB_BUSY');
   });
 });
 
@@ -170,6 +163,5 @@ describe('ERROR_CODES', () => {
     expect(ERROR_CODES.VALIDATION).toBe('VALIDATION');
     expect(ERROR_CODES.CONFLICT).toBe('CONFLICT');
     expect(ERROR_CODES.INTERNAL).toBe('INTERNAL');
-    expect(ERROR_CODES.DB_BUSY).toBe('DB_BUSY');
   });
 });

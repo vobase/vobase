@@ -1,10 +1,14 @@
-import { authSchema, apikeySchema, organizationSchema } from './modules/auth/schema';
+import { webhookDedup } from './infra/webhooks-schema';
 import { auditLog, recordAudits } from './modules/audit/schema';
+import {
+  apikeySchema,
+  authSchema,
+  organizationSchema,
+} from './modules/auth/schema';
+import { channelsLog, channelsTemplates } from './modules/channels/schema';
 import { integrationsTable } from './modules/integrations/schema';
 import { sequences } from './modules/sequences/schema';
-import { channelsLog, channelsTemplates } from './modules/channels/schema';
 import { storageObjects } from './modules/storage/schema';
-import { webhookDedup } from './infra/webhooks-schema';
 
 export interface SchemaConfig {
   /** Include integrations table. Default: true */
@@ -24,7 +28,9 @@ export interface SchemaConfig {
  * Always included: auth, audit, sequences, webhook dedup.
  * Conditionally included: integrations, storage, channels.
  */
-export function getActiveSchemas(config?: SchemaConfig): Record<string, unknown> {
+export function getActiveSchemas(
+  config?: SchemaConfig,
+): Record<string, unknown> {
   const schema: Record<string, unknown> = {
     // Auth tables (always active)
     ...authSchema,

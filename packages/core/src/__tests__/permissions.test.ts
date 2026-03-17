@@ -1,9 +1,13 @@
-import { describe, expect, it, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 
 import type { AuthUser } from '../contracts/auth';
-import { requireRole, requirePermission, requireOrg } from '../modules/auth/permissions';
-import { setOrganizationEnabled } from '../modules/auth/permissions';
+import {
+  requireOrg,
+  requirePermission,
+  requireRole,
+  setOrganizationEnabled,
+} from '../modules/auth/permissions';
 
 function createTestApp() {
   const app = new Hono();
@@ -32,7 +36,9 @@ describe('requireRole', () => {
   it('allows user with any of multiple roles', async () => {
     const app = createTestApp();
     withUser(app, { id: '1', email: 'a@b.com', name: 'Test', role: 'editor' });
-    app.get('/test', requireRole('admin', 'editor'), (c) => c.json({ ok: true }));
+    app.get('/test', requireRole('admin', 'editor'), (c) =>
+      c.json({ ok: true }),
+    );
 
     const res = await app.request('/test');
     expect(res.status).toBe(200);
@@ -81,7 +87,9 @@ describe('requirePermission', () => {
     setOrganizationEnabled(true);
     const app = createTestApp();
     withUser(app, null);
-    app.get('/test', requirePermission('invoices:write'), (c) => c.json({ ok: true }));
+    app.get('/test', requirePermission('invoices:write'), (c) =>
+      c.json({ ok: true }),
+    );
     app.onError((err, c) => c.json({ error: err.message }, 403));
 
     const res = await app.request('/test');
@@ -92,7 +100,9 @@ describe('requirePermission', () => {
     setOrganizationEnabled(true);
     const app = createTestApp();
     withUser(app, { id: '1', email: 'a@b.com', name: 'Test', role: 'admin' });
-    app.get('/test', requirePermission('invoices:write'), (c) => c.json({ ok: true }));
+    app.get('/test', requirePermission('invoices:write'), (c) =>
+      c.json({ ok: true }),
+    );
 
     const res = await app.request('/test');
     expect(res.status).toBe(200);
@@ -125,7 +135,13 @@ describe('requireOrg', () => {
   it('allows user with active organization when org is enabled', async () => {
     setOrganizationEnabled(true);
     const app = createTestApp();
-    withUser(app, { id: '1', email: 'a@b.com', name: 'Test', role: 'user', activeOrganizationId: 'org-1' });
+    withUser(app, {
+      id: '1',
+      email: 'a@b.com',
+      name: 'Test',
+      role: 'user',
+      activeOrganizationId: 'org-1',
+    });
     app.get('/test', requireOrg(), (c) => c.json({ ok: true }));
 
     const res = await app.request('/test');

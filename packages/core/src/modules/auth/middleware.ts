@@ -5,7 +5,13 @@ import { unauthorized } from '../../infra/errors';
 
 declare module 'hono' {
   interface ContextVariableMap {
-    user: { id: string; email: string; name: string; role: string; activeOrganizationId?: string } | null;
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+      activeOrganizationId?: string;
+    } | null;
   }
 }
 

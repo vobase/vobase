@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+
 import { createThrowProxy } from './throw-proxy';
 
 interface FakeService {
@@ -24,11 +25,15 @@ describe('createThrowProxy', () => {
 
   test('does not throw for Symbol.toPrimitive', () => {
     const proxy = createThrowProxy<FakeService>('storage');
-    expect((proxy as unknown as Record<symbol, unknown>)[Symbol.toPrimitive]).toBeUndefined();
+    expect(
+      (proxy as unknown as Record<symbol, unknown>)[Symbol.toPrimitive],
+    ).toBeUndefined();
   });
 
   test('does not throw for Symbol.toStringTag', () => {
     const proxy = createThrowProxy<FakeService>('storage');
-    expect((proxy as unknown as Record<symbol, unknown>)[Symbol.toStringTag]).toBeUndefined();
+    expect(
+      (proxy as unknown as Record<symbol, unknown>)[Symbol.toStringTag],
+    ).toBeUndefined();
   });
 });

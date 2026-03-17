@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 
-import { createNanoid } from '../../db/helpers';
 import type { VobaseDb } from '../../db/client';
+import { createNanoid } from '../../db/helpers';
 import { sequences } from './schema';
 
 export interface SequenceOptions {
@@ -12,17 +12,17 @@ export interface SequenceOptions {
 
 const generateSequenceId = createNanoid();
 
-export function nextSequence(
+export async function nextSequence(
   db: VobaseDb,
   prefix: string,
   options?: SequenceOptions,
-): string {
+): Promise<string> {
   const padLength = options?.padLength ?? 4;
   const separator = options?.separator ?? '-';
   const yearPrefix = options?.yearPrefix ?? false;
   const now = new Date();
 
-  const row = db
+  const [row] = await db
     .insert(sequences)
     .values({
       id: generateSequenceId(),
@@ -37,8 +37,7 @@ export function nextSequence(
         updatedAt: now,
       },
     })
-    .returning({ currentValue: sequences.currentValue })
-    .get();
+    .returning({ currentValue: sequences.currentValue });
 
   if (!row) {
     throw new Error(`Failed to generate next sequence for prefix: ${prefix}`);

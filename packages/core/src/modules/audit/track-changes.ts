@@ -1,5 +1,4 @@
 import type { VobaseDb } from '../../db/client';
-
 import { recordAudits } from './schema';
 
 function valuesAreEqual(left: unknown, right: unknown): boolean {
@@ -19,14 +18,14 @@ function valuesAreEqual(left: unknown, right: unknown): boolean {
   return false;
 }
 
-export function trackChanges(
+export async function trackChanges(
   db: VobaseDb,
   tableName: string,
   recordId: string,
   oldData: Record<string, unknown> | null,
   newData: Record<string, unknown> | null,
   userId?: string,
-): void {
+): Promise<void> {
   if (oldData === null && newData === null) {
     return;
   }
@@ -58,13 +57,11 @@ export function trackChanges(
     }
   }
 
-  db.insert(recordAudits)
-    .values({
-      tableName,
-      recordId,
-      oldData: oldDiff === null ? null : JSON.stringify(oldDiff),
-      newData: newDiff === null ? null : JSON.stringify(newDiff),
-      changedBy: userId ?? null,
-    })
-    .run();
+  await db.insert(recordAudits).values({
+    tableName,
+    recordId,
+    oldData: oldDiff === null ? null : JSON.stringify(oldDiff),
+    newData: newDiff === null ? null : JSON.stringify(newDiff),
+    changedBy: userId ?? null,
+  });
 }

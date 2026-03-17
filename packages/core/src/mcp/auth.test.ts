@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'bun:test';
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
 
-import { createDatabase } from '../db/client';
-import { createMcpHandler } from './server';
-import { auditLog } from '../modules/audit/schema';
+import type { VobaseDb } from '../db/client';
 import type { VobaseModule } from '../module';
+import { auditLog } from '../modules/audit/schema';
+import { createMcpHandler } from './server';
 
 const MODULES_WITH_SCHEMA: VobaseModule[] = [
   {
@@ -14,9 +16,9 @@ const MODULES_WITH_SCHEMA: VobaseModule[] = [
   },
 ];
 
-function createTestDb() {
-  const db = createDatabase(':memory:');
-  db.$client.run(`
+async function createTestDb(): Promise<VobaseDb> {
+  const pg = new PGlite();
+  await pg.query(`
     CREATE TABLE IF NOT EXISTS _audit_log (
       id TEXT PRIMARY KEY NOT NULL,
       event TEXT NOT NULL,
@@ -24,10 +26,10 @@ function createTestDb() {
       actor_email TEXT,
       ip TEXT,
       details TEXT,
-      created_at INTEGER NOT NULL
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  return db;
+  return drizzle({ client: pg }) as unknown as VobaseDb;
 }
 
 async function postMcp(
@@ -53,7 +55,7 @@ async function postMcp(
 describe('MCP API key auth', () => {
   it('allows unauthenticated access to discovery tools', async () => {
     const handler = createMcpHandler({
-      db: createTestDb(),
+      db: await createTestDb(),
       modules: MODULES_WITH_SCHEMA,
       verifyApiKey: async () => null,
     });
@@ -71,14 +73,13 @@ describe('MCP API key auth', () => {
     expect(response.status).toBe(200);
     expect(tools).toContain('list_modules');
     expect(tools).toContain('view_logs');
-    // CRUD tools should NOT be present without auth
     expect(tools).not.toContain('list_audit_log');
     expect(tools).not.toContain('create_audit_log');
   });
 
   it('exposes CRUD tools when valid API key is provided', async () => {
     const handler = createMcpHandler({
-      db: createTestDb(),
+      db: await createTestDb(),
       modules: MODULES_WITH_SCHEMA,
       verifyApiKey: async (key) =>
         key === 'valid-key' ? { userId: 'u1' } : null,
@@ -95,9 +96,7 @@ describe('MCP API key auth', () => {
     ).map((t) => t.name);
 
     expect(response.status).toBe(200);
-    // Discovery tools present
     expect(tools).toContain('list_modules');
-    // CRUD tools present when authenticated
     expect(tools).toContain('list_audit_log');
     expect(tools).toContain('get_audit_log');
     expect(tools).toContain('create_audit_log');
@@ -107,7 +106,7 @@ describe('MCP API key auth', () => {
 
   it('does not expose CRUD tools with invalid API key', async () => {
     const handler = createMcpHandler({
-      db: createTestDb(),
+      db: await createTestDb(),
       modules: MODULES_WITH_SCHEMA,
       verifyApiKey: async () => null,
     });

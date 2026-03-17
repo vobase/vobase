@@ -1,9 +1,9 @@
 import { S3Client } from 'bun';
 
 import type {
+  S3AdapterConfig,
   StorageAdapter,
   StorageObjectInfo,
-  S3AdapterConfig,
 } from '../../../contracts/storage';
 import { validation } from '../../../infra/errors';
 

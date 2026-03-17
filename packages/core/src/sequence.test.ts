@@ -1,37 +1,38 @@
-import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { drizzle } from 'drizzle-orm/bun-sqlite';
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
 
 import type { VobaseDb } from './db';
-import * as schema from './modules/sequences/schema';
 import { nextSequence } from './modules/sequences/next-sequence';
+import * as schema from './modules/sequences/schema';
 
 describe('nextSequence()', () => {
-  let sqlite: Database;
+  let pglite: PGlite;
   let db: VobaseDb;
 
-  beforeEach(() => {
-    sqlite = new Database(':memory:');
-    sqlite.run('PRAGMA journal_mode=WAL');
-    sqlite.exec(`
+  beforeEach(async () => {
+    pglite = new PGlite();
+    await pglite.exec(`
       CREATE TABLE _sequences (
-        id TEXT PRIMARY KEY,
+        id TEXT PRIMARY KEY NOT NULL,
         prefix TEXT NOT NULL UNIQUE,
         current_value INTEGER NOT NULL DEFAULT 0,
-        updated_at INTEGER NOT NULL
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-
-    db = drizzle({ client: sqlite, schema }) as unknown as VobaseDb;
+    db = drizzle({ client: pglite, schema }) as unknown as VobaseDb;
   });
 
-  afterEach(() => {
-    sqlite.close();
+  afterEach(async () => {
+    await pglite.close();
   });
 
-  it('returns gap-free numbers for same prefix', () => {
-    const values = Array.from({ length: 5 }, () => nextSequence(db, 'INV'));
-    expect(values).toEqual([
+  it('returns gap-free numbers for same prefix', async () => {
+    const results: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      results.push(await nextSequence(db, 'INV'));
+    }
+    expect(results).toEqual([
       'INV-0001',
       'INV-0002',
       'INV-0003',
@@ -40,16 +41,16 @@ describe('nextSequence()', () => {
     ]);
   });
 
-  it('maintains independent counters per prefix', () => {
-    expect(nextSequence(db, 'INV')).toBe('INV-0001');
-    expect(nextSequence(db, 'ORD')).toBe('ORD-0001');
-    expect(nextSequence(db, 'INV')).toBe('INV-0002');
-    expect(nextSequence(db, 'ORD')).toBe('ORD-0002');
+  it('maintains independent counters per prefix', async () => {
+    expect(await nextSequence(db, 'INV')).toBe('INV-0001');
+    expect(await nextSequence(db, 'ORD')).toBe('ORD-0001');
+    expect(await nextSequence(db, 'INV')).toBe('INV-0002');
+    expect(await nextSequence(db, 'ORD')).toBe('ORD-0002');
   });
 
-  it('formats sequence with year prefix when enabled', () => {
+  it('formats sequence with year prefix when enabled', async () => {
     const year = new Date().getFullYear();
-    expect(nextSequence(db, 'INV', { yearPrefix: true })).toBe(
+    expect(await nextSequence(db, 'INV', { yearPrefix: true })).toBe(
       `INV-${year}-0001`,
     );
   });

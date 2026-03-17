@@ -1,18 +1,18 @@
-import { Hono } from 'hono';
-import { betterAuth } from 'better-auth';
-import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
-import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { apiKey } from '@better-auth/api-key';
 import type { ApiKey } from '@better-auth/api-key';
+import { apiKey } from '@better-auth/api-key';
+import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
+import { betterAuth } from 'better-auth';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization } from 'better-auth/plugins';
+import { Hono } from 'hono';
 
 import type { AuthAdapter, AuthSession } from '../../contracts/auth';
 import type { VobaseDb } from '../../db/client';
-import { defineBuiltinModule } from '../../module';
 import type { VobaseModule } from '../../module';
-import { authSchema, apikeySchema, organizationSchema } from './schema';
+import { defineBuiltinModule } from '../../module';
 import { createAuthAuditHooks } from './audit-hooks';
 import { setOrganizationEnabled } from './permissions';
+import { apikeySchema, authSchema, organizationSchema } from './schema';
 
 export interface AuthModuleConfig {
   baseURL?: string;
@@ -30,7 +30,10 @@ export type AuthModule = VobaseModule & {
   organizationEnabled: boolean;
 };
 
-export function createAuthModule(db: VobaseDb, config?: AuthModuleConfig): AuthModule {
+export function createAuthModule(
+  db: VobaseDb,
+  config?: AuthModuleConfig,
+): AuthModule {
   const baseURL = config?.baseURL ?? process.env.BETTER_AUTH_URL;
   const orgEnabled = config?.organization ?? false;
 
@@ -54,7 +57,7 @@ export function createAuthModule(db: VobaseDb, config?: AuthModuleConfig): AuthM
   };
 
   const auth = betterAuth({
-    database: drizzleAdapter(db, { provider: 'sqlite', schema: adapterSchema }),
+    database: drizzleAdapter(db, { provider: 'pg', schema: adapterSchema }),
     ...(baseURL && { baseURL }),
     emailAndPassword: {
       enabled: true,
@@ -77,7 +80,8 @@ export function createAuthModule(db: VobaseDb, config?: AuthModuleConfig): AuthM
   const adapter: AuthAdapter = {
     // better-auth's getSession return type doesn't include additionalFields (role) in its
     // static types, but the value is present at runtime. Cast to AuthSession which includes role.
-    getSession: (headers) => auth.api.getSession({ headers }) as Promise<AuthSession | null>,
+    getSession: (headers) =>
+      auth.api.getSession({ headers }) as Promise<AuthSession | null>,
     handler: (request) => auth.handler(request),
   };
 
@@ -86,13 +90,19 @@ export function createAuthModule(db: VobaseDb, config?: AuthModuleConfig): AuthM
   // minimal interface rather than using `any`. ApiKey.referenceId holds the userId.
   type VerifyApiKeyResult = { valid: boolean; key: ApiKey | null };
   type AuthApiWithVerifyApiKey = typeof auth.api & {
-    verifyApiKey: (opts: { body: { key: string } }) => Promise<VerifyApiKeyResult>;
+    verifyApiKey: (opts: {
+      body: { key: string };
+    }) => Promise<VerifyApiKeyResult>;
   };
 
-  const verifyApiKey = async (key: string): Promise<{ userId: string } | null> => {
+  const verifyApiKey = async (
+    key: string,
+  ): Promise<{ userId: string } | null> => {
     try {
-      const result = await (auth.api as AuthApiWithVerifyApiKey).verifyApiKey({ body: { key } });
-      if (result && result.valid && result.key?.referenceId) {
+      const result = await (auth.api as AuthApiWithVerifyApiKey).verifyApiKey({
+        body: { key },
+      });
+      if (result?.valid && result.key?.referenceId) {
         return { userId: result.key.referenceId };
       }
       return null;
@@ -110,6 +120,6 @@ export function createAuthModule(db: VobaseDb, config?: AuthModuleConfig): AuthM
   return { ...mod, adapter, verifyApiKey, organizationEnabled: orgEnabled };
 }
 
-export { authSchema } from './schema';
-export { sessionMiddleware, optionalSessionMiddleware } from './middleware';
 export { createAuthAuditHooks } from './audit-hooks';
+export { optionalSessionMiddleware, sessionMiddleware } from './middleware';
+export { authSchema } from './schema';
