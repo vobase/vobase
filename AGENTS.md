@@ -22,6 +22,7 @@ Every change must be clean, high quality, and maintainable. No exceptions.
 - Tests for every feature. Colocate tests next to implementation (`*.test.ts`).
 - Zero tech debt tolerance: fix what you touch. No TODO comments without linked issues.
 - Biome for formatting + linting. Run `bun run lint` before committing.
+- Prefer Bun native APIs over `node:*` modules: `Bun.file()`, `Bun.write()`, `Bun.spawnSync()`, `Bun.Glob`, `$` shell. Use `node:path` and `node:fs` only when no Bun equivalent exists.
 - Search existing patterns before writing new code. Mirror established naming and error handling.
 
 ## Architecture
