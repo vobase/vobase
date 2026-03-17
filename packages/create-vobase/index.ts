@@ -1,10 +1,9 @@
 #!/usr/bin/env bun
+import { randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 import { $ } from 'bun';
 import { downloadTemplate } from 'giget';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
-import { basename, resolve } from 'node:path';
-import { mkdirSync } from 'node:fs';
 
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
@@ -65,7 +64,7 @@ for (const depField of ['dependencies', 'devDependencies']) {
   }
 }
 
-writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 console.log(`${green('✓')} Resolved dependencies`);
 
 // --- Copy .env.example → .env with a real secret ---
@@ -92,18 +91,22 @@ console.log(`${bold('Generating routes...')}`);
 await $`bun run scripts/generate.ts`.cwd(dest);
 console.log(`${green('✓')} Routes generated`);
 
-// --- Push schema to SQLite ---
+// --- Set up database (fixtures → schema → seed) ---
 console.log(`${bold('Setting up database...')}`);
+await $`bun run db:current`.cwd(dest);
 await $`bun run db:push`.cwd(dest);
 console.log(`${green('✓')} Database schema pushed`);
 
-// --- Seed default admin user ---
 console.log(`${bold('Seeding admin user...')}`);
-await $`bun run seed`.cwd(dest);
+await $`bun run db:seed`.cwd(dest);
 
 console.log(`
 ${green('Done!')} Your vobase project is ready.
-${isCurrent ? '' : `
-  ${dim('$')} cd ${name}`}
+${
+  isCurrent
+    ? ''
+    : `
+  ${dim('$')} cd ${name}`
+}
   ${dim('$')} bun run dev
 `);
