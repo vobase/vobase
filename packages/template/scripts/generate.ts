@@ -14,9 +14,11 @@ const MODULE_NAME_PATTERN = /^[a-z0-9-]+$/;
 async function listModuleDirs(modulesDir: string): Promise<string[]> {
   if (!(await exists(modulesDir))) return [];
 
-  const entries = new Bun.Glob('*/').scanSync(modulesDir);
+  const entries = new Bun.Glob('*').scanSync({
+    cwd: modulesDir,
+    onlyFiles: false,
+  });
   return [...entries]
-    .map((d) => d.replace(/\/$/, ''))
     .filter((name) => MODULE_NAME_PATTERN.test(name))
     .sort();
 }
