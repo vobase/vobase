@@ -1,147 +1,132 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import type { JobOptions as BunqueueJobOptions } from 'bunqueue/client';
-
-import { validation } from './errors';
-
-export const DEFAULT_QUEUE_DB_PATH = '/data/bunqueue.db';
-export const DEFAULT_QUEUE_NAME = 'vobase-jobs';
+import type { PGlite } from '@electric-sql/pglite';
+import PgBoss from 'pg-boss';
 
 export interface JobOptions {
-  delay?: number | string;
+  singletonKey?: string;
+  retryBackoff?: boolean;
+  deadLetter?: string;
+  expireInSeconds?: number;
+  startAfter?: number | string | Date;
+  retryLimit?: number;
+  retryDelay?: number;
   priority?: number;
-  retry?: number;
-  retries?: number;
 }
 
 export interface SchedulerOptions {
+  /** Postgres connection string, PGlite instance, or local path for embedded PGlite */
+  connection?: PGlite | string;
+  /** @deprecated Use connection */
   dbPath?: string;
-  queueName?: string;
 }
 
 export interface Scheduler {
-  add(jobName: string, data: unknown, options?: JobOptions): Promise<void>;
+  /** Enqueue a job. Fire-and-forget; does not return the job ID. */
+  add(name: string, data: unknown, options?: JobOptions): Promise<void>;
+  /** Enqueue a job and return the pg-boss job ID (or null if deduplicated). */
+  send(
+    name: string,
+    data: unknown,
+    options?: JobOptions,
+  ): Promise<string | null>;
 }
 
-const DELAY_MULTIPLIER: Record<string, number> = {
-  ms: 1,
-  s: 1000,
-  m: 60_000,
-  h: 3_600_000,
-  d: 86_400_000,
-};
+// Cache PGlite instances by path so scheduler and worker share state within a process
+const pgliteCache = new Map<string, PGlite>();
 
-function parseDelay(delay?: number | string): number | undefined {
-  if (delay === undefined) {
-    return undefined;
-  }
-
-  if (typeof delay === 'number') {
-    if (!Number.isFinite(delay) || delay < 0) {
-      throw validation({ delay }, 'Job delay must be a non-negative number');
-    }
-    return Math.floor(delay);
-  }
-
-  const value = delay.trim().toLowerCase();
-  if (!value) {
-    throw validation({ delay }, 'Job delay string cannot be empty');
-  }
-
-  if (/^\d+$/.test(value)) {
-    return Number.parseInt(value, 10);
-  }
-
-  const match = value.match(/^(\d+)(ms|s|m|h|d)$/);
-  if (!match) {
-    throw validation(
-      { delay },
-      'Invalid delay format. Use milliseconds or duration suffixes: ms, s, m, h, d',
+export async function getOrCreatePglite(path: string): Promise<PGlite> {
+  if (!pgliteCache.has(path)) {
+    const { PGlite } = await import('@electric-sql/pglite');
+    const { vector } = await import('@electric-sql/pglite/vector');
+    const { pgcrypto } = await import('@electric-sql/pglite/contrib/pgcrypto');
+    pgliteCache.set(
+      path,
+      new PGlite(path, { extensions: { vector, pgcrypto } }),
     );
   }
-
-  const amount = Number.parseInt(match[1], 10);
-  const multiplier = DELAY_MULTIPLIER[match[2]];
-  return amount * multiplier;
+  return pgliteCache.get(path)!;
 }
 
-function parseAttempts(options?: JobOptions): number | undefined {
-  const retryCount = options?.retries ?? options?.retry;
-  if (retryCount === undefined) {
-    return undefined;
-  }
-
-  if (!Number.isInteger(retryCount) || retryCount < 0) {
-    throw validation(
-      { retryCount },
-      'Retry count must be a non-negative integer',
-    );
-  }
-
-  return retryCount + 1;
-}
-
-function toBunqueueJobOptions(
-  options?: JobOptions,
-): BunqueueJobOptions | undefined {
-  if (!options) {
-    return undefined;
-  }
-
-  if (options.priority !== undefined) {
-    if (!Number.isInteger(options.priority) || options.priority < 0) {
-      throw validation(
-        { priority: options.priority },
-        'Job priority must be a non-negative integer',
-      );
-    }
-  }
-
-  const delay = parseDelay(options.delay);
-  const attempts = parseAttempts(options);
-
+export function buildPgliteAdapter(pglite: PGlite) {
   return {
-    delay,
-    priority: options.priority,
-    attempts,
+    async executeSql(
+      text: string,
+      values?: unknown[],
+    ): Promise<{ rows: unknown[] }> {
+      if (values && values.length > 0) {
+        // Extended protocol — single statement with params
+        const result = await pglite.query(text, values as unknown[]);
+        return { rows: result.rows };
+      }
+      // Simple protocol — supports multi-statement DDL used by pg-boss migrations
+      const results = await pglite.exec(text);
+      const last = results[results.length - 1];
+      return { rows: last?.rows ?? [] };
+    },
   };
 }
 
-export async function configureQueueDataPath(dbPath: string): Promise<string> {
-  if (!dbPath.trim()) {
-    throw validation({ dbPath }, 'Queue dbPath must be a non-empty string');
+async function buildBoss(connection: PGlite | string): Promise<PgBoss> {
+  if (typeof connection !== 'string') {
+    return new PgBoss({ db: buildPgliteAdapter(connection) });
   }
-
-  const existingDataPath = Bun.env.DATA_PATH;
-  if (existingDataPath && existingDataPath !== dbPath) {
-    const { shutdownManager } = await import('bunqueue/client');
-    shutdownManager();
+  if (
+    connection.startsWith('postgres://') ||
+    connection.startsWith('postgresql://')
+  ) {
+    return new PgBoss(connection);
   }
-
-  mkdirSync(dirname(dbPath), { recursive: true });
-  Bun.env.DATA_PATH = dbPath;
-  return dbPath;
+  // Local path — use cached PGlite so scheduler and worker in the same process share state
+  const pglite = await getOrCreatePglite(connection);
+  return new PgBoss({ db: buildPgliteAdapter(pglite) });
 }
 
-export async function createScheduler(options?: SchedulerOptions): Promise<Scheduler> {
-  const { Queue } = await import('bunqueue/client');
+export async function createScheduler(
+  options?: SchedulerOptions,
+): Promise<Scheduler> {
+  const connection = options?.connection ?? options?.dbPath ?? 'memory://';
+  const boss = await buildBoss(connection as PGlite | string);
 
-  await configureQueueDataPath(options?.dbPath ?? DEFAULT_QUEUE_DB_PATH);
-  const queue = new Queue(options?.queueName ?? DEFAULT_QUEUE_NAME, {
-    embedded: true,
+  boss.on('error', (err) => {
+    console.error('[pg-boss]', err);
   });
 
-  return {
-    async add(
-      jobName: string,
-      data: unknown,
-      options?: JobOptions,
-    ): Promise<void> {
-      if (!jobName.trim()) {
-        throw validation({ jobName }, 'Job name must be a non-empty string');
-      }
+  await boss.start();
 
-      await queue.add(jobName, data, toBunqueueJobOptions(options));
+  const createdQueues = new Set<string>();
+
+  async function ensureQueue(name: string): Promise<void> {
+    if (!createdQueues.has(name)) {
+      await boss.createQueue(name);
+      createdQueues.add(name);
+    }
+  }
+
+  async function send(
+    name: string,
+    data: unknown,
+    opts?: JobOptions,
+  ): Promise<string | null> {
+    await ensureQueue(name);
+    const sendOpts: PgBoss.SendOptions = {};
+    if (opts?.singletonKey !== undefined)
+      sendOpts.singletonKey = opts.singletonKey;
+    if (opts?.retryBackoff !== undefined)
+      sendOpts.retryBackoff = opts.retryBackoff;
+    if (opts?.deadLetter !== undefined) sendOpts.deadLetter = opts.deadLetter;
+    if (opts?.expireInSeconds !== undefined)
+      sendOpts.expireInSeconds = opts.expireInSeconds;
+    if (opts?.startAfter !== undefined)
+      sendOpts.startAfter = opts.startAfter as string | Date | number;
+    if (opts?.retryLimit !== undefined) sendOpts.retryLimit = opts.retryLimit;
+    if (opts?.retryDelay !== undefined) sendOpts.retryDelay = opts.retryDelay;
+    if (opts?.priority !== undefined) sendOpts.priority = opts.priority;
+    return boss.send(name, data as object, sendOpts);
+  }
+
+  return {
+    async add(name: string, data: unknown, opts?: JobOptions): Promise<void> {
+      await send(name, data, opts);
     },
+    send,
   };
 }

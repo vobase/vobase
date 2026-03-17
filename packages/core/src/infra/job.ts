@@ -1,14 +1,10 @@
-import type {
-  WorkerOptions as BunqueueWorkerOptions,
-  Job,
-  Worker,
-} from 'bunqueue/client';
+import type { PGlite } from '@electric-sql/pglite';
+import PgBoss from 'pg-boss';
 
 import { validation } from './errors';
 import {
-  configureQueueDataPath,
-  DEFAULT_QUEUE_DB_PATH,
-  DEFAULT_QUEUE_NAME,
+  buildPgliteAdapter,
+  getOrCreatePglite,
   type SchedulerOptions,
 } from './queue';
 
@@ -20,7 +16,7 @@ export interface JobDefinition {
 }
 
 export interface WorkerOptions
-  extends Pick<SchedulerOptions, 'dbPath' | 'queueName'> {
+  extends Pick<SchedulerOptions, 'connection' | 'dbPath'> {
   concurrency?: number;
 }
 
@@ -32,63 +28,57 @@ function assertJobName(name: string): void {
   }
 }
 
-function assertConcurrency(concurrency: number): void {
-  if (!Number.isInteger(concurrency) || concurrency < 1) {
-    throw validation(
-      { concurrency },
-      'Worker concurrency must be a positive integer',
-    );
-  }
-}
-
-function registerJob(definition: JobDefinition): void {
-  assertJobName(definition.name);
-  jobRegistry.set(definition.name, definition.handler);
-}
-
-async function processJob(job: Job<unknown>): Promise<void> {
-  const handler = jobRegistry.get(job.name);
-  if (!handler) {
-    throw validation(
-      { jobName: job.name },
-      `No registered handler for job "${job.name}"`,
-    );
-  }
-
-  await handler(job.data);
-}
-
 export function defineJob(name: string, handler: JobHandler): JobDefinition {
   assertJobName(name);
-
   const definition = { name, handler };
-  registerJob(definition);
+  jobRegistry.set(name, handler);
   return definition;
 }
 
 export async function createWorker(
   jobs: JobDefinition[],
   options?: WorkerOptions,
-): Promise<Worker> {
-  const { Worker } = await import('bunqueue/client');
-
+): Promise<{ close: () => Promise<void> }> {
   for (const job of jobs) {
-    registerJob(job);
+    assertJobName(job.name);
+    jobRegistry.set(job.name, job.handler);
   }
 
   const concurrency = options?.concurrency ?? 5;
-  assertConcurrency(concurrency);
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw validation(
+      { concurrency },
+      'Worker concurrency must be a positive integer',
+    );
+  }
 
-  await configureQueueDataPath(options?.dbPath ?? DEFAULT_QUEUE_DB_PATH);
+  const connection = options?.connection ?? options?.dbPath ?? 'memory://';
 
-  const workerOptions: BunqueueWorkerOptions = {
-    embedded: true,
-    concurrency,
-  };
+  let boss: PgBoss;
+  if (typeof connection !== 'string') {
+    boss = new PgBoss({ db: buildPgliteAdapter(connection as PGlite) });
+  } else if (
+    connection.startsWith('postgres://') ||
+    connection.startsWith('postgresql://')
+  ) {
+    boss = new PgBoss(connection);
+  } else {
+    const pglite = await getOrCreatePglite(connection);
+    boss = new PgBoss({ db: buildPgliteAdapter(pglite) });
+  }
 
-  return new Worker(
-    options?.queueName ?? DEFAULT_QUEUE_NAME,
-    processJob,
-    workerOptions,
-  );
+  boss.on('error', (err) => {
+    console.error('[pg-boss worker]', err);
+  });
+
+  await boss.start();
+
+  for (const job of jobs) {
+    await boss.createQueue(job.name);
+    await boss.work(job.name, { batchSize: concurrency }, async (pgJobs) => {
+      await Promise.all(pgJobs.map((pgJob) => job.handler(pgJob.data)));
+    });
+  }
+
+  return { close: () => boss.stop() };
 }

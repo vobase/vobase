@@ -1,69 +1,35 @@
 // Engine
 export { type CreateAppConfig, createApp } from './app';
-
-// Auth Module
-export { createAuthModule, type AuthModuleConfig, type AuthModule } from './modules/auth';
-export { sessionMiddleware, optionalSessionMiddleware } from './modules/auth/middleware';
-
-// Auth Schema (tables managed by better-auth)
-export {
-  authUser,
-  authSession,
-  authAccount,
-  authVerification,
-  authApikey,
-  authOrganization,
-  authMember,
-  authInvitation,
-} from './modules/auth/schema';
-
-// RBAC
-export { requireRole, requirePermission, requireOrg } from './modules/auth/permissions';
-export type { Permission, OrganizationContext } from './contracts/permissions';
-
 // Contracts
 export type { AuthAdapter, AuthSession, AuthUser } from './contracts/auth';
 export type {
-  StorageAdapter,
-  UploadOptions,
-  PresignOptions,
-  ListOptions,
-  StorageListResult,
-  StorageObjectInfo,
-  LocalAdapterConfig,
-  S3AdapterConfig,
-  StorageAdapterConfig,
-} from './contracts/storage';
-export type {
   ChannelAdapter,
-  ChannelEvent,
-  MessageReceivedEvent,
-  StatusUpdateEvent,
-  ReactionEvent,
-  ChannelMedia,
   ChannelCapabilities,
-  OutboundMessage,
+  ChannelEvent,
+  ChannelMedia,
+  MessageReceivedEvent,
   OutboundMedia,
+  OutboundMessage,
+  ReactionEvent,
   SendResult,
+  StatusUpdateEvent,
 } from './contracts/channels';
 export type { ModuleInitContext } from './contracts/module';
-
+export type { OrganizationContext, Permission } from './contracts/permissions';
+export type {
+  ListOptions,
+  LocalAdapterConfig,
+  PresignOptions,
+  S3AdapterConfig,
+  StorageAdapter,
+  StorageAdapterConfig,
+  StorageListResult,
+  StorageObjectInfo,
+  UploadOptions,
+} from './contracts/storage';
 // Context
 export type { VobaseCtx, VobaseUser } from './ctx';
 export { contextMiddleware, getCtx } from './ctx';
-
-// Circuit Breaker
-export { CircuitBreaker, type CircuitBreakerOptions } from './infra/circuit-breaker';
-
-// HTTP Client
-export {
-  createHttpClient,
-  type HttpClient,
-  type HttpClientOptions,
-  type HttpResponse,
-  type RequestOptions,
-} from './infra/http-client';
-
 // DB
 export { createDatabase, type VobaseDb } from './db';
 export {
@@ -73,11 +39,14 @@ export {
   NANOID_LENGTH,
   nanoidPrimaryKey,
 } from './db/helpers';
-
+// Circuit Breaker
+export {
+  CircuitBreaker,
+  type CircuitBreakerOptions,
+} from './infra/circuit-breaker';
 // Errors
 export {
   conflict,
-  dbBusy,
   ERROR_CODES,
   type ErrorCode,
   errorHandler,
@@ -87,61 +56,121 @@ export {
   VobaseError,
   validation,
 } from './infra/errors';
-
+// HTTP Client
+export {
+  createHttpClient,
+  type HttpClient,
+  type HttpClientOptions,
+  type HttpResponse,
+  type RequestOptions,
+} from './infra/http-client';
 // Jobs
 export type { JobDefinition, JobHandler, WorkerOptions } from './infra/job';
 export { createWorker, defineJob } from './infra/job';
-
 // Logger
 export { logger } from './infra/logger';
-
-// Auth Audit Hooks (re-exported from auth module)
-export { createAuthAuditHooks } from './modules/auth/audit-hooks';
-
+// Queue
+export {
+  createScheduler,
+  type JobOptions,
+  type Scheduler,
+} from './infra/queue';
+// Throw Proxy
+export { createThrowProxy } from './infra/throw-proxy';
+// Webhooks
+export {
+  createWebhookRoutes,
+  verifyHmacSignature,
+  type WebhookConfig,
+  webhookDedup,
+} from './infra/webhooks';
 // Module
 export type { DefineModuleConfig, VobaseModule } from './module';
 export { defineModule } from './module';
-
 // Module Registry
 export { registerModules } from './module-registry';
-
-// Queue
-export { createScheduler, type JobOptions, type Scheduler } from './infra/queue';
-
 // Built-in Modules: Audit
-export { createAuditModule, auditLog, recordAudits } from './modules/audit';
-export { trackChanges } from './modules/audit/track-changes';
+export { auditLog, createAuditModule, recordAudits } from './modules/audit';
 export { requestAuditMiddleware } from './modules/audit/middleware';
-
+export { trackChanges } from './modules/audit/track-changes';
+// Auth Module
+export {
+  type AuthModule,
+  type AuthModuleConfig,
+  createAuthModule,
+} from './modules/auth';
+// Auth Audit Hooks (re-exported from auth module)
+export { createAuthAuditHooks } from './modules/auth/audit-hooks';
+export {
+  optionalSessionMiddleware,
+  sessionMiddleware,
+} from './modules/auth/middleware';
+// RBAC
+export {
+  requireOrg,
+  requirePermission,
+  requireRole,
+} from './modules/auth/permissions';
+// Auth Schema (tables managed by better-auth)
+export {
+  authAccount,
+  authApikey,
+  authInvitation,
+  authMember,
+  authOrganization,
+  authSession,
+  authUser,
+  authVerification,
+} from './modules/auth/schema';
+// Built-in Modules: Channels
+export {
+  type ChannelsModuleConfig,
+  createChannelsModule,
+  type EmailChannelConfig,
+  type WhatsAppChannelConfig,
+} from './modules/channels';
+export {
+  createResendAdapter,
+  type ResendAdapterConfig,
+} from './modules/channels/adapters/resend';
+export {
+  createSmtpAdapter,
+  type SmtpAdapterConfig,
+} from './modules/channels/adapters/smtp';
+export { createWhatsAppAdapter } from './modules/channels/adapters/whatsapp';
+export { channelsLog, channelsTemplates } from './modules/channels/schema';
+export type { ChannelSend, ChannelsService } from './modules/channels/service';
+// Built-in Modules: Integrations (replaces Credentials)
+export {
+  createIntegrationsModule,
+  integrationsTable,
+} from './modules/integrations';
+export type {
+  ConnectOptions,
+  Integration,
+  IntegrationsService,
+} from './modules/integrations/service';
 // Built-in Modules: Sequences
 export { createSequencesModule, sequences } from './modules/sequences';
-export { nextSequence, type SequenceOptions } from './modules/sequences/next-sequence';
-
-// Built-in Modules: Integrations (replaces Credentials)
-export { createIntegrationsModule, integrationsTable } from './modules/integrations';
-export type { IntegrationsService, Integration, ConnectOptions } from './modules/integrations/service';
-
-// Schemas
-export { getActiveSchemas, type SchemaConfig } from './schemas';
-
-// Throw Proxy
-export { createThrowProxy } from './infra/throw-proxy';
-
+export {
+  nextSequence,
+  type SequenceOptions,
+} from './modules/sequences/next-sequence';
 // Built-in Modules: Storage
-export { createStorageModule, type StorageModuleConfig } from './modules/storage';
+export {
+  createStorageModule,
+  type StorageModuleConfig,
+} from './modules/storage';
 export { createLocalAdapter } from './modules/storage/adapters/local';
 export { createS3Adapter } from './modules/storage/adapters/s3';
 export { createStorageRoutes } from './modules/storage/routes';
 export { storageObjects } from './modules/storage/schema';
-export type { StorageService, BucketConfig, BucketHandle, StorageObject, BucketListOptions } from './modules/storage/service';
-
-// Built-in Modules: Channels
-export { createChannelsModule, type ChannelsModuleConfig, type WhatsAppChannelConfig, type EmailChannelConfig } from './modules/channels';
-export { channelsLog, channelsTemplates } from './modules/channels/schema';
-export { createResendAdapter, type ResendAdapterConfig } from './modules/channels/adapters/resend';
-export { createSmtpAdapter, type SmtpAdapterConfig } from './modules/channels/adapters/smtp';
-export { createWhatsAppAdapter } from './modules/channels/adapters/whatsapp';
-export type { ChannelsService, ChannelSend } from './modules/channels/service';
-
-// Webhooks
-export { type WebhookConfig, verifyHmacSignature, createWebhookRoutes, webhookDedup } from './infra/webhooks';
+export type {
+  BucketConfig,
+  BucketHandle,
+  BucketListOptions,
+  StorageObject,
+  StorageService,
+} from './modules/storage/service';
+// Schemas
+export { getActiveSchemas, type SchemaConfig } from './schemas';

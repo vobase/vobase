@@ -1,15 +1,36 @@
-import { Database } from 'bun:sqlite';
-import { drizzle } from 'drizzle-orm/bun-sqlite';
+import { PGlite } from '@electric-sql/pglite';
+import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import { vector } from '@electric-sql/pglite/vector';
+import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 
-export type VobaseDb = ReturnType<typeof drizzle>;
+export type VobaseDb = ReturnType<typeof drizzlePglite>;
+
+// Cache instances by path so multiple createDatabase calls reuse the same PGlite
+const pgliteCache = new Map<string, PGlite>();
+const dbCache = new Map<string, VobaseDb>();
+
+/** Returns the cached PGlite instance for a local db path, or undefined for postgres URLs. */
+export function getPgliteClient(dbPath: string): PGlite | undefined {
+  return pgliteCache.get(dbPath);
+}
 
 export function createDatabase(dbPath: string): VobaseDb {
-  const sqlite = new Database(dbPath);
+  if (dbPath.startsWith('postgres://') || dbPath.startsWith('postgresql://')) {
+    // Lazy import bun:sql — only available in Bun runtime, not in Node/drizzle-kit
+    const { SQL } = require('bun');
+    const { drizzle: drizzleBunSql } = require('drizzle-orm/bun-sql');
+    const client = new SQL(dbPath);
+    return drizzleBunSql({ client }) as unknown as VobaseDb;
+  }
 
-  sqlite.run('PRAGMA journal_mode=WAL');
-  sqlite.run('PRAGMA busy_timeout=5000');
-  sqlite.run('PRAGMA synchronous=NORMAL');
-  sqlite.run('PRAGMA foreign_keys=ON');
+  const cached = dbCache.get(dbPath);
+  if (cached) return cached;
 
-  return drizzle({ client: sqlite });
+  const pglite = new PGlite(dbPath, {
+    extensions: { vector, pgcrypto },
+  });
+  pgliteCache.set(dbPath, pglite);
+  const db = drizzlePglite({ client: pglite });
+  dbCache.set(dbPath, db);
+  return db;
 }
