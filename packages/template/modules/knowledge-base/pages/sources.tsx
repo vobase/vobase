@@ -1,14 +1,14 @@
-import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
+import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PageHeader } from '@/components/page-header';
+import { cn } from '@/lib/utils';
 
 interface KBSource {
   id: string;
@@ -30,7 +30,12 @@ function StatusDot({ status }: { status: string }) {
     'bg-emerald-500': status === 'active' || status === 'connected',
     'bg-amber-500 animate-pulse': status === 'syncing',
     'bg-red-500': status === 'error' || status === 'failed',
-    'bg-muted-foreground': status !== 'active' && status !== 'connected' && status !== 'syncing' && status !== 'error' && status !== 'failed',
+    'bg-muted-foreground':
+      status !== 'active' &&
+      status !== 'connected' &&
+      status !== 'syncing' &&
+      status !== 'error' &&
+      status !== 'failed',
   });
   return <span className={dotClass} aria-hidden="true" />;
 }
@@ -68,23 +73,31 @@ function SourcesPage() {
 
   const syncMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/knowledge-base/sources/${id}/sync`, { method: 'POST' });
+      const res = await fetch(`/api/knowledge-base/sources/${id}/sync`, {
+        method: 'POST',
+      });
       if (!res.ok) throw new Error('Sync failed');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kb-sources'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['kb-sources'] }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/knowledge-base/sources/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/knowledge-base/sources/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) throw new Error('Delete failed');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kb-sources'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['kb-sources'] }),
   });
 
   async function handleConnect(source: KBSource) {
     if (source.type === 'google-drive' || source.type === 'sharepoint') {
-      const res = await fetch(`/api/knowledge-base/sources/${source.id}/auth-url`);
+      const res = await fetch(
+        `/api/knowledge-base/sources/${source.id}/auth-url`,
+      );
       const { url } = await res.json();
       window.location.href = url;
     }
@@ -92,7 +105,10 @@ function SourcesPage() {
 
   return (
     <div className="p-6">
-      <PageHeader title="Sources" description="Connect external document sources">
+      <PageHeader
+        title="Sources"
+        description="Connect external document sources"
+      >
         <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
           {showAdd ? 'Cancel' : 'Add source'}
         </Button>
@@ -107,16 +123,22 @@ function SourcesPage() {
               onChange={(e) => setNewName(e.target.value)}
             />
             <div className="flex gap-2">
-              {(['crawl', 'google-drive', 'sharepoint'] as const).map((type) => (
-                <Button
-                  key={type}
-                  variant={newType === type ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setNewType(type)}
-                >
-                  {type === 'crawl' ? 'Web Crawl' : type === 'google-drive' ? 'Google Drive' : 'SharePoint'}
-                </Button>
-              ))}
+              {(['crawl', 'google-drive', 'sharepoint'] as const).map(
+                (type) => (
+                  <Button
+                    key={type}
+                    variant={newType === type ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setNewType(type)}
+                  >
+                    {type === 'crawl'
+                      ? 'Web Crawl'
+                      : type === 'google-drive'
+                        ? 'Google Drive'
+                        : 'SharePoint'}
+                  </Button>
+                ),
+              )}
             </div>
             {newType === 'crawl' && (
               <Input
@@ -137,9 +159,8 @@ function SourcesPage() {
 
       {isLoading && (
         <div className="space-y-3">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-lg" />
-          ))}
+          <Skeleton className="h-20 w-full rounded-lg" />
+          <Skeleton className="h-20 w-full rounded-lg" />
         </div>
       )}
 
@@ -158,7 +179,10 @@ function SourcesPage() {
       {sources && sources.length > 0 && (
         <div className="space-y-3">
           {sources.map((source) => (
-            <Card key={source.id} className="transition-colors hover:bg-muted/30">
+            <Card
+              key={source.id}
+              className="transition-colors hover:bg-muted/30"
+            >
               <CardContent className="flex items-center justify-between py-4 px-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -169,17 +193,25 @@ function SourcesPage() {
                     <Badge variant="outline" className="text-xs font-normal">
                       {source.type}
                     </Badge>
-                    <span className="text-xs text-muted-foreground capitalize">{source.status}</span>
+                    <span className="text-xs text-muted-foreground capitalize">
+                      {source.status}
+                    </span>
                     {source.lastSyncAt && (
                       <span className="text-xs text-muted-foreground">
-                        &middot; synced {new Date(source.lastSyncAt).toLocaleString()}
+                        &middot; synced{' '}
+                        {new Date(source.lastSyncAt).toLocaleString()}
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2 ml-4">
-                  {(source.type === 'google-drive' || source.type === 'sharepoint') && (
-                    <Button variant="outline" size="sm" onClick={() => handleConnect(source)}>
+                  {(source.type === 'google-drive' ||
+                    source.type === 'sharepoint') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleConnect(source)}
+                    >
                       Connect
                     </Button>
                   )}

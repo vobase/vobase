@@ -1,13 +1,13 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Search } from 'lucide-react';
+import { useState } from 'react';
 
+import { SearchBar } from '@/components/search-bar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SearchBar } from '@/components/search-bar';
-import { EXAMPLES, AUTOCOMPLETE_SEED, CATEGORIES } from '@/config/search';
+import { AUTOCOMPLETE_SEED, CATEGORIES, EXAMPLES } from '@/config/search';
 
 async function searchKnowledgeBase(query: string) {
   const res = await fetch('/api/knowledge-base/search', {
@@ -39,15 +39,23 @@ function highlightTerms(text: string, query: string): React.ReactNode {
   if (terms.length === 0) return text;
   const regex = new RegExp(`(${terms.join('|')})`, 'gi');
   const parts = text.split(regex);
-  return parts.map((part, i) =>
-    regex.test(part) ? (
-      <mark key={i} className="bg-transparent font-semibold text-foreground not-italic">
-        {part}
-      </mark>
-    ) : (
-      part
-    ),
-  );
+  const result: React.ReactNode[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (regex.test(part)) {
+      result.push(
+        <mark
+          key={part}
+          className="bg-transparent font-semibold text-foreground not-italic"
+        >
+          {part}
+        </mark>,
+      );
+    } else {
+      result.push(part);
+    }
+  }
+  return result;
 }
 
 function KnowledgeBaseSearch() {
@@ -66,7 +74,9 @@ function KnowledgeBaseSearch() {
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <h2 className="text-lg font-semibold mb-1">Knowledge Base</h2>
-      <p className="text-sm text-muted-foreground mb-6">Search across all documents and sources</p>
+      <p className="text-sm text-muted-foreground mb-6">
+        Search across all documents and sources
+      </p>
 
       <div className="mb-8">
         <SearchBar
@@ -84,19 +94,39 @@ function KnowledgeBaseSearch() {
 
       {isLoading && (
         <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </div>
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-4/5" />
-                <Skeleton className="h-3 w-3/5" />
-              </CardContent>
-            </Card>
-          ))}
+          <Card>
+            <CardContent className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-4/5" />
+              <Skeleton className="h-3 w-3/5" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-4/5" />
+              <Skeleton className="h-3 w-3/5" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-4/5" />
+              <Skeleton className="h-3 w-3/5" />
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -117,11 +147,17 @@ function KnowledgeBaseSearch() {
           {data.results.map((result) => {
             const scorePct = Math.round(result.score * 100);
             return (
-              <Card key={result.chunkId} className="transition-colors hover:bg-muted/30">
+              <Card
+                key={result.chunkId}
+                className="transition-colors hover:bg-muted/30"
+              >
                 <CardContent>
                   <div className="flex items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <Badge variant="secondary" className="shrink-0 text-xs font-normal">
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 text-xs font-normal"
+                      >
                         {result.documentTitle}
                       </Badge>
                     </div>
@@ -135,7 +171,9 @@ function KnowledgeBaseSearch() {
                           style={{ width: `${scorePct}%` }}
                         />
                       </div>
-                      <span className="text-xs tabular-nums text-muted-foreground">{scorePct}%</span>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {scorePct}%
+                      </span>
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">

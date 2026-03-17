@@ -1,20 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import {
-  FileText,
-  FileSpreadsheet,
-  FileImage,
-  FileCode,
   File,
-  Upload,
+  FileCode,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
   Trash2,
+  Upload,
 } from 'lucide-react';
 
+import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PageHeader } from '@/components/page-header';
 
 async function fetchDocuments() {
   const res = await fetch('/api/knowledge-base/documents');
@@ -34,21 +34,34 @@ async function fetchDocuments() {
 
 type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
-const statusConfig: Record<string, { variant: StatusVariant; label: string }> = {
-  ready: { variant: 'default', label: 'Ready' },
-  processing: { variant: 'secondary', label: 'Processing' },
-  pending: { variant: 'outline', label: 'Pending' },
-  error: { variant: 'destructive', label: 'Error' },
-  needs_ocr: { variant: 'secondary', label: 'Needs OCR' },
-};
+const statusConfig: Record<string, { variant: StatusVariant; label: string }> =
+  {
+    ready: { variant: 'default', label: 'Ready' },
+    processing: { variant: 'secondary', label: 'Processing' },
+    pending: { variant: 'outline', label: 'Pending' },
+    error: { variant: 'destructive', label: 'Error' },
+    needs_ocr: { variant: 'secondary', label: 'Needs OCR' },
+  };
 
 function getFileIcon(mimeType: string) {
   if (mimeType.startsWith('image/')) return FileImage;
-  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv'))
+  if (
+    mimeType.includes('spreadsheet') ||
+    mimeType.includes('excel') ||
+    mimeType.includes('csv')
+  )
     return FileSpreadsheet;
-  if (mimeType.includes('html') || mimeType.includes('xml') || mimeType.includes('json'))
+  if (
+    mimeType.includes('html') ||
+    mimeType.includes('xml') ||
+    mimeType.includes('json')
+  )
     return FileCode;
-  if (mimeType.includes('pdf') || mimeType.includes('word') || mimeType.includes('text'))
+  if (
+    mimeType.includes('pdf') ||
+    mimeType.includes('word') ||
+    mimeType.includes('text')
+  )
     return FileText;
   return File;
 }
@@ -71,21 +84,26 @@ function DocumentsPage() {
       if (!res.ok) throw new Error('Upload failed');
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kb-documents'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['kb-documents'] }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/knowledge-base/documents/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/knowledge-base/documents/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) throw new Error('Delete failed');
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kb-documents'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['kb-documents'] }),
   });
 
   function handleFileUpload() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp,.html,.txt,.md,.csv';
+    input.accept =
+      '.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp,.html,.txt,.md,.csv';
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) uploadMutation.mutate(file);
@@ -95,8 +113,15 @@ function DocumentsPage() {
 
   return (
     <div className="p-6">
-      <PageHeader title="Documents" description="Manage knowledge base documents">
-        <Button onClick={handleFileUpload} disabled={uploadMutation.isPending} size="sm">
+      <PageHeader
+        title="Documents"
+        description="Manage knowledge base documents"
+      >
+        <Button
+          onClick={handleFileUpload}
+          disabled={uploadMutation.isPending}
+          size="sm"
+        >
           <Upload className="mr-2 h-4 w-4" />
           {uploadMutation.isPending ? 'Uploading…' : 'Upload document'}
         </Button>
@@ -104,9 +129,10 @@ function DocumentsPage() {
 
       {isLoading && (
         <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-lg" />
-          ))}
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-lg" />
         </div>
       )}
 
@@ -130,18 +156,27 @@ function DocumentsPage() {
         <div className="space-y-2">
           {documents.map((doc) => {
             const Icon = getFileIcon(doc.mimeType);
-            const status = statusConfig[doc.status] ?? { variant: 'outline' as StatusVariant, label: doc.status };
+            const status = statusConfig[doc.status] ?? {
+              variant: 'outline' as StatusVariant,
+              label: doc.status,
+            };
             return (
-              <Card key={doc.id} className="transition-colors hover:bg-muted/30">
+              <Card
+                key={doc.id}
+                className="transition-colors hover:bg-muted/30"
+              >
                 <CardContent className="flex items-center justify-between py-3 px-4">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                       <Icon className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{doc.title}</p>
+                      <p className="truncate text-sm font-medium">
+                        {doc.title}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        {doc.chunkCount} {doc.chunkCount === 1 ? 'chunk' : 'chunks'} &middot;{' '}
+                        {doc.chunkCount}{' '}
+                        {doc.chunkCount === 1 ? 'chunk' : 'chunks'} &middot;{' '}
                         {doc.sourceType}
                       </p>
                     </div>

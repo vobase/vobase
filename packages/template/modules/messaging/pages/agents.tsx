@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,13 +40,22 @@ async function fetchAgents(): Promise<Agent[]> {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 function AgentsPage() {
   const queryClient = useQueryClient();
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ name: '', model: '', systemPrompt: '', suggestions: '' });
+  const [editForm, setEditForm] = useState<EditForm>({
+    name: '',
+    model: '',
+    systemPrompt: '',
+    suggestions: '',
+  });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const { data: agents, isLoading } = useQuery({
@@ -64,11 +73,18 @@ function AgentsPage() {
       if (!res.ok) throw new Error('Failed to create agent');
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['messaging-agents'] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['messaging-agents'] }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<EditForm> }) => {
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<EditForm>;
+    }) => {
       const res = await fetch(`/api/messaging/agents/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -85,7 +101,9 @@ function AgentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/messaging/agents/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/messaging/agents/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) throw new Error('Failed to delete agent');
     },
     onSuccess: () => {
@@ -97,8 +115,11 @@ function AgentsPage() {
   function openEdit(agent: Agent) {
     setEditingAgent(agent);
     const parsedSuggestions = (() => {
-      try { return JSON.parse(agent.suggestions ?? '[]') as string[]; }
-      catch { return []; }
+      try {
+        return JSON.parse(agent.suggestions ?? '[]') as string[];
+      } catch {
+        return [];
+      }
     })();
     setEditForm({
       name: agent.name,
@@ -110,14 +131,20 @@ function AgentsPage() {
 
   function handleSaveEdit() {
     if (!editingAgent) return;
-    const suggestionLines = editForm.suggestions.split('\n').map(s => s.trim()).filter(Boolean);
+    const suggestionLines = editForm.suggestions
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
     updateMutation.mutate({
       id: editingAgent.id,
       data: {
         name: editForm.name,
         model: editForm.model || undefined,
         systemPrompt: editForm.systemPrompt || undefined,
-        suggestions: suggestionLines.length > 0 ? JSON.stringify(suggestionLines) : undefined,
+        suggestions:
+          suggestionLines.length > 0
+            ? JSON.stringify(suggestionLines)
+            : undefined,
       },
     });
   }
@@ -127,18 +154,23 @@ function AgentsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-lg font-semibold">Agents</h2>
-          <p className="text-sm text-muted-foreground">Manage messaging agents</p>
+          <p className="text-sm text-muted-foreground">
+            Manage messaging agents
+          </p>
         </div>
-        <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
+        <Button
+          onClick={() => createMutation.mutate()}
+          disabled={createMutation.isPending}
+        >
           {createMutation.isPending ? 'Creating...' : 'Create agent'}
         </Button>
       </div>
 
       {isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 w-full" />
-          ))}
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
         </div>
       )}
 
@@ -154,7 +186,9 @@ function AgentsPage() {
             <Card key={agent.id} className="flex flex-col">
               <CardContent className="flex-1">
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <p className="font-semibold text-sm leading-tight">{agent.name}</p>
+                  <p className="font-semibold text-sm leading-tight">
+                    {agent.name}
+                  </p>
                   <Badge variant="secondary" className="shrink-0 text-xs">
                     {agent.model ?? 'Default'}
                   </Badge>
@@ -164,7 +198,9 @@ function AgentsPage() {
                     {agent.systemPrompt}
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground/50 italic mb-2">No system prompt</p>
+                  <p className="text-xs text-muted-foreground/50 italic mb-2">
+                    No system prompt
+                  </p>
                 )}
                 <p className="text-xs text-muted-foreground mb-3">
                   Created {formatDate(agent.createdAt)}
@@ -194,7 +230,12 @@ function AgentsPage() {
       )}
 
       {/* Edit dialog */}
-      <Dialog open={!!editingAgent} onOpenChange={(open) => { if (!open) setEditingAgent(null); }}>
+      <Dialog
+        open={!!editingAgent}
+        onOpenChange={(open) => {
+          if (!open) setEditingAgent(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit agent</DialogTitle>
@@ -205,7 +246,9 @@ function AgentsPage() {
               <Input
                 id="agent-name"
                 value={editForm.name}
-                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, name: e.target.value }))
+                }
                 placeholder="Agent name"
               />
             </div>
@@ -214,7 +257,9 @@ function AgentsPage() {
               <Input
                 id="agent-model"
                 value={editForm.model}
-                onChange={(e) => setEditForm((f) => ({ ...f, model: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, model: e.target.value }))
+                }
                 placeholder="e.g. gpt-5-mini, claude-haiku-4-5"
               />
             </div>
@@ -223,7 +268,9 @@ function AgentsPage() {
               <Textarea
                 id="agent-prompt"
                 value={editForm.systemPrompt}
-                onChange={(e) => setEditForm((f) => ({ ...f, systemPrompt: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, systemPrompt: e.target.value }))
+                }
                 placeholder="You are a helpful assistant..."
                 className="min-h-[120px] resize-none"
               />
@@ -233,18 +280,28 @@ function AgentsPage() {
               <Textarea
                 id="agent-suggestions"
                 value={editForm.suggestions}
-                onChange={(e) => setEditForm((f) => ({ ...f, suggestions: e.target.value }))}
-                placeholder={"Help me write a function that\nExplain how\nSearch the knowledge base for"}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, suggestions: e.target.value }))
+                }
+                placeholder={
+                  'Help me write a function that\nExplain how\nSearch the knowledge base for'
+                }
                 className="min-h-[80px] resize-none"
               />
-              <p className="text-xs text-muted-foreground">One suggestion per line. Shown as quick-start prompts in new chats.</p>
+              <p className="text-xs text-muted-foreground">
+                One suggestion per line. Shown as quick-start prompts in new
+                chats.
+              </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingAgent(null)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveEdit} disabled={updateMutation.isPending || !editForm.name.trim()}>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateMutation.isPending || !editForm.name.trim()}
+            >
               {updateMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
@@ -252,13 +309,19 @@ function AgentsPage() {
       </Dialog>
 
       {/* Delete confirmation dialog */}
-      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+      <Dialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirmId(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete agent</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete this agent? This action cannot be undone.
+            Are you sure you want to delete this agent? This action cannot be
+            undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
@@ -266,7 +329,9 @@ function AgentsPage() {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)}
+              onClick={() =>
+                deleteConfirmId && deleteMutation.mutate(deleteConfirmId)
+              }
               disabled={deleteMutation.isPending}
             >
               {deleteMutation.isPending ? 'Deleting...' : 'Delete'}

@@ -1,9 +1,8 @@
-import { eq } from 'drizzle-orm';
-
 import type { VobaseDb } from '@vobase/core';
+import { eq, sql } from 'drizzle-orm';
+import { cosineDistance } from 'drizzle-orm/sql/functions/vector';
 
 import { kbChunks, kbDocuments } from '../schema';
-import { tokenize } from '../search-config';
 import { embedQuery } from './embeddings';
 
 export interface SearchResult {
@@ -34,49 +33,62 @@ const RRF_K = 60; // Standard RRF constant
 /**
  * Hybrid search using Reciprocal Rank Fusion (RRF).
  *
- * Fast mode (default): RRF merges vector similarity + FTS5 keyword results.
+ * Fast mode (default): RRF merges pgvector cosine similarity + tsvector keyword results.
  * Deep mode: adds HyDE (hypothetical document embedding) + optional LLM re-ranking.
  */
-export async function hybridSearch(db: VobaseDb, query: string, options?: SearchOptions): Promise<SearchResult[]> {
+export async function hybridSearch(
+  db: VobaseDb,
+  query: string,
+  options?: SearchOptions,
+): Promise<SearchResult[]> {
   const limit = options?.limit ?? 10;
   const mode = options?.mode ?? 'fast';
-  const raw = db.$client;
+  const fetchCount = limit * 3;
 
   // 1. Embed the original query
   const queryEmbedding = await embedQuery(query);
-  const embeddingJson = JSON.stringify(queryEmbedding);
-  const fetchCount = limit * 3; // Fetch more candidates for RRF merging
 
-  // 2. Vector search with original embedding
-  const vectorResults = raw
-    .prepare('SELECT rowid, distance FROM kb_embeddings WHERE embedding MATCH ? ORDER BY distance LIMIT ?')
-    .all(embeddingJson, fetchCount) as Array<{ rowid: number; distance: number }>;
+  // 2. Vector search using pgvector cosine distance
+  const vectorResults = await db
+    .select({
+      id: kbChunks.id,
+      distance: cosineDistance(kbChunks.embedding, queryEmbedding),
+    })
+    .from(kbChunks)
+    .orderBy(cosineDistance(kbChunks.embedding, queryEmbedding))
+    .limit(fetchCount);
 
-  // 3. FTS5 keyword search
-  const keywords = tokenize(query);
-  const ftsQuery = keywords.join(' ');
-  let keywordResults: Array<{ rowid: number; rank: number }> = [];
-  if (ftsQuery) {
+  // 3. Full-text search using tsvector + ts_rank
+  let keywordResults: Array<{ id: string; rank: number }> = [];
+  if (query.trim()) {
     try {
-      keywordResults = raw
-        .prepare('SELECT rowid, rank FROM kb_chunks_fts WHERE kb_chunks_fts MATCH ? ORDER BY rank LIMIT ?')
-        .all(ftsQuery, fetchCount) as Array<{ rowid: number; rank: number }>;
+      keywordResults = await db
+        .select({
+          id: kbChunks.id,
+          rank: sql<number>`ts_rank(${kbChunks.searchVector}, websearch_to_tsquery('english', ${query}))`,
+        })
+        .from(kbChunks)
+        .where(
+          sql`${kbChunks.searchVector} @@ websearch_to_tsquery('english', ${query})`,
+        )
+        .orderBy(
+          sql`ts_rank(${kbChunks.searchVector}, websearch_to_tsquery('english', ${query})) DESC`,
+        )
+        .limit(fetchCount);
     } catch {
-      // FTS5 query syntax errors are non-fatal
+      // FTS query syntax errors are non-fatal
     }
   }
 
   // 4. Build rank lists for RRF
-  const rankLists: Map<number, number>[] = [];
+  const rankLists: Map<string, number>[] = [];
 
-  // Vector ranks (rank 1 = closest)
-  const vectorRanks = new Map<number, number>();
-  vectorResults.forEach((r, i) => vectorRanks.set(r.rowid, i + 1));
+  const vectorRanks = new Map<string, number>();
+  for (const [i, r] of vectorResults.entries()) vectorRanks.set(r.id, i + 1);
   rankLists.push(vectorRanks);
 
-  // Keyword ranks (rank 1 = best FTS5 match)
-  const keywordRanks = new Map<number, number>();
-  keywordResults.forEach((r, i) => keywordRanks.set(r.rowid, i + 1));
+  const keywordRanks = new Map<string, number>();
+  for (const [i, r] of keywordResults.entries()) keywordRanks.set(r.id, i + 1);
   rankLists.push(keywordRanks);
 
   // 5. Deep mode: HyDE query expansion
@@ -84,13 +96,17 @@ export async function hybridSearch(db: VobaseDb, query: string, options?: Search
     try {
       const hydeEmbedding = await generateHyDE(query);
       if (hydeEmbedding) {
-        const hydeJson = JSON.stringify(hydeEmbedding);
-        const hydeResults = raw
-          .prepare('SELECT rowid, distance FROM kb_embeddings WHERE embedding MATCH ? ORDER BY distance LIMIT ?')
-          .all(hydeJson, fetchCount) as Array<{ rowid: number; distance: number }>;
+        const hydeResults = await db
+          .select({
+            id: kbChunks.id,
+            distance: cosineDistance(kbChunks.embedding, hydeEmbedding),
+          })
+          .from(kbChunks)
+          .orderBy(cosineDistance(kbChunks.embedding, hydeEmbedding))
+          .limit(fetchCount);
 
-        const hydeRanks = new Map<number, number>();
-        hydeResults.forEach((r, i) => hydeRanks.set(r.rowid, i + 1));
+        const hydeRanks = new Map<string, number>();
+        for (const [i, r] of hydeResults.entries()) hydeRanks.set(r.id, i + 1);
         rankLists.push(hydeRanks);
       }
     } catch {
@@ -99,21 +115,21 @@ export async function hybridSearch(db: VobaseDb, query: string, options?: Search
   }
 
   // 6. Compute RRF scores
-  const allRowIds = new Set<number>();
+  const allIds = new Set<string>();
   for (const ranks of rankLists) {
-    for (const rowId of ranks.keys()) allRowIds.add(rowId);
+    for (const id of ranks.keys()) allIds.add(id);
   }
 
-  const rrfScores: Array<{ rowId: number; score: number }> = [];
-  for (const rowId of allRowIds) {
+  const rrfScores: Array<{ id: string; score: number }> = [];
+  for (const id of allIds) {
     let score = 0;
     for (const ranks of rankLists) {
-      const rank = ranks.get(rowId);
+      const rank = ranks.get(id);
       if (rank !== undefined) {
         score += 1 / (RRF_K + rank);
       }
     }
-    rrfScores.push({ rowId, score });
+    rrfScores.push({ id, score });
   }
 
   rrfScores.sort((a, b) => b.score - a.score);
@@ -123,15 +139,18 @@ export async function hybridSearch(db: VobaseDb, query: string, options?: Search
   const topCandidates = rrfScores.slice(0, candidateLimit);
 
   const results: SearchResult[] = [];
-  for (const { rowId, score } of topCandidates) {
-    const chunk = await db.select().from(kbChunks).where(eq(kbChunks.rowId, rowId)).get();
+  for (const { id, score } of topCandidates) {
+    const chunk = (
+      await db.select().from(kbChunks).where(eq(kbChunks.id, id))
+    )[0];
     if (!chunk) continue;
 
-    const doc = await db
-      .select({ title: kbDocuments.title, id: kbDocuments.id })
-      .from(kbDocuments)
-      .where(eq(kbDocuments.id, chunk.documentId))
-      .get();
+    const doc = (
+      await db
+        .select({ title: kbDocuments.title, id: kbDocuments.id })
+        .from(kbDocuments)
+        .where(eq(kbDocuments.id, chunk.documentId))
+    )[0];
 
     results.push({
       chunkId: chunk.id,
@@ -176,11 +195,17 @@ async function generateHyDE(query: string): Promise<number[] | null> {
 
 // --- LLM Re-ranking ---
 
-async function rerankWithLLM(query: string, candidates: SearchResult[], topK: number): Promise<SearchResult[]> {
+async function rerankWithLLM(
+  query: string,
+  candidates: SearchResult[],
+  topK: number,
+): Promise<SearchResult[]> {
   const { generateText } = await import('ai');
   const { openai } = await import('@ai-sdk/openai');
 
-  const passages = candidates.map((c, i) => `[${i}] ${c.content.slice(0, 300)}`).join('\n\n');
+  const passages = candidates
+    .map((c, i) => `[${i}] ${c.content.slice(0, 300)}`)
+    .join('\n\n');
 
   const { text } = await generateText({
     model: openai('gpt-4o-mini'),
@@ -188,7 +213,6 @@ async function rerankWithLLM(query: string, candidates: SearchResult[], topK: nu
     maxOutputTokens: 200,
   });
 
-  // Parse the JSON array of indices
   const match = text.match(/\[[\d\s,]+\]/);
   if (!match) return candidates.slice(0, topK);
 
@@ -197,11 +221,10 @@ async function rerankWithLLM(query: string, candidates: SearchResult[], topK: nu
 
   for (const idx of indices) {
     if (idx >= 0 && idx < candidates.length && reranked.length < topK) {
-      reranked.push({ ...candidates[idx], score: 1 - reranked.length / topK }); // Normalize scores
+      reranked.push({ ...candidates[idx], score: 1 - reranked.length / topK });
     }
   }
 
-  // Fill remaining slots if LLM didn't return enough indices
   for (const candidate of candidates) {
     if (reranked.length >= topK) break;
     if (!reranked.some((r) => r.chunkId === candidate.chunkId)) {
