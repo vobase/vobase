@@ -1,8 +1,16 @@
 import crypto from 'node:crypto';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import type { MessageReceivedEvent, StatusUpdateEvent, ReactionEvent } from '../../../contracts/channels';
-import { createWhatsAppAdapter, WhatsAppApiError, _chunkText, _ERROR_CODE_MAP } from './whatsapp';
+import type {
+  MessageReceivedEvent,
+  ReactionEvent,
+  StatusUpdateEvent,
+} from '../../../contracts/channels';
+import {
+  _chunkText,
+  createWhatsAppAdapter,
+  WhatsAppApiError,
+} from './whatsapp';
 
 // ─── Test Helpers ────────────────────────────────────────────────────
 
@@ -14,15 +22,24 @@ const TEST_CONFIG = {
 };
 
 function signPayload(payload: string, secret: string): string {
-  const hmac = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  const hmac = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
   return `sha256=${hmac}`;
 }
 
 function makeWebhookRequest(payload: object, signature?: string): Request {
   const body = JSON.stringify(payload);
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
   if (signature !== undefined) headers['x-hub-signature-256'] = signature;
-  return new Request('https://example.com/webhook', { method: 'POST', headers, body });
+  return new Request('https://example.com/webhook', {
+    method: 'POST',
+    headers,
+    body,
+  });
 }
 
 function makeSignedWebhookRequest(payload: object): Request {
@@ -49,7 +66,10 @@ function wrapPayload(value: Record<string, unknown>) {
           {
             value: {
               messaging_product: 'whatsapp',
-              metadata: { display_phone_number: '16505555555', phone_number_id: 'PHONE_ID' },
+              metadata: {
+                display_phone_number: '16505555555',
+                phone_number_id: 'PHONE_ID',
+              },
               ...value,
             },
             field: 'messages',
@@ -63,7 +83,14 @@ function wrapPayload(value: Record<string, unknown>) {
 function makeMessagePayload(msg: Record<string, unknown>) {
   return wrapPayload({
     contacts: [{ profile: { name: 'John Doe' }, wa_id: '16315555555' }],
-    messages: [{ from: '16315555555', id: 'wamid.ABC123', timestamp: '1683229471', ...msg }],
+    messages: [
+      {
+        from: '16315555555',
+        id: 'wamid.ABC123',
+        timestamp: '1683229471',
+        ...msg,
+      },
+    ],
   });
 }
 
@@ -80,7 +107,9 @@ function mockFetch(response: object, status = 200) {
     })) as unknown as typeof fetch;
 }
 
-function mockFetchSequence(responses: Array<{ body: object; status?: number }>) {
+function mockFetchSequence(
+  responses: Array<{ body: object; status?: number }>,
+) {
   let callIndex = 0;
   globalThis.fetch = (async () => {
     const r = responses[callIndex] ?? responses[responses.length - 1];
@@ -100,21 +129,21 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       mockFetch({});
       const req = makeWebhookRequest({ test: true });
-      expect(await adapter.verifyWebhook!(req)).toBe(false);
+      expect(await adapter.verifyWebhook?.(req)).toBe(false);
     });
 
     it('returns false for empty signature', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       mockFetch({});
       const req = makeWebhookRequest({ test: true }, '');
-      expect(await adapter.verifyWebhook!(req)).toBe(false);
+      expect(await adapter.verifyWebhook?.(req)).toBe(false);
     });
 
     it('returns false for wrong prefix', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       mockFetch({});
       const req = makeWebhookRequest({ test: true }, 'md5=abc123');
-      expect(await adapter.verifyWebhook!(req)).toBe(false);
+      expect(await adapter.verifyWebhook?.(req)).toBe(false);
     });
 
     it('returns true for valid HMAC-SHA256 signature', async () => {
@@ -124,7 +153,7 @@ describe('WhatsApp Adapter', () => {
       const body = JSON.stringify(payload);
       const sig = signPayload(body, TEST_CONFIG.appSecret);
       const req = makeWebhookRequest(payload, sig);
-      expect(await adapter.verifyWebhook!(req)).toBe(true);
+      expect(await adapter.verifyWebhook?.(req)).toBe(true);
     });
 
     it('returns false for tampered body', async () => {
@@ -141,7 +170,7 @@ describe('WhatsApp Adapter', () => {
         },
         body: JSON.stringify({ tampered: true }),
       });
-      expect(await adapter.verifyWebhook!(req)).toBe(false);
+      expect(await adapter.verifyWebhook?.(req)).toBe(false);
     });
   });
 
@@ -153,9 +182,9 @@ describe('WhatsApp Adapter', () => {
         'hub.verify_token': 'my-token',
         'hub.challenge': 'challenge_123',
       });
-      const res = adapter.handleWebhookChallenge!(req);
+      const res = adapter.handleWebhookChallenge?.(req);
       expect(res).not.toBeNull();
-      expect(res!.status).toBe(200);
+      expect(res?.status).toBe(200);
     });
 
     it('returns null for missing hub.mode', () => {
@@ -164,7 +193,7 @@ describe('WhatsApp Adapter', () => {
         'hub.verify_token': 'my-token',
         'hub.challenge': 'challenge_123',
       });
-      expect(adapter.handleWebhookChallenge!(req)).toBeNull();
+      expect(adapter.handleWebhookChallenge?.(req)).toBeNull();
     });
 
     it('returns null for missing hub.challenge', () => {
@@ -173,7 +202,7 @@ describe('WhatsApp Adapter', () => {
         'hub.mode': 'subscribe',
         'hub.verify_token': 'my-token',
       });
-      expect(adapter.handleWebhookChallenge!(req)).toBeNull();
+      expect(adapter.handleWebhookChallenge?.(req)).toBeNull();
     });
 
     it('returns null for non-subscribe mode', () => {
@@ -183,14 +212,17 @@ describe('WhatsApp Adapter', () => {
         'hub.verify_token': 'my-token',
         'hub.challenge': 'challenge_123',
       });
-      expect(adapter.handleWebhookChallenge!(req)).toBeNull();
+      expect(adapter.handleWebhookChallenge?.(req)).toBeNull();
     });
   });
 
   describe('parseWebhook', () => {
     it('parses text message', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      const payload = makeMessagePayload({ type: 'text', text: { body: 'Hello' } });
+      const payload = makeMessagePayload({
+        type: 'text',
+        text: { body: 'Hello' },
+      });
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
@@ -206,7 +238,12 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       // Mock media download: first call returns media URL, second downloads binary
       mockFetchSequence([
-        { body: { url: 'https://media.example.com/img.jpg', mime_type: 'image/jpeg' } },
+        {
+          body: {
+            url: 'https://media.example.com/img.jpg',
+            mime_type: 'image/jpeg',
+          },
+        },
         { body: {} }, // binary response (simplified)
       ]);
       const payload = makeMessagePayload({
@@ -224,12 +261,21 @@ describe('WhatsApp Adapter', () => {
     it('parses document message', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       mockFetchSequence([
-        { body: { url: 'https://media.example.com/doc.pdf', mime_type: 'application/pdf' } },
+        {
+          body: {
+            url: 'https://media.example.com/doc.pdf',
+            mime_type: 'application/pdf',
+          },
+        },
         { body: {} },
       ]);
       const payload = makeMessagePayload({
         type: 'document',
-        document: { id: 'media_456', mime_type: 'application/pdf', filename: 'invoice.pdf' },
+        document: {
+          id: 'media_456',
+          mime_type: 'application/pdf',
+          filename: 'invoice.pdf',
+        },
       });
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
@@ -240,7 +286,12 @@ describe('WhatsApp Adapter', () => {
     it('parses audio message', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       mockFetchSequence([
-        { body: { url: 'https://media.example.com/audio.ogg', mime_type: 'audio/ogg' } },
+        {
+          body: {
+            url: 'https://media.example.com/audio.ogg',
+            mime_type: 'audio/ogg',
+          },
+        },
         { body: {} },
       ]);
       const payload = makeMessagePayload({
@@ -256,7 +307,12 @@ describe('WhatsApp Adapter', () => {
     it('parses video message', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       mockFetchSequence([
-        { body: { url: 'https://media.example.com/video.mp4', mime_type: 'video/mp4' } },
+        {
+          body: {
+            url: 'https://media.example.com/video.mp4',
+            mime_type: 'video/mp4',
+          },
+        },
         { body: {} },
       ]);
       const payload = makeMessagePayload({
@@ -287,8 +343,12 @@ describe('WhatsApp Adapter', () => {
       expect(msg.messageType).toBe('unsupported');
       expect(msg.content).toContain('Santo Domingo');
       expect(msg.content).toContain('18.4861');
-      expect((msg.metadata!.location as Record<string, unknown>).latitude).toBe(18.4861);
-      expect((msg.metadata!.location as Record<string, unknown>).longitude).toBe(-69.9312);
+      expect((msg.metadata?.location as Record<string, unknown>).latitude).toBe(
+        18.4861,
+      );
+      expect(
+        (msg.metadata?.location as Record<string, unknown>).longitude,
+      ).toBe(-69.9312);
     });
 
     it('parses contacts message', async () => {
@@ -297,7 +357,11 @@ describe('WhatsApp Adapter', () => {
         type: 'contacts',
         contacts: [
           {
-            name: { formatted_name: 'Jane Smith', first_name: 'Jane', last_name: 'Smith' },
+            name: {
+              formatted_name: 'Jane Smith',
+              first_name: 'Jane',
+              last_name: 'Smith',
+            },
             phones: [{ phone: '+18091234567', type: 'CELL' }],
           },
         ],
@@ -308,13 +372,18 @@ describe('WhatsApp Adapter', () => {
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('unsupported');
       expect(msg.content).toBe('Jane Smith');
-      expect(msg.metadata!.contacts).toHaveLength(1);
+      expect(msg.metadata?.contacts).toHaveLength(1);
     });
 
     it('parses sticker message', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       mockFetchSequence([
-        { body: { url: 'https://media.example.com/sticker.webp', mime_type: 'image/webp' } },
+        {
+          body: {
+            url: 'https://media.example.com/sticker.webp',
+            mime_type: 'image/webp',
+          },
+        },
         { body: {} },
       ]);
       const payload = makeMessagePayload({
@@ -361,7 +430,10 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = makeMessagePayload({
         type: 'interactive',
-        interactive: { type: 'button_reply', button_reply: { id: 'btn_yes', title: 'Yes' } },
+        interactive: {
+          type: 'button_reply',
+          button_reply: { id: 'btn_yes', title: 'Yes' },
+        },
       });
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
@@ -369,7 +441,7 @@ describe('WhatsApp Adapter', () => {
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('button_reply');
       expect(msg.content).toBe('Yes');
-      expect(msg.metadata!.buttonId).toBe('btn_yes');
+      expect(msg.metadata?.buttonId).toBe('btn_yes');
     });
 
     it('parses list reply (interactive)', async () => {
@@ -378,7 +450,11 @@ describe('WhatsApp Adapter', () => {
         type: 'interactive',
         interactive: {
           type: 'list_reply',
-          list_reply: { id: 'option_1', title: 'Option 1', description: 'First option' },
+          list_reply: {
+            id: 'option_1',
+            title: 'Option 1',
+            description: 'First option',
+          },
         },
       });
       const req = makeSignedWebhookRequest(payload);
@@ -387,7 +463,7 @@ describe('WhatsApp Adapter', () => {
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('list_reply');
       expect(msg.content).toBe('Option 1');
-      expect(msg.metadata!.listId).toBe('option_1');
+      expect(msg.metadata?.listId).toBe('option_1');
     });
 
     it('parses button (template quick reply)', async () => {
@@ -402,7 +478,7 @@ describe('WhatsApp Adapter', () => {
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('button_reply');
       expect(msg.content).toBe('Yes, confirm');
-      expect(msg.metadata!.buttonPayload).toBe('CONFIRM_ORDER_123');
+      expect(msg.metadata?.buttonPayload).toBe('CONFIRM_ORDER_123');
     });
 
     it('handles unsupported message type', async () => {
@@ -411,14 +487,21 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = await adapter.parseWebhook!(req);
       expect(events).toHaveLength(1);
-      expect((events[0] as MessageReceivedEvent).messageType).toBe('unsupported');
+      expect((events[0] as MessageReceivedEvent).messageType).toBe(
+        'unsupported',
+      );
     });
 
     it('parses sent status', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = wrapPayload({
         statuses: [
-          { id: 'wamid.XXX', status: 'sent', timestamp: '1638420000', recipient_id: '16315551234' },
+          {
+            id: 'wamid.XXX',
+            status: 'sent',
+            timestamp: '1638420000',
+            recipient_id: '16315551234',
+          },
         ],
       });
       const req = makeSignedWebhookRequest(payload);
@@ -432,7 +515,12 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = wrapPayload({
         statuses: [
-          { id: 'wamid.XXX', status: 'delivered', timestamp: '1638420000', recipient_id: '16315551234' },
+          {
+            id: 'wamid.XXX',
+            status: 'delivered',
+            timestamp: '1638420000',
+            recipient_id: '16315551234',
+          },
         ],
       });
       const req = makeSignedWebhookRequest(payload);
@@ -445,7 +533,12 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = wrapPayload({
         statuses: [
-          { id: 'wamid.XXX', status: 'read', timestamp: '1638420000', recipient_id: '16315551234' },
+          {
+            id: 'wamid.XXX',
+            status: 'read',
+            timestamp: '1638420000',
+            recipient_id: '16315551234',
+          },
         ],
       });
       const req = makeSignedWebhookRequest(payload);
@@ -472,15 +565,22 @@ describe('WhatsApp Adapter', () => {
       expect(events).toHaveLength(1);
       const evt = events[0] as StatusUpdateEvent;
       expect(evt.status).toBe('failed');
-      expect(evt.metadata!.errors).toHaveLength(1);
-      expect((evt.metadata!.errors as Array<Record<string, unknown>>)[0].code).toBe(131047);
+      expect(evt.metadata?.errors).toHaveLength(1);
+      expect(
+        (evt.metadata?.errors as Array<Record<string, unknown>>)[0].code,
+      ).toBe(131047);
     });
 
     it('parses deleted status', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = wrapPayload({
         statuses: [
-          { id: 'wamid.XXX', status: 'deleted', timestamp: '1638420000', recipient_id: '16315551234' },
+          {
+            id: 'wamid.XXX',
+            status: 'deleted',
+            timestamp: '1638420000',
+            recipient_id: '16315551234',
+          },
         ],
       });
       const req = makeSignedWebhookRequest(payload);
@@ -489,7 +589,7 @@ describe('WhatsApp Adapter', () => {
       const evt = events[0] as StatusUpdateEvent;
       // 'deleted' is mapped to 'failed' since our contract only has sent/delivered/read/failed
       expect(evt.status).toBe('failed');
-      expect(evt.metadata!.deleted).toBe(true);
+      expect(evt.metadata?.deleted).toBe(true);
     });
 
     it('handles empty entry array', async () => {
@@ -532,7 +632,13 @@ describe('WhatsApp Adapter', () => {
       const payload = wrapPayload({
         contacts: [{ profile: { name: 'John Doe' }, wa_id: '16315555555' }],
         messages: [
-          { from: '16315555555', id: 'wamid.SENT_MSG', timestamp: '1683229471', type: 'text', text: { body: 'Echo' } },
+          {
+            from: '16315555555',
+            id: 'wamid.SENT_MSG',
+            timestamp: '1683229471',
+            type: 'text',
+            text: { body: 'Echo' },
+          },
         ],
       });
       const req = makeSignedWebhookRequest(payload);
@@ -544,8 +650,14 @@ describe('WhatsApp Adapter', () => {
   describe('send', () => {
     it('sends text message', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.OUT1' }] });
-      const result = await adapter.send({ to: '16315555555', text: 'Hello there' });
+      mockFetch({
+        messaging_product: 'whatsapp',
+        messages: [{ id: 'wamid.OUT1' }],
+      });
+      const result = await adapter.send({
+        to: '16315555555',
+        text: 'Hello there',
+      });
       expect(result.success).toBe(true);
       expect(result.messageId).toBe('wamid.OUT1');
     });
@@ -556,12 +668,15 @@ describe('WhatsApp Adapter', () => {
       globalThis.fetch = (async () => {
         callCount++;
         return new Response(
-          JSON.stringify({ messaging_product: 'whatsapp', messages: [{ id: `wamid.CHUNK${callCount}` }] }),
+          JSON.stringify({
+            messaging_product: 'whatsapp',
+            messages: [{ id: `wamid.CHUNK${callCount}` }],
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }) as unknown as typeof fetch;
 
-      const longText = 'A'.repeat(4096) + '\n\n' + 'B'.repeat(100);
+      const longText = `${'A'.repeat(4096)}\n\n${'B'.repeat(100)}`;
       const result = await adapter.send({ to: '16315555555', text: longText });
       expect(result.success).toBe(true);
       expect(callCount).toBe(2);
@@ -573,7 +688,10 @@ describe('WhatsApp Adapter', () => {
       globalThis.fetch = (async () => {
         callCount++;
         return new Response(
-          JSON.stringify({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.EXACT' }] }),
+          JSON.stringify({
+            messaging_product: 'whatsapp',
+            messages: [{ id: 'wamid.EXACT' }],
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }) as unknown as typeof fetch;
@@ -593,10 +711,17 @@ describe('WhatsApp Adapter', () => {
 
     it('sends template message', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.TMPL1' }] });
+      mockFetch({
+        messaging_product: 'whatsapp',
+        messages: [{ id: 'wamid.TMPL1' }],
+      });
       const result = await adapter.send({
         to: '16315555555',
-        template: { name: 'hello_world', language: 'en_US', parameters: ['John'] },
+        template: {
+          name: 'hello_world',
+          language: 'en_US',
+          parameters: ['John'],
+        },
       });
       expect(result.success).toBe(true);
       expect(result.messageId).toBe('wamid.TMPL1');
@@ -604,7 +729,10 @@ describe('WhatsApp Adapter', () => {
 
     it('sends interactive buttons', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.INT1' }] });
+      mockFetch({
+        messaging_product: 'whatsapp',
+        messages: [{ id: 'wamid.INT1' }],
+      });
       const result = await adapter.send({
         to: '16315555555',
         metadata: {
@@ -612,7 +740,9 @@ describe('WhatsApp Adapter', () => {
             type: 'button',
             body: { text: 'Choose one' },
             action: {
-              buttons: [{ type: 'reply', reply: { id: 'btn_1', title: 'Option 1' } }],
+              buttons: [
+                { type: 'reply', reply: { id: 'btn_1', title: 'Option 1' } },
+              ],
             },
           },
         },
@@ -622,10 +752,19 @@ describe('WhatsApp Adapter', () => {
 
     it('sends media with URL', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.MEDIA1' }] });
+      mockFetch({
+        messaging_product: 'whatsapp',
+        messages: [{ id: 'wamid.MEDIA1' }],
+      });
       const result = await adapter.send({
         to: '16315555555',
-        media: [{ type: 'image', url: 'https://example.com/photo.jpg', caption: 'A photo' }],
+        media: [
+          {
+            type: 'image',
+            url: 'https://example.com/photo.jpg',
+            caption: 'A photo',
+          },
+        ],
       });
       expect(result.success).toBe(true);
     });
@@ -646,11 +785,22 @@ describe('WhatsApp Adapter', () => {
         // Upload response
         { body: { id: 'uploaded_media_123' } },
         // Send response
-        { body: { messaging_product: 'whatsapp', messages: [{ id: 'wamid.UPLOADED1' }] } },
+        {
+          body: {
+            messaging_product: 'whatsapp',
+            messages: [{ id: 'wamid.UPLOADED1' }],
+          },
+        },
       ]);
       const result = await adapter.send({
         to: '16315555555',
-        media: [{ type: 'image', data: Buffer.from('fake-image-data'), mimeType: 'image/jpeg' }],
+        media: [
+          {
+            type: 'image',
+            data: Buffer.from('fake-image-data'),
+            mimeType: 'image/jpeg',
+          },
+        ],
       });
       expect(result.success).toBe(true);
       expect(result.messageId).toBe('wamid.UPLOADED1');
@@ -662,7 +812,10 @@ describe('WhatsApp Adapter', () => {
       globalThis.fetch = (async (_url: any, opts: any) => {
         capturedBody = JSON.parse(opts.body);
         return new Response(
-          JSON.stringify({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.REPLY1' }] }),
+          JSON.stringify({
+            messaging_product: 'whatsapp',
+            messages: [{ id: 'wamid.REPLY1' }],
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }) as unknown as typeof fetch;
@@ -789,7 +942,7 @@ describe('WhatsApp Adapter', () => {
     });
 
     it('splits at paragraph breaks', () => {
-      const text = 'A'.repeat(4000) + '\n\n' + 'B'.repeat(200);
+      const text = `${'A'.repeat(4000)}\n\n${'B'.repeat(200)}`;
       const result = _chunkText(text);
       expect(result).toHaveLength(2);
       expect(result[0]).toBe('A'.repeat(4000));
@@ -797,7 +950,7 @@ describe('WhatsApp Adapter', () => {
     });
 
     it('splits at line breaks when no paragraph break', () => {
-      const text = 'A'.repeat(4000) + '\n' + 'B'.repeat(200);
+      const text = `${'A'.repeat(4000)}\n${'B'.repeat(200)}`;
       const result = _chunkText(text);
       expect(result).toHaveLength(2);
       expect(result[0]).toBe('A'.repeat(4000));
@@ -825,7 +978,7 @@ describe('WhatsApp Adapter', () => {
     });
 
     it('trims leading newlines from chunks', () => {
-      const text = 'A'.repeat(4000) + '\n\n\n\n' + 'B'.repeat(200);
+      const text = `${'A'.repeat(4000)}\n\n\n\n${'B'.repeat(200)}`;
       const result = _chunkText(text);
       expect(result).toHaveLength(2);
       expect(result[1].startsWith('\n')).toBe(false);
@@ -855,7 +1008,13 @@ describe('WhatsApp Adapter', () => {
 
   describe('WhatsAppApiError', () => {
     it('carries structured error fields', () => {
-      const err = new WhatsAppApiError('Test error', 400, 131047, 2494075, 'trace123');
+      const err = new WhatsAppApiError(
+        'Test error',
+        400,
+        131047,
+        2494075,
+        'trace123',
+      );
       expect(err).toBeInstanceOf(Error);
       expect(err.name).toBe('WhatsAppApiError');
       expect(err.code).toBe(131047);

@@ -5,7 +5,9 @@ import { auditLog } from '../modules/audit/schema';
 import { authUser } from '../modules/auth/schema';
 
 /** Drizzle column metadata not exposed in public types */
-interface ColumnMeta { primary?: boolean }
+interface ColumnMeta {
+  primary?: boolean;
+}
 
 /**
  * Drizzle Introspection Spike (US-005)
@@ -32,15 +34,13 @@ describe('Drizzle table introspection', () => {
     const columns = getTableColumns(auditLog);
     expect(columns.id.dataType).toBe('string'); // text
     expect(columns.event.dataType).toBe('string'); // text
-    // timestamp_ms mode columns report as 'object date', not 'number'
     expect(columns.createdAt.dataType).toBe('object date');
   });
 
   it('extracts columnType for precise SQL type', () => {
     const columns = getTableColumns(auditLog);
-    expect(columns.id.columnType).toBe('SQLiteText');
-    // timestamp_ms columns use SQLiteTimestamp, not SQLiteInteger
-    expect(columns.createdAt.columnType).toBe('SQLiteTimestamp');
+    expect(columns.id.columnType).toBe('PgText');
+    expect(columns.createdAt.columnType).toBe('PgTimestamp');
   });
 
   it('extracts nullability', () => {
@@ -74,7 +74,6 @@ describe('Drizzle table introspection', () => {
     expect(columns.email.notNull).toBe(true);
     expect(columns.image.notNull).toBe(false);
     expect(columns.role.hasDefault).toBe(true);
-    // integer boolean uses 'boolean' dataType in Drizzle
-    expect(columns.emailVerified.columnType).toBe('SQLiteBoolean');
+    expect(columns.emailVerified.columnType).toBe('PgBoolean');
   });
 });

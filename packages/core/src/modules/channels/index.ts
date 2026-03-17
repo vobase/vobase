@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 
 import type { ChannelAdapter } from '../../contracts/channels';
-import { defineBuiltinModule } from '../../module';
-import { logger } from '../../infra/logger';
-import { ChannelEventEmitter } from './events';
-import { createChannelsService } from './service';
-import { channelsSchema } from './schema';
 import type { VobaseDb } from '../../db/client';
+import { logger } from '../../infra/logger';
+import { defineBuiltinModule } from '../../module';
+import { ChannelEventEmitter } from './events';
+import { channelsSchema } from './schema';
+import { createChannelsService } from './service';
 
 // ─── Config ─────────────────────────────────────────────────────────
 
@@ -36,7 +36,10 @@ export interface ChannelsModuleConfig {
 
 // ─── Module Factory ─────────────────────────────────────────────────
 
-export function createChannelsModule(db: VobaseDb, config: ChannelsModuleConfig) {
+export function createChannelsModule(
+  db: VobaseDb,
+  _config: ChannelsModuleConfig,
+) {
   const adapters = new Map<string, ChannelAdapter>();
   const emitter = new ChannelEventEmitter();
 
@@ -57,13 +60,18 @@ export function createChannelsModule(db: VobaseDb, config: ChannelsModuleConfig)
     }
 
     if (!adapter.verifyWebhook || !adapter.parseWebhook) {
-      return c.json({ error: `Channel ${channelName} does not support push inbound` }, 400);
+      return c.json(
+        { error: `Channel ${channelName} does not support push inbound` },
+        400,
+      );
     }
 
     // Verify webhook signature
     const isValid = await adapter.verifyWebhook(c.req.raw);
     if (!isValid) {
-      logger.warn('Webhook signature verification failed', { channel: channelName });
+      logger.warn('Webhook signature verification failed', {
+        channel: channelName,
+      });
       return c.json({ error: 'Invalid signature' }, 401);
     }
 
@@ -71,8 +79,8 @@ export function createChannelsModule(db: VobaseDb, config: ChannelsModuleConfig)
     const request = c.req.raw;
     Promise.resolve()
       .then(async () => {
-        const events = await adapter.parseWebhook!(request);
-        for (const event of events) {
+        const events = await adapter.parseWebhook?.(request);
+        for (const event of events ?? []) {
           emitter.emit(event);
         }
       })
@@ -113,7 +121,7 @@ export function createChannelsModule(db: VobaseDb, config: ChannelsModuleConfig)
   return { ...mod, service, emitter, registerAdapter };
 }
 
-export { channelsLog, channelsTemplates, channelsSchema } from './schema';
-export { createChannelsService } from './service';
-export type { ChannelsService, ChannelSend } from './service';
 export { ChannelEventEmitter } from './events';
+export { channelsLog, channelsSchema, channelsTemplates } from './schema';
+export type { ChannelSend, ChannelsService } from './service';
+export { createChannelsService } from './service';

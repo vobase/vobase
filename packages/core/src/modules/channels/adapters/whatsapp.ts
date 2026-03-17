@@ -7,9 +7,9 @@ import type {
   ChannelMedia,
   MessageReceivedEvent,
   OutboundMessage,
+  ReactionEvent,
   SendResult,
   StatusUpdateEvent,
-  ReactionEvent,
 } from '../../../contracts/channels';
 import type { HttpClient } from '../../../infra/http-client';
 import type { WhatsAppChannelConfig } from '../index';
@@ -53,7 +53,12 @@ interface InboundMessage {
   audio?: MediaInfo;
   video?: MediaInfo;
   sticker?: MediaInfo;
-  location?: { latitude: number; longitude: number; name?: string; address?: string };
+  location?: {
+    latitude: number;
+    longitude: number;
+    name?: string;
+    address?: string;
+  };
   contacts?: Array<{
     name: { formatted_name: string; first_name?: string; last_name?: string };
     phones?: Array<{ phone: string; type?: string }>;
@@ -80,7 +85,12 @@ interface InboundStatus {
   status: 'sent' | 'delivered' | 'read' | 'failed' | 'deleted' | 'warning';
   timestamp: string;
   recipient_id: string;
-  errors?: Array<{ code: number; title: string; message?: string; error_data?: { details?: string } }>;
+  errors?: Array<{
+    code: number;
+    title: string;
+    message?: string;
+    error_data?: { details?: string };
+  }>;
 }
 
 // ─── Error Class ─────────────────────────────────────────────────────
@@ -227,27 +237,40 @@ export function createWhatsAppAdapter(
 
   // ─── graphFetch closure ───────────────────────────────────────
 
-  async function graphFetch(path: string, options: RequestInit = {}): Promise<any> {
+  async function graphFetch(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<any> {
     const url = graphUrl(apiVersion, path);
     const authHeaders = { Authorization: `Bearer ${accessToken}` };
 
     if (httpClient) {
       const method = (options.method ?? 'GET').toLowerCase();
-      const headers = { ...authHeaders, ...(options.headers as Record<string, string> | undefined) };
+      const headers = {
+        ...authHeaders,
+        ...(options.headers as Record<string, string> | undefined),
+      };
 
       if (method === 'post' || method === 'put') {
-        const body = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+        const body =
+          typeof options.body === 'string'
+            ? JSON.parse(options.body)
+            : options.body;
         const res = await httpClient[method](url, body, { headers });
         if (!res.ok) {
           // Reconstruct a Response-like object to reuse parseGraphError
-          const synthetic = new Response(JSON.stringify(res.data), { status: res.status });
+          const synthetic = new Response(JSON.stringify(res.data), {
+            status: res.status,
+          });
           await parseGraphError(synthetic);
         }
         return res.data;
       } else {
         const res = await httpClient.get(url, { headers });
         if (!res.ok) {
-          const synthetic = new Response(JSON.stringify(res.data), { status: res.status });
+          const synthetic = new Response(JSON.stringify(res.data), {
+            status: res.status,
+          });
           await parseGraphError(synthetic);
         }
         return res.data;
@@ -271,7 +294,9 @@ export function createWhatsAppAdapter(
 
   // ─── downloadMedia closure ────────────────────────────────────
 
-  async function downloadMedia(mediaId: string): Promise<{ data: Buffer; mimeType: string } | null> {
+  async function downloadMedia(
+    mediaId: string,
+  ): Promise<{ data: Buffer; mimeType: string } | null> {
     try {
       const meta = await graphFetch(`/${mediaId}`);
       const mediaUrl = meta.url as string;
@@ -286,7 +311,10 @@ export function createWhatsAppAdapter(
       const arrayBuf = await binRes.arrayBuffer();
       return {
         data: Buffer.from(arrayBuf),
-        mimeType: meta.mime_type ?? binRes.headers.get('content-type') ?? 'application/octet-stream',
+        mimeType:
+          meta.mime_type ??
+          binRes.headers.get('content-type') ??
+          'application/octet-stream',
       };
     } catch (error) {
       console.error('[WhatsApp] downloadMedia failed:', mediaId, error);
@@ -339,7 +367,10 @@ export function createWhatsAppAdapter(
 
     if (expected.length !== signature.length) return false;
 
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+    return crypto.timingSafeEqual(
+      Buffer.from(expected),
+      Buffer.from(signature),
+    );
   }
 
   // ─── Webhook challenge (Meta GET verification) ─────────────────
@@ -441,7 +472,8 @@ export function createWhatsAppAdapter(
       case 'document':
       case 'audio':
       case 'video': {
-        const mediaInfo = msg[msg.type as 'image' | 'document' | 'audio' | 'video'];
+        const mediaInfo =
+          msg[msg.type as 'image' | 'document' | 'audio' | 'video'];
         let media: ChannelMedia[] | undefined;
 
         if (mediaInfo?.id) {
@@ -506,14 +538,16 @@ export function createWhatsAppAdapter(
           ...base,
           content: parts.join(' — ') || '',
           messageType: 'unsupported',
-          metadata: loc ? {
-            location: {
-              latitude: loc.latitude,
-              longitude: loc.longitude,
-              name: loc.name,
-              address: loc.address,
-            },
-          } : undefined,
+          metadata: loc
+            ? {
+                location: {
+                  latitude: loc.latitude,
+                  longitude: loc.longitude,
+                  name: loc.name,
+                  address: loc.address,
+                },
+              }
+            : undefined,
         } satisfies MessageReceivedEvent;
       }
 
@@ -598,7 +632,10 @@ export function createWhatsAppAdapter(
       type: 'status_update',
       channel: 'whatsapp',
       messageId: status.id,
-      status: status.status === 'deleted' || status.status === 'warning' ? 'failed' : status.status,
+      status:
+        status.status === 'deleted' || status.status === 'warning'
+          ? 'failed'
+          : status.status,
       timestamp: Number.parseInt(status.timestamp, 10) * 1000,
       metadata: {
         ...(status.errors?.length ? { errors: status.errors } : {}),
@@ -630,7 +667,11 @@ export function createWhatsAppAdapter(
       // Text message (with chunking)
       if (message.text !== undefined && message.text !== null) {
         if (message.text.length === 0) {
-          return { success: false, error: 'Cannot send empty text message', retryable: false };
+          return {
+            success: false,
+            error: 'Cannot send empty text message',
+            retryable: false,
+          };
         }
         return await sendText(message);
       }
@@ -701,12 +742,14 @@ export function createWhatsAppAdapter(
     return { success: true, messageId };
   }
 
-  async function sendInteractive(message: OutboundMessage): Promise<SendResult> {
+  async function sendInteractive(
+    message: OutboundMessage,
+  ): Promise<SendResult> {
     const payload = {
       messaging_product: 'whatsapp',
       to: message.to,
       type: 'interactive',
-      interactive: message.metadata!.interactive,
+      interactive: message.metadata?.interactive,
     };
 
     const data = await graphFetch(`/${phoneNumberId}/messages`, {
@@ -720,7 +763,14 @@ export function createWhatsAppAdapter(
   }
 
   async function sendMedia(message: OutboundMessage): Promise<SendResult> {
-    const item = message.media![0];
+    const item = message.media?.[0];
+    if (!item) {
+      return {
+        success: false,
+        error: 'No media item provided',
+        retryable: false,
+      };
+    }
     const mediaType = item.type;
 
     const mediaPayload: Record<string, unknown> = {};
@@ -732,13 +782,22 @@ export function createWhatsAppAdapter(
       const form = new FormData();
       form.append('messaging_product', 'whatsapp');
       form.append('type', item.mimeType ?? 'application/octet-stream');
-      form.append('file', new Blob([new Uint8Array(item.data)], { type: item.mimeType ?? 'application/octet-stream' }), item.filename ?? 'file');
+      form.append(
+        'file',
+        new Blob([new Uint8Array(item.data)], {
+          type: item.mimeType ?? 'application/octet-stream',
+        }),
+        item.filename ?? 'file',
+      );
 
-      const uploadRes = await fetch(graphUrl(apiVersion, `/${phoneNumberId}/media`), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: form,
-      });
+      const uploadRes = await fetch(
+        graphUrl(apiVersion, `/${phoneNumberId}/media`),
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: form,
+        },
+      );
       if (!uploadRes.ok) {
         const body = await uploadRes.text();
         throw new WhatsAppApiError(
@@ -747,10 +806,14 @@ export function createWhatsAppAdapter(
           0,
         );
       }
-      const uploadData = await uploadRes.json() as { id: string };
+      const uploadData = (await uploadRes.json()) as { id: string };
       mediaPayload.id = uploadData.id;
     } else {
-      return { success: false, error: 'Media item has neither url nor data', retryable: false };
+      return {
+        success: false,
+        error: 'Media item has neither url nor data',
+        retryable: false,
+      };
     }
 
     if (item.caption) {
@@ -836,16 +899,31 @@ export function createWhatsAppAdapter(
       // Check mapped error codes
       const mapped = ERROR_CODE_MAP[err.code];
       if (mapped) {
-        return { success: false, error: message, code: mapped.code, retryable: mapped.retryable };
+        return {
+          success: false,
+          error: message,
+          code: mapped.code,
+          retryable: mapped.retryable,
+        };
       }
 
       // 5xx HTTP status → server error
       if (err.httpStatus >= 500) {
-        return { success: false, error: message, code: 'server_error', retryable: true };
+        return {
+          success: false,
+          error: message,
+          code: 'server_error',
+          retryable: true,
+        };
       }
 
       // Unknown code — default cautious: retryable
-      return { success: false, error: message, code: 'unknown', retryable: true };
+      return {
+        success: false,
+        error: message,
+        code: 'unknown',
+        retryable: true,
+      };
     }
 
     // Non-API errors — default cautious: retryable
