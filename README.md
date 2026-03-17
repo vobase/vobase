@@ -22,7 +22,7 @@
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/Hono-E36002?style=for-the-badge&logo=hono&logoColor=white" alt="Hono">
   <img src="https://img.shields.io/badge/Drizzle-C5F74F?style=for-the-badge&logo=drizzle&logoColor=black" alt="Drizzle">
-  <img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite">
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/Better_Auth-16a34a?style=for-the-badge" alt="Better Auth">
   <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React">
   <img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite">
@@ -42,7 +42,7 @@
 
 ---
 
-A full-stack TypeScript framework that gives you auth, database, storage, and jobs in a single process with a single SQLite file. Like a self-hosted Supabase — but you own every line of code. Like Pocketbase — but it's TypeScript you can read and modify.
+A full-stack TypeScript framework that gives you auth, database, storage, and jobs in a single process. PGlite (embedded Postgres) for local dev, managed Postgres in production. Like a self-hosted Supabase — but you own every line of code. Like Pocketbase — but it's TypeScript you can read and modify.
 
 AI coding agents (Claude Code, Cursor, Codex) understand vobase out of the box. Strict conventions and agent skills mean generated code works on the first try — not the third.
 
@@ -56,20 +56,20 @@ One `bun create vobase` and you have a working full-stack app:
 
 | Primitive | What it does |
 |---|---|
-| **Database** | SQLite via Drizzle. Real SQL with JOINs, transactions, migrations. One `.db` file. |
+| **Database** | PostgreSQL via Drizzle. PGlite for zero-config local dev, managed Postgres in production. Full SQL with JOINs, transactions, migrations. |
 | **Auth** | better-auth. Sessions, passwords, CSRF. RBAC with role guards, API keys, and optional organization/team support. Works out of the box. |
 | **Audit** | Built-in audit log, record change tracking, and auth event hooks. Every mutation is traceable. |
 | **Sequences** | Gap-free business number generation (INV-0001, PO-0042). Transaction-safe, never skips. |
-| **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in SQLite. |
+| **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in Postgres. |
 | **Channels** | Multi-channel messaging with pluggable adapters. WhatsApp (Cloud API), email (Resend, SMTP). Inbound webhooks, outbound sends, delivery tracking. All messages logged. |
-| **Jobs** | Background tasks with retries, cron, and job chains. SQLite-backed, no Redis. |
+| **Jobs** | Background tasks with retries, cron, and job chains. pg-boss backed, no Redis. |
 | **Knowledge Base** | Upload PDF, DOCX, XLSX, PPTX, images, HTML. Auto-extract to Markdown, chunk, embed, and search. Hybrid search with RRF + HyDE. Gemini OCR for scanned docs. |
 | **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing with codegen, code-splitting, you own the components. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
 | **MCP** | Module-aware tools with API key auth. AI tools can read your schema, list modules, and view logs before generating code. |
-| **Deploy** | Dockerfile + railway.toml included. One `railway up` or `docker build` and you're live. Litestream for SQLite backup to S3. |
+| **Deploy** | Dockerfile + railway.toml included. One `railway up` or `docker build` and you're live. |
 
-Everything runs in one Bun process. No Docker fleet. No external services. `bun run dev` and you're building.
+Locally, everything runs in one Bun process with PGlite — no Docker, no external services. `bun run dev` and you're building. In production, point `DATABASE_URL` at any Postgres instance.
 
 ---
 
@@ -152,31 +152,30 @@ modules/projects/
   schema.ts           ← Drizzle table definitions
   handlers.ts         ← Hono routes (HTTP API)
   handlers.test.ts    ← colocated tests (bun test)
-  jobs.ts             ← background tasks (SQLite-backed, no Redis)
+  jobs.ts             ← background tasks (pg-boss, no Redis)
   pages/              ← React pages (list, detail, create)
   seed.ts             ← sample data for dev
   index.ts            ← defineModule()
 ```
 
 <details>
-<summary><b>schema example</b> — Drizzle + SQLite with typed columns, timestamps, status enums</summary>
+<summary><b>schema example</b> — Drizzle + PostgreSQL with typed columns, timestamps, status enums</summary>
 
 ```typescript
 // modules/projects/schema.ts
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { pgTable, text, integer, timestamp } from 'drizzle-orm/pg-core'
 import { nanoidPrimaryKey } from '@vobase/core'
 
-export const projects = sqliteTable('projects', {
+export const projects = pgTable('projects', {
   id: nanoidPrimaryKey(),
   name: text('name').notNull(),
   description: text('description'),
   status: text('status').notNull().default('active'),    // active -> archived -> deleted
   owner_id: text('owner_id').notNull(),
-  created_at: integer('created_at', { mode: 'timestamp_ms' })
-    .notNull().$defaultFn(() => new Date()),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-export const tasks = sqliteTable('tasks', {
+export const tasks = pgTable('tasks', {
   id: nanoidPrimaryKey(),
   project_id: text('project_id').references(() => projects.id),
   title: text('title').notNull(),
@@ -233,7 +232,7 @@ const projects = await res.json()  // fully typed — autocomplete on every rout
 </details>
 
 <details>
-<summary><b>job example</b> — background tasks, SQLite-backed, no Redis</summary>
+<summary><b>job example</b> — background tasks via pg-boss, no Redis</summary>
 
 ```typescript
 // modules/projects/jobs.ts
@@ -252,7 +251,7 @@ export const sendReminder = defineJob('projects:sendReminder',
 
 Schedule from handlers: `ctx.scheduler.add('projects:sendReminder', { taskId }, { delay: '1d' })`
 
-Retries, cron scheduling, and job dependencies via FlowProducer (chains, DAGs, parallel fan-out/fan-in) — all SQLite-backed, 286K ops/sec.
+Retries, cron scheduling, and priority queues — all Postgres-backed via pg-boss.
 
 </details>
 
@@ -264,7 +263,7 @@ Every HTTP handler gets a context object with runtime capabilities. Current surf
 
 | Property | What it does |
 |---|---|
-| `ctx.db` | Drizzle instance. Full SQL via bun:sqlite — reads, writes, transactions. |
+| `ctx.db` | Drizzle instance. Full PostgreSQL — reads, writes, transactions. |
 | `ctx.user` | `{ id, email, name, role, activeOrganizationId? }`. From better-auth session. Used for authorization checks. RBAC middlewares: `requireRole()`, `requirePermission()`, `requireOrg()`. |
 | `ctx.scheduler` | Job queue. `add(jobName, data, options)` to schedule background work. |
 | `ctx.storage` | `StorageService` — virtual buckets with local/S3 backends. `ctx.storage.bucket('avatars').upload(key, data)`. |
@@ -289,7 +288,7 @@ Beyond local capabilities (database, user, scheduler, storage), `ctx` provides o
 ```typescript
 // vobase.config.ts
 export default defineConfig({
-  database: './data/vobase.db',
+  database: process.env.DATABASE_URL || './data/pgdata',
   integrations: { enabled: true },      // opt-in: encrypted credential store, provider configs
   storage: {                            // opt-in: file storage
     provider: { type: 'local', basePath: './data/files' },
@@ -326,7 +325,7 @@ Credentials stay in `.env`. Config declares the shape.
 |---|---|---|---|---|
 | What you get | Full-stack scaffold (backend + frontend + skills) | Backend-as-a-service (db + auth + storage + functions) | Backend binary (db + auth + storage + API) | Full-stack framework |
 | Language | TypeScript end-to-end | TypeScript (client) + PostgreSQL | Go (closed binary) | Ruby / PHP |
-| Database | SQLite (one file) | PostgreSQL (managed) | SQLite (embedded) | PostgreSQL / MySQL |
+| Database | PostgreSQL (PGlite local, managed prod) | PostgreSQL (managed) | SQLite (embedded) | PostgreSQL / MySQL |
 | Self-hosted | One process, one container | [10+ Docker containers](https://supabase.com/docs/guides/self-hosting/docker) | One binary | Multi-process |
 | You own the code | Yes — all source in your project | No — managed service | No — compiled binary | Yes — but no AI conventions |
 | AI integration | Agent skills + MCP + strict conventions | None | None | None |
@@ -335,11 +334,11 @@ Credentials stay in `.env`. Config declares the shape.
 | Data isolation | Physical (one db per app) | Logical (RLS) | Physical | Varies |
 | License | MIT | Apache 2.0 | MIT | MIT |
 
-**vs Supabase:** Self-hosted Supabase is [10+ Docker containers](https://supabase.com/docs/guides/self-hosting/docker). RLS policies are hard to reason about. You don't own the backend code. Vobase is one process, one SQLite file, and you own every line — AI agents can read and modify everything.
+**vs Supabase:** Self-hosted Supabase is [10+ Docker containers](https://supabase.com/docs/guides/self-hosting/docker). RLS policies are hard to reason about. You don't own the backend code. Vobase is one process, you own every line — AI agents can read and modify everything.
 
 **vs Pocketbase:** Pocketbase is a Go binary. You can see the admin UI, but you can't read or modify the internals. When you need custom business logic, you're writing Go plugins or calling external services. Vobase is TypeScript you own — AI agents understand and extend it natively.
 
-**vs Rails / Laravel:** Great frameworks, but they weren't designed for AI coding agents. Vobase's strict conventions and agent skills mean AI-generated code follows your patterns consistently. Plus: simpler stack (SQLite, no Redis, single process, TypeScript end-to-end).
+**vs Rails / Laravel:** Great frameworks, but they weren't designed for AI coding agents. Vobase's strict conventions and agent skills mean AI-generated code follows your patterns consistently. Plus: simpler stack (no Redis, single process, TypeScript end-to-end).
 
 ---
 
@@ -356,8 +355,7 @@ Docker container (--restart=always)
         │     ├── /mcp          → MCP server (same process, shared port)
         │     ├── /webhooks/*   → inbound event receiver (signature verified, dedup)
         │     └── /*            → frontend (static, from dist/)
-        ├── Drizzle (bun:sqlite, single file in /data/)
-        │     └── WAL mode, 5s busy timeout, foreign keys ON
+        ├── Drizzle (PGlite local / bun:sql production)
         ├── Built-in modules
         │     ├── _auth         → better-auth behind AuthAdapter contract
         │     ├── _audit        → audit log, record tracking, auth hooks
@@ -365,7 +363,7 @@ Docker container (--restart=always)
         │     ├── _integrations → encrypted credential store, provider configs (opt-in)
         │     ├── _storage      → virtual buckets, local/S3 (opt-in)
         │     └── _channels     → unified messaging, adapter pattern (opt-in)
-        ├── bunqueue (SQLite-backed job queue, 286K ops/sec)
+        ├── pg-boss (Postgres-backed job queue)
         ├── Outbound HTTP (typed fetch, retries, circuit breakers)
         └── Audit middleware (all mutations → _audit_log)
 ```
@@ -376,45 +374,15 @@ Docker container (--restart=always)
 
 | Layer | Choice | Why this, not that |
 |---|---|---|
-| Runtime | **Bun** | Native TypeScript, ~50ms startup, built-in SQLite via bun:sqlite, built-in test runner. |
-| Database | **SQLite** via Drizzle | Real SQL with JOINs and aggregations. ACID transactions. One .db file. Zero external dependencies. |
-| Auth | **better-auth** | 12K+ stars, SQLite-native, session/JWT, password hashing, CSRF. Org/RBAC/SSO/2FA as plugins. |
+| Runtime | **Bun** | Native TypeScript, ~50ms startup, built-in test runner. |
+| Database | **PostgreSQL** via Drizzle | PGlite for zero-config local dev, managed Postgres in production. Full SQL, ACID transactions, pgvector for embeddings. |
+| Auth | **better-auth** | 12K+ stars, session/JWT, password hashing, CSRF. Org/RBAC/SSO/2FA as plugins. |
 | API | **Hono** | ~14KB, typed routing, Bun-first. Every AI coding tool already knows Hono. |
-| ORM | **Drizzle** | Type-safe SQL, bun-sqlite adapter, migration generation via drizzle-kit. |
-| Jobs | **bunqueue** | Bun-native, SQLite-backed, BullMQ-compatible API. 286K ops/sec, retries, cron, FlowProducer. No Redis. |
+| ORM | **Drizzle** | Type-safe SQL, PGlite + bun:sql adapters, migration generation via drizzle-kit. |
+| Jobs | **pg-boss** | Postgres-backed job queue. Retries, cron, priority queues. No Redis. |
 | MCP | **@modelcontextprotocol/sdk** | Official SDK. Tools, resources, prompts, SSE. Same process, shared port. |
 | Frontend | **React + TanStack** | Router (virtual file routes), Query, Table. Pure SPA, no SSR. Auto code-splitting. |
 | Components | **shadcn/ui + Tailwind v4** | You own the component source. v4's CSS-based config means no tailwind.config.js. |
-| Backups | **Litestream** | Continuous WAL streaming to S3. ~1 second RPO. Point-in-time recovery. ~$0.03/month. |
-
----
-
-### why sqlite
-
-At 10-200 concurrent users per instance, SQLite with WAL mode outperforms Postgres. PocketBase, Directus, and Strapi all run on it. This isn't a prototype choice — it's an architecture decision.
-
-Backup your entire system:
-
-```bash
-cp vobase.db backup.db
-```
-
-Clone production for staging:
-
-```bash
-cp data/vobase.db data/staging.db
-DATABASE=./data/staging.db PORT=3001 bun run dev
-```
-
-One file copy. Exact production clone. No database dump/restore, no connection string changes.
-
-Disaster recovery via Litestream — continuous WAL streaming to S3, roughly one second of lag:
-
-```bash
-litestream restore -o /data/vobase.db -timestamp 2026-03-01T10:00:00Z s3://my-backups/instance-id
-```
-
-Cost: $0.03-0.05/month. Point-in-time recovery to any second.
 
 ---
 
@@ -435,7 +403,7 @@ The AI sees your exact data model, your existing modules, and the conventions be
 
 ### deployment
 
-Ship a Docker image. Railway, Fly.io, or any Docker host. Add Caddy for HTTPS if self-hosting.
+Ship a Docker image. Railway, Fly.io, or any Docker host. Set `DATABASE_URL` for a managed Postgres connection.
 
 **Railway (quickest):**
 
@@ -443,7 +411,7 @@ Ship a Docker image. Railway, Fly.io, or any Docker host. Add Caddy for HTTPS if
 railway up
 ```
 
-The template ships with `Dockerfile` and `railway.toml` pre-configured. Set `LITESTREAM_*` env vars for automatic SQLite backup to S3.
+The template ships with `Dockerfile` and `railway.toml` pre-configured. Add a Postgres plugin and Railway sets `DATABASE_URL` automatically.
 
 **Docker Compose:**
 
@@ -453,30 +421,21 @@ services:
   vobase:
     image: your-registry/my-vobase:latest
     restart: always
-    volumes:
-      - vobase_data:/data
+    environment:
+      DATABASE_URL: postgres://user:pass@db:5432/vobase
     ports:
       - "3000:3000"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "3"
-  caddy:
-    image: caddy:latest
-    ports:
-      - "80:80"
-      - "443:443"
+  db:
+    image: postgres:17
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: vobase
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+volumes:
+  pgdata:
 ```
-
-Litestream wraps the Bun process for continuous backup:
-
-```dockerfile
-COPY litestream.yml /etc/litestream.yml
-ENTRYPOINT ["litestream", "replicate", "-exec", "bun run server.ts"]
-```
-
-Every app gets its own container, its own database, its own backup stream. Physical isolation, not row-level security policies.
 
 ---
 
@@ -487,11 +446,13 @@ After scaffolding, your project uses standard tools directly — no wrapper CLI:
 | Command | What it does |
 |---|---|
 | `bun run dev` | Start Bun backend with `--watch` and Vite frontend. Auto-restarts on changes. |
-| `bun run db:push` | Push schema to SQLite (dev). No migrations needed. |
+| `bun run db:current` | Apply SQL fixtures (nanoid function, extensions) to the database. |
+| `bun run db:push` | Push schema to database (dev). No migrations needed. |
 | `bun run db:generate` | Generate migration files for production. |
 | `bun run db:migrate` | Run migrations against the database. |
+| `bun run db:seed` | Seed default admin user and sample data. |
+| `bun run db:reset` | Delete database, re-apply fixtures, push schema, and seed. |
 | `bun run db:studio` | Open Drizzle Studio for visual database browsing. |
-| `bun run scripts/generate.ts` | Rebuild route tree from module definitions. |
 
 ---
 
@@ -566,11 +527,8 @@ my-app/
     styles/
       app.css
   data/
-    vobase.db             ← your entire database
-    vobase.db-wal
-    vobase.db-shm
+    pgdata/               ← PGlite database (local dev)
     files/                ← optional, created on first upload
-    backups/
 ```
 
 ---
