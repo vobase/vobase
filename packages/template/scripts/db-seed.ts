@@ -2,19 +2,16 @@
  * Seed script — creates a default admin user, then calls each module's seed function.
  * Module seed data lives in modules/{name}/seed.ts.
  *
- * createApp() starts a bunqueue worker that processes jobs automatically.
+ * createApp() starts a worker that processes jobs automatically.
  * KB documents are uploaded via the API → job queue processes them → we wait for completion.
  *
  * Usage: bun run seed
  */
-import { resolve } from 'node:path';
-import { createApp, createDatabase } from '@vobase/core';
-import { sql } from 'drizzle-orm';
+import { authUser, createApp, createDatabase } from '@vobase/core';
 
-import { setupSqliteVec } from '../lib/sqlite-vec';
 import { modules } from '../modules';
-import { seedMessaging } from '../modules/messaging/seed';
 import { seedKnowledgeBase } from '../modules/knowledge-base/seed';
+import { seedMessaging } from '../modules/messaging/seed';
 import config from '../vobase.config';
 
 const ADMIN_EMAIL = 'admin@example.com';
@@ -24,10 +21,7 @@ const ADMIN_NAME = 'Admin';
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 
-// Must happen before any Database is opened
-setupSqliteVec();
-
-const dbPath = resolve(config.database);
+const dbUrl = config.database;
 
 // createApp starts scheduler + worker — jobs enqueued here get processed automatically
 const app = await createApp({ ...config, modules });
@@ -84,22 +78,21 @@ if (!sessionCookie) {
 }
 
 // --- 2. Module seeds ---
-// Open a read-only Drizzle connection for checking existing data + messaging inserts
-const db = createDatabase(dbPath);
+const db = createDatabase(dbUrl);
 
 if (!userId) {
-  const rows = db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`);
+  const rows = await db.select({ id: authUser.id }).from(authUser).limit(1);
   userId = rows[0]?.id ?? 'seed-admin';
 }
 
-// KB: upload fixtures via API → bunqueue worker processes them (extract → chunk → embed)
+// KB: upload fixtures via API → worker processes them (extract → chunk → embed)
 const kbCount = await seedKnowledgeBase(app, sessionCookie, db);
 if (kbCount > 0)
   console.log(`${green('✓')} Processed ${kbCount} KB documents from fixtures`);
 else console.log(dim('✓ KB documents already exist. Skipping.'));
 
 // Messaging: direct Drizzle inserts (no async pipeline needed)
-const msgResult = seedMessaging(db, userId);
+const msgResult = await seedMessaging(db, userId);
 if (msgResult.agents > 0) {
   console.log(
     green('✓') +
