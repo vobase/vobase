@@ -1,4 +1,4 @@
-import type { ColumnDescriptor, SchemaJSON } from "./types";
+import type { ColumnDescriptor, SchemaJSON } from './types';
 
 interface PresetMatch {
   factory: string;
@@ -14,12 +14,12 @@ interface PresetMatch {
 function detectPreset(c: ColumnDescriptor): PresetMatch | null {
   // traceId: string + code display + not filterable
   if (
-    c.dataType === "string" &&
-    c.display.type === "code" &&
+    c.dataType === 'string' &&
+    c.display.type === 'code' &&
     c.filter === null
   ) {
     return {
-      factory: "col.presets.traceId()",
+      factory: 'col.presets.traceId()',
       skipDisplay: true,
       skipFilter: true,
       skipSortable: false,
@@ -27,9 +27,9 @@ function detectPreset(c: ColumnDescriptor): PresetMatch | null {
   }
 
   // timestamp + sortable → col.presets.timestamp()
-  if (c.dataType === "timestamp" && c.sortable) {
+  if (c.dataType === 'timestamp' && c.sortable) {
     return {
-      factory: "col.presets.timestamp()",
+      factory: 'col.presets.timestamp()',
       skipDisplay: true,
       skipFilter: true,
       skipSortable: true,
@@ -38,9 +38,9 @@ function detectPreset(c: ColumnDescriptor): PresetMatch | null {
 
   // duration: number + slider + number display → col.presets.duration(unit?, bounds?)
   if (
-    c.dataType === "number" &&
-    c.filter?.type === "slider" &&
-    c.display.type === "number"
+    c.dataType === 'number' &&
+    c.filter?.type === 'slider' &&
+    c.display.type === 'number'
   ) {
     const unit = c.display.unit;
     const min = c.filter.min ?? 0;
@@ -54,7 +54,7 @@ function detectPreset(c: ColumnDescriptor): PresetMatch | null {
       args.push(`undefined, { min: ${min}, max: ${max} }`);
     }
     return {
-      factory: `col.presets.duration(${args.join(", ")})`,
+      factory: `col.presets.duration(${args.join(', ')})`,
       skipDisplay: true,
       skipFilter: true,
       skipSortable: false,
@@ -63,13 +63,13 @@ function detectPreset(c: ColumnDescriptor): PresetMatch | null {
 
   // logLevel: enum + badge + checkbox + defaultOpen
   if (
-    c.dataType === "enum" &&
+    c.dataType === 'enum' &&
     c.enumValues &&
-    c.filter?.type === "checkbox" &&
+    c.filter?.type === 'checkbox' &&
     c.filter?.defaultOpen &&
-    c.display.type === "badge"
+    c.display.type === 'badge'
   ) {
-    const vals = c.enumValues.map((v) => JSON.stringify(v)).join(", ");
+    const vals = c.enumValues.map((v) => JSON.stringify(v)).join(', ');
     return {
       factory: `col.presets.logLevel([${vals}])`,
       skipDisplay: true,
@@ -80,14 +80,14 @@ function detectPreset(c: ColumnDescriptor): PresetMatch | null {
 
   // httpStatus: number + number display + checkbox with all-numeric options
   if (
-    c.dataType === "number" &&
-    c.display.type === "number" &&
-    c.filter?.type === "checkbox" &&
-    c.filter?.options?.every((o) => typeof o.value === "number")
+    c.dataType === 'number' &&
+    c.display.type === 'number' &&
+    c.filter?.type === 'checkbox' &&
+    c.filter?.options?.every((o) => typeof o.value === 'number')
   ) {
-    const codes = c.filter.options!.map((o) => o.value);
+    const codes = c.filter.options?.map((o) => o.value);
     return {
-      factory: `col.presets.httpStatus([${codes.join(", ")}])`,
+      factory: `col.presets.httpStatus([${codes.join(', ')}])`,
       skipDisplay: true,
       skipFilter: true,
       skipSortable: false,
@@ -96,13 +96,13 @@ function detectPreset(c: ColumnDescriptor): PresetMatch | null {
 
   // httpMethod: enum + text + checkbox + !defaultOpen
   if (
-    c.dataType === "enum" &&
+    c.dataType === 'enum' &&
     c.enumValues &&
-    c.filter?.type === "checkbox" &&
+    c.filter?.type === 'checkbox' &&
     !c.filter?.defaultOpen &&
-    c.display.type === "text"
+    c.display.type === 'text'
   ) {
-    const vals = c.enumValues.map((v) => JSON.stringify(v)).join(", ");
+    const vals = c.enumValues.map((v) => JSON.stringify(v)).join(', ');
     return {
       factory: `col.presets.httpMethod([${vals}])`,
       skipDisplay: true,
@@ -130,17 +130,17 @@ function buildChain(c: ColumnDescriptor): string {
     skipDisplay = preset.skipDisplay;
     skipFilter = preset.skipFilter;
     skipSortable = preset.skipSortable;
-  } else if (c.dataType === "enum" && c.enumValues) {
-    const vals = c.enumValues.map((v) => JSON.stringify(v)).join(", ");
+  } else if (c.dataType === 'enum' && c.enumValues) {
+    const vals = c.enumValues.map((v) => JSON.stringify(v)).join(', ');
     parts.push(`col.enum([${vals}])`);
   } else if (
-    c.dataType === "array" &&
-    c.arrayItemType?.dataType === "enum" &&
+    c.dataType === 'array' &&
+    c.arrayItemType?.dataType === 'enum' &&
     c.arrayItemType.enumValues
   ) {
     const vals = c.arrayItemType.enumValues
       .map((v) => JSON.stringify(v))
-      .join(", ");
+      .join(', ');
     parts.push(`col.array(col.enum([${vals}]))`);
   } else {
     parts.push(`col.${c.dataType}()`);
@@ -158,7 +158,7 @@ function buildChain(c: ColumnDescriptor): string {
   if (!skipDisplay) {
     const dt = c.display.type;
     const hasColorMap = !!c.display.colorMap;
-    if (dt === "number" && (c.display.unit || hasColorMap)) {
+    if (dt === 'number' && (c.display.unit || hasColorMap)) {
       const opts: Record<string, unknown> = {};
       if (c.display.unit) opts.unit = c.display.unit;
       if (hasColorMap) opts.colorMap = c.display.colorMap;
@@ -168,7 +168,7 @@ function buildChain(c: ColumnDescriptor): string {
         `.display(${JSON.stringify(dt)}, ${JSON.stringify({ colorMap: c.display.colorMap })})`,
       );
     } else if (
-      dt !== "text" // "text" is the default for string/record, skip it
+      dt !== 'text' // "text" is the default for string/record, skip it
     ) {
       parts.push(`.display(${JSON.stringify(dt)})`);
     }
@@ -185,21 +185,21 @@ function buildChain(c: ColumnDescriptor): string {
       parts.push(`.notFilterable()`);
     } else {
       const f = c.filter;
-      if (f.type === "slider" && f.min !== undefined && f.max !== undefined) {
+      if (f.type === 'slider' && f.min !== undefined && f.max !== undefined) {
         parts.push(`.filterable("slider", { min: ${f.min}, max: ${f.max} })`);
-      } else if (f.type === "checkbox") {
+      } else if (f.type === 'checkbox') {
         if (f.options && f.options.length > 0) {
           const opts = f.options
             .map(
               (o) =>
                 `{ label: ${JSON.stringify(o.label)}, value: ${JSON.stringify(o.value)} }`,
             )
-            .join(", ");
+            .join(', ');
           parts.push(`.filterable("checkbox", { options: [${opts}] })`);
         } else {
           parts.push(`.filterable("checkbox")`);
         }
-      } else if (f.type === "timerange") {
+      } else if (f.type === 'timerange') {
         parts.push(`.filterable("timerange")`);
       } else {
         parts.push(`.filterable("input")`);
@@ -232,11 +232,11 @@ function buildChain(c: ColumnDescriptor): string {
         `skeletonClassName: ${JSON.stringify(c.sheet.skeletonClassName)}`,
       );
     parts.push(
-      sheetArgs.length > 0 ? `.sheet({ ${sheetArgs.join(", ")} })` : `.sheet()`,
+      sheetArgs.length > 0 ? `.sheet({ ${sheetArgs.join(', ')} })` : `.sheet()`,
     );
   }
 
-  return parts.join("\n    ");
+  return parts.join('\n    ');
 }
 
 /**
@@ -255,8 +255,8 @@ function buildChain(c: ColumnDescriptor): string {
 export function schemaToTypeScript(json: SchemaJSON): string {
   const lines: string[] = [
     'import { createTableSchema, col } from "@/lib/table-schema";',
-    "",
-    "export const schema = createTableSchema({",
+    '',
+    'export const schema = createTableSchema({',
   ];
 
   for (const descriptor of json.columns) {
@@ -264,6 +264,6 @@ export function schemaToTypeScript(json: SchemaJSON): string {
     lines.push(`  ${descriptor.key}: ${chain},`);
   }
 
-  lines.push("});");
-  return lines.join("\n");
+  lines.push('});');
+  return lines.join('\n');
 }

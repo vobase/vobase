@@ -1,25 +1,29 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router';
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { authClient } from '@/lib/auth-client'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { authClient } from '@/lib/auth-client';
 
-function getInitials(name: string | undefined | null, email: string | undefined | null): string {
+function getInitials(
+  name: string | undefined | null,
+  email: string | undefined | null,
+): string {
   if (name) {
-    const parts = name.trim().split(/\s+/)
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    return name.slice(0, 2).toUpperCase()
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2)
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
   }
-  if (email) return email.slice(0, 2).toUpperCase()
-  return '??'
+  if (email) return email.slice(0, 2).toUpperCase();
+  return '??';
 }
 
 export function ProfilePage() {
-  const { data: session } = authClient.useSession()
-  const user = session?.user
-  const initials = getInitials(user?.name, user?.email)
+  const { data: session } = authClient.useSession();
+  const user = session?.user;
+  const initials = getInitials(user?.name, user?.email);
 
   return (
     <div className="max-w-lg">
@@ -35,7 +39,9 @@ export function ProfilePage() {
           <AvatarFallback className="text-base">{initials}</AvatarFallback>
         </Avatar>
         <div>
-          <p className="font-medium text-sm">{user?.name ?? user?.email ?? 'Account'}</p>
+          <p className="font-medium text-sm">
+            {user?.name ?? user?.email ?? 'Account'}
+          </p>
           {user?.email && user.name && (
             <p className="text-sm text-muted-foreground">{user.email}</p>
           )}
@@ -66,9 +72,9 @@ export function ProfilePage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export const Route = createFileRoute('/_app/settings/profile')({
   component: ProfilePage,
-})
+});

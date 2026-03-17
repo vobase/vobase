@@ -1,35 +1,37 @@
-import { useEffect } from 'react'
-import { XIcon } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router';
+import { XIcon } from 'lucide-react';
+import { useEffect } from 'react';
 
-import { sidebarNavigation } from '@/constants/navigation'
-import { cn } from '@/lib/utils'
+import { sidebarNavigation } from '@/constants/navigation';
+import { cn } from '@/lib/utils';
 
 export interface MobileNavProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
   // Close on Escape
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) return;
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onClose();
     }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Prevent body scroll while open
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = ''
+      document.body.style.overflow = '';
     }
-    return () => { document.body.style.overflow = '' }
-  }, [isOpen])
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
 
   return (
     <>
@@ -38,7 +40,9 @@ export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
         aria-hidden="true"
         className={cn(
           'fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 lg:hidden',
-          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
+          isOpen
+            ? 'opacity-100 pointer-events-auto'
+            : 'opacity-0 pointer-events-none',
         )}
         onClick={onClose}
       />
@@ -55,7 +59,9 @@ export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
       >
         {/* Header */}
         <div className="flex h-12 items-center justify-between border-b px-4">
-          <span className="text-sm font-semibold tracking-tight">Workspace</span>
+          <span className="text-sm font-semibold tracking-tight">
+            Workspace
+          </span>
           <button
             type="button"
             onClick={onClose}
@@ -75,21 +81,26 @@ export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
               </p>
               <ul className="flex flex-col gap-0.5">
                 {group.items.map((item) => {
-                  const Icon = item.icon
+                  const Icon = item.icon;
                   return (
                     <li key={item.to}>
                       <Link
                         to={item.to}
                         onClick={onClose}
-                        activeProps={{ className: 'bg-accent text-accent-foreground' }}
-                        inactiveProps={{ className: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' }}
+                        activeProps={{
+                          className: 'bg-accent text-accent-foreground',
+                        }}
+                        inactiveProps={{
+                          className:
+                            'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                        }}
                         className="mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors"
                       >
                         <Icon className="h-4 w-4 shrink-0" />
                         {item.label}
                       </Link>
                     </li>
-                  )
+                  );
                 })}
               </ul>
             </div>
@@ -97,5 +108,5 @@ export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
         </nav>
       </div>
     </>
-  )
+  );
 }

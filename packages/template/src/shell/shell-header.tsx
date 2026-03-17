@@ -1,11 +1,11 @@
-import { MenuIcon } from 'lucide-react'
+import { MenuIcon } from 'lucide-react';
 
-import { Button } from '@/components/ui/button'
-import { Breadcrumbs } from '@/shell/breadcrumbs'
-import { CommandPalette } from '@/shell/command-palette'
+import { Button } from '@/components/ui/button';
+import { Breadcrumbs } from '@/shell/breadcrumbs';
+import { CommandPalette } from '@/shell/command-palette';
 
 export interface ShellHeaderProps {
-  onMobileMenuOpen: () => void
+  onMobileMenuOpen: () => void;
 }
 
 export function ShellHeader({ onMobileMenuOpen }: Readonly<ShellHeaderProps>) {
@@ -34,8 +34,12 @@ export function ShellHeader({ onMobileMenuOpen }: Readonly<ShellHeaderProps>) {
             type="button"
             onClick={() => {
               document.dispatchEvent(
-                new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),
-              )
+                new KeyboardEvent('keydown', {
+                  key: 'k',
+                  metaKey: true,
+                  bubbles: true,
+                }),
+              );
             }}
             className="hidden items-center gap-1.5 rounded-md border bg-muted/50 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:flex"
             aria-label="Open command palette"
@@ -49,5 +53,5 @@ export function ShellHeader({ onMobileMenuOpen }: Readonly<ShellHeaderProps>) {
       </header>
       <CommandPalette />
     </>
-  )
+  );
 }

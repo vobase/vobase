@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
+import { useState } from 'react';
 
 import { authClient } from '@/lib/auth-client';
 import { MobileNav } from '@/shell/mobile-nav';
@@ -24,7 +24,10 @@ function AppLayout() {
       </div>
 
       {/* Mobile navigation drawer */}
-      <MobileNav isOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+      <MobileNav
+        isOpen={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
+import { createContext, useContext } from 'react';
+
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { CONTROLS_KEY } from '@/lib/constants/local-storage';
-import { createContext, useContext } from 'react';
 
 interface ControlsContextType {
   open: boolean;

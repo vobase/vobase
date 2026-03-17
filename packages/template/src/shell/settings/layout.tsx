@@ -1,5 +1,16 @@
-import { BuildingIcon, CableIcon, KeyIcon, PaletteIcon, UserIcon } from 'lucide-react'
-import { createFileRoute, Link, Outlet, redirect } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+} from '@tanstack/react-router';
+import {
+  BuildingIcon,
+  CableIcon,
+  KeyIcon,
+  PaletteIcon,
+  UserIcon,
+} from 'lucide-react';
 
 const settingsNav = [
   { label: 'Profile', to: '/settings/profile', icon: UserIcon },
@@ -7,7 +18,7 @@ const settingsNav = [
   { label: 'API Keys', to: '/settings/api-keys', icon: KeyIcon },
   { label: 'Integrations', to: '/settings/integrations', icon: CableIcon },
   { label: 'Organization', to: '/settings/organization', icon: BuildingIcon },
-] as const
+] as const;
 
 export function SettingsLayout() {
   return (
@@ -38,14 +49,17 @@ export function SettingsLayout() {
         <Outlet />
       </div>
     </div>
-  )
+  );
 }
 
 export const Route = createFileRoute('/_app/settings')({
   beforeLoad: ({ location }) => {
-    if (location.pathname === '/settings' || location.pathname === '/settings/') {
-      throw redirect({ to: '/settings/profile' })
+    if (
+      location.pathname === '/settings' ||
+      location.pathname === '/settings/'
+    ) {
+      throw redirect({ to: '/settings/profile' });
     }
   },
   component: SettingsLayout,
-})
+});

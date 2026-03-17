@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
-import { cn } from '@/lib/utils';
-import { useAutocomplete, type AutocompleteConfig } from '@/hooks/useAutocomplete';
 import { Input } from '@/components/ui/input';
+import {
+  type AutocompleteConfig,
+  useAutocomplete,
+} from '@/hooks/useAutocomplete';
+import { cn } from '@/lib/utils';
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -45,7 +48,8 @@ export function SearchBar({
     useAutocomplete(value, autocompleteConfig ?? defaultConfig);
 
   // Animated placeholder — only when examples are provided and no explicit placeholder prop
-  const animated = placeholder === undefined && examples !== undefined && examples.length > 0;
+  const animated =
+    placeholder === undefined && examples !== undefined && examples.length > 0;
 
   useEffect(() => {
     if (!animated || !examples) return;
@@ -121,12 +125,13 @@ export function SearchBar({
   }
 
   const showDropdown = suggestions.length > 0;
-  const effectivePlaceholder = animated ? displayPlaceholder : (placeholder ?? 'Search...');
+  const effectivePlaceholder = animated
+    ? displayPlaceholder
+    : (placeholder ?? 'Search...');
 
   return (
     <form onSubmit={handleSubmit} className="w-full">
       <div className="relative w-full">
-
         <Input
           ref={inputRef}
           value={value}
@@ -145,7 +150,9 @@ export function SearchBar({
           aria-autocomplete="list"
           aria-expanded={showDropdown}
           aria-controls={showDropdown ? 'autocomplete-listbox' : undefined}
-          aria-activedescendant={activeIndex >= 0 ? `ac-item-${activeIndex}` : undefined}
+          aria-activedescendant={
+            activeIndex >= 0 ? `ac-item-${activeIndex}` : undefined
+          }
         />
 
         {/* Right-side icons inside the input */}
@@ -154,7 +161,13 @@ export function SearchBar({
             <button
               type="button"
               aria-label="Clear search"
-              onMouseDown={(e) => { e.preventDefault(); setValue(''); dismiss(); onSearch(''); inputRef.current?.focus(); }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setValue('');
+                dismiss();
+                onSearch('');
+                inputRef.current?.focus();
+              }}
               className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground/60 hover:bg-accent hover:text-foreground"
             >
               <X className="size-4" />
@@ -204,7 +217,9 @@ export function SearchBar({
                   <Search className="size-4 shrink-0 text-muted-foreground/60" />
                   <span>
                     <span className="font-medium text-foreground">{typed}</span>
-                    <span className="font-normal text-foreground/70">{completion}</span>
+                    <span className="font-normal text-foreground/70">
+                      {completion}
+                    </span>
                   </span>
                 </button>
               );

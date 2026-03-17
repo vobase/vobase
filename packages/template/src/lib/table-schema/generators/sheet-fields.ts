@@ -1,21 +1,19 @@
-import type { SheetField } from "@/components/data-table/types";
-import type { ColConfig, TableSchemaDefinition } from "../types";
+import type { SheetField } from '@/components/data-table/types';
+import type { ColConfig, TableSchemaDefinition } from '../types';
 
-function defaultDisplayForKind(kind: ColConfig["kind"]): string {
+function defaultDisplayForKind(kind: ColConfig['kind']): string {
   switch (kind) {
-    case "enum":
-    case "array":
-      return "badge";
-    case "boolean":
-      return "boolean";
-    case "timestamp":
-      return "timestamp";
-    case "number":
-      return "number";
-    case "string":
-    case "record":
+    case 'enum':
+    case 'array':
+      return 'badge';
+    case 'boolean':
+      return 'boolean';
+    case 'timestamp':
+      return 'timestamp';
+    case 'number':
+      return 'number';
     default:
-      return "text";
+      return 'text';
   }
 }
 
@@ -25,7 +23,7 @@ function getDisplayDescriptor(config: ColConfig): {
   colorMap?: Record<string, string>;
 } {
   const type =
-    config.display.type === "custom"
+    config.display.type === 'custom'
       ? defaultDisplayForKind(config.kind)
       : config.display.type;
   const desc: {
@@ -34,8 +32,8 @@ function getDisplayDescriptor(config: ColConfig): {
     colorMap?: Record<string, string>;
   } = { type };
   if (
-    config.display.type === "number" &&
-    "unit" in config.display &&
+    config.display.type === 'number' &&
+    'unit' in config.display &&
     config.display.unit
   ) {
     desc.unit = config.display.unit;
@@ -66,16 +64,16 @@ export function generateSheetFields<TData>(
     const filterConfig = config.filter;
 
     // Derive sheet type from filter type, or "readonly" if not filterable
-    const sheetType: SheetField<TData>["type"] =
-      filterConfig?.type ?? "readonly";
+    const sheetType: SheetField<TData>['type'] =
+      filterConfig?.type ?? 'readonly';
 
     result.push({
       id: key as keyof TData,
       label: sheetConfig.label ?? config.label,
       type: sheetType,
       display: getDisplayDescriptor(config),
-      component: sheetConfig.component as SheetField<TData>["component"],
-      condition: sheetConfig.condition as SheetField<TData>["condition"],
+      component: sheetConfig.component as SheetField<TData>['component'],
+      condition: sheetConfig.condition as SheetField<TData>['condition'],
       className: sheetConfig.className,
       skeletonClassName: sheetConfig.skeletonClassName,
     });

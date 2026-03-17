@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from 'react';
 
 const badgeWidthCache = new Map<string, number>();
 
@@ -26,23 +26,23 @@ function measureBadgeWidth({
     return cached;
   }
 
-  const measureEl = document.createElement("div");
+  const measureEl = document.createElement('div');
   measureEl.className = `inline-flex items-center rounded-md border px-1.5 text-xs font-semibold h-5 gap-1 shrink-0 absolute invisible pointer-events-none ${
-    className ?? ""
+    className ?? ''
   }`;
-  measureEl.style.whiteSpace = "nowrap";
+  measureEl.style.whiteSpace = 'nowrap';
 
   if (iconSize) {
-    const icon = document.createElement("span");
-    icon.className = "shrink-0";
+    const icon = document.createElement('span');
+    icon.className = 'shrink-0';
     icon.style.width = `${iconSize}px`;
     icon.style.height = `${iconSize}px`;
     measureEl.appendChild(icon);
   }
 
   if (maxWidth) {
-    const text = document.createElement("span");
-    text.className = "truncate";
+    const text = document.createElement('span');
+    text.className = 'truncate';
     text.style.maxWidth = `${maxWidth}px`;
     text.textContent = label;
     measureEl.appendChild(text);
@@ -83,7 +83,7 @@ export function useBadgeOverflow<T>({
   getLabel,
   containerRef,
   lineCount,
-  cacheKeyPrefix = "",
+  cacheKeyPrefix = '',
   containerPadding = DEFAULT_CONTAINER_PADDING,
   badgeGap = DEFAULT_BADGE_GAP,
   overflowBadgeWidth = DEFAULT_OVERFLOW_BADGE_WIDTH,

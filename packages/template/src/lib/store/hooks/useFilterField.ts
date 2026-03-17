@@ -1,7 +1,8 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { useStoreContext } from "../context";
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+
+import { useStoreContext } from '../context';
 
 /**
  * Return type for useFilterField
@@ -48,7 +49,7 @@ export function useFilterField<
 
   if (!context) {
     throw new Error(
-      "useFilterField must be used within a DataTableStoreProvider",
+      'useFilterField must be used within a DataTableStoreProvider',
     );
   }
 

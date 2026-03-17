@@ -1,18 +1,23 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { sidebarNavigation } from '@/constants/navigation'
-import { useSidebar } from '@/hooks/use-sidebar'
-import { cn } from '@/lib/utils'
-import { UserMenu } from '@/shell/user-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { sidebarNavigation } from '@/constants/navigation';
+import { useSidebar } from '@/hooks/use-sidebar';
+import { cn } from '@/lib/utils';
+import { UserMenu } from '@/shell/user-menu';
 
 export interface ShellSidebarProps {
-  className?: string
+  className?: string;
 }
 
 export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
-  const { isCollapsed, toggle } = useSidebar()
+  const { isCollapsed, toggle } = useSidebar();
 
   return (
     <TooltipProvider>
@@ -24,11 +29,20 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
         )}
       >
         {/* Logo / workspace name */}
-        <div className={cn('flex h-12 shrink-0 items-center border-b', isCollapsed ? 'justify-center px-0' : 'px-4')}>
+        <div
+          className={cn(
+            'flex h-12 shrink-0 items-center border-b',
+            isCollapsed ? 'justify-center px-0' : 'px-4',
+          )}
+        >
           {isCollapsed ? (
-            <span className="text-xs font-bold tracking-widest text-sidebar-foreground select-none">V</span>
+            <span className="text-xs font-bold tracking-widest text-sidebar-foreground select-none">
+              V
+            </span>
           ) : (
-            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground select-none">Workspace</span>
+            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground select-none">
+              Workspace
+            </span>
           )}
         </div>
 
@@ -46,7 +60,7 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
               )}
               <ul className="flex flex-col gap-0.5">
                 {group.items.map((item) => {
-                  const Icon = item.icon
+                  const Icon = item.icon;
                   return (
                     <li key={item.to}>
                       {isCollapsed ? (
@@ -54,21 +68,33 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
                           <TooltipTrigger asChild>
                             <Link
                               to={item.to}
-                              activeProps={{ className: 'bg-accent text-accent-foreground' }}
-                              inactiveProps={{ className: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' }}
+                              activeProps={{
+                                className: 'bg-accent text-accent-foreground',
+                              }}
+                              inactiveProps={{
+                                className:
+                                  'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                              }}
                               className="mx-auto flex h-8 w-8 items-center justify-center rounded-md transition-colors"
                             >
                               <Icon className="h-4 w-4 shrink-0" />
                               <span className="sr-only">{item.label}</span>
                             </Link>
                           </TooltipTrigger>
-                          <TooltipContent side="right">{item.label}</TooltipContent>
+                          <TooltipContent side="right">
+                            {item.label}
+                          </TooltipContent>
                         </Tooltip>
                       ) : (
                         <Link
                           to={item.to}
-                          activeProps={{ className: 'bg-accent text-accent-foreground' }}
-                          inactiveProps={{ className: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' }}
+                          activeProps={{
+                            className: 'bg-accent text-accent-foreground',
+                          }}
+                          inactiveProps={{
+                            className:
+                              'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                          }}
                           className="mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors"
                         >
                           <Icon className="h-4 w-4 shrink-0" />
@@ -76,7 +102,7 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
                         </Link>
                       )}
                     </li>
-                  )
+                  );
                 })}
               </ul>
             </div>
@@ -86,7 +112,9 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
         {/* Footer: user menu + toggle */}
         <div className="shrink-0 border-t">
           {/* User menu */}
-          <div className={cn('py-1', isCollapsed ? 'flex justify-center' : 'px-2')}>
+          <div
+            className={cn('py-1', isCollapsed ? 'flex justify-center' : 'px-2')}
+          >
             <UserMenu collapsed={isCollapsed} />
           </div>
 
@@ -111,5 +139,5 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
         </div>
       </aside>
     </TooltipProvider>
-  )
+  );
 }

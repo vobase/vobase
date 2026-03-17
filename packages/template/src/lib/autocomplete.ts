@@ -19,7 +19,11 @@ export interface Completions {
  * category names, and any extras fetched from the API.
  * Call once at initialisation; refresh when extras change.
  */
-export function buildCorpus(seed: string[], categories: string[], extras: string[] = []): Corpus {
+export function buildCorpus(
+  seed: string[],
+  categories: string[],
+  extras: string[] = [],
+): Corpus {
   const raw = [
     ...seed,
     ...categories,
@@ -29,13 +33,20 @@ export function buildCorpus(seed: string[], categories: string[], extras: string
   const deduped: string[] = [];
   for (const s of raw) {
     const key = s.toLowerCase();
-    if (!seen.has(key)) { seen.add(key); deduped.push(s); }
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(s);
+    }
   }
   return deduped;
 }
 
 /** Return ghost text and dropdown suggestions for the current input value. */
-export function getCompletions(corpus: Corpus, input: string, limit = 5): Completions {
+export function getCompletions(
+  corpus: Corpus,
+  input: string,
+  limit = 5,
+): Completions {
   const q = input.toLowerCase().trim();
   if (q.length === 0) return { ghost: null, ghostFull: null, suggestions: [] };
 

@@ -1,7 +1,7 @@
-import { col as _col } from "./col";
-import { presets } from "./presets";
-import { deserializeSchema, serializeSchema } from "./serialize";
-import { validateSchema } from "./validate";
+import { col as _col } from './col';
+import { presets } from './presets';
+import { deserializeSchema, serializeSchema } from './serialize';
+import { validateSchema } from './validate';
 
 /**
  * Column builder factories and presets for defining table schemas.
@@ -40,6 +40,12 @@ import { validateSchema } from "./validate";
  * ```
  */
 export const col = { ..._col, presets };
+
+export { generateColumns } from './generators/columns';
+export { generateFilterFields } from './generators/filter-fields';
+export { generateFilterSchema } from './generators/filter-schema';
+export { generateSheetFields } from './generators/sheet-fields';
+export { deserializeSchema, serializeSchema } from './serialize';
 export type {
   ColBuilder,
   ColConfig,
@@ -54,19 +60,14 @@ export type {
   SheetConfig,
   SheetDescriptor,
   TableSchemaDefinition,
-} from "./types";
-export { generateColumns } from "./generators/columns";
-export { generateFilterFields } from "./generators/filter-fields";
-export { generateFilterSchema } from "./generators/filter-schema";
-export { generateSheetFields } from "./generators/sheet-fields";
-export { serializeSchema, deserializeSchema } from "./serialize";
+} from './types';
 
 /**
  * Derive defaultColumnVisibility from the schema.
  * Returns { [key]: false } for every column marked with .hidden().
  */
 export function getDefaultColumnVisibility(
-  schema: import("./types").TableSchemaDefinition,
+  schema: import('./types').TableSchemaDefinition,
 ): Record<string, boolean> {
   const visibility: Record<string, boolean> = {};
   for (const [key, builder] of Object.entries(schema)) {
@@ -107,8 +108,8 @@ export function getDefaultColumnVisibility(
  * ```
  */
 export function createTableSchema<
-  T extends import("./types").TableSchemaDefinition,
->(definition: T): { definition: T; toJSON(): import("./types").SchemaJSON } {
+  T extends import('./types').TableSchemaDefinition,
+>(definition: T): { definition: T; toJSON(): import('./types').SchemaJSON } {
   validateSchema(definition);
   return {
     definition,
@@ -119,10 +120,10 @@ export function createTableSchema<
 }
 
 createTableSchema.fromJSON = (
-  json: import("./types").SchemaJSON,
+  json: import('./types').SchemaJSON,
 ): {
-  definition: import("./types").TableSchemaDefinition;
-  toJSON(): import("./types").SchemaJSON;
+  definition: import('./types').TableSchemaDefinition;
+  toJSON(): import('./types').SchemaJSON;
 } => {
   return createTableSchema(deserializeSchema(json));
 };

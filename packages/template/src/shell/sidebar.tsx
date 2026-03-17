@@ -2,7 +2,13 @@ import { Link } from '@tanstack/react-router';
 
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { messagingNavigation, knowledgeBaseNavigation, moduleNames, shellNavigation, systemNavigation } from '@/constants/navigation';
+import {
+  knowledgeBaseNavigation,
+  messagingNavigation,
+  moduleNames,
+  shellNavigation,
+  systemNavigation,
+} from '@/constants/navigation';
 
 export interface SidebarProps {
   className?: string;
@@ -23,8 +29,13 @@ export function Sidebar({ className }: Readonly<SidebarProps>) {
           <Link
             key={item.to}
             to={item.to}
-            activeProps={{ className: 'bg-sidebar-primary text-sidebar-primary-foreground' }}
-            inactiveProps={{ className: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' }}
+            activeProps={{
+              className: 'bg-sidebar-primary text-sidebar-primary-foreground',
+            }}
+            inactiveProps={{
+              className:
+                'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            }}
             className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
           >
             {item.label}
@@ -42,8 +53,13 @@ export function Sidebar({ className }: Readonly<SidebarProps>) {
           <Link
             key={item.to}
             to={item.to}
-            activeProps={{ className: 'bg-sidebar-primary text-sidebar-primary-foreground' }}
-            inactiveProps={{ className: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' }}
+            activeProps={{
+              className: 'bg-sidebar-primary text-sidebar-primary-foreground',
+            }}
+            inactiveProps={{
+              className:
+                'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            }}
             className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
           >
             {item.label}
@@ -61,8 +77,13 @@ export function Sidebar({ className }: Readonly<SidebarProps>) {
           <Link
             key={item.to}
             to={item.to}
-            activeProps={{ className: 'bg-sidebar-primary text-sidebar-primary-foreground' }}
-            inactiveProps={{ className: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' }}
+            activeProps={{
+              className: 'bg-sidebar-primary text-sidebar-primary-foreground',
+            }}
+            inactiveProps={{
+              className:
+                'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            }}
             className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
           >
             {item.label}
@@ -80,8 +101,13 @@ export function Sidebar({ className }: Readonly<SidebarProps>) {
           <Link
             key={item.to}
             to={item.to}
-            activeProps={{ className: 'bg-sidebar-primary text-sidebar-primary-foreground' }}
-            inactiveProps={{ className: 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' }}
+            activeProps={{
+              className: 'bg-sidebar-primary text-sidebar-primary-foreground',
+            }}
+            inactiveProps={{
+              className:
+                'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            }}
             className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
           >
             {item.label}

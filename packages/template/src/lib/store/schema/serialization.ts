@@ -1,4 +1,4 @@
-import type { FieldBuilder, InferSchemaType, SchemaDefinition } from "./types";
+import type { FieldBuilder, InferSchemaType, SchemaDefinition } from './types';
 
 /**
  * Get default values from a schema definition
@@ -29,7 +29,7 @@ export function serializeState<T extends SchemaDefinition>(
     if (!fieldBuilder) continue;
 
     const serialized = fieldBuilder._config.serialize(value);
-    if (serialized !== "") {
+    if (serialized !== '') {
       result[key] = serialized;
     }
   }
@@ -51,7 +51,7 @@ export function parseState<T extends SchemaDefinition>(
     if (rawValue === undefined) continue;
 
     // Handle array values from URL (Next.js can pass arrays)
-    const strValue = Array.isArray(rawValue) ? rawValue.join(",") : rawValue;
+    const strValue = Array.isArray(rawValue) ? rawValue.join(',') : rawValue;
 
     const parsed = (fieldBuilder as FieldBuilder<unknown>)._config.parse(
       strValue,
@@ -73,7 +73,7 @@ export function validateState<T extends SchemaDefinition>(
 ): InferSchemaType<T> {
   const defaults = getSchemaDefaults(schema);
 
-  if (!state || typeof state !== "object") {
+  if (!state || typeof state !== 'object') {
     return defaults;
   }
 
@@ -151,8 +151,8 @@ export function isStateEqual<T extends Record<string, unknown>>(
     if (
       valA !== null &&
       valB !== null &&
-      typeof valA === "object" &&
-      typeof valB === "object"
+      typeof valA === 'object' &&
+      typeof valB === 'object'
     ) {
       const objA = valA as Record<string, unknown>;
       const objB = valB as Record<string, unknown>;
@@ -183,5 +183,5 @@ export function stateToSearchString<T extends SchemaDefinition>(
   }
 
   const str = params.toString();
-  return str ? `?${str}` : "";
+  return str ? `?${str}` : '';
 }

@@ -2,8 +2,8 @@ import {
   ARRAY_DELIMITER,
   SLIDER_DELIMITER,
   SORT_DELIMITER,
-} from "@/lib/delimiters";
-import type { FieldBuilder, FieldConfig } from "./types";
+} from '@/lib/delimiters';
+import type { FieldBuilder, FieldConfig } from './types';
 
 // Helper to create a field builder from config
 function createFieldBuilder<T>(config: FieldConfig<T>): FieldBuilder<T> {
@@ -14,13 +14,13 @@ function createFieldBuilder<T>(config: FieldConfig<T>): FieldBuilder<T> {
 
     delimiter(separator: string) {
       // Update serialize/parse functions when delimiter changes for arrays
-      if (config.type === "array" && config.itemConfig) {
+      if (config.type === 'array' && config.itemConfig) {
         const itemConfig = config.itemConfig as FieldConfig<unknown>;
         return createFieldBuilder({
           ...config,
           delimiter: separator,
           serialize: (value: T) => {
-            if (!Array.isArray(value)) return "";
+            if (!Array.isArray(value)) return '';
             return value
               .map((item) => itemConfig.serialize(item))
               .join(separator);
@@ -59,25 +59,25 @@ function createFieldBuilder<T>(config: FieldConfig<T>): FieldBuilder<T> {
 // String field
 function string(): FieldBuilder<string | null> {
   return createFieldBuilder<string | null>({
-    type: "string",
+    type: 'string',
     defaultValue: null,
-    delimiter: "",
-    serialize: (value) => (value === null ? "" : String(value)),
-    parse: (str) => (str === "" ? null : str),
+    delimiter: '',
+    serialize: (value) => (value === null ? '' : String(value)),
+    parse: (str) => (str === '' ? null : str),
   });
 }
 
 // Number field (integer)
 function number(): FieldBuilder<number | null> {
   return createFieldBuilder<number | null>({
-    type: "number",
+    type: 'number',
     defaultValue: null,
-    delimiter: "",
-    serialize: (value) => (value === null ? "" : String(value)),
+    delimiter: '',
+    serialize: (value) => (value === null ? '' : String(value)),
     parse: (str) => {
-      if (str === "") return null;
+      if (str === '') return null;
       const num = parseInt(str, 10);
-      return isNaN(num) ? null : num;
+      return Number.isNaN(num) ? null : num;
     },
   });
 }
@@ -85,14 +85,14 @@ function number(): FieldBuilder<number | null> {
 // Boolean field
 function boolean(): FieldBuilder<boolean | null> {
   return createFieldBuilder<boolean | null>({
-    type: "boolean",
+    type: 'boolean',
     defaultValue: null,
-    delimiter: "",
-    serialize: (value) => (value === null ? "" : String(value)),
+    delimiter: '',
+    serialize: (value) => (value === null ? '' : String(value)),
     parse: (str) => {
-      if (str === "") return null;
-      if (str === "true") return true;
-      if (str === "false") return false;
+      if (str === '') return null;
+      if (str === 'true') return true;
+      if (str === 'false') return false;
       return null;
     },
   });
@@ -101,16 +101,16 @@ function boolean(): FieldBuilder<boolean | null> {
 // Timestamp field (Date)
 function timestamp(): FieldBuilder<Date | null> {
   return createFieldBuilder<Date | null>({
-    type: "timestamp",
+    type: 'timestamp',
     defaultValue: null,
-    delimiter: "",
-    serialize: (value) => (value === null ? "" : String(value.getTime())),
+    delimiter: '',
+    serialize: (value) => (value === null ? '' : String(value.getTime())),
     parse: (str) => {
-      if (str === "") return null;
+      if (str === '') return null;
       const time = parseInt(str, 10);
-      if (isNaN(time)) return null;
+      if (Number.isNaN(time)) return null;
       const date = new Date(time);
-      return isNaN(date.getTime()) ? null : date;
+      return Number.isNaN(date.getTime()) ? null : date;
     },
   });
 }
@@ -120,13 +120,13 @@ function stringLiteral<T extends readonly string[]>(
   literals: T,
 ): FieldBuilder<T[number] | null> {
   return createFieldBuilder<T[number] | null>({
-    type: "stringLiteral",
+    type: 'stringLiteral',
     defaultValue: null,
-    delimiter: "",
+    delimiter: '',
     literals,
-    serialize: (value) => (value === null ? "" : String(value)),
+    serialize: (value) => (value === null ? '' : String(value)),
     parse: (str) => {
-      if (str === "") return null;
+      if (str === '') return null;
       return literals.includes(str as T[number]) ? (str as T[number]) : null;
     },
   });
@@ -136,15 +136,15 @@ function stringLiteral<T extends readonly string[]>(
 function array<T>(itemBuilder: FieldBuilder<T>): FieldBuilder<T[]> {
   const itemConfig = itemBuilder._config;
   const defaultDelimiter =
-    itemConfig.type === "number" ? SLIDER_DELIMITER : ARRAY_DELIMITER;
+    itemConfig.type === 'number' ? SLIDER_DELIMITER : ARRAY_DELIMITER;
 
   return createFieldBuilder<T[]>({
-    type: "array",
+    type: 'array',
     defaultValue: [],
     delimiter: defaultDelimiter,
     itemConfig: itemConfig as FieldConfig<unknown>,
     serialize: (value) => {
-      if (!Array.isArray(value) || value.length === 0) return "";
+      if (!Array.isArray(value) || value.length === 0) return '';
       return value
         .map((item) => itemConfig.serialize(item))
         .join(defaultDelimiter);
@@ -163,18 +163,18 @@ function array<T>(itemBuilder: FieldBuilder<T>): FieldBuilder<T[]> {
 // Sort field { id: string, desc: boolean }
 function sort(): FieldBuilder<{ id: string; desc: boolean } | null> {
   return createFieldBuilder<{ id: string; desc: boolean } | null>({
-    type: "sort",
+    type: 'sort',
     defaultValue: null,
     delimiter: SORT_DELIMITER,
     serialize: (value) => {
-      if (value === null) return "";
-      return `${value.id}${SORT_DELIMITER}${value.desc ? "desc" : "asc"}`;
+      if (value === null) return '';
+      return `${value.id}${SORT_DELIMITER}${value.desc ? 'desc' : 'asc'}`;
     },
     parse: (str) => {
       if (!str) return null;
       const [id, desc] = str.split(SORT_DELIMITER);
       if (!id) return null;
-      return { id, desc: desc === "desc" };
+      return { id, desc: desc === 'desc' };
     },
   });
 }

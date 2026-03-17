@@ -193,7 +193,10 @@ export function HomePage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {quickLinks.map((link) => (
             <Link key={link.to} to={link.to}>
-              <Card size="sm" className="h-full transition-colors hover:bg-muted/50">
+              <Card
+                size="sm"
+                className="h-full transition-colors hover:bg-muted/50"
+              >
                 <CardContent>
                   <link.icon className="mb-2 h-4 w-4 text-muted-foreground" />
                   <p className="font-medium text-sm">{link.label}</p>

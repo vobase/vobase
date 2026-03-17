@@ -1,5 +1,5 @@
-import type { DataTableFilterField } from "@/components/data-table/types";
-import type { TableSchemaDefinition } from "../types";
+import type { DataTableFilterField } from '@/components/data-table/types';
+import type { TableSchemaDefinition } from '../types';
 
 /**
  * Generate DataTableFilterField[] from a table schema definition.
@@ -29,32 +29,32 @@ export function generateFilterFields<TData>(
     };
 
     switch (filter.type) {
-      case "input": {
-        result.push({ ...base, type: "input" });
+      case 'input': {
+        result.push({ ...base, type: 'input' });
         break;
       }
-      case "timerange": {
+      case 'timerange': {
         result.push({
           ...base,
-          type: "timerange",
+          type: 'timerange',
           presets: filter.presets,
         });
         break;
       }
-      case "checkbox": {
+      case 'checkbox': {
         // Derive options if not explicitly provided
         let options = filter.options;
         if (!options) {
-          if (kind === "enum" && enumValues) {
+          if (kind === 'enum' && enumValues) {
             options = enumValues.map((v) => ({ label: v, value: v }));
-          } else if (kind === "boolean") {
+          } else if (kind === 'boolean') {
             options = [
-              { label: "true", value: true },
-              { label: "false", value: false },
+              { label: 'true', value: true },
+              { label: 'false', value: false },
             ];
           } else if (
-            kind === "array" &&
-            arrayItem?.kind === "enum" &&
+            kind === 'array' &&
+            arrayItem?.kind === 'enum' &&
             arrayItem.enumValues
           ) {
             options = arrayItem.enumValues.map((v) => ({ label: v, value: v }));
@@ -62,20 +62,20 @@ export function generateFilterFields<TData>(
         }
         result.push({
           ...base,
-          type: "checkbox",
+          type: 'checkbox',
           options,
           component: filter.component,
         });
         break;
       }
-      case "slider": {
+      case 'slider': {
         const displayUnit =
-          config.display.type === "number" && "unit" in config.display
+          config.display.type === 'number' && 'unit' in config.display
             ? config.display.unit
             : undefined;
         result.push({
           ...base,
-          type: "slider",
+          type: 'slider',
           min: filter.min ?? 0,
           max: filter.max ?? 100,
           unit: filter.unit ?? displayUnit,

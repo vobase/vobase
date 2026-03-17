@@ -1,7 +1,7 @@
-import { BuildingIcon } from 'lucide-react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router';
+import { BuildingIcon } from 'lucide-react';
 
-import { EmptyState } from '@/components/empty-state'
+import { EmptyState } from '@/components/empty-state';
 
 export function OrganizationPage() {
   return (
@@ -19,9 +19,9 @@ export function OrganizationPage() {
         description="Organization settings are available when organization mode is enabled in your vobase.config.ts."
       />
     </div>
-  )
+  );
 }
 
 export const Route = createFileRoute('/_app/settings/organization')({
   component: OrganizationPage,
-})
+});

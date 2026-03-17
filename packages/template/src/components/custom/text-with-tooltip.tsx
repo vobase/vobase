@@ -1,11 +1,13 @@
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
+
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import React, { useEffect, useRef, useState } from "react";
+} from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface TextWithTooltipProps {
   text: string | number;
@@ -51,8 +53,8 @@ export function TextWithTooltip({
           <div
             ref={textRef}
             className={cn(
-              "truncate",
-              !isTruncated && "pointer-events-none",
+              'truncate',
+              !isTruncated && 'pointer-events-none',
               className,
             )}
             style={style}

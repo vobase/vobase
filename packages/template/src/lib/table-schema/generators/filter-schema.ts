@@ -2,14 +2,14 @@ import {
   ARRAY_DELIMITER,
   RANGE_DELIMITER,
   SLIDER_DELIMITER,
-} from "@/lib/delimiters";
-import { createSchema, field } from "@/lib/store/schema";
+} from '@/lib/delimiters';
 import type {
   FieldBuilder,
   Schema,
   SchemaDefinition,
-} from "@/lib/store/schema";
-import type { ColBuilder, TableSchemaDefinition } from "../types";
+} from '@/lib/store/schema';
+import { createSchema, field } from '@/lib/store/schema';
+import type { ColBuilder, TableSchemaDefinition } from '../types';
 
 /**
  * Extract keys from a TableSchemaDefinition where the column is filterable.
@@ -34,17 +34,17 @@ type GetColFilter<B> = B extends ColBuilder<any, infer F> ? F : never;
  */
 type InferFilterFieldType<B> = [GetColFilter<B>] extends [never]
   ? never
-  : GetColFilter<B> extends "input"
+  : GetColFilter<B> extends 'input'
     ? GetColValue<B> extends string
       ? FieldBuilder<string | null>
       : GetColValue<B> extends number
         ? FieldBuilder<number | null>
         : FieldBuilder<unknown>
-    : GetColFilter<B> extends "slider"
+    : GetColFilter<B> extends 'slider'
       ? FieldBuilder<(number | null)[]>
-      : GetColFilter<B> extends "timerange"
+      : GetColFilter<B> extends 'timerange'
         ? FieldBuilder<(Date | null)[]>
-        : GetColFilter<B> extends "checkbox"
+        : GetColFilter<B> extends 'checkbox'
           ? GetColValue<B> extends (infer U)[]
             ? FieldBuilder<(U | null)[]>
             : FieldBuilder<(GetColValue<B> | null)[]>
@@ -67,30 +67,30 @@ function buildFilterDefinition(
     const { kind, filter, enumValues, arrayItem } = config;
 
     switch (filter.type) {
-      case "input": {
-        if (kind === "string") {
+      case 'input': {
+        if (kind === 'string') {
           definition[key] = field.string();
-        } else if (kind === "number") {
+        } else if (kind === 'number') {
           definition[key] = field.number();
         }
         break;
       }
-      case "checkbox": {
-        if (kind === "enum" && enumValues) {
+      case 'checkbox': {
+        if (kind === 'enum' && enumValues) {
           definition[key] = field.array(
             field.stringLiteral(enumValues as readonly string[]),
           );
-        } else if (kind === "number") {
+        } else if (kind === 'number') {
           definition[key] = field
             .array(field.number())
             .delimiter(ARRAY_DELIMITER);
-        } else if (kind === "boolean") {
+        } else if (kind === 'boolean') {
           definition[key] = field
             .array(field.boolean())
             .delimiter(ARRAY_DELIMITER);
         } else if (
-          kind === "array" &&
-          arrayItem?.kind === "enum" &&
+          kind === 'array' &&
+          arrayItem?.kind === 'enum' &&
           arrayItem.enumValues
         ) {
           definition[key] = field.array(
@@ -99,13 +99,13 @@ function buildFilterDefinition(
         }
         break;
       }
-      case "slider": {
+      case 'slider': {
         definition[key] = field
           .array(field.number())
           .delimiter(SLIDER_DELIMITER);
         break;
       }
-      case "timerange": {
+      case 'timerange': {
         definition[key] = field
           .array(field.timestamp())
           .delimiter(RANGE_DELIMITER);

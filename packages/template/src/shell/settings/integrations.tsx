@@ -1,203 +1,254 @@
-import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertCircleIcon, CheckCircleIcon, Loader2Icon, MessageSquareIcon, MailIcon, DatabaseIcon, SendIcon, UnplugIcon } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createFileRoute } from '@tanstack/react-router';
+import {
+  AlertCircleIcon,
+  CheckCircleIcon,
+  DatabaseIcon,
+  Loader2Icon,
+  MailIcon,
+  MessageSquareIcon,
+  SendIcon,
+  UnplugIcon,
+} from 'lucide-react';
+import { useState } from 'react';
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { integrationsClient } from '@/lib/api-client'
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { integrationsClient } from '@/lib/api-client';
 
 // ─── FB SDK Lazy Loader ───────────────────────────────────────────────
 
 interface FBLoginResponse {
-  status: 'connected' | 'not_authorized' | string
+  status: 'connected' | 'not_authorized' | string;
   authResponse?: {
-    code?: string
-    accessToken?: string
-  } | null
+    code?: string;
+    accessToken?: string;
+  } | null;
 }
 
 declare global {
   interface Window {
     FB: {
-      init(params: { appId: string; cookie: boolean; xfbml: boolean; version: string }): void
+      init(params: {
+        appId: string;
+        cookie: boolean;
+        xfbml: boolean;
+        version: string;
+      }): void;
       login(
         callback: (response: FBLoginResponse) => void,
         params: {
-          config_id: string
-          response_type: string
-          override_default_response_type: boolean
-          extras: Record<string, unknown>
+          config_id: string;
+          response_type: string;
+          override_default_response_type: boolean;
+          extras: Record<string, unknown>;
         },
-      ): void
-    }
-    fbAsyncInit: () => void
+      ): void;
+    };
+    fbAsyncInit: () => void;
   }
 }
 
 function loadFacebookSDK(appId: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if (window.FB) {
-      resolve()
-      return
+      resolve();
+      return;
     }
 
     const timeout = setTimeout(() => {
-      reject(new Error('Facebook SDK load timeout'))
-    }, 15000)
+      reject(new Error('Facebook SDK load timeout'));
+    }, 15000);
 
     window.fbAsyncInit = () => {
-      clearTimeout(timeout)
-      window.FB.init({ appId, cookie: true, xfbml: true, version: 'v22.0' })
-      resolve()
-    }
+      clearTimeout(timeout);
+      window.FB.init({ appId, cookie: true, xfbml: true, version: 'v22.0' });
+      resolve();
+    };
 
-    const script = document.createElement('script')
-    script.src = 'https://connect.facebook.net/en_US/sdk.js'
-    script.async = true
-    script.defer = true
+    const script = document.createElement('script');
+    script.src = 'https://connect.facebook.net/en_US/sdk.js';
+    script.async = true;
+    script.defer = true;
     script.onerror = () => {
-      clearTimeout(timeout)
-      reject(new Error('Failed to load Facebook SDK'))
-    }
-    document.body.appendChild(script)
-  })
+      clearTimeout(timeout);
+      reject(new Error('Failed to load Facebook SDK'));
+    };
+    document.body.appendChild(script);
+  });
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function IntegrationsPage() {
-  const queryClient = useQueryClient()
-  const [connecting, setConnecting] = useState(false)
-  const [connectError, setConnectError] = useState<string | null>(null)
-  const [testPhone, setTestPhone] = useState('')
-  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null)
+  const queryClient = useQueryClient();
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [testPhone, setTestPhone] = useState('');
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    error?: string;
+  } | null>(null);
 
   const { data: config, isLoading: configLoading } = useQuery({
     queryKey: ['integrations-config'],
     queryFn: async () => {
-      const res = await integrationsClient.config.$get()
-      return res.json()
+      const res = await integrationsClient.config.$get();
+      return res.json();
     },
-  })
+  });
 
   const { data: waStatus, isLoading: statusLoading } = useQuery({
     queryKey: ['integrations-whatsapp-status'],
     queryFn: async () => {
-      const res = await integrationsClient.whatsapp.status.$get()
-      return res.json()
+      const res = await integrationsClient.whatsapp.status.$get();
+      return res.json();
     },
     refetchInterval: (query) => {
-      const data = query.state.data
-      return data?.connected && !data?.webhookReady ? 3000 : false
+      const data = query.state.data;
+      return data?.connected && !data?.webhookReady ? 3000 : false;
     },
-  })
+  });
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
-      const res = await integrationsClient.whatsapp.disconnect.$post()
-      return res.json()
+      const res = await integrationsClient.whatsapp.disconnect.$post();
+      return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
+      queryClient.invalidateQueries({
+        queryKey: ['integrations-whatsapp-status'],
+      });
     },
-  })
+  });
 
   const testMutation = useMutation({
     mutationFn: async (to: string) => {
-      const res = await integrationsClient.whatsapp.test.$post({ json: { to } })
-      return res.json()
+      const res = await integrationsClient.whatsapp.test.$post({
+        json: { to },
+      });
+      return res.json();
     },
     onSuccess: (data) => {
       if ('success' in data) {
-        setTestResult({ success: data.success, error: data.error })
+        setTestResult({ success: data.success, error: data.error });
       } else {
-        setTestResult({ success: false, error: data.error })
+        setTestResult({ success: false, error: data.error });
       }
     },
     onError: () => {
-      setTestResult({ success: false, error: 'Request failed' })
+      setTestResult({ success: false, error: 'Request failed' });
     },
-  })
+  });
 
   const handleConnect = async () => {
-    if (!config?.metaAppId || !config?.metaConfigId) return
+    if (!config?.metaAppId || !config?.metaConfigId) return;
 
-    setConnecting(true)
-    setConnectError(null)
+    setConnecting(true);
+    setConnectError(null);
 
     // Register session info listener BEFORE calling FB.login
     // This receives phone_number_id and waba_id directly from the popup
-    let sessionWabaId: string | undefined
-    let sessionPhoneNumberId: string | undefined
+    let sessionWabaId: string | undefined;
+    let sessionPhoneNumberId: string | undefined;
 
     const sessionInfoListener = (event: MessageEvent) => {
-      if (!event.origin?.endsWith('facebook.com')) return
+      if (!event.origin?.endsWith('facebook.com')) return;
       try {
-        const data = JSON.parse(event.data)
+        const data = JSON.parse(event.data);
         if (data.type === 'WA_EMBEDDED_SIGNUP') {
           if (data.event === 'FINISH') {
-            sessionWabaId = data.data.waba_id
-            sessionPhoneNumberId = data.data.phone_number_id
+            sessionWabaId = data.data.waba_id;
+            sessionPhoneNumberId = data.data.phone_number_id;
           } else if (data.event === 'CANCEL') {
-            setConnectError(`Signup cancelled at step: ${data.data.current_step ?? 'unknown'}`)
-            setConnecting(false)
+            setConnectError(
+              `Signup cancelled at step: ${data.data.current_step ?? 'unknown'}`,
+            );
+            setConnecting(false);
           } else if (data.event === 'ERROR') {
-            setConnectError(`Signup error: ${data.data.error_message ?? 'unknown error'}`)
-            setConnecting(false)
+            setConnectError(
+              `Signup error: ${data.data.error_message ?? 'unknown error'}`,
+            );
+            setConnecting(false);
           }
         }
       } catch {
         // Non-JSON messages from other sources — ignore
       }
-    }
+    };
 
-    window.addEventListener('message', sessionInfoListener)
+    window.addEventListener('message', sessionInfoListener);
 
     try {
-      await loadFacebookSDK(config.metaAppId)
+      await loadFacebookSDK(config.metaAppId);
 
       window.FB.login(
         (response) => {
-          window.removeEventListener('message', sessionInfoListener)
+          window.removeEventListener('message', sessionInfoListener);
 
-          console.log('[WhatsApp Connect] FB.login response:', response.status, response.authResponse)
+          console.log(
+            '[WhatsApp Connect] FB.login response:',
+            response.status,
+            response.authResponse,
+          );
 
           if (response.authResponse?.code) {
             // Send code + session data to backend — code expires in ~60 seconds
-            integrationsClient.whatsapp.connect.$post({
-              json: {
-                code: response.authResponse.code,
-                wabaId: sessionWabaId,
-                phoneNumberId: sessionPhoneNumberId,
-              },
-            }).then(async (res) => {
-              const result = await res.json()
-              if ('error' in result && result.error) {
-                setConnectError(result.error as string)
-              }
-              queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
-            }).catch(() => {
-              setConnectError('Failed to complete WhatsApp connection')
-              queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
-            }).finally(() => {
-              setConnecting(false)
-            })
+            integrationsClient.whatsapp.connect
+              .$post({
+                json: {
+                  code: response.authResponse.code,
+                  wabaId: sessionWabaId,
+                  phoneNumberId: sessionPhoneNumberId,
+                },
+              })
+              .then(async (res) => {
+                const result = await res.json();
+                if ('error' in result && result.error) {
+                  setConnectError(result.error as string);
+                }
+                queryClient.invalidateQueries({
+                  queryKey: ['integrations-whatsapp-status'],
+                });
+              })
+              .catch(() => {
+                setConnectError('Failed to complete WhatsApp connection');
+                queryClient.invalidateQueries({
+                  queryKey: ['integrations-whatsapp-status'],
+                });
+              })
+              .finally(() => {
+                setConnecting(false);
+              });
           } else if (response.status === 'connected') {
             // Already authorized — no new code issued. Just refresh status.
-            console.log('[WhatsApp Connect] Already authorized, refreshing status')
-            queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
-            setConnecting(false)
+            console.log(
+              '[WhatsApp Connect] Already authorized, refreshing status',
+            );
+            queryClient.invalidateQueries({
+              queryKey: ['integrations-whatsapp-status'],
+            });
+            setConnecting(false);
           } else {
-            setConnecting(false)
+            setConnecting(false);
             if (response.status === 'not_authorized') {
-              setConnectError('App not authorized. Please grant permissions and try again.')
+              setConnectError(
+                'App not authorized. Please grant permissions and try again.',
+              );
             }
             // Popup closed or cancelled — silently reset
-            queryClient.invalidateQueries({ queryKey: ['integrations-whatsapp-status'] })
+            queryClient.invalidateQueries({
+              queryKey: ['integrations-whatsapp-status'],
+            });
           }
         },
         {
@@ -210,22 +261,23 @@ function IntegrationsPage() {
             sessionInfoVersion: '3',
           },
         },
-      )
+      );
     } catch (err) {
-      window.removeEventListener('message', sessionInfoListener)
-      setConnectError(err instanceof Error ? err.message : 'Connection failed')
-      setConnecting(false)
+      window.removeEventListener('message', sessionInfoListener);
+      setConnectError(err instanceof Error ? err.message : 'Connection failed');
+      setConnecting(false);
     }
-  }
+  };
 
   const handleTest = async () => {
-    if (!testPhone.trim()) return
-    setTestResult(null)
-    testMutation.mutate(testPhone.trim())
-  }
+    if (!testPhone.trim()) return;
+    setTestResult(null);
+    testMutation.mutate(testPhone.trim());
+  };
 
-  const loading = configLoading || statusLoading
-  const error = connectError ?? (disconnectMutation.error ? 'Failed to disconnect' : null)
+  const loading = configLoading || statusLoading;
+  const error =
+    connectError ?? (disconnectMutation.error ? 'Failed to disconnect' : null);
 
   if (loading) {
     return (
@@ -233,7 +285,7 @@ function IntegrationsPage() {
         <Loader2Icon className="h-4 w-4 animate-spin" />
         Loading integrations...
       </div>
-    )
+    );
   }
 
   return (
@@ -281,12 +333,27 @@ function IntegrationsPage() {
           <CardContent>
             {!config?.metaAppId || !config?.metaConfigId ? (
               <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                <p className="mb-1 font-medium text-foreground">Setup required</p>
+                <p className="mb-1 font-medium text-foreground">
+                  Setup required
+                </p>
                 <p>
-                  Set <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">META_APP_ID</code>,{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">META_APP_SECRET</code>, and{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">META_CONFIG_ID</code> in your{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">.env</code> file, then restart the server.
+                  Set{' '}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                    META_APP_ID
+                  </code>
+                  ,{' '}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                    META_APP_SECRET
+                  </code>
+                  , and{' '}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                    META_CONFIG_ID
+                  </code>{' '}
+                  in your{' '}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                    .env
+                  </code>{' '}
+                  file, then restart the server.
                 </p>
               </div>
             ) : waStatus?.connected ? (
@@ -296,7 +363,9 @@ function IntegrationsPage() {
                     <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-500" />
                     <span>
                       Phone: {waStatus.phoneNumberId ?? 'Unknown'}
-                      {waStatus.wabaId && <span className="ml-2">WABA: {waStatus.wabaId}</span>}
+                      {waStatus.wabaId && (
+                        <span className="ml-2">WABA: {waStatus.wabaId}</span>
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -357,8 +426,12 @@ function IntegrationsPage() {
                     </Button>
                   </div>
                   {testResult && (
-                    <p className={`mt-1.5 text-xs ${testResult.success ? 'text-emerald-600' : 'text-destructive'}`}>
-                      {testResult.success ? 'Message sent successfully' : testResult.error ?? 'Send failed'}
+                    <p
+                      className={`mt-1.5 text-xs ${testResult.success ? 'text-emerald-600' : 'text-destructive'}`}
+                    >
+                      {testResult.success
+                        ? 'Message sent successfully'
+                        : (testResult.error ?? 'Send failed')}
                     </p>
                   )}
                 </div>
@@ -375,7 +448,9 @@ function IntegrationsPage() {
                 </Button>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   Already using WhatsApp Business App? Select{' '}
-                  <span className="font-medium text-foreground">"Connect a WhatsApp Business App"</span>{' '}
+                  <span className="font-medium text-foreground">
+                    "Connect a WhatsApp Business App"
+                  </span>{' '}
                   in the popup to keep using the app alongside the API.
                 </p>
               </div>
@@ -409,8 +484,11 @@ function IntegrationsPage() {
           <CardContent>
             <p className="text-xs text-muted-foreground">
               Email is configured via environment variables in your{' '}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">vobase.config.ts</code>.
-              See the channels configuration documentation for setup instructions.
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                vobase.config.ts
+              </code>
+              . See the channels configuration documentation for setup
+              instructions.
             </p>
           </CardContent>
         </Card>
@@ -428,7 +506,9 @@ function IntegrationsPage() {
                 <DatabaseIcon className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
               <div className="min-w-0 flex-1">
-                <CardTitle className="text-sm">Google Drive / SharePoint</CardTitle>
+                <CardTitle className="text-sm">
+                  Google Drive / SharePoint
+                </CardTitle>
                 <CardDescription className="text-xs">
                   Connect external document sources for the knowledge base
                 </CardDescription>
@@ -441,16 +521,19 @@ function IntegrationsPage() {
           <CardContent>
             <p className="text-xs text-muted-foreground">
               Knowledge base connectors are managed from the{' '}
-              <span className="font-medium text-foreground">Knowledge Base &gt; Sources</span>{' '}
-              page. OAuth connections are stored securely via the integrations service.
+              <span className="font-medium text-foreground">
+                Knowledge Base &gt; Sources
+              </span>{' '}
+              page. OAuth connections are stored securely via the integrations
+              service.
             </p>
           </CardContent>
         </Card>
       </section>
     </div>
-  )
+  );
 }
 
 export const Route = createFileRoute('/_app/settings/integrations')({
   component: IntegrationsPage,
-})
+});

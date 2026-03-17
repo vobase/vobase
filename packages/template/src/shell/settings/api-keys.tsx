@@ -1,7 +1,7 @@
-import { KeyIcon } from 'lucide-react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router';
+import { KeyIcon } from 'lucide-react';
 
-import { EmptyState } from '@/components/empty-state'
+import { EmptyState } from '@/components/empty-state';
 
 export function ApiKeysPage() {
   return (
@@ -25,9 +25,9 @@ export function ApiKeysPage() {
         }}
       />
     </div>
-  )
+  );
 }
 
 export const Route = createFileRoute('/_app/settings/api-keys')({
   component: ApiKeysPage,
-})
+});

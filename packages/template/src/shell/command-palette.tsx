@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 
 import {
   CommandDialog,
@@ -8,27 +8,27 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
-import { navigation } from '@/constants/navigation'
+} from '@/components/ui/command';
+import { navigation } from '@/constants/navigation';
 
 export function CommandPalette() {
-  const [open, setOpen] = useState(false)
-  const navigate = useNavigate()
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        setOpen((prev) => !prev)
+        e.preventDefault();
+        setOpen((prev) => !prev);
       }
     }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [])
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   function handleSelect(to: string) {
-    setOpen(false)
-    void navigate({ to })
+    setOpen(false);
+    void navigate({ to });
   }
 
   return (
@@ -39,9 +39,11 @@ export function CommandPalette() {
         {navigation.map((group) => (
           <CommandGroup key={group.label} heading={group.label}>
             {group.items.map((item) => {
-              const Icon = item.icon
+              const Icon = item.icon;
               // Include keywords in the searchable value so "whatsapp" finds "Integrations"
-              const searchValue = [item.label, ...(item.keywords ?? [])].join(' ')
+              const searchValue = [item.label, ...(item.keywords ?? [])].join(
+                ' ',
+              );
               return (
                 <CommandItem
                   key={item.to}
@@ -51,11 +53,11 @@ export function CommandPalette() {
                   <Icon className="h-4 w-4" />
                   {item.label}
                 </CommandItem>
-              )
+              );
             })}
           </CommandGroup>
         ))}
       </CommandList>
     </CommandDialog>
-  )
+  );
 }

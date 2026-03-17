@@ -107,8 +107,6 @@ function defaultDisplayType(kind: ColKind): string {
       return 'timestamp';
     case 'number':
       return 'number';
-    case 'string':
-    case 'record':
     default:
       return 'text';
   }

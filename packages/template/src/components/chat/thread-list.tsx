@@ -1,24 +1,24 @@
-import { MessageSquare, Plus } from 'lucide-react'
+import { MessageSquare, Plus } from 'lucide-react';
 
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 interface Thread {
-  id: string
-  title: string | null
-  agentId: string
-  createdAt: string
+  id: string;
+  title: string | null;
+  agentId: string;
+  createdAt: string;
 }
 
 interface ThreadListProps {
-  threads: Thread[]
-  activeThreadId: string | null
-  onSelectThread: (id: string) => void
-  onNewChat: () => void
-  isCreating?: boolean
-  hasAssistants?: boolean
+  threads: Thread[];
+  activeThreadId: string | null;
+  onSelectThread: (id: string) => void;
+  onNewChat: () => void;
+  isCreating?: boolean;
+  hasAssistants?: boolean;
 }
 
 export function ThreadList({
@@ -69,5 +69,5 @@ export function ThreadList({
         </div>
       </ScrollArea>
     </>
-  )
+  );
 }

@@ -1,5 +1,6 @@
-import type { DatePreset, Option } from '@/components/data-table/types';
 import type { JSX } from 'react';
+
+import type { DatePreset, Option } from '@/components/data-table/types';
 
 export type ColKind =
   | 'string'

@@ -1,5 +1,5 @@
-import { getSchemaDefaults } from "./serialization";
-import type { InferSchemaType, Schema, SchemaDefinition } from "./types";
+import { getSchemaDefaults } from './serialization';
+import type { Schema, SchemaDefinition } from './types';
 
 /**
  * Schema System for BYOS (Bring Your Own Store)
@@ -21,25 +21,45 @@ import type { InferSchemaType, Schema, SchemaDefinition } from "./types";
  * ```
  */
 
-export { field } from "./field";
-export type {
-  FieldBuilder,
-  FieldConfig,
-  SchemaDefinition,
-  InferSchemaType,
-  Schema,
-  StoreSnapshot,
-  AdapterOptions,
-} from "./types";
+/**
+ * Schema System for BYOS (Bring Your Own Store)
+ *
+ * Provides a fluent API for defining filter schemas with type inference.
+ *
+ * @example
+ * ```typescript
+ * import { createSchema, field } from '@/lib/store/schema';
+ *
+ * const schema = createSchema({
+ *   regions: field.array(field.string()).default([]).delimiter(','),
+ *   latency: field.array(field.number()).delimiter('-'),
+ *   host: field.string().default(''),
+ *   live: field.boolean().default(false),
+ * });
+ *
+ * type FilterState = typeof schema._type;
+ * ```
+ */
+
+export { field } from './field';
 export {
   getSchemaDefaults,
-  serializeState,
-  parseState,
-  validateState,
-  mergeWithDefaults,
   isStateEqual,
+  mergeWithDefaults,
+  parseState,
+  serializeState,
   stateToSearchString,
-} from "./serialization";
+  validateState,
+} from './serialization';
+export type {
+  AdapterOptions,
+  FieldBuilder,
+  FieldConfig,
+  InferSchemaType,
+  Schema,
+  SchemaDefinition,
+  StoreSnapshot,
+} from './types';
 
 /**
  * Create a schema from field definitions

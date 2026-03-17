@@ -1,4 +1,4 @@
-import type { InferSchemaType, SchemaDefinition } from "../schema/types";
+import type { InferSchemaType, SchemaDefinition } from '../schema/types';
 
 /**
  * Options for creating a text parser
@@ -80,7 +80,7 @@ export interface TextParser<T extends SchemaDefinition> {
     caretPosition: number,
     fieldOptions: Record<string, string[]>,
   ): {
-    type: "field" | "value";
+    type: 'field' | 'value';
     field?: string;
     suggestions: string[];
   };

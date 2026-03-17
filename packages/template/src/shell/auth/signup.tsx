@@ -1,4 +1,4 @@
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -92,8 +92,12 @@ export function SignupPage() {
         </FieldGroup>
 
         {message ? (
-          <div className={`rounded-md px-3 py-2 ${isError ? 'bg-destructive/10' : 'bg-muted'}`}>
-            <p className={`text-sm ${isError ? 'text-destructive' : 'text-muted-foreground'}`}>
+          <div
+            className={`rounded-md px-3 py-2 ${isError ? 'bg-destructive/10' : 'bg-muted'}`}
+          >
+            <p
+              className={`text-sm ${isError ? 'text-destructive' : 'text-muted-foreground'}`}
+            >
               {message}
             </p>
           </div>
@@ -107,7 +111,10 @@ export function SignupPage() {
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium text-foreground hover:underline">
+        <Link
+          to="/login"
+          className="font-medium text-foreground hover:underline"
+        >
           Sign in
         </Link>
       </p>

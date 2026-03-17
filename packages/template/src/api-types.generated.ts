@@ -15,8 +15,7 @@ function _typedApp() {
     .route('/api/integrations', integrationsModule.routes)
     .route('/api/knowledge-base', knowledgeBaseModule.routes)
     .route('/api/messaging', messagingModule.routes)
-    .route('/api/system', systemModule.routes)
-  ;
+    .route('/api/system', systemModule.routes);
 }
 
 export type AppType = ReturnType<typeof _typedApp>;

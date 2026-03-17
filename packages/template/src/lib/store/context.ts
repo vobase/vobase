@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext } from 'react';
+
 import type { StoreAdapter } from './adapter/types';
 import type { SchemaDefinition } from './schema/types';
 

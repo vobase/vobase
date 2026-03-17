@@ -4,7 +4,13 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { buildCorpus, getCompletions, type Completions, type Corpus } from '@/lib/autocomplete';
+
+import {
+  buildCorpus,
+  type Completions,
+  type Corpus,
+  getCompletions,
+} from '@/lib/autocomplete';
 
 const CACHE_TTL = 15 * 60 * 1000; // 15 min
 
@@ -29,7 +35,10 @@ export interface AutocompleteState extends Completions {
   accept: () => string | null;
 }
 
-export function useAutocomplete(input: string, config: AutocompleteConfig): AutocompleteState {
+export function useAutocomplete(
+  input: string,
+  config: AutocompleteConfig,
+): AutocompleteState {
   const {
     seed,
     categories,
@@ -37,7 +46,9 @@ export function useAutocomplete(input: string, config: AutocompleteConfig): Auto
     cacheKey = 'autocomplete_corpus_v1',
   } = config;
 
-  const [corpus, setCorpus] = useState<Corpus>(() => buildCorpus(seed, categories, []));
+  const [corpus, setCorpus] = useState<Corpus>(() =>
+    buildCorpus(seed, categories, []),
+  );
   const [dismissed, setDismissed] = useState(true);
   const [activeIndex, setActiveIndex] = useState(-1);
   const prevInput = useRef(input);
@@ -61,28 +72,45 @@ export function useAutocomplete(input: string, config: AutocompleteConfig): Auto
       try {
         const raw = sessionStorage.getItem(cacheKey);
         if (raw) {
-          const { suggestions, fetchedAt } = JSON.parse(raw) as { suggestions: string[]; fetchedAt: number };
+          const { suggestions, fetchedAt } = JSON.parse(raw) as {
+            suggestions: string[];
+            fetchedAt: number;
+          };
           if (Date.now() - fetchedAt < CACHE_TTL) {
-            if (!cancelled) setCorpus(buildCorpus(seed, categories, suggestions));
+            if (!cancelled)
+              setCorpus(buildCorpus(seed, categories, suggestions));
             return;
           }
         }
-      } catch { /* malformed cache — fall through to fetch */ }
+      } catch {
+        /* malformed cache — fall through to fetch */
+      }
 
       try {
         const res = await fetch(url);
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as { suggestions: string[] };
         const { suggestions } = data;
-        try { sessionStorage.setItem(cacheKey, JSON.stringify({ suggestions, fetchedAt: Date.now() })); } catch { /* storage full */ }
+        try {
+          sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({ suggestions, fetchedAt: Date.now() }),
+          );
+        } catch {
+          /* storage full */
+        }
         if (!cancelled) setCorpus(buildCorpus(seed, categories, suggestions));
-      } catch { /* network error — static corpus is fine */ }
+      } catch {
+        /* network error — static corpus is fine */
+      }
     }
 
     hydrate();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKey, categories, seed, suggestionsUrl]);
 
   const { ghost, ghostFull, suggestions } =
     dismissed || !input.trim()
@@ -100,10 +128,20 @@ export function useAutocomplete(input: string, config: AutocompleteConfig): Auto
   }
 
   function accept(): string | null {
-    if (activeIndex >= 0 && suggestions[activeIndex]) return suggestions[activeIndex];
+    if (activeIndex >= 0 && suggestions[activeIndex])
+      return suggestions[activeIndex];
     if (ghostFull !== null) return ghostFull;
     return null;
   }
 
-  return { ghost, ghostFull, suggestions, activeIndex, setActiveIndex, dismiss, resetDismissed, accept };
+  return {
+    ghost,
+    ghostFull,
+    suggestions,
+    activeIndex,
+    setActiveIndex,
+    dismiss,
+    resetDismissed,
+    accept,
+  };
 }

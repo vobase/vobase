@@ -2,8 +2,8 @@ import type {
   FieldBuilder,
   InferSchemaType,
   SchemaDefinition,
-} from "../schema/types";
-import type { TextParser, TextParserOptions } from "./types";
+} from '../schema/types';
+import type { TextParser, TextParserOptions } from './types';
 
 /**
  * Create a text parser for filter command input
@@ -29,8 +29,8 @@ export function createTextParser<T extends SchemaDefinition>(
 ): TextParser<T> {
   const {
     aliases = {},
-    fieldDelimiter = " ",
-    keyValueDelimiter = ":",
+    fieldDelimiter = ' ',
+    keyValueDelimiter = ':',
   } = options;
 
   // Build reverse alias map
@@ -175,7 +175,7 @@ export function createTextParser<T extends SchemaDefinition>(
         );
 
         return {
-          type: "value" as const,
+          type: 'value' as const,
           field,
           suggestions: filtered,
         };
@@ -193,7 +193,7 @@ export function createTextParser<T extends SchemaDefinition>(
         : allFields;
 
       return {
-        type: "field" as const,
+        type: 'field' as const,
         suggestions: filtered,
       };
     },
@@ -204,5 +204,5 @@ export function createTextParser<T extends SchemaDefinition>(
  * Escape special regex characters
  */
 function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

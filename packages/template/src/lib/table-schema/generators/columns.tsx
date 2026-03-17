@@ -1,5 +1,8 @@
 'use client';
 
+import type { ColumnDef } from '@tanstack/react-table';
+import type { JSX } from 'react';
+
 import {
   DataTableCellBadge,
   DataTableCellBoolean,
@@ -9,8 +12,6 @@ import {
   DataTableCellTimestamp,
 } from '@/components/data-table/data-table-cell';
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
-import type { ColumnDef } from '@tanstack/react-table';
-import type { JSX } from 'react';
 import type { ColConfig, DisplayConfig, TableSchemaDefinition } from '../types';
 
 /**

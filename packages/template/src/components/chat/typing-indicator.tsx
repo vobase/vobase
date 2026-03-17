@@ -1,4 +1,4 @@
-import "./typing-indicator.css"
+import './typing-indicator.css';
 
 export function TypingIndicator() {
   return (
@@ -27,10 +27,10 @@ export function TypingIndicator() {
       <div className="rounded-lg bg-muted px-3 py-2.5">
         <div className="flex items-center gap-1">
           <span className="typing-dot" />
-          <span className="typing-dot" style={{ animationDelay: "0.2s" }} />
-          <span className="typing-dot" style={{ animationDelay: "0.4s" }} />
+          <span className="typing-dot" style={{ animationDelay: '0.2s' }} />
+          <span className="typing-dot" style={{ animationDelay: '0.4s' }} />
         </div>
       </div>
     </div>
-  )
+  );
 }

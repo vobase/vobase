@@ -1,13 +1,13 @@
 export type PrimitiveType =
-  | "string"
-  | "number"
-  | "boolean"
-  | "timestamp"
-  | "stringLiteral";
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'timestamp'
+  | 'stringLiteral';
 
 // Field configuration stored internally
 export interface FieldConfig<T> {
-  type: PrimitiveType | "array" | "sort";
+  type: PrimitiveType | 'array' | 'sort';
   defaultValue: T;
   delimiter: string;
   serialize: (value: T) => string;

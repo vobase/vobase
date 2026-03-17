@@ -1,17 +1,37 @@
-import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router';
+import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react';
 
-import { cn } from '@/lib/utils'
-import { type Theme, useTheme } from '@/hooks/use-theme'
+import { type Theme, useTheme } from '@/hooks/use-theme';
+import { cn } from '@/lib/utils';
 
-const themeOptions: { value: Theme; label: string; icon: typeof SunIcon; description: string }[] = [
-  { value: 'light', label: 'Light', icon: SunIcon, description: 'Always use light mode' },
-  { value: 'dark', label: 'Dark', icon: MoonIcon, description: 'Always use dark mode' },
-  { value: 'system', label: 'System', icon: MonitorIcon, description: 'Follow system preference' },
-]
+const themeOptions: {
+  value: Theme;
+  label: string;
+  icon: typeof SunIcon;
+  description: string;
+}[] = [
+  {
+    value: 'light',
+    label: 'Light',
+    icon: SunIcon,
+    description: 'Always use light mode',
+  },
+  {
+    value: 'dark',
+    label: 'Dark',
+    icon: MoonIcon,
+    description: 'Always use dark mode',
+  },
+  {
+    value: 'system',
+    label: 'System',
+    icon: MonitorIcon,
+    description: 'Follow system preference',
+  },
+];
 
 export function AppearancePage() {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="max-w-lg">
@@ -37,8 +57,15 @@ export function AppearancePage() {
                   : 'border-border text-muted-foreground',
               )}
             >
-              <Icon className={cn('h-5 w-5', theme === value ? 'text-primary' : '')} />
-              <span className={cn('font-medium', theme === value ? 'text-foreground' : '')}>
+              <Icon
+                className={cn('h-5 w-5', theme === value ? 'text-primary' : '')}
+              />
+              <span
+                className={cn(
+                  'font-medium',
+                  theme === value ? 'text-foreground' : '',
+                )}
+              >
                 {label}
               </span>
               <span className="text-center text-xs leading-tight text-muted-foreground">
@@ -49,9 +76,9 @@ export function AppearancePage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export const Route = createFileRoute('/_app/settings/appearance')({
   component: AppearancePage,
-})
+});
