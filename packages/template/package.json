@@ -11,10 +11,12 @@
     "db:migrate": "drizzle-kit migrate",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
+    "db:current": "bun run scripts/db-current.ts",
+    "db:commit": "bun run scripts/db-commit.ts",
+    "db:seed": "bun run scripts/db-seed.ts",
+    "db:reset": "bun run scripts/db-reset.ts",
     "generate": "bun run scripts/generate.ts",
-    "build": "bun run generate && tsc --noEmit",
-    "seed": "bun run scripts/seed.ts",
-    "reset": "bun run scripts/reset.ts"
+    "build": "bun run generate && tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",
@@ -45,7 +47,9 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
-    "drizzle-orm": "1.0.0-beta.16-ea816b6",
+    "@electric-sql/pglite": "^0.3.0",
+    "drizzle-orm": "1.0.0-beta.18-7eb39f0",
+    "pg-boss": "^10.1.7",
     "hono": "^4.12.8",
     "lucide-react": "^0.577.0",
     "mammoth": "^1.12.0",
@@ -59,7 +63,6 @@
     "react-markdown": "^10.1.0",
     "shiki": "^4.0.2",
     "sonner": "^2.0.7",
-    "sqlite-vec": "^0.1.7-alpha.2",
     "streamdown": "^2.4.0",
     "tailwind-merge": "^3.5.0",
     "turndown": "^7.2.2",
@@ -70,6 +73,9 @@
     "vaul": "^1.1.2",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6"
+  },
+  "patchedDependencies": {
+    "drizzle-kit@1.0.0-beta.18-7eb39f0": "patches/drizzle-kit@1.0.0-beta.18-7eb39f0.patch"
   },
   "resolutions": {
     "better-sqlite3": "file:stubs/better-sqlite3"
@@ -87,7 +93,7 @@
     "@types/turndown": "^5.0.6",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
-    "drizzle-kit": "^1.0.0-beta.16-ea816b6",
+    "drizzle-kit": "1.0.0-beta.18-7eb39f0",
     "shadcn": "^4.0.8",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",

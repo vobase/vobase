@@ -1,0 +1,23 @@
+diff --git a/bin.cjs b/bin.cjs
+index 78899347b5fb62cc44cc25ba56133eec6d3f8988..ef4f77ed3a5232ef0408b480d8138324642748a0 100755
+--- a/bin.cjs
++++ b/bin.cjs
+@@ -84081,7 +84081,8 @@ const postgresCredentials = unionType([
+ 	}),
+ 	objectType({
+ 		driver: literalType("pglite"),
+-		url: stringType().min(1)
++		url: stringType().min(1),
++		extensions: anyType().optional()
+ 	})
+ ]);
+ const printConfigConnectionIssues$2 = (options) => {
+@@ -233282,7 +233283,7 @@ var init_connections = __esmMin((() => {
+ 				const { PGlite, types } = await import("@electric-sql/pglite");
+ 				const { drizzle } = await import("drizzle-orm/pglite");
+ 				const { migrate } = await import("drizzle-orm/pglite/migrator");
+-				const pglite = "client" in credentials ? credentials.client : new PGlite(normalisePGliteUrl(credentials.url));
++				const pglite = "client" in credentials ? credentials.client : new PGlite(normalisePGliteUrl(credentials.url), credentials.extensions ? { extensions: credentials.extensions } : void 0);
+ 				await pglite.waitReady;
+ 				const drzl = drizzle({ client: pglite });
+ 				const migrateFn = async (config) => {

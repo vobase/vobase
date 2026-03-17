@@ -9,16 +9,11 @@ COPY . .
 RUN bun run scripts/generate.ts
 RUN bunx vite build
 
-# Stage 2: Runtime with Litestream for SQLite backup
+# Stage 2: Runtime
 FROM oven/bun:1
 WORKDIR /app
 
-# Install Litestream for continuous SQLite replication to S3
-RUN apt-get update && apt-get install -y wget curl && \
-    wget -q https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.deb && \
-    dpkg -i litestream-v0.3.13-linux-amd64.deb && \
-    rm litestream-v0.3.13-linux-amd64.deb && \
-    apt-get remove -y wget && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./
@@ -31,7 +26,6 @@ COPY --from=build /app/modules ./modules
 COPY --from=build /app/lib ./lib
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/dist ./dist
-COPY litestream.yml /etc/litestream.yml
 
 RUN mkdir -p /app/data
 
@@ -41,10 +35,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
-# Run migrations, then start server (with optional Litestream backup)
-CMD bun run scripts/migrate.ts; \
-    if [ -n "$LITESTREAM_REPLICA_URL" ]; then \
-      litestream replicate -exec "bun run server.ts" -config /etc/litestream.yml; \
-    else \
-      bun run server.ts; \
-    fi
+# Run migrations then start server
+CMD bun run db:migrate && bun run server.ts
