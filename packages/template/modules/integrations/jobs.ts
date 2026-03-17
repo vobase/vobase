@@ -1,20 +1,22 @@
+import type { IntegrationsService, VobaseDb } from '@vobase/core';
 import { defineJob, logger } from '@vobase/core';
-import type { VobaseDb } from '@vobase/core';
-import type { IntegrationsService } from '@vobase/core';
 
 const META_GRAPH_API = 'https://graph.facebook.com/v22.0';
 
-let moduleDb: VobaseDb;
+let _moduleDb: VobaseDb;
 let moduleIntegrations: IntegrationsService;
 
-export function setIntegrationsDeps(db: VobaseDb, integrations: IntegrationsService) {
-  moduleDb = db;
+export function setIntegrationsDeps(
+  db: VobaseDb,
+  integrations: IntegrationsService,
+) {
+  _moduleDb = db;
   moduleIntegrations = integrations;
 }
 
 /**
  * Post-signup setup job: subscribes app to WABA webhooks, sets webhook callback URL,
- * and registers the phone number. Retries automatically via bunqueue on failure.
+ * and registers the phone number. Retries automatically via pg-boss on failure.
  */
 export const whatsappSetupJob = defineJob(
   'integrations:whatsapp-setup',
@@ -27,7 +29,9 @@ export const whatsappSetupJob = defineJob(
 
     const integration = await moduleIntegrations.getById(integrationId);
     if (!integration || integration.status !== 'active') {
-      logger.warn('WhatsApp setup job: integration not found or inactive', { integrationId });
+      logger.warn('WhatsApp setup job: integration not found or inactive', {
+        integrationId,
+      });
       return;
     }
 
@@ -40,7 +44,9 @@ export const whatsappSetupJob = defineJob(
     const metaAppId = process.env.META_APP_ID;
     const metaAppSecret = process.env.META_APP_SECRET;
     if (!metaAppId || !metaAppSecret) {
-      throw new Error('META_APP_ID and META_APP_SECRET required for WhatsApp setup');
+      throw new Error(
+        'META_APP_ID and META_APP_SECRET required for WhatsApp setup',
+      );
     }
 
     // Step 1: Subscribe app to WABA webhooks
@@ -51,7 +57,10 @@ export const whatsappSetupJob = defineJob(
     });
     if (!subRes.ok) {
       const body = await subRes.text();
-      logger.error('WhatsApp setup job: subscribe to WABA failed', { status: subRes.status, body });
+      logger.error('WhatsApp setup job: subscribe to WABA failed', {
+        status: subRes.status,
+        body,
+      });
       throw new Error(`Subscribe to WABA failed (${subRes.status}): ${body}`);
     }
 
@@ -61,24 +70,33 @@ export const whatsappSetupJob = defineJob(
     const baseUrl = process.env.BETTER_AUTH_URL;
     if (baseUrl) {
       const webhookUrl = `${baseUrl}/api/channels/webhook/whatsapp`;
-      logger.info('WhatsApp setup job: setting webhook callback URL', { webhookUrl });
-      const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN ?? 'vobase-webhook-verify';
-      const cbRes = await fetch(`${META_GRAPH_API}/${metaAppId}/subscriptions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${metaAppId}|${metaAppSecret}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          object: 'whatsapp_business_account',
-          callback_url: webhookUrl,
-          verify_token: verifyToken,
-          fields: ['messages'],
-        }),
+      logger.info('WhatsApp setup job: setting webhook callback URL', {
+        webhookUrl,
       });
+      const verifyToken =
+        process.env.META_WEBHOOK_VERIFY_TOKEN ?? 'vobase-webhook-verify';
+      const cbRes = await fetch(
+        `${META_GRAPH_API}/${metaAppId}/subscriptions`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${metaAppId}|${metaAppSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            object: 'whatsapp_business_account',
+            callback_url: webhookUrl,
+            verify_token: verifyToken,
+            fields: ['messages'],
+          }),
+        },
+      );
       if (!cbRes.ok) {
         const body = await cbRes.text();
-        logger.error('WhatsApp setup job: set webhook URL failed', { status: cbRes.status, body });
+        logger.error('WhatsApp setup job: set webhook URL failed', {
+          status: cbRes.status,
+          body,
+        });
         throw new Error(`Set webhook URL failed (${cbRes.status}): ${body}`);
       }
     }
@@ -86,7 +104,9 @@ export const whatsappSetupJob = defineJob(
     logger.info('WhatsApp setup job: webhook URL configured');
 
     // Step 3: Register the phone number for messaging
-    logger.info('WhatsApp setup job: registering phone number', { phoneNumberId });
+    logger.info('WhatsApp setup job: registering phone number', {
+      phoneNumberId,
+    });
     const regRes = await fetch(`${META_GRAPH_API}/${phoneNumberId}/register`, {
       method: 'POST',
       headers: {
@@ -102,16 +122,27 @@ export const whatsappSetupJob = defineJob(
     if (!regRes.ok) {
       const body = await regRes.text();
       // Don't retry if already registered
-      const isAlreadyRegistered = body.includes('already registered') || body.includes('already been registered');
+      const isAlreadyRegistered =
+        body.includes('already registered') ||
+        body.includes('already been registered');
       const isSmbNotAvailable = body.includes('not available for SMB');
       if (!isAlreadyRegistered && !isSmbNotAvailable) {
-        logger.error('WhatsApp setup job: phone registration failed', { status: regRes.status, body });
-        throw new Error(`Phone registration failed (${regRes.status}): ${body}`);
+        logger.error('WhatsApp setup job: phone registration failed', {
+          status: regRes.status,
+          body,
+        });
+        throw new Error(
+          `Phone registration failed (${regRes.status}): ${body}`,
+        );
       }
-      logger.info('WhatsApp setup job: phone registration skipped (coexistence/already registered)');
+      logger.info(
+        'WhatsApp setup job: phone registration skipped (coexistence/already registered)',
+      );
     }
 
-    logger.info('WhatsApp setup job: all steps complete, marking webhook ready');
+    logger.info(
+      'WhatsApp setup job: all steps complete, marking webhook ready',
+    );
 
     // All steps succeeded — mark webhook as ready so the frontend can see it
     await moduleIntegrations.updateConfig(integrationId, {

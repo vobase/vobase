@@ -3,26 +3,26 @@ import { createFileRoute } from '@tanstack/react-router';
 import {
   type ColumnDef,
   type ColumnFiltersState,
-  type SortingState,
   getCoreRowModel,
   getFacetedRowModel,
   getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type SortingState,
   useReactTable,
 } from '@tanstack/react-table';
 import { useState } from 'react';
 
-import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
+import { DataTable } from '@/components/data-table/data-table';
 import {
   DataTableCellBadge,
   DataTableCellText,
   DataTableCellTimestamp,
 } from '@/components/data-table/data-table-cell';
+import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
 import { DataTableFilterControls } from '@/components/data-table/data-table-filter-controls';
 import { DataTableProvider } from '@/components/data-table/data-table-provider';
-import { DataTable } from '@/components/data-table/data-table';
 import { DataTableToolbar } from '@/components/data-table/data-table-toolbar';
 import type { DataTableFilterField } from '@/components/data-table/types';
 import { useControls } from '@/providers/controls';

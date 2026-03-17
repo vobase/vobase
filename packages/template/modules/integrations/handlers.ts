@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import { getCtx, logger, unauthorized } from '@vobase/core';
+import { Hono } from 'hono';
 
 export type IntegrationsRoutes = typeof integrationsRoutes;
 
@@ -54,7 +54,10 @@ export const integrationsRoutes = new Hono()
     const metaAppId = process.env.META_APP_ID;
     const metaAppSecret = process.env.META_APP_SECRET;
     if (!metaAppId || !metaAppSecret) {
-      return c.json({ error: 'META_APP_ID and META_APP_SECRET must be set in environment' }, 500);
+      return c.json(
+        { error: 'META_APP_ID and META_APP_SECRET must be set in environment' },
+        500,
+      );
     }
 
     // Step 1: Exchange authorization code for BISU access token
@@ -72,7 +75,7 @@ export const integrationsRoutes = new Hono()
       const err = await tokenRes.text();
       return c.json({ error: `Code exchange failed: ${err}` }, 502);
     }
-    const tokenData = await tokenRes.json() as { access_token: string };
+    const tokenData = (await tokenRes.json()) as { access_token: string };
     const accessToken = tokenData.access_token;
     logger.info('WhatsApp connect: code exchanged for BISU token');
 
@@ -86,9 +89,11 @@ export const integrationsRoutes = new Hono()
       try {
         const debugRes = await fetch(
           `${META_GRAPH_API}/debug_token?input_token=${accessToken}`,
-          { headers: { Authorization: `Bearer ${metaAppId}|${metaAppSecret}` } },
+          {
+            headers: { Authorization: `Bearer ${metaAppId}|${metaAppSecret}` },
+          },
         );
-        const debugData = await debugRes.json() as {
+        const debugData = (await debugRes.json()) as {
           data?: {
             granular_scopes?: Array<{
               scope: string;
@@ -109,7 +114,7 @@ export const integrationsRoutes = new Hono()
             `${META_GRAPH_API}/${wabaId}/phone_numbers`,
             { headers: { Authorization: `Bearer ${accessToken}` } },
           );
-          const phoneData = await phoneRes.json() as {
+          const phoneData = (await phoneRes.json()) as {
             data?: Array<{ id: string; display_phone_number: string }>;
           };
           phoneNumberId = phoneData.data?.[0]?.id;
@@ -120,14 +125,23 @@ export const integrationsRoutes = new Hono()
     }
 
     if (!phoneNumberId || !wabaId) {
-      logger.warn('WhatsApp connect: could not determine WABA or phone number', { wabaId, phoneNumberId });
+      logger.warn(
+        'WhatsApp connect: could not determine WABA or phone number',
+        { wabaId, phoneNumberId },
+      );
       return c.json(
-        { error: 'Could not determine WABA or phone number. Check your Meta App permissions.' },
+        {
+          error:
+            'Could not determine WABA or phone number. Check your Meta App permissions.',
+        },
         502,
       );
     }
 
-    logger.info('WhatsApp connect: WABA and phone resolved', { wabaId, phoneNumberId });
+    logger.info('WhatsApp connect: WABA and phone resolved', {
+      wabaId,
+      phoneNumberId,
+    });
 
     // Step 3: Disconnect any existing WhatsApp integration
     const existing = await ctx.integrations.getActive('whatsapp');
@@ -136,35 +150,48 @@ export const integrationsRoutes = new Hono()
     }
 
     // Step 4: Store credentials via integrations service
-    const integration = await ctx.integrations.connect('whatsapp', {
-      accessToken,
-      phoneNumberId,
-      wabaId,
-      appSecret: metaAppSecret,
-    }, {
-      authType: 'embedded_signup',
-      scopes: ['whatsapp_business_management', 'whatsapp_business_messaging'],
-      createdBy: ctx.user.id,
-    });
+    const integration = await ctx.integrations.connect(
+      'whatsapp',
+      {
+        accessToken,
+        phoneNumberId,
+        wabaId,
+        appSecret: metaAppSecret,
+      },
+      {
+        authType: 'embedded_signup',
+        scopes: ['whatsapp_business_management', 'whatsapp_business_messaging'],
+        createdBy: ctx.user.id,
+      },
+    );
 
     // Step 5: Hot-reload WhatsApp adapter so webhooks work immediately (no restart needed)
     const { createWhatsAppAdapter } = await import('@vobase/core');
-    ctx.channels.registerAdapter('whatsapp', createWhatsAppAdapter({
-      phoneNumberId,
-      accessToken,
-      appSecret: metaAppSecret,
-    }));
+    ctx.channels.registerAdapter(
+      'whatsapp',
+      createWhatsAppAdapter({
+        phoneNumberId,
+        accessToken,
+        appSecret: metaAppSecret,
+      }),
+    );
     logger.info('WhatsApp connect: adapter hot-reloaded');
 
-    logger.info('WhatsApp connect: credentials stored, queueing setup job', { integrationId: integration.id });
+    logger.info('WhatsApp connect: credentials stored, queueing setup job', {
+      integrationId: integration.id,
+    });
 
     // Step 6: Queue post-signup setup (webhook subscription, callback URL, phone registration)
-    // Runs as a background job with retry via bunqueue — survives transient Meta API failures
-    await ctx.scheduler.add('integrations:whatsapp-setup', {
-      integrationId: integration.id,
-    }, {
-      retries: 5,
-    });
+    // Runs as a background job with retry via pg-boss — survives transient Meta API failures
+    await ctx.scheduler.add(
+      'integrations:whatsapp-setup',
+      {
+        integrationId: integration.id,
+      },
+      {
+        retries: 5,
+      },
+    );
 
     return c.json({
       success: true,

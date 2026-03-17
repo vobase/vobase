@@ -1,4 +1,9 @@
-import type { ConnectorConfig, DocumentContent, DocumentSource, ExternalDocument } from './types';
+import type {
+  ConnectorConfig,
+  DocumentContent,
+  DocumentSource,
+  ExternalDocument,
+} from './types';
 
 export interface CrawlConfig extends ConnectorConfig {
   url: string;
@@ -29,12 +34,15 @@ export function createCrawlConnector(config: CrawlConfig): DocumentSource {
         scrapeOptions: { formats: ['markdown'] },
       }),
     });
-    if (!res.ok) throw new Error(`Crawl start failed: ${res.status} ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(`Crawl start failed: ${res.status} ${await res.text()}`);
     const data = (await res.json()) as { result: { crawlId: string } };
     return data.result.crawlId;
   }
 
-  async function pollCrawl(crawlId: string): Promise<Array<{ url: string; markdown: string }>> {
+  async function pollCrawl(
+    crawlId: string,
+  ): Promise<Array<{ url: string; markdown: string }>> {
     const maxAttempts = 30;
     for (let i = 0; i < maxAttempts; i++) {
       const res = await fetch(`${baseUrl}/crawl/${crawlId}`, {
@@ -42,7 +50,10 @@ export function createCrawlConnector(config: CrawlConfig): DocumentSource {
       });
       if (!res.ok) throw new Error(`Crawl poll failed: ${res.status}`);
       const data = (await res.json()) as {
-        result: { status: string; data?: Array<{ url: string; markdown: string }> };
+        result: {
+          status: string;
+          data?: Array<{ url: string; markdown: string }>;
+        };
       };
       if (data.result.status === 'complete') {
         return data.result.data ?? [];

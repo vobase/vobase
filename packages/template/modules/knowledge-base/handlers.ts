@@ -1,8 +1,7 @@
+import type { IntegrationsService, VobaseDb } from '@vobase/core';
+import { getCtx, notFound, unauthorized } from '@vobase/core';
 import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
-
-import { getCtx, notFound, unauthorized } from '@vobase/core';
-import type { IntegrationsService, VobaseDb } from '@vobase/core';
 
 import type { DocumentSource } from './connectors/types';
 import { kbChunks, kbDocuments, kbSources, kbSyncLogs } from './schema';
@@ -29,13 +28,27 @@ async function syncSource(
       const { createCrawlConnector } = await import('./connectors/crawl');
       connector = createCrawlConnector(config);
     } else if (source.type === 'google-drive') {
-      const { createGoogleDriveConnector } = await import('./connectors/google-drive');
-      if (!config.integrationId) throw new Error('Google Drive source missing integrationId');
-      connector = createGoogleDriveConnector(config, integrations, config.integrationId);
+      const { createGoogleDriveConnector } = await import(
+        './connectors/google-drive'
+      );
+      if (!config.integrationId)
+        throw new Error('Google Drive source missing integrationId');
+      connector = createGoogleDriveConnector(
+        config,
+        integrations,
+        config.integrationId,
+      );
     } else if (source.type === 'sharepoint') {
-      const { createSharePointConnector } = await import('./connectors/sharepoint');
-      if (!config.integrationId) throw new Error('SharePoint source missing integrationId');
-      connector = createSharePointConnector(config, integrations, config.integrationId);
+      const { createSharePointConnector } = await import(
+        './connectors/sharepoint'
+      );
+      if (!config.integrationId)
+        throw new Error('SharePoint source missing integrationId');
+      connector = createSharePointConnector(
+        config,
+        integrations,
+        config.integrationId,
+      );
     } else {
       throw new Error(`Unknown source type: ${source.type}`);
     }
@@ -44,7 +57,6 @@ async function syncSource(
     const { processDocument } = await import('./lib/pipeline');
 
     for await (const doc of connector.listDocuments()) {
-      // Create document record
       const [docRecord] = await db
         .insert(kbDocuments)
         .values({
@@ -56,13 +68,11 @@ async function syncSource(
         })
         .returning();
 
-      // Fetch and process content
       const content = await connector.fetchDocument(doc.externalId);
       await processDocument(db, docRecord.id, content.text);
       processed++;
     }
 
-    // Update sync log
     await db
       .update(kbSyncLogs)
       .set({
@@ -72,7 +82,6 @@ async function syncSource(
       })
       .where(eq(kbSyncLogs.id, log.id));
 
-    // Update source status
     await db
       .update(kbSources)
       .set({
@@ -92,7 +101,10 @@ async function syncSource(
       })
       .where(eq(kbSyncLogs.id, log.id));
 
-    await db.update(kbSources).set({ status: 'error' }).where(eq(kbSources.id, source.id));
+    await db
+      .update(kbSources)
+      .set({ status: 'error' })
+      .where(eq(kbSources.id, source.id));
   }
 }
 
@@ -118,11 +130,14 @@ knowledgeBaseRoutes.post('/documents', async (c) => {
   }
 
   // 1. Insert document with pending status
-  const [doc] = await ctx.db.insert(kbDocuments).values({
-    title: file.name,
-    sourceType: 'upload',
-    mimeType: file.type || 'text/plain',
-  }).returning();
+  const [doc] = await ctx.db
+    .insert(kbDocuments)
+    .values({
+      title: file.name,
+      sourceType: 'upload',
+      mimeType: file.type || 'text/plain',
+    })
+    .returning();
 
   // 2. Write file to temp location for async job processing
   const tmpDir = `${process.cwd()}/data/tmp`;
@@ -143,27 +158,33 @@ knowledgeBaseRoutes.post('/documents', async (c) => {
 
 knowledgeBaseRoutes.get('/documents', async (c) => {
   const ctx = getCtx(c);
-  const docs = await ctx.db.select().from(kbDocuments).orderBy(desc(kbDocuments.createdAt));
+  const docs = await ctx.db
+    .select()
+    .from(kbDocuments)
+    .orderBy(desc(kbDocuments.createdAt));
   return c.json(docs);
 });
 
 knowledgeBaseRoutes.get('/documents/:id', async (c) => {
   const ctx = getCtx(c);
-  const doc = await ctx.db.select().from(kbDocuments).where(eq(kbDocuments.id, c.req.param('id'))).get();
+  const doc = (
+    await ctx.db
+      .select()
+      .from(kbDocuments)
+      .where(eq(kbDocuments.id, c.req.param('id')))
+  )[0];
   if (!doc) throw notFound('Document not found');
-  const chunks = await ctx.db.select().from(kbChunks).where(eq(kbChunks.documentId, doc.id)).orderBy(kbChunks.chunkIndex);
+  const chunks = await ctx.db
+    .select()
+    .from(kbChunks)
+    .where(eq(kbChunks.documentId, doc.id))
+    .orderBy(kbChunks.chunkIndex);
   return c.json({ ...doc, chunks });
 });
 
 knowledgeBaseRoutes.delete('/documents/:id', async (c) => {
   const ctx = getCtx(c);
   const id = c.req.param('id');
-  const chunks = await ctx.db.select({ rowId: kbChunks.rowId }).from(kbChunks).where(eq(kbChunks.documentId, id));
-  const db = ctx.db.$client;
-  for (const chunk of chunks) {
-    db.run(`DELETE FROM kb_embeddings WHERE rowid = ?`, [chunk.rowId]);
-    db.run(`DELETE FROM kb_chunks_fts WHERE rowid = ?`, [chunk.rowId]);
-  }
   await ctx.db.delete(kbChunks).where(eq(kbChunks.documentId, id));
   await ctx.db.delete(kbDocuments).where(eq(kbDocuments.id, id));
   return c.json({ success: true });
@@ -205,25 +226,32 @@ knowledgeBaseRoutes.get('/suggestions', async (c) => {
 knowledgeBaseRoutes.post('/sources', async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json();
-  const [source] = await ctx.db.insert(kbSources).values({
-    name: body.name,
-    type: body.type,
-    config: body.config ? JSON.stringify(body.config) : null,
-    syncSchedule: body.syncSchedule,
-  }).returning();
+  const [source] = await ctx.db
+    .insert(kbSources)
+    .values({
+      name: body.name,
+      type: body.type,
+      config: body.config ? JSON.stringify(body.config) : null,
+      syncSchedule: body.syncSchedule,
+    })
+    .returning();
   return c.json(source, 201);
 });
 
 knowledgeBaseRoutes.get('/sources', async (c) => {
   const ctx = getCtx(c);
-  const sources = await ctx.db.select().from(kbSources).orderBy(desc(kbSources.createdAt));
+  const sources = await ctx.db
+    .select()
+    .from(kbSources)
+    .orderBy(desc(kbSources.createdAt));
   return c.json(sources);
 });
 
 knowledgeBaseRoutes.put('/sources/:id', async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json();
-  const [source] = await ctx.db.update(kbSources)
+  const [source] = await ctx.db
+    .update(kbSources)
     .set({
       name: body.name,
       type: body.type,
@@ -239,14 +267,11 @@ knowledgeBaseRoutes.put('/sources/:id', async (c) => {
 knowledgeBaseRoutes.delete('/sources/:id', async (c) => {
   const ctx = getCtx(c);
   const id = c.req.param('id');
-  const docs = await ctx.db.select({ id: kbDocuments.id }).from(kbDocuments).where(eq(kbDocuments.sourceId, id));
+  const docs = await ctx.db
+    .select({ id: kbDocuments.id })
+    .from(kbDocuments)
+    .where(eq(kbDocuments.sourceId, id));
   for (const doc of docs) {
-    const chunks = await ctx.db.select({ rowId: kbChunks.rowId }).from(kbChunks).where(eq(kbChunks.documentId, doc.id));
-    const db = ctx.db.$client;
-    for (const chunk of chunks) {
-      db.run(`DELETE FROM kb_embeddings WHERE rowid = ?`, [chunk.rowId]);
-      db.run(`DELETE FROM kb_chunks_fts WHERE rowid = ?`, [chunk.rowId]);
-    }
     await ctx.db.delete(kbChunks).where(eq(kbChunks.documentId, doc.id));
   }
   await ctx.db.delete(kbDocuments).where(eq(kbDocuments.sourceId, id));
@@ -258,7 +283,9 @@ knowledgeBaseRoutes.delete('/sources/:id', async (c) => {
 knowledgeBaseRoutes.post('/sources/:id/sync', async (c) => {
   const ctx = getCtx(c);
   const sourceId = c.req.param('id');
-  const source = await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId)).get();
+  const source = (
+    await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
+  )[0];
   if (!source) throw notFound('Source not found');
 
   // Trigger sync in background (fire and forget)
@@ -268,7 +295,9 @@ knowledgeBaseRoutes.post('/sources/:id/sync', async (c) => {
 
 knowledgeBaseRoutes.get('/sources/:id/logs', async (c) => {
   const ctx = getCtx(c);
-  const logs = await ctx.db.select().from(kbSyncLogs)
+  const logs = await ctx.db
+    .select()
+    .from(kbSyncLogs)
     .where(eq(kbSyncLogs.sourceId, c.req.param('id')))
     .orderBy(desc(kbSyncLogs.startedAt));
   return c.json(logs);
@@ -281,15 +310,20 @@ knowledgeBaseRoutes.get('/oauth/google/callback', async (c) => {
   const sourceId = c.req.query('state');
   if (!code || !sourceId) return c.text('Missing code or state', 400);
 
-  // Look up the source to get its name for the integration label
-  const source = await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId)).get();
+  const source = (
+    await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
+  )[0];
   const { exchangeGoogleCode } = await import('./connectors/google-drive');
-  const integrationId = await exchangeGoogleCode(ctx.integrations, sourceId, code, {
-    createdBy: ctx.user?.id,
-    label: source?.name ?? `KB source ${sourceId}`,
-  });
+  const integrationId = await exchangeGoogleCode(
+    ctx.integrations,
+    sourceId,
+    code,
+    {
+      createdBy: ctx.user?.id,
+      label: source?.name ?? `KB source ${sourceId}`,
+    },
+  );
 
-  // Store integrationId in source config
   const existingConfig = source?.config ? JSON.parse(source.config) : {};
   await ctx.db
     .update(kbSources)
@@ -305,15 +339,20 @@ knowledgeBaseRoutes.get('/oauth/microsoft/callback', async (c) => {
   const sourceId = c.req.query('state');
   if (!code || !sourceId) return c.text('Missing code or state', 400);
 
-  // Look up the source to get its name for the integration label
-  const source = await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId)).get();
+  const source = (
+    await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
+  )[0];
   const { exchangeSharePointCode } = await import('./connectors/sharepoint');
-  const integrationId = await exchangeSharePointCode(ctx.integrations, sourceId, code, {
-    createdBy: ctx.user?.id,
-    label: source?.name ?? `KB source ${sourceId}`,
-  });
+  const integrationId = await exchangeSharePointCode(
+    ctx.integrations,
+    sourceId,
+    code,
+    {
+      createdBy: ctx.user?.id,
+      label: source?.name ?? `KB source ${sourceId}`,
+    },
+  );
 
-  // Store integrationId in source config
   const existingConfig = source?.config ? JSON.parse(source.config) : {};
   await ctx.db
     .update(kbSources)
@@ -327,7 +366,9 @@ knowledgeBaseRoutes.get('/oauth/microsoft/callback', async (c) => {
 knowledgeBaseRoutes.get('/sources/:id/auth-url', async (c) => {
   const ctx = getCtx(c);
   const sourceId = c.req.param('id');
-  const source = await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId)).get();
+  const source = (
+    await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
+  )[0];
   if (!source) throw notFound('Source not found');
 
   if (source.type === 'google-drive') {

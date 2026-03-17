@@ -14,17 +14,18 @@ export async function findOrCreateThread(
   agentId: string,
 ) {
   // Find active non-archived thread for this contact + channel
-  const existing = await db
-    .select()
-    .from(msgThreads)
-    .where(
-      and(
-        eq(msgThreads.contactId, contactId),
-        eq(msgThreads.channel, channel),
-        isNull(msgThreads.archivedAt),
-      ),
-    )
-    .get();
+  const existing = (
+    await db
+      .select()
+      .from(msgThreads)
+      .where(
+        and(
+          eq(msgThreads.contactId, contactId),
+          eq(msgThreads.channel, channel),
+          isNull(msgThreads.archivedAt),
+        ),
+      )
+  )[0];
 
   if (existing) {
     return existing;

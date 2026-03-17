@@ -158,7 +158,9 @@ function ThreadChat({
     },
     onFinish: () => {
       queryClient.invalidateQueries({ queryKey: ['messaging-threads'] });
-      queryClient.invalidateQueries({ queryKey: ['messaging-thread', threadId] });
+      queryClient.invalidateQueries({
+        queryKey: ['messaging-thread', threadId],
+      });
     },
   });
 
@@ -258,9 +260,7 @@ function ThreadChat({
 function MessagingPage() {
   const queryClient = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(
-    null,
-  );
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [welcomeInput, setWelcomeInput] = useState('');
 
@@ -283,10 +283,7 @@ function MessagingPage() {
 
   const activeAgentId = selectedAgentId ?? agents?.[0]?.id ?? null;
   const hasAgents = (agents?.length ?? 0) > 0;
-  const suggestions = getAgentSuggestions(
-    agents,
-    activeAgentId ?? undefined,
-  );
+  const suggestions = getAgentSuggestions(agents, activeAgentId ?? undefined);
 
   async function handleWelcomeSend(text: string) {
     if (!text.trim() || !activeAgentId) return;
@@ -426,7 +423,8 @@ function MessagingPage() {
                 : t.channel !== 'web'
                   ? `${t.channel}: `
                   : '';
-            const fallbackTitle = t.channel !== 'web' ? `${t.channel} conversation` : 'Untitled';
+            const fallbackTitle =
+              t.channel !== 'web' ? `${t.channel} conversation` : 'Untitled';
             return {
               ...t,
               title: `${channelIcon}${statusLabel}${t.title ?? fallbackTitle}`,

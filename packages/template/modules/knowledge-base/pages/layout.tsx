@@ -1,4 +1,10 @@
-import { createFileRoute, Link, Outlet, redirect, useMatchRoute } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useMatchRoute,
+} from '@tanstack/react-router';
 
 const tabs = [
   { label: 'Search', to: '/knowledge-base/search' },

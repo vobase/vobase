@@ -1,5 +1,3 @@
-import { and, desc, eq, lt } from 'drizzle-orm';
-import { Hono } from 'hono';
 import {
   auditLog,
   getCtx,
@@ -7,6 +5,9 @@ import {
   sequences,
   unauthorized,
 } from '@vobase/core';
+import { and, desc, eq, lt } from 'drizzle-orm';
+import { Hono } from 'hono';
+
 import { modules } from '../index';
 
 const DEFAULT_LIMIT = 50;
@@ -50,27 +51,25 @@ const systemRoutes = new Hono({ strict: false })
   .get('/health', (c) => {
     return c.json({ status: 'ok', db: 'ok', uptime: process.uptime() });
   })
-  .get('/audit-log', (c) => {
+  .get('/audit-log', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
     const limit = parseLimit(c.req.query('limit'));
     const cursor = parseCursor(c.req.query('cursor'));
 
-    const entries = (
-      cursor
-        ? db
-            .select()
-            .from(auditLog)
-            .where(lt(auditLog.createdAt, cursor))
-            .orderBy(desc(auditLog.createdAt))
-            .limit(limit + 1)
-        : db
-            .select()
-            .from(auditLog)
-            .orderBy(desc(auditLog.createdAt))
-            .limit(limit + 1)
-    ).all();
+    const entries = await (cursor
+      ? db
+          .select()
+          .from(auditLog)
+          .where(lt(auditLog.createdAt, cursor))
+          .orderBy(desc(auditLog.createdAt))
+          .limit(limit + 1)
+      : db
+          .select()
+          .from(auditLog)
+          .orderBy(desc(auditLog.createdAt))
+          .limit(limit + 1));
 
     const hasMore = entries.length > limit;
     const page = hasMore ? entries.slice(0, limit) : entries;
@@ -82,25 +81,24 @@ const systemRoutes = new Hono({ strict: false })
 
     return c.json({ entries: page, nextCursor });
   })
-  .get('/sequences', (c) => {
+  .get('/sequences', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
-    const values = db
+    const values = await db
       .select()
       .from(sequences)
-      .orderBy(desc(sequences.updatedAt))
-      .all();
+      .orderBy(desc(sequences.updatedAt));
     return c.json({ sequences: values });
   })
-  .get('/record-audits/:table/:id', (c) => {
+  .get('/record-audits/:table/:id', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
     const tableName = c.req.param('table');
     const recordId = c.req.param('id');
 
-    const entries = db
+    const entries = await db
       .select()
       .from(recordAudits)
       .where(
@@ -109,8 +107,7 @@ const systemRoutes = new Hono({ strict: false })
           eq(recordAudits.recordId, recordId),
         ),
       )
-      .orderBy(desc(recordAudits.createdAt))
-      .all();
+      .orderBy(desc(recordAudits.createdAt));
 
     return c.json({ entries });
   });

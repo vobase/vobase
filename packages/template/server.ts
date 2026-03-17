@@ -2,12 +2,8 @@ import { join } from 'node:path';
 import { createApp } from '@vobase/core';
 import { serveStatic } from 'hono/bun';
 
-import { setupSqliteVec } from './lib/sqlite-vec';
 import { modules } from './modules';
 import config from './vobase.config';
-
-// Must run before createApp() which creates the Database instance
-setupSqliteVec();
 
 const app = await createApp({ ...config, modules });
 
@@ -17,7 +13,10 @@ const hasIndex = await indexFile.exists();
 const indexHtml = hasIndex ? await indexFile.text() : null;
 
 // Serve static assets from Vite build
-app.use('/assets/*', serveStatic({ root: distPath, rewriteRequestPath: (path) => path }));
+app.use(
+  '/assets/*',
+  serveStatic({ root: distPath, rewriteRequestPath: (path) => path }),
+);
 
 // SPA fallback — return index.html for any non-API route
 app.get('*', (c) => {

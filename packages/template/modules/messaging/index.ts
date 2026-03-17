@@ -1,5 +1,5 @@
-import { defineModule } from '@vobase/core';
 import type { MessageReceivedEvent, StatusUpdateEvent } from '@vobase/core';
+import { defineModule } from '@vobase/core';
 
 import { messagingRoutes } from './handlers';
 import {
@@ -11,14 +11,24 @@ import {
   sendMessageJob,
   setModuleDeps,
 } from './jobs';
-import { handleInboundMessage, handleStatusUpdate } from './lib/channel-handler';
+import {
+  handleInboundMessage,
+  handleStatusUpdate,
+} from './lib/channel-handler';
 import * as schema from './schema';
 
 export const messagingModule = defineModule({
   name: 'messaging',
   schema,
   routes: messagingRoutes,
-  jobs: [sendMessageJob, channelReplyJob, resumeAiJob, archiveThreadsJob, purgeMessagesJob, recoverStuckJob],
+  jobs: [
+    sendMessageJob,
+    channelReplyJob,
+    resumeAiJob,
+    archiveThreadsJob,
+    purgeMessagesJob,
+    recoverStuckJob,
+  ],
 
   init(ctx) {
     // Only wire channel events if channels is configured.
@@ -35,7 +45,12 @@ export const messagingModule = defineModule({
     if (hasChannels) {
       setModuleDeps(ctx.db, ctx.channels, ctx.scheduler, ctx.storage);
 
-      const deps = { db: ctx.db, scheduler: ctx.scheduler, channels: ctx.channels, storage: ctx.storage };
+      const deps = {
+        db: ctx.db,
+        scheduler: ctx.scheduler,
+        channels: ctx.channels,
+        storage: ctx.storage,
+      };
 
       ctx.channels.on('message_received', (event: MessageReceivedEvent) => {
         handleInboundMessage(deps, event);

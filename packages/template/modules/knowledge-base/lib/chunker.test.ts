@@ -28,8 +28,13 @@ describe('recursiveChunk()', () => {
 
   it('splits long text into multiple chunks', () => {
     // Create text well over 512 tokens (~2048+ chars)
-    const paragraphs = Array.from({ length: 30 }, (_, i) =>
-      `Paragraph ${i + 1}. ` + 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. '.repeat(5),
+    const paragraphs = Array.from(
+      { length: 30 },
+      (_, i) =>
+        `Paragraph ${i + 1}. ` +
+        'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. '.repeat(
+          5,
+        ),
     );
     const text = paragraphs.join('\n\n');
     const chunks = recursiveChunk(text);
@@ -62,8 +67,10 @@ describe('recursiveChunk()', () => {
   });
 
   it('splits on paragraphs before sentences', () => {
-    const text = Array.from({ length: 30 }, (_, i) =>
-      `This is paragraph ${i + 1} with enough text to make it meaningful for chunking purposes and ensure we exceed the token limit.`,
+    const text = Array.from(
+      { length: 30 },
+      (_, i) =>
+        `This is paragraph ${i + 1} with enough text to make it meaningful for chunking purposes and ensure we exceed the token limit.`,
     ).join('\n\n');
 
     const chunks = recursiveChunk(text, { maxTokens: 64 });
@@ -74,8 +81,10 @@ describe('recursiveChunk()', () => {
   });
 
   it('includes overlap between consecutive chunks', () => {
-    const sentences = Array.from({ length: 200 }, (_, i) =>
-      `Sentence number ${i + 1} contains some unique identifying content here.`,
+    const sentences = Array.from(
+      { length: 200 },
+      (_, i) =>
+        `Sentence number ${i + 1} contains some unique identifying content here.`,
     );
     const text = sentences.join(' ');
     const chunks = recursiveChunk(text, { maxTokens: 128, overlap: 30 });

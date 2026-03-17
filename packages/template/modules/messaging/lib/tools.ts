@@ -1,6 +1,6 @@
+import type { VobaseDb } from '@vobase/core';
 import { tool } from 'ai';
 import { z } from 'zod';
-import type { VobaseDb } from '@vobase/core';
 
 type KBResult = {
   found: boolean;

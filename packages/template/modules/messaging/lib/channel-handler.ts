@@ -1,8 +1,11 @@
-import type { VobaseDb } from '@vobase/core';
-import type { Scheduler } from '@vobase/core';
-import type { ChannelsService } from '@vobase/core';
-import type { StorageService } from '@vobase/core';
-import type { MessageReceivedEvent, StatusUpdateEvent } from '@vobase/core';
+import type {
+  ChannelsService,
+  MessageReceivedEvent,
+  Scheduler,
+  StatusUpdateEvent,
+  StorageService,
+  VobaseDb,
+} from '@vobase/core';
 import { logger } from '@vobase/core';
 import { and, eq } from 'drizzle-orm';
 
@@ -53,7 +56,12 @@ export async function handleInboundMessage(
   if (!agentId) return; // No agents configured
 
   // 3. Find or create thread
-  const thread = await findOrCreateThread(db, contact.id, event.channel, agentId);
+  const thread = await findOrCreateThread(
+    db,
+    contact.id,
+    event.channel,
+    agentId,
+  );
 
   // 4. Upload media attachments (WhatsApp URLs expire in ~5 min)
   logger.info('Inbound message received', {
@@ -91,7 +99,10 @@ export async function handleInboundMessage(
           size: obj.size,
         });
       } catch (err) {
-        logger.error('Failed to upload media attachment', { threadId: thread.id, error: err });
+        logger.error('Failed to upload media attachment', {
+          threadId: thread.id,
+          error: err,
+        });
       }
     }
   }
@@ -146,16 +157,17 @@ export async function handleStatusUpdate(
   const { db } = deps;
 
   // Update message status by externalMessageId
-  const existing = await db
-    .select()
-    .from(msgMessages)
-    .where(
-      and(
-        eq(msgMessages.externalMessageId, event.messageId),
-        eq(msgMessages.direction, 'outbound'),
-      ),
-    )
-    .get();
+  const existing = (
+    await db
+      .select()
+      .from(msgMessages)
+      .where(
+        and(
+          eq(msgMessages.externalMessageId, event.messageId),
+          eq(msgMessages.direction, 'outbound'),
+        ),
+      )
+  )[0];
 
   if (existing) {
     // Known outbound message — update status only if it's a forward progression

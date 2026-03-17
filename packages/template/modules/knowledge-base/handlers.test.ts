@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import type { Database } from 'bun:sqlite';
-import { Hono } from 'hono';
-
-import { errorHandler } from '@vobase/core';
+import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
+import { errorHandler } from '@vobase/core';
+import { Hono } from 'hono';
 
 import { createTestDb } from '../../lib/test-helpers';
 import { knowledgeBaseRoutes } from './handlers';
@@ -13,14 +12,26 @@ const BASE = 'http://localhost/api/knowledge-base';
 
 const schedulerJobs: Array<{ name: string; data: unknown }> = [];
 
-function createApp(db: VobaseDb, user: { id: string; email: string; name: string; role: string } | null = { id: 'user-1', email: 'test@test.com', name: 'Test', role: 'user' }) {
+function createApp(
+  db: VobaseDb,
+  user: { id: string; email: string; name: string; role: string } | null = {
+    id: 'user-1',
+    email: 'test@test.com',
+    name: 'Test',
+    role: 'user',
+  },
+) {
   schedulerJobs.length = 0;
   const app = new Hono();
   app.onError(errorHandler);
   app.use('*', async (c, next) => {
     c.set('db', db);
     c.set('user', user);
-    c.set('scheduler', { add: async (name: string, data: unknown) => { schedulerJobs.push({ name, data }); } } as never);
+    c.set('scheduler', {
+      add: async (name: string, data: unknown) => {
+        schedulerJobs.push({ name, data });
+      },
+    } as never);
     c.set('storage', {} as never);
     c.set('channels', {} as never);
     c.set('http', {} as never);
@@ -31,19 +42,19 @@ function createApp(db: VobaseDb, user: { id: string; email: string; name: string
 }
 
 describe('Knowledge Base Routes', () => {
-  let sqlite: InstanceType<typeof Database>;
+  let pglite: PGlite;
   let db: VobaseDb;
   let app: Hono;
 
-  beforeEach(() => {
-    const testDb = createTestDb();
-    sqlite = testDb.sqlite;
+  beforeEach(async () => {
+    const testDb = await createTestDb({ withVec: true });
+    pglite = testDb.pglite;
     db = testDb.db;
     app = createApp(db);
   });
 
-  afterEach(() => {
-    sqlite.close();
+  afterEach(async () => {
+    await pglite.close();
   });
 
   describe('Auth', () => {
@@ -57,7 +68,10 @@ describe('Knowledge Base Routes', () => {
   describe('Documents', () => {
     it('POST /documents creates a document from multipart upload and enqueues job', async () => {
       const formData = new FormData();
-      formData.append('file', new File(['Hello world'], 'test.txt', { type: 'text/plain' }));
+      formData.append(
+        'file',
+        new File(['Hello world'], 'test.txt', { type: 'text/plain' }),
+      );
 
       const res = await app.request(`${BASE}/documents`, {
         method: 'POST',
@@ -74,13 +88,19 @@ describe('Knowledge Base Routes', () => {
       // Verify job was enqueued
       expect(schedulerJobs).toHaveLength(1);
       expect(schedulerJobs[0].name).toBe('knowledge-base:process-document');
-      const jobData = schedulerJobs[0].data as { documentId: string; filePath: string; mimeType: string };
+      const jobData = schedulerJobs[0].data as {
+        documentId: string;
+        filePath: string;
+        mimeType: string;
+      };
       expect(jobData.documentId).toBe(doc.id);
       expect(jobData.mimeType).toContain('text/plain');
       expect(jobData.filePath).toContain(doc.id);
 
       // Clean up temp file
-      try { (await import('node:fs')).unlinkSync(jobData.filePath); } catch {}
+      try {
+        (await import('node:fs')).unlinkSync(jobData.filePath);
+      } catch {}
     });
 
     it('POST /documents returns 400 when no file provided', async () => {
@@ -94,8 +114,18 @@ describe('Knowledge Base Routes', () => {
     });
 
     it('GET /documents lists documents', async () => {
-      await db.insert(kbDocuments).values({ id: 'doc-a', title: 'First', sourceType: 'upload', mimeType: 'text/plain' });
-      await db.insert(kbDocuments).values({ id: 'doc-b', title: 'Second', sourceType: 'upload', mimeType: 'text/plain' });
+      await db.insert(kbDocuments).values({
+        id: 'doc-a',
+        title: 'First',
+        sourceType: 'upload',
+        mimeType: 'text/plain',
+      });
+      await db.insert(kbDocuments).values({
+        id: 'doc-b',
+        title: 'Second',
+        sourceType: 'upload',
+        mimeType: 'text/plain',
+      });
 
       const res = await app.request(`${BASE}/documents`);
       expect(res.status).toBe(200);
@@ -104,7 +134,12 @@ describe('Knowledge Base Routes', () => {
     });
 
     it('GET /documents/:id returns document with chunks array', async () => {
-      await db.insert(kbDocuments).values({ id: 'doc-get', title: 'Get Me', sourceType: 'upload', mimeType: 'text/plain' });
+      await db.insert(kbDocuments).values({
+        id: 'doc-get',
+        title: 'Get Me',
+        sourceType: 'upload',
+        mimeType: 'text/plain',
+      });
 
       const res = await app.request(`${BASE}/documents/doc-get`);
       expect(res.status).toBe(200);
@@ -119,9 +154,16 @@ describe('Knowledge Base Routes', () => {
     });
 
     it('DELETE /documents/:id removes document', async () => {
-      await db.insert(kbDocuments).values({ id: 'doc-del', title: 'Delete Me', sourceType: 'upload', mimeType: 'text/plain' });
+      await db.insert(kbDocuments).values({
+        id: 'doc-del',
+        title: 'Delete Me',
+        sourceType: 'upload',
+        mimeType: 'text/plain',
+      });
 
-      const res = await app.request(`${BASE}/documents/doc-del`, { method: 'DELETE' });
+      const res = await app.request(`${BASE}/documents/doc-del`, {
+        method: 'DELETE',
+      });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
@@ -148,8 +190,12 @@ describe('Knowledge Base Routes', () => {
     });
 
     it('GET /sources lists sources', async () => {
-      await db.insert(kbSources).values({ id: 'src-1', name: 'Source A', type: 'crawl' });
-      await db.insert(kbSources).values({ id: 'src-2', name: 'Source B', type: 'google-drive' });
+      await db
+        .insert(kbSources)
+        .values({ id: 'src-1', name: 'Source A', type: 'crawl' });
+      await db
+        .insert(kbSources)
+        .values({ id: 'src-2', name: 'Source B', type: 'google-drive' });
 
       const res = await app.request(`${BASE}/sources`);
       expect(res.status).toBe(200);
@@ -158,12 +204,17 @@ describe('Knowledge Base Routes', () => {
     });
 
     it('PUT /sources/:id updates a source', async () => {
-      await db.insert(kbSources).values({ id: 'src-upd', name: 'Old', type: 'crawl' });
+      await db
+        .insert(kbSources)
+        .values({ id: 'src-upd', name: 'Old', type: 'crawl' });
 
       const res = await app.request(`${BASE}/sources/src-upd`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'New', config: { url: 'https://example.com' } }),
+        body: JSON.stringify({
+          name: 'New',
+          config: { url: 'https://example.com' },
+        }),
       });
 
       expect(res.status).toBe(200);
@@ -183,10 +234,20 @@ describe('Knowledge Base Routes', () => {
     });
 
     it('DELETE /sources/:id removes source and associated documents', async () => {
-      await db.insert(kbSources).values({ id: 'src-cascade', name: 'Cascade', type: 'crawl' });
-      await db.insert(kbDocuments).values({ id: 'doc-src-1', title: 'Source Doc', sourceType: 'crawl', sourceId: 'src-cascade', mimeType: 'text/plain' });
+      await db
+        .insert(kbSources)
+        .values({ id: 'src-cascade', name: 'Cascade', type: 'crawl' });
+      await db.insert(kbDocuments).values({
+        id: 'doc-src-1',
+        title: 'Source Doc',
+        sourceType: 'crawl',
+        sourceId: 'src-cascade',
+        mimeType: 'text/plain',
+      });
 
-      const res = await app.request(`${BASE}/sources/src-cascade`, { method: 'DELETE' });
+      const res = await app.request(`${BASE}/sources/src-cascade`, {
+        method: 'DELETE',
+      });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
@@ -204,23 +265,35 @@ describe('Knowledge Base Routes', () => {
 
   describe('Sync', () => {
     it('POST /sources/:id/sync returns sync started message', async () => {
-      await db.insert(kbSources).values({ id: 'src-sync', name: 'Sync Me', type: 'crawl' });
+      await db
+        .insert(kbSources)
+        .values({ id: 'src-sync', name: 'Sync Me', type: 'crawl' });
 
-      const res = await app.request(`${BASE}/sources/src-sync/sync`, { method: 'POST' });
+      const res = await app.request(`${BASE}/sources/src-sync/sync`, {
+        method: 'POST',
+      });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.message).toBe('Sync started');
     });
 
     it('POST /sources/:id/sync returns 404 for nonexistent source', async () => {
-      const res = await app.request(`${BASE}/sources/nope/sync`, { method: 'POST' });
+      const res = await app.request(`${BASE}/sources/nope/sync`, {
+        method: 'POST',
+      });
       expect(res.status).toBe(404);
     });
 
     it('GET /sources/:id/logs returns sync logs', async () => {
-      await db.insert(kbSyncLogs).values({ id: 'log-a', sourceId: 'src-1', status: 'completed' });
-      await db.insert(kbSyncLogs).values({ id: 'log-b', sourceId: 'src-1', status: 'error' });
-      await db.insert(kbSyncLogs).values({ id: 'log-c', sourceId: 'src-2', status: 'completed' });
+      await db
+        .insert(kbSyncLogs)
+        .values({ id: 'log-a', sourceId: 'src-1', status: 'completed' });
+      await db
+        .insert(kbSyncLogs)
+        .values({ id: 'log-b', sourceId: 'src-1', status: 'error' });
+      await db
+        .insert(kbSyncLogs)
+        .values({ id: 'log-c', sourceId: 'src-2', status: 'completed' });
 
       const res = await app.request(`${BASE}/sources/src-1/logs`);
       expect(res.status).toBe(200);

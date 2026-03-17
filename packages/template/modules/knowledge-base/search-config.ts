@@ -6,13 +6,60 @@
 /** High-frequency terms that add no search signal. */
 export const STOPWORDS = new Set([
   // General English
-  'a', 'an', 'the', 'of', 'in', 'for', 'to', 'and', 'or', 'is', 'it',
-  'with', 'that', 'this', 'on', 'at', 'by', 'from', 'be', 'as', 'are',
-  'was', 'were', 'been', 'being', 'have', 'has', 'had', 'do', 'does',
-  'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can',
-  'not', 'no', 'but', 'if', 'so', 'what', 'how', 'when', 'where', 'who',
+  'a',
+  'an',
+  'the',
+  'of',
+  'in',
+  'for',
+  'to',
+  'and',
+  'or',
+  'is',
+  'it',
+  'with',
+  'that',
+  'this',
+  'on',
+  'at',
+  'by',
+  'from',
+  'be',
+  'as',
+  'are',
+  'was',
+  'were',
+  'been',
+  'being',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'could',
+  'should',
+  'may',
+  'might',
+  'can',
+  'not',
+  'no',
+  'but',
+  'if',
+  'so',
+  'what',
+  'how',
+  'when',
+  'where',
+  'who',
   // KB-specific: appear in most documents
-  'document', 'page', 'section', 'file', 'content',
+  'document',
+  'page',
+  'section',
+  'file',
+  'content',
 ]);
 
 /**
@@ -28,9 +75,10 @@ export const FIELD_WEIGHTS: Record<string, number> = {
  * Extract intent signals from a raw query string.
  * Returns the cleaned query with intent fragments removed.
  */
-export function extractIntent(
-  raw: string,
-): { cleanQuery: string; sortHint?: string } {
+export function extractIntent(raw: string): {
+  cleanQuery: string;
+  sortHint?: string;
+} {
   let q = raw.toLowerCase().trim();
   let sortHint: string | undefined;
 

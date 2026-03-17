@@ -12,11 +12,9 @@ export async function findOrCreateContact(
   phone: string,
   profileName?: string,
 ) {
-  const existing = await db
-    .select()
-    .from(msgContacts)
-    .where(eq(msgContacts.phone, phone))
-    .get();
+  const existing = (
+    await db.select().from(msgContacts).where(eq(msgContacts.phone, phone))
+  )[0];
 
   if (existing) {
     // Update name if changed

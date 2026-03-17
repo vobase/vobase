@@ -5,4 +5,9 @@ import { knowledgeBaseModule } from './knowledge-base';
 import { messagingModule } from './messaging';
 import { systemModule } from './system';
 
-export const modules: VobaseModule[] = [systemModule, knowledgeBaseModule, messagingModule, integrationsModule];
+export const modules: VobaseModule[] = [
+  systemModule,
+  knowledgeBaseModule,
+  messagingModule,
+  integrationsModule,
+];

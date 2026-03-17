@@ -1,6 +1,11 @@
 import type { IntegrationsService } from '@vobase/core';
 
-import type { ConnectorConfig, DocumentContent, DocumentSource, ExternalDocument } from './types';
+import type {
+  ConnectorConfig,
+  DocumentContent,
+  DocumentSource,
+  ExternalDocument,
+} from './types';
 
 export interface GoogleDriveConfig extends ConnectorConfig {
   folderId?: string;
@@ -55,7 +60,8 @@ export function createGoogleDriveConnector(
 
         const res = await drive.files.list({
           q: query,
-          fields: 'nextPageToken, files(id, name, mimeType, webViewLink, modifiedTime)',
+          fields:
+            'nextPageToken, files(id, name, mimeType, webViewLink, modifiedTime)',
           pageSize: 100,
           pageToken,
         });
@@ -66,7 +72,9 @@ export function createGoogleDriveConnector(
             title: file.name ?? 'Untitled',
             mimeType: file.mimeType ?? 'application/octet-stream',
             sourceUrl: file.webViewLink ?? undefined,
-            modifiedAt: file.modifiedTime ? new Date(file.modifiedTime) : undefined,
+            modifiedAt: file.modifiedTime
+              ? new Date(file.modifiedTime)
+              : undefined,
           };
         }
 
@@ -109,7 +117,7 @@ export function createGoogleDriveConnector(
  * Generate the OAuth2 authorization URL for Google Drive.
  */
 export async function getGoogleAuthUrl(sourceId: string): Promise<string> {
-  // @ts-ignore - googleapis is an optional peer dependency
+  // @ts-expect-error - googleapis is an optional peer dependency
   const { google } = await import('googleapis');
   const auth = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -134,7 +142,7 @@ export async function exchangeGoogleCode(
   code: string,
   opts?: { createdBy?: string; label?: string },
 ): Promise<string> {
-  // @ts-ignore - googleapis is an optional peer dependency
+  // @ts-expect-error - googleapis is an optional peer dependency
   const { google } = await import('googleapis');
   const auth = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,

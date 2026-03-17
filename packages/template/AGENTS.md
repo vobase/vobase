@@ -13,6 +13,7 @@ Every change must be clean, type-safe, tested, and maintainable.
 - Biome formatting + linting. Run `bun run lint`.
 - Frontend: use `<Link>` and `navigate()` from TanStack Router — never `<a href>` for internal routes
 - Path aliases: `@/` = `src/`, `@modules/` = `modules/`
+- Prefer Bun native APIs over `node:*` modules: `Bun.file()`, `Bun.write()`, `Bun.spawnSync()`, `Bun.Glob`, `$` shell. Use `node:path` and `node:fs` only when no Bun equivalent exists.
 - Import order: external, then `@vobase/core`, then local
 
 ## Module Convention
@@ -24,7 +25,7 @@ Name: lowercase alphanumeric + hyphens. Routes mount at `/api/{name}`.
 ## Data Conventions
 
 - Money: INTEGER cents, never float
-- Timestamps: `integer('col', { mode: 'timestamp_ms' })`, UTC always
+- Timestamps: `timestamp('col', { withTimezone: true }).defaultNow()`, UTC always
 - Status: TEXT with explicit transition logic, not arbitrary strings
 - IDs: `nanoidPrimaryKey()` (12 chars, lowercase alphanumeric)
 - Cross-module refs: plain text columns, no `.references()` across modules
@@ -72,7 +73,7 @@ Encrypted credential vault for external services. `ctx.integrations.getActive(pr
 
 ### Jobs
 
-`defineJob('module:name', async (data) => { ... })` for background work. Schedule via `ctx.scheduler.add(jobName, data, opts)`. SQLite-backed, retries, cron, job chains. No Redis.
+`defineJob('module:name', async (data) => { ... })` for background work. Schedule via `ctx.scheduler.add(jobName, data, opts)`. pg-boss backed (Postgres), retries, cron, job chains. No Redis.
 
 ### Key Exports
 
@@ -87,12 +88,12 @@ Auth schemas: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrgan
 
 ### Schema Management
 
-`drizzle.config.ts` points at core schemas via relative paths + your module schemas. `bunfig.toml` forces Bun runtime so drizzle-kit resolves `bun:sqlite`. Dev: `bun run db:push`. Prod: `bun run db:generate` + `bun run db:migrate`.
+`drizzle.config.ts` points at core schemas via relative paths + your module schemas. Uses PGlite for local dev and Postgres in production. Dev: `bun run db:push`. Prod: `bun run db:generate` + `bun run db:migrate`.
 
 ## Commands
 
-`bun run dev` (backend :3000 + frontend :5173) | `bun run db:push` | `bun run db:generate` | `bun run db:migrate` | `bun run db:studio` | `bun run seed` | `bun run reset` | `bun test`
+`bun run dev` (backend :3000 + frontend :5173) | `bun run db:push` | `bun run db:generate` | `bun run db:migrate` | `bun run db:studio` | `bun run db:current` | `bun run db:seed` | `bun run db:reset` | `bun test`
 
 ## Deploy
 
-Dockerfile + railway.toml included. Litestream for SQLite backup to S3 via `LITESTREAM_*` env vars.
+Dockerfile + railway.toml included. Set `DATABASE_URL` for a managed Postgres connection in production.

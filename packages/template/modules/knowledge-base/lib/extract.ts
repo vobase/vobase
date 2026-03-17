@@ -17,7 +17,10 @@ const SCANNED_PDF_THRESHOLD = 100; // chars per page — below this, PDF is like
  * Extract text from a file as Markdown. Dispatches to format-specific handlers.
  * Reads from a file path (temp file written by the upload handler).
  */
-export async function extractDocument(filePath: string, mimeType: string): Promise<ExtractionResult> {
+export async function extractDocument(
+  filePath: string,
+  mimeType: string,
+): Promise<ExtractionResult> {
   const file = Bun.file(filePath);
   const buffer = await file.arrayBuffer();
 
@@ -27,17 +30,26 @@ export async function extractDocument(filePath: string, mimeType: string): Promi
   }
 
   // DOCX
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+  if (
+    mimeType ===
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
     return extractDocx(buffer);
   }
 
   // XLSX
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+  if (
+    mimeType ===
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ) {
     return extractXlsx(buffer);
   }
 
   // PPTX
-  if (mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+  if (
+    mimeType ===
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  ) {
     return extractPptx(buffer);
   }
 
@@ -88,7 +100,9 @@ async function extractDocx(buffer: ArrayBuffer): Promise<ExtractionResult> {
   const TurndownService = (await import('turndown')).default;
   const { gfm } = await import('turndown-plugin-gfm');
 
-  const { value: html } = await mammoth.convertToHtml({ buffer: Buffer.from(buffer) });
+  const { value: html } = await mammoth.convertToHtml({
+    buffer: Buffer.from(buffer),
+  });
   const turndown = new TurndownService({ headingStyle: 'atx' });
   turndown.use(gfm);
   const markdown = turndown.turndown(html);
@@ -102,14 +116,20 @@ async function extractXlsx(buffer: ArrayBuffer): Promise<ExtractionResult> {
 
   for (const name of wb.SheetNames) {
     const ws = wb.Sheets[name];
-    const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 }) as string[][];
+    const rows = XLSX.utils.sheet_to_json<string[]>(ws, {
+      header: 1,
+    }) as string[][];
     if (rows.length === 0) continue;
 
     const [header, ...body] = rows;
     const headerRow = `| ${header.map((h) => String(h ?? '')).join(' | ')} |`;
     const sepRow = `| ${header.map(() => '---').join(' | ')} |`;
-    const dataRows = body.map((row) => `| ${row.map((c) => String(c ?? '')).join(' | ')} |`);
-    sheets.push(`## Sheet: ${name}\n\n${headerRow}\n${sepRow}\n${dataRows.join('\n')}`);
+    const dataRows = body.map(
+      (row) => `| ${row.map((c) => String(c ?? '')).join(' | ')} |`,
+    );
+    sheets.push(
+      `## Sheet: ${name}\n\n${headerRow}\n${sepRow}\n${dataRows.join('\n')}`,
+    );
   }
 
   return { text: sheets.join('\n\n'), status: 'ok' };
@@ -123,7 +143,10 @@ async function extractPptx(buffer: ArrayBuffer): Promise<ExtractionResult> {
   return { text, status: 'ok' };
 }
 
-async function extractImage(buffer: ArrayBuffer, mimeType: string): Promise<ExtractionResult> {
+async function extractImage(
+  buffer: ArrayBuffer,
+  mimeType: string,
+): Promise<ExtractionResult> {
   if (!process.env.GEMINI_API_KEY) {
     return {
       text: '',
@@ -148,11 +171,16 @@ async function extractHtml(buffer: ArrayBuffer): Promise<ExtractionResult> {
 
 // --- OCR Helper ---
 
-async function ocrWithGemini(buffer: ArrayBuffer, mimeType: string): Promise<string> {
+async function ocrWithGemini(
+  buffer: ArrayBuffer,
+  mimeType: string,
+): Promise<string> {
   const { generateText } = await import('ai');
   const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
 
-  const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+  const google = createGoogleGenerativeAI({
+    apiKey: process.env.GEMINI_API_KEY,
+  });
   const model = google('gemini-flash-latest');
   const base64 = Buffer.from(buffer).toString('base64');
 

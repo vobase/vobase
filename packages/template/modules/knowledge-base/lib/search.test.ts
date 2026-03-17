@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import type { Database } from 'bun:sqlite';
-
+import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 
 import { createTestDb } from '../../../lib/test-helpers';
@@ -29,57 +28,90 @@ mock.module('@ai-sdk/openai', () => ({
 const { hybridSearch } = await import('./search');
 
 describe('hybridSearch()', () => {
-  let sqlite: InstanceType<typeof Database>;
+  let pglite: PGlite;
   let db: VobaseDb;
 
-  beforeEach(() => {
-    const testDb = createTestDb({ withVec: true });
-    sqlite = testDb.sqlite;
+  beforeEach(async () => {
+    const testDb = await createTestDb({ withVec: true });
+    pglite = testDb.pglite;
     db = testDb.db;
 
-    seedTestData();
+    await seedTestData();
   });
 
-  afterEach(() => {
-    sqlite.close();
+  afterEach(async () => {
+    await pglite.close();
   });
 
-  function seedTestData() {
-    const now = Date.now();
+  async function seedTestData() {
+    const now = new Date().toISOString();
 
     // Documents
-    sqlite.run(
-      "INSERT INTO kb_documents (id, title, source_type, mime_type, status, chunk_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      ['doc-1', 'TypeScript Guide', 'upload', 'text/plain', 'ready', 2, now, now],
+    await pglite.query(
+      'INSERT INTO kb_documents (id, title, source_type, mime_type, status, chunk_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [
+        'doc-1',
+        'TypeScript Guide',
+        'upload',
+        'text/plain',
+        'ready',
+        2,
+        now,
+        now,
+      ],
     );
-    sqlite.run(
-      "INSERT INTO kb_documents (id, title, source_type, mime_type, status, chunk_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      ['doc-2', 'Python Handbook', 'upload', 'text/plain', 'ready', 1, now, now],
+    await pglite.query(
+      'INSERT INTO kb_documents (id, title, source_type, mime_type, status, chunk_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [
+        'doc-2',
+        'Python Handbook',
+        'upload',
+        'text/plain',
+        'ready',
+        1,
+        now,
+        now,
+      ],
     );
 
-    // Chunks
-    sqlite.run(
-      "INSERT INTO kb_chunks (id, row_id, document_id, content, chunk_index, token_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ['chunk-1', 1, 'doc-1', 'TypeScript is a typed superset of JavaScript that compiles to plain JavaScript.', 0, 15, now],
+    // Chunks with embeddings — search_vector (tsvector) is generated automatically
+    // Vectors close to [0.9, 0.1, 0.5, 0.5] for chunk-1, farther for others
+    await pglite.query(
+      'INSERT INTO kb_chunks (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
+      [
+        'chunk-1',
+        'doc-1',
+        'TypeScript is a typed superset of JavaScript that compiles to plain JavaScript.',
+        0,
+        15,
+        '[0.85, 0.15, 0.5, 0.5]',
+        now,
+      ],
     );
-    sqlite.run(
-      "INSERT INTO kb_chunks (id, row_id, document_id, content, chunk_index, token_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ['chunk-2', 2, 'doc-1', 'TypeScript supports interfaces, generics, and advanced type inference.', 1, 12, now],
+    await pglite.query(
+      'INSERT INTO kb_chunks (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
+      [
+        'chunk-2',
+        'doc-1',
+        'TypeScript supports interfaces, generics, and advanced type inference.',
+        1,
+        12,
+        '[0.6, 0.4, 0.5, 0.5]',
+        now,
+      ],
     );
-    sqlite.run(
-      "INSERT INTO kb_chunks (id, row_id, document_id, content, chunk_index, token_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ['chunk-3', 3, 'doc-2', 'Python is a dynamic programming language used for data science and web development.', 0, 16, now],
+    await pglite.query(
+      'INSERT INTO kb_chunks (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
+      [
+        'chunk-3',
+        'doc-2',
+        'Python is a dynamic programming language used for data science and web development.',
+        0,
+        16,
+        '[0.1, 0.9, 0.5, 0.5]',
+        now,
+      ],
     );
-
-    // Embeddings (vec0) — vectors close to [0.9, 0.1, 0.5, 0.5] for chunk-1, farther for others
-    sqlite.run('INSERT INTO kb_embeddings (rowid, embedding) VALUES (?, ?)', [1, JSON.stringify([0.85, 0.15, 0.5, 0.5])]);
-    sqlite.run('INSERT INTO kb_embeddings (rowid, embedding) VALUES (?, ?)', [2, JSON.stringify([0.6, 0.4, 0.5, 0.5])]);
-    sqlite.run('INSERT INTO kb_embeddings (rowid, embedding) VALUES (?, ?)', [3, JSON.stringify([0.1, 0.9, 0.5, 0.5])]);
-
-    // FTS5 entries
-    sqlite.run('INSERT INTO kb_chunks_fts (rowid, content) VALUES (?, ?)', [1, 'TypeScript is a typed superset of JavaScript that compiles to plain JavaScript.']);
-    sqlite.run('INSERT INTO kb_chunks_fts (rowid, content) VALUES (?, ?)', [2, 'TypeScript supports interfaces, generics, and advanced type inference.']);
-    sqlite.run('INSERT INTO kb_chunks_fts (rowid, content) VALUES (?, ?)', [3, 'Python is a dynamic programming language used for data science and web development.']);
   }
 
   describe('RRF scoring', () => {
@@ -100,7 +132,7 @@ describe('hybridSearch()', () => {
     });
 
     it('combines vector and keyword signals via RRF', async () => {
-      // "TypeScript" matches chunks 1 and 2 in FTS5 AND chunk-1 is vector-closest
+      // "TypeScript" matches chunks 1 and 2 in FTS AND chunk-1 is vector-closest
       const results = await hybridSearch(db, 'TypeScript');
       const tsChunks = results.filter((r) => r.documentId === 'doc-1');
       const pyChunks = results.filter((r) => r.documentId === 'doc-2');
@@ -141,15 +173,14 @@ describe('hybridSearch()', () => {
     });
 
     it('returns empty array for no matches', async () => {
-      sqlite.run('DELETE FROM kb_embeddings');
-      sqlite.run('DELETE FROM kb_chunks_fts');
-      sqlite.run('DELETE FROM kb_chunks');
+      await pglite.query('DELETE FROM kb_chunks');
+      await pglite.query('DELETE FROM kb_documents');
 
       const results = await hybridSearch(db, 'nothing');
       expect(results).toEqual([]);
     });
 
-    it('handles FTS5 special characters gracefully', async () => {
+    it('handles FTS special characters gracefully', async () => {
       const results = await hybridSearch(db, "what's the * (best) approach?");
       expect(Array.isArray(results)).toBe(true);
     });
@@ -158,25 +189,33 @@ describe('hybridSearch()', () => {
       const results = await hybridSearch(db, 'TypeScript');
       const tsResult = results.find((r) => r.documentId === 'doc-1');
       expect(tsResult).toBeDefined();
-      expect(tsResult!.documentTitle).toBe('TypeScript Guide');
+      expect(tsResult?.documentTitle).toBe('TypeScript Guide');
     });
 
     it('ignores deprecated vectorWeight/keywordWeight (backward compat)', async () => {
-      const results1 = await hybridSearch(db, 'TypeScript', { vectorWeight: 1.0, keywordWeight: 0.0 });
-      const results2 = await hybridSearch(db, 'TypeScript', { vectorWeight: 0.0, keywordWeight: 1.0 });
+      const results1 = await hybridSearch(db, 'TypeScript', {
+        vectorWeight: 1.0,
+        keywordWeight: 0.0,
+      });
+      const results2 = await hybridSearch(db, 'TypeScript', {
+        vectorWeight: 0.0,
+        keywordWeight: 1.0,
+      });
 
       // Both should return results (RRF ignores weights)
       expect(results1.length).toBeGreaterThan(0);
       expect(results2.length).toBeGreaterThan(0);
       // Results should be identical since weights are ignored
-      expect(results1.map((r) => r.chunkId)).toEqual(results2.map((r) => r.chunkId));
+      expect(results1.map((r) => r.chunkId)).toEqual(
+        results2.map((r) => r.chunkId),
+      );
     });
   });
 
   describe('fast mode (default)', () => {
     it('uses fast mode by default', async () => {
       const results = await hybridSearch(db, 'TypeScript');
-      // Fast mode only uses vector + FTS5, no HyDE
+      // Fast mode only uses vector + FTS, no HyDE
       expect(results.length).toBeGreaterThan(0);
     });
 

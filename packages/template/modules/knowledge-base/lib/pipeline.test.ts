@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-import type { Database } from 'bun:sqlite';
+import type { PGlite } from '@electric-sql/pglite';
+import type { VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
-import type { VobaseDb } from '@vobase/core';
-
 import { createTestDb } from '../../../lib/test-helpers';
-import { kbDocuments, kbChunks } from '../schema';
+import { kbChunks, kbDocuments } from '../schema';
 
 // Mock embeddings to return deterministic 4-dim vectors
 mock.module('./embeddings', () => ({
@@ -18,17 +17,17 @@ mock.module('./embeddings', () => ({
 const { processDocument } = await import('./pipeline');
 
 describe('processDocument()', () => {
-  let sqlite: InstanceType<typeof Database>;
+  let pglite: PGlite;
   let db: VobaseDb;
 
-  beforeEach(() => {
-    const testDb = createTestDb({ withVec: true });
-    sqlite = testDb.sqlite;
+  beforeEach(async () => {
+    const testDb = await createTestDb({ withVec: true });
+    pglite = testDb.pglite;
     db = testDb.db;
   });
 
-  afterEach(() => {
-    sqlite.close();
+  afterEach(async () => {
+    await pglite.close();
   });
 
   async function insertDoc(id: string, title: string) {
@@ -45,60 +44,75 @@ describe('processDocument()', () => {
     await insertDoc('doc-1', 'Test Doc');
     await processDocument(db, 'doc-1', 'Some short content.');
 
-    const doc = await db.select().from(kbDocuments).where(eq(kbDocuments.id, 'doc-1')).get();
-    expect(doc!.status).toBe('ready');
+    const [doc] = await db
+      .select()
+      .from(kbDocuments)
+      .where(eq(kbDocuments.id, 'doc-1'));
+    expect(doc?.status).toBe('ready');
   });
 
   it('sets chunkCount to 0 for empty content', async () => {
     await insertDoc('doc-2', 'Empty Doc');
     await processDocument(db, 'doc-2', '');
 
-    const doc = await db.select().from(kbDocuments).where(eq(kbDocuments.id, 'doc-2')).get();
-    expect(doc!.status).toBe('ready');
-    expect(doc!.chunkCount).toBe(0);
+    const [doc] = await db
+      .select()
+      .from(kbDocuments)
+      .where(eq(kbDocuments.id, 'doc-2'));
+    expect(doc?.status).toBe('ready');
+    expect(doc?.chunkCount).toBe(0);
   });
 
   it('creates chunks in the database', async () => {
     await insertDoc('doc-3', 'Chunked Doc');
-    await processDocument(db, 'doc-3', 'This is a piece of content that will become a chunk.');
+    await processDocument(
+      db,
+      'doc-3',
+      'This is a piece of content that will become a chunk.',
+    );
 
-    const chunks = await db.select().from(kbChunks).where(eq(kbChunks.documentId, 'doc-3'));
+    const chunks = await db
+      .select()
+      .from(kbChunks)
+      .where(eq(kbChunks.documentId, 'doc-3'));
     expect(chunks.length).toBeGreaterThan(0);
     expect(chunks[0].content).toBeTruthy();
     expect(chunks[0].chunkIndex).toBe(0);
-    expect(chunks[0].rowId).toBe(1);
   });
 
-  it('inserts embeddings into vec0 virtual table', async () => {
+  it('stores embeddings inline in kb_chunks', async () => {
     await insertDoc('doc-4', 'Vector Doc');
     await processDocument(db, 'doc-4', 'Content for vector embedding.');
 
-    const rows = sqlite.prepare('SELECT rowid FROM kb_embeddings').all();
-    expect(rows.length).toBeGreaterThan(0);
+    const result = await pglite.query<{ id: string }>(
+      'SELECT id FROM kb_chunks WHERE embedding IS NOT NULL AND document_id = $1',
+      ['doc-4'],
+    );
+    expect(result.rows.length).toBeGreaterThan(0);
   });
 
-  it('inserts content into FTS5 virtual table', async () => {
+  it('generates tsvector for full-text search', async () => {
     await insertDoc('doc-5', 'FTS Doc');
     await processDocument(db, 'doc-5', 'Searchable full text content here.');
 
-    const rows = sqlite
-      .prepare("SELECT rowid FROM kb_chunks_fts WHERE kb_chunks_fts MATCH 'searchable'")
-      .all();
-    expect(rows.length).toBeGreaterThan(0);
+    const result = await pglite.query<{ id: string }>(
+      "SELECT id FROM kb_chunks WHERE search_vector @@ to_tsquery('english', 'searchable') AND document_id = $1",
+      ['doc-5'],
+    );
+    expect(result.rows.length).toBeGreaterThan(0);
   });
 
-  it('assigns sequential rowIds across multiple documents', async () => {
-    await insertDoc('doc-6a', 'First');
-    await processDocument(db, 'doc-6a', 'First document content.');
+  it('assigns chunkIndex starting at 0', async () => {
+    await insertDoc('doc-6', 'Indexed Doc');
+    await processDocument(db, 'doc-6', 'First chunk content.');
 
-    await insertDoc('doc-6b', 'Second');
-    await processDocument(db, 'doc-6b', 'Second document content.');
-
-    const allChunks = await db.select().from(kbChunks);
-    const rowIds = allChunks.map((c) => c.rowId).sort((a, b) => a - b);
-    // Verify sequential, no gaps
-    for (let i = 1; i < rowIds.length; i++) {
-      expect(rowIds[i]).toBe(rowIds[i - 1] + 1);
+    const chunks = await db
+      .select()
+      .from(kbChunks)
+      .where(eq(kbChunks.documentId, 'doc-6'));
+    if (chunks.length > 0) {
+      const indices = chunks.map((c) => c.chunkIndex).sort((a, b) => a - b);
+      expect(indices[0]).toBe(0);
     }
   });
 
@@ -123,9 +137,12 @@ describe('processDocument()', () => {
       // expected
     }
 
-    const doc = await db.select().from(kbDocuments).where(eq(kbDocuments.id, 'doc-7')).get();
-    expect(doc!.status).toBe('error');
-    expect(doc!.metadata).toContain('API key invalid');
+    const [doc] = await db
+      .select()
+      .from(kbDocuments)
+      .where(eq(kbDocuments.id, 'doc-7'));
+    expect(doc?.status).toBe('error');
+    expect(doc?.metadata).toContain('API key invalid');
 
     // Restore original mock
     mock.module('./embeddings', () => ({
@@ -137,8 +154,14 @@ describe('processDocument()', () => {
     await insertDoc('doc-8', 'Counted Doc');
     await processDocument(db, 'doc-8', 'A short piece of text.');
 
-    const doc = await db.select().from(kbDocuments).where(eq(kbDocuments.id, 'doc-8')).get();
-    const chunks = await db.select().from(kbChunks).where(eq(kbChunks.documentId, 'doc-8'));
-    expect(doc!.chunkCount).toBe(chunks.length);
+    const [doc] = await db
+      .select()
+      .from(kbDocuments)
+      .where(eq(kbDocuments.id, 'doc-8'));
+    const chunks = await db
+      .select()
+      .from(kbChunks)
+      .where(eq(kbChunks.documentId, 'doc-8'));
+    expect(doc?.chunkCount).toBe(chunks.length);
   });
 });

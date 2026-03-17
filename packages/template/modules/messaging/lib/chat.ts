@@ -43,11 +43,9 @@ export async function streamChat(options: StreamChatOptions) {
   const { db, agentId, messages } = options;
 
   // Load agent config
-  const agent = await db
-    .select()
-    .from(msgAgents)
-    .where(eq(msgAgents.id, agentId))
-    .get();
+  const agent = (
+    await db.select().from(msgAgents).where(eq(msgAgents.id, agentId))
+  )[0];
 
   const config = getAIConfig();
   const modelId = agent?.model ?? config.model;

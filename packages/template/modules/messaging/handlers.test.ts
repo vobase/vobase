@@ -1,18 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import type { Database } from 'bun:sqlite';
-import { Hono } from 'hono';
-import { eq } from 'drizzle-orm';
-
+import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 import { errorHandler } from '@vobase/core';
+import { eq } from 'drizzle-orm';
+import { Hono } from 'hono';
 
 import { createTestDb } from '../../lib/test-helpers';
-import { msgAgents, msgThreads, msgMessages } from './schema';
 import { messagingRoutes } from './handlers';
+import { msgAgents, msgMessages, msgThreads } from './schema';
 
 const BASE = 'http://localhost/api/messaging';
 
-function createApp(db: VobaseDb, user = { id: 'user-1', email: 'test@test.com', name: 'Test', role: 'user' }) {
+function createApp(
+  db: VobaseDb,
+  user = { id: 'user-1', email: 'test@test.com', name: 'Test', role: 'user' },
+) {
   const app = new Hono();
   app.onError(errorHandler);
   app.use('*', async (c, next) => {
@@ -29,19 +31,19 @@ function createApp(db: VobaseDb, user = { id: 'user-1', email: 'test@test.com', 
 }
 
 describe('Messaging Routes', () => {
-  let sqlite: InstanceType<typeof Database>;
+  let pglite: PGlite;
   let db: VobaseDb;
   let app: Hono;
 
-  beforeEach(() => {
-    const testDb = createTestDb();
-    sqlite = testDb.sqlite;
+  beforeEach(async () => {
+    const testDb = await createTestDb();
+    pglite = testDb.pglite;
     db = testDb.db;
     app = createApp(db);
   });
 
-  afterEach(() => {
-    sqlite.close();
+  afterEach(async () => {
+    await pglite.close();
   });
 
   describe('Agents', () => {
@@ -49,7 +51,10 @@ describe('Messaging Routes', () => {
       const res = await app.request(`${BASE}/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Helper Bot', systemPrompt: 'You are helpful.' }),
+        body: JSON.stringify({
+          name: 'Helper Bot',
+          systemPrompt: 'You are helpful.',
+        }),
       });
 
       expect(res.status).toBe(201);
@@ -63,8 +68,12 @@ describe('Messaging Routes', () => {
 
     it('GET /agents lists only current user agents', async () => {
       // Insert one for user-1 and one for user-2 directly
-      await db.insert(msgAgents).values({ id: 'agent-a', name: 'Bot A', userId: 'user-1' });
-      await db.insert(msgAgents).values({ id: 'agent-b', name: 'Bot B', userId: 'user-2' });
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-a', name: 'Bot A', userId: 'user-1' });
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-b', name: 'Bot B', userId: 'user-2' });
 
       const res = await app.request(`${BASE}/agents`);
       expect(res.status).toBe(200);
@@ -74,7 +83,9 @@ describe('Messaging Routes', () => {
     });
 
     it('GET /agents/:id returns agent', async () => {
-      await db.insert(msgAgents).values({ id: 'agent-1', name: 'Helper', userId: 'user-1' });
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-1', name: 'Helper', userId: 'user-1' });
 
       const res = await app.request(`${BASE}/agents/agent-1`);
       expect(res.status).toBe(200);
@@ -89,7 +100,9 @@ describe('Messaging Routes', () => {
     });
 
     it('PUT /agents/:id updates with ownership check', async () => {
-      await db.insert(msgAgents).values({ id: 'agent-upd', name: 'Old', userId: 'user-1' });
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-upd', name: 'Old', userId: 'user-1' });
 
       const res = await app.request(`${BASE}/agents/agent-upd`, {
         method: 'PUT',
@@ -104,7 +117,9 @@ describe('Messaging Routes', () => {
     });
 
     it('PUT /agents/:id returns 404 for wrong user', async () => {
-      await db.insert(msgAgents).values({ id: 'agent-other', name: 'Other', userId: 'user-2' });
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-other', name: 'Other', userId: 'user-2' });
 
       const res = await app.request(`${BASE}/agents/agent-other`, {
         method: 'PUT',
@@ -115,19 +130,29 @@ describe('Messaging Routes', () => {
       expect(res.status).toBe(404);
 
       // Verify original unchanged
-      const agent = await db.select().from(msgAgents).where(eq(msgAgents.id, 'agent-other')).get();
-      expect(agent!.name).toBe('Other');
+      const [agent] = await db
+        .select()
+        .from(msgAgents)
+        .where(eq(msgAgents.id, 'agent-other'));
+      expect(agent?.name).toBe('Other');
     });
 
     it('DELETE /agents/:id removes agent with ownership', async () => {
-      await db.insert(msgAgents).values({ id: 'agent-del', name: 'Delete Me', userId: 'user-1' });
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-del', name: 'Delete Me', userId: 'user-1' });
 
-      const res = await app.request(`${BASE}/agents/agent-del`, { method: 'DELETE' });
+      const res = await app.request(`${BASE}/agents/agent-del`, {
+        method: 'DELETE',
+      });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
 
-      const agent = await db.select().from(msgAgents).where(eq(msgAgents.id, 'agent-del')).get();
+      const [agent] = await db
+        .select()
+        .from(msgAgents)
+        .where(eq(msgAgents.id, 'agent-del'));
       expect(agent).toBeUndefined();
     });
 
@@ -151,7 +176,9 @@ describe('Messaging Routes', () => {
 
   describe('Threads', () => {
     beforeEach(async () => {
-      await db.insert(msgAgents).values({ id: 'agent-t', name: 'Thread Bot', userId: 'user-1' });
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-t', name: 'Thread Bot', userId: 'user-1' });
     });
 
     it('POST /threads creates thread and returns 201', async () => {
@@ -169,8 +196,18 @@ describe('Messaging Routes', () => {
     });
 
     it('GET /threads lists user threads', async () => {
-      await db.insert(msgThreads).values({ id: 'thr-a', title: 'Mine', agentId: 'agent-t', userId: 'user-1' });
-      await db.insert(msgThreads).values({ id: 'thr-b', title: 'Others', agentId: 'agent-t', userId: 'user-2' });
+      await db.insert(msgThreads).values({
+        id: 'thr-a',
+        title: 'Mine',
+        agentId: 'agent-t',
+        userId: 'user-1',
+      });
+      await db.insert(msgThreads).values({
+        id: 'thr-b',
+        title: 'Others',
+        agentId: 'agent-t',
+        userId: 'user-2',
+      });
 
       const res = await app.request(`${BASE}/threads`);
       expect(res.status).toBe(200);
@@ -180,9 +217,28 @@ describe('Messaging Routes', () => {
     });
 
     it('GET /threads/:id returns thread with messages', async () => {
-      await db.insert(msgThreads).values({ id: 'thr-get', title: 'My Thread', agentId: 'agent-t', userId: 'user-1' });
-      await db.insert(msgMessages).values({ id: 'msg-1', threadId: 'thr-get', direction: 'inbound', senderType: 'user', aiRole: 'user', content: 'Hello' });
-      await db.insert(msgMessages).values({ id: 'msg-2', threadId: 'thr-get', direction: 'outbound', senderType: 'agent', aiRole: 'assistant', content: 'Hi!' });
+      await db.insert(msgThreads).values({
+        id: 'thr-get',
+        title: 'My Thread',
+        agentId: 'agent-t',
+        userId: 'user-1',
+      });
+      await db.insert(msgMessages).values({
+        id: 'msg-1',
+        threadId: 'thr-get',
+        direction: 'inbound',
+        senderType: 'user',
+        aiRole: 'user',
+        content: 'Hello',
+      });
+      await db.insert(msgMessages).values({
+        id: 'msg-2',
+        threadId: 'thr-get',
+        direction: 'outbound',
+        senderType: 'agent',
+        aiRole: 'assistant',
+        content: 'Hi!',
+      });
 
       const res = await app.request(`${BASE}/threads/thr-get`);
       expect(res.status).toBe(200);
@@ -194,45 +250,94 @@ describe('Messaging Routes', () => {
     });
 
     it('GET /threads/:id returns 404 for wrong user', async () => {
-      await db.insert(msgThreads).values({ id: 'thr-other', title: 'Not Mine', agentId: 'agent-t', userId: 'user-2' });
+      await db.insert(msgThreads).values({
+        id: 'thr-other',
+        title: 'Not Mine',
+        agentId: 'agent-t',
+        userId: 'user-2',
+      });
 
       const res = await app.request(`${BASE}/threads/thr-other`);
       expect(res.status).toBe(404);
     });
 
     it('DELETE /threads/:id removes thread and its messages', async () => {
-      await db.insert(msgThreads).values({ id: 'thr-del', title: 'Delete Me', agentId: 'agent-t', userId: 'user-1' });
-      await db.insert(msgMessages).values({ id: 'msg-1', threadId: 'thr-del', direction: 'inbound', senderType: 'user', aiRole: 'user', content: 'Hello' });
-      await db.insert(msgMessages).values({ id: 'msg-2', threadId: 'thr-del', direction: 'outbound', senderType: 'agent', aiRole: 'assistant', content: 'Hi!' });
+      await db.insert(msgThreads).values({
+        id: 'thr-del',
+        title: 'Delete Me',
+        agentId: 'agent-t',
+        userId: 'user-1',
+      });
+      await db.insert(msgMessages).values({
+        id: 'msg-1',
+        threadId: 'thr-del',
+        direction: 'inbound',
+        senderType: 'user',
+        aiRole: 'user',
+        content: 'Hello',
+      });
+      await db.insert(msgMessages).values({
+        id: 'msg-2',
+        threadId: 'thr-del',
+        direction: 'outbound',
+        senderType: 'agent',
+        aiRole: 'assistant',
+        content: 'Hi!',
+      });
 
-      const res = await app.request(`${BASE}/threads/thr-del`, { method: 'DELETE' });
+      const res = await app.request(`${BASE}/threads/thr-del`, {
+        method: 'DELETE',
+      });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
 
-      const msgs = await db.select().from(msgMessages).where(eq(msgMessages.threadId, 'thr-del'));
+      const msgs = await db
+        .select()
+        .from(msgMessages)
+        .where(eq(msgMessages.threadId, 'thr-del'));
       expect(msgs).toHaveLength(0);
 
-      const thread = await db.select().from(msgThreads).where(eq(msgThreads.id, 'thr-del')).get();
+      const [thread] = await db
+        .select()
+        .from(msgThreads)
+        .where(eq(msgThreads.id, 'thr-del'));
       expect(thread).toBeUndefined();
     });
 
     it('DELETE /threads/:id returns 404 for wrong user', async () => {
-      await db.insert(msgThreads).values({ id: 'thr-nope', title: 'Not Mine', agentId: 'agent-t', userId: 'user-2' });
+      await db.insert(msgThreads).values({
+        id: 'thr-nope',
+        title: 'Not Mine',
+        agentId: 'agent-t',
+        userId: 'user-2',
+      });
 
-      const res = await app.request(`${BASE}/threads/thr-nope`, { method: 'DELETE' });
+      const res = await app.request(`${BASE}/threads/thr-nope`, {
+        method: 'DELETE',
+      });
       expect(res.status).toBe(404);
 
       // Thread still exists
-      const thread = await db.select().from(msgThreads).where(eq(msgThreads.id, 'thr-nope')).get();
+      const [thread] = await db
+        .select()
+        .from(msgThreads)
+        .where(eq(msgThreads.id, 'thr-nope'));
       expect(thread).toBeDefined();
     });
   });
 
   describe('Messages', () => {
     beforeEach(async () => {
-      await db.insert(msgAgents).values({ id: 'agent-m', name: 'Msg Bot', userId: 'user-1' });
-      await db.insert(msgThreads).values({ id: 'thr-m', title: 'Msg Thread', agentId: 'agent-m', userId: 'user-1' });
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-m', name: 'Msg Bot', userId: 'user-1' });
+      await db.insert(msgThreads).values({
+        id: 'thr-m',
+        title: 'Msg Thread',
+        agentId: 'agent-m',
+        userId: 'user-1',
+      });
     });
 
     it('POST /threads/:id/messages creates message with direction/senderType/aiRole', async () => {
@@ -247,7 +352,10 @@ describe('Messaging Routes', () => {
       expect(body.success).toBe(true);
 
       // Verify message was saved with correct fields
-      const msgs = await db.select().from(msgMessages).where(eq(msgMessages.threadId, 'thr-m'));
+      const msgs = await db
+        .select()
+        .from(msgMessages)
+        .where(eq(msgMessages.threadId, 'thr-m'));
       expect(msgs).toHaveLength(1);
       expect(msgs[0].direction).toBe('inbound');
       expect(msgs[0].senderType).toBe('user');
@@ -256,9 +364,30 @@ describe('Messaging Routes', () => {
     });
 
     it('messages are ordered by creation time in GET thread', async () => {
-      await db.insert(msgMessages).values({ id: 'msg-1', threadId: 'thr-m', direction: 'inbound', senderType: 'user', aiRole: 'user', content: 'First' });
-      await db.insert(msgMessages).values({ id: 'msg-2', threadId: 'thr-m', direction: 'outbound', senderType: 'agent', aiRole: 'assistant', content: 'Second' });
-      await db.insert(msgMessages).values({ id: 'msg-3', threadId: 'thr-m', direction: 'inbound', senderType: 'user', aiRole: 'user', content: 'Third' });
+      await db.insert(msgMessages).values({
+        id: 'msg-1',
+        threadId: 'thr-m',
+        direction: 'inbound',
+        senderType: 'user',
+        aiRole: 'user',
+        content: 'First',
+      });
+      await db.insert(msgMessages).values({
+        id: 'msg-2',
+        threadId: 'thr-m',
+        direction: 'outbound',
+        senderType: 'agent',
+        aiRole: 'assistant',
+        content: 'Second',
+      });
+      await db.insert(msgMessages).values({
+        id: 'msg-3',
+        threadId: 'thr-m',
+        direction: 'inbound',
+        senderType: 'user',
+        aiRole: 'user',
+        content: 'Third',
+      });
 
       const res = await app.request(`${BASE}/threads/thr-m`);
       expect(res.status).toBe(200);

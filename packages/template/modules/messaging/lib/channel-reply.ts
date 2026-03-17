@@ -1,17 +1,19 @@
+import { unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { unlink } from 'node:fs/promises';
-
 import { openai } from '@ai-sdk/openai';
-import type { VobaseDb } from '@vobase/core';
-import type { StorageService } from '@vobase/core';
-import type { Scheduler } from '@vobase/core';
-import { generateText, type LanguageModel, type ModelMessage, stepCountIs, type UserContent } from 'ai';
+import type { Scheduler, StorageService, VobaseDb } from '@vobase/core';
+import {
+  generateText,
+  type LanguageModel,
+  type ModelMessage,
+  stepCountIs,
+  type UserContent,
+} from 'ai';
 
-import { extractDocument } from '../../knowledge-base/lib/extract';
 import { getAIConfig } from '../../../lib/ai';
-
-import { msgAgents } from '../schema';
+import { extractDocument } from '../../knowledge-base/lib/extract';
+import type { msgAgents } from '../schema';
 import { createEscalationTool } from './escalation';
 import { createKnowledgeBaseTool } from './tools';
 
@@ -44,7 +46,11 @@ interface ChannelReplyOptions {
   storage?: StorageService;
   thread: { id: string; agentId: string | null; channel: string };
   agent: typeof msgAgents.$inferSelect;
-  messages: Array<{ aiRole: string | null; content: string | null; attachments: string | null }>;
+  messages: Array<{
+    aiRole: string | null;
+    content: string | null;
+    attachments: string | null;
+  }>;
 }
 
 /**
@@ -52,14 +58,20 @@ interface ChannelReplyOptions {
  * the knowledge-base extraction pipeline (PDF, DOCX, XLSX, PPTX, HTML, etc.).
  * Falls back to a descriptive placeholder if extraction fails.
  */
-async function extractAttachmentText(storage: StorageService, att: Attachment): Promise<string> {
+async function extractAttachmentText(
+  storage: StorageService,
+  att: Attachment,
+): Promise<string> {
   const label = att.filename ?? att.mimeType;
   try {
     const bucket = storage.bucket('chat-attachments');
     const data = await bucket.download(att.storageKey);
 
     // Write to temp file for extractDocument (it reads from disk)
-    const tmpPath = join(tmpdir(), `msg-${Date.now()}-${att.storageKey.split('/').pop()}`);
+    const tmpPath = join(
+      tmpdir(),
+      `msg-${Date.now()}-${att.storageKey.split('/').pop()}`,
+    );
     await Bun.write(tmpPath, data);
 
     try {
@@ -68,7 +80,9 @@ async function extractAttachmentText(storage: StorageService, att: Attachment): 
         return `[Document: ${label}]\n${result.text}`;
       }
     } finally {
-      try { await unlink(tmpPath); } catch {}
+      try {
+        await unlink(tmpPath);
+      } catch {}
     }
   } catch {
     // Extraction not available or failed
@@ -80,7 +94,9 @@ async function extractAttachmentText(storage: StorageService, att: Attachment): 
  * Generate an AI reply for external channels using generateText (not streamText).
  * External channels don't support streaming — collect full response, then send.
  */
-export async function generateChannelReply(options: ChannelReplyOptions): Promise<string> {
+export async function generateChannelReply(
+  options: ChannelReplyOptions,
+): Promise<string> {
   const { db, scheduler, storage, thread, agent, messages } = options;
 
   const config = getAIConfig();
@@ -90,10 +106,14 @@ export async function generateChannelReply(options: ChannelReplyOptions): Promis
   const aiMessages: ModelMessage[] = [];
 
   for (const m of messages) {
-    const role = (m.aiRole === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant';
+    const role = (m.aiRole === 'assistant' ? 'assistant' : 'user') as
+      | 'user'
+      | 'assistant';
 
     // Parse attachments
-    const attachments: Attachment[] = m.attachments ? JSON.parse(m.attachments) : [];
+    const attachments: Attachment[] = m.attachments
+      ? JSON.parse(m.attachments)
+      : [];
     const imageAttachments = attachments.filter((a) =>
       a.mimeType.startsWith('image/'),
     );
@@ -113,12 +133,17 @@ export async function generateChannelReply(options: ChannelReplyOptions): Promis
           parts.push({ type: 'image', image: data, mediaType: att.mimeType });
         } catch {
           // If download fails, describe the attachment as text
-          parts.push({ type: 'text', text: `[${att.type}: ${att.filename ?? 'image'}]` });
+          parts.push({
+            type: 'text',
+            text: `[${att.type}: ${att.filename ?? 'image'}]`,
+          });
         }
       }
 
       // Extract text from non-image attachments (documents, audio descriptions)
-      for (const att of attachments.filter((a) => !a.mimeType.startsWith('image/'))) {
+      for (const att of attachments.filter(
+        (a) => !a.mimeType.startsWith('image/'),
+      )) {
         const extracted = await extractAttachmentText(storage, att);
         parts.push({ type: 'text', text: extracted });
       }
@@ -130,7 +155,9 @@ export async function generateChannelReply(options: ChannelReplyOptions): Promis
       // Text-only message, assistant message, or document-only message
       let text = m.content ?? '';
       // Extract text from non-image attachments
-      const nonImageAtts = attachments.filter((a) => !a.mimeType.startsWith('image/'));
+      const nonImageAtts = attachments.filter(
+        (a) => !a.mimeType.startsWith('image/'),
+      );
       if (nonImageAtts.length && storage) {
         for (const att of nonImageAtts) {
           const extracted = await extractAttachmentText(storage, att);
@@ -144,7 +171,10 @@ export async function generateChannelReply(options: ChannelReplyOptions): Promis
   }
 
   // Build tools based on agent config
-  const tools: Record<string, ReturnType<typeof createKnowledgeBaseTool | typeof createEscalationTool>> = {};
+  const tools: Record<
+    string,
+    ReturnType<typeof createKnowledgeBaseTool | typeof createEscalationTool>
+  > = {};
 
   const enabledTools: string[] = agent.tools
     ? JSON.parse(agent.tools)
@@ -158,7 +188,12 @@ export async function generateChannelReply(options: ChannelReplyOptions): Promis
   }
 
   // Always include escalation tool for external channels
-  tools.escalate_to_staff = createEscalationTool(db, scheduler, thread.id, thread.channel);
+  tools.escalate_to_staff = createEscalationTool(
+    db,
+    scheduler,
+    thread.id,
+    thread.channel,
+  );
 
   const model = await resolveModel(modelId);
   const result = await generateText({

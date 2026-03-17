@@ -1,6 +1,11 @@
 import type { IntegrationsService } from '@vobase/core';
 
-import type { ConnectorConfig, DocumentContent, DocumentSource, ExternalDocument } from './types';
+import type {
+  ConnectorConfig,
+  DocumentContent,
+  DocumentSource,
+  ExternalDocument,
+} from './types';
 
 export interface SharePointConfig extends ConnectorConfig {
   siteId?: string;
@@ -19,7 +24,8 @@ export function createSharePointConnector(
 ): DocumentSource {
   async function getAccessToken(): Promise<string> {
     const integration = await integrations.getById(integrationId);
-    if (!integration) throw new Error('SharePoint not connected. Please authorize first.');
+    if (!integration)
+      throw new Error('SharePoint not connected. Please authorize first.');
 
     const parsed = integration.config as {
       accessToken: string;
@@ -31,7 +37,9 @@ export function createSharePointConnector(
     if (Date.now() >= parsed.expiresAt) {
       // @azure/msal-node is an optional peer dependency (marked --external in build)
       // @ts-expect-error — @azure/msal-node may not be installed
-      const { ConfidentialClientApplication } = await import('@azure/msal-node');
+      const { ConfidentialClientApplication } = await import(
+        '@azure/msal-node'
+      );
       const cca = new ConfidentialClientApplication({
         auth: {
           clientId: process.env.MICROSOFT_CLIENT_ID!,
@@ -105,7 +113,10 @@ export function createSharePointConnector(
         }
 
         url = data['@odata.nextLink']
-          ? data['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0', '')
+          ? data['@odata.nextLink'].replace(
+              'https://graph.microsoft.com/v1.0',
+              '',
+            )
           : null;
       }
     },
@@ -117,15 +128,23 @@ export function createSharePointConnector(
 
       // Get metadata
       const metaRes = await graphFetch(drivePath);
-      if (!metaRes.ok) throw new Error(`Failed to get document: ${metaRes.status}`);
-      const meta = (await metaRes.json()) as { name: string; file?: { mimeType: string } };
+      if (!metaRes.ok)
+        throw new Error(`Failed to get document: ${metaRes.status}`);
+      const meta = (await metaRes.json()) as {
+        name: string;
+        file?: { mimeType: string };
+      };
 
       // Download content
       const contentRes = await graphFetch(`${drivePath}/content`);
-      if (!contentRes.ok) throw new Error(`Failed to download: ${contentRes.status}`);
+      if (!contentRes.ok)
+        throw new Error(`Failed to download: ${contentRes.status}`);
 
       const text = await contentRes.text();
-      return { text, metadata: { name: meta.name, mimeType: meta.file?.mimeType } };
+      return {
+        text,
+        metadata: { name: meta.name, mimeType: meta.file?.mimeType },
+      };
     },
   };
 }
@@ -155,7 +174,7 @@ export async function exchangeSharePointCode(
   code: string,
   opts?: { createdBy?: string; label?: string },
 ): Promise<string> {
-  // @ts-ignore - @azure/msal-node is an optional peer dependency
+  // @ts-expect-error - @azure/msal-node is an optional peer dependency
   const { ConfidentialClientApplication } = await import('@azure/msal-node');
   const cca = new ConfidentialClientApplication({
     auth: {
@@ -177,15 +196,11 @@ export async function exchangeSharePointCode(
     refreshToken: (result as any).refreshToken ?? '',
     expiresAt: result.expiresOn?.getTime() ?? Date.now() + 3600_000,
   };
-  const integration = await integrations.connect(
-    'sharepoint',
-    tokenData,
-    {
-      authType: 'oauth2',
-      scopes: ['Files.Read.All', 'Sites.Read.All'],
-      createdBy: opts?.createdBy,
-      label: opts?.label ?? `KB source ${sourceId}`,
-    },
-  );
+  const integration = await integrations.connect('sharepoint', tokenData, {
+    authType: 'oauth2',
+    scopes: ['Files.Read.All', 'Sites.Read.All'],
+    createdBy: opts?.createdBy,
+    label: opts?.label ?? `KB source ${sourceId}`,
+  });
   return integration.id;
 }

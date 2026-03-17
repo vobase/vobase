@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
-import { mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 
 // Mock Gemini OCR — don't make real API calls in tests
 mock.module('ai', () => ({
@@ -21,7 +21,9 @@ describe('extractDocument()', () => {
     try {
       const { readdirSync } = require('node:fs');
       for (const f of readdirSync(TMP_DIR)) {
-        try { unlinkSync(join(TMP_DIR, f)); } catch {}
+        try {
+          unlinkSync(join(TMP_DIR, f));
+        } catch {}
       }
     } catch {}
   });
@@ -70,7 +72,10 @@ describe('extractDocument()', () => {
   describe('DOCX extraction', () => {
     it('extracts text from a real DOCX fixture', async () => {
       const docxPath = join(FIXTURES_DIR, 'simple.docx');
-      const result = await extractDocument(docxPath, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      const result = await extractDocument(
+        docxPath,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      );
       expect(result.status).toBe('ok');
       expect(result.text.length).toBeGreaterThan(10);
       expect(result.text).toBeTruthy();
@@ -80,7 +85,10 @@ describe('extractDocument()', () => {
   describe('XLSX extraction', () => {
     it('extracts data from a real XLSX fixture as markdown table', async () => {
       const xlsxPath = join(FIXTURES_DIR, 'stanley-cups.xlsx');
-      const result = await extractDocument(xlsxPath, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      const result = await extractDocument(
+        xlsxPath,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
       expect(result.status).toBe('ok');
       // Should contain markdown table syntax
       expect(result.text).toContain('|');
@@ -93,7 +101,10 @@ describe('extractDocument()', () => {
   describe('PPTX extraction', () => {
     it('extracts text from a real PPTX fixture', async () => {
       const pptxPath = join(FIXTURES_DIR, 'simple.pptx');
-      const result = await extractDocument(pptxPath, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+      const result = await extractDocument(
+        pptxPath,
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      );
       expect(result.status).toBe('ok');
       expect(result.text.length).toBeGreaterThan(5);
     });
@@ -108,7 +119,8 @@ describe('extractDocument()', () => {
     });
 
     it('converts inline HTML to markdown with structure', async () => {
-      const html = '<h1>Title</h1><p>Paragraph</p><ul><li>Item 1</li><li>Item 2</li></ul>';
+      const html =
+        '<h1>Title</h1><p>Paragraph</p><ul><li>Item 1</li><li>Item 2</li></ul>';
       const path = writeTmpFixture('test.html', html);
       const result = await extractDocument(path, 'text/html');
       expect(result.status).toBe('ok');
@@ -117,7 +129,8 @@ describe('extractDocument()', () => {
     });
 
     it('preserves tables via GFM plugin', async () => {
-      const html = '<table><thead><tr><th>Name</th><th>Age</th></tr></thead><tbody><tr><td>Alice</td><td>30</td></tr></tbody></table>';
+      const html =
+        '<table><thead><tr><th>Name</th><th>Age</th></tr></thead><tbody><tr><td>Alice</td><td>30</td></tr></tbody></table>';
       const path = writeTmpFixture('table.html', html);
       const result = await extractDocument(path, 'text/html');
       expect(result.status).toBe('ok');

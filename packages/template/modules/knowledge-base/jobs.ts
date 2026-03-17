@@ -1,8 +1,7 @@
-import { eq } from 'drizzle-orm';
 import { unlinkSync } from 'node:fs';
-
-import { defineJob } from '@vobase/core';
 import type { VobaseDb } from '@vobase/core';
+import { defineJob } from '@vobase/core';
+import { eq } from 'drizzle-orm';
 
 import { kbDocuments } from './schema';
 

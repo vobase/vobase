@@ -1,7 +1,7 @@
 import type { CreateAppConfig } from '@vobase/core';
 
 const config: Omit<CreateAppConfig, 'modules'> = {
-  database: './data/vobase.db',
+  database: process.env.DATABASE_URL || './data/pgdata',
   storage: {
     provider: { type: 'local', basePath: './data/files' },
     buckets: {

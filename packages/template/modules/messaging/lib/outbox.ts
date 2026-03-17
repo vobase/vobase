@@ -1,12 +1,11 @@
-import type { VobaseDb } from '@vobase/core';
-import type { Scheduler } from '@vobase/core';
+import type { Scheduler, VobaseDb } from '@vobase/core';
 
 import { msgMessages } from '../schema';
 
 /**
  * Queue an outbound message for delivery via channel.
  * 1. Insert msg_messages with status='queued', direction='outbound', senderType='agent'
- * 2. Queue bunqueue job for actual send
+ * 2. Queue pg-boss job for actual send
  */
 export async function queueOutboundMessage(
   db: VobaseDb,

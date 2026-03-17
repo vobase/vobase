@@ -1,6 +1,5 @@
+import type { Scheduler, VobaseDb } from '@vobase/core';
 import { tool } from 'ai';
-import type { VobaseDb } from '@vobase/core';
-import type { Scheduler } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
