@@ -1,6 +1,6 @@
 # Vobase Monorepo
 
-Full-stack TypeScript framework for AI coding agents. Bun + Hono + Drizzle + SQLite.
+Full-stack TypeScript framework for AI coding agents. Bun + Hono + Drizzle + PostgreSQL.
 
 ## Packages
 
@@ -44,7 +44,7 @@ Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, St
 - Init hook = `init(ctx: ModuleInitContext)` at boot with all services
 - Routes mount under `/api/{module}`. MCP on `/mcp`.
 - Auth = better-auth sessions + `requireRole()` / `requirePermission()` / `requireOrg()` middlewares
-- Data = Drizzle + SQLite, integer money, explicit status transitions, auditable mutations
+- Data = Drizzle + PostgreSQL, integer money, explicit status transitions, auditable mutations
 
 ## Template Development
 
