@@ -1,0 +1,11 @@
+node_modules
+.git
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data
+.env
+.env.*
+.turbo
+.changeset
