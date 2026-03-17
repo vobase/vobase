@@ -50,6 +50,7 @@
     "@electric-sql/pglite": "^0.3.0",
     "drizzle-orm": "1.0.0-beta.18-7eb39f0",
     "pg-boss": "^10.1.7",
+    "postgres": "^3.4.7",
     "hono": "^4.12.8",
     "lucide-react": "^0.577.0",
     "mammoth": "^1.12.0",

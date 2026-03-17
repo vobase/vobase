@@ -29,6 +29,6 @@ export async function queueOutboundMessage(
   await scheduler.add(
     'messaging:send',
     { messageId: message.id, channel },
-    { retry: 3 },
+    { retryLimit: 3 },
   );
 }

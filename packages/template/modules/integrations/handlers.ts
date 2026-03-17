@@ -189,7 +189,7 @@ export const integrationsRoutes = new Hono()
         integrationId: integration.id,
       },
       {
-        retries: 5,
+        retryLimit: 5,
       },
     );
 

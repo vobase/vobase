@@ -35,9 +35,9 @@ export function createSharePointConnector(
 
     // Refresh if expired
     if (Date.now() >= parsed.expiresAt) {
-      // @azure/msal-node is an optional peer dependency (marked --external in build)
-      // @ts-expect-error — @azure/msal-node may not be installed
+      // @azure/msal-node is an optional peer dependency
       const { ConfidentialClientApplication } = await import(
+        // @ts-expect-error — @azure/msal-node may not be installed
         '@azure/msal-node'
       );
       const cca = new ConfidentialClientApplication({

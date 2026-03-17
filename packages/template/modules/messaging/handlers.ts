@@ -69,7 +69,7 @@ messagingRoutes.post('/agents', async (c) => {
       kbSourceIds: body.kbSourceIds ? JSON.stringify(body.kbSourceIds) : null,
       model: body.model,
       channels: body.channels ? JSON.stringify(body.channels) : null,
-      userId: ctx.user?.id,
+      userId: ctx.user!.id,
       isPublished: body.isPublished ?? false,
     })
     .returning();
@@ -81,7 +81,7 @@ messagingRoutes.get('/agents', async (c) => {
   const agents = await ctx.db
     .select()
     .from(msgAgents)
-    .where(eq(msgAgents.userId, ctx.user?.id))
+    .where(eq(msgAgents.userId, ctx.user!.id))
     .orderBy(desc(msgAgents.createdAt));
   return c.json(agents);
 });
@@ -118,7 +118,7 @@ messagingRoutes.put('/agents/:id', async (c) => {
     .where(
       and(
         eq(msgAgents.id, c.req.param('id')),
-        eq(msgAgents.userId, ctx.user?.id),
+        eq(msgAgents.userId, ctx.user!.id),
       ),
     )
     .returning();
@@ -133,7 +133,7 @@ messagingRoutes.delete('/agents/:id', async (c) => {
     .where(
       and(
         eq(msgAgents.id, c.req.param('id')),
-        eq(msgAgents.userId, ctx.user?.id),
+        eq(msgAgents.userId, ctx.user!.id),
       ),
     );
   return c.json({ success: true });
@@ -148,7 +148,7 @@ messagingRoutes.post('/threads', async (c) => {
     .values({
       title: body.title,
       agentId: body.agentId,
-      userId: ctx.user?.id,
+      userId: ctx.user!.id,
     })
     .returning();
   return c.json(thread, 201);
@@ -162,10 +162,10 @@ messagingRoutes.get('/threads', async (c) => {
   const conditions =
     channelFilter && channelFilter !== 'all'
       ? and(
-          eq(msgThreads.userId, ctx.user?.id),
+          eq(msgThreads.userId, ctx.user!.id),
           eq(msgThreads.channel, channelFilter),
         )
-      : eq(msgThreads.userId, ctx.user?.id);
+      : eq(msgThreads.userId, ctx.user!.id);
 
   const threads = await ctx.db
     .select()
@@ -184,7 +184,7 @@ messagingRoutes.get('/threads/:id', async (c) => {
       .where(
         and(
           eq(msgThreads.id, c.req.param('id')),
-          eq(msgThreads.userId, ctx.user?.id),
+          eq(msgThreads.userId, ctx.user!.id),
         ),
       )
   )[0];
@@ -205,7 +205,7 @@ messagingRoutes.delete('/threads/:id', async (c) => {
     await ctx.db
       .select()
       .from(msgThreads)
-      .where(and(eq(msgThreads.id, id), eq(msgThreads.userId, ctx.user?.id)))
+      .where(and(eq(msgThreads.id, id), eq(msgThreads.userId, ctx.user!.id)))
   )[0];
   if (!thread) throw notFound('Thread not found');
   await ctx.db.delete(msgMessages).where(eq(msgMessages.threadId, id));

@@ -47,8 +47,8 @@ export async function handleInboundMessage(
   const contact = await findOrCreateContact(db, event.from, event.profileName);
 
   // 2. Find default agent for this channel
-  const agents = await db.select().from(msgAgents).all();
-  const channelAgent = agents.find((a) => {
+  const agents = await db.select().from(msgAgents);
+  const channelAgent = agents.find((a: (typeof agents)[number]) => {
     const channels: string[] = a.channels ? JSON.parse(a.channels) : [];
     return channels.includes(event.channel);
   });
@@ -141,7 +141,7 @@ export async function handleInboundMessage(
     await scheduler.add(
       'messaging:channel-reply',
       { threadId: thread.id, triggeredAt: Date.now() },
-      { delay: '3s' },
+      { startAfter: 3 },
     );
   }
 }
