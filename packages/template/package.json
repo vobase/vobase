@@ -16,6 +16,8 @@
     "db:seed": "bun run scripts/db-seed.ts",
     "db:reset": "bun run scripts/db-reset.ts",
     "generate": "bun run scripts/generate.ts",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "build": "bun run generate && tsc --noEmit"
   },
   "dependencies": {
@@ -77,9 +79,6 @@
   },
   "patchedDependencies": {
     "drizzle-kit@1.0.0-beta.18-7eb39f0": "patches/drizzle-kit@1.0.0-beta.18-7eb39f0.patch"
-  },
-  "resolutions": {
-    "better-sqlite3": "file:stubs/better-sqlite3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.7",

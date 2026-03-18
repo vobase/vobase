@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["../../biome.json"],
+  "files": {
+    "includes": [
+      "**",
+      "!dist",
+      "!**/*.gen.ts",
+      "!**/*.generated.ts",
+      "!src/components/ai-elements",
+      "!src/components/data-table",
+      "!src/components/ui",
+      "!src/lib/store",
+      "!src/lib/table-schema",
+      "!src/lib/compose-refs.ts"
+    ]
+  }
+}

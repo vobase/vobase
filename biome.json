@@ -8,17 +8,10 @@
   "files": {
     "includes": [
       "packages/core/**",
-      "packages/template/**",
       "packages/create-vobase/**",
       "!**/dist",
       "!**/*.gen.ts",
-      "!**/*.generated.ts",
-      "!**/src/components/ai-elements",
-      "!**/src/components/data-table",
-      "!**/src/components/ui",
-      "!**/src/lib/store",
-      "!**/src/lib/table-schema",
-      "!**/src/lib/compose-refs.ts"
+      "!**/*.generated.ts"
     ]
   },
   "linter": {
