@@ -1,7 +1,14 @@
 #!/usr/bin/env bun
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, relative, resolve } from 'node:path';
 import { $ } from 'bun';
 import { downloadTemplate } from 'giget';
 
@@ -43,6 +50,24 @@ await downloadTemplate('github:vobase/vobase/packages/template', {
   force: isCurrent,
 });
 console.log(`${green('✓')} Downloaded template`);
+
+// --- Download agent skills ---
+const agentsDir = resolve(dest, '.agents', 'skills');
+const claudeSkillsDir = resolve(dest, '.claude', 'skills');
+await downloadTemplate('github:vobase/vobase/.agents/skills', {
+  dir: agentsDir,
+  force: true,
+});
+mkdirSync(claudeSkillsDir, { recursive: true });
+for (const skill of readdirSync(agentsDir)) {
+  if (skill.startsWith('.')) continue;
+  const target = relative(claudeSkillsDir, resolve(agentsDir, skill));
+  const link = resolve(claudeSkillsDir, skill);
+  if (!existsSync(link)) {
+    symlinkSync(target, link);
+  }
+}
+console.log(`${green('✓')} Downloaded agent skills`);
 
 // --- Post-process package.json ---
 const pkgPath = resolve(dest, 'package.json');
