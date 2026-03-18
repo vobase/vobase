@@ -36,5 +36,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
-# Run migrations then start server
-CMD bun run db:migrate && bun run server.ts
+CMD ["bun", "run", "server.ts"]
