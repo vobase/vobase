@@ -66,11 +66,33 @@ export function createChannelsModule(
       );
     }
 
-    // Verify webhook signature
-    const isValid = await adapter.verifyWebhook(c.req.raw);
+    // Verify webhook signature.
+    // Platform-proxied webhooks include X-Platform-Signature but NOT the provider's
+    // own signature header (e.g., X-Hub-Signature-256 for WhatsApp). We use the
+    // absence of the provider signature to determine if this is a platform-proxied
+    // request — this prevents an attacker who compromised the platform secret from
+    // bypassing provider-specific verification on direct webhooks.
+    const platformSig = c.req.header('x-platform-signature');
+    const providerSig = c.req.header('x-hub-signature-256') // WhatsApp/Meta
+      || c.req.header('stripe-signature'); // Stripe (extensible)
+    let isValid = false;
+    let viaPlatform = false;
+
+    if (platformSig && !providerSig && process.env.PLATFORM_HMAC_SECRET) {
+      // Platform-proxied webhook: no provider signature present, verify platform HMAC
+      const { verifyPlatformSignature } = await import('../../infra/platform');
+      const rawBody = await c.req.raw.clone().text();
+      isValid = verifyPlatformSignature(rawBody, platformSig);
+      viaPlatform = true;
+    } else {
+      // Direct webhook from provider (or has provider sig): verify with adapter
+      isValid = await adapter.verifyWebhook(c.req.raw);
+    }
+
     if (!isValid) {
       logger.warn('Webhook signature verification failed', {
         channel: channelName,
+        viaPlatform,
       });
       return c.json({ error: 'Invalid signature' }, 401);
     }
