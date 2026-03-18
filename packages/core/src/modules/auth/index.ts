@@ -1,9 +1,11 @@
+import crypto from 'node:crypto';
 import type { ApiKey } from '@better-auth/api-key';
 import { apiKey } from '@better-auth/api-key';
 import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import type { AuthAdapter, AuthSession } from '../../contracts/auth';
@@ -12,7 +14,13 @@ import type { VobaseModule } from '../../module';
 import { defineBuiltinModule } from '../../module';
 import { createAuthAuditHooks } from './audit-hooks';
 import { setOrganizationEnabled } from './permissions';
-import { apikeySchema, authSchema, organizationSchema } from './schema';
+import {
+  apikeySchema,
+  authSchema,
+  authSession,
+  authUser,
+  organizationSchema,
+} from './schema';
 
 export interface AuthModuleConfig {
   baseURL?: string;
@@ -77,12 +85,73 @@ export function createAuthModule(
     ...(config?.trustedOrigins && { trustedOrigins: config.trustedOrigins }),
   });
 
+  // Extend the auth.api type to include admin methods added by plugins at runtime
+  type AuthApiExtended = typeof auth.api & {
+    createUser: (opts: {
+      body: { email: string; name: string; password: string; role?: string };
+    }) => Promise<{ user: { id: string } } | null>;
+    listUsers?: (opts: {
+      query: { searchValue: string; searchField: string; limit: number };
+    }) => Promise<{ users: { id: string; email: string }[] }>;
+  };
+
   const adapter: AuthAdapter = {
     // better-auth's getSession return type doesn't include additionalFields (role) in its
     // static types, but the value is present at runtime. Cast to AuthSession which includes role.
     getSession: (headers) =>
       auth.api.getSession({ headers }) as Promise<AuthSession | null>,
     handler: (request) => auth.handler(request),
+
+    async createPlatformSession(profile) {
+      const api = auth.api as AuthApiExtended;
+
+      // Find existing user by email via DB query
+      const existingRows = await db
+        .select({ id: authUser.id })
+        .from(authUser)
+        .where(eq(authUser.email, profile.email))
+        .limit(1);
+
+      let userId: string;
+
+      if (existingRows.length > 0) {
+        userId = existingRows[0].id;
+      } else {
+        // Create new user — use a strong random password (user authenticates via platform, never via password)
+        const randomPassword = `platform-${crypto.randomUUID()}-${crypto.randomUUID()}`;
+        try {
+          const result = await api.createUser({
+            body: {
+              email: profile.email,
+              name: profile.name,
+              password: randomPassword,
+              role: 'user',
+            },
+          });
+          if (!result?.user?.id) return null;
+          userId = result.user.id;
+        } catch {
+          return null;
+        }
+      }
+
+      // Create session directly via DB — better-auth's internalAdapter.createSession
+      // is not accessible outside plugins, so we create the session record directly.
+      const sessionToken = crypto.randomUUID();
+      const sessionId = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      await db.insert(authSession).values({
+        id: sessionId,
+        userId,
+        token: sessionToken,
+        expiresAt,
+        ipAddress: null,
+        userAgent: null,
+      });
+
+      return { token: sessionToken, sessionId, userId };
+    },
   };
 
   // The apiKey() plugin adds verifyApiKey to auth.api at runtime, but the dynamic plugin
