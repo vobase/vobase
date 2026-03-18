@@ -7,6 +7,11 @@ import { createHttpClient, type HttpClientOptions } from './infra/http-client';
 import { createWorker } from './infra/job';
 import { createScheduler } from './infra/queue';
 import { createThrowProxy } from './infra/throw-proxy';
+import {
+  createPlatformRoutes,
+  createPlatformIntegrationsRoutes,
+  isPlatformEnabled,
+} from './infra/platform';
 import { createWebhookRoutes, type WebhookConfig } from './infra/webhooks';
 import { createMcpHandler } from './mcp/server';
 import type { VobaseModule } from './module';
@@ -212,6 +217,20 @@ export async function createApp(config: CreateAppConfig) {
   for (const mod of userModules) {
     mod.init?.(initCtx);
     (app as Hono).route(`/api/${mod.name}`, mod.routes);
+  }
+
+  // === Platform Integration (opt-in via PLATFORM_HMAC_SECRET) ===
+  if (isPlatformEnabled()) {
+    const platformConfig = {
+      db,
+      authAdapter: authMod.adapter,
+      integrationsService,
+    };
+    (app as Hono).route('/api/auth', createPlatformRoutes(platformConfig));
+    (app as Hono).route(
+      '/api/integrations',
+      createPlatformIntegrationsRoutes(platformConfig),
+    );
   }
 
   // === Webhooks ===

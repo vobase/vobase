@@ -77,6 +77,11 @@ export {
 } from './infra/queue';
 // Throw Proxy
 export { createThrowProxy } from './infra/throw-proxy';
+// Platform Integration
+export {
+  isPlatformEnabled,
+  verifyPlatformSignature,
+} from './infra/platform';
 // Webhooks
 export {
   createWebhookRoutes,
@@ -150,6 +155,13 @@ export type {
   Integration,
   IntegrationsService,
 } from './modules/integrations/service';
+export {
+  getProviderRefreshFn,
+  getRefreshMode,
+  registerProviderRefresh,
+  type ProviderRefreshFn,
+  type RefreshResult,
+} from './modules/integrations/refresh';
 // Built-in Modules: Sequences
 export { createSequencesModule, sequences } from './modules/sequences';
 export {
