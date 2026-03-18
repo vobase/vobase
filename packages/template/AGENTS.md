@@ -92,7 +92,15 @@ Auth schemas: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrgan
 
 ## Commands
 
-`bun run dev` (backend :3000 + frontend :5173) | `bun run db:push` | `bun run db:generate` | `bun run db:migrate` | `bun run db:studio` | `bun run db:current` | `bun run db:seed` | `bun run db:reset` | `bun test`
+`bun run dev` — backend :3000 + frontend :5173
+`bun run db:push` — apply fixtures then `drizzle-kit push` (dev workflow)
+`bun run db:generate` — `drizzle-kit generate` migration, prepend fixtures, reset `current.sql`
+`bun run db:migrate` — `drizzle-kit migrate` (apply migrations)
+`bun run db:nuke` — delete `data/pgdata` (local PGlite data)
+`bun run db:reset` — nuke + push + seed (full local reset)
+`bun run db:studio` — open Drizzle Studio
+`bun run db:seed` — seed data
+`bun test` — run tests
 
 ## Deploy
 

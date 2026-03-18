@@ -21,21 +21,16 @@ function run(cmd: string[]) {
 
 console.log(dim('Resetting database...'));
 
-// 1. Delete and re-create data directory
-await $`rm -rf ./data && mkdir -p ./data`;
+// 1. Nuke data
+await $`rm -rf ./data/pgdata && mkdir -p ./data`;
 console.log(`${green('✓')} Cleaned data/`);
 
-// 2. Apply fixtures (nanoid function, extensions) — must run before db:push
-console.log(dim('Applying fixtures...'));
-run(['bun', 'run', 'db:current']);
-console.log(`${green('✓')} Fixtures applied`);
-
-// 3. Push schema
-console.log(dim('Pushing schema...'));
+// 2. Apply fixtures + push schema (merged in db:push)
+console.log(dim('Pushing...'));
 run(['bun', 'run', 'db:push']);
 console.log(`${green('✓')} Schema pushed`);
 
-// 4. Seed
+// 3. Seed
 console.log(dim('Seeding...'));
 run(['bun', 'run', 'db:seed']);
 console.log(`${green('✓')} Seed complete`);
