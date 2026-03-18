@@ -5,6 +5,7 @@
     "includes": [
       "**",
       "!dist",
+      "!.omc",
       "!**/*.gen.ts",
       "!**/*.generated.ts",
       "!src/components/ai-elements",

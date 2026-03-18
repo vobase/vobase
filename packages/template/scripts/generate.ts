@@ -18,9 +18,7 @@ async function listModuleDirs(modulesDir: string): Promise<string[]> {
     cwd: modulesDir,
     onlyFiles: false,
   });
-  return [...entries]
-    .filter((name) => MODULE_NAME_PATTERN.test(name))
-    .sort();
+  return [...entries].filter((name) => MODULE_NAME_PATTERN.test(name)).sort();
 }
 
 async function findModulesWithPages(projectRoot: string): Promise<string[]> {

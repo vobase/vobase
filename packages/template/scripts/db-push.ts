@@ -51,9 +51,7 @@ if (isPostgresUrl) {
   const db = new PGlite(dbPath, { extensions: { pgcrypto, vector } });
   await db.exec(currentSql);
   const check = await db.query('SELECT nanoid(12) as id');
-  console.log(
-    dim(`Verified nanoid: ${(check.rows[0] as { id: string }).id}`),
-  );
+  console.log(dim(`Verified nanoid: ${(check.rows[0] as { id: string }).id}`));
   await db.close();
 }
 console.log(`${green('✓')} Fixtures applied`);
