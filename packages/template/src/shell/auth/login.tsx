@@ -30,6 +30,14 @@ export function LoginPage() {
     setIsSubmitting(true);
     setMessage(null);
 
+    const platformUrl = import.meta.env.VITE_PLATFORM_URL;
+    if (platformUrl) {
+      // Platform mode: redirect to platform OAuth proxy
+      const slug = window.location.hostname.split('.')[0];
+      window.location.href = `${platformUrl}/api/oauth-proxy/oauth/google/initiate?tenant=${slug}`;
+      return;
+    }
+
     const result = await authClient.signIn.social({
       provider: 'google',
       callbackURL: `${window.location.origin}/`,
