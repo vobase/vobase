@@ -2,7 +2,6 @@ import { and, eq, lt, isNotNull } from 'drizzle-orm';
 
 import type { VobaseDb } from '../../db/client';
 import { logger } from '../../infra/logger';
-import { encrypt } from './encrypt';
 import { integrationsTable } from './schema';
 import type { IntegrationsService } from './service';
 import {
@@ -102,8 +101,8 @@ export async function refreshExpiringTokens(
         refreshed++;
       } else {
         // Platform refresh: delegate to platform token vault
-        const platformUrl = process.env.PLATFORM_URL!;
-        const platformSecret = process.env.PLATFORM_HMAC_SECRET!;
+        const platformUrl = process.env.PLATFORM_URL ?? '';
+        const platformSecret = process.env.PLATFORM_HMAC_SECRET ?? '';
 
         const result = await refreshViaPlat(
           integration.provider,

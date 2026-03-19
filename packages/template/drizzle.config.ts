@@ -27,6 +27,6 @@ export default defineConfig({
             pgcrypto: (await import('@electric-sql/pglite/contrib/pgcrypto'))
               .pgcrypto,
           },
-        } as any,
+        } as Record<string, unknown>,
       }),
 });

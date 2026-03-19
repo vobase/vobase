@@ -8,7 +8,7 @@ export async function processSqlFile(filePath: string): Promise<string> {
   const fileDir = dirname(filePath);
 
   const parts = fileContent.split(INCLUDE_REGEX);
-  const resultParts: string[] = [parts[0]!];
+  const resultParts: string[] = [parts[0] ?? ''];
 
   for (let i = 1; i < parts.length; i += 2) {
     const includePath = parts[i]?.trim();
@@ -24,7 +24,7 @@ export async function processSqlFile(filePath: string): Promise<string> {
     resultParts.push(includedContents.join('\n\n'));
 
     if (parts[i + 1]) {
-      resultParts.push(parts[i + 1]!);
+      resultParts.push(parts[i + 1] ?? '');
     }
   }
 

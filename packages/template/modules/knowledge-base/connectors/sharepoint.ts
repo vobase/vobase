@@ -36,11 +36,16 @@ export function createSharePointConnector(
     // Refresh if expired
     if (Date.now() >= parsed.expiresAt) {
       // @azure/msal-node is an optional peer dependency
+      // biome-ignore lint/suspicious/noTsIgnore: module may or may not be installed
       // @ts-ignore — @azure/msal-node is an optional peer dependency
-      const { ConfidentialClientApplication } = await import('@azure/msal-node');
+      const { ConfidentialClientApplication } = await import(
+        '@azure/msal-node'
+      );
       const cca = new ConfidentialClientApplication({
         auth: {
+          // biome-ignore lint/style/noNonNullAssertion: required env vars
           clientId: process.env.MICROSOFT_CLIENT_ID!,
+          // biome-ignore lint/style/noNonNullAssertion: required env vars
           clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
           authority: `https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}`,
         },
@@ -151,7 +156,9 @@ export function createSharePointConnector(
  * Generate the OAuth2 authorization URL for SharePoint.
  */
 export function getSharePointAuthUrl(sourceId: string): string {
+  // biome-ignore lint/style/noNonNullAssertion: required env vars
   const clientId = process.env.MICROSOFT_CLIENT_ID!;
+  // biome-ignore lint/style/noNonNullAssertion: required env vars
   const tenantId = process.env.MICROSOFT_TENANT_ID!;
   const redirectUri = `${process.env.BETTER_AUTH_URL}/api/knowledge-base/oauth/microsoft/callback`;
   const scope = 'Files.Read.All Sites.Read.All offline_access';
@@ -172,11 +179,14 @@ export async function exchangeSharePointCode(
   code: string,
   opts?: { createdBy?: string; label?: string },
 ): Promise<string> {
+  // biome-ignore lint/suspicious/noTsIgnore: module may or may not be installed
   // @ts-ignore — @azure/msal-node is an optional peer dependency
   const { ConfidentialClientApplication } = await import('@azure/msal-node');
   const cca = new ConfidentialClientApplication({
     auth: {
+      // biome-ignore lint/style/noNonNullAssertion: required env vars
       clientId: process.env.MICROSOFT_CLIENT_ID!,
+      // biome-ignore lint/style/noNonNullAssertion: required env vars
       clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
       authority: `https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}`,
     },
@@ -190,7 +200,7 @@ export async function exchangeSharePointCode(
 
   const tokenData = {
     accessToken: result.accessToken,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: MSAL types don't expose refreshToken
     refreshToken: (result as any).refreshToken ?? '',
     expiresAt: result.expiresOn?.getTime() ?? Date.now() + 3600_000,
   };

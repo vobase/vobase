@@ -224,7 +224,7 @@ describe('WhatsApp Adapter', () => {
         text: { body: 'Hello' },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('message_received');
       const msg = events[0] as MessageReceivedEvent;
@@ -251,7 +251,7 @@ describe('WhatsApp Adapter', () => {
         image: { id: 'media_123', mime_type: 'image/jpeg', caption: 'A photo' },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('image');
@@ -278,7 +278,7 @@ describe('WhatsApp Adapter', () => {
         },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect((events[0] as MessageReceivedEvent).messageType).toBe('document');
     });
@@ -299,7 +299,7 @@ describe('WhatsApp Adapter', () => {
         audio: { id: 'media_789', mime_type: 'audio/ogg; codecs=opus' },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect((events[0] as MessageReceivedEvent).messageType).toBe('audio');
     });
@@ -320,7 +320,7 @@ describe('WhatsApp Adapter', () => {
         video: { id: 'media_101', mime_type: 'video/mp4' },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect((events[0] as MessageReceivedEvent).messageType).toBe('video');
     });
@@ -337,7 +337,7 @@ describe('WhatsApp Adapter', () => {
         },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('unsupported');
@@ -367,7 +367,7 @@ describe('WhatsApp Adapter', () => {
         ],
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('unsupported');
@@ -391,7 +391,7 @@ describe('WhatsApp Adapter', () => {
         sticker: { id: 'media_sticker', mime_type: 'image/webp' },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('image');
@@ -405,7 +405,7 @@ describe('WhatsApp Adapter', () => {
         reaction: { message_id: 'wamid.ORIGINAL', emoji: '\u{1F44D}' },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('reaction');
       const r = events[0] as ReactionEvent;
@@ -420,7 +420,7 @@ describe('WhatsApp Adapter', () => {
         reaction: { message_id: 'wamid.ORIGINAL', emoji: '' },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('reaction');
       expect((events[0] as ReactionEvent).emoji).toBe('');
@@ -436,7 +436,7 @@ describe('WhatsApp Adapter', () => {
         },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('button_reply');
@@ -458,7 +458,7 @@ describe('WhatsApp Adapter', () => {
         },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('list_reply');
@@ -473,7 +473,7 @@ describe('WhatsApp Adapter', () => {
         button: { text: 'Yes, confirm', payload: 'CONFIRM_ORDER_123' },
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const msg = events[0] as MessageReceivedEvent;
       expect(msg.messageType).toBe('button_reply');
@@ -485,7 +485,7 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = makeMessagePayload({ type: 'order' });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect((events[0] as MessageReceivedEvent).messageType).toBe(
         'unsupported',
@@ -505,7 +505,7 @@ describe('WhatsApp Adapter', () => {
         ],
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('status_update');
       expect((events[0] as StatusUpdateEvent).status).toBe('sent');
@@ -524,7 +524,7 @@ describe('WhatsApp Adapter', () => {
         ],
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect((events[0] as StatusUpdateEvent).status).toBe('delivered');
     });
@@ -542,7 +542,7 @@ describe('WhatsApp Adapter', () => {
         ],
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect((events[0] as StatusUpdateEvent).status).toBe('read');
     });
@@ -561,7 +561,7 @@ describe('WhatsApp Adapter', () => {
         ],
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const evt = events[0] as StatusUpdateEvent;
       expect(evt.status).toBe('failed');
@@ -584,7 +584,7 @@ describe('WhatsApp Adapter', () => {
         ],
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const evt = events[0] as StatusUpdateEvent;
       // 'deleted' is mapped to 'failed' since our contract only has sent/delivered/read/failed
@@ -596,7 +596,7 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = { object: 'whatsapp_business_account', entry: [] };
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(0);
     });
 
@@ -604,7 +604,7 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = wrapPayload({});
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(0);
     });
 
@@ -615,7 +615,7 @@ describe('WhatsApp Adapter', () => {
         headers: { 'Content-Type': 'application/json' },
         body: 'not valid json {{{',
       });
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(0);
     });
 
@@ -642,7 +642,7 @@ describe('WhatsApp Adapter', () => {
         ],
       });
       const req = makeSignedWebhookRequest(payload);
-      const events = await adapter.parseWebhook!(req);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(0);
     });
   });
@@ -808,9 +808,9 @@ describe('WhatsApp Adapter', () => {
 
     it('includes replyToMessageId in context', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: any;
-      globalThis.fetch = (async (_url: any, opts: any) => {
-        capturedBody = JSON.parse(opts.body);
+      let capturedBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
         return new Response(
           JSON.stringify({
             messaging_product: 'whatsapp',
@@ -825,7 +825,7 @@ describe('WhatsApp Adapter', () => {
         text: 'Reply text',
         metadata: { replyToMessageId: 'wamid.ORIGINAL' },
       });
-      expect(capturedBody.context).toEqual({ message_id: 'wamid.ORIGINAL' });
+      expect((capturedBody as Record<string, unknown>).context).toEqual({ message_id: 'wamid.ORIGINAL' });
     });
   });
 
@@ -988,9 +988,9 @@ describe('WhatsApp Adapter', () => {
   describe('markAsRead', () => {
     it('sends read status to Graph API', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: any;
-      globalThis.fetch = (async (_url: any, opts: any) => {
-        capturedBody = JSON.parse(opts.body);
+      let capturedBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },

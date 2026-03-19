@@ -11,7 +11,7 @@ export function SourceCitation({ sources }: SourceCitationProps) {
 
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
-      {sources.map((source, index) => (
+      {sources.map((source, _index) => (
         <span
           key={source.documentTitle}
           className={cn(

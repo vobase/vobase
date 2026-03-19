@@ -10,7 +10,7 @@
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
-        "command": "biome check --write --unsafe \"$CLAUDE_FILE_PATH\" 2>/dev/null || true",
+        "command": "biome check --write \"$CLAUDE_FILE_PATH\" 2>/dev/null || true",
         "hooks": []
       }
     ]

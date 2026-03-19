@@ -277,7 +277,7 @@ function MessagingPage() {
   });
   const { data: activeThread } = useQuery({
     queryKey: ['messaging-thread', activeThreadId],
-    queryFn: () => fetchThread(activeThreadId!),
+    queryFn: () => fetchThread(activeThreadId ?? ''),
     enabled: !!activeThreadId,
   });
 

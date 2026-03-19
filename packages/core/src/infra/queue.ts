@@ -43,7 +43,7 @@ export async function getOrCreatePglite(path: string): Promise<PGlite> {
       new PGlite(path, { extensions: { vector, pgcrypto } }),
     );
   }
-  return pgliteCache.get(path)!;
+  return pgliteCache.get(path) as PGlite;
 }
 
 export function buildPgliteAdapter(pglite: PGlite) {

@@ -84,7 +84,7 @@ export function registerCrudTools(
       );
       if (!pkEntry) continue;
       const [pkKey] = pkEntry;
-      const pkCol = columns[pkKey]!;
+      const pkCol = columns[pkKey] as (typeof columns)[string];
       const pkZod =
         (pkCol as unknown as ColumnMeta).dataType === 'number'
           ? z.number()

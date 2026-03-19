@@ -58,8 +58,9 @@ export function SearchBar({
     let phase: 'typing' | 'pause' | 'erasing' = 'typing';
 
     function nextExample() {
-      if (queueRef.current.length === 0) queueRef.current = shuffle(examples!);
-      return queueRef.current.pop()!;
+      if (queueRef.current.length === 0)
+        queueRef.current = shuffle(examples ?? []);
+      return queueRef.current.pop() ?? '';
     }
 
     let target = nextExample();

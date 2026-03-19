@@ -68,7 +68,7 @@ export function createGoogleDriveConnector(
 
         for (const file of res.data.files ?? []) {
           yield {
-            externalId: file.id!,
+            externalId: file.id ?? '',
             title: file.name ?? 'Untitled',
             mimeType: file.mimeType ?? 'application/octet-stream',
             sourceUrl: file.webViewLink ?? undefined,

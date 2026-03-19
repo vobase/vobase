@@ -14,8 +14,8 @@ declare module '@tanstack/react-table' {
   }
 
   interface FilterFns {
-    inDateRange?: FilterFn<any>;
-    arrSome?: FilterFn<any>;
+    inDateRange?: FilterFn<unknown>;
+    arrSome?: FilterFn<unknown>;
   }
 
   // https://github.com/TanStack/table/discussions/4554

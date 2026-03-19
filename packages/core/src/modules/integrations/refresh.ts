@@ -1,6 +1,5 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, } from 'node:crypto';
 
-import { logger } from '../../infra/logger';
 
 /**
  * Token refresh result from a provider.

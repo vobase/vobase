@@ -237,10 +237,19 @@ export function createWhatsAppAdapter(
 
   // ─── graphFetch closure ───────────────────────────────────────
 
+  type GraphApiResponse = {
+    messages?: Array<{ id: string }>;
+    url?: string;
+    mime_type?: string;
+    wabaId?: string;
+    data?: unknown[];
+    [key: string]: unknown;
+  };
+
   async function graphFetch(
     path: string,
     options: RequestInit = {},
-  ): Promise<any> {
+  ): Promise<GraphApiResponse> {
     const url = graphUrl(apiVersion, path);
     const authHeaders = { Authorization: `Bearer ${accessToken}` };
 
@@ -264,7 +273,7 @@ export function createWhatsAppAdapter(
           });
           await parseGraphError(synthetic);
         }
-        return res.data;
+        return res.data as GraphApiResponse;
       } else {
         const res = await httpClient.get(url, { headers });
         if (!res.ok) {
@@ -273,7 +282,7 @@ export function createWhatsAppAdapter(
           });
           await parseGraphError(synthetic);
         }
-        return res.data;
+        return res.data as GraphApiResponse;
       }
     }
 
@@ -289,7 +298,7 @@ export function createWhatsAppAdapter(
     if (!res.ok) {
       await parseGraphError(res);
     }
-    return res.json();
+    return res.json() as Promise<GraphApiResponse>;
   }
 
   // ─── downloadMedia closure ────────────────────────────────────
@@ -683,7 +692,7 @@ export function createWhatsAppAdapter(
   }
 
   async function sendText(message: OutboundMessage): Promise<SendResult> {
-    const chunks = chunkText(message.text!);
+    const chunks = chunkText(message.text ?? '');
     let lastMessageId: string | undefined;
 
     for (const chunk of chunks) {
@@ -711,7 +720,7 @@ export function createWhatsAppAdapter(
   }
 
   async function sendTemplate(message: OutboundMessage): Promise<SendResult> {
-    const tmpl = message.template!;
+    const tmpl = message.template ?? { name: '', language: 'en' };
     const components = tmpl.parameters?.length
       ? [
           {
@@ -871,23 +880,17 @@ export function createWhatsAppAdapter(
 
     const data = await graphFetch(`/${wabaId}/message_templates?limit=100`);
 
-    return (data.data ?? []).map(
-      (t: {
-        id: string;
-        name: string;
-        language: string;
-        category: string;
-        status: string;
-        components: unknown[];
-      }) => ({
-        id: t.id,
-        name: t.name,
-        language: t.language,
-        category: t.category,
-        status: t.status,
-        components: t.components,
-      }),
-    );
+    return (data.data ?? []).map((t) => {
+      const tmpl = t as WhatsAppTemplate;
+      return {
+        id: tmpl.id,
+        name: tmpl.name,
+        language: tmpl.language,
+        category: tmpl.category,
+        status: tmpl.status,
+        components: tmpl.components,
+      };
+    });
   }
 
   // ─── Error mapping ─────────────────────────────────────────────

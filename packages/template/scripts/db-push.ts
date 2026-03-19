@@ -35,7 +35,7 @@ const isPostgresUrl =
 
 if (isPostgresUrl) {
   const { default: postgres } = await import('postgres');
-  const sql = postgres(databaseUrl!);
+  const sql = postgres(databaseUrl as string);
   try {
     await sql.unsafe(currentSql);
   } finally {
