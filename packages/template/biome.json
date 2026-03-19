@@ -15,5 +15,17 @@
       "!src/lib/table-schema",
       "!src/lib/compose-refs.ts"
     ]
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["modules/knowledge-base/connectors/sharepoint.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTsIgnore": "off"
+          }
+        }
+      }
+    }
+  ]
 }

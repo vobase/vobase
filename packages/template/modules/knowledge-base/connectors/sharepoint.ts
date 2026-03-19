@@ -36,8 +36,8 @@ export function createSharePointConnector(
     // Refresh if expired
     if (Date.now() >= parsed.expiresAt) {
       // @azure/msal-node is an optional peer dependency
-      // biome-ignore lint/suspicious/noTsIgnore: module may or may not be installed
       // @ts-ignore — @azure/msal-node is an optional peer dependency
+      // biome-ignore format: must stay single-line for @ts-ignore to work
       const { ConfidentialClientApplication } = await import('@azure/msal-node');
       const cca = new ConfidentialClientApplication({
         auth: {
@@ -177,7 +177,6 @@ export async function exchangeSharePointCode(
   code: string,
   opts?: { createdBy?: string; label?: string },
 ): Promise<string> {
-  // biome-ignore lint/suspicious/noTsIgnore: module may or may not be installed
   // @ts-ignore — @azure/msal-node is an optional peer dependency
   const { ConfidentialClientApplication } = await import('@azure/msal-node');
   const cca = new ConfidentialClientApplication({
