@@ -36,10 +36,8 @@ export function createSharePointConnector(
     // Refresh if expired
     if (Date.now() >= parsed.expiresAt) {
       // @azure/msal-node is an optional peer dependency
-      const { ConfidentialClientApplication } = await import(
-        // @ts-expect-error — @azure/msal-node may not be installed
-        '@azure/msal-node'
-      );
+      // @ts-ignore — @azure/msal-node is an optional peer dependency
+      const { ConfidentialClientApplication } = await import('@azure/msal-node');
       const cca = new ConfidentialClientApplication({
         auth: {
           clientId: process.env.MICROSOFT_CLIENT_ID!,
@@ -174,7 +172,7 @@ export async function exchangeSharePointCode(
   code: string,
   opts?: { createdBy?: string; label?: string },
 ): Promise<string> {
-  // @ts-expect-error - @azure/msal-node is an optional peer dependency
+  // @ts-ignore — @azure/msal-node is an optional peer dependency
   const { ConfidentialClientApplication } = await import('@azure/msal-node');
   const cca = new ConfidentialClientApplication({
     auth: {
