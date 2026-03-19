@@ -86,8 +86,9 @@ jobs:
           fs.writeFileSync('$OUT/package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
 
-          # 4. Install dependencies
+          # 4. Install dependencies + create data dir for PGlite
           cd "$OUT"
+          mkdir -p data
           bun install
 
           # 5. Generate routes + typed API client
