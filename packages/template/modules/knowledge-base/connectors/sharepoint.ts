@@ -38,9 +38,7 @@ export function createSharePointConnector(
       // @azure/msal-node is an optional peer dependency
       // biome-ignore lint/suspicious/noTsIgnore: module may or may not be installed
       // @ts-ignore — @azure/msal-node is an optional peer dependency
-      const { ConfidentialClientApplication } = await import(
-        '@azure/msal-node'
-      );
+      const { ConfidentialClientApplication } = await import('@azure/msal-node');
       const cca = new ConfidentialClientApplication({
         auth: {
           // biome-ignore lint/style/noNonNullAssertion: required env vars
