@@ -8,6 +8,11 @@ RUN bun install --frozen-lockfile
 
 COPY . .
 RUN bun run scripts/generate.ts
+
+# Railway injects env vars as build args — expose VITE_ vars for Vite build
+ARG VITE_PLATFORM_URL
+ENV VITE_PLATFORM_URL=$VITE_PLATFORM_URL
+
 RUN bunx vite build
 
 # Stage 2: Runtime
