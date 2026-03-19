@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.17.0
+
+### Minor Changes
+
+- [`ec6696f`](https://github.com/vobase/vobase/commit/ec6696fb24d22555f451c2d2c37345f60bb2564d) Thanks [@mdluo](https://github.com/mdluo)! - Add platform integration infrastructure: OAuth proxy callback, webhook signature verification, token refresh delegation, and createPlatformSession auth adapter method.
+
 ## 0.16.0
 
 ### Minor Changes
