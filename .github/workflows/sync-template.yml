@@ -1,0 +1,168 @@
+name: Sync Template
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/template/**"
+      - "packages/create-vobase/**"
+      - ".agents/skills/**"
+      - ".github/workflows/sync-template.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-template
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Sync to vobase/template
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # Generate a short-lived token from the Vobase GitHub App
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: 3131401
+          private-key: ${{ secrets.VOBASE_APP_PRIVATE_KEY }}
+          owner: vobase
+          repositories: template
+
+      # Build core first (template depends on @vobase/core)
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+
+      # Scaffold into a temp directory replicating create-vobase logic
+      - name: Scaffold template
+        run: |
+          set -euo pipefail
+          OUT="${RUNNER_TEMP}/template-out"
+          mkdir -p "$OUT"
+
+          # 1. Copy template files
+          cp -a packages/template/. "$OUT/"
+
+          # 2. Copy agent skills + symlinks
+          mkdir -p "$OUT/.agents/skills" "$OUT/.claude/skills"
+          cp -a .agents/skills/. "$OUT/.agents/skills/"
+          for skill in "$OUT/.agents/skills"/*/; do
+            name=$(basename "$skill")
+            [ "$name" = "*" ] && continue
+            ln -sf "../../.agents/skills/$name" "$OUT/.claude/skills/$name"
+          done
+
+          # 3. Resolve workspace:* dependencies to published npm versions
+          node -e "
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+          const pkg = JSON.parse(fs.readFileSync('$OUT/package.json', 'utf8'));
+          pkg.name = 'vobase-app';
+          delete pkg.private;
+          for (const field of ['dependencies', 'devDependencies']) {
+            if (!pkg[field]) continue;
+            for (const [dep, ver] of Object.entries(pkg[field])) {
+              if (typeof ver === 'string' && ver.startsWith('workspace:')) {
+                const latest = execSync('npm view ' + dep + ' version', { encoding: 'utf8' }).trim();
+                pkg[field][dep] = '^' + latest;
+                console.log('  ' + dep + ': workspace:* -> ^' + latest);
+              }
+            }
+          }
+          fs.writeFileSync('$OUT/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          # 4. Install dependencies
+          cd "$OUT"
+          bun install
+
+          # 5. Generate routes + typed API client
+          bun run scripts/generate.ts
+
+          # 6. Generate initial drizzle migration (for db:migrate on first boot)
+          bun run db:push
+          bun run db:generate
+
+      - name: Add deployment files
+        run: |
+          set -euo pipefail
+          OUT="${RUNNER_TEMP}/template-out"
+
+          # Dockerfile for Railway
+          cat > "$OUT/Dockerfile" << 'EOF'
+          FROM oven/bun:1.3.10-slim AS base
+          WORKDIR /app
+
+          FROM base AS install
+          COPY package.json bun.lock* ./
+          COPY patches/ ./patches/
+          RUN bun install --frozen-lockfile --production
+
+          FROM base
+          COPY --from=install /app/node_modules ./node_modules
+          COPY . .
+          EXPOSE 3000
+          CMD ["bun", "run", "server.ts"]
+          EOF
+
+          # railway.json for deploy config
+          cat > "$OUT/railway.json" << 'EOF'
+          {
+            "$schema": "https://railway.com/railway.schema.json",
+            "build": {
+              "dockerfilePath": "Dockerfile"
+            },
+            "deploy": {
+              "startCommand": "bun run server.ts",
+              "restartPolicyType": "ON_FAILURE",
+              "restartPolicyMaxRetries": 10
+            }
+          }
+          EOF
+
+          # Append platform env vars to .env.example
+          cat >> "$OUT/.env.example" << 'EOF'
+
+          # --- Platform Integration (set by provisioning) ---
+          # PLATFORM_HMAC_SECRET=
+          # PLATFORM_URL=
+          # BIFROST_API_KEY=
+          EOF
+
+          # Clean up dev-only artifacts
+          rm -rf "$OUT/data/" "$OUT/.env" "$OUT/node_modules/" "$OUT/.tanstack/"
+
+      # Push to vobase/template repo using GitHub App token
+      - name: Push to vobase/template
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          OUT="${RUNNER_TEMP}/template-out"
+          cd "$OUT"
+
+          # Configure git with app token for HTTPS push
+          git init -b main
+          git config user.name "vobase[bot]"
+          git config user.email "3131401+vobase[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/vobase/template.git"
+
+          # Commit and force-push
+          git add -A
+          SHORT_SHA="${COMMIT_SHA:0:8}"
+          git commit -m "sync: update from vobase/vobase@${SHORT_SHA}"
+          git push --force origin main
