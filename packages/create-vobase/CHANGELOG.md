@@ -1,5 +1,11 @@
 # create-vobase
 
+## 0.5.1
+
+### Patch Changes
+
+- [`e985f08`](https://github.com/vobase/vobase/commit/e985f08e325f6e36113f0bf287f5b6985c18d9ab) Thanks [@mdluo](https://github.com/mdluo)! - Remove unused `better-sqlite3` resolution from workspace root and drop redundant `db:current` step from scaffolder setup flow
+
 ## 0.5.0
 
 ### Minor Changes
