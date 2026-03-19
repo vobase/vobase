@@ -2,16 +2,21 @@
  * Seed script — creates a default admin user, then calls each module's seed function.
  * Module seed data lives in modules/{name}/seed.ts.
  *
+ * Auto-discovery: any module with a seed.ts that exports a default function
+ * will be called automatically. No manual registration needed.
+ *
+ * Seed contract: export default async function seed(ctx: SeedContext): Promise<void>
+ * where SeedContext = { app, db, sessionCookie, userId }
+ *
  * createApp() starts a worker that processes jobs automatically.
  * KB documents are uploaded via the API → job queue processes them → we wait for completion.
  *
  * Usage: bun run seed
  */
+import { join } from 'node:path';
 import { authUser, createApp, createDatabase } from '@vobase/core';
 
 import { modules } from '../modules';
-import { seedKnowledgeBase } from '../modules/knowledge-base/seed';
-import { seedMessaging } from '../modules/messaging/seed';
 import config from '../vobase.config';
 
 const ADMIN_EMAIL = 'admin@example.com';
@@ -85,21 +90,19 @@ if (!userId) {
   userId = rows[0]?.id ?? 'seed-admin';
 }
 
-// KB: upload fixtures via API → worker processes them (extract → chunk → embed)
-const kbCount = await seedKnowledgeBase(app, sessionCookie, db);
-if (kbCount > 0)
-  console.log(`${green('✓')} Processed ${kbCount} KB documents from fixtures`);
-else console.log(dim('✓ KB documents already exist. Skipping.'));
+// Auto-discover seed files: any modules/{name}/seed.ts with a default export
+const modulesDir = join(import.meta.dir, '..', 'modules');
+const glob = new Bun.Glob('*/seed.ts');
+const seedFiles = Array.from(glob.scanSync(modulesDir)).sort();
 
-// Messaging: direct Drizzle inserts (no async pipeline needed)
-const msgResult = await seedMessaging(db, userId);
-if (msgResult.agents > 0) {
-  console.log(
-    green('✓') +
-      ` Created ${msgResult.agents} messaging agents + ${msgResult.threads} sample thread with messages`,
-  );
-} else {
-  console.log(dim('✓ Messaging data already exists. Skipping.'));
+const ctx = { app, db, sessionCookie, userId };
+
+for (const seedFile of seedFiles) {
+  const seedPath = join(modulesDir, seedFile);
+  const mod = await import(seedPath);
+  if (typeof mod.default === 'function') {
+    await mod.default(ctx);
+  }
 }
 
 process.exit(0);

@@ -115,6 +115,26 @@ function buildApiTypesSource(moduleNames: string[]): string {
   ].join('\n');
 }
 
+async function checkNavigationCoverage(
+  cwd: string,
+  modulesWithPages: string[],
+): Promise<void> {
+  if (modulesWithPages.length === 0) return;
+
+  const navPath = join(cwd, 'src', 'constants', 'navigation.ts');
+  if (!(await exists(navPath))) return;
+
+  const navSource = await Bun.file(navPath).text();
+  for (const name of modulesWithPages) {
+    const pattern = new RegExp(`\\b${name}\\b`);
+    if (!pattern.test(navSource)) {
+      console.warn(
+        `\u26a0 Module "${name}" has pages/ but no navigation entry in src/constants/navigation.ts`,
+      );
+    }
+  }
+}
+
 async function main() {
   const cwd = process.cwd();
 
@@ -135,6 +155,9 @@ async function main() {
   console.log(
     `Generated src/api-types.generated.ts with modules: ${allModules.join(', ') || '(none)'}`,
   );
+
+  // 3. Warn about modules with pages but no navigation entry
+  await checkNavigationCoverage(cwd, modulesWithPages);
 }
 
 main().catch((error) => {

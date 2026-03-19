@@ -1,7 +1,11 @@
 import { faker } from '@faker-js/faker';
 import type { VobaseDb } from '@vobase/core';
 
+import type { SeedContext } from '../seed-types';
 import { msgAgents, msgMessages, msgThreads } from './schema';
+
+const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
+const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 
 const agentPersonas = [
   {
@@ -58,6 +62,18 @@ const sampleConversation = [
       "Use `defineJob` from core and add it to your module:\n\n```typescript\n// modules/my-module/jobs.ts\nimport { defineJob } from '@vobase/core';\n\nexport const processItem = defineJob(\n  'my-module:process-item',\n  async (data: { itemId: string }) => {\n    // Your background logic here\n  }\n);\n```\n\nThen in your module definition:\n\n```typescript\nexport default defineModule({\n  name: 'my-module',\n  schema,\n  routes,\n  jobs: [processItem],\n});\n```\n\nEnqueue from a handler with `ctx.scheduler.enqueue('my-module:process-item', { itemId })`.",
   },
 ];
+
+export default async function seed({ db, userId }: SeedContext): Promise<void> {
+  const msgResult = await seedMessaging(db, userId);
+  if (msgResult.agents > 0) {
+    console.log(
+      green('✓') +
+        ` Created ${msgResult.agents} messaging agents + ${msgResult.threads} sample thread with messages`,
+    );
+  } else {
+    console.log(dim('✓ Messaging data already exists. Skipping.'));
+  }
+}
 
 export async function seedMessaging(
   db: VobaseDb,

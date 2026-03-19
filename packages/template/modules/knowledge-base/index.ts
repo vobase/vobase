@@ -1,7 +1,7 @@
 import { defineModule } from '@vobase/core';
 
 import { knowledgeBaseRoutes } from './handlers';
-import { processDocumentJob, setModuleDb } from './jobs';
+import { processDocumentJob, setModuleDb, setModuleStorage } from './jobs';
 import * as schema from './schema';
 
 export const knowledgeBaseModule = defineModule({
@@ -12,5 +12,6 @@ export const knowledgeBaseModule = defineModule({
 
   init(ctx) {
     setModuleDb(ctx.db);
+    setModuleStorage(ctx.storage);
   },
 });

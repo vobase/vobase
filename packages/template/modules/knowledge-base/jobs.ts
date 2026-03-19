@@ -1,15 +1,24 @@
 import { unlinkSync } from 'node:fs';
-import type { VobaseDb } from '@vobase/core';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { StorageService, VobaseDb } from '@vobase/core';
 import { defineJob } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
+import { KB_STORAGE_BUCKET } from './constants';
 import { kbDocuments } from './schema';
 
 let moduleDb: VobaseDb;
+let moduleStorage: StorageService;
 
 /** Called from the module init hook to wire up the db reference. */
 export function setModuleDb(db: VobaseDb) {
   moduleDb = db;
+}
+
+/** Called from the module init hook to wire up the storage reference. */
+export function setModuleStorage(storage: StorageService) {
+  moduleStorage = storage;
 }
 
 export const processDocumentJob = defineJob(
@@ -18,17 +27,28 @@ export const processDocumentJob = defineJob(
     if (!moduleDb) {
       throw new Error('moduleDb not initialized — init() has not run yet');
     }
+    if (!moduleStorage) {
+      throw new Error('moduleStorage not initialized — init() has not run yet');
+    }
 
-    const { documentId, filePath, mimeType } = data as {
+    const { documentId, storageKey, mimeType } = data as {
       documentId: string;
-      filePath: string;
+      storageKey: string;
       mimeType: string;
     };
+
+    // Download file from storage to a local temp file for extraction
+    const buffer = await moduleStorage
+      .bucket(KB_STORAGE_BUCKET)
+      .download(storageKey);
+    const fileName = storageKey.split('/').pop() ?? documentId;
+    const tmpPath = join(tmpdir(), fileName);
+    await Bun.write(tmpPath, buffer);
 
     try {
       // 1. Extract text from the temp file
       const { extractDocument } = await import('./lib/extract');
-      const result = await extractDocument(filePath, mimeType);
+      const result = await extractDocument(tmpPath, mimeType);
 
       // 2. Handle needs_ocr status
       if (result.status === 'needs_ocr') {
@@ -46,9 +66,9 @@ export const processDocumentJob = defineJob(
       const { processDocument } = await import('./lib/pipeline');
       await processDocument(moduleDb, documentId, result.text);
     } finally {
-      // 4. Always clean up temp file
+      // 4. Clean up local temp file
       try {
-        unlinkSync(filePath);
+        unlinkSync(tmpPath);
       } catch {
         // File may already be deleted — ignore
       }

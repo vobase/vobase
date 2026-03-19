@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { VobaseDb } from '@vobase/core';
 import { eq, or, sql } from 'drizzle-orm';
 
+import type { SeedContext } from '../seed-types';
 import { kbDocuments } from './schema';
 
 const FIXTURES_DIR = join(import.meta.dir, 'lib', '__fixtures__');
@@ -37,6 +38,7 @@ function getFixtureFiles(): Array<{
     });
 }
 
+const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 
@@ -45,6 +47,19 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
  * The app's createApp() starts a worker that processes jobs automatically.
  * We wait for all documents to finish processing before returning.
  */
+export default async function seed({
+  app,
+  sessionCookie,
+  db,
+}: SeedContext): Promise<void> {
+  const kbCount = await seedKnowledgeBase(app, sessionCookie, db);
+  if (kbCount > 0)
+    console.log(
+      `${green('✓')} Processed ${kbCount} KB documents from fixtures`,
+    );
+  else console.log(dim('✓ KB documents already exist. Skipping.'));
+}
+
 export async function seedKnowledgeBase(
   app: {
     request: (url: string, init?: RequestInit) => Response | Promise<Response>;

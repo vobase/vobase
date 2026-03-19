@@ -4,6 +4,7 @@ import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import type { DocumentSource } from './connectors/types';
+import { KB_STORAGE_BUCKET } from './constants';
 import { kbChunks, kbDocuments, kbSources, kbSyncLogs } from './schema';
 
 async function syncSource(
@@ -139,17 +140,16 @@ knowledgeBaseRoutes.post('/documents', async (c) => {
     })
     .returning();
 
-  // 2. Write file to temp location for async job processing
-  const tmpDir = `${process.cwd()}/data/tmp`;
-  const { mkdirSync } = await import('node:fs');
-  mkdirSync(tmpDir, { recursive: true });
-  const tmpPath = `${tmpDir}/${doc.id}-${file.name}`;
-  await Bun.write(tmpPath, await file.arrayBuffer());
+  // 2. Upload file to storage bucket for durable async job processing
+  const storageKey = `uploads/${doc.id}-${file.name}`;
+  await ctx.storage
+    .bucket(KB_STORAGE_BUCKET)
+    .upload(storageKey, new Uint8Array(await file.arrayBuffer()));
 
   // 3. Enqueue processing job (extraction + chunking + embedding happen async)
   await ctx.scheduler.add('knowledge-base:process-document', {
     documentId: doc.id,
-    filePath: tmpPath,
+    storageKey,
     mimeType: file.type || 'text/plain',
   });
 
