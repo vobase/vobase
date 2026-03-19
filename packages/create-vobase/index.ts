@@ -118,7 +118,6 @@ console.log(`${green('✓')} Routes generated`);
 
 // --- Set up database (fixtures → schema → seed) ---
 console.log(`${bold('Setting up database...')}`);
-await $`bun run db:current`.cwd(dest);
 await $`bun run db:push`.cwd(dest);
 console.log(`${green('✓')} Database schema pushed`);
 

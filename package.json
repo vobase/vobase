@@ -18,9 +18,6 @@
     "version-packages": "changeset version",
     "release": "bash scripts/release.sh"
   },
-  "resolutions": {
-    "better-sqlite3": "file:packages/template/stubs/better-sqlite3"
-  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.7",
     "@changesets/changelog-github": "^0.6.0",
