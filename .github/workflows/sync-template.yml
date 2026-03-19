@@ -47,54 +47,16 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
 
-      # Scaffold into a temp directory replicating create-vobase logic
+      # Scaffold into a temp directory using create-vobase CLI (local copy mode)
       - name: Scaffold template
         run: |
           set -euo pipefail
           OUT="${RUNNER_TEMP}/template-out"
-          mkdir -p "$OUT"
+          bun run packages/create-vobase/index.ts "$OUT" --template
 
-          # 1. Copy template files
-          cp -a packages/template/. "$OUT/"
-
-          # 2. Copy agent skills + symlinks
-          mkdir -p "$OUT/.agents/skills" "$OUT/.claude/skills"
-          cp -a .agents/skills/. "$OUT/.agents/skills/"
-          for skill in "$OUT/.agents/skills"/*/; do
-            name=$(basename "$skill")
-            [ "$name" = "*" ] && continue
-            ln -sf "../../.agents/skills/$name" "$OUT/.claude/skills/$name"
-          done
-
-          # 3. Resolve workspace:* dependencies to published npm versions
-          node -e "
-          const fs = require('fs');
-          const { execSync } = require('child_process');
-          const pkg = JSON.parse(fs.readFileSync('$OUT/package.json', 'utf8'));
-          pkg.name = 'vobase-app';
-          delete pkg.private;
-          for (const field of ['dependencies', 'devDependencies']) {
-            if (!pkg[field]) continue;
-            for (const [dep, ver] of Object.entries(pkg[field])) {
-              if (typeof ver === 'string' && ver.startsWith('workspace:')) {
-                const latest = execSync('npm view ' + dep + ' version', { encoding: 'utf8' }).trim();
-                pkg[field][dep] = '^' + latest;
-                console.log('  ' + dep + ': workspace:* -> ^' + latest);
-              }
-            }
-          }
-          fs.writeFileSync('$OUT/package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
-
-          # 4. Install dependencies + create data dir for PGlite
+          # Generate initial drizzle migration (for db:migrate on first boot)
           cd "$OUT"
           mkdir -p data
-          bun install
-
-          # 5. Generate routes + typed API client
-          bun run scripts/generate.ts
-
-          # 6. Generate initial drizzle migration (for db:migrate on first boot)
           bun run db:push
           bun run db:generate
 
