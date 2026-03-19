@@ -157,11 +157,28 @@ export function createPlatformRoutes(config: PlatformRoutesConfig) {
         return c.text('Authentication failed', 401);
       }
 
-      // Set the session cookie — better-auth uses 'better-auth.session_token' cookie name
+      // Set the session cookie — better-auth uses signed cookies (HMAC-SHA256)
+      // Cookie value format: ${token}.${base64(HMAC-SHA256(token, secret))}
+      const authSecret = process.env.BETTER_AUTH_SECRET || secret;
+      const key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(authSecret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign'],
+      );
+      const sig = await crypto.subtle.sign(
+        'HMAC',
+        key,
+        new TextEncoder().encode(session.token),
+      );
+      const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
+      const signedValue = encodeURIComponent(`${session.token}.${sigBase64}`);
+
       const secure = baseUrl.startsWith('https');
       const cookieName = secure ? '__Secure-better-auth.session_token' : 'better-auth.session_token';
       const cookieOpts = [
-        `${cookieName}=${session.token}`,
+        `${cookieName}=${signedValue}`,
         'Path=/',
         'HttpOnly',
         'SameSite=Lax',
@@ -169,8 +186,15 @@ export function createPlatformRoutes(config: PlatformRoutesConfig) {
         ...(secure ? ['Secure'] : []),
       ].join('; ');
 
-      c.header('set-cookie', cookieOpts);
-      return c.redirect('/');
+      // Use explicit Response to ensure Set-Cookie header is included with the redirect
+      // (c.redirect() creates a new Response that drops headers set via c.header())
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: '/',
+          'Set-Cookie': cookieOpts,
+        },
+      });
     } catch (err) {
       logger.error('[platform] Platform callback error', {
         error: err instanceof Error ? err.message : String(err),

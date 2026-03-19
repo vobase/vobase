@@ -120,17 +120,20 @@ export function createAuthModule(
         // Create new user — use a strong random password (user authenticates via platform, never via password)
         const randomPassword = `platform-${crypto.randomUUID()}-${crypto.randomUUID()}`;
         try {
-          const result = await api.createUser({
+          const result = await auth.api.signUpEmail({
             body: {
               email: profile.email,
               name: profile.name,
               password: randomPassword,
-              role: 'user',
             },
           });
-          if (!result?.user?.id) return null;
+          if (!result?.user?.id) {
+            console.error('[platform] signUpEmail returned no user');
+            return null;
+          }
           userId = result.user.id;
-        } catch {
+        } catch (err) {
+          console.error('[platform] Failed to create user:', err);
           return null;
         }
       }

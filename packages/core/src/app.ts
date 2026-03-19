@@ -198,6 +198,21 @@ export async function createApp(config: CreateAppConfig) {
     }),
   );
   base.use('/api/*', optionalSessionMiddleware(authAdapter));
+
+  // === Platform auth routes (must be mounted BEFORE the better-auth catch-all) ===
+  if (isPlatformEnabled()) {
+    const platformConfig = {
+      db,
+      authAdapter: authMod.adapter,
+      integrationsService,
+    };
+    base.route('/api/auth', createPlatformRoutes(platformConfig));
+    base.route(
+      '/api/integrations',
+      createPlatformIntegrationsRoutes(platformConfig),
+    );
+  }
+
   base.on(['POST', 'GET'], '/api/auth/*', (c) =>
     authAdapter.handler(c.req.raw),
   );
@@ -217,20 +232,6 @@ export async function createApp(config: CreateAppConfig) {
   for (const mod of userModules) {
     mod.init?.(initCtx);
     (app as Hono).route(`/api/${mod.name}`, mod.routes);
-  }
-
-  // === Platform Integration (opt-in via PLATFORM_HMAC_SECRET) ===
-  if (isPlatformEnabled()) {
-    const platformConfig = {
-      db,
-      authAdapter: authMod.adapter,
-      integrationsService,
-    };
-    (app as Hono).route('/api/auth', createPlatformRoutes(platformConfig));
-    (app as Hono).route(
-      '/api/integrations',
-      createPlatformIntegrationsRoutes(platformConfig),
-    );
   }
 
   // === Webhooks ===
