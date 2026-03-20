@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
-import PgBoss from 'pg-boss';
+import { PgBoss } from 'pg-boss';
 
 import { validation } from './errors';
 import {
@@ -21,6 +21,11 @@ export interface WorkerOptions
 }
 
 export const jobRegistry = new Map<string, JobHandler>();
+
+/** pg-boss 12+ only allows [\w.\-/]+ in queue names — normalize colons to slashes */
+function toQueueName(name: string): string {
+  return name.replace(/:/g, '/');
+}
 
 function assertJobName(name: string): void {
   if (!name.trim()) {
@@ -67,16 +72,17 @@ export async function createWorker(
     boss = new PgBoss({ db: buildPgliteAdapter(pglite) });
   }
 
-  boss.on('error', (err) => {
+  boss.on('error', (err: Error) => {
     console.error('[pg-boss worker]', err);
   });
 
   await boss.start();
 
   for (const job of jobs) {
-    await boss.createQueue(job.name);
-    await boss.work(job.name, { batchSize: concurrency }, async (pgJobs) => {
-      await Promise.all(pgJobs.map((pgJob) => job.handler(pgJob.data)));
+    const queueName = toQueueName(job.name);
+    await boss.createQueue(queueName);
+    await boss.work(queueName, { batchSize: concurrency }, async (pgJobs: { data: unknown }[]) => {
+      await Promise.all(pgJobs.map((pgJob: { data: unknown }) => job.handler(pgJob.data)));
     });
   }
 

@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
-import PgBoss from 'pg-boss';
+import { type SendOptions, PgBoss } from 'pg-boss';
 
 export interface JobOptions {
   singletonKey?: string;
@@ -86,7 +86,7 @@ export async function createScheduler(
   const connection = options?.connection ?? options?.dbPath ?? 'memory://';
   const boss = await buildBoss(connection as PGlite | string);
 
-  boss.on('error', (err) => {
+  boss.on('error', (err: Error) => {
     console.error('[pg-boss]', err);
   });
 
@@ -94,10 +94,16 @@ export async function createScheduler(
 
   const createdQueues = new Set<string>();
 
+  /** pg-boss 12+ only allows [\w.\-/]+ in queue names — normalize colons to slashes */
+  function toQueueName(name: string): string {
+    return name.replace(/:/g, '/');
+  }
+
   async function ensureQueue(name: string): Promise<void> {
-    if (!createdQueues.has(name)) {
-      await boss.createQueue(name);
-      createdQueues.add(name);
+    const queueName = toQueueName(name);
+    if (!createdQueues.has(queueName)) {
+      await boss.createQueue(queueName);
+      createdQueues.add(queueName);
     }
   }
 
@@ -107,7 +113,8 @@ export async function createScheduler(
     opts?: JobOptions,
   ): Promise<string | null> {
     await ensureQueue(name);
-    const sendOpts: PgBoss.SendOptions = {};
+    const queueName = toQueueName(name);
+    const sendOpts: SendOptions = {};
     if (opts?.singletonKey !== undefined)
       sendOpts.singletonKey = opts.singletonKey;
     if (opts?.retryBackoff !== undefined)
@@ -120,7 +127,7 @@ export async function createScheduler(
     if (opts?.retryLimit !== undefined) sendOpts.retryLimit = opts.retryLimit;
     if (opts?.retryDelay !== undefined) sendOpts.retryDelay = opts.retryDelay;
     if (opts?.priority !== undefined) sendOpts.priority = opts.priority;
-    return boss.send(name, data as object, sendOpts);
+    return boss.send(queueName, data as object, sendOpts);
   }
 
   return {
