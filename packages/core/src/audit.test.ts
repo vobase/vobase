@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+
+import { createTestPGlite } from './test-helpers';
 
 import type { VobaseDb } from './db';
 import * as schema from './modules/audit/schema';
@@ -19,7 +21,7 @@ describe('trackChanges()', () => {
   let db: VobaseDb;
 
   beforeEach(async () => {
-    pglite = new PGlite();
+    pglite = await createTestPGlite();
     await pglite.query(`
       CREATE TABLE _record_audits (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+
+import { createTestPGlite } from '../../test-helpers';
 import { Hono } from 'hono';
 
 import type { VobaseDb } from '../../db';
@@ -21,7 +23,7 @@ describe('audit middleware and hooks', () => {
   let db: VobaseDb;
 
   beforeEach(async () => {
-    pglite = new PGlite();
+    pglite = await createTestPGlite();
     await pglite.query(`
       CREATE TABLE _audit_log (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

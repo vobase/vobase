@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
 
+import { createTestPGlite } from '../test-helpers';
 import { createScheduler } from './queue';
 
 describe('createScheduler()', () => {
   it('enqueues a job via scheduler.add()', async () => {
-    const pglite = new PGlite();
+    const pglite = await createTestPGlite();
     const scheduler = await createScheduler({ connection: pglite });
 
     await scheduler.add('email.send', { to: 'user@example.com' });
@@ -18,7 +18,7 @@ describe('createScheduler()', () => {
   });
 
   it('send() returns a job ID string', async () => {
-    const pglite = new PGlite();
+    const pglite = await createTestPGlite();
     const scheduler = await createScheduler({ connection: pglite });
 
     const id = await scheduler.send('invoice.generate', { number: 'INV-001' });
@@ -28,7 +28,7 @@ describe('createScheduler()', () => {
   });
 
   it('send() with retryLimit stores job with correct name', async () => {
-    const pglite = new PGlite();
+    const pglite = await createTestPGlite();
     const scheduler = await createScheduler({ connection: pglite });
 
     await scheduler.add(

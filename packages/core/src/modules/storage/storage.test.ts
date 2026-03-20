@@ -8,8 +8,10 @@ import {
   expect,
   it,
 } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+
+import { createTestPGlite } from '../../test-helpers';
 
 import type { VobaseDb } from '../../db/client';
 import { VobaseError } from '../../infra/errors';
@@ -20,7 +22,7 @@ import { type BucketConfig, createStorageService } from './service';
 const testBasePath = '/tmp/vobase-test-storage-v2';
 
 async function createTestDb(): Promise<{ db: VobaseDb; pglite: PGlite }> {
-  const pglite = new PGlite();
+  const pglite = await createTestPGlite();
   await pglite.query(`
     CREATE TABLE _storage_objects (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+
+import { createTestPGlite } from '../test-helpers';
 import { Hono } from 'hono';
 
 import type { VobaseDb } from '../db/client';
@@ -17,7 +18,7 @@ const MODULES_WITH_SCHEMA: VobaseModule[] = [
 ];
 
 async function createTestDb(): Promise<VobaseDb> {
-  const pg = new PGlite();
+  const pg = await createTestPGlite();
   await pg.query(`
     CREATE TABLE IF NOT EXISTS _audit_log (
       id TEXT PRIMARY KEY NOT NULL,

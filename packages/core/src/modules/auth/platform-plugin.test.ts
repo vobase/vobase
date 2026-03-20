@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import { betterAuth } from 'better-auth';
+
+import { createTestPGlite } from '../../test-helpers';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/pglite';
 import { SignJWT } from 'jose';
@@ -60,7 +62,7 @@ async function createTestJWT(opts: JwtOptions = {}): Promise<string> {
 // Database bootstrap – minimal tables required by better-auth
 // ---------------------------------------------------------------------------
 async function createTestDatabase() {
-  const pg = new PGlite();
+  const pg = await createTestPGlite();
   await pg.exec(`
     CREATE TABLE IF NOT EXISTS "user" (
       "id" TEXT PRIMARY KEY NOT NULL,

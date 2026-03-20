@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+
+import { createTestPGlite } from './test-helpers';
 
 import type { VobaseDb } from './db';
 import { nextSequence } from './modules/sequences/next-sequence';
@@ -11,7 +13,7 @@ describe('nextSequence()', () => {
   let db: VobaseDb;
 
   beforeEach(async () => {
-    pglite = new PGlite();
+    pglite = await createTestPGlite();
     await pglite.exec(`
       CREATE TABLE _sequences (
         id TEXT PRIMARY KEY NOT NULL,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+
+import { createTestPGlite } from '../test-helpers';
 import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
 
@@ -15,7 +16,7 @@ interface McpServerInternals {
 }
 
 async function createTestDb(): Promise<VobaseDb> {
-  const pg = new PGlite();
+  const pg = await createTestPGlite();
   await pg.query(`
     CREATE TABLE IF NOT EXISTS _audit_log (
       id TEXT PRIMARY KEY NOT NULL,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
 
+import { createTestPGlite } from '../test-helpers';
 import { createWorker, defineJob, jobRegistry } from './job';
 import { createScheduler } from './queue';
 
@@ -24,7 +24,7 @@ describe('defineJob()', () => {
 
 describe('createWorker()', () => {
   it('processes an enqueued job end-to-end', async () => {
-    const pglite = new PGlite();
+    const pglite = await createTestPGlite();
     const scheduler = await createScheduler({ connection: pglite });
 
     let processedData: unknown;

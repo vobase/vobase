@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+
+import { createTestPGlite } from '../test-helpers';
 
 import type { VobaseDb } from '../db/client';
 import type { Scheduler } from './queue';
@@ -19,7 +20,7 @@ function computeSignature(payload: string, secret: string): string {
 
 /** Create a PGlite db with the webhook dedup table */
 async function createTestDb(): Promise<VobaseDb> {
-  const pglite = new PGlite();
+  const pglite = await createTestPGlite();
   await pglite.exec(`
     CREATE TABLE _webhook_dedup (
       id TEXT NOT NULL,
