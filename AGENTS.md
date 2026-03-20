@@ -34,6 +34,7 @@ Core ships six built-in modules (`defineBuiltinModule`, `_` prefix):
 - `_integrations` — AES-256-GCM encrypted credential vault for external services
 - `_storage` — virtual bucket file storage, local/S3 adapters (opt-in)
 - `_channels` — multi-channel messaging: WhatsApp, Resend, SMTP adapters. Inbound webhooks + event emitter. (opt-in)
+- Platform integration support: `platformAuth()` better-auth plugin for OAuth handoff, `createPlatformIntegrationsRoutes()` for provider-agnostic credential forwarding
 
 Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, StorageAdapter, ModuleInitContext, Permission. Modules implement against these interfaces. Unconfigured services use throw-proxies.
 
@@ -45,6 +46,7 @@ Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, St
 - Routes mount under `/api/{module}`. MCP on `/mcp`.
 - Auth = better-auth sessions + `requireRole()` / `requirePermission()` / `requireOrg()` middlewares
 - Data = Drizzle + PostgreSQL, integer money, explicit status transitions, auditable mutations
+- Platform = opt-in multi-tenant integration via `PLATFORM_HMAC_SECRET`. `platformAuth()` plugin handles OAuth callback (JWT verify, user upsert, account linking, session creation). `createPlatformIntegrationsRoutes()` handles `POST /:provider/configure` and `POST /token/update` with HMAC signature verification.
 
 ## Template Development
 
@@ -74,6 +76,8 @@ These decisions were made deliberately. Do not revisit without discussion.
 - For any new feature, ask "is this genuinely blocking someone?" before building. Prefer simple, direct implementations over "nice-to-have from competitor research."
 - What goes in core vs template: core owns infrastructure primitives that every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. If an AI agent would need to modify it per-app, it belongs in template. If it's foundational plumbing, it belongs in core.
 - Template CLAUDE.md documents core's full public API so agents never need to read node_modules. Keep it accurate when core changes.
+- Platform auth lives inside better-auth as a plugin (`platformAuth()`), not as separate route middleware. This eliminates route ordering concerns (no need to mount before the catch-all) and uses `internalAdapter.createSession()` for native cookie signing.
+- The platform configure contract is frozen V1: `POST /api/integrations/:provider/configure` with pass-through body `{ config, label?, scopes?, expiresInSeconds? }`. Core never inspects provider-specific fields — the platform (sole HMAC-signed consumer) is the trust boundary.
 
 ## Agent Defaults
 

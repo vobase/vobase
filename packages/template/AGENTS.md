@@ -75,16 +75,25 @@ Encrypted credential vault for external services. `ctx.integrations.getActive(pr
 
 `defineJob('module:name', async (data) => { ... })` for background work. Schedule via `ctx.scheduler.add(jobName, data, opts)`. pg-boss backed (Postgres), retries, cron, job chains. No Redis.
 
+### Platform Integration
+
+Opt-in multi-tenant support via `PLATFORM_HMAC_SECRET` env var. When set, enables:
+- `platformAuth({ hmacSecret })` — better-auth plugin that handles `GET /api/auth/platform-callback?token=JWT`. Verifies handoff JWT (`jose`, HS256), upserts user by email, links OAuth account (provider + providerId), creates session via `internalAdapter.createSession()`. Cookie signing handled natively by better-auth.
+- `createPlatformIntegrationsRoutes()` — mounts at `/api/integrations`. Handles `POST /:provider/configure` (store credentials) and `POST /token/update` (refresh tokens). Both verify `X-Platform-Signature` HMAC.
+
+When `PLATFORM_HMAC_SECRET` is not set, all platform routes return 404.
+
 ### Key Exports
 
 Helpers: `nanoidPrimaryKey()`, `nextSequence(tx, prefix)`, `trackChanges(tx, table, id, old, new, userId)`, `createHttpClient(opts)`.
 Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `validation(details)`, `dbBusy()`.
 Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
 Auth schemas: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`.
+Platform: `platformAuth({ hmacSecret })`, `isPlatformEnabled()`, `verifyPlatformSignature()`, `createPlatformIntegrationsRoutes()`.
 
 ### Config Shape
 
-`vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled).
+`vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled). Platform features are env-only: set `PLATFORM_HMAC_SECRET` to enable (not part of `vobase.config.ts`).
 
 ### Schema Management
 

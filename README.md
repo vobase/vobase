@@ -62,6 +62,7 @@ One `bun create vobase` and you have a working full-stack app:
 | **Sequences** | Gap-free business number generation (INV-0001, PO-0042). Transaction-safe, never skips. |
 | **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in Postgres. |
 | **Channels** | Multi-channel messaging with pluggable adapters. WhatsApp (Cloud API), email (Resend, SMTP). Inbound webhooks, outbound sends, delivery tracking. All messages logged. |
+| **Integrations** | Encrypted credential vault for external services (OAuth providers, APIs). AES-256-GCM at rest. Platform-aware: opt-in multi-tenant OAuth handoff via HMAC-signed JWT. |
 | **Jobs** | Background tasks with retries, cron, and job chains. pg-boss backed, no Redis. |
 | **Knowledge Base** | Upload PDF, DOCX, XLSX, PPTX, images, HTML. Auto-extract to Markdown, chunk, embed, and search. Hybrid search with RRF + HyDE. Gemini OCR for scanned docs. |
 | **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing with codegen, code-splitting, you own the components. |
@@ -268,6 +269,7 @@ Every HTTP handler gets a context object with runtime capabilities. Current surf
 | `ctx.scheduler` | Job queue. `add(jobName, data, options)` to schedule background work. |
 | `ctx.storage` | `StorageService` — virtual buckets with local/S3 backends. `ctx.storage.bucket('avatars').upload(key, data)`. |
 | `ctx.channels` | `ChannelsService` — email and WhatsApp sends. `ctx.channels.email.send(msg)`. All messages logged. |
+| `ctx.integrations` | `IntegrationsService` — encrypted credential vault. `ctx.integrations.getActive(provider)` returns decrypted config or null. Platform-managed providers connected via HMAC-signed forwarding. |
 | `ctx.http` | Typed HTTP client with retries, timeouts, and circuit breakers. |
 
 For jobs, pass dependencies through closures/factories (or import what you need) when calling `defineJob(...)`.
@@ -360,7 +362,7 @@ Docker container (--restart=always)
         │     ├── _auth         → better-auth behind AuthAdapter contract
         │     ├── _audit        → audit log, record tracking, auth hooks
         │     ├── _sequences    → gap-free business number counters
-        │     ├── _integrations → encrypted credential store, provider configs (opt-in)
+        │     ├── _integrations → encrypted credential vault, platform OAuth handoff (opt-in)
         │     ├── _storage      → virtual buckets, local/S3 (opt-in)
         │     └── _channels     → unified messaging, adapter pattern (opt-in)
         ├── pg-boss (Postgres-backed job queue)
