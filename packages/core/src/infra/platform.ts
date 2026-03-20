@@ -1,23 +1,31 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
+import * as z from 'zod';
 
 import type { VobaseDb } from '../db/client';
-import type { IntegrationsService } from '../modules/integrations/service';
+import type { ConnectOptions, IntegrationsService } from '../modules/integrations/service';
 import { logger } from './logger';
 
 /**
- * Platform integration routes — opt-in endpoints for vobase-platform proxy.
+ * Platform integration routes — stable contract for vobase-platform.
  * Only active when PLATFORM_HMAC_SECRET env var is set.
  *
- * Auth callback (GET /api/auth/platform-callback) is handled by the platformAuth
- * better-auth plugin registered in createAuthModule — no separate route needed.
+ * FROZEN CONTRACT (v1) — these endpoints must not change shape:
  *
- * This file provides:
- * - POST /api/integrations/whatsapp/configure — accept WhatsApp credentials from platform
- * - POST /api/integrations/token/update — accept refreshed tokens from platform
+ * POST /api/integrations/:provider/configure
+ *   Body: { config: Record<string, unknown>, label?: string, scopes?: string[], expiresInSeconds?: number }
+ *   Provider param: /^[a-z0-9-]+$/
+ *   Stores provider credentials in the integrations vault.
  *
- * Webhook forwarding is handled separately: the channels webhook handler accepts
- * X-Platform-Signature as an alternative verification method when PLATFORM_HMAC_SECRET is set.
+ * POST /api/integrations/token/update
+ *   Body: { provider: string, accessToken: string, expiresInSeconds?: number }
+ *   Updates access token for an existing platform-managed integration.
+ *
+ * GET /api/auth/platform-callback?token=JWT
+ *   Handled by platformAuth better-auth plugin (not in this file).
+ *   Exchanges a platform-signed JWT for a tenant session.
+ *
+ * All POST endpoints require X-Platform-Signature (HMAC-SHA256).
  */
 
 function getPlatformSecret(): string | null {
@@ -51,11 +59,7 @@ export interface PlatformRoutesConfig {
   integrationsService: IntegrationsService;
 }
 
-/**
- * Platform integrations routes.
- * POST /api/integrations/whatsapp/configure — accept WhatsApp credentials from platform.
- * POST /api/integrations/token/update — accept refreshed tokens from platform.
- */
+/** Platform integrations routes — see FROZEN CONTRACT block above for shape details. */
 export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
   const routes = new Hono();
 
@@ -116,7 +120,18 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
     return c.json({ success: true });
   });
 
-  routes.post('/whatsapp/configure', async (c) => {
+  // NOTE: /token/update MUST be registered before /:provider/configure
+  // to avoid route shadowing (Hono's trie router resolves literals before params).
+
+  const configureBodySchema = z.object({
+    config: z.record(z.string(), z.unknown()),
+    label: z.string().optional(),
+    scopes: z.array(z.string()).optional(),
+    expiresInSeconds: z.number().optional(),
+  });
+  const providerParamSchema = z.string().regex(/^[a-z0-9-]+$/);
+
+  routes.post('/:provider/configure', async (c) => {
     const secret = getPlatformSecret();
     if (!secret) return c.text('Not found', 404);
 
@@ -128,34 +143,33 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
       return c.json({ error: 'Invalid signature' }, 401);
     }
 
-    const body = JSON.parse(rawBody) as {
-      accessToken: string;
-      phoneNumberId?: string;
-      wabaId?: string;
-    };
-
-    if (!body.accessToken) {
-      return c.json({ error: 'Missing accessToken' }, 400);
+    let provider: string;
+    try {
+      provider = providerParamSchema.parse(c.req.param('provider'));
+    } catch {
+      return c.json({ error: 'Invalid provider' }, 400);
     }
 
-    // Store WhatsApp credentials in the integrations vault
-    await config.integrationsService.connect(
-      'whatsapp',
-      {
-        accessToken: body.accessToken,
-        phoneNumberId: body.phoneNumberId || '',
-        wabaId: body.wabaId || '',
-        apiVersion: 'v22.0',
-      },
-      {
-        authType: 'platform',
-        label: 'WhatsApp (via platform)',
-      },
-    );
+    let body: z.infer<typeof configureBodySchema>;
+    try {
+      body = configureBodySchema.parse(JSON.parse(rawBody));
+    } catch {
+      return c.json({ error: 'Invalid request body' }, 400);
+    }
 
-    logger.info('[platform] WhatsApp configured via platform', {
-      wabaId: body.wabaId,
-      phoneNumberId: body.phoneNumberId,
+    const opts: ConnectOptions = {
+      authType: 'platform',
+      label: body.label ?? `${provider} (via platform)`,
+      ...(body.scopes && { scopes: body.scopes }),
+      ...(body.expiresInSeconds && {
+        expiresAt: new Date(Date.now() + body.expiresInSeconds * 1000),
+      }),
+    };
+
+    await config.integrationsService.connect(provider, body.config, opts);
+
+    logger.info(`[platform] ${provider} configured via platform`, {
+      provider,
     });
 
     return c.json({ success: true });
