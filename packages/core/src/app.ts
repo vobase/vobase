@@ -8,7 +8,6 @@ import { createWorker } from './infra/job';
 import { createScheduler } from './infra/queue';
 import { createThrowProxy } from './infra/throw-proxy';
 import {
-  createPlatformRoutes,
   createPlatformIntegrationsRoutes,
   isPlatformEnabled,
 } from './infra/platform';
@@ -199,20 +198,19 @@ export async function createApp(config: CreateAppConfig) {
   );
   base.use('/api/*', optionalSessionMiddleware(authAdapter));
 
-  // === Platform auth routes (must be mounted BEFORE the better-auth catch-all) ===
+  // === Platform integration routes (token refresh, WhatsApp configure) ===
   if (isPlatformEnabled()) {
     const platformConfig = {
       db,
-      authAdapter: authMod.adapter,
       integrationsService,
     };
-    base.route('/api/auth', createPlatformRoutes(platformConfig));
     base.route(
       '/api/integrations',
       createPlatformIntegrationsRoutes(platformConfig),
     );
   }
 
+  // better-auth catch-all — platform auth callback is handled inside better-auth via platformAuth plugin
   base.on(['POST', 'GET'], '/api/auth/*', (c) =>
     authAdapter.handler(c.req.raw),
   );

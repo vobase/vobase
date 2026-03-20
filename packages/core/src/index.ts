@@ -82,6 +82,10 @@ export {
   isPlatformEnabled,
   verifyPlatformSignature,
 } from './infra/platform';
+export {
+  platformAuth,
+  type PlatformAuthConfig,
+} from './modules/auth/platform-plugin';
 // Webhooks
 export {
   createWebhookRoutes,

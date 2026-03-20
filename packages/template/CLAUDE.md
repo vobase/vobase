@@ -81,6 +81,7 @@ Helpers: `nanoidPrimaryKey()`, `nextSequence(tx, prefix)`, `trackChanges(tx, tab
 Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `validation(details)`, `dbBusy()`.
 Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
 Auth schemas: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`.
+Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAuth callback (JWT verification, user upsert, account linking, session creation). Opt-in via `PLATFORM_HMAC_SECRET` env var.
 
 ### Config Shape
 

@@ -17,18 +17,6 @@ export interface AuthAdapter {
    */
   handler: (request: Request) => Promise<Response>;
 
-  /**
-   * Create a trusted session for a platform-authenticated user.
-   * Finds or creates the user by email, then creates a session.
-   * Only used by the platform callback — caller must have already verified
-   * the platform JWT. Returns session token for Set-Cookie, or null on failure.
-   */
-  createPlatformSession?: (profile: {
-    email: string;
-    name: string;
-    provider: string;
-    providerId: string;
-  }) => Promise<{ token: string; sessionId: string; userId: string } | null>;
 }
 
 export interface AuthSession {

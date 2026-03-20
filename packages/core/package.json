@@ -44,8 +44,9 @@
   "dependencies": {
     "@electric-sql/pglite": "^0.3.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "pg-boss": "^10.1.7",
+    "jose": "^6.2.2",
     "nanoid": "^5.1.7",
+    "pg-boss": "^10.1.7",
     "zod": "^4.3.6"
   },
   "devDependencies": {
