@@ -327,6 +327,127 @@ describe('Messaging Routes', () => {
     });
   });
 
+  describe('Chat endpoint guards', () => {
+    beforeEach(async () => {
+      await db
+        .insert(msgAgents)
+        .values({ id: 'agent-chat', name: 'Chat Bot', userId: 'user-1' });
+    });
+
+    it('POST /threads/:id/chat returns 400 when thread has no agentId', async () => {
+      await db.insert(msgThreads).values({
+        id: 'thr-no-agent',
+        title: 'No Agent',
+        agentId: null,
+        userId: 'user-1',
+      });
+
+      const res = await app.request(`${BASE}/threads/thr-no-agent/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              id: 'msg-1',
+              role: 'user',
+              parts: [{ type: 'text', text: 'hi' }],
+            },
+          ],
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain('no agent');
+    });
+
+    it('POST /threads/:id/chat returns 404 when thread not found', async () => {
+      const res = await app.request(`${BASE}/threads/nonexistent/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              id: 'msg-1',
+              role: 'user',
+              parts: [{ type: 'text', text: 'hi' }],
+            },
+          ],
+        }),
+      });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('POST /threads/:id/chat returns 503 when AI not configured', async () => {
+      await db.insert(msgThreads).values({
+        id: 'thr-no-ai',
+        title: 'No AI',
+        agentId: 'agent-chat',
+        userId: 'user-1',
+      });
+
+      // AI is not configured in test env (no API keys set)
+      const res = await app.request(`${BASE}/threads/thr-no-ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              id: 'msg-1',
+              role: 'user',
+              parts: [{ type: 'text', text: 'hi' }],
+            },
+          ],
+        }),
+      });
+
+      expect(res.status).toBe(503);
+      const body = await res.json();
+      expect(body.error).toContain('AI is not configured');
+    });
+
+    it('POST /threads/:id/chat saves user message and sets thread title', async () => {
+      await db.insert(msgThreads).values({
+        id: 'thr-title',
+        title: null,
+        agentId: 'agent-chat',
+        userId: 'user-1',
+      });
+
+      // Will return 503 (no AI key) but should still save user msg + set title
+      await app.request(`${BASE}/threads/thr-title/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            {
+              id: 'msg-1',
+              role: 'user',
+              parts: [{ type: 'text', text: 'Hello bot' }],
+            },
+          ],
+        }),
+      });
+
+      // Verify user message saved
+      const msgs = await db
+        .select()
+        .from(msgMessages)
+        .where(eq(msgMessages.threadId, 'thr-title'));
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0].content).toBe('Hello bot');
+      expect(msgs[0].aiRole).toBe('user');
+
+      // Verify title set
+      const [thread] = await db
+        .select()
+        .from(msgThreads)
+        .where(eq(msgThreads.id, 'thr-title'));
+      expect(thread.title).toBe('Hello bot');
+    });
+  });
+
   describe('Messages', () => {
     beforeEach(async () => {
       await db
