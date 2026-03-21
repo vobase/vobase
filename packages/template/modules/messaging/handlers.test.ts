@@ -387,7 +387,16 @@ describe('Messaging Routes', () => {
         userId: 'user-1',
       });
 
-      // AI is not configured in test env (no API keys set)
+      // Temporarily clear API keys so isAIConfigured() returns false
+      const savedKeys = {
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      };
+      delete process.env.OPENAI_API_KEY;
+      delete process.env.GEMINI_API_KEY;
+      delete process.env.ANTHROPIC_API_KEY;
+
       const res = await app.request(`${BASE}/threads/thr-no-ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -401,6 +410,9 @@ describe('Messaging Routes', () => {
           ],
         }),
       });
+
+      // Restore keys
+      Object.assign(process.env, savedKeys);
 
       expect(res.status).toBe(503);
       const body = await res.json();

@@ -7,6 +7,7 @@ mock.module('ai', () => ({
   generateText: async () => ({ text: 'OCR extracted text from Gemini' }),
 }));
 mock.module('@ai-sdk/google', () => ({
+  createGoogleGenerativeAI: () => () => ({}),
   google: () => ({}),
 }));
 

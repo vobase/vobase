@@ -32,7 +32,14 @@ function createApp(
         schedulerJobs.push({ name, data });
       },
     } as never);
-    c.set('storage', {} as never);
+    c.set('storage', {
+      bucket: () => ({
+        upload: async () => {},
+        download: async () => new Uint8Array(),
+        delete: async () => {},
+        exists: async () => false,
+      }),
+    } as never);
     c.set('channels', {} as never);
     c.set('http', {} as never);
     await next();
@@ -90,17 +97,12 @@ describe('Knowledge Base Routes', () => {
       expect(schedulerJobs[0].name).toBe('knowledge-base:process-document');
       const jobData = schedulerJobs[0].data as {
         documentId: string;
-        filePath: string;
+        storageKey: string;
         mimeType: string;
       };
       expect(jobData.documentId).toBe(doc.id);
       expect(jobData.mimeType).toContain('text/plain');
-      expect(jobData.filePath).toContain(doc.id);
-
-      // Clean up temp file
-      try {
-        (await import('node:fs')).unlinkSync(jobData.filePath);
-      } catch {}
+      expect(jobData.storageKey).toContain(doc.id);
     });
 
     it('POST /documents returns 400 when no file provided', async () => {
