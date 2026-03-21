@@ -1,38 +1,12 @@
 import { faker } from '@faker-js/faker';
 import type { VobaseDb } from '@vobase/core';
 
+import { getDefaultAgent } from '../ai/agents';
 import type { SeedContext } from '../seed-types';
-import { msgAgents, msgMessages, msgThreads } from './schema';
+import { msgMessages, msgThreads } from './schema';
 
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
-
-const agentPersonas = [
-  {
-    name: 'Vobase Assistant',
-    prompt:
-      'You are a helpful assistant for the Vobase platform. You help users understand the framework, its modules, and how to build applications with it. Be concise and practical.',
-    model: 'gpt-5-mini',
-    suggestions: [
-      'Help me create a new module',
-      'Search the knowledge base for',
-      'Explain how the auth system works',
-      'Write a Hono route handler that',
-    ],
-  },
-  {
-    name: 'Quick Helper',
-    prompt:
-      'You are a fast, lightweight assistant. Answer questions concisely. Prefer short code snippets over long explanations. Skip preamble.',
-    model: 'claude-haiku-4-5',
-    suggestions: [
-      'Write a TypeScript function that',
-      'Debug this error',
-      'Refactor this code to be cleaner',
-      'What does this code do?',
-    ],
-  },
-];
 
 const sampleConversation = [
   {
@@ -65,10 +39,9 @@ const sampleConversation = [
 
 export default async function seed({ db, userId }: SeedContext): Promise<void> {
   const msgResult = await seedMessaging(db, userId);
-  if (msgResult.agents > 0) {
+  if (msgResult.threads > 0) {
     console.log(
-      green('✓') +
-        ` Created ${msgResult.agents} messaging agents + ${msgResult.threads} sample thread with messages`,
+      green('✓') + ` Created ${msgResult.threads} sample thread with messages`,
     );
   } else {
     console.log(dim('✓ Messaging data already exists. Skipping.'));
@@ -78,28 +51,13 @@ export default async function seed({ db, userId }: SeedContext): Promise<void> {
 export async function seedMessaging(
   db: VobaseDb,
   userId: string,
-): Promise<{ agents: number; threads: number }> {
-  const existing = await db.select().from(msgAgents).limit(1);
-  if (existing.length > 0) return { agents: 0, threads: 0 };
+): Promise<{ threads: number }> {
+  const existing = await db.select().from(msgThreads).limit(1);
+  if (existing.length > 0) return { threads: 0 };
 
-  // Seed agents
-  const agentIds: string[] = [];
-  for (const persona of agentPersonas) {
-    const [row] = await db
-      .insert(msgAgents)
-      .values({
-        name: persona.name,
-        systemPrompt: persona.prompt,
-        model: persona.model,
-        suggestions: JSON.stringify(persona.suggestions),
-        tools: JSON.stringify(['knowledge-base']),
-        channels: JSON.stringify(['web']),
-        userId,
-        isPublished: true,
-      })
-      .returning();
-    agentIds.push(row.id);
-  }
+  // Use the default code-defined agent
+  const defaultAgent = getDefaultAgent();
+  if (!defaultAgent) return { threads: 0 };
 
   // Seed a sample thread with messages
   const threadCreated = faker.date.recent({ days: 7 });
@@ -107,7 +65,7 @@ export async function seedMessaging(
     .insert(msgThreads)
     .values({
       title: 'How to create modules',
-      agentId: agentIds[0],
+      agentId: defaultAgent.id,
       userId,
       createdAt: threadCreated,
       updatedAt: threadCreated,
@@ -127,5 +85,5 @@ export async function seedMessaging(
     });
   }
 
-  return { agents: agentPersonas.length, threads: 1 };
+  return { threads: 1 };
 }

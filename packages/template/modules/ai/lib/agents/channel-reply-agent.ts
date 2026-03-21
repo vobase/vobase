@@ -1,13 +1,14 @@
 import { Agent } from '@mastra/core/agent';
 import type { Scheduler, VobaseDb } from '@vobase/core';
 
+import { createModerationProcessor } from '../guardrails/moderation';
 import {
   createMemoryInputProcessor,
   createMemoryOutputProcessor,
 } from '../memory/memory-processor';
 import { createEscalationTool } from '../tools/escalate';
+import type { AgentConfig } from './define';
 import {
-  type AgentRow,
   buildBaseConfig,
   DEFAULT_INSTRUCTIONS,
   resolveScope,
@@ -17,7 +18,7 @@ import {
 interface CreateChannelReplyAgentOptions {
   db: VobaseDb;
   scheduler: Scheduler;
-  agent: AgentRow;
+  agent: AgentConfig;
   thread: {
     id: string;
     channel: string;
@@ -29,7 +30,8 @@ interface CreateChannelReplyAgentOptions {
 /**
  * Create a Mastra Agent configured for external channel replies (WhatsApp, email).
  * Tools: knowledge base search + escalation to human staff.
- * Memory: always-on input/output processors for memory retrieval and formation.
+ * Guardrails: content moderation always applied.
+ * Memory: input/output processors when scope is available.
  */
 export function createChannelReplyAgent(
   options: CreateChannelReplyAgentOptions,
@@ -53,22 +55,27 @@ export function createChannelReplyAgent(
   return new Agent({
     id: `channel-${agent.id}`,
     name: agent.name,
-    instructions: agent.systemPrompt ?? DEFAULT_INSTRUCTIONS,
+    instructions: agent.instructions ?? DEFAULT_INSTRUCTIONS,
     model: toMastraModelId(modelId),
     tools,
     defaultOptions: { maxSteps: 5 },
-    ...(scope && {
-      inputProcessors: [
-        createMemoryInputProcessor({ db, threadId: thread.id, scope }),
-      ],
-      outputProcessors: [
-        createMemoryOutputProcessor({
-          db,
-          scheduler,
-          threadId: thread.id,
-          scope,
-        }),
-      ],
-    }),
+    inputProcessors: [
+      createModerationProcessor(),
+      ...(scope
+        ? [createMemoryInputProcessor({ db, threadId: thread.id, scope })]
+        : []),
+    ],
+    outputProcessors: [
+      ...(scope
+        ? [
+            createMemoryOutputProcessor({
+              db,
+              scheduler,
+              threadId: thread.id,
+              scope,
+            }),
+          ]
+        : []),
+    ],
   });
 }

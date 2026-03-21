@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 
 import { createTestDb } from '../../lib/test-helpers';
 import { messagingRoutes } from './handlers';
-import { msgAgents, msgMessages, msgThreads } from './schema';
+import { msgMessages, msgThreads } from './schema';
 
 const BASE = 'http://localhost/api/messaging';
 
@@ -46,166 +46,69 @@ describe('Messaging Routes', () => {
     await pglite.close();
   });
 
-  describe('Agents', () => {
-    it('POST /agents creates agent and returns 201', async () => {
-      const res = await app.request(`${BASE}/agents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'Helper Bot',
-          systemPrompt: 'You are helpful.',
-        }),
-      });
-
-      expect(res.status).toBe(201);
-      const body = await res.json();
-      expect(body.name).toBe('Helper Bot');
-      expect(body.systemPrompt).toBe('You are helpful.');
-      expect(body.userId).toBe('user-1');
-      expect(body.isPublished).toBe(false);
-      expect(body.id).toBeDefined();
-    });
-
-    it('GET /agents lists only current user agents', async () => {
-      // Insert one for user-1 and one for user-2 directly
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-a', name: 'Bot A', userId: 'user-1' });
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-b', name: 'Bot B', userId: 'user-2' });
-
+  describe('Agents (read-only)', () => {
+    it('GET /agents returns code-defined agents', async () => {
       const res = await app.request(`${BASE}/agents`);
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body).toHaveLength(1);
-      expect(body[0].name).toBe('Bot A');
+      expect(Array.isArray(body)).toBe(true);
+      expect(body.length).toBeGreaterThanOrEqual(1);
+      // First agent should be the assistant
+      expect(body[0].id).toBe('assistant');
+      expect(body[0].name).toBe('Vobase Assistant');
+      expect(body[0].instructions).toBeDefined();
     });
 
-    it('GET /agents/:id returns agent', async () => {
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-1', name: 'Helper', userId: 'user-1' });
-
-      const res = await app.request(`${BASE}/agents/agent-1`);
+    it('GET /agents/:id returns specific agent', async () => {
+      const res = await app.request(`${BASE}/agents/assistant`);
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.id).toBe('agent-1');
-      expect(body.name).toBe('Helper');
+      expect(body.id).toBe('assistant');
+      expect(body.name).toBe('Vobase Assistant');
     });
 
-    it('GET /agents/:id returns 404 for nonexistent', async () => {
-      const res = await app.request(`${BASE}/agents/no-such-id`);
+    it('GET /agents/:id returns 404 for unknown agent', async () => {
+      const res = await app.request(`${BASE}/agents/nonexistent`);
       expect(res.status).toBe(404);
-    });
-
-    it('PUT /agents/:id updates with ownership check', async () => {
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-upd', name: 'Old', userId: 'user-1' });
-
-      const res = await app.request(`${BASE}/agents/agent-upd`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'New', systemPrompt: 'Updated prompt' }),
-      });
-
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.name).toBe('New');
-      expect(body.systemPrompt).toBe('Updated prompt');
-    });
-
-    it('PUT /agents/:id returns 404 for wrong user', async () => {
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-other', name: 'Other', userId: 'user-2' });
-
-      const res = await app.request(`${BASE}/agents/agent-other`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Hacked' }),
-      });
-
-      expect(res.status).toBe(404);
-
-      // Verify original unchanged
-      const [agent] = await db
-        .select()
-        .from(msgAgents)
-        .where(eq(msgAgents.id, 'agent-other'));
-      expect(agent?.name).toBe('Other');
-    });
-
-    it('DELETE /agents/:id removes agent with ownership', async () => {
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-del', name: 'Delete Me', userId: 'user-1' });
-
-      const res = await app.request(`${BASE}/agents/agent-del`, {
-        method: 'DELETE',
-      });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.success).toBe(true);
-
-      const [agent] = await db
-        .select()
-        .from(msgAgents)
-        .where(eq(msgAgents.id, 'agent-del'));
-      expect(agent).toBeUndefined();
-    });
-
-    it('stores tools and kbSourceIds as JSON', async () => {
-      const res = await app.request(`${BASE}/agents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'JSON Bot',
-          tools: ['search_knowledge_base'],
-          kbSourceIds: ['src-1', 'src-2'],
-        }),
-      });
-
-      expect(res.status).toBe(201);
-      const body = await res.json();
-      expect(JSON.parse(body.tools)).toEqual(['search_knowledge_base']);
-      expect(JSON.parse(body.kbSourceIds)).toEqual(['src-1', 'src-2']);
     });
   });
 
   describe('Threads', () => {
-    beforeEach(async () => {
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-t', name: 'Thread Bot', userId: 'user-1' });
+    it('POST /threads returns 404 for invalid agentId', async () => {
+      const res = await app.request(`${BASE}/threads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: 'nonexistent-agent' }),
+      });
+
+      expect(res.status).toBe(404);
     });
 
     it('POST /threads creates thread and returns 201', async () => {
       const res = await app.request(`${BASE}/threads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New Thread', agentId: 'agent-t' }),
+        body: JSON.stringify({ title: 'New Thread', agentId: 'assistant' }),
       });
 
       expect(res.status).toBe(201);
       const body = await res.json();
       expect(body.title).toBe('New Thread');
       expect(body.userId).toBe('user-1');
-      expect(body.agentId).toBe('agent-t');
+      expect(body.agentId).toBe('assistant');
     });
 
     it('GET /threads lists user threads', async () => {
       await db.insert(msgThreads).values({
         id: 'thr-a',
         title: 'Mine',
-        agentId: 'agent-t',
+        agentId: 'assistant',
         userId: 'user-1',
       });
       await db.insert(msgThreads).values({
         id: 'thr-b',
         title: 'Others',
-        agentId: 'agent-t',
+        agentId: 'assistant',
         userId: 'user-2',
       });
 
@@ -220,7 +123,7 @@ describe('Messaging Routes', () => {
       await db.insert(msgThreads).values({
         id: 'thr-get',
         title: 'My Thread',
-        agentId: 'agent-t',
+        agentId: 'assistant',
         userId: 'user-1',
       });
       await db.insert(msgMessages).values({
@@ -253,7 +156,7 @@ describe('Messaging Routes', () => {
       await db.insert(msgThreads).values({
         id: 'thr-other',
         title: 'Not Mine',
-        agentId: 'agent-t',
+        agentId: 'assistant',
         userId: 'user-2',
       });
 
@@ -265,7 +168,7 @@ describe('Messaging Routes', () => {
       await db.insert(msgThreads).values({
         id: 'thr-del',
         title: 'Delete Me',
-        agentId: 'agent-t',
+        agentId: 'assistant',
         userId: 'user-1',
       });
       await db.insert(msgMessages).values({
@@ -309,7 +212,7 @@ describe('Messaging Routes', () => {
       await db.insert(msgThreads).values({
         id: 'thr-nope',
         title: 'Not Mine',
-        agentId: 'agent-t',
+        agentId: 'assistant',
         userId: 'user-2',
       });
 
@@ -328,12 +231,6 @@ describe('Messaging Routes', () => {
   });
 
   describe('Chat endpoint guards', () => {
-    beforeEach(async () => {
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-chat', name: 'Chat Bot', userId: 'user-1' });
-    });
-
     it('POST /threads/:id/chat returns 400 when thread has no agentId', async () => {
       await db.insert(msgThreads).values({
         id: 'thr-no-agent',
@@ -383,7 +280,7 @@ describe('Messaging Routes', () => {
       await db.insert(msgThreads).values({
         id: 'thr-no-ai',
         title: 'No AI',
-        agentId: 'agent-chat',
+        agentId: 'assistant',
         userId: 'user-1',
       });
 
@@ -423,7 +320,7 @@ describe('Messaging Routes', () => {
       await db.insert(msgThreads).values({
         id: 'thr-title',
         title: null,
-        agentId: 'agent-chat',
+        agentId: 'assistant',
         userId: 'user-1',
       });
 
@@ -462,13 +359,10 @@ describe('Messaging Routes', () => {
 
   describe('Messages', () => {
     beforeEach(async () => {
-      await db
-        .insert(msgAgents)
-        .values({ id: 'agent-m', name: 'Msg Bot', userId: 'user-1' });
       await db.insert(msgThreads).values({
         id: 'thr-m',
         title: 'Msg Thread',
-        agentId: 'agent-m',
+        agentId: 'assistant',
         userId: 'user-1',
       });
     });

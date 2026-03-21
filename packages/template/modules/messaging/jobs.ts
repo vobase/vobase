@@ -7,7 +7,8 @@ import type {
 import { defineJob } from '@vobase/core';
 import { and, desc, eq, isNull, lt, lte } from 'drizzle-orm';
 
-import { msgAgents, msgMessages, msgThreads } from './schema';
+import { getAgent } from '../ai/agents';
+import { msgMessages, msgThreads } from './schema';
 
 let moduleDb: VobaseDb;
 let moduleChannels: ChannelsService;
@@ -153,13 +154,8 @@ export const channelReplyJob = defineJob(
     )[0];
     if (!thread || thread.status !== 'ai' || !thread.agentId) return;
 
-    // Load agent
-    const agent = (
-      await moduleDb
-        .select()
-        .from(msgAgents)
-        .where(eq(msgAgents.id, thread.agentId))
-    )[0];
+    // Look up agent from code registry
+    const agent = getAgent(thread.agentId);
     if (!agent) return;
 
     // Load all messages for context

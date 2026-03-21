@@ -9,7 +9,8 @@ import type {
 import { logger } from '@vobase/core';
 import { and, eq } from 'drizzle-orm';
 
-import { msgAgents, msgMessages, msgThreads } from '../schema';
+import { getAgentForChannel, getDefaultAgent } from '../../ai/agents';
+import { msgMessages, msgThreads } from '../schema';
 import { findOrCreateContact } from './contacts';
 import { findOrCreateThread } from './threads';
 
@@ -46,13 +47,9 @@ export async function handleInboundMessage(
   // 1. Find or create contact
   const contact = await findOrCreateContact(db, event.from, event.profileName);
 
-  // 2. Find default agent for this channel
-  const agents = await db.select().from(msgAgents);
-  const channelAgent = agents.find((a: (typeof agents)[number]) => {
-    const channels: string[] = a.channels ? JSON.parse(a.channels) : [];
-    return channels.includes(event.channel);
-  });
-  const agentId = channelAgent?.id ?? agents[0]?.id;
+  // 2. Find agent for this channel from code registry
+  const channelAgent = getAgentForChannel(event.channel);
+  const agentId = channelAgent?.id ?? getDefaultAgent()?.id;
   if (!agentId) return; // No agents configured
 
   // 3. Find or create thread

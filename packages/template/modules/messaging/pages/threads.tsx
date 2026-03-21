@@ -59,8 +59,8 @@ interface DbMessage {
 interface Agent {
   id: string;
   name: string;
-  model: string | null;
-  suggestions: string | null;
+  model?: string;
+  suggestions?: string[];
 }
 
 async function fetchThreads(): Promise<Thread[]> {
@@ -92,36 +92,22 @@ function toUIMessages(dbMessages: DbMessage[]): UIMessage[] {
   }));
 }
 
+const DEFAULT_SUGGESTIONS = [
+  'Help me write a function that',
+  'Search the knowledge base for',
+  'Explain how',
+  'Give me ideas for',
+];
+
 function getAgentSuggestions(
   agents: Agent[] | undefined,
   agentId?: string,
 ): string[] {
   const agent = agents?.find((a) => a.id === agentId);
-  if (!agent?.suggestions)
-    return [
-      'Help me write a function that',
-      'Search the knowledge base for',
-      'Explain how',
-      'Give me ideas for',
-    ];
-  try {
-    const parsed = JSON.parse(agent.suggestions) as string[];
-    return parsed.length > 0
-      ? parsed
-      : [
-          'Help me write a function that',
-          'Search the knowledge base for',
-          'Explain how',
-          'Give me ideas for',
-        ];
-  } catch {
-    return [
-      'Help me write a function that',
-      'Search the knowledge base for',
-      'Explain how',
-      'Give me ideas for',
-    ];
+  if (!agent?.suggestions || agent.suggestions.length === 0) {
+    return DEFAULT_SUGGESTIONS;
   }
+  return agent.suggestions;
 }
 
 /** Chat view for an active thread */
@@ -380,7 +366,7 @@ function MessagingPage() {
         ) : (
           <div className="flex justify-center">
             <Button asChild>
-              <Link to="/messaging/agents">Create agent</Link>
+              <Link to="/ai/agents">Create agent</Link>
             </Button>
           </div>
         )}

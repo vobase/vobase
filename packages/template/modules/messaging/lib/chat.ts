@@ -1,10 +1,9 @@
 import type { Scheduler, VobaseDb } from '@vobase/core';
 import { notFound } from '@vobase/core';
 import type { UIMessage } from 'ai';
-import { eq } from 'drizzle-orm';
 
+import { getAgent } from '../../ai/agents';
 import { createChatAgent } from '../../ai/lib/agents/chat-agent';
-import { msgAgents } from '../schema';
 
 export interface StreamChatOptions {
   db: VobaseDb;
@@ -26,13 +25,11 @@ export interface StreamChatOptions {
 export async function streamChat(options: StreamChatOptions) {
   const { db, scheduler, agentId, messages, thread } = options;
 
-  // Load agent config from DB
-  const agent = (
-    await db.select().from(msgAgents).where(eq(msgAgents.id, agentId))
-  )[0];
+  // Look up agent from code registry
+  const agent = getAgent(agentId);
   if (!agent) throw notFound('Agent not found');
 
-  // Create a Mastra Agent from DB config and stream
+  // Create a Mastra Agent from code config and stream
   const mastraAgent = createChatAgent({
     db,
     scheduler,

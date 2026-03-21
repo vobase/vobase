@@ -1,30 +1,5 @@
 import { nanoidPrimaryKey } from '@vobase/core/schema';
-import { boolean, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-
-export const msgAgents = pgTable(
-  'msg_agents',
-  {
-    id: nanoidPrimaryKey(),
-    name: text('name').notNull(),
-    avatar: text('avatar'),
-    systemPrompt: text('system_prompt'),
-    tools: text('tools'), // JSON array of tool names
-    kbSourceIds: text('kb_source_ids'), // JSON array of KB source IDs to scope search
-    model: text('model'), // AI model identifier
-    suggestions: text('suggestions'), // JSON array of quick-start prompt strings
-    channels: text('channels'), // JSON array of channel names (e.g. ["web", "whatsapp"])
-    userId: text('user_id').notNull(),
-    isPublished: boolean('is_published').notNull().default(false),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [index('msg_agents_user_id_idx').on(table.userId)],
-);
+import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const msgThreads = pgTable(
   'msg_threads',

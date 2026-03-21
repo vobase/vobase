@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import type { Scheduler, StorageService, VobaseDb } from '@vobase/core';
 import type { ModelMessage, UserContent } from 'ai';
 
+import type { AgentConfig } from '../../ai/agents';
 import { createChannelReplyAgent } from '../../ai/lib/agents/channel-reply-agent';
 import { extractDocument } from '../../knowledge-base/lib/extract';
-import type { msgAgents } from '../schema';
 
 interface Attachment {
   storageKey: string;
@@ -27,7 +27,7 @@ interface ChannelReplyOptions {
     contactId?: string | null;
     userId?: string | null;
   };
-  agent: typeof msgAgents.$inferSelect;
+  agent: AgentConfig;
   messages: Array<{
     aiRole: string | null;
     content: string | null;

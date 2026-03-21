@@ -9,27 +9,15 @@ import { and, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { getAgent, listAgents } from '../ai/agents';
 import { cleanupThreadMemory } from '../ai/lib/memory/cleanup';
-import { msgAgents, msgContacts, msgMessages, msgThreads } from './schema';
+import { msgContacts, msgMessages, msgThreads } from './schema';
 
 /** Get the authenticated user's ID — throws if not authenticated (auth middleware guarantees this). */
 function requireUserId(ctx: { user?: { id: string } | null }): string {
   if (!ctx.user) throw new Error('Authentication required');
   return ctx.user.id;
 }
-
-const createAgentSchema = z.object({
-  name: z.string().min(1),
-  avatar: z.string().nullable().optional(),
-  systemPrompt: z.string().nullable().optional(),
-  tools: z.array(z.string()).nullable().optional(),
-  kbSourceIds: z.array(z.string()).nullable().optional(),
-  model: z.string().nullable().optional(),
-  channels: z.array(z.string()).nullable().optional(),
-  isPublished: z.boolean().optional(),
-});
-
-const updateAgentSchema = createAgentSchema.partial();
 
 const createThreadSchema = z.object({
   title: z.string().nullable().optional(),
@@ -67,94 +55,22 @@ const sendMessageSchema = z.object({
 
 export const messagingRoutes = new Hono();
 
-// Agents CRUD
-messagingRoutes.post('/agents', async (c) => {
-  const ctx = getCtx(c);
-  const body = createAgentSchema.parse(await c.req.json());
-  const [agent] = await ctx.db
-    .insert(msgAgents)
-    .values({
-      name: body.name,
-      avatar: body.avatar,
-      systemPrompt: body.systemPrompt,
-      tools: body.tools ? JSON.stringify(body.tools) : null,
-      kbSourceIds: body.kbSourceIds ? JSON.stringify(body.kbSourceIds) : null,
-      model: body.model,
-      channels: body.channels ? JSON.stringify(body.channels) : null,
-      userId: requireUserId(ctx),
-      isPublished: body.isPublished ?? false,
-    })
-    .returning();
-  return c.json(agent, 201);
-});
-
+// Agents (read-only — agents are defined in code, not the database)
 messagingRoutes.get('/agents', async (c) => {
-  const ctx = getCtx(c);
-  const agents = await ctx.db
-    .select()
-    .from(msgAgents)
-    .where(eq(msgAgents.userId, requireUserId(ctx)))
-    .orderBy(desc(msgAgents.createdAt));
-  return c.json(agents);
+  return c.json(listAgents());
 });
 
 messagingRoutes.get('/agents/:id', async (c) => {
-  const ctx = getCtx(c);
-  const agent = (
-    await ctx.db
-      .select()
-      .from(msgAgents)
-      .where(eq(msgAgents.id, c.req.param('id')))
-  )[0];
+  const agent = getAgent(c.req.param('id'));
   if (!agent) throw notFound('Agent not found');
   return c.json(agent);
-});
-
-messagingRoutes.put('/agents/:id', async (c) => {
-  const ctx = getCtx(c);
-  const body = updateAgentSchema.parse(await c.req.json());
-  const [agent] = await ctx.db
-    .update(msgAgents)
-    .set({
-      name: body.name,
-      avatar: body.avatar,
-      systemPrompt: body.systemPrompt,
-      tools: body.tools ? JSON.stringify(body.tools) : undefined,
-      kbSourceIds: body.kbSourceIds
-        ? JSON.stringify(body.kbSourceIds)
-        : undefined,
-      model: body.model,
-      channels: body.channels ? JSON.stringify(body.channels) : undefined,
-      isPublished: body.isPublished,
-    })
-    .where(
-      and(
-        eq(msgAgents.id, c.req.param('id')),
-        eq(msgAgents.userId, requireUserId(ctx)),
-      ),
-    )
-    .returning();
-  if (!agent) throw notFound('Agent not found');
-  return c.json(agent);
-});
-
-messagingRoutes.delete('/agents/:id', async (c) => {
-  const ctx = getCtx(c);
-  await ctx.db
-    .delete(msgAgents)
-    .where(
-      and(
-        eq(msgAgents.id, c.req.param('id')),
-        eq(msgAgents.userId, requireUserId(ctx)),
-      ),
-    );
-  return c.json({ success: true });
 });
 
 // Threads
 messagingRoutes.post('/threads', async (c) => {
   const ctx = getCtx(c);
   const body = createThreadSchema.parse(await c.req.json());
+  if (!getAgent(body.agentId)) throw notFound('Agent not found');
   const [thread] = await ctx.db
     .insert(msgThreads)
     .values({

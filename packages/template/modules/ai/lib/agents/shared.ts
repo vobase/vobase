@@ -1,10 +1,10 @@
 import type { VobaseDb } from '@vobase/core';
 
 import { getAIConfig } from '../../../../lib/ai';
-import type { msgAgents } from '../../../messaging/schema';
 import type { MemoryScope } from '../memory/types';
 import type { createEscalationTool } from '../tools/escalate';
 import { createKnowledgeBaseTool } from '../tools/search-kb';
+import type { AgentConfig } from './define';
 
 /**
  * Convert a model ID (e.g. 'gpt-5-mini', 'claude-3-5-sonnet') to Mastra's
@@ -30,33 +30,12 @@ export function toMastraModelId(modelId: string): string {
 export const DEFAULT_INSTRUCTIONS =
   'You are a helpful assistant. When answering questions, search the knowledge base for relevant information and cite your sources.';
 
-export type AgentRow = typeof msgAgents.$inferSelect;
-
-/** Parse a JSON text column safely, returning the fallback on invalid/missing data. */
-export function parseJsonArray(
-  value: string | null,
-  fallback: string[],
-): string[] {
-  if (!value) return fallback;
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) {
-      return parsed;
-    }
-    return fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-/** Shared agent config: resolve model, parse tools/kbSourceIds, build KB tool. */
-export function buildBaseConfig(db: VobaseDb, agent: AgentRow) {
+/** Shared agent config: resolve model, build tool map from code-based AgentConfig. */
+export function buildBaseConfig(db: VobaseDb, agent: AgentConfig) {
   const config = getAIConfig();
   const modelId = agent.model ?? config.model;
-  const enabledTools = parseJsonArray(agent.tools, ['search_knowledge_base']);
-  const kbSourceIds = agent.kbSourceIds
-    ? parseJsonArray(agent.kbSourceIds, [])
-    : undefined;
+  const enabledTools = agent.tools ?? ['search_knowledge_base'];
+  const kbSourceIds = agent.kbSourceIds;
 
   const tools: Record<
     string,

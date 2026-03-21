@@ -25,24 +25,8 @@ export async function createTestDb(options?: { withVec?: boolean }) {
   await pglite.exec('CREATE EXTENSION IF NOT EXISTS vector');
   await pglite.exec(nanoidSql);
 
-  // Messaging tables
+  // Messaging tables (agents are code-defined, not in DB)
   await pglite.exec(`
-    CREATE TABLE msg_agents (
-      id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      name TEXT NOT NULL,
-      avatar TEXT,
-      system_prompt TEXT,
-      tools TEXT,
-      kb_source_ids TEXT,
-      model TEXT,
-      suggestions TEXT,
-      channels TEXT,
-      user_id TEXT NOT NULL,
-      is_published BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
     CREATE TABLE msg_threads (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       title TEXT,
