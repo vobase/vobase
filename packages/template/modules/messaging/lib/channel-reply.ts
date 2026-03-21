@@ -20,7 +20,13 @@ interface ChannelReplyOptions {
   db: VobaseDb;
   scheduler: Scheduler;
   storage?: StorageService;
-  thread: { id: string; agentId: string | null; channel: string };
+  thread: {
+    id: string;
+    agentId: string | null;
+    channel: string;
+    contactId?: string | null;
+    userId?: string | null;
+  };
   agent: typeof msgAgents.$inferSelect;
   messages: Array<{
     aiRole: string | null;
@@ -148,7 +154,12 @@ export async function generateChannelReply(
     db,
     scheduler,
     agent,
-    thread: { id: thread.id, channel: thread.channel },
+    thread: {
+      id: thread.id,
+      channel: thread.channel,
+      contactId: thread.contactId,
+      userId: thread.userId,
+    },
   });
 
   // biome-ignore lint/suspicious/noExplicitAny: ModelMessage[] compatible at runtime, type declarations diverge across Mastra/AI SDK package boundaries

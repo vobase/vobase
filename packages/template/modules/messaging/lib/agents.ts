@@ -4,6 +4,11 @@ import type { Scheduler, VobaseDb } from '@vobase/core';
 import { getAIConfig } from '../../../lib/ai';
 import type { msgAgents } from '../schema';
 import { createEscalationTool } from './escalation';
+import {
+  createMemoryInputProcessor,
+  createMemoryOutputProcessor,
+} from './memory/memory-processor';
+import type { MemoryScope } from './memory/types';
 import { createKnowledgeBaseTool } from './tools';
 
 /**
@@ -70,18 +75,40 @@ function buildBaseConfig(db: VobaseDb, agent: AgentRow) {
   return { modelId, tools, enabledTools };
 }
 
+interface ThreadContext {
+  threadId: string;
+  contactId?: string | null;
+  userId?: string | null;
+}
+
 interface CreateAgentOptions {
   db: VobaseDb;
+  scheduler: Scheduler;
   agent: AgentRow;
+  thread: ThreadContext;
+}
+
+/** Resolve memory scope from thread context. Returns null if no valid scope. */
+function resolveScope(thread: ThreadContext): MemoryScope | null {
+  if (thread.contactId) {
+    return { contactId: thread.contactId, userId: thread.userId ?? undefined };
+  }
+  if (thread.userId) {
+    return { userId: thread.userId };
+  }
+  // No valid scope — memory processors will be skipped
+  return null;
 }
 
 /**
  * Create a Mastra Agent configured for web chat streaming.
  * Tools: knowledge base search (configurable via agent.tools).
+ * Memory: always-on input/output processors for memory retrieval and formation.
  */
 export function createChatAgent(options: CreateAgentOptions) {
-  const { db, agent } = options;
+  const { db, scheduler, agent, thread } = options;
   const { modelId, tools } = buildBaseConfig(db, agent);
+  const scope = resolveScope(thread);
 
   return new Agent({
     id: `chat-${agent.id}`,
@@ -90,6 +117,19 @@ export function createChatAgent(options: CreateAgentOptions) {
     model: toMastraModelId(modelId),
     tools,
     defaultOptions: { maxSteps: 5 },
+    ...(scope && {
+      inputProcessors: [
+        createMemoryInputProcessor({ db, threadId: thread.threadId, scope }),
+      ],
+      outputProcessors: [
+        createMemoryOutputProcessor({
+          db,
+          scheduler,
+          threadId: thread.threadId,
+          scope,
+        }),
+      ],
+    }),
   });
 }
 
@@ -97,18 +137,29 @@ interface CreateChannelReplyAgentOptions {
   db: VobaseDb;
   scheduler: Scheduler;
   agent: AgentRow;
-  thread: { id: string; channel: string };
+  thread: {
+    id: string;
+    channel: string;
+    contactId?: string | null;
+    userId?: string | null;
+  };
 }
 
 /**
  * Create a Mastra Agent configured for external channel replies (WhatsApp, email).
  * Tools: knowledge base search + escalation to human staff.
+ * Memory: always-on input/output processors for memory retrieval and formation.
  */
 export function createChannelReplyAgent(
   options: CreateChannelReplyAgentOptions,
 ) {
   const { db, scheduler, agent, thread } = options;
   const { modelId, tools } = buildBaseConfig(db, agent);
+  const scope = resolveScope({
+    threadId: thread.id,
+    contactId: thread.contactId,
+    userId: thread.userId,
+  });
 
   // Always include escalation tool for external channels
   tools.escalate_to_staff = createEscalationTool(
@@ -125,5 +176,18 @@ export function createChannelReplyAgent(
     model: toMastraModelId(modelId),
     tools,
     defaultOptions: { maxSteps: 5 },
+    ...(scope && {
+      inputProcessors: [
+        createMemoryInputProcessor({ db, threadId: thread.id, scope }),
+      ],
+      outputProcessors: [
+        createMemoryOutputProcessor({
+          db,
+          scheduler,
+          threadId: thread.id,
+          scope,
+        }),
+      ],
+    }),
   });
 }

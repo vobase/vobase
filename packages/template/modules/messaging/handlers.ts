@@ -5,11 +5,19 @@ import {
   type TextUIPart,
   type UIMessage,
 } from 'ai';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { msgAgents, msgContacts, msgMessages, msgThreads } from './schema';
+import {
+  msgAgents,
+  msgContacts,
+  msgMemCells,
+  msgMemEpisodes,
+  msgMemEventLogs,
+  msgMessages,
+  msgThreads,
+} from './schema';
 
 /** Get the authenticated user's ID — throws if not authenticated (auth middleware guarantees this). */
 function requireUserId(ctx: { user?: { id: string } | null }): string {
@@ -221,6 +229,27 @@ messagingRoutes.delete('/threads/:id', async (c) => {
       )
   )[0];
   if (!thread) throw notFound('Thread not found');
+  // Delete memory data first (reverse dependency order).
+  // Wrapped in try-catch: memory tables may not exist in test/dev environments.
+  try {
+    const cellIds = ctx.db
+      .select({ id: msgMemCells.id })
+      .from(msgMemCells)
+      .where(eq(msgMemCells.threadId, id));
+    await ctx.db
+      .delete(msgMemEventLogs)
+      .where(inArray(msgMemEventLogs.cellId, cellIds));
+    await ctx.db
+      .delete(msgMemEpisodes)
+      .where(inArray(msgMemEpisodes.cellId, cellIds));
+    await ctx.db.delete(msgMemCells).where(eq(msgMemCells.threadId, id));
+  } catch (err) {
+    // Memory tables may not be pushed yet — log but don't block deletion
+    console.warn(
+      '[messaging] Memory cleanup failed during thread delete:',
+      err,
+    );
+  }
   await ctx.db.delete(msgMessages).where(eq(msgMessages.threadId, id));
   await ctx.db.delete(msgThreads).where(eq(msgThreads.id, id));
   return c.json({ success: true });
@@ -304,8 +333,14 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
   const { streamChat } = await import('./lib/chat');
   const result = await streamChat({
     db: ctx.db,
+    scheduler: ctx.scheduler,
     agentId: thread.agentId,
     messages: messages as UIMessage[],
+    thread: {
+      id: threadId,
+      contactId: thread.contactId,
+      userId: thread.userId,
+    },
   });
 
   // Save assistant response to DB in background
