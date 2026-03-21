@@ -1,5 +1,10 @@
+import { toAISdkStream } from '@mastra/ai-sdk';
 import { getCtx, notFound } from '@vobase/core';
-import type { TextUIPart, UIMessage } from 'ai';
+import {
+  createUIMessageStreamResponse,
+  type TextUIPart,
+  type UIMessage,
+} from 'ai';
 import { and, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -280,6 +285,10 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
       .where(eq(msgThreads.id, threadId));
   }
 
+  if (!thread.agentId) {
+    return c.json({ error: 'Thread has no agent assigned.' }, 400);
+  }
+
   // If AI not configured, return error as JSON
   if (!isAIConfigured()) {
     return c.json(
@@ -291,11 +300,11 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
     );
   }
 
-  // Stream response using UIMessage protocol
+  // Stream response using Mastra Agent → AI SDK stream bridge
   const { streamChat } = await import('./lib/chat');
   const result = await streamChat({
     db: ctx.db,
-    agentId: thread.agentId ?? '',
+    agentId: thread.agentId,
     messages: messages as UIMessage[],
   });
 
@@ -310,9 +319,16 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
         content: text,
       });
     })
-    .catch(console.error);
+    .catch((err) => {
+      console.error(
+        `[messaging] Failed to persist assistant response for thread ${threadId}:`,
+        err,
+      );
+    });
 
-  return result.toUIMessageStreamResponse();
+  // Convert Mastra stream to AI SDK UIMessageStream format
+  const stream = toAISdkStream(result, { from: 'agent', version: 'v6' });
+  return createUIMessageStreamResponse({ stream });
 });
 
 // Contacts

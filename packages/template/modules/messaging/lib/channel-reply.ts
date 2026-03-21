@@ -1,36 +1,12 @@
 import { unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openai } from '@ai-sdk/openai';
 import type { Scheduler, StorageService, VobaseDb } from '@vobase/core';
-import {
-  generateText,
-  type LanguageModel,
-  type ModelMessage,
-  stepCountIs,
-  type UserContent,
-} from 'ai';
+import type { ModelMessage, UserContent } from 'ai';
 
-import { getAIConfig } from '../../../lib/ai';
 import { extractDocument } from '../../knowledge-base/lib/extract';
 import type { msgAgents } from '../schema';
-import { createEscalationTool } from './escalation';
-import { createKnowledgeBaseTool } from './tools';
-
-/**
- * Resolve a model ID to the correct AI SDK provider.
- */
-async function resolveModel(modelId: string): Promise<LanguageModel> {
-  if (modelId.startsWith('claude-')) {
-    const { anthropic } = await import('@ai-sdk/anthropic');
-    return anthropic(modelId);
-  }
-  if (modelId.startsWith('gemini-')) {
-    const { google } = await import('@ai-sdk/google');
-    return google(modelId);
-  }
-  return openai(modelId);
-}
+import { createChannelReplyAgent } from './agents';
 
 interface Attachment {
   storageKey: string;
@@ -91,16 +67,13 @@ async function extractAttachmentText(
 }
 
 /**
- * Generate an AI reply for external channels using generateText (not streamText).
+ * Generate an AI reply for external channels using a Mastra Agent (non-streaming).
  * External channels don't support streaming — collect full response, then send.
  */
 export async function generateChannelReply(
   options: ChannelReplyOptions,
 ): Promise<string> {
   const { db, scheduler, storage, thread, agent, messages } = options;
-
-  const config = getAIConfig();
-  const modelId = agent.model ?? config.model;
 
   // Build AI messages — include image attachments as multimodal content parts
   const aiMessages: ModelMessage[] = [];
@@ -170,41 +143,15 @@ export async function generateChannelReply(
     }
   }
 
-  // Build tools based on agent config
-  const tools: Record<
-    string,
-    ReturnType<typeof createKnowledgeBaseTool | typeof createEscalationTool>
-  > = {};
-
-  const enabledTools: string[] = agent.tools
-    ? JSON.parse(agent.tools)
-    : ['search_knowledge_base'];
-  const kbSourceIds: string[] | undefined = agent.kbSourceIds
-    ? JSON.parse(agent.kbSourceIds)
-    : undefined;
-
-  if (enabledTools.includes('search_knowledge_base')) {
-    tools.search_knowledge_base = createKnowledgeBaseTool(db, kbSourceIds);
-  }
-
-  // Always include escalation tool for external channels
-  tools.escalate_to_staff = createEscalationTool(
+  // Create a Mastra Agent and generate a response
+  const mastraAgent = createChannelReplyAgent({
     db,
     scheduler,
-    thread.id,
-    thread.channel,
-  );
-
-  const model = await resolveModel(modelId);
-  const result = await generateText({
-    model,
-    system:
-      agent.systemPrompt ??
-      'You are a helpful assistant. When answering questions, search the knowledge base for relevant information and cite your sources.',
-    messages: aiMessages,
-    tools,
-    stopWhen: stepCountIs(5),
+    agent,
+    thread: { id: thread.id, channel: thread.channel },
   });
 
+  // biome-ignore lint/suspicious/noExplicitAny: ModelMessage[] compatible at runtime, type declarations diverge across Mastra/AI SDK package boundaries
+  const result = await mastraAgent.generate(aiMessages as any);
   return result.text;
 }
