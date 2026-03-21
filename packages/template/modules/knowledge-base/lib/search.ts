@@ -2,6 +2,7 @@ import type { VobaseDb } from '@vobase/core';
 import { eq, sql } from 'drizzle-orm';
 import { cosineDistance } from 'drizzle-orm/sql/functions/vector';
 
+import { buildRankMap, computeRRFScores } from '../../../lib/search-utils';
 import { kbChunks, kbDocuments } from '../schema';
 import { embedQuery } from './embeddings';
 
@@ -27,8 +28,6 @@ export interface SearchOptions {
   /** Enable LLM re-ranking of top results (only in 'deep' mode). */
   rerank?: boolean;
 }
-
-const RRF_K = 60; // Standard RRF constant
 
 /**
  * Hybrid search using Reciprocal Rank Fusion (RRF).
@@ -82,14 +81,8 @@ export async function hybridSearch(
 
   // 4. Build rank lists for RRF
   const rankLists: Map<string, number>[] = [];
-
-  const vectorRanks = new Map<string, number>();
-  for (const [i, r] of vectorResults.entries()) vectorRanks.set(r.id, i + 1);
-  rankLists.push(vectorRanks);
-
-  const keywordRanks = new Map<string, number>();
-  for (const [i, r] of keywordResults.entries()) keywordRanks.set(r.id, i + 1);
-  rankLists.push(keywordRanks);
+  rankLists.push(buildRankMap(vectorResults.map((r) => r.id)));
+  rankLists.push(buildRankMap(keywordResults.map((r) => r.id)));
 
   // 5. Deep mode: HyDE query expansion
   if (mode === 'deep') {
@@ -105,9 +98,7 @@ export async function hybridSearch(
           .orderBy(cosineDistance(kbChunks.embedding, hydeEmbedding))
           .limit(fetchCount);
 
-        const hydeRanks = new Map<string, number>();
-        for (const [i, r] of hydeResults.entries()) hydeRanks.set(r.id, i + 1);
-        rankLists.push(hydeRanks);
+        rankLists.push(buildRankMap(hydeResults.map((r) => r.id)));
       }
     } catch {
       // HyDE failure is non-fatal — graceful degradation to fast mode
@@ -115,24 +106,7 @@ export async function hybridSearch(
   }
 
   // 6. Compute RRF scores
-  const allIds = new Set<string>();
-  for (const ranks of rankLists) {
-    for (const id of ranks.keys()) allIds.add(id);
-  }
-
-  const rrfScores: Array<{ id: string; score: number }> = [];
-  for (const id of allIds) {
-    let score = 0;
-    for (const ranks of rankLists) {
-      const rank = ranks.get(id);
-      if (rank !== undefined) {
-        score += 1 / (RRF_K + rank);
-      }
-    }
-    rrfScores.push({ id, score });
-  }
-
-  rrfScores.sort((a, b) => b.score - a.score);
+  const rrfScores = computeRRFScores(rankLists);
 
   // 7. Fetch chunk data
   const candidateLimit = mode === 'deep' && options?.rerank ? limit * 2 : limit;
