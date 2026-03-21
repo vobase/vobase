@@ -5,7 +5,6 @@ import { messagingRoutes } from './handlers';
 import {
   archiveThreadsJob,
   channelReplyJob,
-  memoryFormationJob,
   purgeMessagesJob,
   recoverStuckJob,
   resumeAiJob,
@@ -25,7 +24,6 @@ export const messagingModule = defineModule({
   jobs: [
     sendMessageJob,
     channelReplyJob,
-    memoryFormationJob,
     resumeAiJob,
     archiveThreadsJob,
     purgeMessagesJob,

@@ -5,19 +5,12 @@ import {
   type TextUIPart,
   type UIMessage,
 } from 'ai';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import {
-  msgAgents,
-  msgContacts,
-  msgMemCells,
-  msgMemEpisodes,
-  msgMemEventLogs,
-  msgMessages,
-  msgThreads,
-} from './schema';
+import { cleanupThreadMemory } from '../ai/lib/memory/cleanup';
+import { msgAgents, msgContacts, msgMessages, msgThreads } from './schema';
 
 /** Get the authenticated user's ID — throws if not authenticated (auth middleware guarantees this). */
 function requireUserId(ctx: { user?: { id: string } | null }): string {
@@ -232,17 +225,7 @@ messagingRoutes.delete('/threads/:id', async (c) => {
   // Delete memory data first (reverse dependency order).
   // Wrapped in try-catch: memory tables may not exist in test/dev environments.
   try {
-    const cellIds = ctx.db
-      .select({ id: msgMemCells.id })
-      .from(msgMemCells)
-      .where(eq(msgMemCells.threadId, id));
-    await ctx.db
-      .delete(msgMemEventLogs)
-      .where(inArray(msgMemEventLogs.cellId, cellIds));
-    await ctx.db
-      .delete(msgMemEpisodes)
-      .where(inArray(msgMemEpisodes.cellId, cellIds));
-    await ctx.db.delete(msgMemCells).where(eq(msgMemCells.threadId, id));
+    await cleanupThreadMemory(ctx.db, id);
   } catch (err) {
     // Memory tables may not be pushed yet — log but don't block deletion
     console.warn(
@@ -330,7 +313,13 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
   }
 
   // Stream response using Mastra Agent → AI SDK stream bridge
-  const { streamChat } = await import('./lib/chat');
+  let streamChat: typeof import('./lib/chat').streamChat;
+  try {
+    ({ streamChat } = await import('./lib/chat'));
+  } catch {
+    // ai module not available — message already saved, return without AI reply
+    return c.json({ saved: true, aiAvailable: false }, 200);
+  }
   const result = await streamChat({
     db: ctx.db,
     scheduler: ctx.scheduler,

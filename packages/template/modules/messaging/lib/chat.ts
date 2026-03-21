@@ -3,8 +3,8 @@ import { notFound } from '@vobase/core';
 import type { UIMessage } from 'ai';
 import { eq } from 'drizzle-orm';
 
+import { createChatAgent } from '../../ai/lib/agents/chat-agent';
 import { msgAgents } from '../schema';
-import { createChatAgent } from './agents';
 
 export interface StreamChatOptions {
   db: VobaseDb;

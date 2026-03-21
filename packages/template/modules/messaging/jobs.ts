@@ -6,12 +6,8 @@ import type {
 } from '@vobase/core';
 import { defineJob } from '@vobase/core';
 import { and, desc, eq, isNull, lt, lte } from 'drizzle-orm';
-import { z } from 'zod';
 
-import { processMemCell } from './lib/memory/formation';
 import { msgAgents, msgMessages, msgThreads } from './schema';
-
-const memoryFormationDataSchema = z.object({ cellId: z.string().min(1) });
 
 let moduleDb: VobaseDb;
 let moduleChannels: ChannelsService;
@@ -30,19 +26,6 @@ export function setModuleDeps(
   if (scheduler) moduleScheduler = scheduler;
   if (storage) moduleStorage = storage;
 }
-
-/**
- * messaging:memory-formation — Process a MemCell: extract episode + facts, embed, store.
- * Queued by the memory output processor when a conversation boundary is detected.
- */
-export const memoryFormationJob = defineJob(
-  'messaging:memory-formation',
-  async (data) => {
-    if (!moduleDb) throw new Error('moduleDb not initialized');
-    const { cellId } = memoryFormationDataSchema.parse(data);
-    await processMemCell(moduleDb, cellId);
-  },
-);
 
 /**
  * messaging:send — Load queued message, call channels[channel].send(), update status.
@@ -186,7 +169,15 @@ export const channelReplyJob = defineJob(
       .where(eq(msgMessages.threadId, threadId))
       .orderBy(msgMessages.createdAt);
 
-    const { generateChannelReply } = await import('./lib/channel-reply');
+    let generateChannelReply: typeof import('./lib/channel-reply').generateChannelReply;
+    try {
+      ({ generateChannelReply } = await import('./lib/channel-reply'));
+    } catch {
+      console.warn(
+        '[messaging] ai module not available — skipping channel reply',
+      );
+      return;
+    }
     const { queueOutboundMessage } = await import('./lib/outbox');
 
     const replyText = await generateChannelReply({
