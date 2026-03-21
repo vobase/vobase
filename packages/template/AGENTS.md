@@ -95,6 +95,17 @@ Platform: `platformAuth({ hmacSecret })`, `isPlatformEnabled()`, `verifyPlatform
 
 `vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled). Platform features are env-only: set `PLATFORM_HMAC_SECRET` to enable (not part of `vobase.config.ts`).
 
+## AI Agents (Mastra)
+
+Backend AI uses [Mastra](https://mastra.ai) (`@mastra/core`, `@mastra/ai-sdk`, `@mastra/evals`). Frontend stays on AI SDK (`useChat`). Docs: https://mastra.ai/docs/llms.txt
+
+- Agents: `new Agent()` from `@mastra/core/agent` — see `modules/messaging/lib/agents.ts`
+- Tools: `createTool()` from `@mastra/core/tools` — see `modules/messaging/lib/tools.ts`
+- Streaming: `agent.stream()` → `toAISdkStream()` → `createUIMessageStreamResponse()`
+- Non-streaming: `agent.generate()` → `.text`
+- Models use `provider/model` format (e.g. `openai/gpt-5-mini`, `anthropic/claude-3-5-sonnet`)
+- Embeddings + HyDE/re-ranking stay on raw AI SDK (`embed`, `generateText`)
+
 ### Schema Management
 
 `drizzle.config.ts` points at core schemas via relative paths + your module schemas. Uses PGlite for local dev and Postgres in production. Dev: `bun run db:push`. Prod: `bun run db:generate` + `bun run db:migrate`.

@@ -53,7 +53,8 @@ Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, St
 - `packages/template` is scaffolding material only — no migration history, no generated artifacts
 - Dev: `bun run build --filter=@vobase/core` then `cd packages/template && bun run db:push && bun run dev`
 - After core changes, rebuild before restarting
-- Template modules: system (ops dashboard), knowledge-base (doc search), messaging (multi-channel AI chat)
+- Template modules: system (ops dashboard), knowledge-base (doc search), messaging (Mastra-powered AI chat + multi-channel replies)
+- AI agents use Mastra (`@mastra/core`). Tools via `createTool()`, agents via `new Agent()`. Streaming bridged to AI SDK via `@mastra/ai-sdk` (`toAISdkStream`). Frontend stays on AI SDK `useChat`.
 - Frontend: React + TanStack Router + shadcn/ui (base-nova). Use `<Link>` not `<a href>`.
 
 ## Design Direction

@@ -65,6 +65,7 @@ One `bun create vobase` and you have a working full-stack app:
 | **Integrations** | Encrypted credential vault for external services (OAuth providers, APIs). AES-256-GCM at rest. Platform-aware: opt-in multi-tenant OAuth handoff via HMAC-signed JWT. |
 | **Jobs** | Background tasks with retries, cron, and job chains. pg-boss backed, no Redis. |
 | **Knowledge Base** | Upload PDF, DOCX, XLSX, PPTX, images, HTML. Auto-extract to Markdown, chunk, embed, and search. Hybrid search with RRF + HyDE. Gemini OCR for scanned docs. |
+| **AI Agents** | Declarative agents via [Mastra](https://mastra.ai). Multi-provider (OpenAI, Anthropic, Google). KB-powered tool calling, streaming chat, eval scorers. Frontend stays on AI SDK `useChat`. |
 | **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing with codegen, code-splitting, you own the components. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
 | **MCP** | Module-aware tools with API key auth. AI tools can read your schema, list modules, and view logs before generating code. |
@@ -496,10 +497,17 @@ my-app/
         pipeline.ts       ← chunk → embed → store pipeline
         search.ts         ← RRF hybrid search with fast/deep modes
       pages/
-    chatbot/              ← AI chat with assistants and threads (example)
+    messaging/            ← AI chat with Mastra agents + multi-channel replies (example)
       index.ts
       schema.ts
       handlers.ts
+      lib/
+        agents.ts         ← Mastra Agent factory functions
+        chat.ts           ← streaming chat via agent.stream()
+        channel-reply.ts  ← non-streaming replies via agent.generate()
+        tools.ts          ← Mastra createTool() definitions
+        escalation.ts     ← human handoff tool
+        evals.ts          ← answer relevancy + faithfulness scorers
       pages/
     index.ts              ← module registry
     your-module/          ← modules you add
