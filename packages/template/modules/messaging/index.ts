@@ -5,6 +5,7 @@ import { messagingRoutes } from './handlers';
 import {
   archiveThreadsJob,
   channelReplyJob,
+  memoryFormationJob,
   purgeMessagesJob,
   recoverStuckJob,
   resumeAiJob,
@@ -24,6 +25,7 @@ export const messagingModule = defineModule({
   jobs: [
     sendMessageJob,
     channelReplyJob,
+    memoryFormationJob,
     resumeAiJob,
     archiveThreadsJob,
     purgeMessagesJob,
@@ -31,8 +33,7 @@ export const messagingModule = defineModule({
   ],
 
   init(ctx) {
-    // Only wire channel events if channels is configured.
-    // Web-only chat works without any channel adapters.
+    // Always wire module deps — memory formation jobs need db + scheduler even without channels
     let hasChannels = false;
     try {
       // Test if channels is a real service (not a throw proxy)
@@ -42,9 +43,9 @@ export const messagingModule = defineModule({
       hasChannels = false;
     }
 
-    if (hasChannels) {
-      setModuleDeps(ctx.db, ctx.channels, ctx.scheduler, ctx.storage);
+    setModuleDeps(ctx.db, ctx.channels, ctx.scheduler, ctx.storage);
 
+    if (hasChannels) {
       const deps = {
         db: ctx.db,
         scheduler: ctx.scheduler,
