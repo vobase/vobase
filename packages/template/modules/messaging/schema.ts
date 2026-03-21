@@ -1,6 +1,13 @@
 import { nanoidPrimaryKey } from '@vobase/core/schema';
 import { boolean, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
+// Re-export memory tables so they're part of the messaging module schema
+export {
+  msgMemCells,
+  msgMemEpisodes,
+  msgMemEventLogs,
+} from './lib/memory/schema';
+
 export const msgAgents = pgTable(
   'msg_agents',
   {
