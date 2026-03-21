@@ -23,6 +23,13 @@
   },
   "linter": {
     "enabled": true,
+    "domains": {
+      "drizzle": "recommended",
+      "project": "recommended",
+      "react": "recommended",
+      "test": "recommended",
+      "types": "recommended"
+    },
     "rules": {
       "recommended": true
     }

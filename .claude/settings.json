@@ -3,15 +3,23 @@
     "PreToolUse": [
       {
         "matcher": "Edit|Write",
-        "command": "echo \"$CLAUDE_FILE_PATH\" | grep -qE '(bun\\.lock|routeTree\\.gen\\.ts|node_modules/)' && echo 'BLOCK: Do not edit generated files' && exit 1 || exit 0",
-        "hooks": []
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_FILE_PATH\" | grep -qE '(bun\\.lock|routeTree\\.gen\\.ts|node_modules/)' && echo 'BLOCK: Do not edit generated files' && exit 1 || exit 0"
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
-        "command": "biome check --write \"$CLAUDE_FILE_PATH\" 2>/dev/null || true",
-        "hooks": []
+        "hooks": [
+          {
+            "type": "command",
+            "command": "scripts/lint-file.sh \"$CLAUDE_FILE_PATH\""
+          }
+        ]
       }
     ]
   }
