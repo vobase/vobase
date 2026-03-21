@@ -2,6 +2,7 @@
 // Do not edit manually.
 import { Hono } from 'hono';
 
+import { aiModule } from '../modules/ai';
 import { integrationsModule } from '../modules/integrations';
 import { knowledgeBaseModule } from '../modules/knowledge-base';
 import { messagingModule } from '../modules/messaging';
@@ -12,6 +13,7 @@ import { systemModule } from '../modules/system';
 function _typedApp() {
   return new Hono()
     .get('/health', (c) => c.json({ status: 'ok' as const, uptime: 0 }))
+    .route('/api/ai', aiModule.routes)
     .route('/api/integrations', integrationsModule.routes)
     .route('/api/knowledge-base', knowledgeBaseModule.routes)
     .route('/api/messaging', messagingModule.routes)

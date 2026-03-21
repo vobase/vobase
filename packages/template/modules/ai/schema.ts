@@ -121,3 +121,41 @@ export const aiMemEventLogs = pgTable(
     ),
   ],
 );
+
+/**
+ * EvalRuns — tracks async eval scoring jobs.
+ * Each run scores a set of input/output/context items using LLM judges.
+ */
+export const aiEvalRuns = pgTable('ai_eval_runs', {
+  id: nanoidPrimaryKey(),
+  agentId: text('agent_id').notNull(),
+  status: text('status').notNull().default('pending'), // pending | running | complete | error
+  results: text('results'), // JSON stringified EvalRunResult
+  errorMessage: text('error_message'),
+  itemCount: integer('item_count').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+});
+
+/**
+ * WorkflowRuns — tracks Mastra workflow lifecycle externally.
+ * Complements in-memory workflow state with durable persistence.
+ * Used by escalation (HITL) and follow-up workflows.
+ */
+export const aiWorkflowRuns = pgTable('ai_workflow_runs', {
+  id: nanoidPrimaryKey(),
+  workflowId: text('workflow_id').notNull(), // e.g. 'ai:escalation', 'ai:follow-up'
+  userId: text('user_id').notNull(), // owner — scoped to authenticated user
+  status: text('status').notNull().default('running'), // running | suspended | completed | failed
+  inputData: text('input_data').notNull(), // JSON stringified workflow input
+  suspendPayload: text('suspend_payload'), // JSON stringified suspend data (when status=suspended)
+  outputData: text('output_data'), // JSON stringified workflow output
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

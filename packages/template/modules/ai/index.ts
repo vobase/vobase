@@ -1,16 +1,23 @@
 import { defineModule } from '@vobase/core';
 
 import { aiRoutes } from './handlers';
-import { memoryFormationJob, setAiModuleDeps } from './jobs';
+import {
+  evalRunJob,
+  followUpResumeJob,
+  memoryFormationJob,
+  setAiModuleDeps,
+} from './jobs';
+import { configureTracing } from './lib/observability';
 import * as schema from './schema';
 
 export const aiModule = defineModule({
   name: 'ai',
   schema,
   routes: aiRoutes,
-  jobs: [memoryFormationJob],
+  jobs: [memoryFormationJob, evalRunJob, followUpResumeJob],
 
   init(ctx) {
     setAiModuleDeps(ctx.db, ctx.scheduler);
+    configureTracing();
   },
 });

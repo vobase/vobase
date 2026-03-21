@@ -1,0 +1,119 @@
+import { createStep, createWorkflow } from '@mastra/core/workflows';
+import { z } from 'zod';
+
+/**
+ * Follow-up workflow — automated delayed follow-up message.
+ *
+ * Step 1: analyzeConversation — summarize thread, identify follow-up needs
+ * Step 2: scheduleFollowUp — suspend workflow; a delayed job resumes it
+ * Step 3: sendFollowUp — compose and queue the follow-up message
+ *
+ * Runtime state is tracked externally in the aiWorkflowRuns table.
+ * The "schedule" step suspends the workflow. The route handler queues a
+ * delayed job (ai:follow-up-resume) which resumes execution after the delay.
+ */
+
+const followUpInputSchema = z.object({
+  threadId: z.string(),
+  delayMinutes: z.number(),
+});
+
+const followUpOutputSchema = z.object({
+  sent: z.boolean(),
+  message: z.string().optional(),
+});
+
+export type FollowUpInput = z.infer<typeof followUpInputSchema>;
+export type FollowUpOutput = z.infer<typeof followUpOutputSchema>;
+
+/** Step 1: Analyze the conversation for follow-up needs. */
+export const analyzeConversationStep = createStep({
+  id: 'analyze-conversation',
+  inputSchema: followUpInputSchema,
+  outputSchema: z.object({
+    threadId: z.string(),
+    delayMinutes: z.number(),
+    summary: z.string(),
+  }),
+  execute: async ({ inputData }) => {
+    return {
+      threadId: inputData.threadId,
+      delayMinutes: inputData.delayMinutes,
+      summary: `Follow-up scheduled for thread ${inputData.threadId} in ${inputData.delayMinutes} minutes.`,
+    };
+  },
+});
+
+/** Step 2: Schedule follow-up by suspending the workflow. */
+export const scheduleFollowUpStep = createStep({
+  id: 'schedule-follow-up',
+  inputSchema: z.object({
+    threadId: z.string(),
+    delayMinutes: z.number(),
+    summary: z.string(),
+  }),
+  outputSchema: z.object({
+    threadId: z.string(),
+    ready: z.boolean(),
+  }),
+  suspendSchema: z.object({
+    threadId: z.string(),
+    delayMinutes: z.number(),
+    scheduledAt: z.string(),
+  }),
+  resumeSchema: z.object({
+    ready: z.boolean(),
+  }),
+  execute: async ({ inputData, suspend, resumeData }) => {
+    if (resumeData) {
+      return { threadId: inputData.threadId, ready: resumeData.ready };
+    }
+
+    await suspend({
+      threadId: inputData.threadId,
+      delayMinutes: inputData.delayMinutes,
+      scheduledAt: new Date(
+        Date.now() + inputData.delayMinutes * 60_000,
+      ).toISOString(),
+    });
+
+    return { threadId: inputData.threadId, ready: false };
+  },
+});
+
+/** Step 3: Send the follow-up message. */
+export const sendFollowUpStep = createStep({
+  id: 'send-follow-up',
+  inputSchema: z.object({
+    threadId: z.string(),
+    ready: z.boolean(),
+  }),
+  outputSchema: followUpOutputSchema,
+  execute: async ({ inputData }) => {
+    if (!inputData.ready) {
+      return { sent: false, message: 'Follow-up not ready.' };
+    }
+
+    // In a production implementation, this would compose an AI message
+    // and queue it via queueOutboundMessage. For this showcase, we
+    // mark it as sent with a placeholder message.
+    return {
+      sent: true,
+      message: `Follow-up sent for thread ${inputData.threadId}.`,
+    };
+  },
+});
+
+/**
+ * The follow-up workflow definition.
+ * Showcases Mastra's delayed execution pattern via suspend + external job resume.
+ */
+export const followUpWorkflow = createWorkflow({
+  id: 'ai:follow-up',
+  inputSchema: followUpInputSchema,
+  outputSchema: followUpOutputSchema,
+})
+  .then(analyzeConversationStep)
+  .then(scheduleFollowUpStep)
+  .then(sendFollowUpStep)
+  .commit();

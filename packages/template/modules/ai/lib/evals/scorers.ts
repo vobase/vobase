@@ -3,8 +3,8 @@ import {
   createFaithfulnessScorer,
 } from '@mastra/evals/scorers/prebuilt';
 
-import { getAIConfig } from '../../../lib/ai';
-import { toMastraModelId } from '../../ai/lib/agents/shared';
+import { getAIConfig } from '../../../../lib/ai';
+import { toMastraModelId } from '../agents/shared';
 
 /**
  * Create eval scorers for assessing agent response quality.

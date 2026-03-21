@@ -12,6 +12,9 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'home.tsx'),
+    route('/ai', '../modules/ai/pages/layout.tsx', [
+      physical('../modules/ai/pages/'),
+    ]),
     route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx', [
       physical('../modules/knowledge-base/pages/'),
     ]),

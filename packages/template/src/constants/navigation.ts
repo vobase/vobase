@@ -1,10 +1,13 @@
 import {
   Activity,
   Bot,
+  BrainCircuit,
   BuildingIcon,
   CableIcon,
+  ChartBar,
   Contact,
   FileText,
+  GitBranch,
   Globe,
   Home,
   KeyIcon,
@@ -13,6 +16,7 @@ import {
   PaletteIcon,
   ScrollText,
   Search,
+  Shield,
   UserIcon,
 } from 'lucide-react';
 
@@ -62,12 +66,6 @@ export const navigation: NavGroup[] = [
         icon: Contact,
         keywords: ['people', 'customers', 'phone', 'directory'],
       },
-      {
-        label: 'Agents',
-        to: '/messaging/agents',
-        icon: Bot,
-        keywords: ['ai', 'assistant', 'bot', 'prompt', 'model'],
-      },
     ],
   },
   {
@@ -90,6 +88,41 @@ export const navigation: NavGroup[] = [
         to: '/knowledge-base/sources',
         icon: Globe,
         keywords: ['connectors', 'google drive', 'sharepoint', 'crawl', 'sync'],
+      },
+    ],
+  },
+  {
+    label: 'AI',
+    items: [
+      {
+        label: 'Agents',
+        to: '/ai/agents',
+        icon: Bot,
+        keywords: ['ai', 'assistant', 'bot', 'prompt', 'model'],
+      },
+      {
+        label: 'Evals',
+        to: '/ai/evals',
+        icon: ChartBar,
+        keywords: ['evaluation', 'scoring', 'quality', 'faithfulness', 'relevancy'],
+      },
+      {
+        label: 'Workflows',
+        to: '/ai/workflows',
+        icon: GitBranch,
+        keywords: ['escalation', 'follow-up', 'hitl', 'automation', 'suspend', 'resume'],
+      },
+      {
+        label: 'Guardrails',
+        to: '/ai/guardrails',
+        icon: Shield,
+        keywords: ['moderation', 'content', 'safety', 'blocklist'],
+      },
+      {
+        label: 'Memory',
+        to: '/ai/memory',
+        icon: BrainCircuit,
+        keywords: ['episodes', 'facts', 'cells', 'retrieval', 'context'],
       },
     ],
   },
@@ -168,7 +201,6 @@ export const shellNavigation = [{ label: 'Dashboard', to: '/' }] as const;
 export const messagingNavigation = [
   { label: 'Chat', to: '/messaging/threads' },
   { label: 'Contacts', to: '/messaging/contacts' },
-  { label: 'Agents', to: '/messaging/agents' },
 ] as const;
 
 export const knowledgeBaseNavigation = [
@@ -182,4 +214,4 @@ export const systemNavigation = [
   { label: 'Audit log', to: '/system/logs' },
 ] as const;
 
-export const moduleNames = ['System', 'Messaging', 'Knowledge Base'];
+export const moduleNames = ['System', 'Messaging', 'Knowledge Base', 'AI'];

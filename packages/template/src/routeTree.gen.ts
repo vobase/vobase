@@ -17,6 +17,7 @@ import { Route as DotDotModulesSystemPagesLayoutRouteImport } from './../modules
 import { Route as shellSettingsLayoutRouteImport } from './shell/settings/layout'
 import { Route as DotDotModulesMessagingPagesLayoutRouteImport } from './../modules/messaging/pages/layout'
 import { Route as DotDotModulesKnowledgeBasePagesLayoutRouteImport } from './../modules/knowledge-base/pages/layout'
+import { Route as DotDotModulesAiPagesLayoutRouteImport } from './../modules/ai/pages/layout'
 import { Route as homeRouteImport } from './home'
 import { Route as LogsRouteImport } from './../modules/system/pages/logs'
 import { Route as ListRouteImport } from './../modules/system/pages/list'
@@ -27,10 +28,14 @@ import { Route as shellSettingsAppearanceRouteImport } from './shell/settings/ap
 import { Route as shellSettingsApiKeysRouteImport } from './shell/settings/api-keys'
 import { Route as ThreadsRouteImport } from './../modules/messaging/pages/threads'
 import { Route as ContactsRouteImport } from './../modules/messaging/pages/contacts'
-import { Route as AgentsRouteImport } from './../modules/messaging/pages/agents'
 import { Route as SourcesRouteImport } from './../modules/knowledge-base/pages/sources'
 import { Route as SearchRouteImport } from './../modules/knowledge-base/pages/search'
 import { Route as DocumentsRouteImport } from './../modules/knowledge-base/pages/documents'
+import { Route as WorkflowsRouteImport } from './../modules/ai/pages/workflows'
+import { Route as MemoryRouteImport } from './../modules/ai/pages/memory'
+import { Route as GuardrailsRouteImport } from './../modules/ai/pages/guardrails'
+import { Route as EvalsRouteImport } from './../modules/ai/pages/evals'
+import { Route as AgentsRouteImport } from './../modules/ai/pages/agents'
 
 const shellAuthLayoutRoute = shellAuthLayoutRouteImport.update({
   id: '/_auth',
@@ -71,6 +76,12 @@ const DotDotModulesKnowledgeBasePagesLayoutRoute =
   DotDotModulesKnowledgeBasePagesLayoutRouteImport.update({
     id: '/knowledge-base',
     path: '/knowledge-base',
+    getParentRoute: () => shellAppLayoutRoute,
+  } as any)
+const DotDotModulesAiPagesLayoutRoute =
+  DotDotModulesAiPagesLayoutRouteImport.update({
+    id: '/ai',
+    path: '/ai',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
 const homeRoute = homeRouteImport.update({
@@ -125,11 +136,6 @@ const ContactsRoute = ContactsRouteImport.update({
   path: '/contacts',
   getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
-const AgentsRoute = AgentsRouteImport.update({
-  id: '/agents',
-  path: '/agents',
-  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
-} as any)
 const SourcesRoute = SourcesRouteImport.update({
   id: '/sources',
   path: '/sources',
@@ -145,19 +151,49 @@ const DocumentsRoute = DocumentsRouteImport.update({
   path: '/documents',
   getParentRoute: () => DotDotModulesKnowledgeBasePagesLayoutRoute,
 } as any)
+const WorkflowsRoute = WorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => DotDotModulesAiPagesLayoutRoute,
+} as any)
+const MemoryRoute = MemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
+  getParentRoute: () => DotDotModulesAiPagesLayoutRoute,
+} as any)
+const GuardrailsRoute = GuardrailsRouteImport.update({
+  id: '/guardrails',
+  path: '/guardrails',
+  getParentRoute: () => DotDotModulesAiPagesLayoutRoute,
+} as any)
+const EvalsRoute = EvalsRouteImport.update({
+  id: '/evals',
+  path: '/evals',
+  getParentRoute: () => DotDotModulesAiPagesLayoutRoute,
+} as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => DotDotModulesAiPagesLayoutRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof homeRoute
+  '/ai': typeof DotDotModulesAiPagesLayoutRouteWithChildren
   '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
   '/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
   '/signup': typeof shellAuthSignupRoute
+  '/ai/agents': typeof AgentsRoute
+  '/ai/evals': typeof EvalsRoute
+  '/ai/guardrails': typeof GuardrailsRoute
+  '/ai/memory': typeof MemoryRoute
+  '/ai/workflows': typeof WorkflowsRoute
   '/knowledge-base/documents': typeof DocumentsRoute
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
-  '/messaging/agents': typeof AgentsRoute
   '/messaging/contacts': typeof ContactsRoute
   '/messaging/threads': typeof ThreadsRoute
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
@@ -170,16 +206,21 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof homeRoute
+  '/ai': typeof DotDotModulesAiPagesLayoutRouteWithChildren
   '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
   '/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
   '/signup': typeof shellAuthSignupRoute
+  '/ai/agents': typeof AgentsRoute
+  '/ai/evals': typeof EvalsRoute
+  '/ai/guardrails': typeof GuardrailsRoute
+  '/ai/memory': typeof MemoryRoute
+  '/ai/workflows': typeof WorkflowsRoute
   '/knowledge-base/documents': typeof DocumentsRoute
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
-  '/messaging/agents': typeof AgentsRoute
   '/messaging/contacts': typeof ContactsRoute
   '/messaging/threads': typeof ThreadsRoute
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
@@ -195,16 +236,21 @@ export interface FileRoutesById {
   '/_app': typeof shellAppLayoutRouteWithChildren
   '/_auth': typeof shellAuthLayoutRouteWithChildren
   '/_app/': typeof homeRoute
+  '/_app/ai': typeof DotDotModulesAiPagesLayoutRouteWithChildren
   '/_app/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
   '/_app/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/_app/settings': typeof shellSettingsLayoutRouteWithChildren
   '/_app/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/_auth/login': typeof shellAuthLoginRoute
   '/_auth/signup': typeof shellAuthSignupRoute
+  '/_app/ai/agents': typeof AgentsRoute
+  '/_app/ai/evals': typeof EvalsRoute
+  '/_app/ai/guardrails': typeof GuardrailsRoute
+  '/_app/ai/memory': typeof MemoryRoute
+  '/_app/ai/workflows': typeof WorkflowsRoute
   '/_app/knowledge-base/documents': typeof DocumentsRoute
   '/_app/knowledge-base/search': typeof SearchRoute
   '/_app/knowledge-base/sources': typeof SourcesRoute
-  '/_app/messaging/agents': typeof AgentsRoute
   '/_app/messaging/contacts': typeof ContactsRoute
   '/_app/messaging/threads': typeof ThreadsRoute
   '/_app/settings/api-keys': typeof shellSettingsApiKeysRoute
@@ -219,16 +265,21 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ai'
     | '/knowledge-base'
     | '/messaging'
     | '/settings'
     | '/system'
     | '/login'
     | '/signup'
+    | '/ai/agents'
+    | '/ai/evals'
+    | '/ai/guardrails'
+    | '/ai/memory'
+    | '/ai/workflows'
     | '/knowledge-base/documents'
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
-    | '/messaging/agents'
     | '/messaging/contacts'
     | '/messaging/threads'
     | '/settings/api-keys'
@@ -241,16 +292,21 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai'
     | '/knowledge-base'
     | '/messaging'
     | '/settings'
     | '/system'
     | '/login'
     | '/signup'
+    | '/ai/agents'
+    | '/ai/evals'
+    | '/ai/guardrails'
+    | '/ai/memory'
+    | '/ai/workflows'
     | '/knowledge-base/documents'
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
-    | '/messaging/agents'
     | '/messaging/contacts'
     | '/messaging/threads'
     | '/settings/api-keys'
@@ -265,16 +321,21 @@ export interface FileRouteTypes {
     | '/_app'
     | '/_auth'
     | '/_app/'
+    | '/_app/ai'
     | '/_app/knowledge-base'
     | '/_app/messaging'
     | '/_app/settings'
     | '/_app/system'
     | '/_auth/login'
     | '/_auth/signup'
+    | '/_app/ai/agents'
+    | '/_app/ai/evals'
+    | '/_app/ai/guardrails'
+    | '/_app/ai/memory'
+    | '/_app/ai/workflows'
     | '/_app/knowledge-base/documents'
     | '/_app/knowledge-base/search'
     | '/_app/knowledge-base/sources'
-    | '/_app/messaging/agents'
     | '/_app/messaging/contacts'
     | '/_app/messaging/threads'
     | '/_app/settings/api-keys'
@@ -349,6 +410,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
+    '/_app/ai': {
+      id: '/_app/ai'
+      path: '/ai'
+      fullPath: '/ai'
+      preLoaderRoute: typeof DotDotModulesAiPagesLayoutRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
     '/_app/': {
       id: '/_app/'
       path: '/'
@@ -419,13 +487,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactsRouteImport
       parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
-    '/_app/messaging/agents': {
-      id: '/_app/messaging/agents'
-      path: '/agents'
-      fullPath: '/messaging/agents'
-      preLoaderRoute: typeof AgentsRouteImport
-      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
-    }
     '/_app/knowledge-base/sources': {
       id: '/_app/knowledge-base/sources'
       path: '/sources'
@@ -447,8 +508,65 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocumentsRouteImport
       parentRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
     }
+    '/_app/ai/workflows': {
+      id: '/_app/ai/workflows'
+      path: '/workflows'
+      fullPath: '/ai/workflows'
+      preLoaderRoute: typeof WorkflowsRouteImport
+      parentRoute: typeof DotDotModulesAiPagesLayoutRoute
+    }
+    '/_app/ai/memory': {
+      id: '/_app/ai/memory'
+      path: '/memory'
+      fullPath: '/ai/memory'
+      preLoaderRoute: typeof MemoryRouteImport
+      parentRoute: typeof DotDotModulesAiPagesLayoutRoute
+    }
+    '/_app/ai/guardrails': {
+      id: '/_app/ai/guardrails'
+      path: '/guardrails'
+      fullPath: '/ai/guardrails'
+      preLoaderRoute: typeof GuardrailsRouteImport
+      parentRoute: typeof DotDotModulesAiPagesLayoutRoute
+    }
+    '/_app/ai/evals': {
+      id: '/_app/ai/evals'
+      path: '/evals'
+      fullPath: '/ai/evals'
+      preLoaderRoute: typeof EvalsRouteImport
+      parentRoute: typeof DotDotModulesAiPagesLayoutRoute
+    }
+    '/_app/ai/agents': {
+      id: '/_app/ai/agents'
+      path: '/agents'
+      fullPath: '/ai/agents'
+      preLoaderRoute: typeof AgentsRouteImport
+      parentRoute: typeof DotDotModulesAiPagesLayoutRoute
+    }
   }
 }
+
+interface DotDotModulesAiPagesLayoutRouteChildren {
+  AgentsRoute: typeof AgentsRoute
+  EvalsRoute: typeof EvalsRoute
+  GuardrailsRoute: typeof GuardrailsRoute
+  MemoryRoute: typeof MemoryRoute
+  WorkflowsRoute: typeof WorkflowsRoute
+}
+
+const DotDotModulesAiPagesLayoutRouteChildren: DotDotModulesAiPagesLayoutRouteChildren =
+  {
+    AgentsRoute: AgentsRoute,
+    EvalsRoute: EvalsRoute,
+    GuardrailsRoute: GuardrailsRoute,
+    MemoryRoute: MemoryRoute,
+    WorkflowsRoute: WorkflowsRoute,
+  }
+
+const DotDotModulesAiPagesLayoutRouteWithChildren =
+  DotDotModulesAiPagesLayoutRoute._addFileChildren(
+    DotDotModulesAiPagesLayoutRouteChildren,
+  )
 
 interface DotDotModulesKnowledgeBasePagesLayoutRouteChildren {
   DocumentsRoute: typeof DocumentsRoute
@@ -469,14 +587,12 @@ const DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren =
   )
 
 interface DotDotModulesMessagingPagesLayoutRouteChildren {
-  AgentsRoute: typeof AgentsRoute
   ContactsRoute: typeof ContactsRoute
   ThreadsRoute: typeof ThreadsRoute
 }
 
 const DotDotModulesMessagingPagesLayoutRouteChildren: DotDotModulesMessagingPagesLayoutRouteChildren =
   {
-    AgentsRoute: AgentsRoute,
     ContactsRoute: ContactsRoute,
     ThreadsRoute: ThreadsRoute,
   }
@@ -523,6 +639,7 @@ const DotDotModulesSystemPagesLayoutRouteWithChildren =
 
 interface shellAppLayoutRouteChildren {
   homeRoute: typeof homeRoute
+  DotDotModulesAiPagesLayoutRoute: typeof DotDotModulesAiPagesLayoutRouteWithChildren
   DotDotModulesKnowledgeBasePagesLayoutRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
   DotDotModulesMessagingPagesLayoutRoute: typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   shellSettingsLayoutRoute: typeof shellSettingsLayoutRouteWithChildren
@@ -531,6 +648,7 @@ interface shellAppLayoutRouteChildren {
 
 const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   homeRoute: homeRoute,
+  DotDotModulesAiPagesLayoutRoute: DotDotModulesAiPagesLayoutRouteWithChildren,
   DotDotModulesKnowledgeBasePagesLayoutRoute:
     DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren,
   DotDotModulesMessagingPagesLayoutRoute:

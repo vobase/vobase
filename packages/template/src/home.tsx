@@ -51,7 +51,7 @@ const quickLinks = [
   {
     label: 'Agents',
     description: 'Manage agent configurations',
-    to: '/messaging/agents' as const,
+    to: '/ai/agents' as const,
     icon: Bot,
   },
   {
