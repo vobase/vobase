@@ -1,5 +1,5 @@
+import { createTool } from '@mastra/core/tools';
 import type { VobaseDb } from '@vobase/core';
-import { tool } from 'ai';
 import { z } from 'zod';
 
 type KBResult = {
@@ -17,13 +17,28 @@ type KBResult = {
  * RAG tool: search the knowledge base and return relevant chunks with citations.
  */
 export function createKnowledgeBaseTool(db: VobaseDb, sourceIds?: string[]) {
-  return tool<{ query: string }, KBResult>({
+  return createTool({
+    id: 'search_knowledge_base',
     description:
       'Search the knowledge base for relevant information. Use this when the user asks a question that might be answered by documents in the knowledge base.',
     inputSchema: z.object({
       query: z.string().describe('The search query to find relevant documents'),
     }),
-    execute: async (input) => {
+    outputSchema: z.object({
+      found: z.boolean(),
+      message: z.string().optional(),
+      results: z
+        .array(
+          z.object({
+            content: z.string(),
+            source: z.string(),
+            documentId: z.string(),
+            score: z.number(),
+          }),
+        )
+        .optional(),
+    }),
+    execute: async (input): Promise<KBResult> => {
       const { hybridSearch } = await import('../../knowledge-base/lib/search');
       const results = await hybridSearch(db, input.query, {
         limit: 5,

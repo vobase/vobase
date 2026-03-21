@@ -1,20 +1,10 @@
+import { createTool } from '@mastra/core/tools';
 import type { Scheduler, VobaseDb } from '@vobase/core';
-import { tool } from 'ai';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { msgThreads } from '../schema';
 import { queueOutboundMessage } from './outbox';
-
-type EscalationInput = {
-  reason: string;
-  message?: string;
-};
-
-type EscalationResult = {
-  escalated: boolean;
-  reason: string;
-};
 
 /**
  * Create the escalate_to_staff tool for AI agents.
@@ -26,7 +16,8 @@ export function createEscalationTool(
   threadId: string,
   channel: string,
 ) {
-  return tool<EscalationInput, EscalationResult>({
+  return createTool({
+    id: 'escalate_to_staff',
     description:
       'Hand off the conversation to a human staff member. Use when you cannot help the customer or they explicitly ask for a human.',
     inputSchema: z.object({
@@ -35,6 +26,10 @@ export function createEscalationTool(
         .string()
         .optional()
         .describe('Optional message to send to the customer before handoff'),
+    }),
+    outputSchema: z.object({
+      escalated: z.boolean(),
+      reason: z.string(),
     }),
     execute: async (input) => {
       // 1. Update thread status to 'human'
