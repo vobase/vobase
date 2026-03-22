@@ -36,6 +36,8 @@ import { Route as MemoryRouteImport } from './../modules/ai/pages/memory'
 import { Route as GuardrailsRouteImport } from './../modules/ai/pages/guardrails'
 import { Route as EvalsRouteImport } from './../modules/ai/pages/evals'
 import { Route as AgentsRouteImport } from './../modules/ai/pages/agents'
+import { Route as ThreadsDotindexRouteImport } from './../modules/messaging/pages/threads.index'
+import { Route as ThreadsDotthreadIdRouteImport } from './../modules/messaging/pages/threads.$threadId'
 
 const shellAuthLayoutRoute = shellAuthLayoutRouteImport.update({
   id: '/_auth',
@@ -176,6 +178,16 @@ const AgentsRoute = AgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => DotDotModulesAiPagesLayoutRoute,
 } as any)
+const ThreadsDotindexRoute = ThreadsDotindexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ThreadsRoute,
+} as any)
+const ThreadsDotthreadIdRoute = ThreadsDotthreadIdRouteImport.update({
+  id: '/$threadId',
+  path: '/$threadId',
+  getParentRoute: () => ThreadsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof homeRoute
@@ -195,7 +207,7 @@ export interface FileRoutesByFullPath {
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
   '/messaging/contacts': typeof ContactsRoute
-  '/messaging/threads': typeof ThreadsRoute
+  '/messaging/threads': typeof ThreadsRouteWithChildren
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/settings/appearance': typeof shellSettingsAppearanceRoute
   '/settings/integrations': typeof shellSettingsIntegrationsRoute
@@ -203,6 +215,8 @@ export interface FileRoutesByFullPath {
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
+  '/messaging/threads/$threadId': typeof ThreadsDotthreadIdRoute
+  '/messaging/threads/': typeof ThreadsDotindexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof homeRoute
@@ -222,7 +236,6 @@ export interface FileRoutesByTo {
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
   '/messaging/contacts': typeof ContactsRoute
-  '/messaging/threads': typeof ThreadsRoute
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/settings/appearance': typeof shellSettingsAppearanceRoute
   '/settings/integrations': typeof shellSettingsIntegrationsRoute
@@ -230,6 +243,8 @@ export interface FileRoutesByTo {
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
+  '/messaging/threads/$threadId': typeof ThreadsDotthreadIdRoute
+  '/messaging/threads': typeof ThreadsDotindexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -252,7 +267,7 @@ export interface FileRoutesById {
   '/_app/knowledge-base/search': typeof SearchRoute
   '/_app/knowledge-base/sources': typeof SourcesRoute
   '/_app/messaging/contacts': typeof ContactsRoute
-  '/_app/messaging/threads': typeof ThreadsRoute
+  '/_app/messaging/threads': typeof ThreadsRouteWithChildren
   '/_app/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/_app/settings/appearance': typeof shellSettingsAppearanceRoute
   '/_app/settings/integrations': typeof shellSettingsIntegrationsRoute
@@ -260,6 +275,8 @@ export interface FileRoutesById {
   '/_app/settings/profile': typeof shellSettingsProfileRoute
   '/_app/system/list': typeof ListRoute
   '/_app/system/logs': typeof LogsRoute
+  '/_app/messaging/threads/$threadId': typeof ThreadsDotthreadIdRoute
+  '/_app/messaging/threads/': typeof ThreadsDotindexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -289,6 +306,8 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
+    | '/messaging/threads/$threadId'
+    | '/messaging/threads/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -308,7 +327,6 @@ export interface FileRouteTypes {
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
     | '/messaging/contacts'
-    | '/messaging/threads'
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/integrations'
@@ -316,6 +334,8 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
+    | '/messaging/threads/$threadId'
+    | '/messaging/threads'
   id:
     | '__root__'
     | '/_app'
@@ -345,6 +365,8 @@ export interface FileRouteTypes {
     | '/_app/settings/profile'
     | '/_app/system/list'
     | '/_app/system/logs'
+    | '/_app/messaging/threads/$threadId'
+    | '/_app/messaging/threads/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -543,6 +565,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsRouteImport
       parentRoute: typeof DotDotModulesAiPagesLayoutRoute
     }
+    '/_app/messaging/threads/': {
+      id: '/_app/messaging/threads/'
+      path: '/'
+      fullPath: '/messaging/threads/'
+      preLoaderRoute: typeof ThreadsDotindexRouteImport
+      parentRoute: typeof ThreadsRoute
+    }
+    '/_app/messaging/threads/$threadId': {
+      id: '/_app/messaging/threads/$threadId'
+      path: '/$threadId'
+      fullPath: '/messaging/threads/$threadId'
+      preLoaderRoute: typeof ThreadsDotthreadIdRouteImport
+      parentRoute: typeof ThreadsRoute
+    }
   }
 }
 
@@ -586,15 +622,28 @@ const DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren =
     DotDotModulesKnowledgeBasePagesLayoutRouteChildren,
   )
 
+interface ThreadsRouteChildren {
+  ThreadsDotthreadIdRoute: typeof ThreadsDotthreadIdRoute
+  ThreadsDotindexRoute: typeof ThreadsDotindexRoute
+}
+
+const ThreadsRouteChildren: ThreadsRouteChildren = {
+  ThreadsDotthreadIdRoute: ThreadsDotthreadIdRoute,
+  ThreadsDotindexRoute: ThreadsDotindexRoute,
+}
+
+const ThreadsRouteWithChildren =
+  ThreadsRoute._addFileChildren(ThreadsRouteChildren)
+
 interface DotDotModulesMessagingPagesLayoutRouteChildren {
   ContactsRoute: typeof ContactsRoute
-  ThreadsRoute: typeof ThreadsRoute
+  ThreadsRoute: typeof ThreadsRouteWithChildren
 }
 
 const DotDotModulesMessagingPagesLayoutRouteChildren: DotDotModulesMessagingPagesLayoutRouteChildren =
   {
     ContactsRoute: ContactsRoute,
-    ThreadsRoute: ThreadsRoute,
+    ThreadsRoute: ThreadsRouteWithChildren,
   }
 
 const DotDotModulesMessagingPagesLayoutRouteWithChildren =

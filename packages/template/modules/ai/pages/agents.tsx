@@ -154,7 +154,7 @@ function AgentDetailSheet({
           </Button>
         </SheetHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-hidden">
           <div className="divide-y">
             {/* Instructions */}
             <div className="px-6 py-4">
@@ -279,8 +279,8 @@ function AgentsPage() {
     onSuccess: (thread) => {
       setSelectedAgent(null);
       navigate({
-        to: '/messaging/threads',
-        search: { threadId: thread.id },
+        to: '/messaging/threads/$threadId',
+        params: { threadId: thread.id },
       });
     },
   });

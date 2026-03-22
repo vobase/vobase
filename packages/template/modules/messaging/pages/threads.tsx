@@ -1,40 +1,13 @@
-import { useChat } from '@ai-sdk/react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link, useSearch } from '@tanstack/react-router';
-import { DefaultChatTransport, type TextUIPart, type UIMessage } from 'ai';
+import { useQuery } from '@tanstack/react-query';
 import {
-  CheckCircle2,
-  CopyIcon,
-  Loader2,
-  MessageSquare,
-  Wrench,
-} from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
-import { z } from 'zod';
+  createFileRoute,
+  Outlet,
+  useNavigate,
+  useParams,
+} from '@tanstack/react-router';
+import { useState } from 'react';
 
-import {
-  Conversation,
-  ConversationContent,
-  ConversationScrollButton,
-} from '@/components/ai-elements/conversation';
-import {
-  Message,
-  MessageAction,
-  MessageActions,
-  MessageContent,
-  MessageResponse,
-} from '@/components/ai-elements/message';
-import {
-  PromptInput,
-  type PromptInputMessage,
-  PromptInputSubmit,
-  PromptInputTextarea,
-} from '@/components/ai-elements/prompt-input';
-import { Shimmer } from '@/components/ai-elements/shimmer';
-import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion';
 import { ThreadList } from '@/components/chat/thread-list';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -53,34 +26,14 @@ interface Thread {
   createdAt: string;
 }
 
-interface DbMessage {
-  id: string;
-  threadId: string;
-  aiRole: string | null;
-  content: string | null;
-  sources: string | null;
-  toolCalls: string | null;
-  createdAt: string;
-}
-
 interface Agent {
   id: string;
   name: string;
-  model?: string;
-  suggestions?: string[];
 }
 
 async function fetchThreads(): Promise<Thread[]> {
   const res = await fetch('/api/messaging/threads');
   if (!res.ok) throw new Error('Failed to fetch threads');
-  return res.json();
-}
-
-async function fetchThread(
-  id: string,
-): Promise<Thread & { messages: DbMessage[] }> {
-  const res = await fetch(`/api/messaging/threads/${id}`);
-  if (!res.ok) throw new Error('Failed to fetch thread');
   return res.json();
 }
 
@@ -90,234 +43,13 @@ async function fetchAgents(): Promise<Agent[]> {
   return res.json();
 }
 
-function toUIMessages(dbMessages: DbMessage[]): UIMessage[] {
-  return dbMessages.map((msg) => ({
-    id: msg.id,
-    role: (msg.aiRole ?? 'user') as 'user' | 'assistant',
-    parts: [{ type: 'text' as const, text: msg.content ?? '' }],
-    createdAt: new Date(msg.createdAt),
-  }));
-}
-
-const DEFAULT_SUGGESTIONS = [
-  'Help me write a function that',
-  'Search the knowledge base for',
-  'Explain how',
-  'Give me ideas for',
-];
-
-function getAgentSuggestions(
-  agents: Agent[] | undefined,
-  agentId?: string,
-): string[] {
-  const agent = agents?.find((a) => a.id === agentId);
-  if (!agent?.suggestions || agent.suggestions.length === 0) {
-    return DEFAULT_SUGGESTIONS;
-  }
-  return agent.suggestions;
-}
-
-/** Check if a message part is a tool invocation (static `tool-<name>` or `dynamic-tool`). */
-function isToolPart(part: unknown): part is {
-  toolName: string;
-  toolCallId: string;
-  state: string;
-  output?: unknown;
-} {
-  return (
-    typeof part === 'object' &&
-    part !== null &&
-    'toolName' in part &&
-    'toolCallId' in part
-  );
-}
-
-/** Inline tool call indicator */
-function ToolCallPart({
-  part,
-}: {
-  part: {
-    toolName: string;
-    toolCallId: string;
-    state: string;
-    output?: unknown;
-  };
-}) {
-  const isRunning =
-    part.state === 'input-streaming' || part.state === 'input-available';
-  return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
-      {isRunning ? (
-        <Loader2 className="size-3 animate-spin" />
-      ) : (
-        <CheckCircle2 className="size-3" />
-      )}
-      <Wrench className="size-3" />
-      <span className="font-medium">{part.toolName}</span>
-      {part.state === 'output-available' && part.output != null && (
-        <span className="truncate max-w-[300px]">
-          {typeof part.output === 'string'
-            ? part.output
-            : JSON.stringify(part.output).slice(0, 120)}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** Chat view for an active thread */
-function ThreadChat({
-  threadId,
-  initialMessages,
-  autoSendMessage,
-}: {
-  threadId: string;
-  initialMessages: UIMessage[];
-  autoSendMessage?: string;
-}) {
-  const queryClient = useQueryClient();
-  const [input, setInput] = useState('');
-  const [autoSent, setAutoSent] = useState(false);
-
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: `/api/messaging/threads/${threadId}/chat`,
-      }),
-    [threadId],
-  );
-
-  const { messages, sendMessage, status } = useChat({
-    id: threadId,
-    transport,
-    messages: initialMessages,
-    onError: (error) => {
-      toast.error(
-        error.message ||
-          'Failed to send message. Check your API key and model configuration.',
-      );
-    },
-    onFinish: () => {
-      queryClient.invalidateQueries({ queryKey: ['messaging-threads'] });
-      queryClient.invalidateQueries({
-        queryKey: ['messaging-thread', threadId],
-      });
-    },
-  });
-
-  if (autoSendMessage && !autoSent && initialMessages.length === 0) {
-    setAutoSent(true);
-    sendMessage({ text: autoSendMessage });
-  }
-
-  function handleSubmit(msg: PromptInputMessage) {
-    if (!msg.text.trim()) return;
-    sendMessage({ text: msg.text });
-    setInput('');
-  }
-
-  const isStreaming = status === 'streaming' || status === 'submitted';
-  const lastMessage = messages[messages.length - 1];
-  const lastAssistantText =
-    lastMessage?.role === 'assistant'
-      ? lastMessage.parts
-          .filter((p): p is TextUIPart => p.type === 'text')
-          .map((p) => p.text)
-          .join('')
-      : '';
-  const showShimmer =
-    isStreaming && (lastMessage?.role === 'user' || !lastAssistantText.trim());
-
-  return (
-    <>
-      <Conversation className="flex-1">
-        <ConversationContent className="max-w-2xl mx-auto p-4">
-          {messages.map((msg) => (
-            <Message key={msg.id} from={msg.role}>
-              <MessageContent>
-                {msg.parts.map((part, partIdx) => {
-                  if (part.type === 'text') {
-                    return (
-                      // biome-ignore lint/suspicious/noArrayIndexKey: multi-step agent produces multiple text parts with no unique id
-                      <MessageResponse key={`${msg.id}-${partIdx}`}>
-                        {part.text}
-                      </MessageResponse>
-                    );
-                  }
-                  if (isToolPart(part)) {
-                    return (
-                      <ToolCallPart
-                        key={`${msg.id}-${part.toolCallId}`}
-                        part={part}
-                      />
-                    );
-                  }
-                  return null;
-                })}
-              </MessageContent>
-              {msg.role === 'assistant' && !isStreaming && (
-                <MessageActions>
-                  <MessageAction
-                    label="Copy"
-                    onClick={() => {
-                      const text = msg.parts
-                        .filter((p): p is TextUIPart => p.type === 'text')
-                        .map((p) => p.text)
-                        .join('');
-                      navigator.clipboard.writeText(text);
-                    }}
-                  >
-                    <CopyIcon className="size-3" />
-                  </MessageAction>
-                </MessageActions>
-              )}
-            </Message>
-          ))}
-          {showShimmer && (
-            <Message from="assistant">
-              <MessageContent>
-                <Shimmer className="text-sm" duration={1.5}>
-                  Thinking...
-                </Shimmer>
-              </MessageContent>
-            </Message>
-          )}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
-
-      <div className="border-t p-4">
-        <div className="max-w-2xl mx-auto">
-          <PromptInput onSubmit={handleSubmit}>
-            <PromptInputTextarea
-              value={input}
-              onChange={(e) => setInput(e.currentTarget.value)}
-              placeholder="Type a message…"
-              className="pr-12"
-            />
-            <PromptInputSubmit
-              disabled={!input.trim() || isStreaming}
-              status={isStreaming ? 'streaming' : 'ready'}
-              className="absolute bottom-1 right-1"
-            />
-          </PromptInput>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function MessagingPage() {
-  const queryClient = useQueryClient();
-  const { threadId: initialThreadId } = useSearch({
-    from: '/_app/messaging/threads',
-  });
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(
-    initialThreadId ?? null,
-  );
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+function ThreadsLayout() {
+  const navigate = useNavigate();
   const [channelFilter, setChannelFilter] = useState<string>('all');
-  const [welcomeInput, setWelcomeInput] = useState('');
+
+  // Try to read $threadId from params — undefined when at /messaging/threads (index)
+  const params = useParams({ strict: false }) as { threadId?: string };
+  const activeThreadId = params.threadId ?? null;
 
   const { data: allThreads = [] } = useQuery({
     queryKey: ['messaging-threads'],
@@ -330,122 +62,7 @@ function MessagingPage() {
     queryKey: ['messaging-agents'],
     queryFn: fetchAgents,
   });
-  const { data: activeThread } = useQuery({
-    queryKey: ['messaging-thread', activeThreadId],
-    queryFn: () => fetchThread(activeThreadId ?? ''),
-    enabled: !!activeThreadId,
-  });
-
-  const activeAgentId = selectedAgentId ?? agents?.[0]?.id ?? null;
   const hasAgents = (agents?.length ?? 0) > 0;
-  const suggestions = getAgentSuggestions(agents, activeAgentId ?? undefined);
-
-  async function handleWelcomeSend(text: string) {
-    if (!text.trim() || !activeAgentId) return;
-    const res = await fetch('/api/messaging/threads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId: activeAgentId }),
-    });
-    if (!res.ok) {
-      toast.error('Failed to create thread');
-      return;
-    }
-    const thread = (await res.json()) as Thread;
-    queryClient.invalidateQueries({ queryKey: ['messaging-threads'] });
-    setActiveThreadId(thread.id);
-    setWelcomeInput(text);
-  }
-
-  const initialMessages = useMemo(() => {
-    return toUIMessages(activeThread?.messages ?? []);
-  }, [activeThread?.messages]);
-
-  const renderWelcome = () => (
-    <div className="flex-1 flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-xl space-y-8 -mt-12">
-        {/* Greeting */}
-        <div className="space-y-2 text-center">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-            <MessageSquare className="h-5 w-5 text-primary" />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {hasAgents
-              ? 'What can I help you with?'
-              : 'Create an agent to get started'}
-          </h1>
-          {!hasAgents && (
-            <p className="text-sm text-muted-foreground">
-              You need at least one agent before you can start chatting.
-            </p>
-          )}
-        </div>
-
-        {/* Agent selector */}
-        {hasAgents && (agents?.length ?? 0) > 1 && (
-          <div className="flex justify-center">
-            <Select
-              value={activeAgentId ?? ''}
-              onValueChange={setSelectedAgentId}
-            >
-              <SelectTrigger className="w-auto gap-2">
-                <SelectValue placeholder="Select agent" />
-              </SelectTrigger>
-              <SelectContent>
-                {agents?.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Suggestion chips — AI Elements Suggestion component */}
-        {hasAgents && (
-          <Suggestions className="justify-center">
-            {suggestions.map((s) => (
-              <Suggestion
-                key={s}
-                suggestion={s}
-                onClick={(text) => handleWelcomeSend(text)}
-              />
-            ))}
-          </Suggestions>
-        )}
-
-        {/* Input box */}
-        {hasAgents ? (
-          <PromptInput
-            onSubmit={(msg) => handleWelcomeSend(msg.text)}
-            className="w-full"
-          >
-            <PromptInputTextarea
-              value={welcomeInput}
-              onChange={(e) => setWelcomeInput(e.currentTarget.value)}
-              placeholder="Ask anything..."
-              className="pr-12"
-            />
-            <PromptInputSubmit
-              disabled={!welcomeInput.trim()}
-              className="absolute bottom-1 right-1"
-            />
-          </PromptInput>
-        ) : (
-          <div className="flex justify-center">
-            <Button asChild>
-              <Link to="/ai/agents">Create agent</Link>
-            </Button>
-          </div>
-        )}
-
-        <p className="text-center text-xs text-muted-foreground">
-          AI can make mistakes. Verify important information.
-        </p>
-      </div>
-    </div>
-  );
 
   return (
     <div className="flex h-full">
@@ -487,44 +104,25 @@ function MessagingPage() {
           })}
           activeThreadId={activeThreadId}
           onSelectThread={(id) => {
-            setActiveThreadId(id);
-            setWelcomeInput('');
+            navigate({
+              to: '/messaging/threads/$threadId',
+              params: { threadId: id },
+            });
           }}
           onNewChat={() => {
-            setActiveThreadId(null);
-            setWelcomeInput('');
+            navigate({ to: '/messaging/threads' });
           }}
           hasAssistants={hasAgents}
         />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        {!activeThreadId ? (
-          renderWelcome()
-        ) : !activeThread ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Shimmer className="text-sm text-muted-foreground">
-              Loading conversation...
-            </Shimmer>
-          </div>
-        ) : (
-          <ThreadChat
-            key={activeThreadId}
-            threadId={activeThreadId}
-            initialMessages={initialMessages}
-            autoSendMessage={welcomeInput || undefined}
-          />
-        )}
+        <Outlet />
       </div>
     </div>
   );
 }
 
-const threadSearchSchema = z.object({
-  threadId: z.string().optional(),
-});
-
 export const Route = createFileRoute('/_app/messaging/threads')({
-  component: MessagingPage,
-  validateSearch: (search) => threadSearchSchema.parse(search),
+  component: ThreadsLayout,
 });
