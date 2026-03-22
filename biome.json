@@ -17,12 +17,10 @@
   "linter": {
     "enabled": true,
     "domains": {
-      "drizzle": "recommended",
       "project": "recommended",
       "react": "recommended",
       "test": "recommended",
-      "turborepo": "recommended",
-      "types": "recommended"
+      "turborepo": "recommended"
     },
     "rules": {
       "recommended": true

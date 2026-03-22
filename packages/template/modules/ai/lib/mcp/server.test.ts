@@ -5,11 +5,13 @@ import { createAiMcpHandler } from './server';
 describe('createAiMcpHandler', () => {
   test('returns a function', () => {
     // Pass a minimal db mock — the handler only uses db when a tool is called
+    // biome-ignore lint/suspicious/noExplicitAny: minimal mock — handler only uses db when a tool is called
     const handler = createAiMcpHandler({} as any);
     expect(typeof handler).toBe('function');
   });
 
   test('handler returns a Response for POST requests', async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: minimal mock — handler only uses db when a tool is called
     const handler = createAiMcpHandler({} as any);
 
     // Send a valid JSON-RPC initialize request

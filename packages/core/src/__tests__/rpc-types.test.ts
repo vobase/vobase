@@ -28,7 +28,7 @@ const ordersRouter = new Hono().get('/list', (c) =>
 const chainedApp = new Hono()
   .route('/api/invoicing', invoicingRouter)
   .route('/api/orders', ordersRouter);
-export type ChainedAppType = typeof chainedApp;
+type ChainedAppType = typeof chainedApp;
 
 const chainedClient = hc<ChainedAppType>('http://localhost:3000');
 

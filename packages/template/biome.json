@@ -1,5 +1,6 @@
 {
-  "$schema": "node_modules/@biomejs/biome/configuration_schema.json",
+  "root": false,
+  "extends": ["../../biome.json"],
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -24,11 +25,9 @@
   "linter": {
     "enabled": true,
     "domains": {
-      "drizzle": "recommended",
       "project": "recommended",
       "react": "recommended",
-      "test": "recommended",
-      "types": "recommended"
+      "test": "recommended"
     },
     "rules": {
       "recommended": true

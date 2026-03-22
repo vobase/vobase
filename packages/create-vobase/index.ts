@@ -113,6 +113,70 @@ for (const depField of ['dependencies', 'devDependencies']) {
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 console.log(`${green('✓')} Resolved dependencies`);
 
+// --- Generate biome.json (standalone, not extending monorepo root) ---
+const biomePath = resolve(dest, 'biome.json');
+if (!existsSync(biomePath)) {
+  const biomeConfig = {
+    $schema: 'node_modules/@biomejs/biome/configuration_schema.json',
+    vcs: { enabled: true, clientKind: 'git', useIgnoreFile: true },
+    files: {
+      includes: [
+        '**',
+        '!dist',
+        '!.omc',
+        '!.agents',
+        '!**/*.gen.ts',
+        '!**/*.generated.ts',
+        '!src/components/ai-elements',
+        '!src/components/data-table',
+        '!src/components/ui',
+        '!src/lib/store',
+        '!src/lib/table-schema',
+        '!src/lib/compose-refs.ts',
+      ],
+    },
+    linter: {
+      enabled: true,
+      domains: {
+        project: 'recommended',
+        react: 'recommended',
+        test: 'recommended',
+      },
+      rules: { recommended: true },
+    },
+    formatter: { enabled: true, indentStyle: 'space', indentWidth: 2 },
+    javascript: { formatter: { quoteStyle: 'single' } },
+    css: { parser: { tailwindDirectives: true } },
+    assist: {
+      enabled: true,
+      actions: {
+        source: {
+          organizeImports: {
+            level: 'on',
+            options: {
+              groups: [
+                [':NODE:'],
+                [':URL:', ':PACKAGE:', ':PACKAGE_WITH_PROTOCOL:'],
+                ':BLANK_LINE:',
+                ['#*', '#*/**', ':ALIAS:'],
+                [':PATH:'],
+              ],
+            },
+          },
+        },
+      },
+    },
+    overrides: [
+      {
+        includes: ['modules/knowledge-base/connectors/sharepoint.ts'],
+        linter: { rules: { suspicious: { noTsIgnore: 'off' } } },
+      },
+    ],
+  };
+  writeFileSync(biomePath, `${JSON.stringify(biomeConfig, null, 2)}\n`);
+  console.log(`${green('✓')} Generated biome.json`);
+}
+
 if (!templateMode) {
   // --- Copy .env.example → .env with a real secret ---
   const envExample = resolve(dest, '.env.example');
