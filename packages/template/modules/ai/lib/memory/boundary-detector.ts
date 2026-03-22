@@ -1,6 +1,6 @@
 import { openai } from '@ai-sdk/openai';
 import { logger } from '@vobase/core';
-import { type GenerateTextResult, generateText, Output } from 'ai';
+import { generateText, Output } from 'ai';
 
 import { bareModelName, models } from '../models';
 import type { BoundaryResult, MemoryConfig, MemoryMessage } from './types';
@@ -40,9 +40,8 @@ interface DetectBoundaryOptions {
   messages: MemoryMessage[];
   config?: Partial<MemoryConfig>;
   /** Override LLM call for testing */
-  generate?: (
-    opts: Parameters<typeof generateText>[0],
-  ) => Promise<GenerateTextResult<unknown, BoundaryResult>>;
+  // biome-ignore lint/suspicious/noExplicitAny: test mock only needs to return { object }
+  generate?: (...args: any[]) => Promise<{ object: BoundaryResult }>;
 }
 
 /**
@@ -80,16 +79,16 @@ export async function detectBoundary(
     .map((m) => `[${m.aiRole ?? 'user'}]: ${m.content ?? ''}`)
     .join('\n');
 
-  const generateFn = generate ?? generateText;
-
   try {
-    const result = await generateFn({
+    const opts = {
       model: openai(bareModelName(models.gpt_mini)),
       output: Output.object({ schema: boundaryResultSchema }),
       system: BOUNDARY_PROMPT,
       prompt: formatted,
       maxOutputTokens: 100,
-    });
+    } as const;
+
+    const result = generate ? await generate(opts) : await generateText(opts);
 
     return result.object as BoundaryResult;
   } catch (err) {
