@@ -8,8 +8,5 @@
       "name": "template",
       "path": "packages/template"
     }
-  ],
-  "settings": {
-    "cSpell.words": ["vobase"]
-  }
+  ]
 }
