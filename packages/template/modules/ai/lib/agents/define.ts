@@ -12,6 +12,8 @@ export interface AgentMeta {
   id: string;
   /** Display name shown in the UI. */
   name: string;
+  /** Model identifier (e.g. 'openai/gpt-5-mini'). Shown in the UI. */
+  model: string;
   /** KB source IDs to scope knowledge base search. Empty = search all. */
   kbSourceIds?: string[];
   /** Channels this agent handles (e.g. ['web', 'whatsapp']). Defaults to ['web']. */

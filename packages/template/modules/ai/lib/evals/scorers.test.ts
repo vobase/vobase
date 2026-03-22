@@ -1,14 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test';
-
-// Mock getAIConfig before importing scorers
-mock.module('../../../../lib/ai', () => ({
-  getAIConfig: () => ({
-    provider: 'openai',
-    model: 'gpt-5-mini',
-    embeddingModel: 'text-embedding-3-small',
-    embeddingDimensions: 1536,
-  }),
-}));
+import { describe, expect, test } from 'bun:test';
 
 test('createScorerSuite returns both scorers with run method', async () => {
   const { createScorerSuite } = await import('./scorers');

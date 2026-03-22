@@ -2,7 +2,7 @@ import { openai } from '@ai-sdk/openai';
 import { logger } from '@vobase/core';
 import { type GenerateObjectResult, generateObject } from 'ai';
 
-import { getAIConfig } from '../../../../lib/ai';
+import { bareModelName, models } from '../models';
 import type { BoundaryResult, MemoryConfig, MemoryMessage } from './types';
 import { boundaryResultSchema, defaultMemoryConfig } from './types';
 
@@ -80,12 +80,11 @@ export async function detectBoundary(
     .map((m) => `[${m.aiRole ?? 'user'}]: ${m.content ?? ''}`)
     .join('\n');
 
-  const aiConfig = getAIConfig();
   const generateFn = generate ?? generateObject;
 
   try {
     const result = await generateFn({
-      model: openai(aiConfig.model),
+      model: openai(bareModelName(models.gpt_mini)),
       schema: boundaryResultSchema,
       system: BOUNDARY_PROMPT,
       prompt: formatted,

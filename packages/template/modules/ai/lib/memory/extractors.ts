@@ -2,7 +2,7 @@ import { openai } from '@ai-sdk/openai';
 import { type GenerateObjectResult, generateObject } from 'ai';
 import type { z } from 'zod';
 
-import { getAIConfig } from '../../../../lib/ai';
+import { bareModelName, models } from '../models';
 import type { Episode, EventLogEntry, MemoryMessage } from './types';
 import { episodeSchema, eventLogSchema } from './types';
 
@@ -41,7 +41,7 @@ export async function extractEpisode(
   options: ExtractOptions,
 ): Promise<Episode> {
   const { messages, generate } = options;
-  const aiConfig = getAIConfig();
+  const modelName = bareModelName(models.gpt_mini);
   const generateFn = generate ?? generateObject;
 
   const formatted = messages
@@ -49,7 +49,7 @@ export async function extractEpisode(
     .join('\n');
 
   const result = await generateFn({
-    model: openai(aiConfig.model),
+    model: openai(modelName),
     schema: episodeSchema,
     system: EPISODE_PROMPT,
     prompt: formatted,
@@ -66,7 +66,7 @@ export async function extractEventLogs(
   options: ExtractOptions,
 ): Promise<EventLogEntry[]> {
   const { messages, generate } = options;
-  const aiConfig = getAIConfig();
+  const modelName = bareModelName(models.gpt_mini);
   const generateFn = generate ?? generateObject;
 
   const formatted = messages
@@ -74,7 +74,7 @@ export async function extractEventLogs(
     .join('\n');
 
   const result = await generateFn({
-    model: openai(aiConfig.model),
+    model: openai(modelName),
     schema: eventLogSchema,
     system: EVENT_LOG_PROMPT,
     prompt: formatted,

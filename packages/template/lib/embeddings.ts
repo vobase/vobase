@@ -1,25 +1,23 @@
 import { openai } from '@ai-sdk/openai';
 import { embed, embedMany } from 'ai';
 
-import { getAIConfig } from './ai';
+import {
+  bareModelName,
+  EMBEDDING_DIMENSIONS,
+  models,
+} from '../modules/ai/lib/models';
 
-function getEmbeddingModel() {
-  const config = getAIConfig();
-  // Default to OpenAI embeddings; users can swap this for any AI SDK provider
-  return openai.embedding(config.embeddingModel);
-}
+const embeddingModel = openai.embedding(bareModelName(models.gpt_embedding));
 
 /**
  * Embed multiple text chunks. Returns float arrays.
  */
 export async function embedChunks(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-  const config = getAIConfig();
-  const model = getEmbeddingModel();
   const { embeddings } = await embedMany({
-    model,
+    model: embeddingModel,
     values: texts,
-    providerOptions: { openai: { dimensions: config.embeddingDimensions } },
+    providerOptions: { openai: { dimensions: EMBEDDING_DIMENSIONS } },
   });
   return embeddings;
 }
@@ -28,12 +26,10 @@ export async function embedChunks(texts: string[]): Promise<number[][]> {
  * Embed a single query string. Returns float array.
  */
 export async function embedQuery(query: string): Promise<number[]> {
-  const config = getAIConfig();
-  const model = getEmbeddingModel();
   const { embedding } = await embed({
-    model,
+    model: embeddingModel,
     value: query,
-    providerOptions: { openai: { dimensions: config.embeddingDimensions } },
+    providerOptions: { openai: { dimensions: EMBEDDING_DIMENSIONS } },
   });
   return embedding;
 }
