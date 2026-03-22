@@ -77,12 +77,12 @@ describe('detectBoundary', () => {
 
   it('uses the generate override for LLM-based detection', async () => {
     const mockGenerate = async () => ({
-      output: { shouldSplit: true, reason: 'Topic changed to weather' },
+      object: { shouldSplit: true, reason: 'Topic changed to weather' },
     });
 
     const result = await detectBoundary({
       messages: makeMessages(6),
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
       generate: mockGenerate as any,
     });
     expect(result.shouldSplit).toBe(true);
@@ -96,7 +96,7 @@ describe('detectBoundary', () => {
 
     const result = await detectBoundary({
       messages: makeMessages(6),
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
       generate: failingGenerate as any,
     });
     expect(result.shouldSplit).toBe(false);

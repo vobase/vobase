@@ -6,9 +6,9 @@ import type {
   ProcessOutputResultArgs,
 } from '@mastra/core/processors';
 import type { Scheduler, VobaseDb } from '@vobase/core';
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { logger } from '@vobase/core';
+import { desc, eq } from 'drizzle-orm';
 
-import { msgMessages } from '../../../messaging/schema';
 import { aiMemCells } from '../../schema';
 import { computeBufferTokens, detectBoundary } from './boundary-detector';
 import { retrieveMemory } from './retriever';
@@ -156,13 +156,28 @@ export function createMemoryOutputProcessor(
           lastCell?.endMessageId,
         );
 
+        logger.debug('[memory] Boundary check', {
+          threadId,
+          messageCount: dbMessages.length,
+          threshold: 4,
+        });
+
         if (dbMessages.length < 4) {
-          // Not enough messages to consider a boundary
           return args.messages;
         }
 
         // Run boundary detection
+        logger.info('[memory] Running boundary detection', {
+          threadId,
+          messageCount: dbMessages.length,
+        });
         const boundary = await detectBoundary({ messages: dbMessages });
+
+        logger.info('[memory] Boundary result', {
+          threadId,
+          shouldSplit: boundary.shouldSplit,
+          reason: boundary.reason,
+        });
 
         if (!boundary.shouldSplit) {
           return args.messages;
@@ -189,16 +204,22 @@ export function createMemoryOutputProcessor(
           })
           .returning({ id: aiMemCells.id });
 
+        logger.info('[memory] Cell created, queuing formation', {
+          threadId,
+          cellId: cell.id,
+          messageCount: dbMessages.length,
+        });
+
         // Queue formation job
         await scheduler.add('ai:memory-formation', {
           cellId: cell.id,
         });
       } catch (err) {
         // Memory formation failures must never break chat
-        console.error(
-          `[memory] Formation check failed for thread ${threadId}:`,
-          err,
-        );
+        logger.error('[memory] Formation check failed', {
+          threadId,
+          error: err,
+        });
       }
 
       return args.messages;
@@ -208,57 +229,21 @@ export function createMemoryOutputProcessor(
 
 /**
  * Get messages in a thread since the last MemCell's end message.
- * Uses SQL filtering to avoid loading entire thread history.
+ * Loads from Mastra Memory instead of the removed msgMessages table.
  */
 async function getMessagesSinceLastCell(
-  db: VobaseDb,
+  _db: VobaseDb,
   threadId: string,
   lastEndMessageId?: string,
 ): Promise<MemoryMessage[]> {
-  // If we have a boundary, resolve its timestamp for SQL filtering
-  if (lastEndMessageId) {
-    const boundary = (
-      await db
-        .select({ createdAt: msgMessages.createdAt })
-        .from(msgMessages)
-        .where(eq(msgMessages.id, lastEndMessageId))
-        .limit(1)
-    )[0];
+  const { loadMessagesForThread } = await import('./message-source');
+  const allMessages = await loadMessagesForThread(_db, threadId);
 
-    if (boundary) {
-      const messages = await db
-        .select({
-          id: msgMessages.id,
-          content: msgMessages.content,
-          aiRole: msgMessages.aiRole,
-          createdAt: msgMessages.createdAt,
-        })
-        .from(msgMessages)
-        .where(
-          and(
-            eq(msgMessages.threadId, threadId),
-            gt(msgMessages.createdAt, boundary.createdAt),
-          ),
-        )
-        .orderBy(msgMessages.createdAt)
-        .limit(100);
+  if (!lastEndMessageId) return allMessages.slice(-100);
 
-      return messages;
-    }
-  }
+  // Find the boundary message and return everything after it
+  const boundaryIdx = allMessages.findIndex((m) => m.id === lastEndMessageId);
+  if (boundaryIdx === -1) return allMessages.slice(-100);
 
-  // No prior cell — get recent messages (capped)
-  const messages = await db
-    .select({
-      id: msgMessages.id,
-      content: msgMessages.content,
-      aiRole: msgMessages.aiRole,
-      createdAt: msgMessages.createdAt,
-    })
-    .from(msgMessages)
-    .where(eq(msgMessages.threadId, threadId))
-    .orderBy(msgMessages.createdAt)
-    .limit(100);
-
-  return messages;
+  return allMessages.slice(boundaryIdx + 1, boundaryIdx + 101);
 }

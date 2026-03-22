@@ -10,8 +10,9 @@ import { logger } from '@vobase/core';
 import { and, eq } from 'drizzle-orm';
 
 import { getAgentForChannel, getDefaultAgent } from '../../ai/agents';
-import { msgMessages, msgThreads } from '../schema';
+import { msgOutbox, msgThreads } from '../schema';
 import { findOrCreateContact } from './contacts';
+import { saveInboundMessage } from './memory-bridge';
 import { findOrCreateThread } from './threads';
 
 interface ChannelHandlerDeps {
@@ -36,7 +37,7 @@ function nextNineAm(): Date {
 
 /**
  * Handle inbound messages from external channels.
- * Flow: findOrCreateContact -> findOrCreateThread -> store message -> AI reply (if status=ai)
+ * Flow: findOrCreateContact -> findOrCreateThread -> store message in Memory -> AI reply (if status=ai)
  */
 export async function handleInboundMessage(
   deps: ChannelHandlerDeps,
@@ -49,7 +50,7 @@ export async function handleInboundMessage(
 
   // 2. Find agent for this channel from code registry
   const channelAgent = getAgentForChannel(event.channel);
-  const agentId = channelAgent?.id ?? getDefaultAgent()?.id;
+  const agentId = channelAgent?.meta.id ?? getDefaultAgent()?.meta.id;
   if (!agentId) return; // No agents configured
 
   // 3. Find or create thread
@@ -114,17 +115,20 @@ export async function handleInboundMessage(
     content = descriptions.join(' ');
   }
 
-  // 5. Store inbound message
-  await db.insert(msgMessages).values({
-    threadId: thread.id,
-    direction: 'inbound',
-    senderType: 'contact',
-    aiRole: 'user',
-    content,
-    externalMessageId: event.messageId,
-    status: 'delivered',
-    attachments: attachments.length ? JSON.stringify(attachments) : null,
-  });
+  // 5. Store inbound message in Mastra Memory
+  const resourceId = thread.userId ?? thread.contactId ?? contact.id;
+  try {
+    await saveInboundMessage({
+      threadId: thread.id,
+      resourceId,
+      content,
+    });
+  } catch (err) {
+    logger.warn('Failed to save inbound message to Memory', {
+      threadId: thread.id,
+      error: err,
+    });
+  }
 
   // 6. Update window expiry (24h from now)
   await db
@@ -145,7 +149,7 @@ export async function handleInboundMessage(
 
 /**
  * Handle status updates from external channels.
- * Updates msg_messages.status, detects staff-sent messages.
+ * Updates msgOutbox.status, detects staff-sent messages.
  */
 export async function handleStatusUpdate(
   deps: ChannelHandlerDeps,
@@ -153,38 +157,31 @@ export async function handleStatusUpdate(
 ) {
   const { db } = deps;
 
-  // Update message status by externalMessageId
+  // Update message status by externalMessageId in the outbox
   const existing = (
     await db
       .select()
-      .from(msgMessages)
-      .where(
-        and(
-          eq(msgMessages.externalMessageId, event.messageId),
-          eq(msgMessages.direction, 'outbound'),
-        ),
-      )
+      .from(msgOutbox)
+      .where(eq(msgOutbox.externalMessageId, event.messageId))
   )[0];
 
   if (existing) {
     // Known outbound message — update status only if it's a forward progression
-    // Status hierarchy: queued < sent < delivered < read. 'failed' is special.
     const STATUS_ORDER: Record<string, number> = {
       queued: 0,
       sent: 1,
       delivered: 2,
       read: 3,
-      failed: -1, // failed can only overwrite queued/sent, not delivered/read
+      failed: -1,
     };
 
     const currentLevel = STATUS_ORDER[existing.status ?? 'queued'] ?? 0;
     const newLevel = STATUS_ORDER[event.status] ?? 0;
 
-    // Allow forward progression, or failed→sent recovery
     const shouldUpdate =
       newLevel > currentLevel ||
-      (event.status === 'failed' && currentLevel <= 1) || // failed only overwrites queued/sent
-      (existing.status === 'failed' && newLevel > 0); // recovery from failed
+      (event.status === 'failed' && currentLevel <= 1) ||
+      (existing.status === 'failed' && newLevel > 0);
 
     if (shouldUpdate) {
       logger.info('Message status update', {
@@ -194,9 +191,9 @@ export async function handleStatusUpdate(
         externalId: event.messageId,
       });
       await db
-        .update(msgMessages)
+        .update(msgOutbox)
         .set({ status: event.status })
-        .where(eq(msgMessages.id, existing.id));
+        .where(eq(msgOutbox.id, existing.id));
     } else {
       logger.info('Message status update skipped (not a forward progression)', {
         messageId: existing.id,
@@ -209,39 +206,32 @@ export async function handleStatusUpdate(
   }
 
   // Staff-sent detection: no outbound row for this externalMessageId
-  // This means someone replied from the WhatsApp Business app directly
-  // Find the thread by looking for any message with this external ID pattern
-  // For staff-sent, the status update arrives for a message we didn't send
-  // We need to find the thread via the channel
   if (event.status === 'sent' || event.status === 'delivered') {
-    // Look for threads on this channel that might have staff activity
-    // Staff detection uses the fact that we have no outbound record for this messageId
-    // We can't reliably map back to a thread from just a status update for a staff message
-    // This is handled when the actual message arrives via message_received
+    // Staff detection handled when the actual message arrives via message_received
   }
 }
 
 /**
  * Detect and handle staff-sent messages.
- * Called when a message_received event has no matching outbound externalMessageId,
- * indicating it was sent by staff directly on the platform.
+ * Saves to Memory and pauses AI.
  */
 export async function handleStaffSent(
   db: VobaseDb,
   threadId: string,
   content: string,
-  externalMessageId: string,
+  _externalMessageId: string,
 ) {
-  // Store as staff message
-  await db.insert(msgMessages).values({
-    threadId,
-    direction: 'inbound',
-    senderType: 'staff',
-    aiRole: 'user',
-    content,
-    externalMessageId,
-    status: 'delivered',
-  });
+  // Store as staff message in Memory
+  try {
+    await saveInboundMessage({
+      threadId,
+      resourceId: threadId, // staff messages use threadId as resourceId
+      content,
+      role: 'user',
+    });
+  } catch {
+    // Memory not available — non-fatal
+  }
 
   // Pause AI, set resume to next 9am
   await db

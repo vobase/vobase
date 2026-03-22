@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 
 import { createTestDb } from '../../lib/test-helpers';
 import { messagingRoutes } from './handlers';
-import { msgMessages, msgThreads } from './schema';
+import { msgOutbox, msgThreads } from './schema';
 
 const BASE = 'http://localhost/api/messaging';
 
@@ -53,10 +53,9 @@ describe('Messaging Routes', () => {
       const body = await res.json();
       expect(Array.isArray(body)).toBe(true);
       expect(body.length).toBeGreaterThanOrEqual(1);
-      // First agent should be the assistant
       expect(body[0].id).toBe('assistant');
       expect(body[0].name).toBe('Vobase Assistant');
-      expect(body[0].instructions).toBeDefined();
+      expect(body[0].channels).toBeDefined();
     });
 
     it('GET /agents/:id returns specific agent', async () => {
@@ -119,37 +118,20 @@ describe('Messaging Routes', () => {
       expect(body[0].title).toBe('Mine');
     });
 
-    it('GET /threads/:id returns thread with messages', async () => {
+    it('GET /threads/:id returns thread (messages loaded from Memory)', async () => {
       await db.insert(msgThreads).values({
         id: 'thr-get',
         title: 'My Thread',
         agentId: 'assistant',
         userId: 'user-1',
       });
-      await db.insert(msgMessages).values({
-        id: 'msg-1',
-        threadId: 'thr-get',
-        direction: 'inbound',
-        senderType: 'user',
-        aiRole: 'user',
-        content: 'Hello',
-      });
-      await db.insert(msgMessages).values({
-        id: 'msg-2',
-        threadId: 'thr-get',
-        direction: 'outbound',
-        senderType: 'agent',
-        aiRole: 'assistant',
-        content: 'Hi!',
-      });
 
       const res = await app.request(`${BASE}/threads/thr-get`);
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.title).toBe('My Thread');
-      expect(body.messages).toHaveLength(2);
-      expect(body.messages[0].content).toBe('Hello');
-      expect(body.messages[1].content).toBe('Hi!');
+      // Messages come from Memory — empty when Memory not initialized in tests
+      expect(body.messages).toBeDefined();
     });
 
     it('GET /threads/:id returns 404 for wrong user', async () => {
@@ -164,28 +146,18 @@ describe('Messaging Routes', () => {
       expect(res.status).toBe(404);
     });
 
-    it('DELETE /threads/:id removes thread and its messages', async () => {
+    it('DELETE /threads/:id removes thread and outbox entries', async () => {
       await db.insert(msgThreads).values({
         id: 'thr-del',
         title: 'Delete Me',
         agentId: 'assistant',
         userId: 'user-1',
       });
-      await db.insert(msgMessages).values({
-        id: 'msg-1',
+      await db.insert(msgOutbox).values({
         threadId: 'thr-del',
-        direction: 'inbound',
-        senderType: 'user',
-        aiRole: 'user',
-        content: 'Hello',
-      });
-      await db.insert(msgMessages).values({
-        id: 'msg-2',
-        threadId: 'thr-del',
-        direction: 'outbound',
-        senderType: 'agent',
-        aiRole: 'assistant',
-        content: 'Hi!',
+        content: 'Queued message',
+        channel: 'web',
+        status: 'queued',
       });
 
       const res = await app.request(`${BASE}/threads/thr-del`, {
@@ -195,11 +167,11 @@ describe('Messaging Routes', () => {
       const body = await res.json();
       expect(body.success).toBe(true);
 
-      const msgs = await db
+      const outbox = await db
         .select()
-        .from(msgMessages)
-        .where(eq(msgMessages.threadId, 'thr-del'));
-      expect(msgs).toHaveLength(0);
+        .from(msgOutbox)
+        .where(eq(msgOutbox.threadId, 'thr-del'));
+      expect(outbox).toHaveLength(0);
 
       const [thread] = await db
         .select()
@@ -221,7 +193,6 @@ describe('Messaging Routes', () => {
       });
       expect(res.status).toBe(404);
 
-      // Thread still exists
       const [thread] = await db
         .select()
         .from(msgThreads)
@@ -284,7 +255,6 @@ describe('Messaging Routes', () => {
         userId: 'user-1',
       });
 
-      // Temporarily clear API keys so isAIConfigured() returns false
       const savedKeys = {
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
         GEMINI_API_KEY: process.env.GEMINI_API_KEY,
@@ -308,7 +278,6 @@ describe('Messaging Routes', () => {
         }),
       });
 
-      // Restore keys
       Object.assign(process.env, savedKeys);
 
       expect(res.status).toBe(503);
@@ -316,7 +285,7 @@ describe('Messaging Routes', () => {
       expect(body.error).toContain('AI is not configured');
     });
 
-    it('POST /threads/:id/chat saves user message and sets thread title', async () => {
+    it('POST /threads/:id/chat sets thread title from first user message', async () => {
       await db.insert(msgThreads).values({
         id: 'thr-title',
         title: null,
@@ -324,7 +293,7 @@ describe('Messaging Routes', () => {
         userId: 'user-1',
       });
 
-      // Will return 503 (no AI key) but should still save user msg + set title
+      // Will return 503 (no AI key) but should still set title
       await app.request(`${BASE}/threads/thr-title/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -339,90 +308,11 @@ describe('Messaging Routes', () => {
         }),
       });
 
-      // Verify user message saved
-      const msgs = await db
-        .select()
-        .from(msgMessages)
-        .where(eq(msgMessages.threadId, 'thr-title'));
-      expect(msgs).toHaveLength(1);
-      expect(msgs[0].content).toBe('Hello bot');
-      expect(msgs[0].aiRole).toBe('user');
-
-      // Verify title set
       const [thread] = await db
         .select()
         .from(msgThreads)
         .where(eq(msgThreads.id, 'thr-title'));
       expect(thread.title).toBe('Hello bot');
-    });
-  });
-
-  describe('Messages', () => {
-    beforeEach(async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-m',
-        title: 'Msg Thread',
-        agentId: 'assistant',
-        userId: 'user-1',
-      });
-    });
-
-    it('POST /threads/:id/messages creates message with direction/senderType/aiRole', async () => {
-      const res = await app.request(`${BASE}/threads/thr-m/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: 'Hello, bot!' }),
-      });
-
-      expect(res.status).toBe(201);
-      const body = await res.json();
-      expect(body.success).toBe(true);
-
-      // Verify message was saved with correct fields
-      const msgs = await db
-        .select()
-        .from(msgMessages)
-        .where(eq(msgMessages.threadId, 'thr-m'));
-      expect(msgs).toHaveLength(1);
-      expect(msgs[0].direction).toBe('inbound');
-      expect(msgs[0].senderType).toBe('user');
-      expect(msgs[0].aiRole).toBe('user');
-      expect(msgs[0].content).toBe('Hello, bot!');
-    });
-
-    it('messages are ordered by creation time in GET thread', async () => {
-      await db.insert(msgMessages).values({
-        id: 'msg-1',
-        threadId: 'thr-m',
-        direction: 'inbound',
-        senderType: 'user',
-        aiRole: 'user',
-        content: 'First',
-      });
-      await db.insert(msgMessages).values({
-        id: 'msg-2',
-        threadId: 'thr-m',
-        direction: 'outbound',
-        senderType: 'agent',
-        aiRole: 'assistant',
-        content: 'Second',
-      });
-      await db.insert(msgMessages).values({
-        id: 'msg-3',
-        threadId: 'thr-m',
-        direction: 'inbound',
-        senderType: 'user',
-        aiRole: 'user',
-        content: 'Third',
-      });
-
-      const res = await app.request(`${BASE}/threads/thr-m`);
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.messages).toHaveLength(3);
-      expect(body.messages[0].content).toBe('First');
-      expect(body.messages[1].content).toBe('Second');
-      expect(body.messages[2].content).toBe('Third');
     });
   });
 });

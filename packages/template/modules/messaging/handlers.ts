@@ -1,6 +1,7 @@
 import { toAISdkStream } from '@mastra/ai-sdk';
 import { getCtx, notFound } from '@vobase/core';
 import {
+  createUIMessageStream,
   createUIMessageStreamResponse,
   type TextUIPart,
   type UIMessage,
@@ -11,7 +12,12 @@ import { z } from 'zod';
 
 import { getAgent, listAgents } from '../ai/agents';
 import { cleanupThreadMemory } from '../ai/lib/memory/cleanup';
-import { msgContacts, msgMessages, msgThreads } from './schema';
+import {
+  createMemoryThread,
+  deleteMemoryThread,
+  loadThreadMessages,
+} from './lib/memory-bridge';
+import { msgContacts, msgOutbox, msgThreads } from './schema';
 
 /** Get the authenticated user's ID — throws if not authenticated (auth middleware guarantees this). */
 function requireUserId(ctx: { user?: { id: string } | null }): string {
@@ -22,13 +28,6 @@ function requireUserId(ctx: { user?: { id: string } | null }): string {
 const createThreadSchema = z.object({
   title: z.string().nullable().optional(),
   agentId: z.string(),
-});
-
-const createMessageSchema = z.object({
-  direction: z.enum(['inbound', 'outbound']).optional(),
-  senderType: z.enum(['user', 'agent', 'contact', 'staff']).optional(),
-  aiRole: z.enum(['user', 'assistant']).optional(),
-  content: z.string(),
 });
 
 const chatSchema = z.object({
@@ -57,13 +56,23 @@ export const messagingRoutes = new Hono();
 
 // Agents (read-only — agents are defined in code, not the database)
 messagingRoutes.get('/agents', async (c) => {
-  return c.json(listAgents());
+  const all = listAgents();
+  const results = await Promise.all(
+    all.map(async (a) => ({
+      ...a.meta,
+      instructions: (await a.agent.getInstructions()) ?? '',
+    })),
+  );
+  return c.json(results);
 });
 
 messagingRoutes.get('/agents/:id', async (c) => {
-  const agent = getAgent(c.req.param('id'));
-  if (!agent) throw notFound('Agent not found');
-  return c.json(agent);
+  const registered = getAgent(c.req.param('id'));
+  if (!registered) throw notFound('Agent not found');
+  return c.json({
+    ...registered.meta,
+    instructions: (await registered.agent.getInstructions()) ?? '',
+  });
 });
 
 // Threads
@@ -71,14 +80,28 @@ messagingRoutes.post('/threads', async (c) => {
   const ctx = getCtx(c);
   const body = createThreadSchema.parse(await c.req.json());
   if (!getAgent(body.agentId)) throw notFound('Agent not found');
+  const userId = requireUserId(ctx);
   const [thread] = await ctx.db
     .insert(msgThreads)
     .values({
       title: body.title,
       agentId: body.agentId,
-      userId: requireUserId(ctx),
+      userId,
     })
     .returning();
+
+  // Create corresponding Memory thread (same ID for correlation)
+  try {
+    await createMemoryThread({
+      threadId: thread.id,
+      resourceId: userId,
+      title: body.title ?? undefined,
+    });
+  } catch (err) {
+    // Memory not initialized — non-fatal for thread creation
+    console.warn('[messaging] createMemoryThread failed:', err);
+  }
+
   return c.json(thread, 201);
 });
 
@@ -86,7 +109,6 @@ messagingRoutes.get('/threads', async (c) => {
   const ctx = getCtx(c);
   const channelFilter = c.req.query('channel');
 
-  // Show user's own threads, optionally filtered by channel
   const conditions =
     channelFilter && channelFilter !== 'all'
       ? and(
@@ -117,18 +139,51 @@ messagingRoutes.get('/threads/:id', async (c) => {
       )
   )[0];
   if (!thread) throw notFound('Thread not found');
-  const messages = await ctx.db
-    .select()
-    .from(msgMessages)
-    .where(eq(msgMessages.threadId, thread.id))
-    .orderBy(msgMessages.createdAt);
+
+  // Load messages from Mastra Memory and transform to DbMessage format
+  let messages: Array<{
+    id: string;
+    threadId: string;
+    aiRole: string;
+    content: string;
+    sources: string | null;
+    toolCalls: string | null;
+    createdAt: string;
+  }> = [];
+  try {
+    const rawMessages = await loadThreadMessages(thread.id);
+    // biome-ignore lint/suspicious/noExplicitAny: Mastra Memory messages have no stable public TypeScript interface
+    messages = (rawMessages as any[]).map((m: any) => ({
+      id: m.id ?? '',
+      threadId: thread.id,
+      aiRole: m.role ?? 'user',
+      content:
+        typeof m.content === 'string'
+          ? m.content
+          : (m.content?.parts
+              ?.filter((p: { type: string }) => p.type === 'text')
+              .map((p: { text?: string }) => p.text ?? '')
+              .join('') ?? ''),
+      sources: null,
+      toolCalls: null,
+      createdAt:
+        typeof m.createdAt === 'string'
+          ? m.createdAt
+          : m.createdAt instanceof Date
+            ? m.createdAt.toISOString()
+            : new Date().toISOString(),
+    }));
+  } catch (err) {
+    // Memory not initialized — return thread without messages
+    console.warn('[messaging] loadThreadMessages failed:', err);
+  }
+
   return c.json({ ...thread, messages });
 });
 
 messagingRoutes.delete('/threads/:id', async (c) => {
   const ctx = getCtx(c);
   const id = c.req.param('id');
-  // Verify ownership before deleting
   const thread = (
     await ctx.db
       .select()
@@ -138,35 +193,24 @@ messagingRoutes.delete('/threads/:id', async (c) => {
       )
   )[0];
   if (!thread) throw notFound('Thread not found');
-  // Delete memory data first (reverse dependency order).
-  // Wrapped in try-catch: memory tables may not exist in test/dev environments.
+
+  // Delete memory data first (EverMemOS MemCells, Episodes, EventLogs)
   try {
     await cleanupThreadMemory(ctx.db, id);
   } catch (err) {
-    // Memory tables may not be pushed yet — log but don't block deletion
     console.warn(
       '[messaging] Memory cleanup failed during thread delete:',
       err,
     );
   }
-  await ctx.db.delete(msgMessages).where(eq(msgMessages.threadId, id));
+
+  // Delete Mastra Memory thread
+  await deleteMemoryThread(id);
+
+  // Delete outbox entries and Drizzle thread
+  await ctx.db.delete(msgOutbox).where(eq(msgOutbox.threadId, id));
   await ctx.db.delete(msgThreads).where(eq(msgThreads.id, id));
   return c.json({ success: true });
-});
-
-// Legacy endpoint — save a single message (used by seed/tests)
-messagingRoutes.post('/threads/:id/messages', async (c) => {
-  const ctx = getCtx(c);
-  const threadId = c.req.param('id');
-  const body = createMessageSchema.parse(await c.req.json());
-  await ctx.db.insert(msgMessages).values({
-    threadId,
-    direction: body.direction ?? 'inbound',
-    senderType: body.senderType ?? 'user',
-    aiRole: body.aiRole ?? (body.senderType === 'agent' ? 'assistant' : 'user'),
-    content: body.content,
-  });
-  return c.json({ success: true }, 201);
 });
 
 // Chat endpoint — accepts UIMessage[] from useChat, returns UIMessageStreamResponse
@@ -176,7 +220,12 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
   const { messages } = chatSchema.parse(await c.req.json());
   const { isAIConfigured } = await import('../../lib/ai');
 
-  // Extract latest user message text for DB persistence
+  // Auto-set thread title from first user message
+  const thread = (
+    await ctx.db.select().from(msgThreads).where(eq(msgThreads.id, threadId))
+  )[0];
+  if (!thread) throw notFound('Thread not found');
+
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
   const userText =
     lastUserMsg?.parts
@@ -189,23 +238,6 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
       .map((p) => p.text)
       .join('') ?? '';
 
-  // Save user message to DB
-  if (userText) {
-    await ctx.db.insert(msgMessages).values({
-      threadId,
-      direction: 'inbound',
-      senderType: 'user',
-      aiRole: 'user',
-      content: userText,
-    });
-  }
-
-  // Auto-set thread title from first user message
-  const thread = (
-    await ctx.db.select().from(msgThreads).where(eq(msgThreads.id, threadId))
-  )[0];
-  if (!thread) throw notFound('Thread not found');
-
   if (!thread.title && userText) {
     await ctx.db
       .update(msgThreads)
@@ -217,7 +249,6 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
     return c.json({ error: 'Thread has no agent assigned.' }, 400);
   }
 
-  // If AI not configured, return error as JSON
   if (!isAIConfigured()) {
     return c.json(
       {
@@ -228,17 +259,15 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
     );
   }
 
-  // Stream response using Mastra Agent → AI SDK stream bridge
+  // Stream response using registered Mastra Agent with Memory auto-persistence
+  // Messages are persisted by the agent's Memory processors — no manual INSERT needed
   let streamChat: typeof import('./lib/chat').streamChat;
   try {
     ({ streamChat } = await import('./lib/chat'));
   } catch {
-    // ai module not available — message already saved, return without AI reply
     return c.json({ saved: true, aiAvailable: false }, 200);
   }
   const result = await streamChat({
-    db: ctx.db,
-    scheduler: ctx.scheduler,
     agentId: thread.agentId,
     messages: messages as UIMessage[],
     thread: {
@@ -248,26 +277,14 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
     },
   });
 
-  // Save assistant response to DB in background
-  Promise.resolve(result.text)
-    .then(async (text) => {
-      await ctx.db.insert(msgMessages).values({
-        threadId,
-        direction: 'outbound',
-        senderType: 'agent',
-        aiRole: 'assistant',
-        content: text,
-      });
-    })
-    .catch((err) => {
-      console.error(
-        `[messaging] Failed to persist assistant response for thread ${threadId}:`,
-        err,
-      );
-    });
-
   // Convert Mastra stream to AI SDK UIMessageStream format
-  const stream = toAISdkStream(result, { from: 'agent', version: 'v6' });
+  const mastraStream = toAISdkStream(result, { from: 'agent', version: 'v6' });
+  const stream = createUIMessageStream({
+    originalMessages: messages as UIMessage[],
+    execute: ({ writer }) => {
+      writer.merge(mastraStream);
+    },
+  });
   return createUIMessageStreamResponse({ stream });
 });
 

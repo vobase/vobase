@@ -35,7 +35,7 @@ const sampleMessages: MemoryMessage[] = [
 describe('extractEpisode', () => {
   it('returns an episode with title and content from the mock generate', async () => {
     const mockGenerate = async () => ({
-      output: {
+      object: {
         title: 'Order delay inquiry',
         content:
           'The user Alice asked about order #12345 which was delayed in transit. The assistant confirmed weather delays and provided a new delivery estimate of Friday March 21st.',
@@ -44,7 +44,7 @@ describe('extractEpisode', () => {
 
     const episode = await extractEpisode({
       messages: sampleMessages,
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
       generate: mockGenerate as any,
     });
 
@@ -57,12 +57,12 @@ describe('extractEpisode', () => {
     let capturedPrompt = '';
     const mockGenerate = async (opts: { prompt: string }) => {
       capturedPrompt = opts.prompt;
-      return { output: { title: 'Test', content: 'Test content' } };
+      return { object: { title: 'Test', content: 'Test content' } };
     };
 
     await extractEpisode({
       messages: sampleMessages,
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
       generate: mockGenerate as any,
     });
 
@@ -74,7 +74,7 @@ describe('extractEpisode', () => {
 describe('extractEventLogs', () => {
   it('returns facts array from the mock generate', async () => {
     const mockGenerate = async () => ({
-      output: {
+      object: {
         facts: [
           { fact: "User's name is Alice.", subject: 'Alice', occurredAt: null },
           {
@@ -98,7 +98,7 @@ describe('extractEventLogs', () => {
 
     const facts = await extractEventLogs({
       messages: sampleMessages,
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
       generate: mockGenerate as any,
     });
 
@@ -119,12 +119,12 @@ describe('extractEventLogs', () => {
     ];
 
     const mockGenerate = async () => ({
-      output: { facts: [] },
+      object: { facts: [] },
     });
 
     const facts = await extractEventLogs({
       messages: messagesWithNull,
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
       generate: mockGenerate as any,
     });
 

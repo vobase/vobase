@@ -1,10 +1,9 @@
 import type { VobaseDb } from '@vobase/core';
-import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { cosineDistance } from 'drizzle-orm/sql/functions/vector';
 
 import { embedQuery } from '../../../../lib/embeddings';
 import { buildRankMap, computeRRFScores } from '../../../../lib/search-utils';
-import { msgMessages } from '../../../messaging/schema';
 import { aiMemCells, aiMemEpisodes, aiMemEventLogs } from '../../schema';
 import type { MemoryRetrievalResult, MemoryScope } from './types';
 
@@ -280,64 +279,26 @@ async function fetchOriginalMessages(
 
   if (cells.length === 0) return [];
 
-  // Collect all boundary message IDs to resolve timestamps
-  const allBoundaryIds = cells.flatMap((c) => [
-    c.startMessageId,
-    c.endMessageId,
-  ]);
+  // Load messages from Mastra Memory for each cell's range
+  const { loadMessagesInRange } = await import('./message-source');
+  const allMessages: { content: string; role: string; createdAt: Date }[] = [];
 
-  const boundaryMessages = await db
-    .select({
-      id: msgMessages.id,
-      createdAt: msgMessages.createdAt,
-    })
-    .from(msgMessages)
-    .where(inArray(msgMessages.id, allBoundaryIds));
+  for (const cell of cells) {
+    const msgs = await loadMessagesInRange(
+      db,
+      cell.threadId,
+      cell.startMessageId,
+      cell.endMessageId,
+    );
+    for (const m of msgs) {
+      allMessages.push({
+        content: m.content ?? '',
+        role: m.aiRole ?? 'user',
+        createdAt: m.createdAt,
+      });
+    }
+    if (allMessages.length >= 20) break; // Cap to avoid huge context injection
+  }
 
-  const timestampMap = new Map(
-    boundaryMessages.map((m) => [m.id, m.createdAt]),
-  );
-
-  // Build a single batched query using UNION-style OR conditions across all cell ranges.
-  // Each cell contributes a (threadId, startTime, endTime) range.
-  const rangeConditions = cells
-    .map((cell) => {
-      const startTime = timestampMap.get(cell.startMessageId);
-      const endTime = timestampMap.get(cell.endMessageId);
-      if (!startTime || !endTime) return null;
-      return and(
-        eq(msgMessages.threadId, cell.threadId),
-        gte(msgMessages.createdAt, startTime),
-        lte(msgMessages.createdAt, endTime),
-      );
-    })
-    .filter((c): c is NonNullable<typeof c> => c !== null);
-
-  if (rangeConditions.length === 0) return [];
-
-  // Single query for all cells — OR across ranges, cap total results
-  const condition =
-    rangeConditions.length === 1
-      ? rangeConditions[0]
-      : sql`(${sql.join(
-          rangeConditions.map((c) => sql`(${c})`),
-          sql` OR `,
-        )})`;
-
-  const msgs = await db
-    .select({
-      content: msgMessages.content,
-      aiRole: msgMessages.aiRole,
-      createdAt: msgMessages.createdAt,
-    })
-    .from(msgMessages)
-    .where(condition)
-    .orderBy(msgMessages.createdAt)
-    .limit(20); // Cap to avoid huge context injection
-
-  return msgs.map((m) => ({
-    content: m.content ?? '',
-    role: m.aiRole ?? 'user',
-    createdAt: m.createdAt,
-  }));
+  return allMessages.slice(0, 20);
 }

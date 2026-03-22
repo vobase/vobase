@@ -1,5 +1,5 @@
 import { nanoidPrimaryKey } from '@vobase/core/schema';
-import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const msgThreads = pgTable(
   'msg_threads',
@@ -30,28 +30,33 @@ export const msgThreads = pgTable(
   ],
 );
 
-export const msgMessages = pgTable(
-  'msg_messages',
+/**
+ * Outbound message delivery tracking.
+ * Conversation content lives in Mastra Memory; this table tracks the delivery
+ * lifecycle (queued → sent → delivered → read → failed) for outbound channel messages.
+ */
+export const msgOutbox = pgTable(
+  'msg_outbox',
   {
     id: nanoidPrimaryKey(),
     threadId: text('thread_id').notNull(),
-    direction: text('direction').notNull().default('inbound'),
-    senderType: text('sender_type').notNull().default('user'),
-    aiRole: text('ai_role'), // 'user' | 'assistant' | 'tool' — set on write for AI SDK compat
-    content: text('content'),
-    toolCalls: text('tool_calls'), // JSON
-    toolResults: text('tool_results'), // JSON
-    sources: text('sources'), // JSON - citation references
-    attachments: text('attachments'), // JSON - storage file references
+    content: text('content').notNull(),
+    channel: text('channel').notNull().default('web'),
     externalMessageId: text('external_message_id').unique(),
-    status: text('status').default('sent'),
+    status: text('status').notNull().default('queued'),
+    retryCount: integer('retry_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('msg_messages_thread_id_idx').on(table.threadId),
-    index('msg_messages_external_id_idx').on(table.externalMessageId),
+    index('msg_outbox_thread_id_idx').on(table.threadId),
+    index('msg_outbox_external_id_idx').on(table.externalMessageId),
+    index('msg_outbox_status_idx').on(table.status),
   ],
 );
 

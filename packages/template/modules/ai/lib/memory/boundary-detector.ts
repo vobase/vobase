@@ -1,5 +1,6 @@
 import { openai } from '@ai-sdk/openai';
-import { generateText, Output } from 'ai';
+import { logger } from '@vobase/core';
+import { type GenerateObjectResult, generateObject } from 'ai';
 
 import { getAIConfig } from '../../../../lib/ai';
 import type { BoundaryResult, MemoryConfig, MemoryMessage } from './types';
@@ -39,7 +40,9 @@ interface DetectBoundaryOptions {
   messages: MemoryMessage[];
   config?: Partial<MemoryConfig>;
   /** Override LLM call for testing */
-  generate?: typeof generateText;
+  generate?: (
+    opts: Parameters<typeof generateObject>[0],
+  ) => Promise<GenerateObjectResult<BoundaryResult>>;
 }
 
 /**
@@ -78,20 +81,21 @@ export async function detectBoundary(
     .join('\n');
 
   const aiConfig = getAIConfig();
-  const generateFn = generate ?? generateText;
+  const generateFn = generate ?? generateObject;
 
   try {
     const result = await generateFn({
       model: openai(aiConfig.model),
-      output: Output.object({ schema: boundaryResultSchema }),
+      schema: boundaryResultSchema,
       system: BOUNDARY_PROMPT,
       prompt: formatted,
       maxOutputTokens: 100,
     });
 
-    return result.output;
-  } catch {
+    return result.object;
+  } catch (err) {
     // LLM failure is non-fatal — don't split on error
+    logger.warn('[memory] Boundary detection LLM call failed', { error: err });
     return {
       shouldSplit: false,
       reason: 'Boundary detection failed (LLM error)',

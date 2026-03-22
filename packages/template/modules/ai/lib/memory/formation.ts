@@ -1,8 +1,7 @@
 import type { VobaseDb } from '@vobase/core';
-import { and, eq, gte, inArray, lte, ne } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { embedChunks } from '../../../../lib/embeddings';
-import { msgMessages } from '../../../messaging/schema';
 import { aiMemCells, aiMemEpisodes, aiMemEventLogs } from '../../schema';
 import { extractEpisode, extractEventLogs } from './extractors';
 import type { MemoryMessage } from './types';
@@ -120,49 +119,17 @@ export async function processMemCell(
 
 /**
  * Load messages belonging to a MemCell's range.
- * Uses the thread's messages ordered by creation, filtered between start and end message IDs.
+ * Loads from Mastra Memory instead of the removed msgMessages table.
  */
 async function loadCellMessages(
   db: VobaseDb,
   cell: typeof aiMemCells.$inferSelect,
 ): Promise<MemoryMessage[]> {
-  // Get the start and end message timestamps for range query
-  const boundaryMessages = await db
-    .select({
-      id: msgMessages.id,
-      createdAt: msgMessages.createdAt,
-    })
-    .from(msgMessages)
-    .where(inArray(msgMessages.id, [cell.startMessageId, cell.endMessageId]));
-
-  if (boundaryMessages.length < 2) return [];
-
-  const startMsg = boundaryMessages.find((m) => m.id === cell.startMessageId);
-  const endMsg = boundaryMessages.find((m) => m.id === cell.endMessageId);
-  if (!startMsg || !endMsg) return [];
-
-  // Fetch messages in the time range for this thread
-  const rows = await db
-    .select({
-      id: msgMessages.id,
-      content: msgMessages.content,
-      aiRole: msgMessages.aiRole,
-      createdAt: msgMessages.createdAt,
-    })
-    .from(msgMessages)
-    .where(
-      and(
-        eq(msgMessages.threadId, cell.threadId),
-        gte(msgMessages.createdAt, startMsg.createdAt),
-        lte(msgMessages.createdAt, endMsg.createdAt),
-      ),
-    )
-    .orderBy(msgMessages.createdAt);
-
-  return rows.map((r) => ({
-    id: r.id,
-    content: r.content,
-    aiRole: r.aiRole,
-    createdAt: r.createdAt,
-  }));
+  const { loadMessagesInRange } = await import('./message-source');
+  return loadMessagesInRange(
+    db,
+    cell.threadId,
+    cell.startMessageId,
+    cell.endMessageId,
+  );
 }

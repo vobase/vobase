@@ -5,10 +5,11 @@ import type {
   VobaseDb,
 } from '@vobase/core';
 import { defineJob } from '@vobase/core';
-import { and, desc, eq, isNull, lt, lte } from 'drizzle-orm';
+import { and, eq, isNull, lt, lte } from 'drizzle-orm';
 
 import { getAgent } from '../ai/agents';
-import { msgMessages, msgThreads } from './schema';
+import { msgContacts, msgOutbox, msgThreads } from './schema';
+import { loadThreadMessages } from './lib/memory-bridge';
 
 let moduleDb: VobaseDb;
 let moduleChannels: ChannelsService;
@@ -29,34 +30,30 @@ export function setModuleDeps(
 }
 
 /**
- * messaging:send — Load queued message, call channels[channel].send(), update status.
- * Registered with pg-boss: durable, 3 attempts, backoff.
+ * messaging:send — Load queued outbox row, call channels[channel].send(), update status.
  */
 export const sendMessageJob = defineJob('messaging:send', async (data) => {
   if (!moduleDb) throw new Error('moduleDb not initialized');
 
   const { messageId, channel } = data as { messageId: string; channel: string };
 
-  const message = (
+  const outboxRow = (
     await moduleDb
       .select()
-      .from(msgMessages)
-      .where(eq(msgMessages.id, messageId))
+      .from(msgOutbox)
+      .where(eq(msgOutbox.id, messageId))
   )[0];
 
-  if (!message || message.status !== 'queued') return;
+  if (!outboxRow || outboxRow.status !== 'queued') return;
 
-  // Get the thread to find the contact's phone/address
   const thread = (
     await moduleDb
       .select()
       .from(msgThreads)
-      .where(eq(msgThreads.id, message.threadId))
+      .where(eq(msgThreads.id, outboxRow.threadId))
   )[0];
   if (!thread) return;
 
-  // Resolve recipient — need to look up contact
-  const { msgContacts } = await import('./schema');
   const contact = thread.contactId
     ? (
         await moduleDb
@@ -68,9 +65,9 @@ export const sendMessageJob = defineJob('messaging:send', async (data) => {
 
   if (!contact?.phone) {
     await moduleDb
-      .update(msgMessages)
+      .update(msgOutbox)
       .set({ status: 'failed' })
-      .where(eq(msgMessages.id, messageId));
+      .where(eq(msgOutbox.id, messageId));
     return;
   }
 
@@ -78,24 +75,23 @@ export const sendMessageJob = defineJob('messaging:send', async (data) => {
     channel === 'whatsapp' ? moduleChannels.whatsapp : moduleChannels.email;
   const result = await channelSend.send({
     to: contact.phone,
-    text: message.content ?? '',
+    text: outboxRow.content,
   });
 
   if (result.success) {
     await moduleDb
-      .update(msgMessages)
+      .update(msgOutbox)
       .set({
         status: 'sent',
         externalMessageId: result.messageId ?? null,
       })
-      .where(eq(msgMessages.id, messageId));
+      .where(eq(msgOutbox.id, messageId));
   } else {
-    // If not retryable, mark as failed (pg-boss dead letter will capture)
     if (result.retryable === false) {
       await moduleDb
-        .update(msgMessages)
+        .update(msgOutbox)
         .set({ status: 'failed' })
-        .where(eq(msgMessages.id, messageId));
+        .where(eq(msgOutbox.id, messageId));
     }
     throw new Error(result.error ?? 'Send failed');
   }
@@ -103,9 +99,8 @@ export const sendMessageJob = defineJob('messaging:send', async (data) => {
 
 /**
  * messaging:channel-reply — Debounced AI reply for external channels.
- * Queued with a 3s delay on each inbound message. When it fires, checks
- * whether a newer inbound message arrived since `triggeredAt`. If so, a
- * newer job is already queued — this one no-ops.
+ * Messages are loaded from Mastra Memory. The registered agent's DynamicArgument
+ * processors handle Memory recall and moderation automatically.
  */
 export const channelReplyJob = defineJob(
   'messaging:channel-reply',
@@ -118,34 +113,11 @@ export const channelReplyJob = defineJob(
     };
     const DEBOUNCE_MS = 3000;
 
-    // Check if a newer inbound message arrived after triggeredAt
-    const latestInbound = (
-      await moduleDb
-        .select({ createdAt: msgMessages.createdAt })
-        .from(msgMessages)
-        .where(
-          and(
-            eq(msgMessages.threadId, threadId),
-            eq(msgMessages.direction, 'inbound'),
-          ),
-        )
-        .orderBy(desc(msgMessages.createdAt))
-        .limit(1)
-    )[0];
-
-    if (latestInbound) {
-      const latestTs = latestInbound.createdAt.getTime();
-      if (latestTs > triggeredAt) {
-        // A newer message arrived — another job will handle the reply
-        return;
-      }
-      // Also skip if less than DEBOUNCE_MS has passed since the latest message
-      if (Date.now() - latestTs < DEBOUNCE_MS) {
-        return;
-      }
+    // Simple debounce: skip if less than DEBOUNCE_MS since trigger
+    if (Date.now() - triggeredAt < DEBOUNCE_MS) {
+      return;
     }
 
-    // Load thread
     const thread = (
       await moduleDb
         .select()
@@ -154,16 +126,29 @@ export const channelReplyJob = defineJob(
     )[0];
     if (!thread || thread.status !== 'ai' || !thread.agentId) return;
 
-    // Look up agent from code registry
-    const agent = getAgent(thread.agentId);
-    if (!agent) return;
+    if (!getAgent(thread.agentId)) return;
 
-    // Load all messages for context
-    const messages = await moduleDb
-      .select()
-      .from(msgMessages)
-      .where(eq(msgMessages.threadId, threadId))
-      .orderBy(msgMessages.createdAt);
+    // Load messages from Mastra Memory
+    let memoryMessages: Awaited<ReturnType<typeof loadThreadMessages>>;
+    try {
+      memoryMessages = await loadThreadMessages(threadId);
+    } catch {
+      console.warn('[messaging] Failed to load messages from Memory');
+      return;
+    }
+
+    // Convert Memory messages to the format generateChannelReply expects
+    const messages = memoryMessages.map((m: any) => ({
+      aiRole: m.role as string,
+      content:
+        typeof m.content === 'string'
+          ? m.content
+          : m.content?.parts
+              ?.map((p: any) => p.text ?? '')
+              .join('')
+              .trim() ?? '',
+      attachments: null,
+    }));
 
     let generateChannelReply: typeof import('./lib/channel-reply').generateChannelReply;
     try {
@@ -187,7 +172,6 @@ export const channelReplyJob = defineJob(
         contactId: thread.contactId,
         userId: thread.userId,
       },
-      agent,
       messages,
     });
 
@@ -255,7 +239,7 @@ export const archiveThreadsJob = defineJob(
 
 /**
  * messaging:purge-messages — Cron daily.
- * Delete messages older than 90 days (configurable via MESSAGING_RETENTION_DAYS env).
+ * Delete delivered outbox entries older than retention period.
  */
 export const purgeMessagesJob = defineJob(
   'messaging:purge-messages',
@@ -263,16 +247,16 @@ export const purgeMessagesJob = defineJob(
     if (!moduleDb) throw new Error('moduleDb not initialized');
 
     const retentionDays = Number(process.env.MESSAGING_RETENTION_DAYS) || 90;
-    if (retentionDays === 0) return; // Disabled
+    if (retentionDays === 0) return;
 
     const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
-    await moduleDb.delete(msgMessages).where(lt(msgMessages.createdAt, cutoff));
+    await moduleDb.delete(msgOutbox).where(lt(msgOutbox.createdAt, cutoff));
   },
 );
 
 /**
  * messaging:recover-stuck — Cron every 5 min.
- * Re-enqueue messages stuck in 'queued' for > 5 minutes.
+ * Mark outbox entries stuck in 'queued' for > 5 minutes as failed.
  */
 export const recoverStuckJob = defineJob(
   'messaging:recover-stuck',
@@ -282,33 +266,19 @@ export const recoverStuckJob = defineJob(
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
     const stuck = await moduleDb
       .select()
-      .from(msgMessages)
+      .from(msgOutbox)
       .where(
         and(
-          eq(msgMessages.status, 'queued'),
-          lt(msgMessages.createdAt, fiveMinAgo),
+          eq(msgOutbox.status, 'queued'),
+          lt(msgOutbox.createdAt, fiveMinAgo),
         ),
       );
 
-    // Re-enqueue is not possible without scheduler reference in the job handler.
-    // Instead, reset status so the next send cycle picks them up.
-    // The scheduler.add call happens outside — this job just marks them for retry.
-    for (const msg of stuck) {
-      // Get the thread to determine channel
-      const thread = (
-        await moduleDb
-          .select()
-          .from(msgThreads)
-          .where(eq(msgThreads.id, msg.threadId))
-      )[0];
-
-      if (thread) {
-        // Mark as failed so they can be inspected
-        await moduleDb
-          .update(msgMessages)
-          .set({ status: 'failed' })
-          .where(eq(msgMessages.id, msg.id));
-      }
+    for (const row of stuck) {
+      await moduleDb
+        .update(msgOutbox)
+        .set({ status: 'failed' })
+        .where(eq(msgOutbox.id, row.id));
     }
   },
 );

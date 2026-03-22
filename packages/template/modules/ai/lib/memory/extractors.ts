@@ -1,5 +1,6 @@
 import { openai } from '@ai-sdk/openai';
-import { generateText, Output } from 'ai';
+import { type GenerateObjectResult, generateObject } from 'ai';
+import type { z } from 'zod';
 
 import { getAIConfig } from '../../../../lib/ai';
 import type { Episode, EventLogEntry, MemoryMessage } from './types';
@@ -28,7 +29,9 @@ Rules:
 interface ExtractOptions {
   messages: MemoryMessage[];
   /** Override LLM call for testing */
-  generate?: typeof generateText;
+  generate?: (
+    opts: Parameters<typeof generateObject>[0],
+  ) => Promise<GenerateObjectResult<unknown>>;
 }
 
 /**
@@ -39,7 +42,7 @@ export async function extractEpisode(
 ): Promise<Episode> {
   const { messages, generate } = options;
   const aiConfig = getAIConfig();
-  const generateFn = generate ?? generateText;
+  const generateFn = generate ?? generateObject;
 
   const formatted = messages
     .map((m) => `[${m.aiRole ?? 'user'}]: ${m.content ?? ''}`)
@@ -47,13 +50,13 @@ export async function extractEpisode(
 
   const result = await generateFn({
     model: openai(aiConfig.model),
-    output: Output.object({ schema: episodeSchema }),
+    schema: episodeSchema,
     system: EPISODE_PROMPT,
     prompt: formatted,
     maxOutputTokens: 500,
   });
 
-  return result.output;
+  return result.object as Episode;
 }
 
 /**
@@ -64,7 +67,7 @@ export async function extractEventLogs(
 ): Promise<EventLogEntry[]> {
   const { messages, generate } = options;
   const aiConfig = getAIConfig();
-  const generateFn = generate ?? generateText;
+  const generateFn = generate ?? generateObject;
 
   const formatted = messages
     .map((m) => `[${m.aiRole ?? 'user'}]: ${m.content ?? ''}`)
@@ -72,11 +75,11 @@ export async function extractEventLogs(
 
   const result = await generateFn({
     model: openai(aiConfig.model),
-    output: Output.object({ schema: eventLogSchema }),
+    schema: eventLogSchema,
     system: EVENT_LOG_PROMPT,
     prompt: formatted,
     maxOutputTokens: 1000,
   });
 
-  return result.output.facts;
+  return (result.object as z.infer<typeof eventLogSchema>).facts;
 }

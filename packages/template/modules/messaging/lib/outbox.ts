@@ -1,11 +1,14 @@
 import type { Scheduler, VobaseDb } from '@vobase/core';
 
-import { msgMessages } from '../schema';
+import { msgOutbox } from '../schema';
 
 /**
  * Queue an outbound message for delivery via channel.
- * 1. Insert msg_messages with status='queued', direction='outbound', senderType='agent'
+ * 1. Insert into msg_outbox with status='queued'
  * 2. Queue pg-boss job for actual send
+ *
+ * Conversation content is also persisted in Mastra Memory by the agent's
+ * OutputProcessor. The outbox only tracks delivery lifecycle.
  */
 export async function queueOutboundMessage(
   db: VobaseDb,
@@ -14,21 +17,19 @@ export async function queueOutboundMessage(
   content: string,
   channel: string,
 ) {
-  const [message] = await db
-    .insert(msgMessages)
+  const [outboxRow] = await db
+    .insert(msgOutbox)
     .values({
       threadId,
-      direction: 'outbound',
-      senderType: 'agent',
-      aiRole: 'assistant',
       content,
+      channel,
       status: 'queued',
     })
     .returning();
 
   await scheduler.add(
     'messaging:send',
-    { messageId: message.id, channel },
+    { messageId: outboxRow.id, channel },
     { retryLimit: 3 },
   );
 }

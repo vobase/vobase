@@ -1,13 +1,10 @@
-import type { Scheduler, VobaseDb } from '@vobase/core';
+import { RequestContext } from '@mastra/core/request-context';
 import { notFound } from '@vobase/core';
 import type { UIMessage } from 'ai';
 
 import { getAgent } from '../../ai/agents';
-import { createChatAgent } from '../../ai/lib/agents/chat-agent';
 
 export interface StreamChatOptions {
-  db: VobaseDb;
-  scheduler: Scheduler;
   agentId: string;
   messages: UIMessage[];
   thread: {
@@ -18,28 +15,35 @@ export interface StreamChatOptions {
 }
 
 /**
- * Stream a chat response using a Mastra Agent with tool calling.
- * Accepts UIMessage[] from useChat — Mastra handles conversion internally.
- * Returns a MastraModelOutput for stream conversion in the handler.
+ * Stream a chat response using a registered Mastra Agent.
+ * The agent's DynamicArgument processors resolve moderation + memory
+ * based on the requestContext passed here.
  */
 export async function streamChat(options: StreamChatOptions) {
-  const { db, scheduler, agentId, messages, thread } = options;
+  const { agentId, messages, thread } = options;
 
-  // Look up agent from code registry
-  const agent = getAgent(agentId);
-  if (!agent) throw notFound('Agent not found');
+  const registered = getAgent(agentId);
+  if (!registered) throw notFound('Agent not found');
 
-  // Create a Mastra Agent from code config and stream
-  const mastraAgent = createChatAgent({
-    db,
-    scheduler,
-    agent,
-    thread: {
-      threadId: thread.id,
-      contactId: thread.contactId,
-      userId: thread.userId,
+  const entries: [string, string][] = [
+    ['threadId', thread.id],
+    ['agentId', agentId],
+    ['channel', 'web'],
+  ];
+  if (thread.contactId) entries.push(['contactId', thread.contactId]);
+  if (thread.userId) entries.push(['userId', thread.userId]);
+  const rc = new RequestContext(entries);
+
+  // Pass memory option so Mastra Memory auto-persists messages for this thread.
+  // Without thread + resource, Memory won't know where to store messages.
+  const resourceId = thread.contactId ?? thread.userId ?? 'anonymous';
+
+  // biome-ignore lint/suspicious/noExplicitAny: UIMessage[] compatible at runtime, type declarations diverge across Mastra/AI SDK package boundaries
+  return registered.agent.stream(messages as any, {
+    requestContext: rc,
+    memory: {
+      thread: thread.id,
+      resource: resourceId,
     },
   });
-  // biome-ignore lint/suspicious/noExplicitAny: UIMessage[] compatible at runtime, type declarations diverge across Mastra/AI SDK package boundaries
-  return mastraAgent.stream(messages as any);
 }

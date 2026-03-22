@@ -1,11 +1,11 @@
 import { unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { RequestContext } from '@mastra/core/request-context';
 import type { Scheduler, StorageService, VobaseDb } from '@vobase/core';
 import type { ModelMessage, UserContent } from 'ai';
 
-import type { AgentConfig } from '../../ai/agents';
-import { createChannelReplyAgent } from '../../ai/lib/agents/channel-reply-agent';
+import { getAgent } from '../../ai/agents';
 import { extractDocument } from '../../knowledge-base/lib/extract';
 
 interface Attachment {
@@ -27,7 +27,6 @@ interface ChannelReplyOptions {
     contactId?: string | null;
     userId?: string | null;
   };
-  agent: AgentConfig;
   messages: Array<{
     aiRole: string | null;
     content: string | null;
@@ -79,7 +78,11 @@ async function extractAttachmentText(
 export async function generateChannelReply(
   options: ChannelReplyOptions,
 ): Promise<string> {
-  const { db, scheduler, storage, thread, agent, messages } = options;
+  const { storage, thread, messages } = options;
+
+  // Look up the registered agent
+  const registered = thread.agentId ? getAgent(thread.agentId) : undefined;
+  if (!registered) return '';
 
   // Build AI messages — include image attachments as multimodal content parts
   const aiMessages: ModelMessage[] = [];
@@ -149,20 +152,25 @@ export async function generateChannelReply(
     }
   }
 
-  // Create a Mastra Agent and generate a response
-  const mastraAgent = createChannelReplyAgent({
-    db,
-    scheduler,
-    agent,
-    thread: {
-      id: thread.id,
-      channel: thread.channel,
-      contactId: thread.contactId,
-      userId: thread.userId,
-    },
-  });
+  const entries: [string, string][] = [
+    ['threadId', thread.id],
+    ['channel', thread.channel],
+  ];
+  if (thread.agentId) entries.push(['agentId', thread.agentId]);
+  if (thread.contactId) entries.push(['contactId', thread.contactId]);
+  if (thread.userId) entries.push(['userId', thread.userId]);
+  const rc = new RequestContext(entries);
+
+  // Pass memory option so Mastra Memory auto-persists messages for this thread.
+  const resourceId = thread.contactId ?? thread.userId ?? 'anonymous';
 
   // biome-ignore lint/suspicious/noExplicitAny: ModelMessage[] compatible at runtime, type declarations diverge across Mastra/AI SDK package boundaries
-  const result = await mastraAgent.generate(aiMessages as any);
+  const result = await registered.agent.generate(aiMessages as any, {
+    requestContext: rc,
+    memory: {
+      thread: thread.id,
+      resource: resourceId,
+    },
+  });
   return result.text;
 }
