@@ -6,6 +6,7 @@ import { vector } from '@electric-sql/pglite/vector';
 import type { VobaseDb } from '@vobase/core';
 import { drizzle } from 'drizzle-orm/pglite';
 
+import * as aiSchema from '../modules/ai/schema';
 import * as kbSchema from '../modules/knowledge-base/schema';
 import * as messagingSchema from '../modules/messaging/schema';
 
@@ -18,7 +19,11 @@ const nanoidSql = readFileSync(
  * Create an in-memory PGlite test database with messaging (and optionally KB) tables.
  * Returns the PGlite instance (for raw queries + cleanup) and the Drizzle wrapper.
  */
-export async function createTestDb(options?: { withVec?: boolean }) {
+export async function createTestDb(options?: {
+  withVec?: boolean;
+  withMemory?: boolean;
+  withWorkflows?: boolean;
+}) {
   const pglite = new PGlite({ extensions: { pgcrypto, vector } });
 
   await pglite.exec('CREATE EXTENSION IF NOT EXISTS pgcrypto');
@@ -43,20 +48,16 @@ export async function createTestDb(options?: { withVec?: boolean }) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE msg_messages (
+    CREATE TABLE msg_outbox (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       thread_id TEXT NOT NULL,
-      direction TEXT NOT NULL DEFAULT 'inbound',
-      sender_type TEXT NOT NULL DEFAULT 'user',
-      ai_role TEXT,
-      content TEXT,
-      tool_calls TEXT,
-      tool_results TEXT,
-      sources TEXT,
-      attachments TEXT,
+      content TEXT NOT NULL,
+      channel TEXT NOT NULL DEFAULT 'web',
       external_message_id TEXT UNIQUE,
-      status TEXT DEFAULT 'sent',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      status TEXT NOT NULL DEFAULT 'queued',
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE msg_contacts (
@@ -124,7 +125,79 @@ export async function createTestDb(options?: { withVec?: boolean }) {
     `);
   }
 
-  const schema = { ...kbSchema, ...messagingSchema };
+  if (options?.withMemory) {
+    await pglite.exec(`
+      CREATE TABLE msg_mem_cells (
+        id TEXT PRIMARY KEY DEFAULT nanoid(12),
+        thread_id TEXT NOT NULL,
+        contact_id TEXT,
+        user_id TEXT,
+        start_message_id TEXT NOT NULL,
+        end_message_id TEXT NOT NULL,
+        message_count INTEGER NOT NULL,
+        token_count INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        error_message TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE msg_mem_episodes (
+        id TEXT PRIMARY KEY DEFAULT nanoid(12),
+        cell_id TEXT NOT NULL,
+        contact_id TEXT,
+        user_id TEXT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        embedding vector(4),
+        search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || content)) STORED,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE msg_mem_event_logs (
+        id TEXT PRIMARY KEY DEFAULT nanoid(12),
+        cell_id TEXT NOT NULL,
+        contact_id TEXT,
+        user_id TEXT,
+        fact TEXT NOT NULL,
+        subject TEXT,
+        occurred_at TIMESTAMPTZ,
+        embedding vector(4),
+        search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', fact)) STORED,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+  }
+
+  if (options?.withWorkflows) {
+    await pglite.exec(`
+      CREATE TABLE ai_workflow_runs (
+        id TEXT PRIMARY KEY DEFAULT nanoid(12),
+        workflow_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running',
+        input_data TEXT NOT NULL,
+        suspend_payload TEXT,
+        output_data TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE ai_moderation_logs (
+        id TEXT PRIMARY KEY DEFAULT nanoid(12),
+        agent_id TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        user_id TEXT,
+        contact_id TEXT,
+        thread_id TEXT,
+        reason TEXT NOT NULL,
+        blocked_content TEXT,
+        matched_term TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+  }
+
+  const schema = { ...aiSchema, ...kbSchema, ...messagingSchema };
   const db = drizzle({ client: pglite, schema }) as unknown as VobaseDb;
 
   return { pglite, db };
