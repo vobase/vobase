@@ -1,4 +1,8 @@
 <p align="center">
+  English / <a href="README_CN.md">中文</a>
+</p>
+
+<p align="center">
   <b>vobase</b>
   <br>
   The app framework built for AI coding agents.<br>
@@ -56,19 +60,21 @@ One `bun create vobase` and you have a working full-stack app:
 
 | Primitive | What it does |
 |---|---|
-| **Database** | PostgreSQL via Drizzle. PGlite for zero-config local dev, managed Postgres in production. Full SQL with JOINs, transactions, migrations. |
-| **Auth** | better-auth. Sessions, passwords, CSRF. RBAC with role guards, API keys, and optional organization/team support. Works out of the box. |
+| **Runtime** | **Bun** — native TypeScript, ~50ms startup, built-in test runner. One process, one container. |
+| **Database** | **PostgreSQL** via **Drizzle**. PGlite for zero-config local dev, managed Postgres in production. Full SQL, ACID transactions, pgvector for embeddings. |
+| **Auth** | **better-auth**. Sessions, passwords, CSRF. RBAC with role guards, API keys, and optional organization/team support. Org/SSO/2FA as plugins. |
+| **API** | **Hono** — ~14KB, typed routing, Bun-first. Every AI coding tool already knows Hono. |
 | **Audit** | Built-in audit log, record change tracking, and auth event hooks. Every mutation is traceable. |
 | **Sequences** | Gap-free business number generation (INV-0001, PO-0042). Transaction-safe, never skips. |
 | **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in Postgres. |
 | **Channels** | Multi-channel messaging with pluggable adapters. WhatsApp (Cloud API), email (Resend, SMTP). Inbound webhooks, outbound sends, delivery tracking. All messages logged. |
 | **Integrations** | Encrypted credential vault for external services (OAuth providers, APIs). AES-256-GCM at rest. Platform-aware: opt-in multi-tenant OAuth handoff via HMAC-signed JWT. |
-| **Jobs** | Background tasks with retries, cron, and job chains. pg-boss backed, no Redis. |
+| **Jobs** | Background tasks with retries, cron, and job chains. **pg-boss** backed — Postgres only, no Redis. |
 | **Knowledge Base** | Upload PDF, DOCX, XLSX, PPTX, images, HTML. Auto-extract to Markdown, chunk, embed, and search. Hybrid search with RRF + HyDE. Gemini OCR for scanned docs. |
-| **AI Agents** | Declarative agents via [Mastra](https://mastra.ai). Multi-provider (OpenAI, Anthropic, Google). KB-powered tool calling, streaming chat, eval scorers. Frontend stays on AI SDK `useChat`. |
-| **Frontend** | React + TanStack Router + shadcn/ui. Type-safe routing with codegen, code-splitting, you own the components. |
+| **AI Agents** | Declarative agents via [Mastra](https://mastra.ai) in a top-level `mastra/` directory. Multi-provider (OpenAI, Anthropic, Google). Tools, workflows, memory processors, eval scorers. Embedded **Mastra Studio** at `/studio` for dev. Frontend stays on AI SDK `useChat`. |
+| **Frontend** | **React + TanStack Router + shadcn/ui + Tailwind v4**. Type-safe routing with codegen, code-splitting. You own the component source — no tailwind.config.js needed. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
-| **MCP** | Module-aware tools with API key auth. AI tools can read your schema, list modules, and view logs before generating code. |
+| **MCP** | Module-aware tools with API key auth via **@modelcontextprotocol/sdk**. AI tools can read your schema, list modules, and view logs before generating code. Same process, shared port. |
 | **Deploy** | Dockerfile + railway.toml included. One `railway up` or `docker build` and you're live. |
 
 Locally, everything runs in one Bun process with PGlite — no Docker, no external services. `bun run dev` and you're building. In production, point `DATABASE_URL` at any Postgres instance.
@@ -355,6 +361,8 @@ Docker container (--restart=always)
         ├── Hono server
         │     ├── /auth/*       → better-auth (sessions, passwords, CSRF)
         │     ├── /api/*        → module handlers (session-validated)
+        │     ├── /api/mastra/* → Mastra agent/tool/workflow API
+        │     ├── /studio       → Mastra Studio SPA (dev-only)
         │     ├── /mcp          → MCP server (same process, shared port)
         │     ├── /webhooks/*   → inbound event receiver (signature verified, dedup)
         │     └── /*            → frontend (static, from dist/)
@@ -370,22 +378,6 @@ Docker container (--restart=always)
         ├── Outbound HTTP (typed fetch, retries, circuit breakers)
         └── Audit middleware (all mutations → _audit_log)
 ```
-
----
-
-### tech stack
-
-| Layer | Choice | Why this, not that |
-|---|---|---|
-| Runtime | **Bun** | Native TypeScript, ~50ms startup, built-in test runner. |
-| Database | **PostgreSQL** via Drizzle | PGlite for zero-config local dev, managed Postgres in production. Full SQL, ACID transactions, pgvector for embeddings. |
-| Auth | **better-auth** | 12K+ stars, session/JWT, password hashing, CSRF. Org/RBAC/SSO/2FA as plugins. |
-| API | **Hono** | ~14KB, typed routing, Bun-first. Every AI coding tool already knows Hono. |
-| ORM | **Drizzle** | Type-safe SQL, PGlite + bun:sql adapters, migration generation via drizzle-kit. |
-| Jobs | **pg-boss** | Postgres-backed job queue. Retries, cron, priority queues. No Redis. |
-| MCP | **@modelcontextprotocol/sdk** | Official SDK. Tools, resources, prompts, SSE. Same process, shared port. |
-| Frontend | **React + TanStack** | Router (virtual file routes), Query, Table. Pure SPA, no SSR. Auto code-splitting. |
-| Components | **shadcn/ui + Tailwind v4** | You own the component source. v4's CSS-based config means no tailwind.config.js. |
 
 ---
 
@@ -470,22 +462,55 @@ my-app/
   vobase.config.ts        ← database path, auth, connections, webhooks
   vite.config.ts          ← Vite + TanStack Router + path aliases
   index.html
-  server.ts               ← createApp() entry + export type AppType
+  server.ts               ← createApp() entry + Mastra init + Studio mount
   AGENTS.md               ← project context and guardrails
   .agents/
     skills/
       integer-money/
         SKILL.md          ← core: all money as integer cents
+  mastra/                 ← Mastra primitives (follows Mastra project conventions)
+    index.ts              ← Mastra singleton: initMastra(), getMastra(), getMemory()
+    studio.ts             ← dev-only Studio SPA middleware
+    agents/
+      index.ts            ← agent registry
+      assistant.ts        ← Vobase Assistant (Claude Sonnet, KB search)
+      quick-helper.ts     ← Lead Qualifier (Gemini Pro, escalation)
+    tools/
+      search-kb.ts        ← RAG tool: hybrid search over knowledge base
+      escalate.ts         ← hand off conversation to human staff
+    workflows/
+      escalation.ts       ← human-in-the-loop escalation flow
+      follow-up.ts        ← delayed follow-up scheduling
+    processors/
+      index.ts            ← dynamic input/output processor factories
+      moderation.ts       ← content moderation input processor
+      memory/             ← EverMemOS: MemCells → Episodes → Facts
+        memory-processor.ts  ← retrieval (input) + boundary detection (output)
+        retriever.ts      ← hybrid search (BM25 + vector) with RRF
+        formation.ts      ← extract episodes + facts, embed, store
+        boundary-detector.ts
+        extractors.ts
+    evals/                ← eval framework (scorers, runner)
+    mcp/                  ← AI module MCP server
+    lib/
+      deps.ts             ← module-level DI (db, scheduler)
+      models.ts           ← model aliases
+      observability.ts    ← tracing config
+      storage/
+        pglite-store.ts   ← PGlite adapter for Mastra storage
   modules/
+    ai/                   ← AI dashboard module (schema, routes, jobs, pages)
+      index.ts            ← defineModule() — imports from ../../mastra/
+      schema.ts           ← EverMemOS tables (mem_cells, episodes, facts, etc.)
+      handlers.ts         ← memory API, evals, guardrails, workflow routes
+      jobs.ts             ← memory formation, eval runs, follow-up resume
+      pages/              ← agent config, memory explorer, evals, workflows, guardrails
     system/               ← admin dashboard (scaffolded)
-      index.ts            ← defineModule() — system as a user module
+      index.ts            ← defineModule()
       schema.ts
       handlers.ts         ← health, audit log, sequences, record audits
       pages/
-        layout.tsx
-        list.tsx
-        logs.tsx
-    knowledge-base/       ← document ingestion + hybrid search (example)
+    knowledge-base/       ← document ingestion + hybrid search
       index.ts
       schema.ts
       handlers.ts
@@ -497,17 +522,15 @@ my-app/
         pipeline.ts       ← chunk → embed → store pipeline
         search.ts         ← RRF hybrid search with fast/deep modes
       pages/
-    messaging/            ← AI chat with Mastra agents + multi-channel replies (example)
+    messaging/            ← AI chat + multi-channel replies
       index.ts
       schema.ts
-      handlers.ts
+      handlers.ts         ← thread CRUD, streaming chat, channel webhooks
+      jobs.ts             ← outbox delivery, channel polling
       lib/
-        agents.ts         ← Mastra Agent factory functions
         chat.ts           ← streaming chat via agent.stream()
         channel-reply.ts  ← non-streaming replies via agent.generate()
-        tools.ts          ← Mastra createTool() definitions
-        escalation.ts     ← human handoff tool
-        evals.ts          ← answer relevancy + faithfulness scorers
+        memory-bridge.ts  ← bridge to Mastra Memory API
       pages/
     index.ts              ← module registry
     your-module/          ← modules you add
@@ -543,15 +566,23 @@ my-app/
 
 ---
 
-### license
+## Star History
 
-MIT. Own everything.
-
----
+<a href="https://www.star-history.com/?repos=vobase%2Fvobase&type=timeline&logscale=&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=vobase/vobase&type=timeline&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=vobase/vobase&type=timeline&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=vobase/vobase&type=timeline&legend=top-left" />
+ </picture>
+</a>
 
 <p align="center">
-Star if the repo has helped you: 
 <img src="https://i.imgur.com/I5EeSBh.png">
+Star if the repo has helped you
 </p>
 
 ---
+
+### license
+
+MIT. Own everything.
