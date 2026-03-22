@@ -46,6 +46,11 @@
       "sourceType": "github",
       "computedHash": "67bd72223e92b4f520a1abbc9ff9db50641ed84128ba9521028d9b151dbd2429"
     },
+    "mastra": {
+      "source": "mastra-ai/skills",
+      "sourceType": "github",
+      "computedHash": "b42f583342dfee7deb541f4d094f03e8748898257f1f884fa71de1fdba9f38a2"
+    },
     "postgres-drizzle": {
       "source": "ccheney/robust-skills",
       "sourceType": "github",
