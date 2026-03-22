@@ -54,9 +54,12 @@ export async function extractEpisode(
     maxOutputTokens: 500,
   } as const;
 
-  const result = generate ? await generate(opts) : await generateText(opts);
-
-  return result.object as Episode;
+  if (generate) {
+    const result = await generate(opts);
+    return result.object as Episode;
+  }
+  const result = await generateText(opts);
+  return result.output as Episode;
 }
 
 /**
@@ -80,7 +83,10 @@ export async function extractEventLogs(
     maxOutputTokens: 1000,
   } as const;
 
-  const result = generate ? await generate(opts) : await generateText(opts);
-
-  return (result.object as z.infer<typeof eventLogSchema>).facts;
+  if (generate) {
+    const result = await generate(opts);
+    return (result.object as z.infer<typeof eventLogSchema>).facts;
+  }
+  const result = await generateText(opts);
+  return (result.output as z.infer<typeof eventLogSchema>).facts;
 }

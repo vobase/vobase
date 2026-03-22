@@ -88,9 +88,12 @@ export async function detectBoundary(
       maxOutputTokens: 100,
     } as const;
 
-    const result = generate ? await generate(opts) : await generateText(opts);
-
-    return result.object as BoundaryResult;
+    if (generate) {
+      const result = await generate(opts);
+      return result.object;
+    }
+    const result = await generateText(opts);
+    return result.output as BoundaryResult;
   } catch (err) {
     // LLM failure is non-fatal — don't split on error
     logger.warn('[memory] Boundary detection LLM call failed', { error: err });
