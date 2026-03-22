@@ -1,5 +1,6 @@
 ---
 "@vobase/core": minor
+"create-vobase": patch
 ---
 
 # AI Module: Mastra Integration & Memory Pipeline
@@ -135,6 +136,10 @@ Thread ID is now part of the URL path (`/messaging/threads/:id`) instead of a se
 
 - **Removed**: `AI_MODEL`, `AI_EMBEDDING_MODEL`, `AI_EMBEDDING_DIMENSIONS` — replaced by predefined model aliases
 - **Renamed**: `GEMINI_API_KEY` → `GOOGLE_GENERATIVE_AI_API_KEY` — aligns with `@ai-sdk/google` convention
+
+## Scaffolder (create-vobase)
+
+The `create-vobase` scaffolder now generates a standalone `biome.json` during project creation. The template's `biome.json` uses `extends` to reference the monorepo root config, which doesn't exist in standalone projects — the scaffolder overwrites it with a self-contained config.
 
 ## Test Coverage
 
