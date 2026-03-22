@@ -12,9 +12,7 @@ const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 export default async function seed({ db, userId }: SeedContext): Promise<void> {
   const msgResult = await seedMessaging(db, userId);
   if (msgResult.threads > 0) {
-    console.log(
-      green('✓') + ` Created ${msgResult.threads} sample thread`,
-    );
+    console.log(green('✓') + ` Created ${msgResult.threads} sample thread`);
   } else {
     console.log(dim('✓ Messaging data already exists. Skipping.'));
   }

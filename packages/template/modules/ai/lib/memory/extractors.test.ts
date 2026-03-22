@@ -44,7 +44,7 @@ describe('extractEpisode', () => {
 
     const episode = await extractEpisode({
       messages: sampleMessages,
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
       generate: mockGenerate as any,
     });
 
@@ -62,7 +62,7 @@ describe('extractEpisode', () => {
 
     await extractEpisode({
       messages: sampleMessages,
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
       generate: mockGenerate as any,
     });
 
@@ -98,7 +98,7 @@ describe('extractEventLogs', () => {
 
     const facts = await extractEventLogs({
       messages: sampleMessages,
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
       generate: mockGenerate as any,
     });
 
@@ -124,7 +124,7 @@ describe('extractEventLogs', () => {
 
     const facts = await extractEventLogs({
       messages: messagesWithNull,
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
       generate: mockGenerate as any,
     });
 

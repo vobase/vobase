@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 
 test('createScorerSuite returns both scorers with run method', async () => {
   const { createScorerSuite } = await import('./scorers');

@@ -91,7 +91,8 @@ async function extractPdf(buffer: ArrayBuffer): Promise<ExtractionResult> {
   return {
     text: pages.join('\n\n'),
     status: 'needs_ocr',
-    warning: 'Scanned PDF detected. Set GOOGLE_GENERATIVE_AI_API_KEY for OCR extraction.',
+    warning:
+      'Scanned PDF detected. Set GOOGLE_GENERATIVE_AI_API_KEY for OCR extraction.',
   };
 }
 

@@ -1,5 +1,5 @@
 import { openai } from '@ai-sdk/openai';
-import { type GenerateObjectResult, generateObject } from 'ai';
+import { type GenerateTextResult, generateText, Output } from 'ai';
 import type { z } from 'zod';
 
 import { bareModelName, models } from '../models';
@@ -30,8 +30,8 @@ interface ExtractOptions {
   messages: MemoryMessage[];
   /** Override LLM call for testing */
   generate?: (
-    opts: Parameters<typeof generateObject>[0],
-  ) => Promise<GenerateObjectResult<unknown>>;
+    opts: Parameters<typeof generateText>[0],
+  ) => Promise<GenerateTextResult<unknown, unknown>>;
 }
 
 /**
@@ -42,7 +42,7 @@ export async function extractEpisode(
 ): Promise<Episode> {
   const { messages, generate } = options;
   const modelName = bareModelName(models.gpt_mini);
-  const generateFn = generate ?? generateObject;
+  const generateFn = generate ?? generateText;
 
   const formatted = messages
     .map((m) => `[${m.aiRole ?? 'user'}]: ${m.content ?? ''}`)
@@ -50,7 +50,7 @@ export async function extractEpisode(
 
   const result = await generateFn({
     model: openai(modelName),
-    schema: episodeSchema,
+    output: Output.object({ schema: episodeSchema }),
     system: EPISODE_PROMPT,
     prompt: formatted,
     maxOutputTokens: 500,
@@ -67,7 +67,7 @@ export async function extractEventLogs(
 ): Promise<EventLogEntry[]> {
   const { messages, generate } = options;
   const modelName = bareModelName(models.gpt_mini);
-  const generateFn = generate ?? generateObject;
+  const generateFn = generate ?? generateText;
 
   const formatted = messages
     .map((m) => `[${m.aiRole ?? 'user'}]: ${m.content ?? ''}`)
@@ -75,7 +75,7 @@ export async function extractEventLogs(
 
   const result = await generateFn({
     model: openai(modelName),
-    schema: eventLogSchema,
+    output: Output.object({ schema: eventLogSchema }),
     system: EVENT_LOG_PROMPT,
     prompt: formatted,
     maxOutputTokens: 1000,

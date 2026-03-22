@@ -82,7 +82,7 @@ describe('detectBoundary', () => {
 
     const result = await detectBoundary({
       messages: makeMessages(6),
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
       generate: mockGenerate as any,
     });
     expect(result.shouldSplit).toBe(true);
@@ -96,7 +96,7 @@ describe('detectBoundary', () => {
 
     const result = await detectBoundary({
       messages: makeMessages(6),
-      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateObject signature
+      // biome-ignore lint/suspicious/noExplicitAny: mock doesn't need full generateText signature
       generate: failingGenerate as any,
     });
     expect(result.shouldSplit).toBe(false);

@@ -24,7 +24,7 @@ export async function loadMessagesForThread(
       content:
         typeof m.content === 'string'
           ? m.content
-          : m.content?.parts?.map((p: any) => p.text ?? '').join('') ?? '',
+          : (m.content?.parts?.map((p: any) => p.text ?? '').join('') ?? ''),
       aiRole: m.role ?? 'user',
       createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
     }));
@@ -64,7 +64,7 @@ export async function loadMessagesInRange(
       content:
         typeof m.content === 'string'
           ? m.content
-          : m.content?.parts?.map((p: any) => p.text ?? '').join('') ?? '',
+          : (m.content?.parts?.map((p: any) => p.text ?? '').join('') ?? ''),
       aiRole: m.role ?? 'user',
       createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
     }));

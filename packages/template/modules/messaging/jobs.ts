@@ -8,8 +8,8 @@ import { defineJob } from '@vobase/core';
 import { and, eq, isNull, lt, lte } from 'drizzle-orm';
 
 import { getAgent } from '../ai/agents';
-import { msgContacts, msgOutbox, msgThreads } from './schema';
 import { loadThreadMessages } from './lib/memory-bridge';
+import { msgContacts, msgOutbox, msgThreads } from './schema';
 
 let moduleDb: VobaseDb;
 let moduleChannels: ChannelsService;
@@ -38,10 +38,7 @@ export const sendMessageJob = defineJob('messaging:send', async (data) => {
   const { messageId, channel } = data as { messageId: string; channel: string };
 
   const outboxRow = (
-    await moduleDb
-      .select()
-      .from(msgOutbox)
-      .where(eq(msgOutbox.id, messageId))
+    await moduleDb.select().from(msgOutbox).where(eq(msgOutbox.id, messageId))
   )[0];
 
   if (!outboxRow || outboxRow.status !== 'queued') return;
@@ -143,10 +140,10 @@ export const channelReplyJob = defineJob(
       content:
         typeof m.content === 'string'
           ? m.content
-          : m.content?.parts
+          : (m.content?.parts
               ?.map((p: any) => p.text ?? '')
               .join('')
-              .trim() ?? '',
+              .trim() ?? ''),
       attachments: null,
     }));
 
