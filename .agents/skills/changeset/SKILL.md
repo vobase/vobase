@@ -128,7 +128,7 @@ If multiple packages changed, list each with its own bump level.
 Create a project and generate the cover image. Stitch generates desktop screens at 1280x1024 (exported at 2x = 2560x2048). We crop locally to the standard OG size of 1200x630.
 
 - **Device type**: DESKTOP (generates 1280x1024 canvas)
-- **Model**: GEMINI_3_PRO (best quality)
+- **Model**: GEMINI_3_1_PRO (best quality)
 - **Final output**: 1200x630 (cropped locally from center of the 1280x1024 canvas)
 
 **CRITICAL styling rules** (learned from iteration):
@@ -136,9 +136,10 @@ Create a project and generate the cover image. Stitch generates desktop screens 
 - **NO border-radius anywhere** — not on root, not on outer containers. The final image is center-cropped, so rounded corners at edges will look broken
 - **NO borders on outer edges** — any border near the canvas edge will be partially cut off by cropping
 - `html, body { margin: 0; padding: 0; background: #09090b; overflow: hidden }`
-- Content padding: 40px from edges (internal only). Keep important content away from the top/bottom 200px since those get cropped
-- Subtle dot grid overlay at 4% white opacity on the background
+- **Content padding: 80px from all edges** (internal only). The center crop removes 40px per side horizontally and ~197px vertically — 80px padding ensures content survives the crop with comfortable margins
+- Subtle dot grid overlay at 3% white opacity on the background
 - Font: clean sans-serif (Inter or similar)
+- Use CSS grid with `gap: 16px` between columns — avoid large gaps that waste horizontal space
 
 **Layout template**:
 
@@ -165,7 +166,7 @@ RIGHT SIDE (45%):
 2. mcp__stitch__generate_screen_from_text({
      projectId: <id>,
      deviceType: "DESKTOP",
-     modelId: "GEMINI_3_PRO",
+     modelId: "GEMINI_3_1_PRO",
      prompt: <detailed prompt following the template above>
    })
 3. Download the screenshot URL at full resolution (append =s2560 to the URL):
@@ -181,10 +182,12 @@ RIGHT SIDE (45%):
 **Common Stitch pitfalls to avoid**:
 - **NO border-radius on any outer container** — the image gets center-cropped, so rounded corners at canvas edges produce ugly artifacts
 - **NO borders near canvas edges** — they'll be partially cut off by the crop
-- Keep all important content within the center 1200x630 safe zone of the 1280x1024 canvas (40px horizontal margin, ~200px vertical margin from edges)
-- First generation often has too much padding — emphasize "edge-to-edge, NO outer padding" in the prompt
+- **Use 80px content padding** — 40px is not enough; after center-cropping, content ends up flush against the edge. 80px survives the crop with ~40px visible margin
+- **Keep columns tight** — use `gap: 16px` between grid columns. Large gaps (40px+) waste space and make the layout feel sparse
+- **Make diagrams fill their column** — specify large node sizes (180-200px wide) and short connector lines (20-24px). Undersized diagrams look lost in the right column
 - Specify exact hex colors — don't say "dark" or "muted", give the hex code
 - Describe the pipeline/diagram in detail — vague descriptions produce generic results
+- Stitch generation can silently fail — if `list_screens` returns empty after 15+ seconds, create a new project and retry
 
 ### Step 4: Write the Changeset
 
@@ -261,22 +264,24 @@ CRITICAL RULES — the image will be CENTER-CROPPED to 1200x630:
 - ZERO border-radius on ANY outer container (cropping will cut corners)
 - ZERO borders near canvas edges (they'll be partially cut off)
 - html, body { margin: 0; padding: 0; background: #09090b; overflow: hidden }
-- Keep all important content in the CENTER SAFE ZONE: ~40px from left/right
-  edges and ~200px from top/bottom edges (the crop removes the extremes)
+- The outer container must have padding: 80px on all sides. Content must
+  NOT touch edges — the crop removes 40px per side and ~197px top/bottom.
 
-Content padding: 32px from edges internally. Subtle white dot grid at 3%
-opacity on background.
+Use CSS grid inside the padded container: grid-template-columns: 1fr 1fr;
+gap: 16px; Subtle white dot grid at 3% opacity on background.
 
-LEFT SIDE (55%): "VOBASE" 11px muted gray #71717a uppercase label.
-"[Feature]" 48px bold blue #3b82f6 headline. "[Subtitle]" 16px #a1a1aa.
-Feature pills stacked vertically with colored left borders (blue #3b82f6,
-green #22c55e, amber #f59e0b, purple #a855f7): "[Pill 1]", "[Pill 2]",
-"[Pill 3]". "v[X.Y.Z]" 12px monospace #52525b bottom-left.
+LEFT SIDE (50%): "VOBASE" 13px muted gray #71717a uppercase label,
+letter-spacing 4px. "[Feature]" 64px bold blue #3b82f6 headline.
+"[Subtitle]" 20px #a1a1aa. Feature pills stacked vertically with 4px solid
+colored left borders, bg #141418, padding 12px 16px, 15px font:
+blue #3b82f6, green #22c55e, amber #f59e0b, purple #a855f7, cyan #06b6d4.
+"v[X.Y.Z]" 13px monospace #52525b bottom-left.
 
-RIGHT SIDE (45%): [Describe the specific visual/diagram for this feature
-with exact colors, sizes, and relationships between elements].
+RIGHT SIDE (50%): [Describe the specific visual/diagram for this feature.
+Use large nodes (180-200px wide), short connector lines (20-24px), and
+fill the full column width. Specify exact colors, sizes, and relationships.]
 
-Dense layout, no wasted space. Think Supabase launch week graphics.
+Dense layout, columns tight together (16px gap). Think Supabase launch week.
 No decorative borders or rounded corners on any outer elements.
 ```
 
