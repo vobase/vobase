@@ -113,9 +113,9 @@ for (const depField of ['dependencies', 'devDependencies']) {
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 console.log(`${green('✓')} Resolved dependencies`);
 
-// --- Generate biome.json (standalone, not extending monorepo root) ---
+// --- Generate biome.json (standalone, replacing monorepo-specific extends) ---
 const biomePath = resolve(dest, 'biome.json');
-if (!existsSync(biomePath)) {
+{
   const biomeConfig = {
     $schema: 'node_modules/@biomejs/biome/configuration_schema.json',
     vcs: { enabled: true, clientKind: 'git', useIgnoreFile: true },
