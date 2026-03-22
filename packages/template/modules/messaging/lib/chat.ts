@@ -2,7 +2,7 @@ import { RequestContext } from '@mastra/core/request-context';
 import { notFound } from '@vobase/core';
 import type { UIMessage } from 'ai';
 
-import { getAgent } from '../../ai/agents';
+import { getAgent } from '../../../mastra/agents';
 
 export interface StreamChatOptions {
   agentId: string;

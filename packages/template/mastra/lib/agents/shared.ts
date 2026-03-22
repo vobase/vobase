@@ -1,4 +1,4 @@
-import type { MemoryScope } from '../memory/types';
+import type { MemoryScope } from '../../processors/memory/types';
 
 export interface ThreadContext {
   threadId: string;

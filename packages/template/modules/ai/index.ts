@@ -1,5 +1,6 @@
 import { defineModule } from '@vobase/core';
 
+import { configureTracing } from '../../mastra/lib/observability';
 import { aiRoutes } from './handlers';
 import {
   evalRunJob,
@@ -7,7 +8,6 @@ import {
   memoryFormationJob,
   setAiModuleDeps,
 } from './jobs';
-import { configureTracing } from './lib/observability';
 import * as schema from './schema';
 
 export const aiModule = defineModule({

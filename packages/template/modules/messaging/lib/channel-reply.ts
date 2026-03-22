@@ -5,7 +5,7 @@ import { RequestContext } from '@mastra/core/request-context';
 import type { Scheduler, StorageService, VobaseDb } from '@vobase/core';
 import type { ModelMessage, UserContent } from 'ai';
 
-import { getAgent } from '../../ai/agents';
+import { getAgent } from '../../../mastra/agents';
 import { extractDocument } from '../../knowledge-base/lib/extract';
 
 interface Attachment {

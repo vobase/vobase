@@ -4,7 +4,7 @@
  */
 import type { Memory } from '@mastra/memory';
 
-import { getMemory } from '../../ai/mastra';
+import { getMemory } from '../../../mastra';
 
 /**
  * Save a user/contact message to Mastra Memory.

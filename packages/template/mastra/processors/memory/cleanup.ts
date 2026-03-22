@@ -1,7 +1,11 @@
 import type { VobaseDb } from '@vobase/core';
 import { eq, inArray } from 'drizzle-orm';
 
-import { aiMemCells, aiMemEpisodes, aiMemEventLogs } from '../../schema';
+import {
+  aiMemCells,
+  aiMemEpisodes,
+  aiMemEventLogs,
+} from '../../../modules/ai/schema';
 
 /**
  * Clean up all memory data for a thread.

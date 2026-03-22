@@ -10,8 +10,8 @@ import { and, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { getAgent, listAgents } from '../ai/agents';
-import { cleanupThreadMemory } from '../ai/lib/memory/cleanup';
+import { getAgent, listAgents } from '../../mastra/agents';
+import { cleanupThreadMemory } from '../../mastra/processors/memory/cleanup';
 import {
   createMemoryThread,
   deleteMemoryThread,

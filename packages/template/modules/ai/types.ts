@@ -6,11 +6,11 @@ export type {
   MemoryMessage,
   MemoryRetrievalResult,
   MemoryScope,
-} from './lib/memory/types';
+} from '../../mastra/processors/memory/types';
 export {
   boundaryResultSchema,
   defaultMemoryConfig,
   episodeSchema,
   eventLogEntrySchema,
   eventLogSchema,
-} from './lib/memory/types';
+} from '../../mastra/processors/memory/types';

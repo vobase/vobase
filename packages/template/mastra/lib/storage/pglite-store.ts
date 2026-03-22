@@ -10,7 +10,21 @@
 import type { PGlite } from '@electric-sql/pglite';
 import type { StorageDomains } from '@mastra/core/storage';
 import { MastraCompositeStore } from '@mastra/core/storage';
-import { MemoryPG, WorkflowsPG } from '@mastra/pg';
+import {
+  AgentsPG,
+  DatasetsPG,
+  ExperimentsPG,
+  MCPClientsPG,
+  MCPServersPG,
+  MemoryPG,
+  ObservabilityPG,
+  PromptBlocksPG,
+  ScorerDefinitionsPG,
+  ScoresPG,
+  SkillsPG,
+  WorkflowsPG,
+  WorkspacesPG,
+} from '@mastra/pg';
 
 /**
  * Detects multi-statement SQL. PGlite's prepared statement API only supports
@@ -147,13 +161,23 @@ export class PGliteStore extends MastraCompositeStore {
     this.stores = {
       memory: new MemoryPG(domainConfig),
       workflows: new WorkflowsPG(domainConfig),
+      observability: new ObservabilityPG(domainConfig),
+      agents: new AgentsPG(domainConfig),
+      datasets: new DatasetsPG(domainConfig),
+      experiments: new ExperimentsPG(domainConfig),
+      scores: new ScoresPG(domainConfig),
+      scorerDefinitions: new ScorerDefinitionsPG(domainConfig),
+      promptBlocks: new PromptBlocksPG(domainConfig),
+      mcpClients: new MCPClientsPG(domainConfig),
+      mcpServers: new MCPServersPG(domainConfig),
+      skills: new SkillsPG(domainConfig),
+      workspaces: new WorkspacesPG(domainConfig),
     };
   }
 
   override async init(): Promise<void> {
-    const memory = this.stores.memory;
-    const workflows = this.stores.workflows;
-    if (memory) await memory.init();
-    if (workflows) await workflows.init();
+    for (const domain of Object.values(this.stores)) {
+      if (domain) await domain.init();
+    }
   }
 }

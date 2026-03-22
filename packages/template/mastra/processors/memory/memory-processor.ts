@@ -9,7 +9,7 @@ import type { Scheduler, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
 import { desc, eq } from 'drizzle-orm';
 
-import { aiMemCells } from '../../schema';
+import { aiMemCells } from '../../../modules/ai/schema';
 import { computeBufferTokens, detectBoundary } from './boundary-detector';
 import { retrieveMemory } from './retriever';
 import type { MemoryMessage, MemoryScope } from './types';

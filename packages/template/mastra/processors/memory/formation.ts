@@ -1,8 +1,12 @@
 import type { VobaseDb } from '@vobase/core';
 import { and, eq, ne } from 'drizzle-orm';
 
-import { embedChunks } from '../../../../lib/embeddings';
-import { aiMemCells, aiMemEpisodes, aiMemEventLogs } from '../../schema';
+import { embedChunks } from '../../../lib/embeddings';
+import {
+  aiMemCells,
+  aiMemEpisodes,
+  aiMemEventLogs,
+} from '../../../modules/ai/schema';
 import { extractEpisode, extractEventLogs } from './extractors';
 import type { MemoryMessage } from './types';
 

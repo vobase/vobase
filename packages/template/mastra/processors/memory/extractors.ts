@@ -2,7 +2,7 @@ import { openai } from '@ai-sdk/openai';
 import { generateText, Output } from 'ai';
 import type { z } from 'zod';
 
-import { bareModelName, models } from '../models';
+import { bareModelName, models } from '../../lib/models';
 import type { Episode, EventLogEntry, MemoryMessage } from './types';
 import { episodeSchema, eventLogSchema } from './types';
 

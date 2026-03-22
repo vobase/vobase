@@ -2,9 +2,13 @@ import type { VobaseDb } from '@vobase/core';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { cosineDistance } from 'drizzle-orm/sql/functions/vector';
 
-import { embedQuery } from '../../../../lib/embeddings';
-import { buildRankMap, computeRRFScores } from '../../../../lib/search-utils';
-import { aiMemCells, aiMemEpisodes, aiMemEventLogs } from '../../schema';
+import { embedQuery } from '../../../lib/embeddings';
+import { buildRankMap, computeRRFScores } from '../../../lib/search-utils';
+import {
+  aiMemCells,
+  aiMemEpisodes,
+  aiMemEventLogs,
+} from '../../../modules/ai/schema';
 import type { MemoryRetrievalResult, MemoryScope } from './types';
 
 interface RetrieveOptions {

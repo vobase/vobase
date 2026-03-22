@@ -16,7 +16,7 @@ export async function loadMessagesForThread(
   threadId: string,
 ): Promise<MemoryMessage[]> {
   try {
-    const { getMemory } = await import('../../mastra');
+    const { getMemory } = await import('../../index');
     const memory = getMemory();
     const result = await memory.recall({ threadId });
     return (result.messages ?? []).map((m: any) => ({
@@ -43,7 +43,7 @@ export async function loadMessagesInRange(
   endMessageId: string,
 ): Promise<MemoryMessage[]> {
   try {
-    const { getMemory } = await import('../../mastra');
+    const { getMemory } = await import('../../index');
     const memory = getMemory();
     const result = await memory.recall({ threadId });
     const messages = (result.messages ?? []) as any[];

@@ -2,9 +2,9 @@ import { createTool } from '@mastra/core/tools';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { queueOutboundMessage } from '../../../messaging/lib/outbox';
-import { msgThreads } from '../../../messaging/schema';
-import { getModuleDb, getModuleScheduler } from '../deps';
+import { queueOutboundMessage } from '../../modules/messaging/lib/outbox';
+import { msgThreads } from '../../modules/messaging/schema';
+import { getModuleDb, getModuleScheduler } from '../lib/deps';
 
 /**
  * Escalate conversation to a human staff member.

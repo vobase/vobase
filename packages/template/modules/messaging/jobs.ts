@@ -7,7 +7,7 @@ import type {
 import { defineJob } from '@vobase/core';
 import { and, eq, isNull, lt, lte } from 'drizzle-orm';
 
-import { getAgent } from '../ai/agents';
+import { getAgent } from '../../mastra/agents';
 import { loadThreadMessages } from './lib/memory-bridge';
 import { msgContacts, msgOutbox, msgThreads } from './schema';
 

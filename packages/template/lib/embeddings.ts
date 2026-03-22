@@ -5,7 +5,7 @@ import {
   bareModelName,
   EMBEDDING_DIMENSIONS,
   models,
-} from '../modules/ai/lib/models';
+} from '../mastra/lib/models';
 
 const embeddingModel = openai.embedding(bareModelName(models.gpt_embedding));
 

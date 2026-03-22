@@ -1,12 +1,9 @@
 import { Agent } from '@mastra/core/agent';
 
 import type { AgentMeta } from '../lib/agents/define';
-import {
-  resolveInputProcessors,
-  resolveOutputProcessors,
-} from '../lib/agents/processors';
 import { models } from '../lib/models';
-import { searchKnowledgeBaseTool } from '../lib/tools/search-kb';
+import { resolveInputProcessors, resolveOutputProcessors } from '../processors';
+import { searchKnowledgeBaseTool } from '../tools/search-kb';
 
 export const assistantMeta: AgentMeta = {
   id: 'assistant',

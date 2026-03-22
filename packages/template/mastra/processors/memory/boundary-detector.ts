@@ -2,7 +2,7 @@ import { openai } from '@ai-sdk/openai';
 import { logger } from '@vobase/core';
 import { generateText, Output } from 'ai';
 
-import { bareModelName, models } from '../models';
+import { bareModelName, models } from '../../lib/models';
 import type { BoundaryResult, MemoryConfig, MemoryMessage } from './types';
 import { boundaryResultSchema, defaultMemoryConfig } from './types';
 

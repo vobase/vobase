@@ -10,14 +10,14 @@ import type {
 } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 
-import { getModuleDbOrNull, getModuleScheduler } from '../deps';
-import { createModerationProcessor } from '../guardrails/moderation';
-import { createModerationLogger } from '../guardrails/moderation-logger';
+import { resolveScope } from '../lib/agents/shared';
+import { getModuleDbOrNull, getModuleScheduler } from '../lib/deps';
 import {
   createMemoryInputProcessor,
   createMemoryOutputProcessor,
-} from '../memory/memory-processor';
-import { resolveScope } from './shared';
+} from './memory/memory-processor';
+import { createModerationProcessor } from './moderation';
+import { createModerationLogger } from './moderation-logger';
 
 /** Shape of requestContext passed by chat/channel handlers. */
 export interface AgentRequestContext {

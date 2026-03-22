@@ -13,10 +13,10 @@ import { Memory } from '@mastra/memory';
 import { PostgresStore } from '@mastra/pg';
 
 import { getMastraAgents } from './agents';
-import { escalateToStaffTool } from './lib/tools/escalate';
-import { searchKnowledgeBaseTool } from './lib/tools/search-kb';
-import { escalationWorkflow } from './lib/workflows/escalation';
-import { followUpWorkflow } from './lib/workflows/follow-up';
+import { escalateToStaffTool } from './tools/escalate';
+import { searchKnowledgeBaseTool } from './tools/search-kb';
+import { escalationWorkflow } from './workflows/escalation';
+import { followUpWorkflow } from './workflows/follow-up';
 
 let mastraInstance: Mastra | undefined;
 let memoryInstance: Memory | undefined;

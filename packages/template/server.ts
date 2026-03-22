@@ -3,8 +3,8 @@ import { MastraServer } from '@mastra/hono';
 import { createApp } from '@vobase/core';
 import { serveStatic } from 'hono/bun';
 
+import { getMastra, initMastra } from './mastra';
 import { modules } from './modules';
-import { getMastra, initMastra } from './modules/ai/mastra';
 import config from './vobase.config';
 
 const app = await createApp({ ...config, modules });
@@ -12,7 +12,7 @@ const app = await createApp({ ...config, modules });
 // Initialize Mastra after createApp (init hook sets deps synchronously, but Mastra init is async)
 try {
   // db.$client gives us the PGlite instance from the Drizzle connection
-  const { getModuleDb } = await import('./modules/ai/lib/deps');
+  const { getModuleDb } = await import('./mastra/lib/deps');
   const db = getModuleDb();
   await initMastra(db as unknown as { $client: unknown });
 
@@ -25,6 +25,12 @@ try {
   await mastraServer.init();
 } catch (err) {
   console.warn('[server] Mastra routes not mounted:', (err as Error).message);
+}
+
+// Mount Mastra Studio SPA (dev-only)
+if (process.env.NODE_ENV !== 'production') {
+  const { createStudioMiddleware } = await import('./mastra/studio');
+  app.route('/studio', createStudioMiddleware());
 }
 
 const distPath = join(import.meta.dir, 'dist');

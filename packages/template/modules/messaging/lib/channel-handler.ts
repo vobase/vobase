@@ -9,7 +9,7 @@ import type {
 import { logger } from '@vobase/core';
 import { and, eq } from 'drizzle-orm';
 
-import { getAgentForChannel, getDefaultAgent } from '../../ai/agents';
+import { getAgentForChannel, getDefaultAgent } from '../../../mastra/agents';
 import { msgOutbox, msgThreads } from '../schema';
 import { findOrCreateContact } from './contacts';
 import { saveInboundMessage } from './memory-bridge';

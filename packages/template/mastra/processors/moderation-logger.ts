@@ -1,7 +1,7 @@
 import type { VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
 
-import { aiModerationLogs } from '../../schema';
+import { aiModerationLogs } from '../../modules/ai/schema';
 import type { OnBlockCallback } from './moderation';
 
 interface ModerationLogContext {

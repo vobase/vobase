@@ -3,7 +3,7 @@ import {
   createFaithfulnessScorer,
 } from '@mastra/evals/scorers/prebuilt';
 
-import { models } from '../models';
+import { models } from '../lib/models';
 
 /**
  * Create eval scorers for assessing agent response quality.

@@ -2,12 +2,12 @@ import { defineJob, logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { getModuleDb } from './lib/deps';
+import { getModuleDb } from '../../mastra/lib/deps';
 
-export { setAiModuleDeps } from './lib/deps';
+export { setAiModuleDeps } from '../../mastra/lib/deps';
 
-import { runAgentEvals } from './lib/evals/runner';
-import { processMemCell } from './lib/memory/formation';
+import { runAgentEvals } from '../../mastra/evals/runner';
+import { processMemCell } from '../../mastra/processors/memory/formation';
 import { aiEvalRuns, aiWorkflowRuns } from './schema';
 
 const memoryFormationDataSchema = z.object({ cellId: z.string().min(1) });

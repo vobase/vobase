@@ -41,7 +41,7 @@ export function createAiMcpHandler(
       },
       async ({ query, limit }) => {
         const { hybridSearch } = await import(
-          '../../../knowledge-base/lib/search'
+          '../../modules/knowledge-base/lib/search'
         );
         const results = await hybridSearch(db, query, {
           limit: limit ?? 5,

@@ -1,7 +1,7 @@
 import type { VobaseDb } from '@vobase/core';
 
-import { getDefaultAgent } from '../ai/agents';
-import { initMastra } from '../ai/mastra';
+import { initMastra } from '../../mastra';
+import { getDefaultAgent } from '../../mastra/agents';
 import type { SeedContext } from '../seed-types';
 import { createMemoryThread, saveInboundMessage } from './lib/memory-bridge';
 import { msgThreads } from './schema';

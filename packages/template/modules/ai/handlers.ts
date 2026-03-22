@@ -103,7 +103,9 @@ aiRoutes.get('/memory/search', async (c) => {
 
   const scope = parseScope(rawScope);
 
-  const { retrieveMemory } = await import('./lib/memory/retriever');
+  const { retrieveMemory } = await import(
+    '../../mastra/processors/memory/retriever'
+  );
   const result = await retrieveMemory(db, scope, query);
   return c.json(result);
 });
@@ -480,8 +482,8 @@ aiRoutes.get('/guardrails/logs', async (c) => {
 
 // --- Workflow Registry ---
 
-import { escalationMeta } from './lib/workflows/escalation';
-import { followUpMeta } from './lib/workflows/follow-up';
+import { escalationMeta } from '../../mastra/workflows/escalation';
+import { followUpMeta } from '../../mastra/workflows/follow-up';
 
 const workflowRegistry = [escalationMeta, followUpMeta];
 
@@ -579,7 +581,7 @@ aiRoutes.get('/workflows/:workflowId/runs', async (c) => {
 aiRoutes.all('/mcp', async (c) => {
   const { db, user } = getCtx(c);
   if (!user) throw unauthorized();
-  const { createAiMcpHandler } = await import('./lib/mcp/server');
+  const { createAiMcpHandler } = await import('../../mastra/mcp/server');
   const handler = createAiMcpHandler(db);
   return handler(c.req.raw);
 });
