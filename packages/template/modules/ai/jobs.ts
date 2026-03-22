@@ -1,7 +1,10 @@
-import type { Scheduler, VobaseDb } from '@vobase/core';
-import { defineJob } from '@vobase/core';
+import { defineJob, logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+
+import { getModuleDb } from './lib/deps';
+
+export { setAiModuleDeps } from './lib/deps';
 
 import { runAgentEvals } from './lib/evals/runner';
 import { processMemCell } from './lib/memory/formation';
@@ -10,15 +13,6 @@ import { aiEvalRuns, aiWorkflowRuns } from './schema';
 const memoryFormationDataSchema = z.object({ cellId: z.string().min(1) });
 const evalRunDataSchema = z.object({ runId: z.string().min(1) });
 
-let moduleDb: VobaseDb;
-let moduleScheduler: Scheduler;
-
-/** Called from the ai module init hook to wire up dependencies. */
-export function setAiModuleDeps(db: VobaseDb, scheduler: Scheduler) {
-  moduleDb = db;
-  moduleScheduler = scheduler;
-}
-
 /**
  * ai:memory-formation — Process a MemCell: extract episode + facts, embed, store.
  * Queued by the memory output processor when a conversation boundary is detected.
@@ -26,9 +20,16 @@ export function setAiModuleDeps(db: VobaseDb, scheduler: Scheduler) {
 export const memoryFormationJob = defineJob(
   'ai:memory-formation',
   async (data) => {
-    if (!moduleDb) throw new Error('moduleDb not initialized');
+    const moduleDb = getModuleDb();
     const { cellId } = memoryFormationDataSchema.parse(data);
-    await processMemCell(moduleDb, cellId);
+    logger.info('[memory] Formation job started', { cellId });
+    try {
+      await processMemCell(moduleDb, cellId);
+      logger.info('[memory] Formation job completed', { cellId });
+    } catch (err) {
+      logger.error('[memory] Formation job failed', { cellId, error: err });
+      throw err;
+    }
   },
 );
 
@@ -37,7 +38,7 @@ export const memoryFormationJob = defineJob(
  * Loads the eval run row, runs scorers, writes results back.
  */
 export const evalRunJob = defineJob('ai:eval-run', async (data) => {
-  if (!moduleDb) throw new Error('moduleDb not initialized');
+  const moduleDb = getModuleDb();
   const { runId } = evalRunDataSchema.parse(data);
 
   const run = (
@@ -90,7 +91,7 @@ const followUpResumeDataSchema = z.object({ runId: z.string().min(1) });
 export const followUpResumeJob = defineJob(
   'ai:follow-up-resume',
   async (data) => {
-    if (!moduleDb) throw new Error('moduleDb not initialized');
+    const moduleDb = getModuleDb();
     const { runId } = followUpResumeDataSchema.parse(data);
 
     const run = (

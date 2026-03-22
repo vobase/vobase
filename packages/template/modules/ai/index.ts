@@ -19,5 +19,6 @@ export const aiModule = defineModule({
   init(ctx) {
     setAiModuleDeps(ctx.db, ctx.scheduler);
     configureTracing();
+    // Mastra initialization is async — called from server.ts after createApp()
   },
 });

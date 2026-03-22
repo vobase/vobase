@@ -1,30 +1,44 @@
-import type { AgentConfig } from '../lib/agents/define';
-import { assistantAgent } from './assistant';
-import { quickHelperAgent } from './quick-helper';
+import type { Agent } from '@mastra/core/agent';
 
-export type { AgentConfig } from '../lib/agents/define';
+import type { AgentMeta } from '../lib/agents/define';
+import { assistantAgent, assistantMeta } from './assistant';
+import { quickHelperAgent, quickHelperMeta } from './quick-helper';
+
+export type { AgentMeta } from '../lib/agents/define';
+
+export type RegisteredAgent = { agent: Agent; meta: AgentMeta };
 
 /** All registered agents. Add new agents here. */
-const agents: AgentConfig[] = [assistantAgent, quickHelperAgent];
+const agents: RegisteredAgent[] = [
+  { agent: assistantAgent, meta: assistantMeta },
+  { agent: quickHelperAgent, meta: quickHelperMeta },
+];
 
-const agentMap = new Map(agents.map((a) => [a.id, a]));
+const agentMap = new Map(agents.map((a) => [a.meta.id, a]));
 
-/** Get an agent by ID. Returns undefined if not found. */
-export function getAgent(id: string): AgentConfig | undefined {
+/** Get a registered agent by ID. Returns undefined if not found. */
+export function getAgent(id: string): RegisteredAgent | undefined {
   return agentMap.get(id);
 }
 
 /** List all registered agents. */
-export function listAgents(): AgentConfig[] {
+export function listAgents(): RegisteredAgent[] {
   return agents;
 }
 
 /** Find the first agent configured for a given channel. */
-export function getAgentForChannel(channel: string): AgentConfig | undefined {
-  return agents.find((a) => (a.channels ?? ['web']).includes(channel));
+export function getAgentForChannel(
+  channel: string,
+): RegisteredAgent | undefined {
+  return agents.find((a) => (a.meta.channels ?? ['web']).includes(channel));
 }
 
 /** Get the default agent (first registered). */
-export function getDefaultAgent(): AgentConfig | undefined {
+export function getDefaultAgent(): RegisteredAgent | undefined {
   return agents[0];
+}
+
+/** Get agents as Record<string, Agent> for the Mastra singleton. */
+export function getMastraAgents(): Record<string, Agent> {
+  return Object.fromEntries(agents.map((a) => [a.meta.id, a.agent]));
 }

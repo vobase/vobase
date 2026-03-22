@@ -1,10 +1,4 @@
-import type { VobaseDb } from '@vobase/core';
-
-import { getAIConfig } from '../../../../lib/ai';
 import type { MemoryScope } from '../memory/types';
-import type { createEscalationTool } from '../tools/escalate';
-import { createKnowledgeBaseTool } from '../tools/search-kb';
-import type { AgentConfig } from './define';
 
 /**
  * Convert a model ID (e.g. 'gpt-5-mini', 'claude-3-5-sonnet') to Mastra's
@@ -27,31 +21,6 @@ export function toMastraModelId(modelId: string): string {
   return `openai/${modelId}`;
 }
 
-export const DEFAULT_INSTRUCTIONS =
-  'You are a helpful assistant. When answering questions, search the knowledge base for relevant information and cite your sources.';
-
-/** Shared agent config: resolve model, build tool map from code-based AgentConfig. */
-export function buildBaseConfig(db: VobaseDb, agent: AgentConfig) {
-  const config = getAIConfig();
-  const modelId = agent.model ?? config.model;
-  const enabledTools = agent.tools ?? ['search_knowledge_base'];
-  const kbSourceIds = agent.kbSourceIds;
-
-  const tools: Record<
-    string,
-    ReturnType<typeof createKnowledgeBaseTool | typeof createEscalationTool>
-  > = {};
-
-  if (enabledTools.includes('search_knowledge_base')) {
-    tools.search_knowledge_base = createKnowledgeBaseTool(
-      db,
-      kbSourceIds?.length ? kbSourceIds : undefined,
-    );
-  }
-
-  return { modelId, tools, enabledTools };
-}
-
 export interface ThreadContext {
   threadId: string;
   contactId?: string | null;
@@ -66,6 +35,5 @@ export function resolveScope(thread: ThreadContext): MemoryScope | null {
   if (thread.userId) {
     return { userId: thread.userId };
   }
-  // No valid scope — memory processors will be skipped
   return null;
 }

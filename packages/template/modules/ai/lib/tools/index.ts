@@ -1,2 +1,2 @@
-export { createEscalationTool } from './escalate';
-export { createKnowledgeBaseTool } from './search-kb';
+export { escalateToStaffTool } from './escalate';
+export { searchKnowledgeBaseTool } from './search-kb';
