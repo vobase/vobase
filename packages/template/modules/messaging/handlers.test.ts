@@ -257,11 +257,11 @@ describe('Messaging Routes', () => {
 
       const savedKeys = {
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
       };
       delete process.env.OPENAI_API_KEY;
-      delete process.env.GEMINI_API_KEY;
+      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
       delete process.env.ANTHROPIC_API_KEY;
 
       const res = await app.request(`${BASE}/threads/thr-no-ai/chat`, {

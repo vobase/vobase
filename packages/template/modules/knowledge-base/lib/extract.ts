@@ -82,7 +82,7 @@ async function extractPdf(buffer: ArrayBuffer): Promise<ExtractionResult> {
   }
 
   // Scanned PDF — try Gemini OCR
-  if (process.env.GEMINI_API_KEY) {
+  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     const ocrText = await ocrWithGemini(buffer, 'application/pdf');
     return { text: ocrText, status: 'ok' };
   }
@@ -91,7 +91,7 @@ async function extractPdf(buffer: ArrayBuffer): Promise<ExtractionResult> {
   return {
     text: pages.join('\n\n'),
     status: 'needs_ocr',
-    warning: 'Scanned PDF detected. Set GEMINI_API_KEY for OCR extraction.',
+    warning: 'Scanned PDF detected. Set GOOGLE_GENERATIVE_AI_API_KEY for OCR extraction.',
   };
 }
 
@@ -147,11 +147,11 @@ async function extractImage(
   buffer: ArrayBuffer,
   mimeType: string,
 ): Promise<ExtractionResult> {
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     return {
       text: '',
       status: 'needs_ocr',
-      warning: 'Image OCR requires GEMINI_API_KEY.',
+      warning: 'Image OCR requires GOOGLE_GENERATIVE_AI_API_KEY.',
     };
   }
 
@@ -179,7 +179,7 @@ async function ocrWithGemini(
   const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
 
   const google = createGoogleGenerativeAI({
-    apiKey: process.env.GEMINI_API_KEY,
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
   });
   const model = google('gemini-flash-latest');
   const base64 = Buffer.from(buffer).toString('base64');

@@ -142,28 +142,28 @@ describe('extractDocument()', () => {
 
   describe('image extraction', () => {
     it('returns needs_ocr when no API key is set', async () => {
-      const originalKey = process.env.GEMINI_API_KEY;
-      delete process.env.GEMINI_API_KEY;
+      const originalKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
       const imgPath = join(FIXTURES_DIR, 'document-screenshot.jpg');
       const result = await extractDocument(imgPath, 'image/jpeg');
       expect(result.status).toBe('needs_ocr');
-      expect(result.warning).toContain('GEMINI_API_KEY');
+      expect(result.warning).toContain('GOOGLE_GENERATIVE_AI_API_KEY');
 
-      if (originalKey) process.env.GEMINI_API_KEY = originalKey;
+      if (originalKey) process.env.GOOGLE_GENERATIVE_AI_API_KEY = originalKey;
     });
 
     it('uses Gemini OCR when API key is set', async () => {
-      const originalKey = process.env.GEMINI_API_KEY;
-      process.env.GEMINI_API_KEY = 'test-key';
+      const originalKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'test-key';
 
       const imgPath = join(FIXTURES_DIR, 'document-screenshot.jpg');
       const result = await extractDocument(imgPath, 'image/jpeg');
       expect(result.status).toBe('ok');
       expect(result.text).toBe('OCR extracted text from Gemini');
 
-      if (originalKey) process.env.GEMINI_API_KEY = originalKey;
-      else delete process.env.GEMINI_API_KEY;
+      if (originalKey) process.env.GOOGLE_GENERATIVE_AI_API_KEY = originalKey;
+      else delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     });
   });
 

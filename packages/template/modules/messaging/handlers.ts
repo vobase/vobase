@@ -253,7 +253,7 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
     return c.json(
       {
         error:
-          'AI is not configured. Set OPENAI_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY in your .env file.',
+          'AI is not configured. Set OPENAI_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, or ANTHROPIC_API_KEY in your .env file.',
       },
       503,
     );

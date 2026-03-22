@@ -243,7 +243,7 @@ describe('hybridSearch()', () => {
     it('deep mode gracefully degrades when AI is not configured', async () => {
       const origKey = process.env.OPENAI_API_KEY;
       delete process.env.OPENAI_API_KEY;
-      delete process.env.GEMINI_API_KEY;
+      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
       delete process.env.ANTHROPIC_API_KEY;
 
       const results = await hybridSearch(db, 'TypeScript', { mode: 'deep' });
