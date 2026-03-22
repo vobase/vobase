@@ -108,6 +108,34 @@ export const sendFollowUpStep = createStep({
  * The follow-up workflow definition.
  * Showcases Mastra's delayed execution pattern via suspend + external job resume.
  */
+/** Metadata for the UI — co-located with the workflow definition. */
+export const followUpMeta = {
+  id: 'ai:follow-up',
+  name: 'Follow-up',
+  description:
+    'Delayed workflow — schedules a follow-up message after a configurable delay',
+  steps: [
+    {
+      id: 'analyze-conversation',
+      name: 'Analyze Conversation',
+      description: 'Summarizes thread and identifies follow-up needs',
+      type: 'action' as const,
+    },
+    {
+      id: 'schedule-follow-up',
+      name: 'Schedule',
+      description: 'Suspends workflow, queues delayed resume job',
+      type: 'suspend' as const,
+    },
+    {
+      id: 'send-follow-up',
+      name: 'Send Follow-up',
+      description: 'Composes and queues the follow-up message',
+      type: 'action' as const,
+    },
+  ],
+};
+
 export const followUpWorkflow = createWorkflow({
   id: 'ai:follow-up',
   inputSchema: followUpInputSchema,

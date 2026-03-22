@@ -114,6 +114,34 @@ export const executeStep = createStep({
  * The escalation workflow definition.
  * Showcases Mastra's createWorkflow + createStep + suspend/resume pattern.
  */
+/** Metadata for the UI — co-located with the workflow definition. */
+export const escalationMeta = {
+  id: 'ai:escalation',
+  name: 'Escalation',
+  description:
+    'Human-in-the-loop workflow — suspends for human approval, then executes the decision',
+  steps: [
+    {
+      id: 'analyze-escalation',
+      name: 'Analyze',
+      description: 'Prepares escalation summary',
+      type: 'action' as const,
+    },
+    {
+      id: 'human-approval',
+      name: 'Human Approval',
+      description: 'Suspends for human decision',
+      type: 'suspend' as const,
+    },
+    {
+      id: 'execute-escalation',
+      name: 'Execute Decision',
+      description: 'Acts on the approval/rejection',
+      type: 'action' as const,
+    },
+  ],
+};
+
 export const escalationWorkflow = createWorkflow({
   id: 'ai:escalation',
   inputSchema: escalationInputSchema,

@@ -11,6 +11,16 @@ export interface ModerationConfig {
   maxLength?: number;
 }
 
+/** Info passed to the onBlock callback when content is moderated. */
+export interface ModerationBlockInfo {
+  reason: 'blocklist' | 'max_length';
+  content: string;
+  matchedTerm?: string;
+}
+
+/** Callback invoked when the moderation processor blocks content. */
+export type OnBlockCallback = (info: ModerationBlockInfo) => void;
+
 const DEFAULT_MAX_LENGTH = 10_000;
 
 const MODERATION_NOTICE =
@@ -59,9 +69,20 @@ function buildModeratedContent(originalContent: unknown): unknown {
  */
 export function createModerationProcessor(
   config?: ModerationConfig,
+  onBlock?: OnBlockCallback,
 ): InputProcessor {
   const blocklist = (config?.blocklist ?? []).map((s) => s.toLowerCase());
   const maxLength = config?.maxLength ?? DEFAULT_MAX_LENGTH;
+
+  /** Fire-and-forget: never let logging failure prevent moderation. */
+  const safeOnBlock = (info: ModerationBlockInfo) => {
+    if (!onBlock) return;
+    try {
+      onBlock(info);
+    } catch (_err) {
+      // Logging failure must not prevent moderation from working
+    }
+  };
 
   return {
     id: 'content-moderation',
@@ -77,8 +98,9 @@ export function createModerationProcessor(
 
       // Check blocklist (case-insensitive literal substring matching)
       const lowerContent = content.toLowerCase();
-      const blocked = blocklist.some((term) => lowerContent.includes(term));
-      if (blocked) {
+      const matchedTerm = blocklist.find((term) => lowerContent.includes(term));
+      if (matchedTerm) {
+        safeOnBlock({ reason: 'blocklist', content, matchedTerm });
         return [
           ...messages.slice(0, -1),
           {
@@ -90,6 +112,7 @@ export function createModerationProcessor(
 
       // Check max length
       if (content.length > maxLength) {
+        safeOnBlock({ reason: 'max_length', content });
         return [
           ...messages.slice(0, -1),
           {
@@ -104,4 +127,4 @@ export function createModerationProcessor(
   };
 }
 
-export { MODERATION_NOTICE, extractText };
+export { extractText, MODERATION_NOTICE };

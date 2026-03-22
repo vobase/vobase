@@ -144,18 +144,56 @@ export const aiEvalRuns = pgTable('ai_eval_runs', {
  * Complements in-memory workflow state with durable persistence.
  * Used by escalation (HITL) and follow-up workflows.
  */
-export const aiWorkflowRuns = pgTable('ai_workflow_runs', {
-  id: nanoidPrimaryKey(),
-  workflowId: text('workflow_id').notNull(), // e.g. 'ai:escalation', 'ai:follow-up'
-  userId: text('user_id').notNull(), // owner — scoped to authenticated user
-  status: text('status').notNull().default('running'), // running | suspended | completed | failed
-  inputData: text('input_data').notNull(), // JSON stringified workflow input
-  suspendPayload: text('suspend_payload'), // JSON stringified suspend data (when status=suspended)
-  outputData: text('output_data'), // JSON stringified workflow output
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const aiWorkflowRuns = pgTable(
+  'ai_workflow_runs',
+  {
+    id: nanoidPrimaryKey(),
+    workflowId: text('workflow_id').notNull(), // e.g. 'ai:escalation', 'ai:follow-up'
+    userId: text('user_id').notNull(), // owner — scoped to authenticated user
+    status: text('status').notNull().default('running'), // running | suspended | completed | failed
+    inputData: text('input_data').notNull(), // JSON stringified workflow input
+    suspendPayload: text('suspend_payload'), // JSON stringified suspend data (when status=suspended)
+    outputData: text('output_data'), // JSON stringified workflow output
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('ai_workflow_runs_wf_created_idx').on(
+      table.workflowId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * ModerationLogs — records content blocked by the moderation guardrail.
+ * Written by the onBlock callback in the moderation processor.
+ */
+export const aiModerationLogs = pgTable(
+  'ai_moderation_logs',
+  {
+    id: nanoidPrimaryKey(),
+    agentId: text('agent_id').notNull(),
+    channel: text('channel').notNull(), // 'web', 'whatsapp', 'email', etc.
+    userId: text('user_id'),
+    contactId: text('contact_id'),
+    threadId: text('thread_id'),
+    reason: text('reason').notNull(), // 'blocklist' | 'max_length'
+    blockedContent: text('blocked_content'), // truncated to 200 chars in app layer
+    matchedTerm: text('matched_term'), // the specific blocklist term that matched
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('ai_moderation_logs_created_idx').on(table.createdAt),
+    index('ai_moderation_logs_agent_created_idx').on(
+      table.agentId,
+      table.createdAt,
+    ),
+  ],
+);
