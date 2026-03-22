@@ -1,8 +1,24 @@
-import { useQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import {
+  BotIcon,
+  MessageSquareIcon,
+  SparklesIcon,
+  WrenchIcon,
+} from 'lucide-react';
+import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface Agent {
@@ -15,73 +31,165 @@ interface Agent {
   suggestions?: string[];
 }
 
+interface Thread {
+  id: string;
+  title: string | null;
+  agentId: string;
+  channel: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 async function fetchAgents(): Promise<Agent[]> {
   const res = await fetch('/api/messaging/agents');
   if (!res.ok) throw new Error('Failed to fetch agents');
   return res.json();
 }
 
-function AgentsPage() {
-  const { data: agents, isLoading } = useQuery({
-    queryKey: ['messaging-agents'],
-    queryFn: fetchAgents,
+async function fetchThreads(): Promise<Thread[]> {
+  const res = await fetch('/api/messaging/threads');
+  if (!res.ok) throw new Error('Failed to fetch threads');
+  return res.json();
+}
+
+async function createThread(agentId: string): Promise<Thread> {
+  const res = await fetch('/api/messaging/threads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agentId }),
   });
+  if (!res.ok) throw new Error('Failed to create thread');
+  return res.json();
+}
+
+function AgentCard({ agent, onClick }: { agent: Agent; onClick: () => void }) {
+  const toolCount = agent.tools?.length ?? 0;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold">Agents</h2>
-        <p className="text-sm text-muted-foreground">
-          AI agents defined in code — edit{' '}
-          <code className="text-xs bg-muted px-1 py-0.5 rounded">
-            modules/ai/agents/
-          </code>{' '}
-          to configure
-        </p>
-      </div>
-
-      {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Skeleton className="h-40 w-full" />
-          <Skeleton className="h-40 w-full" />
+    <Card
+      className="cursor-pointer transition-colors hover:bg-muted/50"
+      onClick={onClick}
+    >
+      <CardContent>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <p className="font-semibold text-sm leading-tight">{agent.name}</p>
+          <Badge variant="secondary" className="shrink-0 text-xs">
+            {agent.model ?? 'Default'}
+          </Badge>
         </div>
-      )}
 
-      {agents && agents.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-12">
-          No agents defined. Add agent files to{' '}
-          <code className="text-xs bg-muted px-1 py-0.5 rounded">
-            modules/ai/agents/
-          </code>
-          .
+        <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+          {agent.instructions}
         </p>
-      )}
 
-      {agents && agents.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {agents.map((agent) => (
-            <Card key={agent.id} className="flex flex-col">
-              <CardContent className="flex-1">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <p className="font-semibold text-sm leading-tight">
-                    {agent.name}
-                  </p>
-                  <Badge variant="secondary" className="shrink-0 text-xs">
-                    {agent.model ?? 'Default'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
-                  {agent.instructions}
-                </p>
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {(agent.tools ?? []).map((tool) => (
-                    <Badge key={tool} variant="outline" className="text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          {toolCount > 0 && (
+            <Badge variant="outline" className="text-xs gap-1">
+              <WrenchIcon className="size-3" />
+              {toolCount} {toolCount === 1 ? 'tool' : 'tools'}
+            </Badge>
+          )}
+          {(agent.channels ?? []).map((ch) => (
+            <Badge key={ch} variant="outline" className="text-xs capitalize">
+              {ch}
+            </Badge>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AgentDetailSheet({
+  agent,
+  threads,
+  open,
+  onOpenChange,
+  onChat,
+  isChatLoading,
+}: {
+  agent: Agent | null;
+  threads: Thread[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChat: () => void;
+  isChatLoading: boolean;
+}) {
+  if (!agent) return null;
+
+  const agentThreads = threads
+    .filter((t) => t.agentId === agent.id)
+    .slice(0, 5);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex flex-col gap-0 p-0 sm:max-w-md"
+      >
+        <SheetHeader className="border-b px-6 py-4">
+          <div className="flex items-center justify-between gap-3 pr-6">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <BotIcon className="size-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <SheetTitle className="text-sm truncate">
+                  {agent.name}
+                </SheetTitle>
+                <SheetDescription className="text-xs">
+                  {agent.model ?? 'Default model'}
+                </SheetDescription>
+              </div>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="mt-2 w-full gap-2"
+            onClick={onChat}
+            disabled={isChatLoading}
+          >
+            <MessageSquareIcon className="size-4" />
+            Chat with {agent.name}
+          </Button>
+        </SheetHeader>
+
+        <ScrollArea className="flex-1">
+          <div className="divide-y">
+            {/* Instructions */}
+            <div className="px-6 py-4">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Instructions
+              </h4>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {agent.instructions}
+              </p>
+            </div>
+
+            {/* Tools */}
+            {(agent.tools?.length ?? 0) > 0 && (
+              <div className="px-6 py-4">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                  Tools
+                </h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {agent.tools!.map((tool) => (
+                    <Badge key={tool} variant="secondary" className="text-xs">
                       {tool}
                     </Badge>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Channels */}
+            {(agent.channels?.length ?? 0) > 0 && (
+              <div className="px-6 py-4">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                  Channels
+                </h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {(agent.channels ?? []).map((ch) => (
+                  {agent.channels!.map((ch) => (
                     <Badge
                       key={ch}
                       variant="outline"
@@ -91,11 +199,145 @@ function AgentsPage() {
                     </Badge>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            )}
+
+            {/* Suggestions */}
+            {(agent.suggestions?.length ?? 0) > 0 && (
+              <div className="px-6 py-4">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                  Suggestions
+                </h4>
+                <div className="space-y-1.5">
+                  {agent.suggestions!.map((s) => (
+                    <div
+                      key={s}
+                      className="flex items-start gap-2 text-sm text-muted-foreground"
+                    >
+                      <SparklesIcon className="size-3.5 mt-0.5 shrink-0 text-primary/60" />
+                      <span>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Activity */}
+            <div className="px-6 py-4">
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Recent Activity
+              </h4>
+              {agentThreads.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No conversations yet
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {agentThreads.map((thread) => (
+                    <div
+                      key={thread.id}
+                      className="flex items-center justify-between gap-2 text-sm"
+                    >
+                      <span className="truncate text-foreground">
+                        {thread.title ?? 'Untitled'}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {new Date(thread.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function AgentsPage() {
+  const navigate = useNavigate();
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+
+  const {
+    data: agents,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['messaging-agents'],
+    queryFn: fetchAgents,
+  });
+
+  const { data: threads = [] } = useQuery({
+    queryKey: ['messaging-threads'],
+    queryFn: fetchThreads,
+  });
+
+  const chatMutation = useMutation({
+    mutationFn: (agentId: string) => createThread(agentId),
+    onSuccess: (thread) => {
+      setSelectedAgent(null);
+      navigate({
+        to: '/messaging/threads',
+        search: { threadId: thread.id },
+      });
+    },
+  });
+
+  return (
+    <div className="p-6">
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold">Agents</h2>
+        <p className="text-sm text-muted-foreground">
+          AI agents available in your workspace
+        </p>
+      </div>
+
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Skeleton className="h-36 w-full rounded-lg" />
+          <Skeleton className="h-36 w-full rounded-lg" />
+          <Skeleton className="h-36 w-full rounded-lg" />
+        </div>
+      )}
+
+      {isError && (
+        <p className="text-sm text-destructive text-center py-12">
+          Failed to load agents. Please try again.
+        </p>
+      )}
+
+      {agents && agents.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-12">
+          No agents defined yet. Agents are configured by your development team.
+        </p>
+      )}
+
+      {agents && agents.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {agents.map((agent) => (
+            <AgentCard
+              key={agent.id}
+              agent={agent}
+              onClick={() => setSelectedAgent(agent)}
+            />
           ))}
         </div>
       )}
+
+      <AgentDetailSheet
+        agent={selectedAgent}
+        threads={threads}
+        open={!!selectedAgent}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAgent(null);
+        }}
+        onChat={() => {
+          if (selectedAgent) chatMutation.mutate(selectedAgent.id);
+        }}
+        isChatLoading={chatMutation.isPending}
+      />
     </div>
   );
 }

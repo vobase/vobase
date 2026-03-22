@@ -1,10 +1,17 @@
 import { useChat } from '@ai-sdk/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useSearch } from '@tanstack/react-router';
 import { DefaultChatTransport, type TextUIPart, type UIMessage } from 'ai';
-import { CopyIcon, MessageSquare } from 'lucide-react';
+import {
+  CheckCircle2,
+  CopyIcon,
+  Loader2,
+  MessageSquare,
+  Wrench,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 import {
   Conversation,
@@ -110,6 +117,54 @@ function getAgentSuggestions(
   return agent.suggestions;
 }
 
+/** Check if a message part is a tool invocation (static `tool-<name>` or `dynamic-tool`). */
+function isToolPart(part: unknown): part is {
+  toolName: string;
+  toolCallId: string;
+  state: string;
+  output?: unknown;
+} {
+  return (
+    typeof part === 'object' &&
+    part !== null &&
+    'toolName' in part &&
+    'toolCallId' in part
+  );
+}
+
+/** Inline tool call indicator */
+function ToolCallPart({
+  part,
+}: {
+  part: {
+    toolName: string;
+    toolCallId: string;
+    state: string;
+    output?: unknown;
+  };
+}) {
+  const isRunning =
+    part.state === 'input-streaming' || part.state === 'input-available';
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+      {isRunning ? (
+        <Loader2 className="size-3 animate-spin" />
+      ) : (
+        <CheckCircle2 className="size-3" />
+      )}
+      <Wrench className="size-3" />
+      <span className="font-medium">{part.toolName}</span>
+      {part.state === 'output-available' && part.output != null && (
+        <span className="truncate max-w-[300px]">
+          {typeof part.output === 'string'
+            ? part.output
+            : JSON.stringify(part.output).slice(0, 120)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** Chat view for an active thread */
 function ThreadChat({
   threadId,
@@ -180,12 +235,21 @@ function ThreadChat({
           {messages.map((msg) => (
             <Message key={msg.id} from={msg.role}>
               <MessageContent>
-                {msg.parts.map((part) => {
+                {msg.parts.map((part, partIdx) => {
                   if (part.type === 'text') {
                     return (
-                      <MessageResponse key={`${msg.id}-${part.type}`}>
+                      // biome-ignore lint/suspicious/noArrayIndexKey: multi-step agent produces multiple text parts with no unique id
+                      <MessageResponse key={`${msg.id}-${partIdx}`}>
                         {part.text}
                       </MessageResponse>
+                    );
+                  }
+                  if (isToolPart(part)) {
+                    return (
+                      <ToolCallPart
+                        key={`${msg.id}-${part.toolCallId}`}
+                        part={part}
+                      />
                     );
                   }
                   return null;
@@ -245,7 +309,12 @@ function ThreadChat({
 
 function MessagingPage() {
   const queryClient = useQueryClient();
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const { threadId: initialThreadId } = useSearch({
+    from: '/_app/messaging/threads',
+  });
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(
+    initialThreadId ?? null,
+  );
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [welcomeInput, setWelcomeInput] = useState('');
@@ -451,6 +520,11 @@ function MessagingPage() {
   );
 }
 
+const threadSearchSchema = z.object({
+  threadId: z.string().optional(),
+});
+
 export const Route = createFileRoute('/_app/messaging/threads')({
   component: MessagingPage,
+  validateSearch: (search) => threadSearchSchema.parse(search),
 });

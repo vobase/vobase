@@ -104,13 +104,26 @@ export const navigation: NavGroup[] = [
         label: 'Evals',
         to: '/ai/evals',
         icon: ChartBar,
-        keywords: ['evaluation', 'scoring', 'quality', 'faithfulness', 'relevancy'],
+        keywords: [
+          'evaluation',
+          'scoring',
+          'quality',
+          'faithfulness',
+          'relevancy',
+        ],
       },
       {
         label: 'Workflows',
         to: '/ai/workflows',
         icon: GitBranch,
-        keywords: ['escalation', 'follow-up', 'hitl', 'automation', 'suspend', 'resume'],
+        keywords: [
+          'escalation',
+          'follow-up',
+          'hitl',
+          'automation',
+          'suspend',
+          'resume',
+        ],
       },
       {
         label: 'Guardrails',
