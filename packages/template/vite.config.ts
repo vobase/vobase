@@ -25,7 +25,13 @@ export default defineConfig({
   },
   server: {
     watch: {
-      ignored: ['**/.omc/**', '**/.claude/**', '**/.stitch/**', '**/data/**', '**/dogfood-output/**'],
+      ignored: [
+        '**/.omc/**',
+        '**/.claude/**',
+        '**/.stitch/**',
+        '**/data/**',
+        '**/dogfood-output/**',
+      ],
     },
     proxy: {
       '/api': 'http://localhost:3000',
