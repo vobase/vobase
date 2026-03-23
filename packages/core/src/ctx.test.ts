@@ -10,6 +10,7 @@ import {
 import type { VobaseDb } from './db';
 import type { HttpClient } from './infra/http-client';
 import type { Scheduler } from './infra/queue';
+import type { RealtimeService } from './infra/realtime';
 import type { ChannelsService } from './modules/channels/service';
 import type { IntegrationsService } from './modules/integrations/service';
 import type { StorageService } from './modules/storage/service';
@@ -47,6 +48,11 @@ const http: HttpClient = {
   put: async () => mockResponse,
   delete: async () => mockResponse,
 } as HttpClient;
+const realtime: RealtimeService = {
+  subscribe: () => () => {},
+  notify: async () => {},
+  shutdown: async () => {},
+};
 
 function expectType<T>(_value: T): void {}
 
@@ -115,6 +121,7 @@ describe('ctx helpers', () => {
         channels,
         integrations,
         http,
+        realtime,
       }),
     );
     app.get('/', (c) => c.json({ user: getCtx(c).user }));
@@ -137,6 +144,7 @@ describe('ctx helpers', () => {
         channels,
         integrations,
         http,
+        realtime,
       }),
     );
     app.get('/', (c) => {
@@ -174,6 +182,7 @@ describe('ctx helpers', () => {
         channels,
         integrations,
         http,
+        realtime,
       }),
     );
     app.get('/', (c) => {
@@ -199,6 +208,7 @@ describe('ctx helpers', () => {
         channels,
         integrations,
         http,
+        realtime,
       }),
     );
     app.get('/', (c) => {
@@ -211,6 +221,7 @@ describe('ctx helpers', () => {
       expectType<ChannelsService>(ctx.channels);
       expectType<IntegrationsService>(ctx.integrations);
       expectType<HttpClient>(ctx.http);
+      expectType<RealtimeService>(ctx.realtime);
       return c.text('ok');
     });
 

@@ -21,11 +21,12 @@
     },
     "packages/core": {
       "name": "@vobase/core",
-      "version": "0.19.1",
+      "version": "0.20.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.27.1",
         "jose": "^6.2.2",
         "nanoid": "^5.1.7",
+        "postgres": "^3.4.8",
         "zod": "^4.3.6",
       },
       "devDependencies": {
@@ -42,7 +43,7 @@
     },
     "packages/create-vobase": {
       "name": "create-vobase",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "bin": {
         "create-vobase": "dist/index.js",
       },

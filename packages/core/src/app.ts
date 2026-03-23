@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 
 import { contextMiddleware } from './ctx';
 import { createDatabase, getPgliteClient } from './db/client';
@@ -6,6 +7,7 @@ import { errorHandler } from './infra/errors';
 import { createHttpClient, type HttpClientOptions } from './infra/http-client';
 import { createWorker } from './infra/job';
 import { createScheduler } from './infra/queue';
+import { createRealtimeService } from './infra/realtime';
 import { createThrowProxy } from './infra/throw-proxy';
 import {
   createPlatformIntegrationsRoutes,
@@ -60,6 +62,9 @@ export async function createApp(config: CreateAppConfig) {
   });
 
   const http = createHttpClient(config.http);
+
+  // === Realtime (SSE + LISTEN/NOTIFY) ===
+  const realtime = await createRealtimeService(config.database, db);
 
   // === Auth Module (always active) ===
   const authMod = createAuthModule(db, {
@@ -174,6 +179,7 @@ export async function createApp(config: CreateAppConfig) {
     storage: storageService,
     channels: channelsService,
     integrations: integrationsService,
+    realtime,
   };
 
   const auditMod = createAuditModule();
@@ -194,9 +200,30 @@ export async function createApp(config: CreateAppConfig) {
       channels: channelsService,
       integrations: integrationsService,
       http,
+      realtime,
     }),
   );
   base.use('/api/*', optionalSessionMiddleware(authAdapter));
+
+  // === SSE Realtime endpoint ===
+  base.get('/api/events', async (c) => {
+    const user = c.get('user');
+    if (!user) return c.json({ error: 'Unauthorized' }, 401);
+
+    return streamSSE(c, async (stream) => {
+      const unsub = realtime.subscribe((payload) => {
+        stream.writeSSE({ data: payload, event: 'invalidate' });
+      });
+
+      stream.onAbort(unsub);
+
+      // Keep-alive heartbeat every 25s (well within idleTimeout: 255)
+      while (true) {
+        await stream.sleep(25_000);
+        await stream.writeSSE({ data: '', event: 'ping' });
+      }
+    });
+  });
 
   // === Platform integration routes (token refresh, WhatsApp configure) ===
   if (isPlatformEnabled()) {

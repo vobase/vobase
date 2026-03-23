@@ -77,6 +77,13 @@ export {
   type JobOptions,
   type Scheduler,
 } from './infra/queue';
+// Realtime (SSE + LISTEN/NOTIFY)
+export type {
+  RealtimeExecutor,
+  RealtimePayload,
+  RealtimeService,
+} from './infra/realtime';
+export { createRealtimeService, createNoopRealtime } from './infra/realtime';
 // Throw Proxy
 export { createThrowProxy } from './infra/throw-proxy';
 // Platform Integration

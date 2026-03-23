@@ -1,6 +1,7 @@
 import type { VobaseDb } from '../db/client';
 import type { HttpClient } from '../infra/http-client';
 import type { Scheduler } from '../infra/queue';
+import type { RealtimeService } from '../infra/realtime';
 import type { ChannelsService } from '../modules/channels/service';
 import type { IntegrationsService } from '../modules/integrations/service';
 import type { StorageService } from '../modules/storage/service';
@@ -16,4 +17,5 @@ export interface ModuleInitContext {
   http: HttpClient;
   channels: ChannelsService;
   integrations: IntegrationsService;
+  realtime: RealtimeService;
 }

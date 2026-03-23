@@ -4,6 +4,7 @@ import { createMiddleware } from 'hono/factory';
 import type { VobaseDb } from './db';
 import type { HttpClient } from './infra/http-client';
 import type { Scheduler } from './infra/queue';
+import type { RealtimeService } from './infra/realtime';
 import type { ChannelsService } from './modules/channels/service';
 import type { IntegrationsService } from './modules/integrations/service';
 import type { StorageService } from './modules/storage/service';
@@ -25,6 +26,7 @@ export interface VobaseCtx {
   channels: ChannelsService;
   integrations: IntegrationsService;
   http: HttpClient;
+  realtime: RealtimeService;
 }
 
 declare module 'hono' {
@@ -35,6 +37,7 @@ declare module 'hono' {
     channels: ChannelsService;
     integrations: IntegrationsService;
     http: HttpClient;
+    realtime: RealtimeService;
   }
 }
 
@@ -45,6 +48,7 @@ export function contextMiddleware(deps: {
   channels: ChannelsService;
   integrations: IntegrationsService;
   http: HttpClient;
+  realtime: RealtimeService;
 }) {
   return createMiddleware(async (c, next) => {
     c.set('db', deps.db);
@@ -53,6 +57,7 @@ export function contextMiddleware(deps: {
     c.set('channels', deps.channels);
     c.set('integrations', deps.integrations);
     c.set('http', deps.http);
+    c.set('realtime', deps.realtime);
     await next();
   });
 }
@@ -66,5 +71,6 @@ export function getCtx(c: Context): VobaseCtx {
     channels: c.get('channels'),
     integrations: c.get('integrations'),
     http: c.get('http'),
+    realtime: c.get('realtime'),
   };
 }
