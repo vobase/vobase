@@ -81,14 +81,21 @@ messagingRoutes.post('/threads', async (c) => {
   const body = createThreadSchema.parse(await c.req.json());
   if (!getAgent(body.agentId)) throw notFound('Agent not found');
   const userId = requireUserId(ctx);
-  const [thread] = await ctx.db
-    .insert(msgThreads)
-    .values({
-      title: body.title,
-      agentId: body.agentId,
-      userId,
-    })
-    .returning();
+  const [thread] = await ctx.db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(msgThreads)
+      .values({
+        title: body.title,
+        agentId: body.agentId,
+        userId,
+      })
+      .returning();
+    await ctx.realtime.notify(
+      { table: 'messaging-threads', id: rows[0].id, action: 'insert' },
+      tx,
+    );
+    return rows;
+  });
 
   // Create corresponding Memory thread (same ID for correlation)
   try {
@@ -207,9 +214,16 @@ messagingRoutes.delete('/threads/:id', async (c) => {
   // Delete Mastra Memory thread
   await deleteMemoryThread(id);
 
-  // Delete outbox entries and Drizzle thread
-  await ctx.db.delete(msgOutbox).where(eq(msgOutbox.threadId, id));
-  await ctx.db.delete(msgThreads).where(eq(msgThreads.id, id));
+  // Transactional delete + notify (NOTIFY fires only on commit)
+  await ctx.db.transaction(async (tx) => {
+    await tx.delete(msgOutbox).where(eq(msgOutbox.threadId, id));
+    await tx.delete(msgThreads).where(eq(msgThreads.id, id));
+    await ctx.realtime.notify(
+      { table: 'messaging-threads', id, action: 'delete' },
+      tx,
+    );
+  });
+
   return c.json({ success: true });
 });
 
@@ -243,6 +257,11 @@ messagingRoutes.post('/threads/:id/chat', async (c) => {
       .update(msgThreads)
       .set({ title: userText.slice(0, 100) })
       .where(eq(msgThreads.id, threadId));
+    await ctx.realtime.notify({
+      table: 'messaging-threads',
+      id: threadId,
+      action: 'update',
+    });
   }
 
   if (!thread.agentId) {
@@ -327,6 +346,13 @@ messagingRoutes.post('/contacts', async (c) => {
       channel: body.channel ?? 'whatsapp',
     })
     .returning();
+
+  await ctx.realtime.notify({
+    table: 'messaging-contacts',
+    id: contact.id,
+    action: 'insert',
+  });
+
   return c.json(contact, 201);
 });
 

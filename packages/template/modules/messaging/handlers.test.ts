@@ -24,6 +24,11 @@ function createApp(
     c.set('storage', {} as never);
     c.set('channels', {} as never);
     c.set('http', {} as never);
+    c.set('realtime', {
+      subscribe: () => () => {},
+      notify: async () => {},
+      shutdown: async () => {},
+    } as never);
     await next();
   });
   app.route('/api/messaging', messagingRoutes);

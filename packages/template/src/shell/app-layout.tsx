@@ -1,12 +1,14 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { useState } from 'react';
 
+import { useRealtimeInvalidation } from '@/hooks/use-realtime';
 import { authClient } from '@/lib/auth-client';
 import { MobileNav } from '@/shell/mobile-nav';
 import { ShellHeader } from '@/shell/shell-header';
 import { ShellSidebar } from '@/shell/shell-sidebar';
 
 function AppLayout() {
+  useRealtimeInvalidation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
