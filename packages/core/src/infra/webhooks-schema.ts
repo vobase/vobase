@@ -1,4 +1,4 @@
-import { primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { infraPgSchema } from '../db/pg-schemas';
 
@@ -15,5 +15,8 @@ export const webhookDedup = infraPgSchema.table(
       .notNull()
       .defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.id, table.source] })],
+  (table) => [
+    primaryKey({ columns: [table.id, table.source] }),
+    index('webhook_dedup_received_at_idx').on(table.receivedAt),
+  ],
 );

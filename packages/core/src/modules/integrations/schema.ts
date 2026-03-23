@@ -1,4 +1,5 @@
-import { index, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { check, index, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { DEFAULT_COLUMNS, nanoidPrimaryKey } from '../../db/helpers';
 import { infraPgSchema } from '../../db/pg-schemas';
@@ -22,6 +23,10 @@ export const integrationsTable = infraPgSchema.table(
   (table) => [
     index('integrations_provider_idx').on(table.provider),
     index('integrations_status_idx').on(table.status),
+    check(
+      'integrations_status_check',
+      sql`status IN ('active', 'inactive', 'error')`,
+    ),
   ],
 );
 

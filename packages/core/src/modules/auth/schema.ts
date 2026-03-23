@@ -4,6 +4,7 @@ import {
   integer,
   text,
   timestamp,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 import { authPgSchema } from '../../db/pg-schemas';
@@ -43,7 +44,10 @@ export const authSession = authPgSchema.table(
       .notNull()
       .references(() => authUser.id, { onDelete: 'cascade' }),
   },
-  (table) => [index('session_user_id_idx').on(table.userId)],
+  (table) => [
+    index('session_user_id_idx').on(table.userId),
+    index('session_expires_at_idx').on(table.expiresAt),
+  ],
 );
 
 export const authAccount = authPgSchema.table(
@@ -99,34 +103,34 @@ export const authVerification = authPgSchema.table(
 export const authApikey = authPgSchema.table(
   'apikey',
   {
-  id: text('id').primaryKey(),
-  name: text('name'),
-  start: text('start'),
-  prefix: text('prefix'),
-  key: text('key').notNull(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => authUser.id, { onDelete: 'cascade' }),
-  refillInterval: text('refill_interval'),
-  refillAmount: integer('refill_amount'),
-  lastRefillAt: timestamp('last_refill_at', { withTimezone: true }),
-  enabled: boolean('enabled').notNull().default(true),
-  rateLimitEnabled: boolean('rate_limit_enabled').notNull().default(false),
-  rateLimitTimeWindow: integer('rate_limit_time_window'),
-  rateLimitMax: integer('rate_limit_max'),
-  requestCount: integer('request_count').notNull().default(0),
-  remaining: integer('remaining'),
-  lastRequest: timestamp('last_request', { withTimezone: true }),
-  expiresAt: timestamp('expires_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-  permissions: text('permissions'),
-  metadata: text('metadata'),
+    id: text('id').primaryKey(),
+    name: text('name'),
+    start: text('start'),
+    prefix: text('prefix'),
+    key: text('key').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUser.id, { onDelete: 'cascade' }),
+    refillInterval: text('refill_interval'),
+    refillAmount: integer('refill_amount'),
+    lastRefillAt: timestamp('last_refill_at', { withTimezone: true }),
+    enabled: boolean('enabled').notNull().default(true),
+    rateLimitEnabled: boolean('rate_limit_enabled').notNull().default(false),
+    rateLimitTimeWindow: integer('rate_limit_time_window'),
+    rateLimitMax: integer('rate_limit_max'),
+    requestCount: integer('request_count').notNull().default(0),
+    remaining: integer('remaining'),
+    lastRequest: timestamp('last_request', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    permissions: text('permissions'),
+    metadata: text('metadata'),
   },
   (table) => [index('apikey_user_id_idx').on(table.userId)],
 );
@@ -161,6 +165,10 @@ export const authMember = authPgSchema.table(
   (table) => [
     index('member_user_id_idx').on(table.userId),
     index('member_org_id_idx').on(table.organizationId),
+    uniqueIndex('member_user_org_unique_idx').on(
+      table.userId,
+      table.organizationId,
+    ),
   ],
 );
 
@@ -185,6 +193,7 @@ export const authInvitation = authPgSchema.table(
   (table) => [
     index('invitation_org_id_idx').on(table.organizationId),
     index('invitation_inviter_id_idx').on(table.inviterId),
+    index('invitation_email_idx').on(table.email),
   ],
 );
 
