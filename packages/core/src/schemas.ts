@@ -1,9 +1,9 @@
 import { webhookDedup } from './infra/webhooks-schema';
 import { auditLog, recordAudits } from './modules/audit/schema';
 import {
-  apikeySchema,
-  authSchema,
-  organizationSchema,
+  apikeyTableMap,
+  authTableMap,
+  organizationTableMap,
 } from './modules/auth/schema';
 import { channelsLog, channelsTemplates } from './modules/channels/schema';
 import { integrationsTable } from './modules/integrations/schema';
@@ -33,9 +33,9 @@ export function getActiveSchemas(
 ): Record<string, unknown> {
   const schema: Record<string, unknown> = {
     // Auth tables (always active)
-    ...authSchema,
+    ...authTableMap,
     // API key table (always active — needed for MCP auth)
-    ...apikeySchema,
+    ...apikeyTableMap,
     // Audit tables (always active)
     auditLog,
     recordAudits,
@@ -47,7 +47,7 @@ export function getActiveSchemas(
 
   // Organization (optional — better-auth organization plugin)
   if (config?.organization) {
-    Object.assign(schema, organizationSchema);
+    Object.assign(schema, organizationTableMap);
   }
 
   // Integrations (default: included)

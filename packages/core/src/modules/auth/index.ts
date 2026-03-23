@@ -14,9 +14,9 @@ import { createAuthAuditHooks } from './audit-hooks';
 import { setOrganizationEnabled } from './permissions';
 import { platformAuth } from './platform-plugin';
 import {
-  apikeySchema,
-  authSchema,
-  organizationSchema,
+  apikeyTableMap,
+  authTableMap,
+  organizationTableMap,
 } from './schema';
 
 export interface AuthModuleConfig {
@@ -60,9 +60,9 @@ export function createAuthModule(
 
   // Build schema for the adapter — always includes apikey, conditionally includes org
   const adapterSchema = {
-    ...authSchema,
-    ...apikeySchema,
-    ...(orgEnabled ? organizationSchema : {}),
+    ...authTableMap,
+    ...apikeyTableMap,
+    ...(orgEnabled ? organizationTableMap : {}),
   };
 
   const auth = betterAuth({
@@ -131,4 +131,4 @@ export function createAuthModule(
 
 export { createAuthAuditHooks } from './audit-hooks';
 export { optionalSessionMiddleware, sessionMiddleware } from './middleware';
-export { authSchema } from './schema';
+export { authTableMap } from './schema';

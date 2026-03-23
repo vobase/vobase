@@ -1,16 +1,16 @@
 import {
   index,
   integer,
-  pgTable,
   text,
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 import { nanoidPrimaryKey } from '../../db/helpers';
+import { infraPgSchema } from '../../db/pg-schemas';
 
-export const storageObjects = pgTable(
-  '_storage_objects',
+export const storageObjects = infraPgSchema.table(
+  'storage_objects',
   {
     id: nanoidPrimaryKey(),
     bucket: text('bucket').notNull(),

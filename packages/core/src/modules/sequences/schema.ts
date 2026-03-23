@@ -1,8 +1,9 @@
-import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { nanoidPrimaryKey } from '../../db/helpers';
+import { infraPgSchema } from '../../db/pg-schemas';
 
-export const sequences = pgTable('_sequences', {
+export const sequences = infraPgSchema.table('sequences', {
   id: nanoidPrimaryKey(),
   prefix: text('prefix').notNull().unique(),
   currentValue: integer('current_value').notNull().default(0),

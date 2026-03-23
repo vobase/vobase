@@ -2,12 +2,13 @@ import {
   boolean,
   index,
   integer,
-  pgTable,
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
 
-export const authUser = pgTable('user', {
+import { authPgSchema } from '../../db/pg-schemas';
+
+export const authUser = authPgSchema.table('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
@@ -23,7 +24,7 @@ export const authUser = pgTable('user', {
     .$onUpdate(() => new Date()),
 });
 
-export const authSession = pgTable(
+export const authSession = authPgSchema.table(
   'session',
   {
     id: text('id').primaryKey(),
@@ -45,7 +46,7 @@ export const authSession = pgTable(
   (table) => [index('session_user_id_idx').on(table.userId)],
 );
 
-export const authAccount = pgTable(
+export const authAccount = authPgSchema.table(
   'account',
   {
     id: text('id').primaryKey(),
@@ -76,7 +77,7 @@ export const authAccount = pgTable(
   (table) => [index('account_user_id_idx').on(table.userId)],
 );
 
-export const authVerification = pgTable(
+export const authVerification = authPgSchema.table(
   'verification',
   {
     id: text('id').primaryKey(),
@@ -95,7 +96,9 @@ export const authVerification = pgTable(
 );
 
 // API Key table (better-auth apiKey plugin)
-export const authApikey = pgTable('apikey', {
+export const authApikey = authPgSchema.table(
+  'apikey',
+  {
   id: text('id').primaryKey(),
   name: text('name'),
   start: text('start'),
@@ -124,10 +127,12 @@ export const authApikey = pgTable('apikey', {
     .$onUpdate(() => new Date()),
   permissions: text('permissions'),
   metadata: text('metadata'),
-});
+  },
+  (table) => [index('apikey_user_id_idx').on(table.userId)],
+);
 
 // Organization tables (better-auth organization plugin)
-export const authOrganization = pgTable('organization', {
+export const authOrganization = authPgSchema.table('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
@@ -138,49 +143,63 @@ export const authOrganization = pgTable('organization', {
     .defaultNow(),
 });
 
-export const authMember = pgTable('member', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => authUser.id, { onDelete: 'cascade' }),
-  organizationId: text('organization_id')
-    .notNull()
-    .references(() => authOrganization.id, { onDelete: 'cascade' }),
-  role: text('role').notNull().default('member'),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const authMember = authPgSchema.table(
+  'member',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUser.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => authOrganization.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('member'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('member_user_id_idx').on(table.userId),
+    index('member_org_id_idx').on(table.organizationId),
+  ],
+);
 
-export const authInvitation = pgTable('invitation', {
-  id: text('id').primaryKey(),
-  email: text('email').notNull(),
-  organizationId: text('organization_id')
-    .notNull()
-    .references(() => authOrganization.id, { onDelete: 'cascade' }),
-  inviterId: text('inviter_id')
-    .notNull()
-    .references(() => authUser.id, { onDelete: 'cascade' }),
-  role: text('role').notNull().default('member'),
-  status: text('status').notNull().default('pending'),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const authInvitation = authPgSchema.table(
+  'invitation',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => authOrganization.id, { onDelete: 'cascade' }),
+    inviterId: text('inviter_id')
+      .notNull()
+      .references(() => authUser.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('member'),
+    status: text('status').notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('invitation_org_id_idx').on(table.organizationId),
+    index('invitation_inviter_id_idx').on(table.inviterId),
+  ],
+);
 
-export const authSchema = {
+export const authTableMap = {
   user: authUser,
   session: authSession,
   account: authAccount,
   verification: authVerification,
 };
 
-export const apikeySchema = {
+export const apikeyTableMap = {
   apikey: authApikey,
 };
 
-export const organizationSchema = {
+export const organizationTableMap = {
   organization: authOrganization,
   member: authMember,
   invitation: authInvitation,

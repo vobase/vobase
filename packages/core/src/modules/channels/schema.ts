@@ -1,9 +1,10 @@
-import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { nanoidPrimaryKey } from '../../db/helpers';
+import { infraPgSchema } from '../../db/pg-schemas';
 
-export const channelsLog = pgTable(
-  '_channels_log',
+export const channelsLog = infraPgSchema.table(
+  'channels_log',
   {
     id: nanoidPrimaryKey(),
     channel: text('channel').notNull(),
@@ -26,8 +27,8 @@ export const channelsLog = pgTable(
   ],
 );
 
-export const channelsTemplates = pgTable(
-  '_channels_templates',
+export const channelsTemplates = infraPgSchema.table(
+  'channels_templates',
   {
     id: nanoidPrimaryKey(),
     channel: text('channel').notNull(),

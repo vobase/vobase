@@ -1,9 +1,10 @@
-import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, text, timestamp } from 'drizzle-orm/pg-core';
 
 import { DEFAULT_COLUMNS, nanoidPrimaryKey } from '../../db/helpers';
+import { infraPgSchema } from '../../db/pg-schemas';
 
-export const integrationsTable = pgTable(
-  '_integrations',
+export const integrationsTable = infraPgSchema.table(
+  'integrations',
   {
     id: nanoidPrimaryKey(),
     provider: text('provider').notNull(),

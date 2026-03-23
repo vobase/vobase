@@ -32,6 +32,8 @@ export type { VobaseCtx, VobaseUser } from './ctx';
 export { contextMiddleware, getCtx } from './ctx';
 // DB
 export { createDatabase, type VobaseDb } from './db';
+// PostgreSQL Schemas
+export { authPgSchema, auditPgSchema, infraPgSchema } from './db/pg-schemas';
 export {
   createNanoid,
   DEFAULT_COLUMNS,
