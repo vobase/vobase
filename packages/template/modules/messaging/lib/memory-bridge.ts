@@ -2,8 +2,6 @@
  * Bridge between messaging module and Mastra Memory.
  * Provides helpers for saving/reading messages via the Memory API.
  */
-import type { Memory } from '@mastra/memory';
-
 import { getMemory } from '../../../mastra';
 
 /**

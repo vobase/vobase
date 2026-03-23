@@ -7,7 +7,7 @@ import type {
   VobaseDb,
 } from '@vobase/core';
 import { logger } from '@vobase/core';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { getAgentForChannel, getDefaultAgent } from '../../../mastra/agents';
 import { msgOutbox, msgThreads } from '../schema';
