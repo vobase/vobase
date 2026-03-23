@@ -278,12 +278,13 @@ Every HTTP handler gets a context object with runtime capabilities. Current surf
 | `ctx.channels` | `ChannelsService` — email and WhatsApp sends. `ctx.channels.email.send(msg)`. All messages logged. |
 | `ctx.integrations` | `IntegrationsService` — encrypted credential vault. `ctx.integrations.getActive(provider)` returns decrypted config or null. Platform-managed providers connected via HMAC-signed forwarding. |
 | `ctx.http` | Typed HTTP client with retries, timeouts, and circuit breakers. |
+| `ctx.realtime` | `RealtimeService` — event-driven server-push via PostgreSQL LISTEN/NOTIFY + SSE. `ctx.realtime.notify({ table, id?, action? }, tx?)` after mutations. |
 
 For jobs, pass dependencies through closures/factories (or import what you need) when calling `defineJob(...)`.
 
 #### module init context
 
-Modules can declare an `init` hook that receives a `ModuleInitContext` at boot — same services as request context (`db`, `scheduler`, `http`, `storage`, `channels`). Unconfigured services use throw-proxies that give descriptive errors if accessed.
+Modules can declare an `init` hook that receives a `ModuleInitContext` at boot — same services as request context (`db`, `scheduler`, `http`, `storage`, `channels`, `realtime`). Unconfigured services use throw-proxies that give descriptive errors if accessed.
 
 #### ctx extensions for external integrations
 

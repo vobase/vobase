@@ -39,7 +39,7 @@ Core identity: "AI agents need a codebase they can understand." Every convention
 - No plugin system. Adapters are factory functions in config — no lifecycle hooks, no registration ceremony.
 - No outbound webhooks. Vobase is code-first — outbound events are `fetch()` in job handlers. No webhook delivery system needed.
 - No developer admin UI. The template UI is for end-users/clients. For dev data browsing, use `bun run db:studio`.
-- No realtime / WebSocket. Polling and SSE cover actual use cases.
+- SSE for server-push via LISTEN/NOTIFY. No WebSocket — no use case needs bidirectional. Modules emit NOTIFY after mutations; the core SSE endpoint streams events to browsers; `useRealtimeInvalidation()` invalidates matching TanStack Query keys automatically.
 - For any new feature, ask "is this genuinely blocking someone?" Prefer direct implementations over "nice-to-have from competitor research."
 - What goes in core vs template modules: core owns infrastructure primitives every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. Template modules own business logic, UI, domain features — anything an AI agent would modify per-app (messaging threads, knowledge base, AI agents, etc.).
 - AI agents use Mastra (`@mastra/core`). Tools via `createTool()` from `@mastra/core/tools`. Agents via `new Agent()` from `@mastra/core/agent`. Streaming bridged to AI SDK via `toAISdkStream` from `@mastra/ai-sdk`. Frontend stays on AI SDK `useChat` from `@ai-sdk/react`.
@@ -76,6 +76,18 @@ Encrypted credential vault for external services. `ctx.integrations.getActive(pr
 ### Jobs
 
 `defineJob('module:name', async (data) => { ... })` for background work. Schedule via `ctx.scheduler.add(jobName, data, opts)`. pg-boss backed (Postgres), retries, cron, job chains. No Redis.
+
+### Realtime (SSE)
+
+Event-driven server-push via PostgreSQL LISTEN/NOTIFY + SSE. Modules opt in.
+
+Server: `ctx.realtime.notify({ table: 'my-table', id?, action? }, tx?)` after mutations. With `tx`, NOTIFY fires on commit only. Without `tx`, fire-and-forget.
+
+Client: `useRealtimeInvalidation()` hook mounted in app shell. Automatically invalidates TanStack Query keys matching the `table` field. No per-query changes needed.
+
+Query key convention: NOTIFY payload `table` field must match the first element of the `queryKey` array (e.g., `table: 'messaging-threads'` invalidates `queryKey: ['messaging-threads', ...]`).
+
+SSE endpoint: `GET /api/events` (authenticated, cookie-based). Returns `text/event-stream`. Events: `invalidate` (data change), `ping` (keep-alive).
 
 ### Key Exports
 

@@ -150,7 +150,7 @@ export default defineModule({
   pages,
   seed,
   init: (ctx) => {
-    // 可选：启动时执行初始化逻辑，可访问 db、scheduler、http、storage、channels
+    // 可选：启动时执行初始化逻辑，可访问 db、scheduler、http、storage、channels、realtime
   },
 })
 ```
@@ -278,12 +278,13 @@ export const sendReminder = defineJob('projects:sendReminder',
 | `ctx.channels` | `ChannelsService` —— 邮件和 WhatsApp 发送。`ctx.channels.email.send(msg)`。所有消息均有日志。 |
 | `ctx.integrations` | `IntegrationsService` —— 加密凭证保险库。`ctx.integrations.getActive(provider)` 返回解密后的配置或 null。平台管理的提供商通过 HMAC 签名转发连接。 |
 | `ctx.http` | 类型化 HTTP 客户端，带重试、超时和熔断器。 |
+| `ctx.realtime` | `RealtimeService` —— 基于 PostgreSQL LISTEN/NOTIFY + SSE 的事件驱动服务端推送。变更后调用 `ctx.realtime.notify({ table, id?, action? }, tx?)`。 |
 
 Job 的依赖通过闭包/工厂函数传入（或在 `defineJob(...)` 中直接导入所需模块）。
 
 #### 模块初始化上下文
 
-模块可声明 `init` 钩子，在启动时接收 `ModuleInitContext` —— 与请求上下文相同的服务（`db`、`scheduler`、`http`、`storage`、`channels`）。未配置的服务使用 throw-proxy，访问时会给出描述性错误。
+模块可声明 `init` 钩子，在启动时接收 `ModuleInitContext` —— 与请求上下文相同的服务（`db`、`scheduler`、`http`、`storage`、`channels`、`realtime`）。未配置的服务使用 throw-proxy，访问时会给出描述性错误。
 
 #### ctx 外部集成扩展
 

@@ -69,7 +69,7 @@ These decisions were made deliberately. Do not revisit without discussion.
 - Adapters stay in core, not separate packages. AI agents don't read node_modules, so package boundaries don't affect readability. Separate packages only when adapter count exceeds 10 or install size becomes a real problem.
 - No plugin system. Factory functions in config, not plugin objects with lifecycle hooks. We evaluated a Vite-like model and rejected it — abstractions to solve packaging problems are over-engineering.
 - No outbound webhooks. Vobase is code-first for AI agents — outbound events are just `fetch()` in job handlers. Building a webhook delivery system with retry queues is unnecessary complexity.
-- No realtime / WebSocket. Polling and SSE cover the actual use cases. Realtime adds infrastructure weight without proportional value.
+- SSE for server-push via LISTEN/NOTIFY. No WebSocket — none of the current use cases need bidirectional communication. Modules emit NOTIFY after mutations; the core SSE endpoint streams events to connected browsers; the frontend hook invalidates matching TanStack Query keys.
 - No developer admin UI. The template UI is for end-users/clients, not developers inspecting data. For dev data browsing, use `bun run db:studio` (Drizzle Studio).
 - Event emitter stays channels-internal. One consumer doesn't justify a core primitive. Audit uses synchronous middleware hooks, auth uses better-auth hooks — different patterns for different reasons.
 - Naming convention: "adapter" everywhere for pluggable implementations (ChannelAdapter, StorageAdapter, createLocalAdapter, createS3Adapter). Consistent across channels and storage.
