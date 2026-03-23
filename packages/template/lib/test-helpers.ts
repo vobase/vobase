@@ -11,7 +11,7 @@ import * as kbSchema from '../modules/knowledge-base/schema';
 import * as messagingSchema from '../modules/messaging/schema';
 
 const nanoidSql = readFileSync(
-  join(import.meta.dir, '../db/extensions/nanoid.sql'),
+  join(import.meta.dir, '../db/extensions/03_nanoid.sql'),
   'utf-8',
 );
 
@@ -26,13 +26,19 @@ export async function createTestDb(options?: {
 }) {
   const pglite = new PGlite({ extensions: { pgcrypto, vector } });
 
-  await pglite.exec('CREATE EXTENSION IF NOT EXISTS pgcrypto');
-  await pglite.exec('CREATE EXTENSION IF NOT EXISTS vector');
-  await pglite.exec(nanoidSql);
+  await pglite.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+  await pglite.query('CREATE EXTENSION IF NOT EXISTS vector');
+  // nanoidSql contains multiple statements — use the multi-statement path
+  await (pglite as any).exec(nanoidSql);
+
+  // Create schemas for all template modules
+  await pglite.query('CREATE SCHEMA IF NOT EXISTS "messaging"');
+  await pglite.query('CREATE SCHEMA IF NOT EXISTS "ai"');
+  await pglite.query('CREATE SCHEMA IF NOT EXISTS "kb"');
 
   // Messaging tables (agents are code-defined, not in DB)
-  await pglite.exec(`
-    CREATE TABLE msg_threads (
+  await (pglite as any).exec(`
+    CREATE TABLE "messaging"."threads" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       title TEXT,
       agent_id TEXT,
@@ -48,7 +54,7 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE msg_outbox (
+    CREATE TABLE "messaging"."outbox" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       thread_id TEXT NOT NULL,
       content TEXT NOT NULL,
@@ -60,7 +66,7 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE msg_contacts (
+    CREATE TABLE "messaging"."contacts" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       phone TEXT UNIQUE,
       email TEXT UNIQUE,
@@ -74,8 +80,8 @@ export async function createTestDb(options?: {
 
   if (options?.withVec) {
     // KB tables with 4-dim vectors matching test embedding mocks
-    await pglite.exec(`
-      CREATE TABLE kb_documents (
+    await (pglite as any).exec(`
+      CREATE TABLE "kb"."documents" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         title TEXT NOT NULL,
         source_type TEXT NOT NULL DEFAULT 'upload',
@@ -89,7 +95,7 @@ export async function createTestDb(options?: {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE TABLE kb_chunks (
+      CREATE TABLE "kb"."chunks" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         document_id TEXT NOT NULL,
         content TEXT NOT NULL,
@@ -101,7 +107,7 @@ export async function createTestDb(options?: {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE TABLE kb_sources (
+      CREATE TABLE "kb"."sources" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         name TEXT NOT NULL,
         type TEXT NOT NULL,
@@ -113,7 +119,7 @@ export async function createTestDb(options?: {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE TABLE kb_sync_logs (
+      CREATE TABLE "kb"."sync_logs" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         source_id TEXT NOT NULL,
         status TEXT NOT NULL,
@@ -126,8 +132,8 @@ export async function createTestDb(options?: {
   }
 
   if (options?.withMemory) {
-    await pglite.exec(`
-      CREATE TABLE msg_mem_cells (
+    await (pglite as any).exec(`
+      CREATE TABLE "ai"."mem_cells" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         thread_id TEXT NOT NULL,
         contact_id TEXT,
@@ -141,7 +147,7 @@ export async function createTestDb(options?: {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE TABLE msg_mem_episodes (
+      CREATE TABLE "ai"."mem_episodes" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         cell_id TEXT NOT NULL,
         contact_id TEXT,
@@ -153,7 +159,7 @@ export async function createTestDb(options?: {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE TABLE msg_mem_event_logs (
+      CREATE TABLE "ai"."mem_event_logs" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         cell_id TEXT NOT NULL,
         contact_id TEXT,
@@ -169,8 +175,8 @@ export async function createTestDb(options?: {
   }
 
   if (options?.withWorkflows) {
-    await pglite.exec(`
-      CREATE TABLE ai_workflow_runs (
+    await (pglite as any).exec(`
+      CREATE TABLE "ai"."workflow_runs" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         workflow_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
@@ -182,7 +188,7 @@ export async function createTestDb(options?: {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE TABLE ai_moderation_logs (
+      CREATE TABLE "ai"."moderation_logs" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         agent_id TEXT NOT NULL,
         channel TEXT NOT NULL,

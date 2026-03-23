@@ -48,7 +48,7 @@ describe('hybridSearch()', () => {
 
     // Documents
     await pglite.query(
-      'INSERT INTO kb_documents (id, title, source_type, mime_type, status, chunk_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      'INSERT INTO "kb"."documents" (id, title, source_type, mime_type, status, chunk_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
       [
         'doc-1',
         'TypeScript Guide',
@@ -61,7 +61,7 @@ describe('hybridSearch()', () => {
       ],
     );
     await pglite.query(
-      'INSERT INTO kb_documents (id, title, source_type, mime_type, status, chunk_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      'INSERT INTO "kb"."documents" (id, title, source_type, mime_type, status, chunk_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
       [
         'doc-2',
         'Python Handbook',
@@ -77,7 +77,7 @@ describe('hybridSearch()', () => {
     // Chunks with embeddings — search_vector (tsvector) is generated automatically
     // Vectors close to [0.9, 0.1, 0.5, 0.5] for chunk-1, farther for others
     await pglite.query(
-      'INSERT INTO kb_chunks (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
+      'INSERT INTO "kb"."chunks" (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
       [
         'chunk-1',
         'doc-1',
@@ -89,7 +89,7 @@ describe('hybridSearch()', () => {
       ],
     );
     await pglite.query(
-      'INSERT INTO kb_chunks (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
+      'INSERT INTO "kb"."chunks" (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
       [
         'chunk-2',
         'doc-1',
@@ -101,7 +101,7 @@ describe('hybridSearch()', () => {
       ],
     );
     await pglite.query(
-      'INSERT INTO kb_chunks (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
+      'INSERT INTO "kb"."chunks" (id, document_id, content, chunk_index, token_count, embedding, created_at) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)',
       [
         'chunk-3',
         'doc-2',
@@ -173,8 +173,8 @@ describe('hybridSearch()', () => {
     });
 
     it('returns empty array for no matches', async () => {
-      await pglite.query('DELETE FROM kb_chunks');
-      await pglite.query('DELETE FROM kb_documents');
+      await pglite.query('DELETE FROM "kb"."chunks"');
+      await pglite.query('DELETE FROM "kb"."documents"');
 
       const results = await hybridSearch(db, 'nothing');
       expect(results).toEqual([]);

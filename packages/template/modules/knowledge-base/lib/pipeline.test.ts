@@ -85,7 +85,7 @@ describe('processDocument()', () => {
     await processDocument(db, 'doc-4', 'Content for vector embedding.');
 
     const result = await pglite.query<{ id: string }>(
-      'SELECT id FROM kb_chunks WHERE embedding IS NOT NULL AND document_id = $1',
+      'SELECT id FROM "kb"."chunks" WHERE embedding IS NOT NULL AND document_id = $1',
       ['doc-4'],
     );
     expect(result.rows.length).toBeGreaterThan(0);
@@ -96,7 +96,7 @@ describe('processDocument()', () => {
     await processDocument(db, 'doc-5', 'Searchable full text content here.');
 
     const result = await pglite.query<{ id: string }>(
-      "SELECT id FROM kb_chunks WHERE search_vector @@ to_tsquery('english', 'searchable') AND document_id = $1",
+      "SELECT id FROM \"kb\".\"chunks\" WHERE search_vector @@ to_tsquery('english', 'searchable') AND document_id = $1",
       ['doc-5'],
     );
     expect(result.rows.length).toBeGreaterThan(0);
