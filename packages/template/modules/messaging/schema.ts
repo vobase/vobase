@@ -1,8 +1,11 @@
 import { nanoidPrimaryKey } from '@vobase/core/schema';
-import { index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { index, integer, pgSchema, text, timestamp } from 'drizzle-orm/pg-core';
 
-export const msgThreads = pgTable(
-  'msg_threads',
+export const messagingPgSchema = pgSchema('messaging');
+
+export const msgThreads = messagingPgSchema.table(
+  'threads',
   {
     id: nanoidPrimaryKey(),
     title: text('title'),
@@ -24,9 +27,10 @@ export const msgThreads = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('msg_threads_user_id_idx').on(table.userId),
-    index('msg_threads_agent_id_idx').on(table.agentId),
-    index('msg_threads_contact_id_idx').on(table.contactId),
+    index('threads_user_id_idx').on(table.userId),
+    index('threads_agent_id_idx').on(table.agentId),
+    index('threads_contact_id_idx').on(table.contactId),
+    index('threads_user_channel_idx').on(table.userId, table.channel),
   ],
 );
 
@@ -35,8 +39,8 @@ export const msgThreads = pgTable(
  * Conversation content lives in Mastra Memory; this table tracks the delivery
  * lifecycle (queued → sent → delivered → read → failed) for outbound channel messages.
  */
-export const msgOutbox = pgTable(
-  'msg_outbox',
+export const msgOutbox = messagingPgSchema.table(
+  'outbox',
   {
     id: nanoidPrimaryKey(),
     threadId: text('thread_id').notNull(),
@@ -54,13 +58,13 @@ export const msgOutbox = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('msg_outbox_thread_id_idx').on(table.threadId),
-    index('msg_outbox_external_id_idx').on(table.externalMessageId),
-    index('msg_outbox_status_idx').on(table.status),
+    index('outbox_thread_id_idx').on(table.threadId),
+    index('outbox_external_id_idx').on(table.externalMessageId),
+    index('outbox_queued_idx').on(table.status).where(sql`status = 'queued'`),
   ],
 );
 
-export const msgContacts = pgTable('msg_contacts', {
+export const msgContacts = messagingPgSchema.table('contacts', {
   id: nanoidPrimaryKey(),
   phone: text('phone').unique(),
   email: text('email').unique(),

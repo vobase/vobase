@@ -119,7 +119,6 @@ export const followUpResumeJob = defineJob(
         status: 'completed',
         outputData: JSON.stringify(output),
         suspendPayload: null,
-        updatedAt: new Date(),
       })
       .where(eq(aiWorkflowRuns.id, runId));
   },

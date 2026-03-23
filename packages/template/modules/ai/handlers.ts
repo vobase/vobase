@@ -677,7 +677,6 @@ aiRoutes.post('/workflows/escalation/:runId/resume', async (c) => {
       status: 'completed',
       outputData: JSON.stringify(output),
       suspendPayload: null,
-      updatedAt: new Date(),
     })
     .where(eq(aiWorkflowRuns.id, runId))
     .returning();

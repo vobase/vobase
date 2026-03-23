@@ -4,7 +4,7 @@ import {
   customType,
   index,
   integer,
-  pgTable,
+  pgSchema,
   text,
   timestamp,
   vector,
@@ -16,8 +16,10 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
-export const kbDocuments = pgTable(
-  'kb_documents',
+export const kbPgSchema = pgSchema('kb');
+
+export const kbDocuments = kbPgSchema.table(
+  'documents',
   {
     id: nanoidPrimaryKey(),
     title: text('title').notNull(),
@@ -37,13 +39,15 @@ export const kbDocuments = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('kb_documents_source_id_idx').on(table.sourceId),
-    index('kb_documents_status_idx').on(table.status),
+    index('documents_source_id_idx').on(table.sourceId),
+    index('documents_pending_idx')
+      .on(table.status)
+      .where(sql`status IN ('pending', 'processing')`),
   ],
 );
 
-export const kbChunks = pgTable(
-  'kb_chunks',
+export const kbChunks = kbPgSchema.table(
+  'chunks',
   {
     id: nanoidPrimaryKey(),
     documentId: text('document_id').notNull(), // FK to kbDocuments
@@ -59,10 +63,10 @@ export const kbChunks = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index('kb_chunks_document_id_idx').on(table.documentId)],
+  (table) => [index('chunks_document_id_idx').on(table.documentId)],
 );
 
-export const kbSources = pgTable('kb_sources', {
+export const kbSources = kbPgSchema.table('sources', {
   id: nanoidPrimaryKey(),
   name: text('name').notNull(),
   type: text('type').notNull(), // crawl | google-drive | sharepoint
@@ -79,8 +83,8 @@ export const kbSources = pgTable('kb_sources', {
     .$onUpdate(() => new Date()),
 });
 
-export const kbSyncLogs = pgTable(
-  'kb_sync_logs',
+export const kbSyncLogs = kbPgSchema.table(
+  'sync_logs',
   {
     id: nanoidPrimaryKey(),
     sourceId: text('source_id').notNull(),
@@ -92,5 +96,5 @@ export const kbSyncLogs = pgTable(
       .defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
   },
-  (table) => [index('kb_sync_logs_source_id_idx').on(table.sourceId)],
+  (table) => [index('sync_logs_source_id_idx').on(table.sourceId)],
 );

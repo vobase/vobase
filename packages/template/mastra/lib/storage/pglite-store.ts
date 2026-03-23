@@ -156,7 +156,7 @@ export class PGliteStore extends MastraCompositeStore {
   constructor(pglite: PGlite) {
     super({ id: 'pglite-store', name: 'PGliteStore' });
     const dbClient = createPGliteDbClient(pglite) as any;
-    const domainConfig = { client: dbClient };
+    const domainConfig = { client: dbClient, schemaName: 'mastra' };
 
     this.stores = {
       memory: new MemoryPG(domainConfig),
