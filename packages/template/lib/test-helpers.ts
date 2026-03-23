@@ -56,7 +56,7 @@ export async function createTestDb(options?: {
 
     CREATE TABLE "messaging"."outbox" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      thread_id TEXT NOT NULL,
+      thread_id TEXT NOT NULL REFERENCES "messaging"."threads" (id) ON DELETE CASCADE,
       content TEXT NOT NULL,
       channel TEXT NOT NULL DEFAULT 'web',
       external_message_id TEXT UNIQUE,
@@ -80,33 +80,8 @@ export async function createTestDb(options?: {
 
   if (options?.withVec) {
     // KB tables with 4-dim vectors matching test embedding mocks
+    // Order: sources first (referenced by documents and sync_logs)
     await (pglite as any).exec(`
-      CREATE TABLE "kb"."documents" (
-        id TEXT PRIMARY KEY DEFAULT nanoid(12),
-        title TEXT NOT NULL,
-        source_type TEXT NOT NULL DEFAULT 'upload',
-        source_id TEXT,
-        source_url TEXT,
-        mime_type TEXT NOT NULL DEFAULT 'text/plain',
-        status TEXT NOT NULL DEFAULT 'pending',
-        chunk_count INTEGER NOT NULL DEFAULT 0,
-        metadata TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-
-      CREATE TABLE "kb"."chunks" (
-        id TEXT PRIMARY KEY DEFAULT nanoid(12),
-        document_id TEXT NOT NULL,
-        content TEXT NOT NULL,
-        chunk_index INTEGER NOT NULL,
-        token_count INTEGER NOT NULL DEFAULT 0,
-        metadata TEXT,
-        embedding vector(4),
-        search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-
       CREATE TABLE "kb"."sources" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
         name TEXT NOT NULL,
@@ -119,9 +94,35 @@ export async function createTestDb(options?: {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE "kb"."documents" (
+        id TEXT PRIMARY KEY DEFAULT nanoid(12),
+        title TEXT NOT NULL,
+        source_type TEXT NOT NULL DEFAULT 'upload',
+        source_id TEXT REFERENCES "kb"."sources" (id) ON DELETE SET NULL,
+        source_url TEXT,
+        mime_type TEXT NOT NULL DEFAULT 'text/plain',
+        status TEXT NOT NULL DEFAULT 'pending',
+        chunk_count INTEGER NOT NULL DEFAULT 0,
+        metadata TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE "kb"."chunks" (
+        id TEXT PRIMARY KEY DEFAULT nanoid(12),
+        document_id TEXT NOT NULL REFERENCES "kb"."documents" (id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL,
+        token_count INTEGER NOT NULL DEFAULT 0,
+        metadata TEXT,
+        embedding vector(4),
+        search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
       CREATE TABLE "kb"."sync_logs" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
-        source_id TEXT NOT NULL,
+        source_id TEXT NOT NULL REFERENCES "kb"."sources" (id) ON DELETE CASCADE,
         status TEXT NOT NULL,
         documents_processed INTEGER NOT NULL DEFAULT 0,
         errors TEXT,
@@ -149,7 +150,7 @@ export async function createTestDb(options?: {
 
       CREATE TABLE "ai"."mem_episodes" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
-        cell_id TEXT NOT NULL,
+        cell_id TEXT NOT NULL REFERENCES "ai"."mem_cells" (id) ON DELETE CASCADE,
         contact_id TEXT,
         user_id TEXT,
         title TEXT NOT NULL,
@@ -161,7 +162,7 @@ export async function createTestDb(options?: {
 
       CREATE TABLE "ai"."mem_event_logs" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
-        cell_id TEXT NOT NULL,
+        cell_id TEXT NOT NULL REFERENCES "ai"."mem_cells" (id) ON DELETE CASCADE,
         contact_id TEXT,
         user_id TEXT,
         fact TEXT NOT NULL,

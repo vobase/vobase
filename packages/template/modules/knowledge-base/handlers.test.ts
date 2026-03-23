@@ -287,6 +287,10 @@ describe('Knowledge Base Routes', () => {
     });
 
     it('GET /sources/:id/logs returns sync logs', async () => {
+      await db.insert(kbSources).values([
+        { id: 'src-1', name: 'Source A', type: 'crawl' },
+        { id: 'src-2', name: 'Source B', type: 'crawl' },
+      ]);
       await db
         .insert(kbSyncLogs)
         .values({ id: 'log-a', sourceId: 'src-1', status: 'completed' });

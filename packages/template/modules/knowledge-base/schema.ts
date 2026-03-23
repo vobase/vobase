@@ -19,6 +19,34 @@ const tsvector = customType<{ data: string }>({
 
 export const kbPgSchema = pgSchema('kb');
 
+export const kbSources = kbPgSchema.table(
+  'sources',
+  {
+    id: nanoidPrimaryKey(),
+    name: text('name').notNull(),
+    type: text('type').notNull(), // crawl | google-drive | sharepoint
+    config: text('config'), // JSON - encrypted connector config
+    syncSchedule: text('sync_schedule'), // cron expression
+    lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+    status: text('status').notNull().default('idle'), // idle | syncing | error
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('sources_status_idx').on(table.status),
+    check(
+      'sources_type_check',
+      sql`type IN ('crawl', 'google-drive', 'sharepoint')`,
+    ),
+    check('sources_status_check', sql`status IN ('idle', 'syncing', 'error')`),
+  ],
+);
+
 export const kbDocuments = kbPgSchema.table(
   'documents',
   {
@@ -83,34 +111,6 @@ export const kbChunks = kbPgSchema.table(
       table.embedding.op('vector_cosine_ops'),
     ),
     index('chunks_search_vector_idx').using('gin', table.searchVector),
-  ],
-);
-
-export const kbSources = kbPgSchema.table(
-  'sources',
-  {
-    id: nanoidPrimaryKey(),
-    name: text('name').notNull(),
-    type: text('type').notNull(), // crawl | google-drive | sharepoint
-    config: text('config'), // JSON - encrypted connector config
-    syncSchedule: text('sync_schedule'), // cron expression
-    lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
-    status: text('status').notNull().default('idle'), // idle | syncing | error
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (table) => [
-    index('sources_status_idx').on(table.status),
-    check(
-      'sources_type_check',
-      sql`type IN ('crawl', 'google-drive', 'sharepoint')`,
-    ),
-    check('sources_status_check', sql`status IN ('idle', 'syncing', 'error')`),
   ],
 );
 

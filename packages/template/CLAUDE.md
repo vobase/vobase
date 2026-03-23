@@ -28,7 +28,8 @@ Name: lowercase alphanumeric + hyphens. Routes mount at `/api/{name}`.
 - Timestamps: `timestamp('col', { withTimezone: true }).defaultNow()`, UTC always
 - Status: TEXT with explicit transition logic, not arbitrary strings
 - IDs: `nanoidPrimaryKey()` (12 chars, lowercase alphanumeric)
-- Cross-module refs: plain text columns, no `.references()` across modules
+- Cross-module refs: plain text columns, no `.references()` across modules. Intra-module (same pgSchema) refs use `.references()` with appropriate `onDelete`
+- Status columns: TEXT with CHECK constraints enforcing valid values. Update both the CHECK constraint and application code when adding new status values
 
 ## Why Things Are This Way
 
@@ -81,7 +82,8 @@ Encrypted credential vault for external services. `ctx.integrations.getActive(pr
 Helpers: `nanoidPrimaryKey()`, `nextSequence(tx, prefix)`, `trackChanges(tx, table, id, old, new, userId)`, `createHttpClient(opts)`.
 Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `validation(details)`, `dbBusy()`.
 Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
-Auth schemas: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`.
+Auth tables: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`. Auth table map: `authTableMap` (object passed to better-auth's drizzle adapter — renamed from `authSchema`).
+PostgreSQL schemas: `authPgSchema`, `auditPgSchema`, `infraPgSchema` — pgSchema objects for core modules. Template modules define their own: `messagingPgSchema`, `aiPgSchema`, `kbPgSchema`. Mastra uses `schemaName: 'mastra'` via PGliteStore config.
 Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAuth callback (JWT verification, user upsert, account linking, session creation). Opt-in via `PLATFORM_HMAC_SECRET` env var.
 
 ### Config Shape
