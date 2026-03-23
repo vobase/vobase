@@ -65,7 +65,9 @@ export const aiMemEpisodes = aiPgSchema.table(
   'mem_episodes',
   {
     id: nanoidPrimaryKey(),
-    cellId: text('cell_id').notNull(),
+    cellId: text('cell_id')
+      .notNull()
+      .references(() => aiMemCells.id, { onDelete: 'cascade' }),
     contactId: text('contact_id'),
     userId: text('user_id'),
     title: text('title').notNull(),
@@ -102,7 +104,9 @@ export const aiMemEventLogs = aiPgSchema.table(
   'mem_event_logs',
   {
     id: nanoidPrimaryKey(),
-    cellId: text('cell_id').notNull(),
+    cellId: text('cell_id')
+      .notNull()
+      .references(() => aiMemCells.id, { onDelete: 'cascade' }),
     contactId: text('contact_id'),
     userId: text('user_id'),
     fact: text('fact').notNull(),
@@ -137,18 +141,29 @@ export const aiMemEventLogs = aiPgSchema.table(
  * EvalRuns — tracks async eval scoring jobs.
  * Each run scores a set of input/output/context items using LLM judges.
  */
-export const aiEvalRuns = aiPgSchema.table('eval_runs', {
-  id: nanoidPrimaryKey(),
-  agentId: text('agent_id').notNull(),
-  status: text('status').notNull().default('pending'), // pending | running | complete | error
-  results: text('results'), // JSON stringified EvalRunResult
-  errorMessage: text('error_message'),
-  itemCount: integer('item_count').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  completedAt: timestamp('completed_at', { withTimezone: true }),
-});
+export const aiEvalRuns = aiPgSchema.table(
+  'eval_runs',
+  {
+    id: nanoidPrimaryKey(),
+    agentId: text('agent_id').notNull(),
+    status: text('status').notNull().default('pending'), // pending | running | complete | error
+    results: text('results'), // JSON stringified EvalRunResult
+    errorMessage: text('error_message'),
+    itemCount: integer('item_count').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('eval_runs_agent_id_idx').on(table.agentId),
+    index('eval_runs_status_idx').on(table.status),
+    check(
+      'eval_runs_status_check',
+      sql`status IN ('pending', 'running', 'complete', 'error')`,
+    ),
+  ],
+);
 
 /**
  * WorkflowRuns — tracks Mastra workflow lifecycle externally.
@@ -178,6 +193,13 @@ export const aiWorkflowRuns = aiPgSchema.table(
       table.userId,
       table.workflowId,
       table.createdAt,
+    ),
+    index('workflow_runs_suspended_idx')
+      .on(table.status)
+      .where(sql`status = 'suspended'`),
+    check(
+      'workflow_runs_status_check',
+      sql`status IN ('running', 'suspended', 'completed', 'failed')`,
     ),
   ],
 );

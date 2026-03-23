@@ -1,6 +1,13 @@
 import { nanoidPrimaryKey } from '@vobase/core/schema';
 import { sql } from 'drizzle-orm';
-import { index, integer, pgSchema, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  check,
+  index,
+  integer,
+  pgSchema,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 
 export const messagingPgSchema = pgSchema('messaging');
 
@@ -31,6 +38,8 @@ export const msgThreads = messagingPgSchema.table(
     index('threads_agent_id_idx').on(table.agentId),
     index('threads_contact_id_idx').on(table.contactId),
     index('threads_user_channel_idx').on(table.userId, table.channel),
+    index('threads_status_idx').on(table.status),
+    check('threads_status_check', sql`status IN ('ai', 'human', 'closed')`),
   ],
 );
 
@@ -43,7 +52,9 @@ export const msgOutbox = messagingPgSchema.table(
   'outbox',
   {
     id: nanoidPrimaryKey(),
-    threadId: text('thread_id').notNull(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => msgThreads.id, { onDelete: 'cascade' }),
     content: text('content').notNull(),
     channel: text('channel').notNull().default('web'),
     externalMessageId: text('external_message_id').unique(),
@@ -61,6 +72,10 @@ export const msgOutbox = messagingPgSchema.table(
     index('outbox_thread_id_idx').on(table.threadId),
     index('outbox_external_id_idx').on(table.externalMessageId),
     index('outbox_queued_idx').on(table.status).where(sql`status = 'queued'`),
+    check(
+      'outbox_status_check',
+      sql`status IN ('queued', 'sent', 'delivered', 'read', 'failed')`,
+    ),
   ],
 );
 
