@@ -22,7 +22,7 @@ function computeSignature(payload: string, secret: string): string {
 async function createTestDb(): Promise<VobaseDb> {
   const pglite = await createTestPGlite();
   await pglite.exec(`
-    CREATE TABLE _webhook_dedup (
+    CREATE TABLE "infra"."webhook_dedup" (
       id TEXT NOT NULL,
       source TEXT NOT NULL,
       received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

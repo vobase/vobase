@@ -9,7 +9,7 @@ import { createApp } from '../app';
 
 const tempDir = `/tmp/vobase-e2e-${process.pid}-${Date.now()}`;
 const nanoidSql = readFileSync(
-  join(import.meta.dir, '../../../template/db/extensions/nanoid.sql'),
+  join(import.meta.dir, '../../../template/db/extensions/03_nanoid.sql'),
   'utf-8',
 );
 
@@ -35,8 +35,12 @@ async function bootstrapDatabase(dir: string): Promise<void> {
   await run('CREATE EXTENSION IF NOT EXISTS vector');
   await run(nanoidSql);
 
+  await run('CREATE SCHEMA IF NOT EXISTS "auth"');
+  await run('CREATE SCHEMA IF NOT EXISTS "audit"');
+  await run('CREATE SCHEMA IF NOT EXISTS "infra"');
+
   await run(`
-    CREATE TABLE IF NOT EXISTS "user" (
+    CREATE TABLE IF NOT EXISTS "auth"."user" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "name" TEXT NOT NULL,
       "email" TEXT NOT NULL UNIQUE,
@@ -46,7 +50,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "session" (
+    CREATE TABLE IF NOT EXISTS "auth"."session" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "expires_at" TIMESTAMPTZ NOT NULL,
       "token" TEXT NOT NULL UNIQUE,
@@ -54,13 +58,13 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "ip_address" TEXT,
       "user_agent" TEXT,
-      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
+      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE
     );
-    CREATE TABLE IF NOT EXISTS "account" (
+    CREATE TABLE IF NOT EXISTS "auth"."account" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "account_id" TEXT NOT NULL,
       "provider_id" TEXT NOT NULL,
-      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE,
       "access_token" TEXT,
       "refresh_token" TEXT,
       "id_token" TEXT,
@@ -71,7 +75,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "verification" (
+    CREATE TABLE IF NOT EXISTS "auth"."verification" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "identifier" TEXT NOT NULL,
       "value" TEXT NOT NULL,
@@ -79,13 +83,13 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "apikey" (
+    CREATE TABLE IF NOT EXISTS "auth"."apikey" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "name" TEXT,
       "start" TEXT,
       "prefix" TEXT,
       "key" TEXT NOT NULL,
-      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE,
       "refill_interval" TEXT,
       "refill_amount" INTEGER,
       "last_refill_at" TIMESTAMPTZ,
@@ -102,7 +106,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "permissions" TEXT,
       "metadata" TEXT
     );
-    CREATE TABLE IF NOT EXISTS "_audit_log" (
+    CREATE TABLE IF NOT EXISTS "audit"."audit_log" (
       "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
       "event" TEXT NOT NULL,
       "actor_id" TEXT,
@@ -111,7 +115,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "details" TEXT,
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "_record_audits" (
+    CREATE TABLE IF NOT EXISTS "audit"."record_audits" (
       "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
       "table_name" TEXT NOT NULL,
       "record_id" TEXT NOT NULL,
@@ -120,19 +124,19 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "changed_by" TEXT,
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "_sequences" (
+    CREATE TABLE IF NOT EXISTS "infra"."sequences" (
       "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
       "prefix" TEXT NOT NULL UNIQUE,
       "current_value" INTEGER NOT NULL DEFAULT 0,
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "_webhook_dedup" (
+    CREATE TABLE IF NOT EXISTS "infra"."webhook_dedup" (
       "id" TEXT NOT NULL,
       "source" TEXT NOT NULL,
       "received_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY ("id", "source")
     );
-    CREATE TABLE IF NOT EXISTS "_integrations" (
+    CREATE TABLE IF NOT EXISTS "infra"."integrations" (
       "id" TEXT PRIMARY KEY DEFAULT nanoid(12),
       "provider" TEXT NOT NULL,
       "auth_type" TEXT NOT NULL,

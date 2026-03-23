@@ -65,7 +65,7 @@ describe('Drizzle table introspection', () => {
 
   it('extracts SQL table name', () => {
     const name = getTableName(auditLog);
-    expect(name).toBe('_audit_log');
+    expect(name).toBe('audit_log');
   });
 
   it('works on auth user table with all field types', () => {

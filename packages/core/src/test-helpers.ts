@@ -11,6 +11,10 @@ async function getGoldenDump(): Promise<Blob> {
   if (!goldenDump) {
     const seed = new PGlite();
     await seed.waitReady;
+    // Pre-create schemas used by core modules so drizzle-kit push / raw DDL works
+    await seed.query('CREATE SCHEMA IF NOT EXISTS "auth"');
+    await seed.query('CREATE SCHEMA IF NOT EXISTS "audit"');
+    await seed.query('CREATE SCHEMA IF NOT EXISTS "infra"');
     goldenDump = await seed.dumpDataDir('none');
     await seed.close();
   }

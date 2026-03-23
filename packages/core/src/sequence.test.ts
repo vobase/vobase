@@ -15,7 +15,7 @@ describe('nextSequence()', () => {
   beforeEach(async () => {
     pglite = await createTestPGlite();
     await pglite.exec(`
-      CREATE TABLE _sequences (
+      CREATE TABLE "infra"."sequences" (
         id TEXT PRIMARY KEY NOT NULL,
         prefix TEXT NOT NULL UNIQUE,
         current_value INTEGER NOT NULL DEFAULT 0,

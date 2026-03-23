@@ -25,7 +25,7 @@ describe('audit middleware and hooks', () => {
   beforeEach(async () => {
     pglite = await createTestPGlite();
     await pglite.query(`
-      CREATE TABLE _audit_log (
+      CREATE TABLE "audit"."audit_log" (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
         event TEXT NOT NULL,
         actor_id TEXT,
@@ -50,7 +50,7 @@ describe('audit middleware and hooks', () => {
         actor_email AS "actorEmail",
         ip,
         details
-      FROM _audit_log
+      FROM "audit"."audit_log"
       ORDER BY created_at ASC
     `);
     return result.rows;

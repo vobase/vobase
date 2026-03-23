@@ -24,7 +24,7 @@ const testBasePath = '/tmp/vobase-test-storage-v2';
 async function createTestDb(): Promise<{ db: VobaseDb; pglite: PGlite }> {
   const pglite = await createTestPGlite();
   await pglite.query(`
-    CREATE TABLE _storage_objects (
+    CREATE TABLE "infra"."storage_objects" (
       id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
       bucket TEXT NOT NULL,
       key TEXT NOT NULL,
@@ -36,7 +36,7 @@ async function createTestDb(): Promise<{ db: VobaseDb; pglite: PGlite }> {
     )
   `);
   await pglite.query(
-    'CREATE UNIQUE INDEX storage_objects_bucket_key_idx ON _storage_objects(bucket, key)',
+    'CREATE UNIQUE INDEX storage_objects_bucket_key_idx ON "infra"."storage_objects"(bucket, key)',
   );
   const db = drizzle({
     client: pglite,

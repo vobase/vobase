@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { SignJWT } from 'jose';
 
 import { platformAuth } from './platform-plugin';
-import { apikeySchema, authSchema } from './schema';
+import { apikeyTableMap, authTableMap } from './schema';
 
 // ---------------------------------------------------------------------------
 // Shared constants
@@ -64,7 +64,7 @@ async function createTestJWT(opts: JwtOptions = {}): Promise<string> {
 async function createTestDatabase() {
   const pg = await createTestPGlite();
   await pg.exec(`
-    CREATE TABLE IF NOT EXISTS "user" (
+    CREATE TABLE IF NOT EXISTS "auth"."user" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "name" TEXT NOT NULL,
       "email" TEXT NOT NULL UNIQUE,
@@ -74,7 +74,7 @@ async function createTestDatabase() {
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "session" (
+    CREATE TABLE IF NOT EXISTS "auth"."session" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "expires_at" TIMESTAMPTZ NOT NULL,
       "token" TEXT NOT NULL UNIQUE,
@@ -82,13 +82,13 @@ async function createTestDatabase() {
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "ip_address" TEXT,
       "user_agent" TEXT,
-      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
+      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE
     );
-    CREATE TABLE IF NOT EXISTS "account" (
+    CREATE TABLE IF NOT EXISTS "auth"."account" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "account_id" TEXT NOT NULL,
       "provider_id" TEXT NOT NULL,
-      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE,
       "access_token" TEXT,
       "refresh_token" TEXT,
       "id_token" TEXT,
@@ -99,7 +99,7 @@ async function createTestDatabase() {
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "verification" (
+    CREATE TABLE IF NOT EXISTS "auth"."verification" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "identifier" TEXT NOT NULL,
       "value" TEXT NOT NULL,
@@ -107,13 +107,13 @@ async function createTestDatabase() {
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
-    CREATE TABLE IF NOT EXISTS "apikey" (
+    CREATE TABLE IF NOT EXISTS "auth"."apikey" (
       "id" TEXT PRIMARY KEY NOT NULL,
       "name" TEXT,
       "start" TEXT,
       "prefix" TEXT,
       "key" TEXT NOT NULL,
-      "user_id" TEXT NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE,
       "refill_interval" TEXT,
       "refill_amount" INTEGER,
       "last_refill_at" TIMESTAMPTZ,
@@ -142,7 +142,7 @@ function createTestAuth(db: ReturnType<typeof drizzle>) {
     baseURL: BASE_URL,
     database: drizzleAdapter(db, {
       provider: 'pg',
-      schema: { ...authSchema, ...apikeySchema },
+      schema: { ...authTableMap, ...apikeyTableMap },
     }),
     emailAndPassword: { enabled: true },
     user: {
@@ -179,7 +179,7 @@ async function hitCallback(
 // ---------------------------------------------------------------------------
 async function queryUsers(pg: PGlite) {
   const result = await pg.query<{ id: string; email: string; name: string }>(
-    'SELECT id, email, name FROM "user" ORDER BY created_at',
+    'SELECT id, email, name FROM "auth"."user" ORDER BY created_at',
   );
   return result.rows;
 }
@@ -190,7 +190,7 @@ async function queryAccounts(pg: PGlite) {
     provider_id: string;
     account_id: string;
   }>(
-    'SELECT user_id, provider_id, account_id FROM "account" ORDER BY created_at',
+    'SELECT user_id, provider_id, account_id FROM "auth"."account" ORDER BY created_at',
   );
   return result.rows;
 }

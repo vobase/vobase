@@ -23,7 +23,7 @@ describe('trackChanges()', () => {
   beforeEach(async () => {
     pglite = await createTestPGlite();
     await pglite.query(`
-      CREATE TABLE _record_audits (
+      CREATE TABLE "audit"."record_audits" (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
         table_name TEXT NOT NULL,
         record_id TEXT NOT NULL,
@@ -48,7 +48,7 @@ describe('trackChanges()', () => {
         old_data AS "oldData",
         new_data AS "newData",
         changed_by AS "changedBy"
-      FROM _record_audits
+      FROM "audit"."record_audits"
       ORDER BY created_at ASC
     `);
     return result.rows;
