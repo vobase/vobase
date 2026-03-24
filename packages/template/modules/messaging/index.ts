@@ -3,13 +3,16 @@ import { defineModule } from '@vobase/core';
 
 import { messagingRoutes } from './handlers';
 import {
-  archiveThreadsJob,
+  archiveConversationsJob,
+  autoResolveJob,
   channelReplyJob,
   purgeMessagesJob,
   recoverStuckJob,
   resumeAiJob,
   sendMessageJob,
   setModuleDeps,
+  suggestLabelsJob,
+  wakeSnoozedJob,
 } from './jobs';
 import {
   handleInboundMessage,
@@ -25,9 +28,12 @@ export const messagingModule = defineModule({
     sendMessageJob,
     channelReplyJob,
     resumeAiJob,
-    archiveThreadsJob,
+    archiveConversationsJob,
     purgeMessagesJob,
     recoverStuckJob,
+    autoResolveJob,
+    suggestLabelsJob,
+    wakeSnoozedJob,
   ],
 
   init(ctx) {
@@ -42,6 +48,20 @@ export const messagingModule = defineModule({
     }
 
     setModuleDeps(ctx.db, ctx.channels, ctx.scheduler, ctx.storage);
+
+    // Schedule recurring jobs
+    if (ctx.scheduler) {
+      ctx.scheduler.add(
+        'messaging:auto-resolve',
+        {},
+        { singletonKey: 'messaging:auto-resolve' },
+      );
+      ctx.scheduler.add(
+        'messaging:wake-snoozed',
+        {},
+        { singletonKey: 'messaging:wake-snoozed' },
+      );
+    }
 
     if (hasChannels) {
       const deps = {

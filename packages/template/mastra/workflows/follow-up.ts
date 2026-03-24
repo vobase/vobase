@@ -4,7 +4,7 @@ import { z } from 'zod';
 /**
  * Follow-up workflow — automated delayed follow-up message.
  *
- * Step 1: analyzeConversation — summarize thread, identify follow-up needs
+ * Step 1: analyzeConversation — summarize conversation, identify follow-up needs
  * Step 2: scheduleFollowUp — suspend workflow; a delayed job resumes it
  * Step 3: sendFollowUp — compose and queue the follow-up message
  *
@@ -14,7 +14,7 @@ import { z } from 'zod';
  */
 
 const followUpInputSchema = z.object({
-  threadId: z.string(),
+  conversationId: z.string(),
   delayMinutes: z.number(),
 });
 
@@ -31,15 +31,15 @@ export const analyzeConversationStep = createStep({
   id: 'analyze-conversation',
   inputSchema: followUpInputSchema,
   outputSchema: z.object({
-    threadId: z.string(),
+    conversationId: z.string(),
     delayMinutes: z.number(),
     summary: z.string(),
   }),
   execute: async ({ inputData }) => {
     return {
-      threadId: inputData.threadId,
+      conversationId: inputData.conversationId,
       delayMinutes: inputData.delayMinutes,
-      summary: `Follow-up scheduled for thread ${inputData.threadId} in ${inputData.delayMinutes} minutes.`,
+      summary: `Follow-up scheduled for conversation ${inputData.conversationId} in ${inputData.delayMinutes} minutes.`,
     };
   },
 });
@@ -48,16 +48,16 @@ export const analyzeConversationStep = createStep({
 export const scheduleFollowUpStep = createStep({
   id: 'schedule-follow-up',
   inputSchema: z.object({
-    threadId: z.string(),
+    conversationId: z.string(),
     delayMinutes: z.number(),
     summary: z.string(),
   }),
   outputSchema: z.object({
-    threadId: z.string(),
+    conversationId: z.string(),
     ready: z.boolean(),
   }),
   suspendSchema: z.object({
-    threadId: z.string(),
+    conversationId: z.string(),
     delayMinutes: z.number(),
     scheduledAt: z.string(),
   }),
@@ -66,18 +66,21 @@ export const scheduleFollowUpStep = createStep({
   }),
   execute: async ({ inputData, suspend, resumeData }) => {
     if (resumeData) {
-      return { threadId: inputData.threadId, ready: resumeData.ready };
+      return {
+        conversationId: inputData.conversationId,
+        ready: resumeData.ready,
+      };
     }
 
     await suspend({
-      threadId: inputData.threadId,
+      conversationId: inputData.conversationId,
       delayMinutes: inputData.delayMinutes,
       scheduledAt: new Date(
         Date.now() + inputData.delayMinutes * 60_000,
       ).toISOString(),
     });
 
-    return { threadId: inputData.threadId, ready: false };
+    return { conversationId: inputData.conversationId, ready: false };
   },
 });
 
@@ -85,7 +88,7 @@ export const scheduleFollowUpStep = createStep({
 export const sendFollowUpStep = createStep({
   id: 'send-follow-up',
   inputSchema: z.object({
-    threadId: z.string(),
+    conversationId: z.string(),
     ready: z.boolean(),
   }),
   outputSchema: followUpOutputSchema,
@@ -99,7 +102,7 @@ export const sendFollowUpStep = createStep({
     // mark it as sent with a placeholder message.
     return {
       sent: true,
-      message: `Follow-up sent for thread ${inputData.threadId}.`,
+      message: `Follow-up sent for conversation ${inputData.conversationId}.`,
     };
   },
 });
@@ -118,7 +121,7 @@ export const followUpMeta = {
     {
       id: 'analyze-conversation',
       name: 'Analyze Conversation',
-      description: 'Summarizes thread and identifies follow-up needs',
+      description: 'Summarizes conversation and identifies follow-up needs',
       type: 'action' as const,
     },
     {

@@ -7,7 +7,7 @@ function MessagingLayout() {
 export const Route = createFileRoute('/_app/messaging')({
   beforeLoad: ({ location }) => {
     if (location.pathname === '/messaging') {
-      throw redirect({ to: '/messaging/threads' });
+      throw redirect({ to: '/messaging/conversations' });
     }
   },
   component: MessagingLayout,

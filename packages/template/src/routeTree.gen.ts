@@ -26,7 +26,8 @@ import { Route as shellSettingsOrganizationRouteImport } from './shell/settings/
 import { Route as shellSettingsIntegrationsRouteImport } from './shell/settings/integrations'
 import { Route as shellSettingsAppearanceRouteImport } from './shell/settings/appearance'
 import { Route as shellSettingsApiKeysRouteImport } from './shell/settings/api-keys'
-import { Route as ThreadsRouteImport } from './../modules/messaging/pages/threads'
+import { Route as SettingsRouteImport } from './../modules/messaging/pages/settings'
+import { Route as ConversationsRouteImport } from './../modules/messaging/pages/conversations'
 import { Route as ContactsRouteImport } from './../modules/messaging/pages/contacts'
 import { Route as SourcesRouteImport } from './../modules/knowledge-base/pages/sources'
 import { Route as SearchRouteImport } from './../modules/knowledge-base/pages/search'
@@ -36,8 +37,10 @@ import { Route as MemoryRouteImport } from './../modules/ai/pages/memory'
 import { Route as GuardrailsRouteImport } from './../modules/ai/pages/guardrails'
 import { Route as EvalsRouteImport } from './../modules/ai/pages/evals'
 import { Route as AgentsRouteImport } from './../modules/ai/pages/agents'
-import { Route as ThreadsDotindexRouteImport } from './../modules/messaging/pages/threads.index'
-import { Route as ThreadsDotthreadIdRouteImport } from './../modules/messaging/pages/threads.$threadId'
+import { Route as ConversationsDotindexRouteImport } from './../modules/messaging/pages/conversations.index'
+import { Route as SettingsDotteamsRouteImport } from './../modules/messaging/pages/settings.teams'
+import { Route as SettingsDotinboxesRouteImport } from './../modules/messaging/pages/settings.inboxes'
+import { Route as ConversationsDotconversationIdRouteImport } from './../modules/messaging/pages/conversations.$conversationId'
 
 const shellAuthLayoutRoute = shellAuthLayoutRouteImport.update({
   id: '/_auth',
@@ -128,9 +131,14 @@ const shellSettingsApiKeysRoute = shellSettingsApiKeysRouteImport.update({
   path: '/api-keys',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const ThreadsRoute = ThreadsRouteImport.update({
-  id: '/threads',
-  path: '/threads',
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+} as any)
+const ConversationsRoute = ConversationsRouteImport.update({
+  id: '/conversations',
+  path: '/conversations',
   getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
 const ContactsRoute = ContactsRouteImport.update({
@@ -178,16 +186,27 @@ const AgentsRoute = AgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => DotDotModulesAiPagesLayoutRoute,
 } as any)
-const ThreadsDotindexRoute = ThreadsDotindexRouteImport.update({
+const ConversationsDotindexRoute = ConversationsDotindexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ThreadsRoute,
+  getParentRoute: () => ConversationsRoute,
 } as any)
-const ThreadsDotthreadIdRoute = ThreadsDotthreadIdRouteImport.update({
-  id: '/$threadId',
-  path: '/$threadId',
-  getParentRoute: () => ThreadsRoute,
+const SettingsDotteamsRoute = SettingsDotteamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsDotinboxesRoute = SettingsDotinboxesRouteImport.update({
+  id: '/inboxes',
+  path: '/inboxes',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const ConversationsDotconversationIdRoute =
+  ConversationsDotconversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => ConversationsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof homeRoute
@@ -207,7 +226,8 @@ export interface FileRoutesByFullPath {
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
   '/messaging/contacts': typeof ContactsRoute
-  '/messaging/threads': typeof ThreadsRouteWithChildren
+  '/messaging/conversations': typeof ConversationsRouteWithChildren
+  '/messaging/settings': typeof SettingsRouteWithChildren
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/settings/appearance': typeof shellSettingsAppearanceRoute
   '/settings/integrations': typeof shellSettingsIntegrationsRoute
@@ -215,8 +235,10 @@ export interface FileRoutesByFullPath {
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
-  '/messaging/threads/$threadId': typeof ThreadsDotthreadIdRoute
-  '/messaging/threads/': typeof ThreadsDotindexRoute
+  '/messaging/conversations/$conversationId': typeof ConversationsDotconversationIdRoute
+  '/messaging/settings/inboxes': typeof SettingsDotinboxesRoute
+  '/messaging/settings/teams': typeof SettingsDotteamsRoute
+  '/messaging/conversations/': typeof ConversationsDotindexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof homeRoute
@@ -236,6 +258,7 @@ export interface FileRoutesByTo {
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
   '/messaging/contacts': typeof ContactsRoute
+  '/messaging/settings': typeof SettingsRouteWithChildren
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/settings/appearance': typeof shellSettingsAppearanceRoute
   '/settings/integrations': typeof shellSettingsIntegrationsRoute
@@ -243,8 +266,10 @@ export interface FileRoutesByTo {
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
-  '/messaging/threads/$threadId': typeof ThreadsDotthreadIdRoute
-  '/messaging/threads': typeof ThreadsDotindexRoute
+  '/messaging/conversations/$conversationId': typeof ConversationsDotconversationIdRoute
+  '/messaging/settings/inboxes': typeof SettingsDotinboxesRoute
+  '/messaging/settings/teams': typeof SettingsDotteamsRoute
+  '/messaging/conversations': typeof ConversationsDotindexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -267,7 +292,8 @@ export interface FileRoutesById {
   '/_app/knowledge-base/search': typeof SearchRoute
   '/_app/knowledge-base/sources': typeof SourcesRoute
   '/_app/messaging/contacts': typeof ContactsRoute
-  '/_app/messaging/threads': typeof ThreadsRouteWithChildren
+  '/_app/messaging/conversations': typeof ConversationsRouteWithChildren
+  '/_app/messaging/settings': typeof SettingsRouteWithChildren
   '/_app/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/_app/settings/appearance': typeof shellSettingsAppearanceRoute
   '/_app/settings/integrations': typeof shellSettingsIntegrationsRoute
@@ -275,8 +301,10 @@ export interface FileRoutesById {
   '/_app/settings/profile': typeof shellSettingsProfileRoute
   '/_app/system/list': typeof ListRoute
   '/_app/system/logs': typeof LogsRoute
-  '/_app/messaging/threads/$threadId': typeof ThreadsDotthreadIdRoute
-  '/_app/messaging/threads/': typeof ThreadsDotindexRoute
+  '/_app/messaging/conversations/$conversationId': typeof ConversationsDotconversationIdRoute
+  '/_app/messaging/settings/inboxes': typeof SettingsDotinboxesRoute
+  '/_app/messaging/settings/teams': typeof SettingsDotteamsRoute
+  '/_app/messaging/conversations/': typeof ConversationsDotindexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -298,7 +326,8 @@ export interface FileRouteTypes {
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
     | '/messaging/contacts'
-    | '/messaging/threads'
+    | '/messaging/conversations'
+    | '/messaging/settings'
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/integrations'
@@ -306,8 +335,10 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
-    | '/messaging/threads/$threadId'
-    | '/messaging/threads/'
+    | '/messaging/conversations/$conversationId'
+    | '/messaging/settings/inboxes'
+    | '/messaging/settings/teams'
+    | '/messaging/conversations/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -327,6 +358,7 @@ export interface FileRouteTypes {
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
     | '/messaging/contacts'
+    | '/messaging/settings'
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/integrations'
@@ -334,8 +366,10 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
-    | '/messaging/threads/$threadId'
-    | '/messaging/threads'
+    | '/messaging/conversations/$conversationId'
+    | '/messaging/settings/inboxes'
+    | '/messaging/settings/teams'
+    | '/messaging/conversations'
   id:
     | '__root__'
     | '/_app'
@@ -357,7 +391,8 @@ export interface FileRouteTypes {
     | '/_app/knowledge-base/search'
     | '/_app/knowledge-base/sources'
     | '/_app/messaging/contacts'
-    | '/_app/messaging/threads'
+    | '/_app/messaging/conversations'
+    | '/_app/messaging/settings'
     | '/_app/settings/api-keys'
     | '/_app/settings/appearance'
     | '/_app/settings/integrations'
@@ -365,8 +400,10 @@ export interface FileRouteTypes {
     | '/_app/settings/profile'
     | '/_app/system/list'
     | '/_app/system/logs'
-    | '/_app/messaging/threads/$threadId'
-    | '/_app/messaging/threads/'
+    | '/_app/messaging/conversations/$conversationId'
+    | '/_app/messaging/settings/inboxes'
+    | '/_app/messaging/settings/teams'
+    | '/_app/messaging/conversations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -495,11 +532,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof shellSettingsApiKeysRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
-    '/_app/messaging/threads': {
-      id: '/_app/messaging/threads'
-      path: '/threads'
-      fullPath: '/messaging/threads'
-      preLoaderRoute: typeof ThreadsRouteImport
+    '/_app/messaging/settings': {
+      id: '/_app/messaging/settings'
+      path: '/settings'
+      fullPath: '/messaging/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
+    '/_app/messaging/conversations': {
+      id: '/_app/messaging/conversations'
+      path: '/conversations'
+      fullPath: '/messaging/conversations'
+      preLoaderRoute: typeof ConversationsRouteImport
       parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
     '/_app/messaging/contacts': {
@@ -565,19 +609,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsRouteImport
       parentRoute: typeof DotDotModulesAiPagesLayoutRoute
     }
-    '/_app/messaging/threads/': {
-      id: '/_app/messaging/threads/'
+    '/_app/messaging/conversations/': {
+      id: '/_app/messaging/conversations/'
       path: '/'
-      fullPath: '/messaging/threads/'
-      preLoaderRoute: typeof ThreadsDotindexRouteImport
-      parentRoute: typeof ThreadsRoute
+      fullPath: '/messaging/conversations/'
+      preLoaderRoute: typeof ConversationsDotindexRouteImport
+      parentRoute: typeof ConversationsRoute
     }
-    '/_app/messaging/threads/$threadId': {
-      id: '/_app/messaging/threads/$threadId'
-      path: '/$threadId'
-      fullPath: '/messaging/threads/$threadId'
-      preLoaderRoute: typeof ThreadsDotthreadIdRouteImport
-      parentRoute: typeof ThreadsRoute
+    '/_app/messaging/settings/teams': {
+      id: '/_app/messaging/settings/teams'
+      path: '/teams'
+      fullPath: '/messaging/settings/teams'
+      preLoaderRoute: typeof SettingsDotteamsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/_app/messaging/settings/inboxes': {
+      id: '/_app/messaging/settings/inboxes'
+      path: '/inboxes'
+      fullPath: '/messaging/settings/inboxes'
+      preLoaderRoute: typeof SettingsDotinboxesRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/_app/messaging/conversations/$conversationId': {
+      id: '/_app/messaging/conversations/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/messaging/conversations/$conversationId'
+      preLoaderRoute: typeof ConversationsDotconversationIdRouteImport
+      parentRoute: typeof ConversationsRoute
     }
   }
 }
@@ -622,28 +680,45 @@ const DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren =
     DotDotModulesKnowledgeBasePagesLayoutRouteChildren,
   )
 
-interface ThreadsRouteChildren {
-  ThreadsDotthreadIdRoute: typeof ThreadsDotthreadIdRoute
-  ThreadsDotindexRoute: typeof ThreadsDotindexRoute
+interface ConversationsRouteChildren {
+  ConversationsDotconversationIdRoute: typeof ConversationsDotconversationIdRoute
+  ConversationsDotindexRoute: typeof ConversationsDotindexRoute
 }
 
-const ThreadsRouteChildren: ThreadsRouteChildren = {
-  ThreadsDotthreadIdRoute: ThreadsDotthreadIdRoute,
-  ThreadsDotindexRoute: ThreadsDotindexRoute,
+const ConversationsRouteChildren: ConversationsRouteChildren = {
+  ConversationsDotconversationIdRoute: ConversationsDotconversationIdRoute,
+  ConversationsDotindexRoute: ConversationsDotindexRoute,
 }
 
-const ThreadsRouteWithChildren =
-  ThreadsRoute._addFileChildren(ThreadsRouteChildren)
+const ConversationsRouteWithChildren = ConversationsRoute._addFileChildren(
+  ConversationsRouteChildren,
+)
+
+interface SettingsRouteChildren {
+  SettingsDotinboxesRoute: typeof SettingsDotinboxesRoute
+  SettingsDotteamsRoute: typeof SettingsDotteamsRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsDotinboxesRoute: SettingsDotinboxesRoute,
+  SettingsDotteamsRoute: SettingsDotteamsRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
 
 interface DotDotModulesMessagingPagesLayoutRouteChildren {
   ContactsRoute: typeof ContactsRoute
-  ThreadsRoute: typeof ThreadsRouteWithChildren
+  ConversationsRoute: typeof ConversationsRouteWithChildren
+  SettingsRoute: typeof SettingsRouteWithChildren
 }
 
 const DotDotModulesMessagingPagesLayoutRouteChildren: DotDotModulesMessagingPagesLayoutRouteChildren =
   {
     ContactsRoute: ContactsRoute,
-    ThreadsRoute: ThreadsRouteWithChildren,
+    ConversationsRoute: ConversationsRouteWithChildren,
+    SettingsRoute: SettingsRouteWithChildren,
   }
 
 const DotDotModulesMessagingPagesLayoutRouteWithChildren =

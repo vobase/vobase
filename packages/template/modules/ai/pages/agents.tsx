@@ -46,19 +46,19 @@ async function fetchAgents(): Promise<Agent[]> {
   return res.json();
 }
 
-async function fetchThreads(): Promise<Thread[]> {
-  const res = await fetch('/api/messaging/threads');
-  if (!res.ok) throw new Error('Failed to fetch threads');
+async function fetchConversations(): Promise<Thread[]> {
+  const res = await fetch('/api/messaging/conversations');
+  if (!res.ok) throw new Error('Failed to fetch conversations');
   return res.json();
 }
 
-async function createThread(agentId: string): Promise<Thread> {
-  const res = await fetch('/api/messaging/threads', {
+async function createConversation(agentId: string): Promise<Thread> {
+  const res = await fetch('/api/messaging/conversations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ agentId }),
   });
-  if (!res.ok) throw new Error('Failed to create thread');
+  if (!res.ok) throw new Error('Failed to create conversation');
   return res.json();
 }
 
@@ -270,17 +270,17 @@ function AgentsPage() {
   });
 
   const { data: threads = [] } = useQuery({
-    queryKey: ['messaging-threads'],
-    queryFn: fetchThreads,
+    queryKey: ['messaging-conversations'],
+    queryFn: fetchConversations,
   });
 
   const chatMutation = useMutation({
-    mutationFn: (agentId: string) => createThread(agentId),
-    onSuccess: (thread) => {
+    mutationFn: (agentId: string) => createConversation(agentId),
+    onSuccess: (conversation) => {
       setSelectedAgent(null);
       navigate({
-        to: '/messaging/threads/$threadId',
-        params: { threadId: thread.id },
+        to: '/messaging/conversations/$conversationId',
+        params: { conversationId: conversation.id },
       });
     },
   });

@@ -13,8 +13,15 @@ import { Memory } from '@mastra/memory';
 import { PostgresStore } from '@mastra/pg';
 
 import { getMastraAgents } from './agents';
-import { escalateToStaffTool } from './tools/escalate';
-import { searchKnowledgeBaseTool } from './tools/search-kb';
+import {
+  addLabelTool,
+  assignTicketTool,
+  escalateTicketTool,
+  resolveConversationTool,
+  searchKnowledgeBaseTool,
+  setPriorityTool,
+  snoozeTicketTool,
+} from './tools';
 import { escalationWorkflow } from './workflows/escalation';
 import { followUpWorkflow } from './workflows/follow-up';
 
@@ -59,7 +66,12 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
     agents: getMastraAgents(),
     tools: {
       search_knowledge_base: searchKnowledgeBaseTool,
-      escalate_to_staff: escalateToStaffTool,
+      escalate_ticket: escalateTicketTool,
+      set_priority: setPriorityTool,
+      assign_ticket: assignTicketTool,
+      add_label: addLabelTool,
+      snooze_ticket: snoozeTicketTool,
+      resolve_conversation: resolveConversationTool,
     },
     workflows: {
       'ai:escalation': escalationWorkflow,

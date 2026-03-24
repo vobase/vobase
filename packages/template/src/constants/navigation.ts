@@ -10,6 +10,7 @@ import {
   GitBranch,
   Globe,
   Home,
+  Inbox,
   KeyIcon,
   type LucideIcon,
   MessageSquare,
@@ -18,6 +19,7 @@ import {
   Search,
   Shield,
   UserIcon,
+  Users,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -50,21 +52,27 @@ export const navigation: NavGroup[] = [
     items: [
       {
         label: 'Chat',
-        to: '/messaging/threads',
+        to: '/messaging/conversations',
         icon: MessageSquare,
-        keywords: [
-          'messaging',
-          'threads',
-          'conversations',
-          'whatsapp',
-          'messages',
-        ],
+        keywords: ['messaging', 'conversations', 'whatsapp', 'messages'],
       },
       {
         label: 'Contacts',
         to: '/messaging/contacts',
         icon: Contact,
         keywords: ['people', 'customers', 'phone', 'directory'],
+      },
+      {
+        label: 'Inboxes',
+        to: '/messaging/settings/inboxes',
+        icon: Inbox,
+        keywords: ['inbox', 'channel', 'web', 'whatsapp', 'email', 'settings'],
+      },
+      {
+        label: 'Teams',
+        to: '/messaging/settings/teams',
+        icon: Users,
+        keywords: ['team', 'members', 'assignment', 'routing'],
       },
     ],
   },
@@ -212,8 +220,10 @@ export const sidebarNavigation: NavGroup[] = navigation.filter(
 export const shellNavigation = [{ label: 'Dashboard', to: '/' }] as const;
 
 export const messagingNavigation = [
-  { label: 'Chat', to: '/messaging/threads' },
+  { label: 'Chat', to: '/messaging/conversations' },
   { label: 'Contacts', to: '/messaging/contacts' },
+  { label: 'Inboxes', to: '/messaging/settings/inboxes' },
+  { label: 'Teams', to: '/messaging/settings/teams' },
 ] as const;
 
 export const knowledgeBaseNavigation = [

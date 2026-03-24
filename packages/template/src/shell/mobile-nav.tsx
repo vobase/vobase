@@ -8,9 +8,15 @@ import { cn } from '@/lib/utils';
 export interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Number of escalated conversations awaiting human attention */
+  escalationCount?: number;
 }
 
-export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
+export function MobileNav({
+  isOpen,
+  onClose,
+  escalationCount = 0,
+}: Readonly<MobileNavProps>) {
   // Close on Escape
   useEffect(() => {
     if (!isOpen) return;
@@ -82,6 +88,11 @@ export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
               <ul className="flex flex-col gap-0.5">
                 {group.items.map((item) => {
                   const Icon = item.icon;
+                  const badge =
+                    item.to === '/messaging/conversations' &&
+                    escalationCount > 0
+                      ? escalationCount
+                      : 0;
                   return (
                     <li key={item.to}>
                       <Link
@@ -98,6 +109,11 @@ export function MobileNav({ isOpen, onClose }: Readonly<MobileNavProps>) {
                       >
                         <Icon className="h-4 w-4 shrink-0" />
                         {item.label}
+                        {badge > 0 && (
+                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-medium text-destructive-foreground">
+                            {badge > 99 ? '99+' : badge}
+                          </span>
+                        )}
                       </Link>
                     </li>
                   );

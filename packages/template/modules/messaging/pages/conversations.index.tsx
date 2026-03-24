@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-interface Thread {
+interface ConversationData {
   id: string;
 }
 
@@ -53,7 +53,7 @@ function getAgentSuggestions(
   return agent.suggestions;
 }
 
-function ThreadsIndex() {
+function ConversationsIndex() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -70,20 +70,22 @@ function ThreadsIndex() {
 
   async function handleWelcomeSend(text: string) {
     if (!text.trim() || !activeAgentId) return;
-    const res = await fetch('/api/messaging/threads', {
+    const res = await fetch('/api/messaging/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agentId: activeAgentId }),
     });
     if (!res.ok) {
-      toast.error('Failed to create thread');
+      toast.error('Failed to create conversation');
       return;
     }
-    const thread = (await res.json()) as Thread;
-    queryClient.invalidateQueries({ queryKey: ['messaging-threads'] });
+    const conversation = (await res.json()) as ConversationData;
+    queryClient.invalidateQueries({
+      queryKey: ['messaging-conversations'],
+    });
     navigate({
-      to: '/messaging/threads/$threadId',
-      params: { threadId: thread.id },
+      to: '/messaging/conversations/$conversationId',
+      params: { conversationId: conversation.id },
     });
   }
 
@@ -170,6 +172,6 @@ function ThreadsIndex() {
   );
 }
 
-export const Route = createFileRoute('/_app/messaging/threads/')({
-  component: ThreadsIndex,
+export const Route = createFileRoute('/_app/messaging/conversations/')({
+  component: ConversationsIndex,
 });

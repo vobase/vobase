@@ -44,8 +44,8 @@ function formatTimestamp(value: string): string {
 const quickLinks = [
   {
     label: 'Messaging',
-    description: 'AI chat threads with KB-powered agents',
-    to: '/messaging/threads' as const,
+    description: 'AI chat conversations with KB-powered agents',
+    to: '/messaging/conversations' as const,
     icon: MessageSquare,
   },
   {

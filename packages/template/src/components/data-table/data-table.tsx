@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 interface DataTableProps<TData> extends ComponentProps<'div'> {
   table: TanstackTable<TData>;
   renderSubComponent?: (props: { row: Row<TData> }) => ReactNode;
+  onRowClick?: (row: Row<TData>) => void;
 }
 
 export function DataTable<TData>({
@@ -22,6 +23,7 @@ export function DataTable<TData>({
   children,
   className,
   renderSubComponent,
+  onRowClick,
   ...props
 }: DataTableProps<TData>) {
   return (
@@ -52,7 +54,10 @@ export function DataTable<TData>({
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <Fragment key={row.id}>
-                  <TableRow>
+                  <TableRow
+                    className={onRowClick ? 'cursor-pointer' : undefined}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(

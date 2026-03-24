@@ -3,8 +3,15 @@ import { Agent } from '@mastra/core/agent';
 import type { AgentMeta } from '../lib/agents/define';
 import { models } from '../lib/models';
 import { resolveInputProcessors, resolveOutputProcessors } from '../processors';
-import { escalateToStaffTool } from '../tools/escalate';
-import { searchKnowledgeBaseTool } from '../tools/search-kb';
+import {
+  addLabelTool,
+  assignTicketTool,
+  escalateTicketTool,
+  resolveConversationTool,
+  searchKnowledgeBaseTool,
+  setPriorityTool,
+  snoozeTicketTool,
+} from '../tools';
 
 export const quickHelperMeta: AgentMeta = {
   id: 'quick-helper',
@@ -40,7 +47,12 @@ Do NOT be pushy or salesy. Focus on understanding their needs.`,
   model: quickHelperMeta.model,
   tools: {
     search_knowledge_base: searchKnowledgeBaseTool,
-    escalate_to_staff: escalateToStaffTool,
+    escalate_ticket: escalateTicketTool,
+    set_priority: setPriorityTool,
+    assign_ticket: assignTicketTool,
+    add_label: addLabelTool,
+    snooze_ticket: snoozeTicketTool,
+    resolve_conversation: resolveConversationTool,
   },
   defaultOptions: { maxSteps: 5 },
   inputProcessors: resolveInputProcessors,

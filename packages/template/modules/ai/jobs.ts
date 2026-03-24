@@ -103,14 +103,18 @@ export const followUpResumeJob = defineJob(
     if (!run || run.status !== 'suspended') return;
 
     const input = JSON.parse(run.inputData) ?? {};
-    const threadId =
-      typeof input.threadId === 'string' ? input.threadId : 'unknown';
+    const conversationId =
+      typeof input.conversationId === 'string'
+        ? input.conversationId
+        : typeof input.threadId === 'string'
+          ? input.threadId
+          : 'unknown';
 
     // In production, this would compose an AI follow-up message and
     // queue it via queueOutboundMessage. For this showcase, mark as sent.
     const output = {
       sent: true,
-      message: `Follow-up sent for thread ${threadId}.`,
+      message: `Follow-up sent for conversation ${conversationId}.`,
     };
 
     await moduleDb

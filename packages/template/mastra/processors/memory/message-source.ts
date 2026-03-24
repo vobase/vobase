@@ -1,6 +1,6 @@
 /**
  * Message source abstraction for EverMemOS.
- * Loads conversation messages from Mastra Memory instead of the removed msgMessages table.
+ * Loads messages from Mastra Memory instead of the removed msgMessages table.
  * Used by formation.ts, retriever.ts, and memory-processor.ts.
  */
 import type { VobaseDb } from '@vobase/core';
@@ -27,10 +27,10 @@ function toMemoryMessage(m: RecalledMessage): MemoryMessage {
 }
 
 /**
- * Load messages for a thread from Mastra Memory.
+ * Load messages for a conversation from Mastra Memory.
  * Falls back to empty array if Memory is not initialized.
  */
-export async function loadMessagesForThread(
+export async function loadMessagesForConversation(
   _db: VobaseDb,
   threadId: string,
 ): Promise<MemoryMessage[]> {

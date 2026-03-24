@@ -21,7 +21,7 @@ import { createModerationLogger } from './moderation-logger';
 
 /** Shape of requestContext passed by chat/channel handlers. */
 export interface AgentRequestContext {
-  threadId: string;
+  conversationId: string;
   contactId?: string | null;
   userId?: string | null;
   channel?: string;
@@ -39,21 +39,20 @@ export function resolveInputProcessors({
   mastra?: Mastra;
 }): InputProcessorOrWorkflow[] {
   const rc = (
-    requestContext?.get?.('threadId')
+    requestContext?.get?.('conversationId')
       ? Object.fromEntries(
-          ['threadId', 'contactId', 'userId', 'channel', 'agentId'].map((k) => [
-            k,
-            requestContext.get(k),
-          ]),
+          ['conversationId', 'contactId', 'userId', 'channel', 'agentId'].map(
+            (k) => [k, requestContext.get(k)],
+          ),
         )
       : undefined
   ) as AgentRequestContext | undefined;
 
   const db = getModuleDbOrNull();
-  if (!rc?.threadId || !db) return [];
+  if (!rc?.conversationId || !db) return [];
 
   const scope = resolveScope({
-    threadId: rc.threadId,
+    conversationId: rc.conversationId,
     contactId: rc.contactId,
     userId: rc.userId,
   });
@@ -66,7 +65,7 @@ export function resolveInputProcessors({
         channel: rc.channel ?? 'web',
         userId: rc.userId ?? undefined,
         contactId: rc.contactId ?? undefined,
-        threadId: rc.threadId,
+        conversationId: rc.conversationId,
       }),
     ),
   ];
@@ -75,7 +74,7 @@ export function resolveInputProcessors({
     processors.push(
       createMemoryInputProcessor({
         db,
-        threadId: rc.threadId,
+        conversationId: rc.conversationId,
         scope,
       }),
     );
@@ -95,18 +94,17 @@ export function resolveOutputProcessors({
   mastra?: Mastra;
 }): OutputProcessorOrWorkflow[] {
   const rc = (
-    requestContext?.get?.('threadId')
+    requestContext?.get?.('conversationId')
       ? Object.fromEntries(
-          ['threadId', 'contactId', 'userId', 'channel', 'agentId'].map((k) => [
-            k,
-            requestContext.get(k),
-          ]),
+          ['conversationId', 'contactId', 'userId', 'channel', 'agentId'].map(
+            (k) => [k, requestContext.get(k)],
+          ),
         )
       : undefined
   ) as AgentRequestContext | undefined;
 
   const db = getModuleDbOrNull();
-  if (!rc?.threadId || !db) return [];
+  if (!rc?.conversationId || !db) return [];
 
   let scheduler: ReturnType<typeof getModuleScheduler>;
   try {
@@ -116,7 +114,7 @@ export function resolveOutputProcessors({
   }
 
   const scope = resolveScope({
-    threadId: rc.threadId,
+    conversationId: rc.conversationId,
     contactId: rc.contactId,
     userId: rc.userId,
   });
@@ -127,7 +125,7 @@ export function resolveOutputProcessors({
     createMemoryOutputProcessor({
       db,
       scheduler,
-      threadId: rc.threadId,
+      conversationId: rc.conversationId,
       scope,
     }),
   ];

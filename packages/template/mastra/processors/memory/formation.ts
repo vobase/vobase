@@ -29,7 +29,7 @@ export async function processMemCell(
   if (!claimed) return; // Not found or already claimed by another worker
   const cell = claimed;
 
-  // Check if another cell for this thread is already processing.
+  // Check if another cell for this conversation is already processing.
   // If so, release this cell back to pending — pg-boss will retry later.
   const [otherProcessing] = await db
     .select({ id: aiMemCells.id })
@@ -48,7 +48,9 @@ export async function processMemCell(
       .update(aiMemCells)
       .set({ status: 'pending' })
       .where(eq(aiMemCells.id, cellId));
-    throw new Error('Another cell is processing for this thread — retry later');
+    throw new Error(
+      'Another cell is processing for this conversation — retry later',
+    );
   }
 
   try {

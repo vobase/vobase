@@ -12,7 +12,7 @@ interface ModerationLog {
   channel: string;
   userId: string | null;
   contactId: string | null;
-  threadId: string | null;
+  conversationId: string | null;
   reason: string;
   blockedContent: string | null;
   matchedTerm: string | null;

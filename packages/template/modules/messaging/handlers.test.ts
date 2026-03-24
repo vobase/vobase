@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 
 import { createTestDb } from '../../lib/test-helpers';
 import { messagingRoutes } from './handlers';
-import { msgOutbox, msgThreads } from './schema';
+import { msgConversations, msgOutbox } from './schema';
 
 const BASE = 'http://localhost/api/messaging';
 
@@ -77,9 +77,9 @@ describe('Messaging Routes', () => {
     });
   });
 
-  describe('Threads', () => {
-    it('POST /threads returns 404 for invalid agentId', async () => {
-      const res = await app.request(`${BASE}/threads`, {
+  describe('Conversations', () => {
+    it('POST /conversations returns 404 for invalid agentId', async () => {
+      const res = await app.request(`${BASE}/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentId: 'nonexistent-agent' }),
@@ -88,84 +88,87 @@ describe('Messaging Routes', () => {
       expect(res.status).toBe(404);
     });
 
-    it('POST /threads creates thread and returns 201', async () => {
-      const res = await app.request(`${BASE}/threads`, {
+    it('POST /conversations creates conversation and returns 201', async () => {
+      const res = await app.request(`${BASE}/conversations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New Thread', agentId: 'assistant' }),
+        body: JSON.stringify({
+          title: 'New Conversation',
+          agentId: 'assistant',
+        }),
       });
 
       expect(res.status).toBe(201);
       const body = await res.json();
-      expect(body.title).toBe('New Thread');
+      expect(body.title).toBe('New Conversation');
       expect(body.userId).toBe('user-1');
       expect(body.agentId).toBe('assistant');
     });
 
-    it('GET /threads lists user threads', async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-a',
+    it('GET /conversations lists user conversations', async () => {
+      await db.insert(msgConversations).values({
+        id: 'conv-a',
         title: 'Mine',
         agentId: 'assistant',
         userId: 'user-1',
       });
-      await db.insert(msgThreads).values({
-        id: 'thr-b',
+      await db.insert(msgConversations).values({
+        id: 'conv-b',
         title: 'Others',
         agentId: 'assistant',
         userId: 'user-2',
       });
 
-      const res = await app.request(`${BASE}/threads`);
+      const res = await app.request(`${BASE}/conversations`);
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toHaveLength(1);
       expect(body[0].title).toBe('Mine');
     });
 
-    it('GET /threads/:id returns thread (messages loaded from Memory)', async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-get',
-        title: 'My Thread',
+    it('GET /conversations/:id returns conversation (messages loaded from Memory)', async () => {
+      await db.insert(msgConversations).values({
+        id: 'conv-get',
+        title: 'My Conversation',
         agentId: 'assistant',
         userId: 'user-1',
       });
 
-      const res = await app.request(`${BASE}/threads/thr-get`);
+      const res = await app.request(`${BASE}/conversations/conv-get`);
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.title).toBe('My Thread');
+      expect(body.title).toBe('My Conversation');
       // Messages come from Memory — empty when Memory not initialized in tests
       expect(body.messages).toBeDefined();
     });
 
-    it('GET /threads/:id returns 404 for wrong user', async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-other',
+    it('GET /conversations/:id returns 404 for wrong user', async () => {
+      await db.insert(msgConversations).values({
+        id: 'conv-other',
         title: 'Not Mine',
         agentId: 'assistant',
         userId: 'user-2',
       });
 
-      const res = await app.request(`${BASE}/threads/thr-other`);
+      const res = await app.request(`${BASE}/conversations/conv-other`);
       expect(res.status).toBe(404);
     });
 
-    it('DELETE /threads/:id removes thread and outbox entries', async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-del',
+    it('DELETE /conversations/:id removes conversation and outbox entries', async () => {
+      await db.insert(msgConversations).values({
+        id: 'conv-del',
         title: 'Delete Me',
         agentId: 'assistant',
         userId: 'user-1',
       });
       await db.insert(msgOutbox).values({
-        threadId: 'thr-del',
+        conversationId: 'conv-del',
         content: 'Queued message',
         channel: 'web',
         status: 'queued',
       });
 
-      const res = await app.request(`${BASE}/threads/thr-del`, {
+      const res = await app.request(`${BASE}/conversations/conv-del`, {
         method: 'DELETE',
       });
       expect(res.status).toBe(200);
@@ -175,67 +178,70 @@ describe('Messaging Routes', () => {
       const outbox = await db
         .select()
         .from(msgOutbox)
-        .where(eq(msgOutbox.threadId, 'thr-del'));
+        .where(eq(msgOutbox.conversationId, 'conv-del'));
       expect(outbox).toHaveLength(0);
 
-      const [thread] = await db
+      const [conversation] = await db
         .select()
-        .from(msgThreads)
-        .where(eq(msgThreads.id, 'thr-del'));
-      expect(thread).toBeUndefined();
+        .from(msgConversations)
+        .where(eq(msgConversations.id, 'conv-del'));
+      expect(conversation).toBeUndefined();
     });
 
-    it('DELETE /threads/:id returns 404 for wrong user', async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-nope',
+    it('DELETE /conversations/:id returns 404 for wrong user', async () => {
+      await db.insert(msgConversations).values({
+        id: 'conv-nope',
         title: 'Not Mine',
         agentId: 'assistant',
         userId: 'user-2',
       });
 
-      const res = await app.request(`${BASE}/threads/thr-nope`, {
+      const res = await app.request(`${BASE}/conversations/conv-nope`, {
         method: 'DELETE',
       });
       expect(res.status).toBe(404);
 
-      const [thread] = await db
+      const [conversation] = await db
         .select()
-        .from(msgThreads)
-        .where(eq(msgThreads.id, 'thr-nope'));
-      expect(thread).toBeDefined();
+        .from(msgConversations)
+        .where(eq(msgConversations.id, 'conv-nope'));
+      expect(conversation).toBeDefined();
     });
   });
 
   describe('Chat endpoint guards', () => {
-    it('POST /threads/:id/chat returns 400 when thread has no agentId', async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-no-agent',
+    it('POST /conversations/:id/chat returns 400 when conversation has no agentId', async () => {
+      await db.insert(msgConversations).values({
+        id: 'conv-no-agent',
         title: 'No Agent',
         agentId: null,
         userId: 'user-1',
       });
 
-      const res = await app.request(`${BASE}/threads/thr-no-agent/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            {
-              id: 'msg-1',
-              role: 'user',
-              parts: [{ type: 'text', text: 'hi' }],
-            },
-          ],
-        }),
-      });
+      const res = await app.request(
+        `${BASE}/conversations/conv-no-agent/chat`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              {
+                id: 'msg-1',
+                role: 'user',
+                parts: [{ type: 'text', text: 'hi' }],
+              },
+            ],
+          }),
+        },
+      );
 
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toContain('no agent');
     });
 
-    it('POST /threads/:id/chat returns 404 when thread not found', async () => {
-      const res = await app.request(`${BASE}/threads/nonexistent/chat`, {
+    it('POST /conversations/:id/chat returns 404 when conversation not found', async () => {
+      const res = await app.request(`${BASE}/conversations/nonexistent/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -252,9 +258,9 @@ describe('Messaging Routes', () => {
       expect(res.status).toBe(404);
     });
 
-    it('POST /threads/:id/chat returns 503 when AI not configured', async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-no-ai',
+    it('POST /conversations/:id/chat returns 503 when AI not configured', async () => {
+      await db.insert(msgConversations).values({
+        id: 'conv-no-ai',
         title: 'No AI',
         agentId: 'assistant',
         userId: 'user-1',
@@ -269,7 +275,7 @@ describe('Messaging Routes', () => {
       delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
       delete process.env.ANTHROPIC_API_KEY;
 
-      const res = await app.request(`${BASE}/threads/thr-no-ai/chat`, {
+      const res = await app.request(`${BASE}/conversations/conv-no-ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -290,16 +296,16 @@ describe('Messaging Routes', () => {
       expect(body.error).toContain('AI is not configured');
     });
 
-    it('POST /threads/:id/chat sets thread title from first user message', async () => {
-      await db.insert(msgThreads).values({
-        id: 'thr-title',
+    it('POST /conversations/:id/chat sets conversation title from first user message', async () => {
+      await db.insert(msgConversations).values({
+        id: 'conv-title',
         title: null,
         agentId: 'assistant',
         userId: 'user-1',
       });
 
       // Will return 503 (no AI key) but should still set title
-      await app.request(`${BASE}/threads/thr-title/chat`, {
+      await app.request(`${BASE}/conversations/conv-title/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -313,11 +319,11 @@ describe('Messaging Routes', () => {
         }),
       });
 
-      const [thread] = await db
+      const [conversation] = await db
         .select()
-        .from(msgThreads)
-        .where(eq(msgThreads.id, 'thr-title'));
-      expect(thread.title).toBe('Hello bot');
+        .from(msgConversations)
+        .where(eq(msgConversations.id, 'conv-title'));
+      expect(conversation.title).toBe('Hello bot');
     });
   });
 });

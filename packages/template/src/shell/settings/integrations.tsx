@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   AlertCircleIcon,
   CheckCircleIcon,
@@ -24,68 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { integrationsClient } from '@/lib/api-client';
-
-// ─── FB SDK Lazy Loader ───────────────────────────────────────────────
-
-interface FBLoginResponse {
-  status: 'connected' | 'not_authorized' | string;
-  authResponse?: {
-    code?: string;
-    accessToken?: string;
-  } | null;
-}
-
-declare global {
-  interface Window {
-    FB: {
-      init(params: {
-        appId: string;
-        cookie: boolean;
-        xfbml: boolean;
-        version: string;
-      }): void;
-      login(
-        callback: (response: FBLoginResponse) => void,
-        params: {
-          config_id: string;
-          response_type: string;
-          override_default_response_type: boolean;
-          extras: Record<string, unknown>;
-        },
-      ): void;
-    };
-    fbAsyncInit: () => void;
-  }
-}
-
-function loadFacebookSDK(appId: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.FB) {
-      resolve();
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      reject(new Error('Facebook SDK load timeout'));
-    }, 15000);
-
-    window.fbAsyncInit = () => {
-      clearTimeout(timeout);
-      window.FB.init({ appId, cookie: true, xfbml: true, version: 'v22.0' });
-      resolve();
-    };
-
-    const script = document.createElement('script');
-    script.src = 'https://connect.facebook.net/en_US/sdk.js';
-    script.async = true;
-    script.defer = true;
-    script.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error('Failed to load Facebook SDK'));
-    };
-    document.body.appendChild(script);
-  });
-}
+import { runWhatsAppEmbeddedSignup } from '@/lib/facebook-sdk';
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
@@ -156,115 +95,32 @@ function IntegrationsPage() {
     setConnecting(true);
     setConnectError(null);
 
-    // Register session info listener BEFORE calling FB.login
-    // This receives phone_number_id and waba_id directly from the popup
-    let sessionWabaId: string | undefined;
-    let sessionPhoneNumberId: string | undefined;
-
-    const sessionInfoListener = (event: MessageEvent) => {
-      if (!event.origin?.endsWith('facebook.com')) return;
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'WA_EMBEDDED_SIGNUP') {
-          if (data.event === 'FINISH') {
-            sessionWabaId = data.data.waba_id;
-            sessionPhoneNumberId = data.data.phone_number_id;
-          } else if (data.event === 'CANCEL') {
-            setConnectError(
-              `Signup cancelled at step: ${data.data.current_step ?? 'unknown'}`,
-            );
-            setConnecting(false);
-          } else if (data.event === 'ERROR') {
-            setConnectError(
-              `Signup error: ${data.data.error_message ?? 'unknown error'}`,
-            );
-            setConnecting(false);
-          }
-        }
-      } catch {
-        // Non-JSON messages from other sources — ignore
-      }
-    };
-
-    window.addEventListener('message', sessionInfoListener);
-
     try {
-      await loadFacebookSDK(config.metaAppId);
-
-      window.FB.login(
-        (response) => {
-          window.removeEventListener('message', sessionInfoListener);
-
-          console.log(
-            '[WhatsApp Connect] FB.login response:',
-            response.status,
-            response.authResponse,
-          );
-
-          if (response.authResponse?.code) {
-            // Send code + session data to backend — code expires in ~60 seconds
-            integrationsClient.whatsapp.connect
-              .$post({
-                json: {
-                  code: response.authResponse.code,
-                  wabaId: sessionWabaId,
-                  phoneNumberId: sessionPhoneNumberId,
-                },
-              })
-              .then(async (res) => {
-                const result = await res.json();
-                if ('error' in result && result.error) {
-                  setConnectError(result.error as string);
-                }
-                queryClient.invalidateQueries({
-                  queryKey: ['integrations-whatsapp-status'],
-                });
-              })
-              .catch(() => {
-                setConnectError('Failed to complete WhatsApp connection');
-                queryClient.invalidateQueries({
-                  queryKey: ['integrations-whatsapp-status'],
-                });
-              })
-              .finally(() => {
-                setConnecting(false);
-              });
-          } else if (response.status === 'connected') {
-            // Already authorized — no new code issued. Just refresh status.
-            console.log(
-              '[WhatsApp Connect] Already authorized, refreshing status',
-            );
-            queryClient.invalidateQueries({
-              queryKey: ['integrations-whatsapp-status'],
-            });
-            setConnecting(false);
-          } else {
-            setConnecting(false);
-            if (response.status === 'not_authorized') {
-              setConnectError(
-                'App not authorized. Please grant permissions and try again.',
-              );
-            }
-            // Popup closed or cancelled — silently reset
-            queryClient.invalidateQueries({
-              queryKey: ['integrations-whatsapp-status'],
-            });
-          }
-        },
-        {
-          config_id: config.metaConfigId,
-          response_type: 'code',
-          override_default_response_type: true,
-          extras: {
-            setup: {},
-            featureType: 'whatsapp_business_app_onboarding',
-            sessionInfoVersion: '3',
-          },
-        },
+      const { code, wabaId, phoneNumberId } = await runWhatsAppEmbeddedSignup(
+        config.metaAppId,
+        config.metaConfigId,
       );
+
+      // Send code + session data to backend — code expires in ~60 seconds
+      const res = await integrationsClient.whatsapp.connect.$post({
+        json: { code, wabaId, phoneNumberId },
+      });
+      const result = await res.json();
+      if ('error' in result && result.error) {
+        setConnectError(result.error as string);
+      }
+      queryClient.invalidateQueries({
+        queryKey: ['integrations-whatsapp-status'],
+      });
     } catch (err) {
-      window.removeEventListener('message', sessionInfoListener);
-      setConnectError(err instanceof Error ? err.message : 'Connection failed');
+      const msg = err instanceof Error ? err.message : 'Connection failed';
+      if (msg !== 'cancelled') {
+        setConnectError(msg);
+      }
+      queryClient.invalidateQueries({
+        queryKey: ['integrations-whatsapp-status'],
+      });
+    } finally {
       setConnecting(false);
     }
   };
@@ -452,6 +308,16 @@ function IntegrationsPage() {
                     "Connect a WhatsApp Business App"
                   </span>{' '}
                   in the popup to keep using the app alongside the API.
+                </p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Need multiple WhatsApp numbers?{' '}
+                  <Link
+                    to="/messaging/settings/inboxes"
+                    className="font-medium text-foreground underline-offset-2 hover:underline"
+                  >
+                    Manage numbers via Inbox Settings
+                  </Link>
+                  .
                 </p>
               </div>
             )}

@@ -3,7 +3,15 @@ import { Agent } from '@mastra/core/agent';
 import type { AgentMeta } from '../lib/agents/define';
 import { models } from '../lib/models';
 import { resolveInputProcessors, resolveOutputProcessors } from '../processors';
-import { searchKnowledgeBaseTool } from '../tools/search-kb';
+import {
+  addLabelTool,
+  assignTicketTool,
+  escalateTicketTool,
+  resolveConversationTool,
+  searchKnowledgeBaseTool,
+  setPriorityTool,
+  snoozeTicketTool,
+} from '../tools';
 
 export const assistantMeta: AgentMeta = {
   id: 'assistant',
@@ -24,7 +32,15 @@ export const assistantAgent = new Agent({
   instructions:
     'You are a helpful assistant for the Vobase platform. You help users understand the framework, its modules, and how to build applications with it. Be concise and practical. When answering questions, search the knowledge base for relevant information and cite your sources.',
   model: assistantMeta.model,
-  tools: { search_knowledge_base: searchKnowledgeBaseTool },
+  tools: {
+    search_knowledge_base: searchKnowledgeBaseTool,
+    escalate_ticket: escalateTicketTool,
+    set_priority: setPriorityTool,
+    assign_ticket: assignTicketTool,
+    add_label: addLabelTool,
+    snooze_ticket: snoozeTicketTool,
+    resolve_conversation: resolveConversationTool,
+  },
   defaultOptions: { maxSteps: 5 },
   inputProcessors: resolveInputProcessors,
   outputProcessors: resolveOutputProcessors,

@@ -38,14 +38,26 @@ export async function createTestDb(options?: {
 
   // Messaging tables (agents are code-defined, not in DB)
   await (pglite as any).exec(`
-    CREATE TABLE "messaging"."threads" (
+    CREATE TABLE "messaging"."conversations" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       title TEXT,
       agent_id TEXT,
       user_id TEXT,
       contact_id TEXT,
       channel TEXT NOT NULL DEFAULT 'web',
-      status TEXT NOT NULL DEFAULT 'ai',
+      status TEXT NOT NULL DEFAULT 'open',
+      handler TEXT NOT NULL DEFAULT 'ai',
+      inbox_id TEXT,
+      assignee_id TEXT,
+      team_id TEXT,
+      priority TEXT NOT NULL DEFAULT 'low',
+      escalation_reason TEXT,
+      escalation_summary TEXT,
+      escalation_at TIMESTAMPTZ,
+      snoozed_until TIMESTAMPTZ,
+      resolved_at TIMESTAMPTZ,
+      first_response_at TIMESTAMPTZ,
+      last_activity_at TIMESTAMPTZ,
       ai_paused_at TIMESTAMPTZ,
       ai_resume_at TIMESTAMPTZ,
       window_expires_at TIMESTAMPTZ,
@@ -56,7 +68,7 @@ export async function createTestDb(options?: {
 
     CREATE TABLE "messaging"."outbox" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      thread_id TEXT NOT NULL REFERENCES "messaging"."threads" (id) ON DELETE CASCADE,
+      conversation_id TEXT NOT NULL REFERENCES "messaging"."conversations" (id) ON DELETE CASCADE,
       content TEXT NOT NULL,
       channel TEXT NOT NULL DEFAULT 'web',
       external_message_id TEXT UNIQUE,
@@ -71,6 +83,7 @@ export async function createTestDb(options?: {
       phone TEXT UNIQUE,
       email TEXT UNIQUE,
       name TEXT,
+      identifier TEXT,
       channel TEXT,
       metadata TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -16,7 +16,7 @@ export async function saveInboundMessage(opts: {
 }) {
   const memory = getMemory();
 
-  // Ensure thread exists in Memory (idempotent)
+  // Ensure Mastra Memory thread exists (idempotent)
   const existingThread = await memory.getThreadById({
     threadId: opts.threadId,
   });
@@ -52,8 +52,8 @@ export async function saveInboundMessage(opts: {
 }
 
 /**
- * Create a Mastra Memory thread alongside a Drizzle thread.
- * Uses the same thread ID for correlation.
+ * Create a Mastra Memory thread alongside a Drizzle conversation.
+ * Uses the same conversation ID for correlation.
  */
 export async function createMemoryThread(opts: {
   threadId: string;
@@ -74,7 +74,7 @@ export async function createMemoryThread(opts: {
 }
 
 /**
- * Delete a Mastra Memory thread (cleanup on thread delete).
+ * Delete a Mastra Memory thread (cleanup on conversation delete).
  */
 export async function deleteMemoryThread(threadId: string) {
   try {
@@ -86,9 +86,9 @@ export async function deleteMemoryThread(threadId: string) {
 }
 
 /**
- * Load messages from Mastra Memory for a thread.
+ * Load messages from Mastra Memory for a conversation.
  */
-export async function loadThreadMessages(threadId: string) {
+export async function loadConversationMessages(threadId: string) {
   const memory = getMemory();
   const result = await memory.recall({
     threadId,

@@ -7,7 +7,7 @@ import { getAgent } from '../../../mastra/agents';
 export interface StreamChatOptions {
   agentId: string;
   messages: UIMessage[];
-  thread: {
+  conversation: {
     id: string;
     contactId?: string | null;
     userId?: string | null;
@@ -20,29 +20,31 @@ export interface StreamChatOptions {
  * based on the requestContext passed here.
  */
 export async function streamChat(options: StreamChatOptions) {
-  const { agentId, messages, thread } = options;
+  const { agentId, messages, conversation } = options;
 
   const registered = getAgent(agentId);
   if (!registered) throw notFound('Agent not found');
 
   const entries: [string, string][] = [
-    ['threadId', thread.id],
+    ['conversationId', conversation.id],
     ['agentId', agentId],
     ['channel', 'web'],
   ];
-  if (thread.contactId) entries.push(['contactId', thread.contactId]);
-  if (thread.userId) entries.push(['userId', thread.userId]);
+  if (conversation.contactId)
+    entries.push(['contactId', conversation.contactId]);
+  if (conversation.userId) entries.push(['userId', conversation.userId]);
   const rc = new RequestContext(entries);
 
-  // Pass memory option so Mastra Memory auto-persists messages for this thread.
+  // Pass memory option so Mastra Memory auto-persists messages for this conversation.
   // Without thread + resource, Memory won't know where to store messages.
-  const resourceId = thread.contactId ?? thread.userId ?? 'anonymous';
+  const resourceId =
+    conversation.contactId ?? conversation.userId ?? 'anonymous';
 
   // biome-ignore lint/suspicious/noExplicitAny: UIMessage[] compatible at runtime, type declarations diverge across Mastra/AI SDK package boundaries
   return registered.agent.stream(messages as any, {
     requestContext: rc,
     memory: {
-      thread: thread.id,
+      thread: conversation.id,
       resource: resourceId,
     },
   });

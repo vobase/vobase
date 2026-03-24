@@ -17,7 +17,7 @@ import type { MemoryMessage, MemoryScope } from './types';
 interface MemoryProcessorContext {
   db: VobaseDb;
   scheduler: Scheduler;
-  threadId: string;
+  conversationId: string;
   scope: MemoryScope;
 }
 
@@ -27,7 +27,7 @@ interface MemoryProcessorContext {
 export function createMemoryInputProcessor(
   ctx: Omit<MemoryProcessorContext, 'scheduler'>,
 ): InputProcessor {
-  const { db, threadId, scope } = ctx;
+  const { db, conversationId, scope } = ctx;
 
   return {
     id: 'memory-retriever',
@@ -116,7 +116,10 @@ export function createMemoryInputProcessor(
         };
       } catch (err) {
         // Memory retrieval failure must never break chat
-        console.error(`[memory] Retrieval failed for thread ${threadId}:`, err);
+        console.error(
+          `[memory] Retrieval failed for conversation ${conversationId}:`,
+          err,
+        );
         return { messages: args.messages, systemMessages: args.systemMessages };
       }
     },
@@ -129,14 +132,14 @@ export function createMemoryInputProcessor(
 export function createMemoryOutputProcessor(
   ctx: MemoryProcessorContext,
 ): OutputProcessor {
-  const { db, scheduler, threadId, scope } = ctx;
+  const { db, scheduler, conversationId, scope } = ctx;
 
   return {
     id: 'memory-formation',
 
     async processOutputResult(args: ProcessOutputResultArgs) {
       try {
-        // Find messages since the last MemCell boundary in this thread
+        // Find messages since the last MemCell boundary in this conversation
         const lastCell = (
           await db
             .select({
@@ -144,20 +147,20 @@ export function createMemoryOutputProcessor(
               endMessageId: aiMemCells.endMessageId,
             })
             .from(aiMemCells)
-            .where(eq(aiMemCells.threadId, threadId))
+            .where(eq(aiMemCells.threadId, conversationId))
             .orderBy(desc(aiMemCells.createdAt))
             .limit(1)
         )[0];
 
-        // Get thread messages from DB since the last boundary
+        // Get conversation messages from DB since the last boundary
         const dbMessages = await getMessagesSinceLastCell(
           db,
-          threadId,
+          conversationId,
           lastCell?.endMessageId,
         );
 
         logger.debug('[memory] Boundary check', {
-          threadId,
+          conversationId,
           messageCount: dbMessages.length,
           threshold: 4,
         });
@@ -168,13 +171,13 @@ export function createMemoryOutputProcessor(
 
         // Run boundary detection
         logger.info('[memory] Running boundary detection', {
-          threadId,
+          conversationId,
           messageCount: dbMessages.length,
         });
         const boundary = await detectBoundary({ messages: dbMessages });
 
         logger.info('[memory] Boundary result', {
-          threadId,
+          conversationId,
           shouldSplit: boundary.shouldSplit,
           reason: boundary.reason,
         });
@@ -193,7 +196,7 @@ export function createMemoryOutputProcessor(
         const [cell] = await db
           .insert(aiMemCells)
           .values({
-            threadId,
+            threadId: conversationId,
             contactId: scope.contactId ?? null,
             userId: scope.contactId ? null : scope.userId,
             startMessageId: firstMsg.id,
@@ -205,7 +208,7 @@ export function createMemoryOutputProcessor(
           .returning({ id: aiMemCells.id });
 
         logger.info('[memory] Cell created, queuing formation', {
-          threadId,
+          conversationId,
           cellId: cell.id,
           messageCount: dbMessages.length,
         });
@@ -217,7 +220,7 @@ export function createMemoryOutputProcessor(
       } catch (err) {
         // Memory formation failures must never break chat
         logger.error('[memory] Formation check failed', {
-          threadId,
+          conversationId,
           error: err,
         });
       }
@@ -228,16 +231,16 @@ export function createMemoryOutputProcessor(
 }
 
 /**
- * Get messages in a thread since the last MemCell's end message.
+ * Get messages in a conversation since the last MemCell's end message.
  * Loads from Mastra Memory instead of the removed msgMessages table.
  */
 async function getMessagesSinceLastCell(
   _db: VobaseDb,
-  threadId: string,
+  conversationId: string,
   lastEndMessageId?: string,
 ): Promise<MemoryMessage[]> {
-  const { loadMessagesForThread } = await import('./message-source');
-  const allMessages = await loadMessagesForThread(_db, threadId);
+  const { loadMessagesForConversation } = await import('./message-source');
+  const allMessages = await loadMessagesForConversation(_db, conversationId);
 
   if (!lastEndMessageId) return allMessages.slice(-100);
 

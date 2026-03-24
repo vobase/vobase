@@ -8,17 +8,17 @@ import {
 } from '../../../modules/ai/schema';
 
 /**
- * Clean up all memory data for a thread.
- * Called by messaging's thread delete handler.
+ * Clean up all memory data for a conversation.
+ * Called by messaging's conversation delete handler.
  */
-export async function cleanupThreadMemory(
+export async function cleanupConversationMemory(
   db: VobaseDb,
-  threadId: string,
+  conversationId: string,
 ): Promise<void> {
   const cells = await db
     .select({ id: aiMemCells.id })
     .from(aiMemCells)
-    .where(eq(aiMemCells.threadId, threadId));
+    .where(eq(aiMemCells.threadId, conversationId));
 
   if (cells.length === 0) return;
 
@@ -28,5 +28,5 @@ export async function cleanupThreadMemory(
     .delete(aiMemEventLogs)
     .where(inArray(aiMemEventLogs.cellId, cellIds));
   await db.delete(aiMemEpisodes).where(inArray(aiMemEpisodes.cellId, cellIds));
-  await db.delete(aiMemCells).where(eq(aiMemCells.threadId, threadId));
+  await db.delete(aiMemCells).where(eq(aiMemCells.threadId, conversationId));
 }

@@ -14,9 +14,14 @@ import { UserMenu } from '@/shell/user-menu';
 
 export interface ShellSidebarProps {
   className?: string;
+  /** Number of escalated conversations awaiting human attention */
+  escalationCount?: number;
 }
 
-export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
+export function ShellSidebar({
+  className,
+  escalationCount = 0,
+}: Readonly<ShellSidebarProps>) {
   const { isCollapsed, toggle } = useSidebar();
 
   return (
@@ -61,6 +66,11 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
               <ul className="flex flex-col gap-0.5">
                 {group.items.map((item) => {
                   const Icon = item.icon;
+                  const badge =
+                    item.to === '/messaging/conversations' &&
+                    escalationCount > 0
+                      ? escalationCount
+                      : 0;
                   return (
                     <li key={item.to}>
                       {isCollapsed ? (
@@ -75,14 +85,20 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
                                 className:
                                   'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                               }}
-                              className="mx-auto flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                              className="relative mx-auto flex h-8 w-8 items-center justify-center rounded-md transition-colors"
                             >
                               <Icon className="h-4 w-4 shrink-0" />
                               <span className="sr-only">{item.label}</span>
+                              {badge > 0 && (
+                                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+                                  {badge > 99 ? '99+' : badge}
+                                </span>
+                              )}
                             </Link>
                           </TooltipTrigger>
                           <TooltipContent side="right">
                             {item.label}
+                            {badge > 0 && ` (${badge})`}
                           </TooltipContent>
                         </Tooltip>
                       ) : (
@@ -99,6 +115,11 @@ export function ShellSidebar({ className }: Readonly<ShellSidebarProps>) {
                         >
                           <Icon className="h-4 w-4 shrink-0" />
                           {item.label}
+                          {badge > 0 && (
+                            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-medium text-destructive-foreground">
+                              {badge > 99 ? '99+' : badge}
+                            </span>
+                          )}
                         </Link>
                       )}
                     </li>

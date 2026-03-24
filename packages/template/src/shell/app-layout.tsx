@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { useState } from 'react';
 
+import { useEscalationNotifications } from '@/hooks/use-notifications';
 import { useRealtimeInvalidation } from '@/hooks/use-realtime';
 import { authClient } from '@/lib/auth-client';
 import { MobileNav } from '@/shell/mobile-nav';
@@ -9,12 +10,16 @@ import { ShellSidebar } from '@/shell/shell-sidebar';
 
 function AppLayout() {
   useRealtimeInvalidation();
+  const { unreadCount: escalationCount } = useEscalationNotifications();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
     <div className="flex h-screen bg-background">
       {/* Desktop sidebar */}
-      <ShellSidebar className="hidden lg:flex sticky top-0 h-screen" />
+      <ShellSidebar
+        className="hidden lg:flex sticky top-0 h-screen"
+        escalationCount={escalationCount}
+      />
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -29,6 +34,7 @@ function AppLayout() {
       <MobileNav
         isOpen={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
+        escalationCount={escalationCount}
       />
     </div>
   );

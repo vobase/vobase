@@ -282,19 +282,19 @@ aiRoutes.delete('/memory/facts/:id', async (c) => {
   // Verify scope ownership: user-scoped facts must match, contact-scoped facts require user relationship
   if (fact.userId && fact.userId !== user.id) throw unauthorized();
   if (fact.contactId && !fact.userId) {
-    // Contact-scoped: verify user has a thread with this contact
-    const { msgThreads } = await import('../messaging/schema');
-    const [thread] = await db
-      .select({ id: msgThreads.id })
-      .from(msgThreads)
+    // Contact-scoped: verify user has a conversation with this contact
+    const { msgConversations } = await import('../messaging/schema');
+    const [conversation] = await db
+      .select({ id: msgConversations.id })
+      .from(msgConversations)
       .where(
         and(
-          eq(msgThreads.userId, user.id),
-          eq(msgThreads.contactId, fact.contactId),
+          eq(msgConversations.userId, user.id),
+          eq(msgConversations.contactId, fact.contactId),
         ),
       )
       .limit(1);
-    if (!thread) throw unauthorized();
+    if (!conversation) throw unauthorized();
   }
 
   const deleted = await db
@@ -330,18 +330,18 @@ aiRoutes.delete('/memory/episodes/:id', async (c) => {
   // Verify scope ownership: user-scoped episodes must match, contact-scoped require user relationship
   if (episode.userId && episode.userId !== user.id) throw unauthorized();
   if (episode.contactId && !episode.userId) {
-    const { msgThreads } = await import('../messaging/schema');
-    const [thread] = await db
-      .select({ id: msgThreads.id })
-      .from(msgThreads)
+    const { msgConversations } = await import('../messaging/schema');
+    const [conversation] = await db
+      .select({ id: msgConversations.id })
+      .from(msgConversations)
       .where(
         and(
-          eq(msgThreads.userId, user.id),
-          eq(msgThreads.contactId, episode.contactId),
+          eq(msgConversations.userId, user.id),
+          eq(msgConversations.contactId, episode.contactId),
         ),
       )
       .limit(1);
-    if (!thread) throw unauthorized();
+    if (!conversation) throw unauthorized();
   }
 
   // Delete associated facts sharing the same cellId, then the episode
@@ -461,7 +461,7 @@ aiRoutes.get('/guardrails/logs', async (c) => {
       channel: aiModerationLogs.channel,
       userId: aiModerationLogs.userId,
       contactId: aiModerationLogs.contactId,
-      threadId: aiModerationLogs.threadId,
+      conversationId: aiModerationLogs.threadId,
       reason: aiModerationLogs.reason,
       blockedContent: aiModerationLogs.blockedContent,
       matchedTerm: aiModerationLogs.matchedTerm,
@@ -589,7 +589,7 @@ aiRoutes.all('/mcp', async (c) => {
 // --- Workflows ---
 
 const startEscalationSchema = z.object({
-  threadId: z.string().min(1),
+  conversationId: z.string().min(1),
   reason: z.string().min(1),
 });
 
@@ -599,7 +599,7 @@ const resumeEscalationSchema = z.object({
 });
 
 const startFollowUpSchema = z.object({
-  threadId: z.string().min(1),
+  conversationId: z.string().min(1),
   delayMinutes: z.number().min(1),
 });
 
@@ -611,7 +611,7 @@ aiRoutes.post('/workflows/escalation/start', async (c) => {
   const body = startEscalationSchema.parse(await c.req.json());
 
   // Step 1: analyze (inline — lightweight, no LLM call)
-  const summary = `Escalation requested for thread ${body.threadId}: ${body.reason}`;
+  const summary = `Escalation requested for conversation ${body.conversationId}: ${body.reason}`;
 
   // Create workflow run in suspended state (waiting for human approval)
   const [run] = await db
@@ -623,7 +623,7 @@ aiRoutes.post('/workflows/escalation/start', async (c) => {
       inputData: JSON.stringify(body),
       suspendPayload: JSON.stringify({
         reason: body.reason,
-        threadId: body.threadId,
+        conversationId: body.conversationId,
         summary,
       }),
     })
@@ -633,7 +633,11 @@ aiRoutes.post('/workflows/escalation/start', async (c) => {
     {
       runId: run.id,
       status: 'suspended',
-      suspendPayload: { reason: body.reason, threadId: body.threadId, summary },
+      suspendPayload: {
+        reason: body.reason,
+        conversationId: body.conversationId,
+        summary,
+      },
     },
     201,
   );
@@ -730,7 +734,7 @@ aiRoutes.post('/workflows/follow-up/start', async (c) => {
       status: 'suspended',
       inputData: JSON.stringify(body),
       suspendPayload: JSON.stringify({
-        threadId: body.threadId,
+        conversationId: body.conversationId,
         delayMinutes: body.delayMinutes,
         scheduledAt: new Date(
           Date.now() + body.delayMinutes * 60_000,

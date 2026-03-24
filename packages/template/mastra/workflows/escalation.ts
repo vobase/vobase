@@ -13,7 +13,7 @@ import { z } from 'zod';
  */
 
 const escalationInputSchema = z.object({
-  threadId: z.string(),
+  conversationId: z.string(),
   reason: z.string(),
 });
 
@@ -30,15 +30,15 @@ export const analyzeStep = createStep({
   id: 'analyze-escalation',
   inputSchema: escalationInputSchema,
   outputSchema: z.object({
-    threadId: z.string(),
+    conversationId: z.string(),
     reason: z.string(),
     summary: z.string(),
   }),
   execute: async ({ inputData }) => {
     return {
-      threadId: inputData.threadId,
+      conversationId: inputData.conversationId,
       reason: inputData.reason,
-      summary: `Escalation requested for thread ${inputData.threadId}: ${inputData.reason}`,
+      summary: `Escalation requested for conversation ${inputData.conversationId}: ${inputData.reason}`,
     };
   },
 });
@@ -47,18 +47,18 @@ export const analyzeStep = createStep({
 export const approvalStep = createStep({
   id: 'human-approval',
   inputSchema: z.object({
-    threadId: z.string(),
+    conversationId: z.string(),
     reason: z.string(),
     summary: z.string(),
   }),
   outputSchema: z.object({
     approved: z.boolean(),
     note: z.string().optional(),
-    threadId: z.string(),
+    conversationId: z.string(),
   }),
   suspendSchema: z.object({
     reason: z.string(),
-    threadId: z.string(),
+    conversationId: z.string(),
     summary: z.string(),
   }),
   resumeSchema: z.object({
@@ -71,19 +71,19 @@ export const approvalStep = createStep({
       return {
         approved: resumeData.approved,
         note: resumeData.note,
-        threadId: inputData.threadId,
+        conversationId: inputData.conversationId,
       };
     }
 
     // Suspend and wait for human decision
     await suspend({
       reason: inputData.reason,
-      threadId: inputData.threadId,
+      conversationId: inputData.conversationId,
       summary: inputData.summary,
     });
 
     // Unreachable — suspend halts execution
-    return { approved: false, threadId: inputData.threadId };
+    return { approved: false, conversationId: inputData.conversationId };
   },
 });
 
@@ -93,7 +93,7 @@ export const executeStep = createStep({
   inputSchema: z.object({
     approved: z.boolean(),
     note: z.string().optional(),
-    threadId: z.string(),
+    conversationId: z.string(),
   }),
   outputSchema: escalationOutputSchema,
   execute: async ({ inputData }) => {

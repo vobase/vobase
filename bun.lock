@@ -21,7 +21,7 @@
     },
     "packages/core": {
       "name": "@vobase/core",
-      "version": "0.20.0",
+      "version": "0.21.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.27.1",
         "jose": "^6.2.2",

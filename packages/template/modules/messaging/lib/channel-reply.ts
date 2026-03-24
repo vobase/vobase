@@ -20,7 +20,7 @@ interface ChannelReplyOptions {
   db: VobaseDb;
   scheduler: Scheduler;
   storage?: StorageService;
-  thread: {
+  conversation: {
     id: string;
     agentId: string | null;
     channel: string;
@@ -78,10 +78,12 @@ async function extractAttachmentText(
 export async function generateChannelReply(
   options: ChannelReplyOptions,
 ): Promise<string> {
-  const { storage, thread, messages } = options;
+  const { storage, conversation, messages } = options;
 
   // Look up the registered agent
-  const registered = thread.agentId ? getAgent(thread.agentId) : undefined;
+  const registered = conversation.agentId
+    ? getAgent(conversation.agentId)
+    : undefined;
   if (!registered) return '';
 
   // Build AI messages — include image attachments as multimodal content parts
@@ -153,22 +155,24 @@ export async function generateChannelReply(
   }
 
   const entries: [string, string][] = [
-    ['threadId', thread.id],
-    ['channel', thread.channel],
+    ['conversationId', conversation.id],
+    ['channel', conversation.channel],
   ];
-  if (thread.agentId) entries.push(['agentId', thread.agentId]);
-  if (thread.contactId) entries.push(['contactId', thread.contactId]);
-  if (thread.userId) entries.push(['userId', thread.userId]);
+  if (conversation.agentId) entries.push(['agentId', conversation.agentId]);
+  if (conversation.contactId)
+    entries.push(['contactId', conversation.contactId]);
+  if (conversation.userId) entries.push(['userId', conversation.userId]);
   const rc = new RequestContext(entries);
 
-  // Pass memory option so Mastra Memory auto-persists messages for this thread.
-  const resourceId = thread.contactId ?? thread.userId ?? 'anonymous';
+  // Pass memory option so Mastra Memory auto-persists messages for this conversation.
+  const resourceId =
+    conversation.contactId ?? conversation.userId ?? 'anonymous';
 
   // biome-ignore lint/suspicious/noExplicitAny: ModelMessage[] compatible at runtime, type declarations diverge across Mastra/AI SDK package boundaries
   const result = await registered.agent.generate(aiMessages as any, {
     requestContext: rc,
     memory: {
-      thread: thread.id,
+      thread: conversation.id,
       resource: resourceId,
     },
   });

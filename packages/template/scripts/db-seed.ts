@@ -14,6 +14,7 @@
  * Usage: bun run seed
  */
 import { join } from 'node:path';
+import { eq } from 'drizzle-orm';
 import { authUser, createApp, createDatabase } from '@vobase/core';
 
 import { modules } from '../modules';
@@ -49,6 +50,11 @@ if (authRes.status === 200) {
   const data = (await authRes.json()) as { user?: { id: string } };
   userId = data.user?.id;
   sessionCookie = authRes.headers.get('set-cookie') ?? '';
+  // Set admin role on the seed user
+  if (userId) {
+    const db = createDatabase(dbUrl);
+    await db.update(authUser).set({ role: 'admin' }).where(eq(authUser.id, userId));
+  }
   console.log(`${green('✓')} Created user: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
   console.log(dim('  Pre-filled on the login page in dev mode'));
 } else {

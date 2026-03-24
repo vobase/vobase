@@ -13,14 +13,14 @@ import { msgOutbox } from '../schema';
 export async function queueOutboundMessage(
   db: VobaseDb,
   scheduler: Scheduler,
-  threadId: string,
+  conversationId: string,
   content: string,
   channel: string,
 ) {
   const [outboxRow] = await db
     .insert(msgOutbox)
     .values({
-      threadId,
+      conversationId,
       content,
       channel,
       status: 'queued',

@@ -5,11 +5,18 @@ import type {
   VobaseDb,
 } from '@vobase/core';
 import { defineJob } from '@vobase/core';
-import { and, eq, isNull, lt, lte } from 'drizzle-orm';
+import { and, count, eq, gt, isNull, lt, lte } from 'drizzle-orm';
 
 import { getAgent } from '../../mastra/agents';
-import { loadThreadMessages } from './lib/memory-bridge';
-import { msgContacts, msgOutbox, msgThreads } from './schema';
+import { loadConversationMessages } from './lib/memory-bridge';
+import {
+  msgContacts,
+  msgConversationLabels,
+  msgConversations,
+  msgInboxes,
+  msgLabels,
+  msgOutbox,
+} from './schema';
 
 let moduleDb: VobaseDb;
 let moduleChannels: ChannelsService;
@@ -43,20 +50,20 @@ export const sendMessageJob = defineJob('messaging:send', async (data) => {
 
   if (!outboxRow || outboxRow.status !== 'queued') return;
 
-  const thread = (
+  const conversation = (
     await moduleDb
       .select()
-      .from(msgThreads)
-      .where(eq(msgThreads.id, outboxRow.threadId))
+      .from(msgConversations)
+      .where(eq(msgConversations.id, outboxRow.conversationId))
   )[0];
-  if (!thread) return;
+  if (!conversation) return;
 
-  const contact = thread.contactId
+  const contact = conversation.contactId
     ? (
         await moduleDb
           .select()
           .from(msgContacts)
-          .where(eq(msgContacts.id, thread.contactId))
+          .where(eq(msgContacts.id, conversation.contactId))
       )[0]
     : null;
 
@@ -104,8 +111,8 @@ export const channelReplyJob = defineJob(
   async (data) => {
     if (!moduleDb) throw new Error('moduleDb not initialized');
 
-    const { threadId, triggeredAt } = data as {
-      threadId: string;
+    const { conversationId, triggeredAt } = data as {
+      conversationId: string;
       triggeredAt: number;
     };
     const DEBOUNCE_MS = 3000;
@@ -115,20 +122,21 @@ export const channelReplyJob = defineJob(
       return;
     }
 
-    const thread = (
+    const conversation = (
       await moduleDb
         .select()
-        .from(msgThreads)
-        .where(eq(msgThreads.id, threadId))
+        .from(msgConversations)
+        .where(eq(msgConversations.id, conversationId))
     )[0];
-    if (!thread || thread.status !== 'ai' || !thread.agentId) return;
+    if (!conversation || conversation.handler !== 'ai' || !conversation.agentId)
+      return;
 
-    if (!getAgent(thread.agentId)) return;
+    if (!getAgent(conversation.agentId)) return;
 
     // Load messages from Mastra Memory
-    let memoryMessages: Awaited<ReturnType<typeof loadThreadMessages>>;
+    let memoryMessages: Awaited<ReturnType<typeof loadConversationMessages>>;
     try {
-      memoryMessages = await loadThreadMessages(threadId);
+      memoryMessages = await loadConversationMessages(conversationId);
     } catch {
       console.warn('[messaging] Failed to load messages from Memory');
       return;
@@ -162,12 +170,12 @@ export const channelReplyJob = defineJob(
       db: moduleDb,
       scheduler: moduleScheduler,
       storage: moduleStorage,
-      thread: {
-        id: thread.id,
-        agentId: thread.agentId,
-        channel: thread.channel,
-        contactId: thread.contactId,
-        userId: thread.userId,
+      conversation: {
+        id: conversation.id,
+        agentId: conversation.agentId,
+        channel: conversation.channel,
+        contactId: conversation.contactId,
+        userId: conversation.userId,
       },
       messages,
     });
@@ -176,60 +184,75 @@ export const channelReplyJob = defineJob(
       await queueOutboundMessage(
         moduleDb,
         moduleScheduler,
-        thread.id,
+        conversation.id,
         replyText,
-        thread.channel,
+        conversation.channel,
       );
+
+      // After first AI response, trigger label suggestion
+      const [{ total }] = await moduleDb
+        .select({ total: count() })
+        .from(msgOutbox)
+        .where(eq(msgOutbox.conversationId, conversationId));
+      if (total === 1 && moduleScheduler) {
+        await moduleScheduler.add('messaging:suggest-labels', {
+          conversationId,
+        });
+      }
     }
   },
 );
 
 /**
  * messaging:resume-ai — Cron every 5 min.
- * Find threads with status='human' AND aiResumeAt <= now, set status='ai'.
+ * Find conversations with status='human' AND aiResumeAt <= now, set status='ai'.
  */
 export const resumeAiJob = defineJob('messaging:resume-ai', async () => {
   if (!moduleDb) throw new Error('moduleDb not initialized');
 
   const now = new Date();
-  const threads = await moduleDb
+  const conversations = await moduleDb
     .select()
-    .from(msgThreads)
+    .from(msgConversations)
     .where(
       and(
-        eq(msgThreads.status, 'human'),
-        lte(msgThreads.aiResumeAt, now),
-        isNull(msgThreads.archivedAt),
+        eq(msgConversations.handler, 'human'),
+        lte(msgConversations.aiResumeAt, now),
+        isNull(msgConversations.archivedAt),
       ),
     );
 
-  for (const thread of threads) {
+  for (const conversation of conversations) {
     await moduleDb
-      .update(msgThreads)
+      .update(msgConversations)
       .set({
-        status: 'ai',
+        status: 'open',
+        handler: 'ai',
         aiPausedAt: null,
         aiResumeAt: null,
       })
-      .where(eq(msgThreads.id, thread.id));
+      .where(eq(msgConversations.id, conversation.id));
   }
 });
 
 /**
- * messaging:archive-threads — Cron daily.
- * Archive threads inactive for 7 days.
+ * messaging:archive-conversations — Cron daily.
+ * Archive conversations inactive for 7 days.
  */
-export const archiveThreadsJob = defineJob(
-  'messaging:archive-threads',
+export const archiveConversationsJob = defineJob(
+  'messaging:archive-conversations',
   async () => {
     if (!moduleDb) throw new Error('moduleDb not initialized');
 
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     await moduleDb
-      .update(msgThreads)
+      .update(msgConversations)
       .set({ archivedAt: new Date() })
       .where(
-        and(isNull(msgThreads.archivedAt), lt(msgThreads.updatedAt, cutoff)),
+        and(
+          isNull(msgConversations.archivedAt),
+          lt(msgConversations.updatedAt, cutoff),
+        ),
       );
   },
 );
@@ -279,3 +302,175 @@ export const recoverStuckJob = defineJob(
     }
   },
 );
+
+/**
+ * messaging:auto-resolve — Cron every 15 min.
+ * Auto-resolve idle AI conversations using the inbox's default agent.
+ */
+export const autoResolveJob = defineJob('messaging:auto-resolve', async () => {
+  if (!moduleDb) throw new Error('moduleDb not initialized');
+
+  const inboxes = await moduleDb
+    .select()
+    .from(msgInboxes)
+    .where(
+      and(
+        eq(msgInboxes.enabled, true),
+        gt(msgInboxes.autoResolveIdleMinutes, 0),
+      ),
+    );
+
+  for (const inbox of inboxes) {
+    const cutoff = new Date(
+      Date.now() - inbox.autoResolveIdleMinutes! * 60_000,
+    );
+
+    const idleConversations = await moduleDb
+      .select()
+      .from(msgConversations)
+      .where(
+        and(
+          eq(msgConversations.inboxId, inbox.id),
+          eq(msgConversations.status, 'open'),
+          eq(msgConversations.handler, 'ai'),
+          lte(msgConversations.lastActivityAt, cutoff),
+          isNull(msgConversations.archivedAt),
+        ),
+      );
+
+    for (const conv of idleConversations) {
+      try {
+        const agent = inbox.defaultAgentId
+          ? getAgent(inbox.defaultAgentId)
+          : undefined;
+        if (!agent) continue;
+
+        const result = await agent.agent.generate(
+          [
+            {
+              role: 'user',
+              content: `Evaluate if this conversation is resolved. The customer has been idle for ${inbox.autoResolveIdleMinutes} minutes. If the customer's question has been fully answered, respond with JSON: {"resolved": true, "summary": "brief summary"}. If not resolved, respond with: {"resolved": false, "summary": "what's still pending"}`,
+            },
+          ],
+          { memory: { thread: conv.id, resource: 'system' } },
+        );
+
+        const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const evaluation = JSON.parse(jsonMatch[0]) as {
+            resolved: boolean;
+            summary: string;
+          };
+          if (evaluation.resolved) {
+            await moduleDb
+              .update(msgConversations)
+              .set({
+                status: 'resolved',
+                handler: 'unassigned',
+                resolvedAt: new Date(),
+                escalationSummary: evaluation.summary,
+              })
+              .where(eq(msgConversations.id, conv.id));
+          }
+        }
+      } catch {
+        // Skip individual conversation failures
+      }
+    }
+  }
+});
+
+/**
+ * messaging:suggest-labels — Triggered after first AI response.
+ * Ask the agent to suggest labels for the conversation.
+ */
+export const suggestLabelsJob = defineJob(
+  'messaging:suggest-labels',
+  async (data) => {
+    if (!moduleDb) throw new Error('moduleDb not initialized');
+
+    const { conversationId } = data as { conversationId: string };
+
+    const conv = (
+      await moduleDb
+        .select()
+        .from(msgConversations)
+        .where(eq(msgConversations.id, conversationId))
+    )[0];
+    if (!conv || !conv.agentId) return;
+
+    const agent = getAgent(conv.agentId);
+    if (!agent) return;
+
+    try {
+      const result = await agent.agent.generate(
+        [
+          {
+            role: 'user',
+            content:
+              'Based on this conversation, suggest 1-3 short labels/tags that categorize the topic. Respond with JSON only: {"labels": ["label1", "label2"]}',
+          },
+        ],
+        { memory: { thread: conv.id, resource: 'system' } },
+      );
+
+      const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return;
+
+      const { labels } = JSON.parse(jsonMatch[0]) as { labels: string[] };
+      if (!Array.isArray(labels)) return;
+
+      for (const name of labels.slice(0, 3)) {
+        const trimmed = name.trim().toLowerCase();
+        if (!trimmed) continue;
+
+        let label = (
+          await moduleDb
+            .select()
+            .from(msgLabels)
+            .where(eq(msgLabels.name, trimmed))
+        )[0];
+        if (!label) {
+          [label] = await moduleDb
+            .insert(msgLabels)
+            .values({ name: trimmed })
+            .returning();
+        }
+
+        await moduleDb
+          .insert(msgConversationLabels)
+          .values({ conversationId, labelId: label.id })
+          .onConflictDoNothing();
+      }
+    } catch {
+      // Label suggestion is best-effort
+    }
+  },
+);
+
+/**
+ * messaging:wake-snoozed — Cron every 5 min.
+ * Re-open snoozed conversations whose snooze period has elapsed.
+ */
+export const wakeSnoozedJob = defineJob('messaging:wake-snoozed', async () => {
+  if (!moduleDb) throw new Error('moduleDb not initialized');
+
+  const now = new Date();
+  const snoozed = await moduleDb
+    .select()
+    .from(msgConversations)
+    .where(
+      and(
+        eq(msgConversations.status, 'snoozed'),
+        lte(msgConversations.snoozedUntil, now),
+        isNull(msgConversations.archivedAt),
+      ),
+    );
+
+  for (const conv of snoozed) {
+    await moduleDb
+      .update(msgConversations)
+      .set({ status: 'open', handler: 'ai', snoozedUntil: null })
+      .where(eq(msgConversations.id, conv.id));
+  }
+});
