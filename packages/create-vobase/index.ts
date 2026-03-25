@@ -4,8 +4,8 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -88,7 +88,9 @@ for (const skill of readdirSync(agentsDir)) {
     symlinkSync(target, link);
   }
 }
-console.log(`${green('✓')} ${monorepoRoot ? 'Copied' : 'Downloaded'} agent skills`);
+console.log(
+  `${green('✓')} ${monorepoRoot ? 'Copied' : 'Downloaded'} agent skills`,
+);
 
 // --- Post-process package.json ---
 const pkgPath = resolve(dest, 'package.json');

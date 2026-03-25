@@ -48,10 +48,12 @@ function createPGliteDbClient(pg: PGlite) {
   async function runQuery(sql: string, values?: unknown[]) {
     const result = await pg.query(sql, values);
     return {
+      // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
       rows: result.rows as any[],
       command: '',
       rowCount: result.rows.length,
       oid: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
       fields: (result.fields || []).map((f: any) => ({
         name: f.name,
         tableID: f.tableID ?? 0,
@@ -67,14 +69,17 @@ function createPGliteDbClient(pg: PGlite) {
   /** Run multi-statement SQL via PGlite's batch runner */
   async function runMultiStatement(sql: string): Promise<void> {
     // PGlite supports multi-statement via its non-prepared path
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     await (pg as any).exec(sql);
   }
 
   const client = {
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     get $pool(): any {
       return null;
     },
 
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     async connect(): Promise<any> {
       throw new Error(
         'PGlite does not support pool connections — use query methods directly',
@@ -90,6 +95,7 @@ function createPGliteDbClient(pg: PGlite) {
       return null;
     },
 
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     async one<T = any>(sql: string, values?: unknown[]): Promise<T> {
       const result = await runQuery(sql, values);
       if (result.rows.length !== 1) {
@@ -98,6 +104,7 @@ function createPGliteDbClient(pg: PGlite) {
       return result.rows[0] as T;
     },
 
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     async oneOrNone<T = any>(
       sql: string,
       values?: unknown[],
@@ -109,16 +116,19 @@ function createPGliteDbClient(pg: PGlite) {
       return (result.rows[0] as T) ?? null;
     },
 
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     async any<T = any>(sql: string, values?: unknown[]): Promise<T[]> {
       const result = await runQuery(sql, values);
       return result.rows as T[];
     },
 
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     async manyOrNone<T = any>(sql: string, values?: unknown[]): Promise<T[]> {
       const result = await runQuery(sql, values);
       return result.rows as T[];
     },
 
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     async many<T = any>(sql: string, values?: unknown[]): Promise<T[]> {
       const result = await runQuery(sql, values);
       if (result.rows.length === 0) {
@@ -129,6 +139,7 @@ function createPGliteDbClient(pg: PGlite) {
 
     query: runQuery,
 
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     async tx<T>(callback: (t: any) => Promise<T>): Promise<T> {
       await runQuery('BEGIN');
       try {
@@ -155,6 +166,7 @@ export class PGliteStore extends MastraCompositeStore {
 
   constructor(pglite: PGlite) {
     super({ id: 'pglite-store', name: 'PGliteStore' });
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     const dbClient = createPGliteDbClient(pglite) as any;
     const domainConfig = { client: dbClient, schemaName: 'mastra' };
 

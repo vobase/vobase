@@ -17,7 +17,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 async function fetchDocuments() {
-  const res = await fetch('/api/knowledge-base/documents');
+  const res = await globalThis.fetch('/api/knowledge-base/documents');
   if (!res.ok) throw new Error('Failed to fetch documents');
   return res.json() as Promise<
     Array<{
@@ -77,7 +77,7 @@ function DocumentsPage() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch('/api/knowledge-base/documents', {
+      const res = await globalThis.fetch('/api/knowledge-base/documents', {
         method: 'POST',
         body: formData,
       });
@@ -90,9 +90,12 @@ function DocumentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/knowledge-base/documents/${id}`, {
-        method: 'DELETE',
-      });
+      const res = await globalThis.fetch(
+        `/api/knowledge-base/documents/${id}`,
+        {
+          method: 'DELETE',
+        },
+      );
       if (!res.ok) throw new Error('Delete failed');
     },
     onSuccess: () =>

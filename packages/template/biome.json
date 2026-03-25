@@ -77,6 +77,23 @@
           }
         }
       }
+    },
+    {
+      "includes": ["src/**", "modules/**/pages/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "warn",
+              "options": {
+                "deniedGlobals": {
+                  "fetch": "Use ctx.http or the Hono RPC client instead of raw fetch."
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

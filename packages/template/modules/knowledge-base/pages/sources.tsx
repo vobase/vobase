@@ -20,7 +20,7 @@ interface KBSource {
 }
 
 async function fetchSources() {
-  const res = await fetch('/api/knowledge-base/sources');
+  const res = await globalThis.fetch('/api/knowledge-base/sources');
   if (!res.ok) throw new Error('Failed to fetch sources');
   return res.json() as Promise<KBSource[]>;
 }
@@ -55,7 +55,7 @@ function SourcesPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const config = newType === 'crawl' ? { url: newUrl } : {};
-      const res = await fetch('/api/knowledge-base/sources', {
+      const res = await globalThis.fetch('/api/knowledge-base/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName, type: newType, config }),
@@ -73,9 +73,12 @@ function SourcesPage() {
 
   const syncMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/knowledge-base/sources/${id}/sync`, {
-        method: 'POST',
-      });
+      const res = await globalThis.fetch(
+        `/api/knowledge-base/sources/${id}/sync`,
+        {
+          method: 'POST',
+        },
+      );
       if (!res.ok) throw new Error('Sync failed');
     },
     onSuccess: () =>
@@ -84,7 +87,7 @@ function SourcesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/knowledge-base/sources/${id}`, {
+      const res = await globalThis.fetch(`/api/knowledge-base/sources/${id}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Delete failed');
@@ -95,7 +98,7 @@ function SourcesPage() {
 
   async function handleConnect(source: KBSource) {
     if (source.type === 'google-drive' || source.type === 'sharepoint') {
-      const res = await fetch(
+      const res = await globalThis.fetch(
         `/api/knowledge-base/sources/${source.id}/auth-url`,
       );
       const { url } = await res.json();

@@ -27,13 +27,16 @@ describe('createModerationProcessor', () => {
   test('passes clean input unchanged', async () => {
     const processor = createModerationProcessor({ blocklist: ['badword'] });
     const messages = [msg('user', 'Hello, how are you?')];
-    const result = await processor.processInput!({
+    const result = await processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
     const resultMsgs = Array.isArray(result) ? result : [];
     expect(resultMsgs).toHaveLength(1);
@@ -43,13 +46,16 @@ describe('createModerationProcessor', () => {
   test('blocks input matching blocklist pattern', async () => {
     const processor = createModerationProcessor({ blocklist: ['forbidden'] });
     const messages = [msg('user', 'This is forbidden content')];
-    const result = await processor.processInput!({
+    const result = await processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
     const resultMsgs = Array.isArray(result) ? result : [];
     expect(getText(resultMsgs)).toBe(MODERATION_NOTICE);
@@ -58,13 +64,16 @@ describe('createModerationProcessor', () => {
   test('blocklist matching is case-insensitive', async () => {
     const processor = createModerationProcessor({ blocklist: ['blocked'] });
     const messages = [msg('user', 'BLOCKED content here')];
-    const result = await processor.processInput!({
+    const result = await processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
     const resultMsgs = Array.isArray(result) ? result : [];
     expect(getText(resultMsgs)).toBe(MODERATION_NOTICE);
@@ -75,13 +84,16 @@ describe('createModerationProcessor', () => {
     const messages = [
       msg('user', 'This message is way too long for the limit'),
     ];
-    const result = await processor.processInput!({
+    const result = await processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
     const resultMsgs = Array.isArray(result) ? result : [];
     expect(getText(resultMsgs)).toBe(MODERATION_NOTICE);
@@ -90,13 +102,16 @@ describe('createModerationProcessor', () => {
   test('does not modify non-user messages', async () => {
     const processor = createModerationProcessor({ blocklist: ['forbidden'] });
     const messages = [msg('assistant', 'This is forbidden but from assistant')];
-    const result = await processor.processInput!({
+    const result = await processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
     const resultMsgs = Array.isArray(result) ? result : [];
     expect(getText(resultMsgs)).toBe('This is forbidden but from assistant');
@@ -105,16 +120,20 @@ describe('createModerationProcessor', () => {
   test('preserves earlier messages when blocking last', async () => {
     const processor = createModerationProcessor({ blocklist: ['badword'] });
     const messages = [msg('assistant', 'Hello!'), msg('user', 'badword here')];
-    const result = await processor.processInput!({
+    const result = await processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
     const resultMsgs = Array.isArray(result) ? result : [];
     expect(resultMsgs).toHaveLength(2);
+    // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     expect(extractText((resultMsgs[0] as any).content)).toBe('Hello!');
     expect(getText(resultMsgs)).toBe(MODERATION_NOTICE);
   });
@@ -128,13 +147,16 @@ describe('onBlock callback', () => {
   ) {
     const processor = createModerationProcessor(config, onBlock);
     const messages = [msg('user', text)];
-    return processor.processInput!({
+    return processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
   }
 
@@ -176,13 +198,16 @@ describe('onBlock callback', () => {
   test('works without onBlock callback (backward compat)', async () => {
     const processor = createModerationProcessor({ blocklist: ['bad'] });
     const messages = [msg('user', 'bad content')];
-    const result = await processor.processInput!({
+    const result = await processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
     const resultMsgs = Array.isArray(result) ? result : [];
     expect(getText(resultMsgs)).toBe(MODERATION_NOTICE);
@@ -193,13 +218,16 @@ describe('onBlock callback', () => {
       throw new Error('DB insert failed');
     });
     const messages = [msg('user', 'bad content')];
-    const result = await processor.processInput!({
+    const result = await processor.processInput?.({
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messages: messages as any,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
       messageList: { messages } as any,
       systemMessages: [],
       state: {},
       abort: (() => {}) as never,
       retryCount: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor types
     } as any);
     // Moderation should still work despite callback failure
     const resultMsgs = Array.isArray(result) ? result : [];

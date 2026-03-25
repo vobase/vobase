@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AUTOCOMPLETE_SEED, CATEGORIES, EXAMPLES } from '@/config/search';
 
 async function searchKnowledgeBase(query: string) {
-  const res = await fetch('/api/knowledge-base/search', {
+  const res = await globalThis.fetch('/api/knowledge-base/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, limit: 20 }),

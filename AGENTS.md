@@ -61,6 +61,24 @@ Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, St
 
 Linear-inspired: clean density, information-forward, keyboard-first. Light + dark mode, neutral gray + one accent. OKLCH colors. No gradients, no glassmorphism, no decoration without purpose. shadcn/ui components are owned source — customize freely.
 
+### Component Libraries (priority order)
+
+1. **shadcn/ui** — standard UI primitives (Button, Card, Dialog, Table, Form, etc.). Skill: `shadcn`. Install: `bunx shadcn@latest add <component>`.
+2. **ai-elements** — AI-native UI components (48 available). Skill: `ai-elements`. Install: `bunx --bun ai-elements@latest add <component>`. Installed components live in `src/components/ai-elements/` as owned source — customize freely. Currently installed: conversation, message, prompt-input, code-block, suggestion, shimmer. Many more available: tool, reasoning, sources, inline-citation, artifact, canvas, file-tree, terminal, plan, task, confirmation, attachments, audio-player, image, sandbox, web-preview, etc.
+3. **DiceUI** — advanced interactions shadcn doesn't cover (combobox, tags-input, sortable, kanban, file-upload, data-table, mention, color-picker, timeline, tour, masonry, media-player, 40+ more). Skill: `diceui`. Registry configured in `components.json`. Install: `bunx shadcn@latest add "https://diceui.com/r/<component>.json"`.
+
+4. **data-table-filters** — filterable data tables with faceted filters (checkbox, input, slider, timerange), sorting, infinite scroll, virtualization. Skill: `data-table-filters`. Install: `npx shadcn@latest add <block>` (9 registry blocks). Use for any non-trivial table — only skip for simple static tables.
+
+Always check these libraries before writing custom components. Each has a corresponding agent skill with full component catalogs in `references/`.
+
+### Design Mockups with Stitch
+
+When designing new features or revamping UI, use the `react-components` skill + Google Stitch MCP (`generate_screen_from_text`) to generate visual mockups for inspiration. **Always include the design guideline in the prompt** — without it Stitch generates generic UI that won't match Vobase:
+
+> Linear-inspired SaaS dashboard. Clean density, information-forward, keyboard-first. Neutral gray palette with one blue accent. No gradients, no glassmorphism, no decoration without purpose. Dark mode support. Use Tailwind CSS utility classes.
+
+Stitch output is for reference only — convert to shadcn/ui + ai-elements + DiceUI components, never ship raw Stitch HTML.
+
 ## Architectural Decisions
 
 These decisions were made deliberately. Do not revisit without discussion.
