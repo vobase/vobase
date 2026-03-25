@@ -2,8 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 
 /**
- * Track escalated (pending + human-handled) conversation count.
- * Plays an audio alert when the count increases.
+ * Track failed sessions that need attention.
+ * Plays an audio alert when a new failure appears.
  * Relies on useRealtimeInvalidation() to auto-invalidate the query key.
  */
 export function useEscalationNotifications() {
@@ -12,14 +12,12 @@ export function useEscalationNotifications() {
   const prevCountRef = useRef(-1);
 
   const { data: unreadCount = 0 } = useQuery({
-    queryKey: ['messaging-conversations', 'pending-count'],
+    queryKey: ['conversations-sessions', 'alerts'],
     queryFn: async () => {
-      const res = await fetch(
-        '/api/messaging/conversations?status=pending&handler=human',
-      );
+      const res = await fetch('/api/conversations/sessions?status=failed');
       if (!res.ok) return 0;
-      const conversations: unknown[] = await res.json();
-      return conversations.length;
+      const sessions: unknown[] = await res.json();
+      return sessions.length;
     },
     refetchInterval: 30_000,
   });
@@ -38,7 +36,7 @@ export function useEscalationNotifications() {
 
   const clearCount = () => {
     prevCountRef.current = 0;
-    queryClient.setQueryData(['messaging-conversations', 'pending-count'], 0);
+    queryClient.setQueryData(['conversations-sessions', 'alerts'], 0);
   };
 
   return { unreadCount, clearCount };

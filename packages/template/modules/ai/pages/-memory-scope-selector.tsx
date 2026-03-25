@@ -32,7 +32,7 @@ interface Contact {
 }
 
 async function fetchContacts(): Promise<Contact[]> {
-  const res = await fetch('/api/messaging/contacts');
+  const res = await fetch('/api/contacts');
   if (!res.ok) throw new Error('Failed to fetch contacts');
   return res.json();
 }
@@ -49,7 +49,7 @@ export function MemoryScopeSelector({
   const [open, setOpen] = useState(false);
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['messaging-contacts'],
+    queryKey: ['contacts'],
     queryFn: fetchContacts,
   });
 

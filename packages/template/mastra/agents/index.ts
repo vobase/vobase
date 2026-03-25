@@ -1,18 +1,14 @@
 import type { Agent } from '@mastra/core/agent';
 
 import type { AgentMeta } from '../lib/agents/define';
-import { assistantAgent, assistantMeta } from './assistant';
-import { quickHelperAgent, quickHelperMeta } from './quick-helper';
+import { bookingAgent, bookingMeta } from './booking';
 
 export type { AgentMeta } from '../lib/agents/define';
 
 export type RegisteredAgent = { agent: Agent; meta: AgentMeta };
 
 /** All registered agents. Add new agents here. */
-const agents: RegisteredAgent[] = [
-  { agent: assistantAgent, meta: assistantMeta },
-  { agent: quickHelperAgent, meta: quickHelperMeta },
-];
+const agents: RegisteredAgent[] = [{ agent: bookingAgent, meta: bookingMeta }];
 
 const agentMap = new Map(agents.map((a) => [a.meta.id, a]));
 

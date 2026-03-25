@@ -41,19 +41,19 @@ interface Thread {
 }
 
 async function fetchAgents(): Promise<Agent[]> {
-  const res = await fetch('/api/messaging/agents');
+  const res = await fetch('/api/conversations/agents');
   if (!res.ok) throw new Error('Failed to fetch agents');
   return res.json();
 }
 
 async function fetchConversations(): Promise<Thread[]> {
-  const res = await fetch('/api/messaging/conversations');
+  const res = await fetch('/api/conversations/sessions');
   if (!res.ok) throw new Error('Failed to fetch conversations');
   return res.json();
 }
 
 async function createConversation(agentId: string): Promise<Thread> {
-  const res = await fetch('/api/messaging/conversations', {
+  const res = await fetch('/api/conversations/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ agentId }),
@@ -265,12 +265,12 @@ function AgentsPage() {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['messaging-agents'],
+    queryKey: ['conversations-agents'],
     queryFn: fetchAgents,
   });
 
   const { data: threads = [] } = useQuery({
-    queryKey: ['messaging-conversations'],
+    queryKey: ['conversations-sessions'],
     queryFn: fetchConversations,
   });
 
@@ -279,8 +279,8 @@ function AgentsPage() {
     onSuccess: (conversation) => {
       setSelectedAgent(null);
       navigate({
-        to: '/messaging/conversations/$conversationId',
-        params: { conversationId: conversation.id },
+        to: '/dashboard/$sessionId',
+        params: { sessionId: conversation.id },
       });
     },
   });

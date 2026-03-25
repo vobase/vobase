@@ -7,8 +7,9 @@ import type { VobaseDb } from '@vobase/core';
 import { drizzle } from 'drizzle-orm/pglite';
 
 import * as aiSchema from '../modules/ai/schema';
+import * as contactsSchema from '../modules/contacts/schema';
+import * as conversationsSchema from '../modules/conversations/schema';
 import * as kbSchema from '../modules/knowledge-base/schema';
-import * as messagingSchema from '../modules/messaging/schema';
 
 const nanoidSql = readFileSync(
   join(import.meta.dir, '../db/extensions/03_nanoid.sql'),
@@ -16,7 +17,7 @@ const nanoidSql = readFileSync(
 );
 
 /**
- * Create an in-memory PGlite test database with messaging (and optionally KB) tables.
+ * Create an in-memory PGlite test database with contacts/conversations (and optionally KB/AI) tables.
  * Returns the PGlite instance (for raw queries + cleanup) and the Drizzle wrapper.
  */
 export async function createTestDb(options?: {
@@ -32,60 +33,73 @@ export async function createTestDb(options?: {
   await (pglite as any).exec(nanoidSql);
 
   // Create schemas for all template modules
-  await pglite.query('CREATE SCHEMA IF NOT EXISTS "messaging"');
+  await pglite.query('CREATE SCHEMA IF NOT EXISTS "conversations"');
   await pglite.query('CREATE SCHEMA IF NOT EXISTS "ai"');
   await pglite.query('CREATE SCHEMA IF NOT EXISTS "kb"');
 
-  // Messaging tables (agents are code-defined, not in DB)
+  // Contacts + Conversations tables (conversations schema shared by both modules)
   await (pglite as any).exec(`
-    CREATE TABLE "messaging"."conversations" (
-      id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      title TEXT,
-      agent_id TEXT,
-      user_id TEXT,
-      contact_id TEXT,
-      channel TEXT NOT NULL DEFAULT 'web',
-      status TEXT NOT NULL DEFAULT 'open',
-      handler TEXT NOT NULL DEFAULT 'ai',
-      inbox_id TEXT,
-      assignee_id TEXT,
-      team_id TEXT,
-      priority TEXT NOT NULL DEFAULT 'low',
-      escalation_reason TEXT,
-      escalation_summary TEXT,
-      escalation_at TIMESTAMPTZ,
-      snoozed_until TIMESTAMPTZ,
-      resolved_at TIMESTAMPTZ,
-      first_response_at TIMESTAMPTZ,
-      last_activity_at TIMESTAMPTZ,
-      ai_paused_at TIMESTAMPTZ,
-      ai_resume_at TIMESTAMPTZ,
-      window_expires_at TIMESTAMPTZ,
-      archived_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE "messaging"."outbox" (
-      id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      conversation_id TEXT NOT NULL REFERENCES "messaging"."conversations" (id) ON DELETE CASCADE,
-      content TEXT NOT NULL,
-      channel TEXT NOT NULL DEFAULT 'web',
-      external_message_id TEXT UNIQUE,
-      status TEXT NOT NULL DEFAULT 'queued',
-      retry_count INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE "messaging"."contacts" (
+    CREATE TABLE "conversations"."contacts" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       phone TEXT UNIQUE,
       email TEXT UNIQUE,
       name TEXT,
       identifier TEXT,
-      channel TEXT,
-      metadata TEXT,
+      role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'lead', 'staff')),
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE "conversations"."endpoints" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      name TEXT NOT NULL,
+      channel TEXT NOT NULL CHECK (channel IN ('whatsapp', 'web', 'email')),
+      agent_id TEXT NOT NULL,
+      assignment_pattern TEXT NOT NULL DEFAULT 'direct' CHECK (assignment_pattern IN ('direct', 'router', 'workflow')),
+      config JSONB DEFAULT '{}',
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE "conversations"."sessions" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      endpoint_id TEXT NOT NULL REFERENCES "conversations"."endpoints" (id),
+      contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id),
+      agent_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed', 'paused')),
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ended_at TIMESTAMPTZ,
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE "conversations"."consultations" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      session_id TEXT NOT NULL REFERENCES "conversations"."sessions" (id),
+      staff_contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id),
+      channel TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      summary TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'replied', 'timeout', 'cancelled')),
+      requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      replied_at TIMESTAMPTZ,
+      timeout_minutes INTEGER NOT NULL DEFAULT 30,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE "conversations"."outbox" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      session_id TEXT NOT NULL REFERENCES "conversations"."sessions" (id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      payload JSONB,
+      external_message_id TEXT UNIQUE,
+      status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent', 'delivered', 'read', 'failed')),
+      retry_count INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -217,7 +231,12 @@ export async function createTestDb(options?: {
     `);
   }
 
-  const schema = { ...aiSchema, ...kbSchema, ...messagingSchema };
+  const schema = {
+    ...aiSchema,
+    ...kbSchema,
+    ...contactsSchema,
+    ...conversationsSchema,
+  };
   const db = drizzle({ client: pglite, schema }) as unknown as VobaseDb;
 
   return { pglite, db };

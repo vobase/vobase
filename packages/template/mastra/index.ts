@@ -14,16 +14,15 @@ import { PostgresStore } from '@mastra/pg';
 
 import { getMastraAgents } from './agents';
 import {
-  addLabelTool,
-  assignTicketTool,
-  escalateTicketTool,
-  resolveConversationTool,
+  bookSlotTool,
+  cancelBookingTool,
+  checkAvailabilityTool,
+  consultHumanTool,
+  rescheduleBookingTool,
   searchKnowledgeBaseTool,
-  setPriorityTool,
-  snoozeTicketTool,
+  sendReminderTool,
 } from './tools';
-import { escalationWorkflow } from './workflows/escalation';
-import { followUpWorkflow } from './workflows/follow-up';
+import { sessionLifecycleWorkflow } from './workflows/session-lifecycle';
 
 let mastraInstance: Mastra | undefined;
 let memoryInstance: Memory | undefined;
@@ -66,16 +65,15 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
     agents: getMastraAgents(),
     tools: {
       search_knowledge_base: searchKnowledgeBaseTool,
-      escalate_ticket: escalateTicketTool,
-      set_priority: setPriorityTool,
-      assign_ticket: assignTicketTool,
-      add_label: addLabelTool,
-      snooze_ticket: snoozeTicketTool,
-      resolve_conversation: resolveConversationTool,
+      check_availability: checkAvailabilityTool,
+      book_slot: bookSlotTool,
+      cancel_booking: cancelBookingTool,
+      reschedule_booking: rescheduleBookingTool,
+      send_reminder: sendReminderTool,
+      consult_human: consultHumanTool,
     },
     workflows: {
-      'ai:escalation': escalationWorkflow,
-      'ai:follow-up': followUpWorkflow,
+      'ai:session-lifecycle': sessionLifecycleWorkflow,
     },
     memory: { 'agent-memory': memoryInstance },
     storage: store,

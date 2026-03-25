@@ -75,7 +75,7 @@ function PublicChatView({
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: `/api/messaging/chat/${inboxId}/stream?visitorToken=${encodeURIComponent(visitorToken)}`,
+        api: `/api/conversations/chat/${inboxId}/stream?visitorToken=${encodeURIComponent(visitorToken)}`,
       }),
     [inboxId, visitorToken],
   );
@@ -208,7 +208,7 @@ function PublicChatPage() {
       if (storedConvId) {
         try {
           const res = await fetch(
-            `/api/messaging/chat/${inboxId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
+            `/api/conversations/chat/${inboxId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
           );
           if (res.ok) {
             const data: ConversationMessages = await res.json();
@@ -229,7 +229,7 @@ function PublicChatPage() {
       }
 
       // Start new conversation
-      const startRes = await fetch(`/api/messaging/chat/${inboxId}/start`, {
+      const startRes = await fetch(`/api/conversations/chat/${inboxId}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ visitorToken }),

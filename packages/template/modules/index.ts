@@ -1,15 +1,19 @@
 import type { VobaseModule } from '@vobase/core';
 
 import { aiModule } from './ai';
+import { contactsModule } from './contacts';
+import { conversationsModule } from './conversations';
+import { dashboardModule } from './dashboard';
 import { integrationsModule } from './integrations';
 import { knowledgeBaseModule } from './knowledge-base';
-import { messagingModule } from './messaging';
 import { systemModule } from './system';
 
 export const modules: VobaseModule[] = [
   systemModule,
   knowledgeBaseModule,
   aiModule,
-  messagingModule,
+  contactsModule,
+  conversationsModule,
+  dashboardModule,
   integrationsModule,
 ];

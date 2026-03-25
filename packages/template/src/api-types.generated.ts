@@ -3,9 +3,11 @@
 import { Hono } from 'hono';
 
 import { aiModule } from '../modules/ai';
+import { contactsModule } from '../modules/contacts';
+import { conversationsModule } from '../modules/conversations';
+import { dashboardModule } from '../modules/dashboard';
 import { integrationsModule } from '../modules/integrations';
 import { knowledgeBaseModule } from '../modules/knowledge-base';
-import { messagingModule } from '../modules/messaging';
 import { systemModule } from '../modules/system';
 
 // Type-only chain — mirrors createApp() route mounting but preserves Hono's literal types.
@@ -14,9 +16,11 @@ function _typedApp() {
   return new Hono()
     .get('/health', (c) => c.json({ status: 'ok' as const, uptime: 0 }))
     .route('/api/ai', aiModule.routes)
+    .route('/api/contacts', contactsModule.routes)
+    .route('/api/conversations', conversationsModule.routes)
+    .route('/api/dashboard', dashboardModule.routes)
     .route('/api/integrations', integrationsModule.routes)
     .route('/api/knowledge-base', knowledgeBaseModule.routes)
-    .route('/api/messaging', messagingModule.routes)
     .route('/api/system', systemModule.routes)
   ;
 }

@@ -88,9 +88,7 @@ export function runWhatsAppEmbeddedSignup(
       try {
         // event.data may be a JSON string or already an object
         const raw = event.data;
-        const data = (
-          typeof raw === 'string' ? JSON.parse(raw) : raw
-        ) as {
+        const data = (typeof raw === 'string' ? JSON.parse(raw) : raw) as {
           type?: string;
           event?: string;
           data?: Record<string, string>;

@@ -310,14 +310,8 @@ function IntegrationsPage() {
                   in the popup to keep using the app alongside the API.
                 </p>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Need multiple WhatsApp numbers?{' '}
-                  <Link
-                    to="/messaging/settings/inboxes"
-                    className="font-medium text-foreground underline-offset-2 hover:underline"
-                  >
-                    Manage numbers via Inbox Settings
-                  </Link>
-                  .
+                  Need multiple WhatsApp numbers? Configure additional numbers
+                  via the WhatsApp Business Manager.
                 </p>
               </div>
             )}

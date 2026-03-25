@@ -8,7 +8,7 @@ export { setAiModuleDeps } from '../../mastra/lib/deps';
 
 import { runAgentEvals } from '../../mastra/evals/runner';
 import { processMemCell } from '../../mastra/processors/memory/formation';
-import { aiEvalRuns, aiWorkflowRuns } from './schema';
+import { aiEvalRuns } from './schema';
 
 const memoryFormationDataSchema = z.object({ cellId: z.string().min(1) });
 const evalRunDataSchema = z.object({ runId: z.string().min(1) });
@@ -80,50 +80,3 @@ export const evalRunJob = defineJob('ai:eval-run', async (data) => {
       .where(eq(aiEvalRuns.id, runId));
   }
 });
-
-const followUpResumeDataSchema = z.object({ runId: z.string().min(1) });
-
-/**
- * ai:follow-up-resume — Delayed job that resumes a follow-up workflow.
- * Queued with a delay by the follow-up start route. When it fires,
- * marks the workflow run as completed (simulating the send step).
- */
-export const followUpResumeJob = defineJob(
-  'ai:follow-up-resume',
-  async (data) => {
-    const moduleDb = getModuleDb();
-    const { runId } = followUpResumeDataSchema.parse(data);
-
-    const run = (
-      await moduleDb
-        .select()
-        .from(aiWorkflowRuns)
-        .where(eq(aiWorkflowRuns.id, runId))
-    )[0];
-    if (!run || run.status !== 'suspended') return;
-
-    const input = JSON.parse(run.inputData) ?? {};
-    const conversationId =
-      typeof input.conversationId === 'string'
-        ? input.conversationId
-        : typeof input.threadId === 'string'
-          ? input.threadId
-          : 'unknown';
-
-    // In production, this would compose an AI follow-up message and
-    // queue it via queueOutboundMessage. For this showcase, mark as sent.
-    const output = {
-      sent: true,
-      message: `Follow-up sent for conversation ${conversationId}.`,
-    };
-
-    await moduleDb
-      .update(aiWorkflowRuns)
-      .set({
-        status: 'completed',
-        outputData: JSON.stringify(output),
-        suspendPayload: null,
-      })
-      .where(eq(aiWorkflowRuns.id, runId));
-  },
-);

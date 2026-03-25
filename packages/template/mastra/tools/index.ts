@@ -1,7 +1,7 @@
-export { addLabelTool } from './add-label';
-export { assignTicketTool } from './assign-ticket';
-export { escalateTicketTool } from './escalate-ticket';
-export { resolveConversationTool } from './resolve-conversation';
+export { bookSlotTool } from './book-slot';
+export { cancelBookingTool } from './cancel-booking';
+export { checkAvailabilityTool } from './check-availability';
+export { consultHumanTool } from './consult-human';
+export { rescheduleBookingTool } from './reschedule';
 export { searchKnowledgeBaseTool } from './search-kb';
-export { setPriorityTool } from './set-priority';
-export { snoozeTicketTool } from './snooze-ticket';
+export { sendReminderTool } from './send-reminder';

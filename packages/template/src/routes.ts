@@ -6,6 +6,7 @@ import {
 } from '@tanstack/virtual-file-routes';
 
 export const routes = rootRoute('root.tsx', [
+  route('/chat/$inboxId', 'chat.$inboxId.tsx'),
   layout('auth', 'shell/auth/layout.tsx', [
     route('/login', 'shell/auth/login.tsx'),
     route('/signup', 'shell/auth/signup.tsx'),
@@ -15,11 +16,14 @@ export const routes = rootRoute('root.tsx', [
     route('/ai', '../modules/ai/pages/layout.tsx', [
       physical('../modules/ai/pages/'),
     ]),
+    route('/contacts', '../modules/contacts/pages/layout.tsx', [
+      physical('../modules/contacts/pages/'),
+    ]),
+    route('/dashboard', '../modules/dashboard/pages/layout.tsx', [
+      physical('../modules/dashboard/pages/'),
+    ]),
     route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx', [
       physical('../modules/knowledge-base/pages/'),
-    ]),
-    route('/messaging', '../modules/messaging/pages/layout.tsx', [
-      physical('../modules/messaging/pages/'),
     ]),
     route('/system', '../modules/system/pages/layout.tsx', [
       physical('../modules/system/pages/'),

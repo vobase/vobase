@@ -1,14 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import {
-  Bot,
-  Database,
-  FileText,
-  Heart,
-  MessageSquare,
-  Package,
-  Search,
-} from 'lucide-react';
+import { Bot, Database, FileText, Heart, Package, Search } from 'lucide-react';
 
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
@@ -43,10 +35,10 @@ function formatTimestamp(value: string): string {
 
 const quickLinks = [
   {
-    label: 'Messaging',
-    description: 'AI chat conversations with KB-powered agents',
-    to: '/messaging/conversations' as const,
-    icon: MessageSquare,
+    label: 'Agent Dashboard',
+    description: 'AI agent control plane — monitor sessions and agents',
+    to: '/dashboard' as const,
+    icon: Bot,
   },
   {
     label: 'Agents',

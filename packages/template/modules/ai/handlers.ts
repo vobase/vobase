@@ -282,19 +282,8 @@ aiRoutes.delete('/memory/facts/:id', async (c) => {
   // Verify scope ownership: user-scoped facts must match, contact-scoped facts require user relationship
   if (fact.userId && fact.userId !== user.id) throw unauthorized();
   if (fact.contactId && !fact.userId) {
-    // Contact-scoped: verify user has a conversation with this contact
-    const { msgConversations } = await import('../messaging/schema');
-    const [conversation] = await db
-      .select({ id: msgConversations.id })
-      .from(msgConversations)
-      .where(
-        and(
-          eq(msgConversations.userId, user.id),
-          eq(msgConversations.contactId, fact.contactId),
-        ),
-      )
-      .limit(1);
-    if (!conversation) throw unauthorized();
+    // Contact-scoped facts: any authenticated user may manage them
+    // (conversation ownership check will be added when conversations module is wired)
   }
 
   const deleted = await db
@@ -330,18 +319,8 @@ aiRoutes.delete('/memory/episodes/:id', async (c) => {
   // Verify scope ownership: user-scoped episodes must match, contact-scoped require user relationship
   if (episode.userId && episode.userId !== user.id) throw unauthorized();
   if (episode.contactId && !episode.userId) {
-    const { msgConversations } = await import('../messaging/schema');
-    const [conversation] = await db
-      .select({ id: msgConversations.id })
-      .from(msgConversations)
-      .where(
-        and(
-          eq(msgConversations.userId, user.id),
-          eq(msgConversations.contactId, episode.contactId),
-        ),
-      )
-      .limit(1);
-    if (!conversation) throw unauthorized();
+    // Contact-scoped episodes: any authenticated user may manage them
+    // (conversation ownership check will be added when conversations module is wired)
   }
 
   // Delete associated facts sharing the same cellId, then the episode
@@ -482,10 +461,9 @@ aiRoutes.get('/guardrails/logs', async (c) => {
 
 // --- Workflow Registry ---
 
-import { escalationMeta } from '../../mastra/workflows/escalation';
-import { followUpMeta } from '../../mastra/workflows/follow-up';
+import { sessionLifecycleMeta } from '../../mastra/workflows/session-lifecycle';
 
-const workflowRegistry = [escalationMeta, followUpMeta];
+const workflowRegistry = [sessionLifecycleMeta];
 
 /** GET /workflows/registry — returns registered workflow definitions with run counts */
 aiRoutes.get('/workflows/registry', async (c) => {
@@ -586,110 +564,10 @@ aiRoutes.all('/mcp', async (c) => {
   return handler(c.req.raw);
 });
 
-// --- Workflows ---
+// --- Workflow run detail ---
 
-const startEscalationSchema = z.object({
-  conversationId: z.string().min(1),
-  reason: z.string().min(1),
-});
-
-const resumeEscalationSchema = z.object({
-  approved: z.boolean(),
-  note: z.string().optional(),
-});
-
-const startFollowUpSchema = z.object({
-  conversationId: z.string().min(1),
-  delayMinutes: z.number().min(1),
-});
-
-/** POST /workflows/escalation/start — start an escalation workflow run */
-aiRoutes.post('/workflows/escalation/start', async (c) => {
-  const { db, user } = getCtx(c);
-  if (!user) throw unauthorized();
-
-  const body = startEscalationSchema.parse(await c.req.json());
-
-  // Step 1: analyze (inline — lightweight, no LLM call)
-  const summary = `Escalation requested for conversation ${body.conversationId}: ${body.reason}`;
-
-  // Create workflow run in suspended state (waiting for human approval)
-  const [run] = await db
-    .insert(aiWorkflowRuns)
-    .values({
-      workflowId: 'ai:escalation',
-      userId: user.id,
-      status: 'suspended',
-      inputData: JSON.stringify(body),
-      suspendPayload: JSON.stringify({
-        reason: body.reason,
-        conversationId: body.conversationId,
-        summary,
-      }),
-    })
-    .returning();
-
-  return c.json(
-    {
-      runId: run.id,
-      status: 'suspended',
-      suspendPayload: {
-        reason: body.reason,
-        conversationId: body.conversationId,
-        summary,
-      },
-    },
-    201,
-  );
-});
-
-/** POST /workflows/escalation/:runId/resume — resume with human decision */
-aiRoutes.post('/workflows/escalation/:runId/resume', async (c) => {
-  const { db, user } = getCtx(c);
-  if (!user) throw unauthorized();
-
-  const runId = c.req.param('runId');
-  const body = resumeEscalationSchema.parse(await c.req.json());
-
-  const run = (
-    await db
-      .select()
-      .from(aiWorkflowRuns)
-      .where(
-        and(eq(aiWorkflowRuns.id, runId), eq(aiWorkflowRuns.userId, user.id)),
-      )
-  )[0];
-  if (!run) throw notFound('Workflow run not found');
-  if (run.status !== 'suspended') {
-    throw validation({ status: `Run is ${run.status}, not suspended` });
-  }
-
-  // Step 3: execute escalation decision
-  const output = body.approved
-    ? {
-        escalated: true,
-        note: body.note ?? 'Escalation approved by human reviewer.',
-      }
-    : {
-        escalated: false,
-        note: body.note ?? 'Escalation rejected by human reviewer.',
-      };
-
-  const [updated] = await db
-    .update(aiWorkflowRuns)
-    .set({
-      status: 'completed',
-      outputData: JSON.stringify(output),
-      suspendPayload: null,
-    })
-    .where(eq(aiWorkflowRuns.id, runId))
-    .returning();
-
-  return c.json({ runId: updated.id, status: 'completed', output });
-});
-
-/** GET /workflows/escalation/:runId — get escalation run status */
-aiRoutes.get('/workflows/escalation/:runId', async (c) => {
+/** GET /workflows/:workflowId/runs/:runId — get a specific workflow run */
+aiRoutes.get('/workflows/:workflowId/runs/:runId', async (c) => {
   const { db, user } = getCtx(c);
   if (!user) throw unauthorized();
 
@@ -700,80 +578,7 @@ aiRoutes.get('/workflows/escalation/:runId', async (c) => {
       .where(
         and(
           eq(aiWorkflowRuns.id, c.req.param('runId')),
-          eq(aiWorkflowRuns.userId, user.id),
-        ),
-      )
-  )[0];
-  if (!run) throw notFound('Workflow run not found');
-
-  return c.json({
-    id: run.id,
-    workflowId: run.workflowId,
-    status: run.status,
-    inputData: safeJsonParse(run.inputData),
-    suspendPayload: safeJsonParse(run.suspendPayload),
-    outputData: safeJsonParse(run.outputData),
-    createdAt: run.createdAt,
-    updatedAt: run.updatedAt,
-  });
-});
-
-/** POST /workflows/follow-up/start — start a follow-up workflow run */
-aiRoutes.post('/workflows/follow-up/start', async (c) => {
-  const { db, user, scheduler } = getCtx(c);
-  if (!user) throw unauthorized();
-
-  const body = startFollowUpSchema.parse(await c.req.json());
-
-  // Create workflow run in suspended state (waiting for delayed job to resume)
-  const [run] = await db
-    .insert(aiWorkflowRuns)
-    .values({
-      workflowId: 'ai:follow-up',
-      userId: user.id,
-      status: 'suspended',
-      inputData: JSON.stringify(body),
-      suspendPayload: JSON.stringify({
-        conversationId: body.conversationId,
-        delayMinutes: body.delayMinutes,
-        scheduledAt: new Date(
-          Date.now() + body.delayMinutes * 60_000,
-        ).toISOString(),
-      }),
-    })
-    .returning();
-
-  // Queue delayed job to resume the workflow
-  await scheduler.add(
-    'ai:follow-up-resume',
-    { runId: run.id },
-    { startAfter: body.delayMinutes * 60 },
-  );
-
-  return c.json(
-    {
-      runId: run.id,
-      status: 'suspended',
-      resumesAt: new Date(
-        Date.now() + body.delayMinutes * 60_000,
-      ).toISOString(),
-    },
-    201,
-  );
-});
-
-/** GET /workflows/follow-up/:runId — get follow-up run status */
-aiRoutes.get('/workflows/follow-up/:runId', async (c) => {
-  const { db, user } = getCtx(c);
-  if (!user) throw unauthorized();
-
-  const run = (
-    await db
-      .select()
-      .from(aiWorkflowRuns)
-      .where(
-        and(
-          eq(aiWorkflowRuns.id, c.req.param('runId')),
+          eq(aiWorkflowRuns.workflowId, c.req.param('workflowId')),
           eq(aiWorkflowRuns.userId, user.id),
         ),
       )

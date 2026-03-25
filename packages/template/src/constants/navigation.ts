@@ -10,16 +10,13 @@ import {
   GitBranch,
   Globe,
   Home,
-  Inbox,
   KeyIcon,
   type LucideIcon,
-  MessageSquare,
   PaletteIcon,
   ScrollText,
   Search,
   Shield,
   UserIcon,
-  Users,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -48,31 +45,19 @@ export const navigation: NavGroup[] = [
     ],
   },
   {
-    label: 'Messaging',
+    label: 'Conversations',
     items: [
       {
-        label: 'Chat',
-        to: '/messaging/conversations',
-        icon: MessageSquare,
-        keywords: ['messaging', 'conversations', 'whatsapp', 'messages'],
+        label: 'Dashboard',
+        to: '/dashboard',
+        icon: Activity,
+        keywords: ['agents', 'sessions', 'monitoring', 'control plane'],
       },
       {
         label: 'Contacts',
-        to: '/messaging/contacts',
+        to: '/contacts',
         icon: Contact,
-        keywords: ['people', 'customers', 'phone', 'directory'],
-      },
-      {
-        label: 'Inboxes',
-        to: '/messaging/settings/inboxes',
-        icon: Inbox,
-        keywords: ['inbox', 'channel', 'web', 'whatsapp', 'email', 'settings'],
-      },
-      {
-        label: 'Teams',
-        to: '/messaging/settings/teams',
-        icon: Users,
-        keywords: ['team', 'members', 'assignment', 'routing'],
+        keywords: ['people', 'customers', 'staff', 'phone', 'directory'],
       },
     ],
   },
@@ -219,13 +204,6 @@ export const sidebarNavigation: NavGroup[] = navigation.filter(
 // Backward-compatible exports
 export const shellNavigation = [{ label: 'Dashboard', to: '/' }] as const;
 
-export const messagingNavigation = [
-  { label: 'Chat', to: '/messaging/conversations' },
-  { label: 'Contacts', to: '/messaging/contacts' },
-  { label: 'Inboxes', to: '/messaging/settings/inboxes' },
-  { label: 'Teams', to: '/messaging/settings/teams' },
-] as const;
-
 export const knowledgeBaseNavigation = [
   { label: 'Search', to: '/knowledge-base/search' },
   { label: 'Documents', to: '/knowledge-base/documents' },
@@ -237,4 +215,4 @@ export const systemNavigation = [
   { label: 'Audit log', to: '/system/logs' },
 ] as const;
 
-export const moduleNames = ['System', 'Messaging', 'Knowledge Base', 'AI'];
+export const moduleNames = ['System', 'Conversations', 'Knowledge Base', 'AI'];
