@@ -11,10 +11,9 @@ import {
 import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 
-import { createTestPGlite } from '../../test-helpers';
-
 import type { VobaseDb } from '../../db/client';
 import { VobaseError } from '../../infra/errors';
+import { createTestPGlite } from '../../test-helpers';
 import { createLocalAdapter } from './adapters/local';
 import * as storageSchemaModule from './schema';
 import { type BucketConfig, createStorageService } from './service';

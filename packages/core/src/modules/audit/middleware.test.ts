@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
-
-import { createTestPGlite } from '../../test-helpers';
 import { Hono } from 'hono';
 
 import type { VobaseDb } from '../../db';
+import { createTestPGlite } from '../../test-helpers';
 import { createAuthAuditHooks } from '../auth/audit-hooks';
 import { requestAuditMiddleware } from './middleware';
 import * as schema from './schema';

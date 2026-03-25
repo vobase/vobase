@@ -16,7 +16,6 @@ export interface AuthAdapter {
    * Mounted at /api/auth/* by the auth module.
    */
   handler: (request: Request) => Promise<Response>;
-
 }
 
 export interface AuthSession {

@@ -3,7 +3,10 @@ import { Hono } from 'hono';
 import * as z from 'zod';
 
 import type { VobaseDb } from '../db/client';
-import type { ConnectOptions, IntegrationsService } from '../modules/integrations/service';
+import type {
+  ConnectOptions,
+  IntegrationsService,
+} from '../modules/integrations/service';
 import { logger } from './logger';
 
 /**
@@ -43,7 +46,10 @@ export function verifyPlatformSignature(
   try {
     const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
     if (signature.length !== expected.length) return false;
-    return timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'));
+    return timingSafeEqual(
+      Buffer.from(signature, 'hex'),
+      Buffer.from(expected, 'hex'),
+    );
   } catch {
     return false;
   }
@@ -92,9 +98,14 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
     }
 
     // Find the active integration for this provider
-    const integration = await config.integrationsService.getActive(body.provider);
+    const integration = await config.integrationsService.getActive(
+      body.provider,
+    );
     if (!integration) {
-      return c.json({ error: `No active integration for provider: ${body.provider}` }, 404);
+      return c.json(
+        { error: `No active integration for provider: ${body.provider}` },
+        404,
+      );
     }
 
     // Only allow platform-managed integrations to be updated this way
@@ -103,12 +114,19 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
     }
 
     // Update the token
-    const updatedConfig = { ...integration.config, accessToken: body.accessToken };
+    const updatedConfig = {
+      ...integration.config,
+      accessToken: body.accessToken,
+    };
     const expiresAt = body.expiresInSeconds
       ? new Date(Date.now() + body.expiresInSeconds * 1000)
       : undefined;
 
-    await config.integrationsService.updateConfig(integration.id, updatedConfig, { expiresAt });
+    await config.integrationsService.updateConfig(
+      integration.id,
+      updatedConfig,
+      { expiresAt },
+    );
     await config.integrationsService.markRefreshed(integration.id);
 
     logger.info('[platform] Token updated via platform push', {

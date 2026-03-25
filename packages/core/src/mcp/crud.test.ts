@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-
-import { createTestPGlite } from '../test-helpers';
 import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
 
 import type { VobaseDb } from '../db/client';
 import type { VobaseModule } from '../module';
 import { auditLog } from '../modules/audit/schema';
+import { createTestPGlite } from '../test-helpers';
 import { registerCrudTools } from './crud';
 
 /** MCP SDK internal — not in public types, used only for test assertions */

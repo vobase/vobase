@@ -121,6 +121,7 @@ export class WhatsAppApiError extends Error {
 
 const MAX_TEXT_LENGTH = 4096;
 const EVICTION_TTL_MS = 60_000;
+const MAX_MEDIA_SIZE = 25 * 1024 * 1024; // 25MB
 
 // ─── Error Code Map ──────────────────────────────────────────────────
 
@@ -317,7 +318,30 @@ export function createWhatsAppAdapter(
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!binRes.ok) return null;
+
+      // Check content-length before downloading to enforce size limit
+      const contentLength = binRes.headers.get('content-length');
+      if (contentLength !== null) {
+        const size = Number.parseInt(contentLength, 10);
+        if (!Number.isNaN(size) && size > MAX_MEDIA_SIZE) {
+          console.warn(
+            `[WhatsApp] downloadMedia skipped: content-length ${size} exceeds MAX_MEDIA_SIZE ${MAX_MEDIA_SIZE}`,
+            { mediaId },
+          );
+          return null;
+        }
+      }
+
       const arrayBuf = await binRes.arrayBuffer();
+
+      // Guard against oversized downloads when content-length was absent
+      if (arrayBuf.byteLength > MAX_MEDIA_SIZE) {
+        console.warn(
+          `[WhatsApp] downloadMedia skipped: downloaded ${arrayBuf.byteLength} bytes exceeds MAX_MEDIA_SIZE ${MAX_MEDIA_SIZE}`,
+          { mediaId },
+        );
+        return null;
+      }
       return {
         data: Buffer.from(arrayBuf),
         mimeType:

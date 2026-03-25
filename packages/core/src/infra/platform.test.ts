@@ -66,7 +66,12 @@ describe('platform /:provider/configure', () => {
     });
 
     const body = JSON.stringify({
-      config: { accessToken: 'tok', phoneNumberId: 'pn1', wabaId: 'waba1', apiVersion: 'v22.0' },
+      config: {
+        accessToken: 'tok',
+        phoneNumberId: 'pn1',
+        wabaId: 'waba1',
+        apiVersion: 'v22.0',
+      },
       label: 'WhatsApp (via platform)',
     });
 
@@ -82,7 +87,12 @@ describe('platform /:provider/configure', () => {
     expect(res.status).toBe(200);
     expect(svc.connect).toHaveBeenCalledWith(
       'whatsapp',
-      { accessToken: 'tok', phoneNumberId: 'pn1', wabaId: 'waba1', apiVersion: 'v22.0' },
+      {
+        accessToken: 'tok',
+        phoneNumberId: 'pn1',
+        wabaId: 'waba1',
+        apiVersion: 'v22.0',
+      },
       expect.objectContaining({
         authType: 'platform',
         label: 'WhatsApp (via platform)',
@@ -155,7 +165,9 @@ describe('platform /:provider/configure', () => {
       }),
     );
     // Verify expiresAt was computed
-    const opts = (svc.connect.mock.calls as unknown as unknown[][])[0][2] as Record<string, unknown>;
+    const opts = (
+      svc.connect.mock.calls as unknown as unknown[][]
+    )[0][2] as Record<string, unknown>;
     expect(opts.expiresAt).toBeInstanceOf(Date);
   });
 

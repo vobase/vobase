@@ -1,12 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import { betterAuth } from 'better-auth';
-
-import { createTestPGlite } from '../../test-helpers';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/pglite';
 import { SignJWT } from 'jose';
 
+import { createTestPGlite } from '../../test-helpers';
 import { platformAuth } from './platform-plugin';
 import { apikeyTableMap, authTableMap } from './schema';
 

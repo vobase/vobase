@@ -1,5 +1,4 @@
-import { createHmac, } from 'node:crypto';
-
+import { createHmac } from 'node:crypto';
 
 /**
  * Token refresh result from a provider.
@@ -15,20 +14,26 @@ export interface RefreshResult {
  * Given the current integration config (which contains clientId, clientSecret, refreshToken),
  * returns a new access token (and optionally a rotated refresh token).
  */
-export type ProviderRefreshFn = (config: Record<string, unknown>) => Promise<RefreshResult>;
+export type ProviderRefreshFn = (
+  config: Record<string, unknown>,
+) => Promise<RefreshResult>;
 
 // ─── Built-in provider refresh implementations ──────────────────────
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const MICROSOFT_TOKEN_URL = 'https://login.microsoftonline.com';
 
-async function refreshGoogleToken(config: Record<string, unknown>): Promise<RefreshResult> {
+async function refreshGoogleToken(
+  config: Record<string, unknown>,
+): Promise<RefreshResult> {
   const clientId = config.clientId as string;
   const clientSecret = config.clientSecret as string;
   const refreshToken = config.refreshToken as string;
 
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Google refresh requires clientId, clientSecret, and refreshToken in config');
+    throw new Error(
+      'Google refresh requires clientId, clientSecret, and refreshToken in config',
+    );
   }
 
   const res = await fetch(GOOGLE_TOKEN_URL, {
@@ -47,7 +52,11 @@ async function refreshGoogleToken(config: Record<string, unknown>): Promise<Refr
     throw new Error(`Google token refresh failed (${res.status}): ${error}`);
   }
 
-  const data = await res.json() as { access_token: string; expires_in?: number; refresh_token?: string };
+  const data = (await res.json()) as {
+    access_token: string;
+    expires_in?: number;
+    refresh_token?: string;
+  };
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token, // Google may rotate
@@ -55,33 +64,44 @@ async function refreshGoogleToken(config: Record<string, unknown>): Promise<Refr
   };
 }
 
-async function refreshMicrosoftToken(config: Record<string, unknown>): Promise<RefreshResult> {
+async function refreshMicrosoftToken(
+  config: Record<string, unknown>,
+): Promise<RefreshResult> {
   const clientId = config.clientId as string;
   const clientSecret = config.clientSecret as string;
   const refreshToken = config.refreshToken as string;
   const tenantId = (config.tenantId as string) || 'common';
 
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Microsoft refresh requires clientId, clientSecret, and refreshToken in config');
+    throw new Error(
+      'Microsoft refresh requires clientId, clientSecret, and refreshToken in config',
+    );
   }
 
-  const res = await fetch(`${MICROSOFT_TOKEN_URL}/${tenantId}/oauth2/v2.0/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
+  const res = await fetch(
+    `${MICROSOFT_TOKEN_URL}/${tenantId}/oauth2/v2.0/token`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    },
+  );
 
   if (!res.ok) {
     const error = await res.text();
     throw new Error(`Microsoft token refresh failed (${res.status}): ${error}`);
   }
 
-  const data = await res.json() as { access_token: string; expires_in?: number; refresh_token?: string };
+  const data = (await res.json()) as {
+    access_token: string;
+    expires_in?: number;
+    refresh_token?: string;
+  };
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token, // Microsoft rotates refresh tokens
@@ -101,12 +121,17 @@ const providerRefreshFns = new Map<string, ProviderRefreshFn>([
 ]);
 
 /** Register a custom provider refresh function. */
-export function registerProviderRefresh(provider: string, fn: ProviderRefreshFn): void {
+export function registerProviderRefresh(
+  provider: string,
+  fn: ProviderRefreshFn,
+): void {
   providerRefreshFns.set(provider, fn);
 }
 
 /** Get the refresh function for a provider. Returns null if not registered. */
-export function getProviderRefreshFn(provider: string): ProviderRefreshFn | null {
+export function getProviderRefreshFn(
+  provider: string,
+): ProviderRefreshFn | null {
   return providerRefreshFns.get(provider) ?? null;
 }
 
@@ -123,7 +148,9 @@ export async function refreshViaPlat(
   platformSecret: string,
 ): Promise<RefreshResult> {
   const body = JSON.stringify({ provider });
-  const signature = createHmac('sha256', platformSecret).update(body).digest('hex');
+  const signature = createHmac('sha256', platformSecret)
+    .update(body)
+    .digest('hex');
 
   const res = await fetch(`${platformUrl}/api/oauth-proxy/token/refresh`, {
     method: 'POST',
@@ -139,7 +166,10 @@ export async function refreshViaPlat(
     throw new Error(`Platform token refresh failed (${res.status}): ${error}`);
   }
 
-  const data = await res.json() as { accessToken: string; expiresInSeconds?: number };
+  const data = (await res.json()) as {
+    accessToken: string;
+    expiresInSeconds?: number;
+  };
   return {
     accessToken: data.accessToken,
     expiresInSeconds: data.expiresInSeconds,
@@ -152,7 +182,9 @@ export async function refreshViaPlat(
  * - 'platform': has PLATFORM_HMAC_SECRET + PLATFORM_URL → delegate to platform
  * - null: cannot refresh (no credentials available)
  */
-export function getRefreshMode(config: Record<string, unknown>): 'local' | 'platform' | null {
+export function getRefreshMode(
+  config: Record<string, unknown>,
+): 'local' | 'platform' | null {
   // Local mode: tenant has own credentials
   if (config.clientId && config.clientSecret && config.refreshToken) {
     return 'local';

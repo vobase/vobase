@@ -81,9 +81,15 @@ export async function createWorker(
   for (const job of jobs) {
     const queueName = toQueueName(job.name);
     await boss.createQueue(queueName);
-    await boss.work(queueName, { batchSize: concurrency }, async (pgJobs: { data: unknown }[]) => {
-      await Promise.all(pgJobs.map((pgJob: { data: unknown }) => job.handler(pgJob.data)));
-    });
+    await boss.work(
+      queueName,
+      { batchSize: concurrency },
+      async (pgJobs: { data: unknown }[]) => {
+        await Promise.all(
+          pgJobs.map((pgJob: { data: unknown }) => job.handler(pgJob.data)),
+        );
+      },
+    );
   }
 
   return { close: () => boss.stop() };

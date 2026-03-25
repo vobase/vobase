@@ -2,11 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 
-import { createTestPGlite } from './test-helpers';
-
 import type { VobaseDb } from './db';
 import { nextSequence } from './modules/sequences/next-sequence';
 import * as schema from './modules/sequences/schema';
+import { createTestPGlite } from './test-helpers';
 
 describe('nextSequence()', () => {
   let pglite: PGlite;

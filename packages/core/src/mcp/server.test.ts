@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/pglite';
-
-import { createTestPGlite } from '../test-helpers';
 import { Hono } from 'hono';
 
 import type { VobaseDb } from '../db/client';
 import type { VobaseModule } from '../module';
+import { createTestPGlite } from '../test-helpers';
 import { createMcpHandler } from './server';
 
 const MODULES: VobaseModule[] = [

@@ -27,15 +27,25 @@ export function createIntegrationsModule(db: VobaseDb) {
     init(ctx) {
       // Check for expiring tokens every 5 minutes
       // TODO: Migrate to pg-boss schedule() when exposed
-      setInterval(() => {
-        ctx.scheduler.add('integrations:refresh-tokens', {});
-      }, 5 * 60 * 1000);
+      setInterval(
+        () => {
+          ctx.scheduler.add('integrations:refresh-tokens', {});
+        },
+        5 * 60 * 1000,
+      );
     },
   });
 
   return { ...mod, service };
 }
 
+export {
+  getProviderRefreshFn,
+  getRefreshMode,
+  type ProviderRefreshFn,
+  type RefreshResult,
+  registerProviderRefresh,
+} from './refresh';
 export { integrationsSchema, integrationsTable } from './schema';
 export type {
   ConnectOptions,
@@ -43,10 +53,3 @@ export type {
   IntegrationsService,
 } from './service';
 export { createIntegrationsService } from './service';
-export {
-  getProviderRefreshFn,
-  getRefreshMode,
-  registerProviderRefresh,
-  type ProviderRefreshFn,
-  type RefreshResult,
-} from './refresh';

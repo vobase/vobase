@@ -6,13 +6,13 @@ import { createDatabase, getPgliteClient } from './db/client';
 import { errorHandler } from './infra/errors';
 import { createHttpClient, type HttpClientOptions } from './infra/http-client';
 import { createWorker } from './infra/job';
-import { createScheduler } from './infra/queue';
-import { createRealtimeService } from './infra/realtime';
-import { createThrowProxy } from './infra/throw-proxy';
 import {
   createPlatformIntegrationsRoutes,
   isPlatformEnabled,
 } from './infra/platform';
+import { createScheduler } from './infra/queue';
+import { createRealtimeService } from './infra/realtime';
+import { createThrowProxy } from './infra/throw-proxy';
 import { createWebhookRoutes, type WebhookConfig } from './infra/webhooks';
 import { createMcpHandler } from './mcp/server';
 import type { VobaseModule } from './module';

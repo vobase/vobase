@@ -1,14 +1,14 @@
-import { and, eq, lt, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, lt } from 'drizzle-orm';
 
 import type { VobaseDb } from '../../db/client';
 import { logger } from '../../infra/logger';
-import { integrationsTable } from './schema';
-import type { IntegrationsService } from './service';
 import {
   getProviderRefreshFn,
   getRefreshMode,
   refreshViaPlat,
 } from './refresh';
+import { integrationsTable } from './schema';
+import type { IntegrationsService } from './service';
 
 // Refresh tokens that expire within the next 10 minutes
 const REFRESH_WINDOW_MS = 10 * 60 * 1000;
@@ -52,8 +52,14 @@ export async function refreshExpiringTokens(
 
     if (!mode) {
       // Cannot refresh — check if already expired
-      if (integration.configExpiresAt && integration.configExpiresAt < new Date()) {
-        await integrationsService.markError(integration.id, 'Token expired, no refresh credentials available');
+      if (
+        integration.configExpiresAt &&
+        integration.configExpiresAt < new Date()
+      ) {
+        await integrationsService.markError(
+          integration.id,
+          'Token expired, no refresh credentials available',
+        );
         logger.warn('[integrations:refresh] Token expired, cannot refresh', {
           id: integration.id,
           provider: integration.provider,
@@ -68,9 +74,12 @@ export async function refreshExpiringTokens(
         // Local refresh: use provider-specific refresh function
         const refreshFn = getProviderRefreshFn(integration.provider);
         if (!refreshFn) {
-          logger.warn('[integrations:refresh] No refresh function for provider', {
-            provider: integration.provider,
-          });
+          logger.warn(
+            '[integrations:refresh] No refresh function for provider',
+            {
+              provider: integration.provider,
+            },
+          );
           skipped++;
           continue;
         }

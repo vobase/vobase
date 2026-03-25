@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { type SendOptions, PgBoss } from 'pg-boss';
+import { PgBoss, type SendOptions } from 'pg-boss';
 
 export interface JobOptions {
   singletonKey?: string;

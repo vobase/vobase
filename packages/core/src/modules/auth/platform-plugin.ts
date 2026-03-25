@@ -59,7 +59,12 @@ export const platformAuth = (config: PlatformAuthConfig) => {
           };
           const provider = payload.provider as string;
 
-          if (!profile?.email || !profile?.name || !profile?.providerId || !provider) {
+          if (
+            !profile?.email ||
+            !profile?.name ||
+            !profile?.providerId ||
+            !provider
+          ) {
             throw new APIError('BAD_REQUEST', {
               message: 'Invalid token payload',
             });

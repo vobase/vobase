@@ -15,7 +15,14 @@ export interface ChannelAdapter {
   verifyWebhook?(request: Request): Promise<boolean>;
   /** Push inbound: parse webhook payload into normalized events */
   parseWebhook?(request: Request): Promise<ChannelEvent[]>;
-  /** Push inbound: handle platform verification challenge (e.g. Meta GET) */
+  /**
+   * Push inbound: handle Meta/WhatsApp webhook verification challenges.
+   *
+   * Meta sends a GET request to the webhook URL during setup with `hub.mode`,
+   * `hub.verify_token`, and `hub.challenge` query params. The adapter should
+   * verify the token and echo back `hub.challenge` with a 200 response, or
+   * return `null` if the request does not match a known challenge format.
+   */
   handleWebhookChallenge?(request: Request): Response | null;
 
   /** Pull inbound: poll for new messages since a given timestamp */
@@ -30,6 +37,11 @@ export interface ChannelAdapter {
   initialize?(): Promise<void>;
   /** Health check for monitoring */
   healthCheck?(): Promise<{ ok: boolean; error?: string }>;
+
+  /** Extract a channel instance identifier from an inbound webhook payload.
+   *  Used when the webhook URL doesn't include an instanceId param
+   *  (e.g. Messenger/Instagram where Meta sends all events to one URL). */
+  extractInstanceIdentifier?(payload: unknown): string | null;
 }
 
 export interface ChannelCapabilities {
@@ -71,6 +83,8 @@ export interface MessageReceivedEvent {
   media?: ChannelMedia[];
   /** Channel-specific extra data */
   metadata?: Record<string, unknown>;
+  /** Resolved channel instance ID (from URL param or adapter extraction) */
+  channelInstanceId?: string;
 }
 
 export interface ChannelMedia {

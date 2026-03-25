@@ -13,11 +13,7 @@ import { defineBuiltinModule } from '../../module';
 import { createAuthAuditHooks } from './audit-hooks';
 import { setOrganizationEnabled } from './permissions';
 import { platformAuth } from './platform-plugin';
-import {
-  apikeyTableMap,
-  authTableMap,
-  organizationTableMap,
-} from './schema';
+import { apikeyTableMap, authTableMap, organizationTableMap } from './schema';
 
 export interface AuthModuleConfig {
   baseURL?: string;
@@ -55,7 +51,9 @@ export function createAuthModule(
   }
   const platformSecret = process.env.PLATFORM_HMAC_SECRET;
   if (platformSecret) {
-    plugins.push(platformAuth({ hmacSecret: platformSecret }) as BetterAuthPlugin);
+    plugins.push(
+      platformAuth({ hmacSecret: platformSecret }) as BetterAuthPlugin,
+    );
   }
 
   // Build schema for the adapter — always includes apikey, conditionally includes org

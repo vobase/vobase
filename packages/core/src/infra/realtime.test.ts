@@ -14,7 +14,7 @@ async function createTestRealtimeDb() {
   const db = drizzle({ client: pglite });
 
   // Register in the module-level cache so getPgliteClient() can find it
-  const clientModule = await import('../db/client');
+  const _clientModule = await import('../db/client');
   // getPgliteClient reads from the Map — we need to populate it
   // Use createDatabase's side effect: it caches the PGlite by path
   // Instead, we'll use a test-only approach: access the cache via the module

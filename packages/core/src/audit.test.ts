@@ -2,11 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 
-import { createTestPGlite } from './test-helpers';
-
 import type { VobaseDb } from './db';
 import * as schema from './modules/audit/schema';
 import { trackChanges } from './modules/audit/track-changes';
+import { createTestPGlite } from './test-helpers';
 
 interface AuditRow {
   tableName: string;

@@ -810,7 +810,10 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       let capturedBody: Record<string, unknown> | undefined;
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
-        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        capturedBody = JSON.parse(opts.body as string) as Record<
+          string,
+          unknown
+        >;
         return new Response(
           JSON.stringify({
             messaging_product: 'whatsapp',
@@ -825,7 +828,9 @@ describe('WhatsApp Adapter', () => {
         text: 'Reply text',
         metadata: { replyToMessageId: 'wamid.ORIGINAL' },
       });
-      expect((capturedBody as Record<string, unknown>).context).toEqual({ message_id: 'wamid.ORIGINAL' });
+      expect((capturedBody as Record<string, unknown>).context).toEqual({
+        message_id: 'wamid.ORIGINAL',
+      });
     });
   });
 
@@ -990,7 +995,10 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       let capturedBody: Record<string, unknown> | undefined;
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
-        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>;
+        capturedBody = JSON.parse(opts.body as string) as Record<
+          string,
+          unknown
+        >;
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },

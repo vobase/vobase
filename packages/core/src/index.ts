@@ -32,8 +32,6 @@ export type { VobaseCtx, VobaseUser } from './ctx';
 export { contextMiddleware, getCtx } from './ctx';
 // DB
 export { createDatabase, type VobaseDb } from './db';
-// PostgreSQL Schemas
-export { authPgSchema, auditPgSchema, infraPgSchema } from './db/pg-schemas';
 export {
   createNanoid,
   DEFAULT_COLUMNS,
@@ -41,6 +39,8 @@ export {
   NANOID_LENGTH,
   nanoidPrimaryKey,
 } from './db/helpers';
+// PostgreSQL Schemas
+export { auditPgSchema, authPgSchema, infraPgSchema } from './db/pg-schemas';
 // Circuit Breaker
 export {
   CircuitBreaker,
@@ -71,6 +71,11 @@ export type { JobDefinition, JobHandler, WorkerOptions } from './infra/job';
 export { createWorker, defineJob } from './infra/job';
 // Logger
 export { logger } from './infra/logger';
+// Platform Integration
+export {
+  isPlatformEnabled,
+  verifyPlatformSignature,
+} from './infra/platform';
 // Queue
 export {
   createScheduler,
@@ -83,18 +88,9 @@ export type {
   RealtimePayload,
   RealtimeService,
 } from './infra/realtime';
-export { createRealtimeService, createNoopRealtime } from './infra/realtime';
+export { createNoopRealtime, createRealtimeService } from './infra/realtime';
 // Throw Proxy
 export { createThrowProxy } from './infra/throw-proxy';
-// Platform Integration
-export {
-  isPlatformEnabled,
-  verifyPlatformSignature,
-} from './infra/platform';
-export {
-  platformAuth,
-  type PlatformAuthConfig,
-} from './modules/auth/platform-plugin';
 // Webhooks
 export {
   createWebhookRoutes,
@@ -129,6 +125,10 @@ export {
   requirePermission,
   requireRole,
 } from './modules/auth/permissions';
+export {
+  type PlatformAuthConfig,
+  platformAuth,
+} from './modules/auth/platform-plugin';
 // Auth Schema (tables managed by better-auth)
 export {
   authAccount,
@@ -163,18 +163,18 @@ export {
   createIntegrationsModule,
   integrationsTable,
 } from './modules/integrations';
+export {
+  getProviderRefreshFn,
+  getRefreshMode,
+  type ProviderRefreshFn,
+  type RefreshResult,
+  registerProviderRefresh,
+} from './modules/integrations/refresh';
 export type {
   ConnectOptions,
   Integration,
   IntegrationsService,
 } from './modules/integrations/service';
-export {
-  getProviderRefreshFn,
-  getRefreshMode,
-  registerProviderRefresh,
-  type ProviderRefreshFn,
-  type RefreshResult,
-} from './modules/integrations/refresh';
 // Built-in Modules: Sequences
 export { createSequencesModule, sequences } from './modules/sequences';
 export {

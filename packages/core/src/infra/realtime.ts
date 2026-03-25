@@ -56,11 +56,24 @@ export async function createRealtimeService(
 
   try {
     if (isPostgres) {
-      return await createPostgresRealtime(databaseConfig, db, subscribers, dispatch);
+      return await createPostgresRealtime(
+        databaseConfig,
+        db,
+        subscribers,
+        dispatch,
+      );
     }
-    return await createPgliteRealtime(databaseConfig, db, subscribers, dispatch);
+    return await createPgliteRealtime(
+      databaseConfig,
+      db,
+      subscribers,
+      dispatch,
+    );
   } catch (err) {
-    logger.warn('[realtime] Failed to initialize — falling back to no-op service:', err);
+    logger.warn(
+      '[realtime] Failed to initialize — falling back to no-op service:',
+      err,
+    );
     return createNoopRealtime();
   }
 }
@@ -73,7 +86,7 @@ async function createPgliteRealtime(
 ): Promise<RealtimeService> {
   const pglite = getPgliteClient(databaseConfig);
   if (!pglite) {
-    throw new Error('PGlite client not found for path: ' + databaseConfig);
+    throw new Error(`PGlite client not found for path: ${databaseConfig}`);
   }
 
   const unsub = await (pglite as PGlite).listen(CHANNEL, (payload) => {
