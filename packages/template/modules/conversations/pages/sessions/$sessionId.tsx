@@ -34,18 +34,21 @@ interface MemoryMessage {
 
 interface MessagesResponse {
   messages: MemoryMessage[];
+  source?: 'memory' | 'outbox';
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────
 
 async function fetchSession(id: string): Promise<Session> {
-  const res = await fetch(`/api/conversations/sessions/${id}`);
+  const res = await globalThis.fetch(`/api/conversations/sessions/${id}`);
   if (!res.ok) throw new Error('Session not found');
   return res.json();
 }
 
 async function fetchMessages(id: string): Promise<MessagesResponse> {
-  const res = await fetch(`/api/conversations/sessions/${id}/messages`);
+  const res = await globalThis.fetch(
+    `/api/conversations/sessions/${id}/messages`,
+  );
   if (!res.ok) return { messages: [] };
   return res.json();
 }
@@ -54,7 +57,7 @@ async function updateSessionStatus(
   id: string,
   status: 'paused' | 'completed' | 'failed',
 ): Promise<Session> {
-  const res = await fetch(`/api/conversations/sessions/${id}`, {
+  const res = await globalThis.fetch(`/api/conversations/sessions/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
@@ -132,7 +135,7 @@ function SessionDetailPage() {
       <div className="p-6">
         <p className="text-sm text-destructive">Session not found.</p>
         <Link
-          to="/dashboard"
+          to="/sessions"
           className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeftIcon className="h-3.5 w-3.5" />
@@ -151,10 +154,10 @@ function SessionDetailPage() {
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link
-          to="/dashboard"
+          to="/sessions"
           className="hover:text-foreground transition-colors"
         >
-          Dashboard
+          Sessions
         </Link>
         <ChevronRightIcon className="h-3.5 w-3.5" />
         <span className="text-foreground font-medium font-mono text-xs">
@@ -215,7 +218,14 @@ function SessionDetailPage() {
 
       {/* Transcript */}
       <div>
-        <h3 className="mb-3 text-sm font-medium">Transcript</h3>
+        <div className="mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-medium">Transcript</h3>
+          {messagesData?.source === 'outbox' && messages.length > 0 && (
+            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              Agent responses only
+            </span>
+          )}
+        </div>
 
         {messagesLoading ? (
           <div className="flex flex-col gap-2">
@@ -273,6 +283,6 @@ function SessionDetailPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/dashboard/$sessionId')({
+export const Route = createFileRoute('/_app/sessions/$sessionId')({
   component: SessionDetailPage,
 });

@@ -47,7 +47,7 @@ async function fetchEpisodes(
 ): Promise<EpisodesResponse> {
   const params = new URLSearchParams({ scope });
   if (cursor) params.set('cursor', cursor);
-  const res = await fetch(`/api/ai/memory/episodes?${params}`);
+  const res = await globalThis.fetch(`/api/ai/memory/episodes?${params}`);
   if (!res.ok) throw new Error('Failed to fetch episodes');
   return res.json();
 }
@@ -57,13 +57,13 @@ async function fetchFacts(
   episodeId: string,
 ): Promise<FactsResponse> {
   const params = new URLSearchParams({ scope, episodeId });
-  const res = await fetch(`/api/ai/memory/facts?${params}`);
+  const res = await globalThis.fetch(`/api/ai/memory/facts?${params}`);
   if (!res.ok) throw new Error('Failed to fetch facts');
   return res.json();
 }
 
 async function deleteFact(factId: string): Promise<void> {
-  const res = await fetch(`/api/ai/memory/facts/${factId}`, {
+  const res = await globalThis.fetch(`/api/ai/memory/facts/${factId}`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to delete fact');

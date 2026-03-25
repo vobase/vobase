@@ -35,13 +35,15 @@ interface Session {
 // ─── Data ─────────────────────────────────────────────────────────────
 
 async function fetchContact(id: string): Promise<Contact> {
-  const res = await fetch(`/api/contacts/${id}`);
+  const res = await globalThis.fetch(`/api/conversations/contacts/${id}`);
   if (!res.ok) throw new Error('Contact not found');
   return res.json();
 }
 
 async function fetchContactSessions(contactId: string): Promise<Session[]> {
-  const res = await fetch(`/api/conversations/sessions?contactId=${contactId}`);
+  const res = await globalThis.fetch(
+    `/api/conversations/sessions?contactId=${contactId}`,
+  );
   if (!res.ok) return [];
   return res.json();
 }

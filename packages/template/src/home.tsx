@@ -37,7 +37,7 @@ const quickLinks = [
   {
     label: 'Agent Dashboard',
     description: 'AI agent control plane — monitor sessions and agents',
-    to: '/dashboard' as const,
+    to: '/sessions' as const,
     icon: Bot,
   },
   {

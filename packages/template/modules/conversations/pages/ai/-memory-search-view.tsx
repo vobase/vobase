@@ -43,13 +43,13 @@ async function searchMemory(
   query: string,
 ): Promise<SearchResult> {
   const params = new URLSearchParams({ scope, q: query });
-  const res = await fetch(`/api/ai/memory/search?${params}`);
+  const res = await globalThis.fetch(`/api/ai/memory/search?${params}`);
   if (!res.ok) throw new Error('Failed to search memory');
   return res.json();
 }
 
 async function deleteFact(factId: string): Promise<void> {
-  const res = await fetch(`/api/ai/memory/facts/${factId}`, {
+  const res = await globalThis.fetch(`/api/ai/memory/facts/${factId}`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to delete fact');

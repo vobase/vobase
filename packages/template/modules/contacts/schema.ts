@@ -1,3 +1,9 @@
+/**
+ * Contacts schema — defines the contacts table in the shared conversations pgSchema.
+ * This file is kept separate from conversations/schema.ts because it defines
+ * the shared conversationsPgSchema used by both contacts and conversations tables.
+ * The contacts module itself has been absorbed into conversations (P4-ABSORB).
+ */
 import { nanoidPrimaryKey } from '@vobase/core/schema';
 import { sql } from 'drizzle-orm';
 import {

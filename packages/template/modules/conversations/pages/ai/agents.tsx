@@ -41,19 +41,19 @@ interface Thread {
 }
 
 async function fetchAgents(): Promise<Agent[]> {
-  const res = await fetch('/api/conversations/agents');
+  const res = await globalThis.fetch('/api/conversations/agents');
   if (!res.ok) throw new Error('Failed to fetch agents');
   return res.json();
 }
 
 async function fetchConversations(): Promise<Thread[]> {
-  const res = await fetch('/api/conversations/sessions');
+  const res = await globalThis.fetch('/api/conversations/sessions');
   if (!res.ok) throw new Error('Failed to fetch conversations');
   return res.json();
 }
 
 async function createConversation(agentId: string): Promise<Thread> {
-  const res = await fetch('/api/conversations/sessions', {
+  const res = await globalThis.fetch('/api/conversations/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ agentId }),
@@ -173,7 +173,7 @@ function AgentDetailSheet({
                   Tools
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {agent.tools!.map((tool) => (
+                  {agent.tools?.map((tool) => (
                     <Badge key={tool} variant="secondary" className="text-xs">
                       {tool}
                     </Badge>
@@ -189,7 +189,7 @@ function AgentDetailSheet({
                   Channels
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {agent.channels!.map((ch) => (
+                  {agent.channels?.map((ch) => (
                     <Badge
                       key={ch}
                       variant="outline"
@@ -209,7 +209,7 @@ function AgentDetailSheet({
                   Suggestions
                 </h4>
                 <div className="space-y-1.5">
-                  {agent.suggestions!.map((s) => (
+                  {agent.suggestions?.map((s) => (
                     <div
                       key={s}
                       className="flex items-start gap-2 text-sm text-muted-foreground"
@@ -279,7 +279,7 @@ function AgentsPage() {
     onSuccess: (conversation) => {
       setSelectedAgent(null);
       navigate({
-        to: '/dashboard/$sessionId',
+        to: '/sessions/$sessionId',
         params: { sessionId: conversation.id },
       });
     },

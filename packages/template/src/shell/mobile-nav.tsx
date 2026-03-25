@@ -89,7 +89,7 @@ export function MobileNav({
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const badge =
-                    item.to === '/dashboard' && escalationCount > 0
+                    item.to === '/sessions' && escalationCount > 0
                       ? escalationCount
                       : 0;
                   return (

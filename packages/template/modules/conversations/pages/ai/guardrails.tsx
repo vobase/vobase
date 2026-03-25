@@ -18,7 +18,7 @@ interface GuardrailRule {
 }
 
 async function fetchConfig(): Promise<{ rules: GuardrailRule[] }> {
-  const res = await fetch('/api/ai/guardrails/config');
+  const res = await globalThis.fetch('/api/ai/guardrails/config');
   if (!res.ok) throw new Error('Failed to fetch guardrails config');
   return res.json();
 }

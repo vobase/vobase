@@ -1,13 +1,11 @@
 import {
   Activity,
-  Bot,
-  BrainCircuit,
+  BotIcon,
+  BrainIcon,
   BuildingIcon,
   CableIcon,
-  ChartBar,
   Contact,
   FileText,
-  GitBranch,
   Globe,
   Home,
   KeyIcon,
@@ -15,7 +13,7 @@ import {
   PaletteIcon,
   ScrollText,
   Search,
-  Shield,
+  ShieldCheckIcon,
   UserIcon,
 } from 'lucide-react';
 
@@ -37,19 +35,14 @@ export const navigation: NavGroup[] = [
     label: 'Overview',
     items: [
       {
-        label: 'Dashboard',
+        label: 'Overview',
         to: '/',
         icon: Home,
         keywords: ['home', 'overview', 'status'],
       },
-    ],
-  },
-  {
-    label: 'Conversations',
-    items: [
       {
-        label: 'Dashboard',
-        to: '/dashboard',
+        label: 'Sessions',
+        to: '/sessions',
         icon: Activity,
         keywords: ['agents', 'sessions', 'monitoring', 'control plane'],
       },
@@ -58,6 +51,35 @@ export const navigation: NavGroup[] = [
         to: '/contacts',
         icon: Contact,
         keywords: ['people', 'customers', 'staff', 'phone', 'directory'],
+      },
+    ],
+  },
+  {
+    label: 'AI',
+    items: [
+      {
+        label: 'Agents',
+        to: '/ai/agents',
+        icon: BotIcon,
+        keywords: ['ai', 'agents', 'assistant', 'bot', 'llm'],
+      },
+      {
+        label: 'Evals',
+        to: '/ai/evals',
+        icon: Activity,
+        keywords: ['evaluation', 'scoring', 'quality', 'faithfulness'],
+      },
+      {
+        label: 'Guardrails',
+        to: '/ai/guardrails',
+        icon: ShieldCheckIcon,
+        keywords: ['moderation', 'safety', 'content', 'filter'],
+      },
+      {
+        label: 'Memory',
+        to: '/ai/memory',
+        icon: BrainIcon,
+        keywords: ['context', 'recall', 'knowledge', 'memory'],
       },
     ],
   },
@@ -81,54 +103,6 @@ export const navigation: NavGroup[] = [
         to: '/knowledge-base/sources',
         icon: Globe,
         keywords: ['connectors', 'google drive', 'sharepoint', 'crawl', 'sync'],
-      },
-    ],
-  },
-  {
-    label: 'AI',
-    items: [
-      {
-        label: 'Agents',
-        to: '/ai/agents',
-        icon: Bot,
-        keywords: ['ai', 'assistant', 'bot', 'prompt', 'model'],
-      },
-      {
-        label: 'Evals',
-        to: '/ai/evals',
-        icon: ChartBar,
-        keywords: [
-          'evaluation',
-          'scoring',
-          'quality',
-          'faithfulness',
-          'relevancy',
-        ],
-      },
-      {
-        label: 'Workflows',
-        to: '/ai/workflows',
-        icon: GitBranch,
-        keywords: [
-          'escalation',
-          'follow-up',
-          'hitl',
-          'automation',
-          'suspend',
-          'resume',
-        ],
-      },
-      {
-        label: 'Guardrails',
-        to: '/ai/guardrails',
-        icon: Shield,
-        keywords: ['moderation', 'content', 'safety', 'blocklist'],
-      },
-      {
-        label: 'Memory',
-        to: '/ai/memory',
-        icon: BrainCircuit,
-        keywords: ['episodes', 'facts', 'cells', 'retrieval', 'context'],
       },
     ],
   },
@@ -202,7 +176,7 @@ export const sidebarNavigation: NavGroup[] = navigation.filter(
 );
 
 // Backward-compatible exports
-export const shellNavigation = [{ label: 'Dashboard', to: '/' }] as const;
+export const shellNavigation = [{ label: 'Overview', to: '/' }] as const;
 
 export const knowledgeBaseNavigation = [
   { label: 'Search', to: '/knowledge-base/search' },
@@ -215,4 +189,4 @@ export const systemNavigation = [
   { label: 'Audit log', to: '/system/logs' },
 ] as const;
 
-export const moduleNames = ['System', 'Conversations', 'Knowledge Base', 'AI'];
+export const moduleNames = ['System', 'Knowledge Base'];

@@ -38,8 +38,8 @@ interface ConversationMessages {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function getVisitorToken(inboxId: string): string {
-  const key = `vobase-visitor-${inboxId}`;
+function getVisitorToken(endpointId: string): string {
+  const key = `vobase-visitor-${endpointId}`;
   let token = localStorage.getItem(key);
   if (!token) {
     token = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -48,23 +48,23 @@ function getVisitorToken(inboxId: string): string {
   return token;
 }
 
-function getStoredConversationId(inboxId: string): string | null {
-  return localStorage.getItem(`vobase-conv-${inboxId}`);
+function getStoredConversationId(endpointId: string): string | null {
+  return localStorage.getItem(`vobase-conv-${endpointId}`);
 }
 
-function storeConversationId(inboxId: string, conversationId: string) {
-  localStorage.setItem(`vobase-conv-${inboxId}`, conversationId);
+function storeConversationId(endpointId: string, conversationId: string) {
+  localStorage.setItem(`vobase-conv-${endpointId}`, conversationId);
 }
 
 // ─── Chat Component ──────────────────────────────────────────────────
 
 function PublicChatView({
-  inboxId,
+  endpointId,
   conversationId,
   visitorToken,
   initialMessages,
 }: {
-  inboxId: string;
+  endpointId: string;
   conversationId: string;
   visitorToken: string;
   initialMessages: UIMessage[];
@@ -75,9 +75,9 @@ function PublicChatView({
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: `/api/conversations/chat/${inboxId}/stream?visitorToken=${encodeURIComponent(visitorToken)}`,
+        api: `/api/conversations/chat/${endpointId}/stream?visitorToken=${encodeURIComponent(visitorToken)}`,
       }),
-    [inboxId, visitorToken],
+    [endpointId, visitorToken],
   );
 
   const { messages, sendMessage, status } = useChat({
@@ -188,7 +188,7 @@ function PublicChatView({
 // ─── Main Page ───────────────────────────────────────────────────────
 
 function PublicChatPage() {
-  const { inboxId } = useParams({ from: '/chat/$inboxId' });
+  const { endpointId } = useParams({ from: '/chat/$endpointId' });
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -201,14 +201,14 @@ function PublicChatPage() {
     initRef.current = true;
 
     try {
-      const visitorToken = getVisitorToken(inboxId);
-      const storedConvId = getStoredConversationId(inboxId);
+      const visitorToken = getVisitorToken(endpointId);
+      const storedConvId = getStoredConversationId(endpointId);
 
       // Try to resume existing conversation
       if (storedConvId) {
         try {
-          const res = await fetch(
-            `/api/conversations/chat/${inboxId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
+          const res = await globalThis.fetch(
+            `/api/conversations/chat/${endpointId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
           );
           if (res.ok) {
             const data: ConversationMessages = await res.json();
@@ -229,11 +229,14 @@ function PublicChatPage() {
       }
 
       // Start new conversation
-      const startRes = await fetch(`/api/conversations/chat/${inboxId}/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ visitorToken }),
-      });
+      const startRes = await globalThis.fetch(
+        `/api/conversations/chat/${endpointId}/start`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitorToken }),
+        },
+      );
 
       if (!startRes.ok) {
         const errData = await startRes.json().catch(() => ({}));
@@ -251,14 +254,14 @@ function PublicChatPage() {
       }
 
       const startData: StartResponse = await startRes.json();
-      storeConversationId(inboxId, startData.conversationId);
+      storeConversationId(endpointId, startData.conversationId);
       setConversationId(startData.conversationId);
       setLoading(false);
     } catch {
       setError('Failed to connect to chat');
       setLoading(false);
     }
-  }, [inboxId]);
+  }, [endpointId]);
 
   useEffect(() => {
     initChat();
@@ -301,7 +304,7 @@ function PublicChatPage() {
 
   if (!conversationId) return null;
 
-  const visitorToken = getVisitorToken(inboxId);
+  const visitorToken = getVisitorToken(endpointId);
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -312,7 +315,7 @@ function PublicChatPage() {
       </div>
 
       <PublicChatView
-        inboxId={inboxId}
+        endpointId={endpointId}
         conversationId={conversationId}
         visitorToken={visitorToken}
         initialMessages={initialMessages}
@@ -321,6 +324,6 @@ function PublicChatPage() {
   );
 }
 
-export const Route = createFileRoute('/chat/$inboxId')({
+export const Route = createFileRoute('/chat/$endpointId')({
   component: PublicChatPage,
 });

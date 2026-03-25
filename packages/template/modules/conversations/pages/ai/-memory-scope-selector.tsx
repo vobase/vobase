@@ -32,7 +32,7 @@ interface Contact {
 }
 
 async function fetchContacts(): Promise<Contact[]> {
-  const res = await fetch('/api/contacts');
+  const res = await globalThis.fetch('/api/conversations/contacts');
   if (!res.ok) throw new Error('Failed to fetch contacts');
   return res.json();
 }

@@ -9,7 +9,6 @@ import {
 const tabs = [
   { label: 'Agents', to: '/ai/agents' },
   { label: 'Evals', to: '/ai/evals' },
-  { label: 'Workflows', to: '/ai/workflows' },
   { label: 'Guardrails', to: '/ai/guardrails' },
   { label: 'Memory', to: '/ai/memory' },
 ] as const;

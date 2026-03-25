@@ -25,7 +25,7 @@ async function fetchLogs(
 ): Promise<{ logs: ModerationLog[]; nextCursor: string | null }> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor) params.set('cursor', cursor);
-  const res = await fetch(`/api/ai/guardrails/logs?${params}`);
+  const res = await globalThis.fetch(`/api/ai/guardrails/logs?${params}`);
   if (!res.ok) throw new Error('Failed to fetch moderation logs');
   return res.json();
 }

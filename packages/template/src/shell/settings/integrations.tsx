@@ -1,12 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import {
   AlertCircleIcon,
-  CheckCircleIcon,
-  DatabaseIcon,
   Loader2Icon,
   MailIcon,
   MessageSquareIcon,
+  PhoneIcon,
   SendIcon,
   UnplugIcon,
 } from 'lucide-react';
@@ -14,31 +13,250 @@ import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { integrationsClient } from '@/lib/api-client';
 import { runWhatsAppEmbeddedSignup } from '@/lib/facebook-sdk';
+
+// ─── Types ─────────────────────────────────────────────────────────────
+
+type InstanceSource = 'env' | 'self' | 'platform' | 'sandbox';
+type InstanceStatus = 'active' | 'disconnected' | 'error';
+
+interface ChannelInstance {
+  id: string;
+  type: string;
+  integrationId: string | null;
+  label: string | null;
+  source: InstanceSource;
+  config: Record<string, unknown>;
+  status: InstanceStatus;
+  createdAt: string;
+}
+
+// ─── Constants ─────────────────────────────────────────────────────────
+
+const CHANNEL_PROVIDERS = [
+  {
+    type: 'whatsapp',
+    label: 'WhatsApp Business',
+    icon: MessageSquareIcon,
+    iconColor: 'text-emerald-600 dark:text-emerald-400',
+    iconBg: 'bg-emerald-500/10',
+  },
+  {
+    type: 'telegram',
+    label: 'Telegram',
+    icon: SendIcon,
+    iconColor: 'text-sky-600 dark:text-sky-400',
+    iconBg: 'bg-sky-500/10',
+  },
+  {
+    type: 'messenger',
+    label: 'Messenger',
+    icon: MessageSquareIcon,
+    iconColor: 'text-blue-600 dark:text-blue-400',
+    iconBg: 'bg-blue-500/10',
+  },
+  {
+    type: 'instagram',
+    label: 'Instagram',
+    icon: MessageSquareIcon,
+    iconColor: 'text-pink-600 dark:text-pink-400',
+    iconBg: 'bg-pink-500/10',
+  },
+  {
+    type: 'email',
+    label: 'Email',
+    icon: MailIcon,
+    iconColor: 'text-violet-600 dark:text-violet-400',
+    iconBg: 'bg-violet-500/10',
+  },
+  {
+    type: 'voice',
+    label: 'Voice',
+    icon: PhoneIcon,
+    iconColor: 'text-orange-600 dark:text-orange-400',
+    iconBg: 'bg-orange-500/10',
+  },
+] as const;
+
+const SERVICE_PROVIDERS = [
+  {
+    type: 'google',
+    label: 'Google',
+    icon: MessageSquareIcon,
+    iconColor: 'text-red-600 dark:text-red-400',
+    iconBg: 'bg-red-500/10',
+  },
+  {
+    type: 'xero',
+    label: 'Xero',
+    icon: MessageSquareIcon,
+    iconColor: 'text-cyan-600 dark:text-cyan-400',
+    iconBg: 'bg-cyan-500/10',
+  },
+] as const;
+
+// ─── Helpers ───────────────────────────────────────────────────────────
+
+function sourceBadge(source: InstanceSource) {
+  switch (source) {
+    case 'env':
+      return <Badge variant="secondary">Environment</Badge>;
+    case 'platform':
+      return (
+        <Badge
+          variant="default"
+          className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20"
+        >
+          Platform
+        </Badge>
+      );
+    case 'sandbox':
+      return (
+        <Badge
+          variant="default"
+          className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/20"
+        >
+          Sandbox
+        </Badge>
+      );
+    case 'self':
+      return (
+        <Badge
+          variant="default"
+          className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+        >
+          Connected
+        </Badge>
+      );
+  }
+}
+
+function statusBadge(status: InstanceStatus) {
+  switch (status) {
+    case 'active':
+      return <Badge variant="success">Active</Badge>;
+    case 'disconnected':
+      return <Badge variant="secondary">Disconnected</Badge>;
+    case 'error':
+      return <Badge variant="destructive">Error</Badge>;
+  }
+}
+
+// ─── Instance Row ──────────────────────────────────────────────────────
+
+function InstanceRow({
+  instance,
+  onDisconnect,
+  disconnecting,
+}: {
+  instance: ChannelInstance;
+  onDisconnect: (id: string) => void;
+  disconnecting: boolean;
+}) {
+  const canDisconnect =
+    instance.source === 'self' || instance.source === 'sandbox';
+  const label = instance.label ?? instance.id;
+
+  return (
+    <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
+      <span className="flex-1 truncate text-xs font-medium">{label}</span>
+      <div className="flex items-center gap-1.5">
+        {sourceBadge(instance.source)}
+        {statusBadge(instance.status)}
+      </div>
+      {canDisconnect && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+          onClick={() => onDisconnect(instance.id)}
+          disabled={disconnecting}
+        >
+          {disconnecting ? (
+            <Loader2Icon className="h-3 w-3 animate-spin" />
+          ) : (
+            <UnplugIcon className="h-3 w-3" />
+          )}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ─── Provider Row ──────────────────────────────────────────────────────
+
+function ProviderRow({
+  providerType,
+  label,
+  icon: Icon,
+  iconColor,
+  iconBg,
+  instances,
+  onConnect,
+  onDisconnect,
+  disconnectingId,
+  connectDisabled,
+}: {
+  providerType: string;
+  label: string;
+  icon: React.ElementType;
+  iconColor: string;
+  iconBg: string;
+  instances: ChannelInstance[];
+  onConnect: (type: string) => void;
+  onDisconnect: (id: string) => void;
+  disconnectingId: string | null;
+  connectDisabled?: boolean;
+}) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div
+            className={`flex h-8 w-8 items-center justify-center rounded-md ${iconBg}`}
+          >
+            <Icon className={`h-4 w-4 ${iconColor}`} />
+          </div>
+          <CardTitle className="flex-1 text-sm">{label}</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onConnect(providerType)}
+            disabled={connectDisabled}
+          >
+            Connect
+          </Button>
+        </div>
+      </CardHeader>
+      {instances.length > 0 && (
+        <CardContent>
+          <div className="flex flex-col gap-1.5">
+            {instances.map((inst) => (
+              <InstanceRow
+                key={inst.id}
+                instance={inst}
+                onDisconnect={onDisconnect}
+                disconnecting={disconnectingId === inst.id}
+              />
+            ))}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function IntegrationsPage() {
   const queryClient = useQueryClient();
-  const [connecting, setConnecting] = useState(false);
+  const [connectingType, setConnectingType] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const [testPhone, setTestPhone] = useState('');
-  const [testResult, setTestResult] = useState<{
-    success: boolean;
-    error?: string;
-  } | null>(null);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
-  const { data: config, isLoading: configLoading } = useQuery({
+  const { data: config } = useQuery({
     queryKey: ['integrations-config'],
     queryFn: async () => {
       const res = await integrationsClient.config.$get();
@@ -46,53 +264,50 @@ function IntegrationsPage() {
     },
   });
 
-  const { data: waStatus, isLoading: statusLoading } = useQuery({
-    queryKey: ['integrations-whatsapp-status'],
+  const { data: instances = [], isLoading } = useQuery<ChannelInstance[]>({
+    queryKey: ['integrations-instances'],
     queryFn: async () => {
-      const res = await integrationsClient.whatsapp.status.$get();
-      return res.json();
-    },
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      return data?.connected && !data?.webhookReady ? 3000 : false;
+      const res = await globalThis.fetch('/api/integrations/instances');
+      return res.json() as Promise<ChannelInstance[]>;
     },
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: async () => {
-      const res = await integrationsClient.whatsapp.disconnect.$post();
+    mutationFn: async (id: string) => {
+      const res = await globalThis.fetch(
+        `/api/integrations/instances/${id}/disconnect`,
+        {
+          method: 'POST',
+        },
+      );
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['integrations-whatsapp-status'],
-      });
+    onSettled: () => {
+      setDisconnectingId(null);
+      queryClient.invalidateQueries({ queryKey: ['integrations-instances'] });
     },
   });
 
-  const testMutation = useMutation({
-    mutationFn: async (to: string) => {
-      const res = await integrationsClient.whatsapp.test.$post({
-        json: { to },
-      });
-      return res.json();
+  const instancesByType = instances.reduce<Record<string, ChannelInstance[]>>(
+    (acc, inst) => {
+      if (!acc[inst.type]) acc[inst.type] = [];
+      acc[inst.type].push(inst);
+      return acc;
     },
-    onSuccess: (data) => {
-      if ('success' in data) {
-        setTestResult({ success: data.success, error: data.error });
-      } else {
-        setTestResult({ success: false, error: data.error });
-      }
-    },
-    onError: () => {
-      setTestResult({ success: false, error: 'Request failed' });
-    },
-  });
+    {},
+  );
 
-  const handleConnect = async () => {
-    if (!config?.metaAppId || !config?.metaConfigId) return;
+  const handleConnect = async (type: string) => {
+    if (type !== 'whatsapp') return; // other types: stub / future
 
-    setConnecting(true);
+    if (!config?.metaAppId || !config?.metaConfigId) {
+      setConnectError(
+        'META_APP_ID and META_CONFIG_ID must be set in your environment before connecting WhatsApp.',
+      );
+      return;
+    }
+
+    setConnectingType(type);
     setConnectError(null);
 
     try {
@@ -101,7 +316,6 @@ function IntegrationsPage() {
         config.metaConfigId,
       );
 
-      // Send code + session data to backend — code expires in ~60 seconds
       const res = await integrationsClient.whatsapp.connect.$post({
         json: { code, wabaId, phoneNumberId },
       });
@@ -109,33 +323,22 @@ function IntegrationsPage() {
       if ('error' in result && result.error) {
         setConnectError(result.error as string);
       }
-      queryClient.invalidateQueries({
-        queryKey: ['integrations-whatsapp-status'],
-      });
+      queryClient.invalidateQueries({ queryKey: ['integrations-instances'] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Connection failed';
-      if (msg !== 'cancelled') {
-        setConnectError(msg);
-      }
-      queryClient.invalidateQueries({
-        queryKey: ['integrations-whatsapp-status'],
-      });
+      if (msg !== 'cancelled') setConnectError(msg);
+      queryClient.invalidateQueries({ queryKey: ['integrations-instances'] });
     } finally {
-      setConnecting(false);
+      setConnectingType(null);
     }
   };
 
-  const handleTest = async () => {
-    if (!testPhone.trim()) return;
-    setTestResult(null);
-    testMutation.mutate(testPhone.trim());
+  const handleDisconnect = (id: string) => {
+    setDisconnectingId(id);
+    disconnectMutation.mutate(id);
   };
 
-  const loading = configLoading || statusLoading;
-  const error =
-    connectError ?? (disconnectMutation.error ? 'Failed to disconnect' : null);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
         <Loader2Icon className="h-4 w-4 animate-spin" />
@@ -149,246 +352,63 @@ function IntegrationsPage() {
       <div className="mb-6">
         <h2 className="text-lg font-semibold">Integrations</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Manage external service connections.
+          Manage channel connections and external service credentials.
         </p>
       </div>
 
-      {error && (
+      {connectError && (
         <div className="mb-4 flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <AlertCircleIcon className="h-4 w-4 shrink-0" />
-          {error}
+          {connectError}
         </div>
       )}
 
-      {/* ─── Messaging ──────────────────────────────────────────── */}
+      {/* ─── Channels ───────────────────────────────────────────────── */}
       <section className="mb-6">
         <p className="mb-2 px-1 text-[10px] font-medium tracking-widest text-muted-foreground uppercase">
-          Messaging
+          Channels
         </p>
-        <Card size="sm">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-500/10">
-                <MessageSquareIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <CardTitle className="text-sm">WhatsApp Business</CardTitle>
-                <CardDescription className="text-xs">
-                  Send and receive messages via WhatsApp Cloud API
-                </CardDescription>
-              </div>
-              <div>
-                {waStatus?.connected ? (
-                  <Badge variant="success">Connected</Badge>
-                ) : (
-                  <Badge variant="secondary">Not connected</Badge>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {!config?.metaAppId || !config?.metaConfigId ? (
-              <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                <p className="mb-1 font-medium text-foreground">
-                  Setup required
-                </p>
-                <p>
-                  Set{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-                    META_APP_ID
-                  </code>
-                  ,{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-                    META_APP_SECRET
-                  </code>
-                  , and{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-                    META_CONFIG_ID
-                  </code>{' '}
-                  in your{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-                    .env
-                  </code>{' '}
-                  file, then restart the server.
-                </p>
-              </div>
-            ) : waStatus?.connected ? (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-500" />
-                    <span>
-                      Phone: {waStatus.phoneNumberId ?? 'Unknown'}
-                      {waStatus.wabaId && (
-                        <span className="ml-2">WABA: {waStatus.wabaId}</span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {waStatus.webhookReady ? (
-                      <>
-                        <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-500" />
-                        <span>Webhooks active</span>
-                      </>
-                    ) : (
-                      <>
-                        <Loader2Icon className="h-3.5 w-3.5 animate-spin text-amber-500" />
-                        <span>Setting up webhooks…</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => disconnectMutation.mutate()}
-                    disabled={disconnectMutation.isPending}
-                  >
-                    {disconnectMutation.isPending ? (
-                      <Loader2Icon className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <UnplugIcon className="mr-1.5 h-3.5 w-3.5" />
-                    )}
-                    Disconnect
-                  </Button>
-                </div>
-
-                <div className="border-t pt-3">
-                  <Label htmlFor="test-phone" className="mb-1 text-xs">
-                    Send test message
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="test-phone"
-                      placeholder="+1234567890"
-                      value={testPhone}
-                      onChange={(e) => setTestPhone(e.target.value)}
-                      className="h-8 max-w-[200px] text-xs"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleTest}
-                      disabled={testMutation.isPending || !testPhone.trim()}
-                    >
-                      {testMutation.isPending ? (
-                        <Loader2Icon className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <SendIcon className="mr-1.5 h-3.5 w-3.5" />
-                      )}
-                      Test
-                    </Button>
-                  </div>
-                  {testResult && (
-                    <p
-                      className={`mt-1.5 text-xs ${testResult.success ? 'text-emerald-600' : 'text-destructive'}`}
-                    >
-                      {testResult.success
-                        ? 'Message sent successfully'
-                        : (testResult.error ?? 'Send failed')}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                <Button size="sm" onClick={handleConnect} disabled={connecting}>
-                  {connecting ? (
-                    <Loader2Icon className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <MessageSquareIcon className="mr-1.5 h-3.5 w-3.5" />
-                  )}
-                  Connect WhatsApp
-                </Button>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Already using WhatsApp Business App? Select{' '}
-                  <span className="font-medium text-foreground">
-                    "Connect a WhatsApp Business App"
-                  </span>{' '}
-                  in the popup to keep using the app alongside the API.
-                </p>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Need multiple WhatsApp numbers? Configure additional numbers
-                  via the WhatsApp Business Manager.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-2">
+          {CHANNEL_PROVIDERS.map(({ type, label, icon, iconColor, iconBg }) => (
+            <ProviderRow
+              key={type}
+              providerType={type}
+              label={label}
+              icon={icon}
+              iconColor={iconColor}
+              iconBg={iconBg}
+              instances={instancesByType[type] ?? []}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+              disconnectingId={disconnectingId}
+              connectDisabled={connectingType === type}
+            />
+          ))}
+        </div>
       </section>
 
-      {/* ─── Email ──────────────────────────────────────────────── */}
-      <section className="mb-6">
-        <p className="mb-2 px-1 text-[10px] font-medium tracking-widest text-muted-foreground uppercase">
-          Email
-        </p>
-        <Card size="sm">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/10">
-                <MailIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <CardTitle className="text-sm">Email (Resend / SMTP)</CardTitle>
-                <CardDescription className="text-xs">
-                  Outbound email for notifications and transactional messages
-                </CardDescription>
-              </div>
-              <div>
-                <Badge variant="secondary">Config</Badge>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Email is configured via environment variables in your{' '}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-                vobase.config.ts
-              </code>
-              . See the channels configuration documentation for setup
-              instructions.
-            </p>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* ─── Knowledge Base ─────────────────────────────────────── */}
+      {/* ─── Services ───────────────────────────────────────────────── */}
       <section>
         <p className="mb-2 px-1 text-[10px] font-medium tracking-widest text-muted-foreground uppercase">
-          Knowledge Base
+          Services
         </p>
-        <Card size="sm">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-orange-500/10">
-                <DatabaseIcon className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <CardTitle className="text-sm">
-                  Google Drive / SharePoint
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Connect external document sources for the knowledge base
-                </CardDescription>
-              </div>
-              <div>
-                <Badge variant="secondary">Via Sources</Badge>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Knowledge base connectors are managed from the{' '}
-              <span className="font-medium text-foreground">
-                Knowledge Base &gt; Sources
-              </span>{' '}
-              page. OAuth connections are stored securely via the integrations
-              service.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-2">
+          {SERVICE_PROVIDERS.map(({ type, label, icon, iconColor, iconBg }) => (
+            <ProviderRow
+              key={type}
+              providerType={type}
+              label={label}
+              icon={icon}
+              iconColor={iconColor}
+              iconBg={iconBg}
+              instances={instancesByType[type] ?? []}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+              disconnectingId={disconnectingId}
+              connectDisabled
+            />
+          ))}
+        </div>
       </section>
     </div>
   );

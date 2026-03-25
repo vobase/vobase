@@ -24,7 +24,7 @@ interface MemoryStats {
 }
 
 async function fetchStats(scope: string): Promise<MemoryStats> {
-  const res = await fetch(
+  const res = await globalThis.fetch(
     `/api/ai/memory/stats?${new URLSearchParams({ scope })}`,
   );
   if (!res.ok) throw new Error('Failed to fetch memory stats');
