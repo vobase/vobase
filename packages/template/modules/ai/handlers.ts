@@ -55,15 +55,16 @@ aiRoutes.get('/memory/stats', async (c) => {
   // Scope is validated — exactly one of contactId/userId is set
   const isContact = 'contactId' in scope;
   const scopeId = isContact ? scope.contactId : scope.userId;
+  if (!scopeId) throw validation({ scope: 'Scope ID is empty' });
   const cellWhere = isContact
-    ? eq(aiMemCells.contactId, scopeId!)
-    : eq(aiMemCells.userId, scopeId!);
+    ? eq(aiMemCells.contactId, scopeId)
+    : eq(aiMemCells.userId, scopeId);
   const episodeWhere = isContact
-    ? eq(aiMemEpisodes.contactId, scopeId!)
-    : eq(aiMemEpisodes.userId, scopeId!);
+    ? eq(aiMemEpisodes.contactId, scopeId)
+    : eq(aiMemEpisodes.userId, scopeId);
   const factWhere = isContact
-    ? eq(aiMemEventLogs.contactId, scopeId!)
-    : eq(aiMemEventLogs.userId, scopeId!);
+    ? eq(aiMemEventLogs.contactId, scopeId)
+    : eq(aiMemEventLogs.userId, scopeId);
 
   const [cellCount] = await db
     .select({ count: count() })
@@ -152,9 +153,10 @@ aiRoutes.get('/memory/episodes', async (c) => {
   const scope = parseScope(rawScope);
   const isContact = 'contactId' in scope;
   const scopeId = isContact ? scope.contactId : scope.userId;
+  if (!scopeId) throw validation({ scope: 'Scope ID is empty' });
   const episodeWhere = isContact
-    ? eq(aiMemEpisodes.contactId, scopeId!)
-    : eq(aiMemEpisodes.userId, scopeId!);
+    ? eq(aiMemEpisodes.contactId, scopeId)
+    : eq(aiMemEpisodes.userId, scopeId);
 
   const cursorFilter = cursor ? parseCursor(cursor) : null;
   const conditions = cursorFilter
@@ -212,9 +214,10 @@ aiRoutes.get('/memory/facts', async (c) => {
   const scope = parseScope(rawScope);
   const isContact = 'contactId' in scope;
   const scopeId = isContact ? scope.contactId : scope.userId;
+  if (!scopeId) throw validation({ scope: 'Scope ID is empty' });
   const factWhere = isContact
-    ? eq(aiMemEventLogs.contactId, scopeId!)
-    : eq(aiMemEventLogs.userId, scopeId!);
+    ? eq(aiMemEventLogs.contactId, scopeId)
+    : eq(aiMemEventLogs.userId, scopeId);
 
   const conditions: Array<ReturnType<typeof eq> | ReturnType<typeof sql>> = [
     factWhere,

@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { Actions, Button, Card, CardText } from 'chat';
 
 import { createChannelBridge } from './chat-bridge';
 import { buildInteractiveCard, buildTemplateCard } from './chat-cards';
@@ -14,10 +13,10 @@ const mockScheduler = {
 // ─── Serialization tests ─────────────────────────────────────────────
 
 describe('chat-bridge serialization', () => {
-  const bridge = createChannelBridge('whatsapp', {
-    db: mockDb,
-    scheduler: mockScheduler,
-  });
+  const bridge = createChannelBridge(
+    { id: 'ci-wa-1', type: 'whatsapp', label: 'WhatsApp Main' },
+    { db: mockDb, scheduler: mockScheduler },
+  );
 
   test('parseMessage converts MessageReceivedEvent to Message', () => {
     const event = {
@@ -44,12 +43,12 @@ describe('chat-bridge serialization', () => {
     expect(bridge.decodeThreadId('session-123')).toBe('session-123');
   });
 
-  test('channelIdFromThreadId returns channel name', () => {
-    expect(bridge.channelIdFromThreadId('any-thread')).toBe('whatsapp');
+  test('channelIdFromThreadId returns instance ID', () => {
+    expect(bridge.channelIdFromThreadId('any-thread')).toBe('ci-wa-1');
   });
 
   test('isDM returns true for all threads', () => {
-    expect(bridge.isDM!('any-thread')).toBe(true);
+    expect(bridge.isDM?.('any-thread')).toBe(true);
   });
 
   test('persistMessageHistory is true', () => {
@@ -148,5 +147,67 @@ describe('card serialization', () => {
       children: { id: string }[];
     };
     expect(actions.children[0].id).toBe('chat:"confirm"');
+  });
+});
+
+// ─── M7: String conversion safety ────────────────────────────────────
+
+describe('chat-bridge fallback serialization (M7)', () => {
+  function makeCaptureDb(): {
+    db: never;
+    getContent: () => string | undefined;
+  } {
+    let capturedContent: string | undefined;
+    const db = {
+      insert: () => ({
+        values: (vals: { content: string }) => {
+          capturedContent = vals.content;
+          return {
+            returning: async () => [
+              {
+                id: 'out-1',
+                ...vals,
+                status: 'queued',
+                retryCount: 0,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          };
+        },
+      }),
+    } as never;
+    return { db, getContent: () => capturedContent };
+  }
+
+  test('null message serializes to JSON.stringify fallback', async () => {
+    const { db, getContent } = makeCaptureDb();
+    const b = createChannelBridge(
+      { id: 'ci-web-1', type: 'web', label: 'Web Chat' },
+      { db, scheduler: { add: async () => ({ id: 'j' }) } as never },
+    );
+    await b.postMessage('session-1', null as never);
+    // null ?? '' = '', JSON.stringify('') = '""'
+    expect(getContent()).toBe('""');
+  });
+
+  test('undefined message serializes to JSON.stringify fallback', async () => {
+    const { db, getContent } = makeCaptureDb();
+    const b = createChannelBridge(
+      { id: 'ci-web-1', type: 'web', label: 'Web Chat' },
+      { db, scheduler: { add: async () => ({ id: 'j' }) } as never },
+    );
+    await b.postMessage('session-1', undefined as never);
+    expect(getContent()).toBe('""');
+  });
+
+  test('plain string message is passed through unchanged', async () => {
+    const { db, getContent } = makeCaptureDb();
+    const b = createChannelBridge(
+      { id: 'ci-web-1', type: 'web', label: 'Web Chat' },
+      { db, scheduler: { add: async () => ({ id: 'j' }) } as never },
+    );
+    await b.postMessage('session-1', 'hello world' as never);
+    expect(getContent()).toBe('hello world');
   });
 });

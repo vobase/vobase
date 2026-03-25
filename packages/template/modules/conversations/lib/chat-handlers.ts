@@ -28,12 +28,12 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
 
   chat.onDirectMessage(async (thread, message) => {
     try {
-      const channel = thread.adapter.name;
+      const channelInstanceId = thread.adapter.name;
 
       // Build a synthetic event for routing utilities (findContactByAddress, findOrCreateContact)
       const syntheticEvent = {
         type: 'message_received' as const,
-        channel,
+        channel: channelInstanceId, // Legacy field — adapter name is instance ID
         from: message.author.userId,
         profileName: message.author.fullName,
         messageId: message.id,
@@ -65,19 +65,25 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
         }
       }
 
-      // 2. New session creation
+      // 2. New session creation — find endpoint by channel instance
       const [endpoint] = await db
         .select()
         .from(endpoints)
         .where(
-          and(eq(endpoints.channel, channel), eq(endpoints.enabled, true)),
+          and(
+            eq(endpoints.channelInstanceId, channelInstanceId),
+            eq(endpoints.enabled, true),
+          ),
         );
 
       if (!endpoint) {
-        logger.warn('[conversations] No enabled endpoint for channel', {
-          channel,
-          from: message.author.userId,
-        });
+        logger.warn(
+          '[conversations] No enabled endpoint for channel instance',
+          {
+            channelInstanceId,
+            from: message.author.userId,
+          },
+        );
         return;
       }
 
@@ -86,12 +92,15 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
         staffContact ?? (await findOrCreateContact(db, syntheticEvent));
 
       // Create session (subscribes in state + creates Mastra Memory thread)
-      const session = await createSession(db, {
-        endpointId: endpoint.id,
-        contactId: contact.id,
-        agentId: endpoint.agentId,
-        channel,
-      });
+      const session = await createSession(
+        { db, scheduler },
+        {
+          endpointId: endpoint.id,
+          contactId: contact.id,
+          agentId: endpoint.agentId,
+          channelInstanceId,
+        },
+      );
 
       // Queue AI reply generation
       await scheduler.add('conversations:channel-reply', {

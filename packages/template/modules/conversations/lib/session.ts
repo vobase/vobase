@@ -3,12 +3,12 @@
  *
  * Session ID = Mastra Memory threadId = chat-sdk thread ID (AD-2).
  */
-import type { VobaseDb } from '@vobase/core';
-import { createNanoid, logger } from '@vobase/core';
+import type { Scheduler, VobaseDb } from '@vobase/core';
+import { createNanoid, logger, notFound } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
 import { getMemory } from '../../../mastra';
-import { sessions } from '../schema';
+import { endpoints, sessions } from '../schema';
 import { getChatState } from './chat-init';
 
 const generateId = createNanoid();
@@ -17,15 +17,35 @@ interface CreateSessionInput {
   endpointId: string;
   contactId: string;
   agentId: string;
-  channel: string;
+  channelInstanceId: string;
 }
 
-/** Create a new session, subscribe in chat state, and create a Mastra Memory thread. */
+interface CreateSessionDeps {
+  db: VobaseDb;
+  scheduler: Scheduler;
+}
+
+/**
+ * Create a new session, subscribe in chat state, and create a Mastra Memory thread.
+ * If memory thread creation fails, the session is created in degraded mode
+ * (memoryDegraded: true) and a retry job is scheduled. A memoryless response
+ * is better than no response.
+ */
 export async function createSession(
-  db: VobaseDb,
+  deps: CreateSessionDeps,
   input: CreateSessionInput,
 ): Promise<typeof sessions.$inferSelect> {
+  const { db, scheduler } = deps;
   const id = generateId();
+  const start = Date.now();
+
+  // M9: Verify the endpoint exists before creating the session
+  const [endpoint] = await db
+    .select()
+    .from(endpoints)
+    .where(eq(endpoints.id, input.endpointId));
+
+  if (!endpoint) throw notFound('Endpoint not found');
 
   const [session] = await db
     .insert(sessions)
@@ -34,7 +54,7 @@ export async function createSession(
       endpointId: input.endpointId,
       contactId: input.contactId,
       agentId: input.agentId,
-      channel: input.channel,
+      channelInstanceId: input.channelInstanceId,
       status: 'active',
     })
     .returning();
@@ -55,16 +75,57 @@ export async function createSession(
         updatedAt: now,
         metadata: {
           agentId: input.agentId,
-          channel: input.channel,
+          channelInstanceId: input.channelInstanceId,
           endpointId: input.endpointId,
         },
       },
     });
-  } catch (err) {
-    logger.warn('[conversations] Failed to create memory thread', {
+
+    logger.info('[conversations] session_create', {
       sessionId: id,
-      error: err,
+      endpointId: input.endpointId,
+      agentId: input.agentId,
+      durationMs: Date.now() - start,
+      outcome: 'created',
     });
+  } catch (err) {
+    logger.error(
+      '[conversations] Failed to create memory thread — session degraded',
+      {
+        sessionId: id,
+        error: err,
+      },
+    );
+
+    // Mark session as memory-degraded so agent knows context is limited
+    await db
+      .update(sessions)
+      .set({
+        metadata: { memoryDegraded: true },
+      })
+      .where(eq(sessions.id, id));
+
+    logger.info('[conversations] session_create', {
+      sessionId: id,
+      endpointId: input.endpointId,
+      agentId: input.agentId,
+      durationMs: Date.now() - start,
+      outcome: 'degraded',
+    });
+
+    // Schedule retry job to attempt memory thread creation later
+    await scheduler
+      .add('conversations:retry-memory-thread', {
+        sessionId: id,
+        contactId: input.contactId,
+        agentId: input.agentId,
+        channelInstanceId: input.channelInstanceId,
+        endpointId: input.endpointId,
+        attempt: 1,
+      })
+      .catch(() => {
+        // Best-effort retry scheduling
+      });
   }
 
   return session;
@@ -90,6 +151,8 @@ export async function completeSession(
   db: VobaseDb,
   sessionId: string,
 ): Promise<void> {
+  const start = Date.now();
+
   await db
     .update(sessions)
     .set({
@@ -100,6 +163,12 @@ export async function completeSession(
 
   const state = getChatState();
   await state.unsubscribe(sessionId);
+
+  logger.info('[conversations] session_complete', {
+    sessionId,
+    durationMs: Date.now() - start,
+    outcome: 'completed',
+  });
 }
 
 /** Fail a session — set status, end time, store reason in metadata. */
@@ -108,6 +177,8 @@ export async function failSession(
   sessionId: string,
   reason: string,
 ): Promise<void> {
+  const start = Date.now();
+
   const [existing] = await db
     .select({ metadata: sessions.metadata })
     .from(sessions)
@@ -132,4 +203,11 @@ export async function failSession(
 
   const state = getChatState();
   await state.unsubscribe(sessionId);
+
+  logger.info('[conversations] session_fail', {
+    sessionId,
+    reason,
+    durationMs: Date.now() - start,
+    outcome: 'failed',
+  });
 }

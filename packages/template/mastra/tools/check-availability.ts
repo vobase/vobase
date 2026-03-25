@@ -27,7 +27,7 @@ export const checkAvailabilityTool = createTool({
       }),
     ),
   }),
-  execute: async ({ service, dateFrom }) => {
+  execute: async ({ service: _service, dateFrom }) => {
     // Stub: generate mock slots starting from dateFrom
     const base = new Date(dateFrom);
     const slots = Array.from({ length: 6 }, (_, i) => {

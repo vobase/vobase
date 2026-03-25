@@ -32,16 +32,25 @@ export interface BridgeDeps {
 
 // ─── Factory ─────────────────────────────────────────────────────────
 
+/** Channel instance record shape (subset of schema). */
+export interface ChannelInstanceRecord {
+  id: string;
+  type: string;
+  label: string;
+}
+
 /** Wrap a core ChannelAdapter into a chat-sdk Adapter for use with Chat instance. */
 export function createChannelBridge(
-  channel: string,
+  channelInstance: ChannelInstanceRecord,
   deps: BridgeDeps,
 ): Adapter<string, Record<string, unknown>> {
   let _chat: ChatInstance | null = null;
+  const instanceId = channelInstance.id;
+  const channelType = channelInstance.type;
 
   const adapter: Adapter<string, Record<string, unknown>> = {
-    name: channel,
-    userName: channel,
+    name: instanceId,
+    userName: channelInstance.label,
 
     async initialize(chat: ChatInstance): Promise<void> {
       _chat = chat;
@@ -58,7 +67,8 @@ export function createChannelBridge(
       const record = await enqueueMessage(deps.db, deps.scheduler, {
         sessionId: threadId,
         content,
-        channel,
+        channelType,
+        channelInstanceId: instanceId,
         payload,
       });
 
@@ -112,7 +122,7 @@ export function createChannelBridge(
     },
 
     channelIdFromThreadId(_threadId: string): string {
-      return channel;
+      return instanceId;
     },
 
     isDM(_threadId: string): boolean {
@@ -161,7 +171,7 @@ export function createChannelBridge(
     },
 
     async fetchThread(_threadId: string): Promise<ThreadInfo> {
-      return { id: _threadId, channelId: channel, metadata: {} };
+      return { id: _threadId, channelId: instanceId, metadata: {} };
     },
 
     async addReaction(
@@ -215,26 +225,33 @@ function serializeForChannel(
   }
 
   // PostableCard wrapper
-  if (typeof message === 'object' && 'card' in message) {
+  if (typeof message === 'object' && message !== null && 'card' in message) {
     return serializeCard(message.card);
   }
 
   // PostableMarkdown
-  if (typeof message === 'object' && 'markdown' in message) {
+  if (
+    typeof message === 'object' &&
+    message !== null &&
+    'markdown' in message
+  ) {
     return { content: message.markdown };
   }
 
   // PostableAst
-  if (typeof message === 'object' && 'ast' in message) {
+  if (typeof message === 'object' && message !== null && 'ast' in message) {
     return { content: stringifyMarkdown(message.ast) };
   }
 
   // PostableRaw
-  if (typeof message === 'object' && 'raw' in message) {
+  if (typeof message === 'object' && message !== null && 'raw' in message) {
     return { content: message.raw };
   }
 
-  return { content: String(message) };
+  return {
+    content:
+      typeof message === 'string' ? message : JSON.stringify(message ?? ''),
+  };
 }
 
 /** Serialize a CardElement to outbox content + payload. */

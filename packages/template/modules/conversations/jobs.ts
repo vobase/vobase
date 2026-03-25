@@ -9,6 +9,27 @@ const channelReplyDataSchema = z.object({
   sessionId: z.string().min(1),
   inboundContent: z.string().optional(),
 });
+const processInboundDataSchema = z.object({
+  event: z
+    .object({
+      channelInstanceId: z.string().optional(),
+      channel: z.string(),
+      from: z.string(),
+      content: z.string().optional(),
+      profileName: z.string().optional(),
+      timestamp: z.string().optional(),
+    })
+    .passthrough(),
+  adapterName: z.string(),
+});
+const retryMemoryDataSchema = z.object({
+  sessionId: z.string().min(1),
+  contactId: z.string().min(1),
+  agentId: z.string().min(1),
+  channelInstanceId: z.string().min(1),
+  endpointId: z.string().min(1),
+  attempt: z.number().int().min(1),
+});
 
 /**
  * conversations:send — Process a queued outbox message.
@@ -19,7 +40,7 @@ export const sendJob = defineJob('conversations:send', async (data) => {
   const deps = getConversationsDeps();
 
   const { processOutboxMessage } = await import('./lib/outbox');
-  await processOutboxMessage(deps.db, deps.channels, outboxId);
+  await processOutboxMessage(deps.db, deps.channels, deps.scheduler, outboxId);
 });
 
 /**
@@ -89,5 +110,106 @@ export const sessionCleanupJob = defineJob(
     logger.info('[conversations] Cleaned up stale sessions', {
       count: stale.length,
     });
+  },
+);
+
+/**
+ * conversations:process-inbound — Retry processing a failed inbound message (C1).
+ * Scheduled when chat.processMessage fails in the event bridge.
+ */
+export const processInboundJob = defineJob(
+  'conversations:process-inbound',
+  async (data) => {
+    const { event, adapterName } = processInboundDataSchema.parse(data);
+    const deps = getConversationsDeps();
+
+    const { getChat } = await import('./lib/chat-init');
+    const chat = getChat();
+
+    const adapter = (chat as unknown as { adapters: Record<string, unknown> })
+      .adapters[adapterName];
+
+    if (!adapter) {
+      logger.error('[conversations] Retry: no adapter for channel', {
+        adapterName,
+      });
+      return;
+    }
+
+    const bridgeAdapter = adapter as {
+      parseMessage: (raw: unknown) => unknown;
+    };
+    const message = bridgeAdapter.parseMessage(event);
+
+    chat.processMessage(adapter as never, event.from, message as never);
+  },
+);
+
+const MEMORY_RETRY_MAX = 3;
+
+/**
+ * conversations:retry-memory-thread — Retry memory thread creation for degraded sessions (C4).
+ * Scheduled when initial memory.saveThread fails during session creation.
+ */
+export const retryMemoryThreadJob = defineJob(
+  'conversations:retry-memory-thread',
+  async (data) => {
+    const input = retryMemoryDataSchema.parse(data);
+    const deps = getConversationsDeps();
+
+    try {
+      const { getMemory } = await import('../../mastra');
+      const memory = getMemory();
+      const now = new Date();
+
+      await memory.saveThread({
+        thread: {
+          id: input.sessionId,
+          resourceId: `contact:${input.contactId}`,
+          createdAt: now,
+          updatedAt: now,
+          metadata: {
+            agentId: input.agentId,
+            channelInstanceId: input.channelInstanceId,
+            endpointId: input.endpointId,
+          },
+        },
+      });
+
+      // Clear degraded flag on success
+      const { sessions } = await import('./schema');
+      await deps.db
+        .update(sessions)
+        .set({ metadata: {} })
+        .where(eq(sessions.id, input.sessionId));
+
+      logger.info('[conversations] Memory thread retry succeeded', {
+        sessionId: input.sessionId,
+        attempt: input.attempt,
+      });
+    } catch (err) {
+      if (input.attempt < MEMORY_RETRY_MAX) {
+        const backoffMs = 2 ** input.attempt * 2000;
+        await deps.scheduler.add(
+          'conversations:retry-memory-thread',
+          { ...input, attempt: input.attempt + 1 },
+          { startAfter: new Date(Date.now() + backoffMs).toISOString() },
+        );
+        logger.warn(
+          '[conversations] Memory thread retry failed, rescheduling',
+          {
+            sessionId: input.sessionId,
+            attempt: input.attempt,
+            error: err,
+          },
+        );
+      } else {
+        logger.error('[conversations] Memory thread permanently failed', {
+          sessionId: input.sessionId,
+          attempts: input.attempt,
+          error: err,
+        });
+      }
+    }
   },
 );

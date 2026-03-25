@@ -70,7 +70,7 @@ export const consultHumanTool = createTool({
         {
           sessionId,
           staffContactId: staffContact.id,
-          channel,
+          channelType: channel,
           reason,
           message,
         },

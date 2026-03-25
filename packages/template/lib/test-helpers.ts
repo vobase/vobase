@@ -30,6 +30,7 @@ export async function createTestDb(options?: {
   await pglite.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
   await pglite.query('CREATE EXTENSION IF NOT EXISTS vector');
   // nanoidSql contains multiple statements — use the multi-statement path
+  // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
   await (pglite as any).exec(nanoidSql);
 
   // Create schemas for all template modules
@@ -38,6 +39,7 @@ export async function createTestDb(options?: {
   await pglite.query('CREATE SCHEMA IF NOT EXISTS "kb"');
 
   // Contacts + Conversations tables (conversations schema shared by both modules)
+  // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
   await (pglite as any).exec(`
     CREATE TABLE "conversations"."contacts" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
@@ -51,10 +53,22 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE "conversations"."channel_instances" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      type TEXT NOT NULL,
+      integration_id TEXT,
+      label TEXT NOT NULL,
+      source TEXT NOT NULL CHECK (source IN ('env', 'self', 'platform', 'sandbox')),
+      config JSONB DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disconnected', 'error')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE "conversations"."endpoints" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       name TEXT NOT NULL,
-      channel TEXT NOT NULL CHECK (channel IN ('whatsapp', 'web', 'email')),
+      channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
       agent_id TEXT NOT NULL,
       assignment_pattern TEXT NOT NULL DEFAULT 'direct' CHECK (assignment_pattern IN ('direct', 'router', 'workflow')),
       config JSONB DEFAULT '{}',
@@ -68,10 +82,15 @@ export async function createTestDb(options?: {
       endpoint_id TEXT NOT NULL REFERENCES "conversations"."endpoints" (id),
       contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id),
       agent_id TEXT NOT NULL,
-      channel TEXT NOT NULL,
+      channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
+      session_type TEXT NOT NULL DEFAULT 'message' CHECK (session_type IN ('message', 'voice')),
       status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed', 'paused')),
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       ended_at TIMESTAMPTZ,
+      call_started_at TIMESTAMPTZ,
+      call_ended_at TIMESTAMPTZ,
+      call_duration INTEGER,
+      recording_url TEXT,
       metadata JSONB DEFAULT '{}',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -81,10 +100,11 @@ export async function createTestDb(options?: {
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       session_id TEXT NOT NULL REFERENCES "conversations"."sessions" (id),
       staff_contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id),
-      channel TEXT NOT NULL,
+      channel_type TEXT NOT NULL,
+      channel_instance_id TEXT REFERENCES "conversations"."channel_instances" (id),
       reason TEXT NOT NULL,
       summary TEXT,
-      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'replied', 'timeout', 'cancelled')),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'replied', 'timeout', 'cancelled', 'notification_failed')),
       requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       replied_at TIMESTAMPTZ,
       timeout_minutes INTEGER NOT NULL DEFAULT 30,
@@ -95,19 +115,39 @@ export async function createTestDb(options?: {
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       session_id TEXT NOT NULL REFERENCES "conversations"."sessions" (id) ON DELETE CASCADE,
       content TEXT NOT NULL,
-      channel TEXT NOT NULL,
+      channel_type TEXT NOT NULL,
+      channel_instance_id TEXT REFERENCES "conversations"."channel_instances" (id),
       payload JSONB,
-      external_message_id TEXT UNIQUE,
+      external_message_id TEXT,
       status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent', 'delivered', 'read', 'failed')),
       retry_count INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE UNIQUE INDEX outbox_external_id_unique_idx ON "conversations"."outbox" (external_message_id) WHERE external_message_id IS NOT NULL;
+
+    CREATE TABLE "conversations"."dead_letters" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      original_outbox_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      channel_type TEXT NOT NULL,
+      channel_instance_id TEXT,
+      recipient_address TEXT,
+      content TEXT NOT NULL,
+      payload JSONB,
+      error TEXT,
+      retry_count INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'dead' CHECK (status IN ('dead', 'retried')),
+      failed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
   if (options?.withVec) {
     // KB tables with 4-dim vectors matching test embedding mocks
     // Order: sources first (referenced by documents and sync_logs)
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     await (pglite as any).exec(`
       CREATE TABLE "kb"."sources" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
@@ -160,6 +200,7 @@ export async function createTestDb(options?: {
   }
 
   if (options?.withMemory) {
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     await (pglite as any).exec(`
       CREATE TABLE "ai"."mem_cells" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
@@ -203,6 +244,7 @@ export async function createTestDb(options?: {
   }
 
   if (options?.withWorkflows) {
+    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
     await (pglite as any).exec(`
       CREATE TABLE "ai"."workflow_runs" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),

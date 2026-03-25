@@ -1,9 +1,23 @@
-import { getCtx, logger, unauthorized } from '@vobase/core';
+import {
+  createNanoid,
+  getCtx,
+  isPlatformEnabled,
+  logger,
+  unauthorized,
+  verifyPlatformSignature,
+} from '@vobase/core';
+import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { z } from 'zod';
+
+import { reinitChat } from '../conversations/lib/chat-init';
+import { channelInstances } from '../conversations/schema';
 
 export type IntegrationsRoutes = typeof integrationsRoutes;
 
 const META_GRAPH_API = 'https://graph.facebook.com/v22.0';
+
+const generateId = createNanoid();
 
 export const integrationsRoutes = new Hono()
 
@@ -14,22 +28,14 @@ export const integrationsRoutes = new Hono()
     return c.json({ metaAppId, metaConfigId });
   })
 
-  // ─── WhatsApp status ──────────────────────────────────────────────
-  .get('/whatsapp/status', async (c) => {
+  // ─── List all channel instances ───────────────────────────────────
+  .get('/instances', async (c) => {
     const ctx = getCtx(c);
-    const integration = await ctx.integrations.getActive('whatsapp');
+    if (!ctx.user) throw unauthorized();
 
-    if (!integration) {
-      return c.json({ connected: false });
-    }
+    const instances = await ctx.db.select().from(channelInstances);
 
-    return c.json({
-      connected: true,
-      id: integration.id,
-      phoneNumberId: integration.config.phoneNumberId as string | undefined,
-      wabaId: integration.config.wabaId as string | undefined,
-      webhookReady: (integration.config.webhookReady as boolean) ?? false,
-    });
+    return c.json(instances);
   })
 
   // ─── WhatsApp connect (Embedded Signup code exchange) ─────────────
@@ -83,6 +89,7 @@ export const integrationsRoutes = new Hono()
     // Prefer values from the session info listener (sent by frontend)
     let phoneNumberId = body.phoneNumberId;
     let wabaId = body.wabaId;
+    let displayPhoneNumber: string | undefined;
 
     // Fallback: extract from debug_token if session listener didn't provide them
     if (!wabaId || !phoneNumberId) {
@@ -118,6 +125,7 @@ export const integrationsRoutes = new Hono()
             data?: Array<{ id: string; display_phone_number: string }>;
           };
           phoneNumberId = phoneData.data?.[0]?.id;
+          displayPhoneNumber = phoneData.data?.[0]?.display_phone_number;
         }
       } catch {
         // Continue — session data may be sufficient
@@ -143,13 +151,7 @@ export const integrationsRoutes = new Hono()
       phoneNumberId,
     });
 
-    // Step 3: Disconnect any existing WhatsApp integration
-    const existing = await ctx.integrations.getActive('whatsapp');
-    if (existing) {
-      await ctx.integrations.disconnect(existing.id);
-    }
-
-    // Step 4: Store credentials via integrations service
+    // Step 3: Store credentials via integrations service
     const integration = await ctx.integrations.connect(
       'whatsapp',
       {
@@ -165,6 +167,26 @@ export const integrationsRoutes = new Hono()
       },
     );
 
+    // Step 4: Create a channel_instance record for this WhatsApp number
+    const instanceId = generateId();
+    const label = displayPhoneNumber
+      ? `WhatsApp ${displayPhoneNumber}`
+      : `WhatsApp ${phoneNumberId}`;
+
+    await ctx.db.insert(channelInstances).values({
+      id: instanceId,
+      type: 'whatsapp',
+      source: 'self',
+      integrationId: integration.id,
+      label,
+      status: 'active',
+    });
+
+    logger.info('WhatsApp connect: channel_instance created', {
+      instanceId,
+      integrationId: integration.id,
+    });
+
     // Step 5: Hot-reload WhatsApp adapter so webhooks work immediately (no restart needed)
     const { createWhatsAppAdapter } = await import('@vobase/core');
     ctx.channels.registerAdapter(
@@ -177,11 +199,19 @@ export const integrationsRoutes = new Hono()
     );
     logger.info('WhatsApp connect: adapter hot-reloaded');
 
+    // Step 6: Reinitialize chat to pick up the new channel instance
+    await reinitChat({
+      db: ctx.db,
+      scheduler: ctx.scheduler,
+      channels: ctx.channels,
+    });
+    logger.info('WhatsApp connect: chat reinitialized');
+
     logger.info('WhatsApp connect: credentials stored, queueing setup job', {
       integrationId: integration.id,
     });
 
-    // Step 6: Queue post-signup setup (webhook subscription, callback URL, phone registration)
+    // Step 7: Queue post-signup setup (webhook subscription, callback URL, phone registration)
     // Runs as a background job with retry via pg-boss — survives transient Meta API failures
     await ctx.scheduler.add(
       'integrations:whatsapp-setup',
@@ -196,22 +226,45 @@ export const integrationsRoutes = new Hono()
     return c.json({
       success: true,
       id: integration.id,
+      instanceId,
       phoneNumberId,
       wabaId,
     });
   })
 
-  // ─── WhatsApp disconnect ──────────────────────────────────────────
-  .post('/whatsapp/disconnect', async (c) => {
+  // ─── Per-instance disconnect ──────────────────────────────────────
+  .post('/instances/:id/disconnect', async (c) => {
     const ctx = getCtx(c);
     if (!ctx.user) throw unauthorized();
 
-    const integration = await ctx.integrations.getActive('whatsapp');
-    if (!integration) {
-      return c.json({ error: 'No active WhatsApp integration' }, 404);
+    const instanceId = c.req.param('id');
+
+    const [instance] = await ctx.db
+      .select()
+      .from(channelInstances)
+      .where(eq(channelInstances.id, instanceId));
+
+    if (!instance) {
+      return c.json({ error: 'Channel instance not found' }, 404);
     }
 
-    await ctx.integrations.disconnect(integration.id);
+    // Delete channel_instance record
+    await ctx.db
+      .delete(channelInstances)
+      .where(eq(channelInstances.id, instanceId));
+
+    // Disconnect the underlying integration if present
+    if (instance.integrationId) {
+      await ctx.integrations.disconnect(instance.integrationId);
+    }
+
+    // Reinitialize chat to drop the removed instance
+    await reinitChat({
+      db: ctx.db,
+      scheduler: ctx.scheduler,
+      channels: ctx.channels,
+    });
+    logger.info('Instance disconnect: chat reinitialized', { instanceId });
 
     return c.json({ success: true });
   })
@@ -239,4 +292,79 @@ export const integrationsRoutes = new Hono()
       logger.error('WhatsApp test: send error', { error: message });
       return c.json({ success: false, error: message }, 500);
     }
+  })
+
+  // ─── Platform channel instance provisioning (HMAC-signed) ────────
+  // Called by vobase-platform after OAuth completion to create a channel_instance
+  // on the tenant. Not session-authenticated — uses X-Platform-Signature instead.
+  .post('/provision-channel', async (c) => {
+    if (!isPlatformEnabled()) {
+      return c.text('Not found', 404);
+    }
+
+    const signature = c.req.header('x-platform-signature');
+    if (!signature) {
+      return c.json({ error: 'Missing signature' }, 401);
+    }
+
+    const rawBody = await c.req.text();
+    if (!verifyPlatformSignature(rawBody, signature)) {
+      return c.json({ error: 'Invalid signature' }, 401);
+    }
+
+    const provisionSchema = z.object({
+      type: z.string().min(1),
+      label: z.string().min(1),
+      source: z.enum(['platform', 'sandbox']),
+      integrationId: z.string().optional(),
+      config: z.record(z.string(), z.unknown()).optional(),
+    });
+
+    let body: z.infer<typeof provisionSchema>;
+    try {
+      body = provisionSchema.parse(JSON.parse(rawBody));
+    } catch {
+      return c.json({ error: 'Invalid request body' }, 400);
+    }
+
+    const ctx = getCtx(c);
+    const instanceId = generateId();
+
+    await ctx.db.insert(channelInstances).values({
+      id: instanceId,
+      type: body.type,
+      label: body.label,
+      source: body.source,
+      integrationId: body.integrationId ?? null,
+      config: body.config ?? {},
+      status: 'active',
+    });
+
+    // Hot-reload chat to pick up the new instance
+    await reinitChat({
+      db: ctx.db,
+      scheduler: ctx.scheduler,
+      channels: ctx.channels,
+    });
+
+    logger.info('Platform provision-channel: instance created', {
+      instanceId,
+      type: body.type,
+      source: body.source,
+    });
+
+    return c.json({ success: true, instanceId });
+  })
+
+  // ─── Future providers (stubs) ─────────────────────────────────────
+  .post('/telegram/connect', (c) => {
+    return c.json({ error: 'Not implemented' }, 501);
+  })
+
+  .post('/email/connect', (c) => {
+    return c.json({ error: 'Not implemented' }, 501);
+  })
+
+  .post('/voice/connect', (c) => {
+    return c.json({ error: 'Not implemented' }, 501);
   });

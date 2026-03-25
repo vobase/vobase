@@ -9,7 +9,7 @@ import { logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
 import { getAgent } from '../../../mastra/agents';
-import { sessions } from '../schema';
+import { channelInstances, sessions } from '../schema';
 import { getChatState } from './chat-init';
 import { enqueueMessage } from './outbox';
 
@@ -92,10 +92,19 @@ export async function generateChannelReply(
     if (!responseText) return null;
 
     // Enqueue outbound message via outbox
+    // Resolve channel type from instance
+    const [instance] = session.channelInstanceId
+      ? await db
+          .select({ type: channelInstances.type })
+          .from(channelInstances)
+          .where(eq(channelInstances.id, session.channelInstanceId))
+      : [];
+
     await enqueueMessage(db, scheduler, {
       sessionId,
       content: responseText,
-      channel: session.channel,
+      channelType: instance?.type ?? 'web',
+      channelInstanceId: session.channelInstanceId,
     });
 
     return responseText;
@@ -105,6 +114,23 @@ export async function generateChannelReply(
       agentId: session.agentId,
       error: err,
     });
+
+    // Enqueue a fallback message so the customer is not left without a response
+    const [instance] = session.channelInstanceId
+      ? await db
+          .select({ type: channelInstances.type })
+          .from(channelInstances)
+          .where(eq(channelInstances.id, session.channelInstanceId))
+      : [];
+
+    await enqueueMessage(db, scheduler, {
+      sessionId,
+      content:
+        "We're experiencing a temporary issue. Please try again shortly.",
+      channelType: instance?.type ?? 'web',
+      channelInstanceId: session.channelInstanceId,
+    });
+
     return null;
   }
 }

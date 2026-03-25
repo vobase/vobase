@@ -27,7 +27,8 @@ interface ConsultDeps {
 interface RequestConsultationInput {
   sessionId: string;
   staffContactId: string;
-  channel: string;
+  channelType: string;
+  channelInstanceId?: string;
   reason: string;
   message: string;
 }
@@ -38,6 +39,7 @@ export async function requestConsultation(
   input: RequestConsultationInput,
 ): Promise<typeof consultations.$inferSelect> {
   const { db, channels } = deps;
+  const start = Date.now();
 
   // Check no active (pending) consultation for this session
   const [existing] = await db
@@ -60,7 +62,8 @@ export async function requestConsultation(
     .values({
       sessionId: input.sessionId,
       staffContactId: input.staffContactId,
-      channel: input.channel,
+      channelType: input.channelType,
+      channelInstanceId: input.channelInstanceId ?? null,
       reason: input.reason,
       status: 'pending',
     })
@@ -83,45 +86,84 @@ export async function requestConsultation(
   const notificationText = `[Consultation Request]\n\nReason: ${input.reason}\n\n${input.message}\n\nReply to this message to respond.`;
 
   try {
-    if (input.channel === 'whatsapp' && staffContact.phone) {
-      await channels.whatsapp.send({
+    let sendResult: { success: boolean; error?: string } | undefined;
+
+    if (input.channelType === 'whatsapp' && staffContact.phone) {
+      sendResult = await channels.whatsapp.send({
         to: staffContact.phone,
         text: notificationText,
       });
-    } else if (input.channel === 'email' && staffContact.email) {
-      await channels.email.send({
+    } else if (input.channelType === 'email' && staffContact.email) {
+      sendResult = await channels.email.send({
         to: staffContact.email,
         subject: `Consultation: ${input.reason}`,
         html: `<p>${notificationText.replace(/\n/g, '<br>')}</p>`,
       });
+    }
+
+    // Check send result — mark consultation if notification failed (H7)
+    if (sendResult && !sendResult.success) {
+      logger.error('[conversations] Consultation notification send failed', {
+        consultationId: consultation.id,
+        error: sendResult.error,
+      });
+      await db
+        .update(consultations)
+        .set({ status: 'notification_failed' })
+        .where(eq(consultations.id, consultation.id));
     }
   } catch (err) {
     logger.error('[conversations] Failed to send consultation notification', {
       consultationId: consultation.id,
       error: err,
     });
+    await db
+      .update(consultations)
+      .set({ status: 'notification_failed' })
+      .where(eq(consultations.id, consultation.id));
   }
+
+  logger.info('[conversations] consultation_request', {
+    consultationId: consultation.id,
+    sessionId: input.sessionId,
+    channelType: input.channelType,
+    durationMs: Date.now() - start,
+    outcome: 'requested',
+  });
 
   return consultation;
 }
 
-/** Handle a staff reply to a pending consultation. */
+/** Handle a staff reply to a pending consultation. Returns true if reply was accepted. */
 export async function handleStaffReply(
   deps: ConsultDeps,
   consultation: typeof consultations.$inferSelect,
   event: MessageReceivedEvent,
-): Promise<void> {
+): Promise<boolean> {
   const { db, scheduler } = deps;
 
-  // Update consultation status
-  await db
+  // Atomic check-and-set: only update if still pending (prevents timeout race)
+  const updated = await db
     .update(consultations)
     .set({
       status: 'replied',
       summary: event.content,
       repliedAt: new Date(),
     })
-    .where(eq(consultations.id, consultation.id));
+    .where(
+      and(
+        eq(consultations.id, consultation.id),
+        eq(consultations.status, 'pending'),
+      ),
+    )
+    .returning();
+
+  if (updated.length === 0) {
+    logger.info('[conversations] Staff reply arrived after timeout — ignored', {
+      consultationId: consultation.id,
+    });
+    return false;
+  }
 
   // Store reply in chat state for the agent to pick up
   const state = getChatState();
@@ -140,6 +182,14 @@ export async function handleStaffReply(
   await scheduler.add('conversations:channel-reply', {
     sessionId: consultation.sessionId,
   });
+
+  logger.info('[conversations] consultation_reply', {
+    consultationId: consultation.id,
+    sessionId: consultation.sessionId,
+    outcome: 'replied',
+  });
+
+  return true;
 }
 
 /** Check for timed-out consultations and mark them. */
@@ -165,12 +215,17 @@ export async function checkConsultationTimeouts(
 
   if (timedOut.length === 0) return 0;
 
-  // Mark as timed out
+  // Mark as timed out — atomic: only if still pending (prevents race with staff reply)
   for (const c of timedOut) {
-    await db
+    const updated = await db
       .update(consultations)
       .set({ status: 'timeout' })
-      .where(eq(consultations.id, c.id));
+      .where(
+        and(eq(consultations.id, c.id), eq(consultations.status, 'pending')),
+      )
+      .returning();
+
+    if (updated.length === 0) continue; // Staff replied in the meantime
 
     // Store timeout flag in chat state so agent knows
     const state = getChatState();

@@ -69,7 +69,14 @@ export const whatsappSetupJob = defineJob(
     // Step 2: Set webhook callback URL to point to this server
     const baseUrl = process.env.BETTER_AUTH_URL;
     if (baseUrl) {
-      const webhookUrl = `${baseUrl}/api/channels/webhook/whatsapp`;
+      // Include instanceId in webhook URL for per-instance routing
+      const { channelInstanceId } = data as {
+        integrationId: string;
+        channelInstanceId?: string;
+      };
+      const webhookUrl = channelInstanceId
+        ? `${baseUrl}/api/channels/webhook/whatsapp/${channelInstanceId}`
+        : `${baseUrl}/api/channels/webhook/whatsapp`;
       logger.info('WhatsApp setup job: setting webhook callback URL', {
         webhookUrl,
       });

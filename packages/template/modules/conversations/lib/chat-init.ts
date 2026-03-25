@@ -11,7 +11,9 @@ import type { ChannelsService, Scheduler, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
 import type { Logger as ChatLogger, StateAdapter } from 'chat';
 import { Chat } from 'chat';
+import { eq } from 'drizzle-orm';
 
+import { channelInstances } from '../schema';
 import { createChannelBridge } from './chat-bridge';
 import { createPGlitePoolAdapter, type PoolLike } from './pglite-pool-adapter';
 
@@ -112,22 +114,42 @@ export async function initChat(deps: ChatInitDeps): Promise<Chat> {
   // Connect state (creates tables if needed)
   await state.connect();
 
-  // Build bridge adapters for configured channels
+  // Build bridge adapters for all active channel instances
   const adapters: Record<string, ReturnType<typeof createChannelBridge>> = {};
-  const channelNames = ['whatsapp', 'email'] as const;
 
-  for (const name of channelNames) {
+  const activeInstances = await deps.db
+    .select()
+    .from(channelInstances)
+    .where(eq(channelInstances.status, 'active'));
+
+  for (const instance of activeInstances) {
     try {
-      // Accessing an unconfigured channel throws (throw-proxy) — caught below
-      const channelSend = deps.channels[name];
-      if (channelSend) {
-        adapters[name] = createChannelBridge(name, {
-          db: deps.db,
-          scheduler: deps.scheduler,
-        });
+      // Verify core adapter exists for this channel type (throws for unconfigured — caught below)
+      if (instance.type !== 'web') {
+        const channelSend =
+          deps.channels[instance.type as keyof typeof deps.channels];
+        if (!channelSend) {
+          logger.warn(
+            '[conversations] Skipped channel instance — no core adapter configured',
+            { instanceId: instance.id, type: instance.type },
+          );
+          continue;
+        }
       }
+      adapters[instance.id] = createChannelBridge(instance, {
+        db: deps.db,
+        scheduler: deps.scheduler,
+      });
+      logger.info('[conversations] Bridge adapter registered', {
+        instanceId: instance.id,
+        channelType: instance.type,
+      });
     } catch {
-      // Channel not configured — skip
+      // Channel type not configured in core — skip this instance
+      logger.warn(
+        '[conversations] Skipped channel instance — no core adapter configured',
+        { instanceId: instance.id, type: instance.type },
+      );
     }
   }
 
@@ -140,4 +162,11 @@ export async function initChat(deps: ChatInitDeps): Promise<Chat> {
   });
 
   return chatInstance;
+}
+
+/** Reinitialize Chat instance — called after channel instances change (connect/disconnect). */
+export async function reinitChat(deps: ChatInitDeps): Promise<Chat> {
+  chatInstance = null;
+  stateInstance = null;
+  return initChat(deps);
 }

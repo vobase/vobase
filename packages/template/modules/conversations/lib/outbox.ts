@@ -7,12 +7,67 @@ import type { ChannelsService, Scheduler, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
-import { outbox, sessions } from '../schema';
+import { contacts } from '../../contacts/schema';
+import { deadLetters, outbox, sessions } from '../schema';
+
+/** Maximum send retries before moving to dead_letters. */
+export const MAX_RETRIES = 5;
+
+// OPTIONAL HARDENING: In-memory circuit breaker — single-instance only, lost on restart.
+interface CircuitState {
+  failures: number;
+  openAt: number | null; // timestamp when circuit opened
+}
+
+const circuitBreakers = new Map<string, CircuitState>();
+
+const CIRCUIT_FAILURE_THRESHOLD = 5;
+const CIRCUIT_OPEN_MS = 60_000; // 60s
+
+/** Returns true if the channel is currently open (blocking sends). */
+export function isCircuitOpen(channelType: string): boolean {
+  const state = circuitBreakers.get(channelType);
+  if (!state || state.openAt === null) return false;
+  if (Date.now() - state.openAt >= CIRCUIT_OPEN_MS) {
+    // Transition to half-open: allow one probe
+    state.openAt = null;
+    return false;
+  }
+  return true;
+}
+
+/** Record a send success — resets failures to 0 (closed). */
+export function recordCircuitSuccess(channelType: string): void {
+  circuitBreakers.set(channelType, { failures: 0, openAt: null });
+}
+
+/** Record a send failure — opens circuit after threshold. */
+export function recordCircuitFailure(channelType: string): void {
+  const state = circuitBreakers.get(channelType) ?? {
+    failures: 0,
+    openAt: null,
+  };
+  state.failures += 1;
+  if (state.failures >= CIRCUIT_FAILURE_THRESHOLD && state.openAt === null) {
+    state.openAt = Date.now();
+    logger.warn('[conversations] outbox_circuit_open', {
+      channelType,
+      failures: state.failures,
+    });
+  }
+  circuitBreakers.set(channelType, state);
+}
+
+/** Reset circuit state (for testing). */
+export function resetCircuit(channelType: string): void {
+  circuitBreakers.delete(channelType);
+}
 
 interface EnqueueInput {
   sessionId: string;
   content: string;
-  channel: string;
+  channelType: string;
+  channelInstanceId?: string;
   payload?: {
     template?: { name: string; language: string; parameters?: string[] };
     interactive?: Record<string, unknown>;
@@ -25,18 +80,29 @@ export async function enqueueMessage(
   scheduler: Scheduler,
   input: EnqueueInput,
 ): Promise<typeof outbox.$inferSelect> {
+  const start = Date.now();
+
   const [record] = await db
     .insert(outbox)
     .values({
       sessionId: input.sessionId,
       content: input.content,
-      channel: input.channel,
+      channelType: input.channelType,
+      channelInstanceId: input.channelInstanceId ?? null,
       payload: input.payload ?? null,
       status: 'queued',
     })
     .returning();
 
   await scheduler.add('conversations:send', { outboxId: record.id });
+
+  logger.info('[conversations] outbox_enqueue', {
+    outboxId: record.id,
+    sessionId: input.sessionId,
+    channelType: input.channelType,
+    durationMs: Date.now() - start,
+    outcome: 'queued',
+  });
 
   return record;
 }
@@ -45,14 +111,32 @@ export async function enqueueMessage(
 export async function processOutboxMessage(
   db: VobaseDb,
   channels: ChannelsService,
+  scheduler: Scheduler,
   outboxId: string,
 ): Promise<void> {
+  const start = Date.now();
+
   const [record] = await db
     .select()
     .from(outbox)
     .where(eq(outbox.id, outboxId));
 
   if (!record || record.status !== 'queued') return;
+
+  // OPTIONAL HARDENING: Check circuit breaker before attempting send
+  if (isCircuitOpen(record.channelType)) {
+    logger.warn('[conversations] outbox_circuit_skip', {
+      outboxId,
+      channelType: record.channelType,
+    });
+    await retryOrDeadLetter(
+      db,
+      scheduler,
+      record,
+      'Circuit open — channel unavailable',
+    );
+    return;
+  }
 
   // Load session to get contact info for routing
   const [session] = await db
@@ -61,32 +145,24 @@ export async function processOutboxMessage(
     .where(eq(sessions.id, record.sessionId));
 
   if (!session) {
-    await db
-      .update(outbox)
-      .set({ status: 'failed' })
-      .where(eq(outbox.id, outboxId));
+    await moveToDeadLetters(db, record, 'Session not found');
     return;
   }
 
   try {
-    // Resolve recipient from session metadata or contact
-    const { contacts } = await import('../../contacts/schema');
     const [contact] = await db
       .select()
       .from(contacts)
       .where(eq(contacts.id, session.contactId));
 
     if (!contact) {
-      await db
-        .update(outbox)
-        .set({ status: 'failed' })
-        .where(eq(outbox.id, outboxId));
+      await moveToDeadLetters(db, record, 'Contact not found');
       return;
     }
 
-    let result: { success: boolean; messageId?: string };
+    let result: { success: boolean; messageId?: string; error?: string };
 
-    if (record.channel === 'whatsapp' && contact.phone) {
+    if (record.channelType === 'whatsapp' && contact.phone) {
       const payload = record.payload as {
         template?: { name: string; language: string; parameters?: string[] };
         interactive?: Record<string, unknown>;
@@ -109,7 +185,7 @@ export async function processOutboxMessage(
           text: record.content,
         });
       }
-    } else if (record.channel === 'email' && contact.email) {
+    } else if (record.channelType === 'email' && contact.email) {
       result = await channels.email.send({
         to: contact.email,
         subject: 'Message',
@@ -120,27 +196,140 @@ export async function processOutboxMessage(
       result = { success: true };
     }
 
-    await db
-      .update(outbox)
-      .set({
-        status: result.success ? 'sent' : 'failed',
-        externalMessageId: result.messageId ?? null,
-      })
-      .where(eq(outbox.id, outboxId));
+    // M5: Warn on inconsistent SendResult
+    if (result.success && !result.messageId && record.channelType !== 'web') {
+      logger.warn('[conversations] outbox_send_result_no_message_id', {
+        outboxId,
+        channelType: record.channelType,
+      });
+    } else if (!result.success && !result.error) {
+      logger.warn('[conversations] outbox_send_result_no_error', {
+        outboxId,
+        channelType: record.channelType,
+      });
+    }
+
+    if (result.success) {
+      recordCircuitSuccess(record.channelType);
+      await db
+        .update(outbox)
+        .set({
+          status: 'sent',
+          externalMessageId: result.messageId ?? null,
+        })
+        .where(eq(outbox.id, outboxId));
+
+      logger.info('[conversations] outbox_send', {
+        outboxId,
+        sessionId: record.sessionId,
+        channelType: record.channelType,
+        durationMs: Date.now() - start,
+        outcome: 'sent',
+      });
+    } else {
+      recordCircuitFailure(record.channelType);
+      // Channel returned failure — retry or dead-letter
+      await retryOrDeadLetter(
+        db,
+        scheduler,
+        record,
+        result.error ?? 'Send failed',
+      );
+
+      logger.info('[conversations] outbox_send', {
+        outboxId,
+        sessionId: record.sessionId,
+        channelType: record.channelType,
+        durationMs: Date.now() - start,
+        outcome: 'failed',
+        error: result.error,
+      });
+    }
   } catch (err) {
+    recordCircuitFailure(record.channelType);
     logger.error('[conversations] Failed to send outbox message', {
       outboxId,
       error: err,
     });
 
-    await db
-      .update(outbox)
-      .set({
-        status: 'failed',
-        retryCount: (record.retryCount ?? 0) + 1,
-      })
-      .where(eq(outbox.id, outboxId));
+    logger.info('[conversations] outbox_send', {
+      outboxId,
+      sessionId: record.sessionId,
+      channelType: record.channelType,
+      durationMs: Date.now() - start,
+      outcome: 'error',
+    });
+
+    await retryOrDeadLetter(
+      db,
+      scheduler,
+      record,
+      err instanceof Error ? err.message : String(err),
+    );
   }
+}
+
+/** Retry with exponential backoff or move to dead_letters after MAX_RETRIES. */
+async function retryOrDeadLetter(
+  db: VobaseDb,
+  scheduler: Scheduler,
+  record: typeof outbox.$inferSelect,
+  error: string,
+): Promise<void> {
+  const nextRetry = (record.retryCount ?? 0) + 1;
+
+  if (nextRetry >= MAX_RETRIES) {
+    await moveToDeadLetters(db, record, error);
+    return;
+  }
+
+  // Exponential backoff: 2^retryCount seconds (2s, 4s, 8s, 16s, 32s)
+  const backoffMs = 2 ** nextRetry * 1000;
+  const startAfter = new Date(Date.now() + backoffMs);
+
+  await db
+    .update(outbox)
+    .set({ retryCount: nextRetry, status: 'queued' })
+    .where(eq(outbox.id, record.id));
+
+  await scheduler.add(
+    'conversations:send',
+    { outboxId: record.id },
+    { startAfter: startAfter.toISOString() },
+  );
+
+  logger.info('[conversations] Outbox message scheduled for retry', {
+    outboxId: record.id,
+    retryCount: nextRetry,
+    backoffMs,
+  });
+}
+
+/** Move a failed outbox record to the dead_letters table (terminal). */
+async function moveToDeadLetters(
+  db: VobaseDb,
+  record: typeof outbox.$inferSelect,
+  error: string,
+): Promise<void> {
+  await db.insert(deadLetters).values({
+    originalOutboxId: record.id,
+    sessionId: record.sessionId,
+    channelType: record.channelType,
+    channelInstanceId: record.channelInstanceId,
+    content: record.content,
+    payload: record.payload,
+    error,
+    retryCount: record.retryCount ?? 0,
+    status: 'dead',
+  });
+
+  await db.delete(outbox).where(eq(outbox.id, record.id));
+
+  logger.warn('[conversations] Outbox message moved to dead letters', {
+    outboxId: record.id,
+    error,
+    retryCount: record.retryCount,
+  });
 }
 
 /** Update outbox record based on external delivery status callback. */

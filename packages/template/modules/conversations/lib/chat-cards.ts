@@ -16,12 +16,6 @@ const MAX_REPLY_BUTTONS = 3;
 
 // ─── Template card ───────────────────────────────────────────────────
 
-interface TemplateParams {
-  name: string;
-  language: string;
-  parameters?: string[];
-}
-
 /**
  * Build a CardElement representing a WhatsApp template message.
  *
