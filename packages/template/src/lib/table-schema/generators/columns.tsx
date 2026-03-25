@@ -1,18 +1,20 @@
-'use client';
-
-import type { ColumnDef } from '@tanstack/react-table';
-import type { JSX } from 'react';
+"use client";
 
 import {
   DataTableCellBadge,
   DataTableCellBoolean,
   DataTableCellCode,
+  DataTableCellLevelIndicator,
   DataTableCellNumber,
+  DataTableCellStar,
+  DataTableCellStatusCode,
   DataTableCellText,
   DataTableCellTimestamp,
-} from '@/components/data-table/data-table-cell';
-import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
-import type { ColConfig, DisplayConfig, TableSchemaDefinition } from '../types';
+} from "@/components/data-table/data-table-cell";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+import type { ColumnDef } from "@tanstack/react-table";
+import type { JSX } from "react";
+import type { ColConfig, DisplayConfig, TableSchemaDefinition } from "../types";
 
 /**
  * Derive the TanStack Table filterFn name from a column config.
@@ -26,17 +28,17 @@ function getFilterFn(config: ColConfig): string | undefined {
   const { kind, filter, arrayItem } = config;
 
   switch (filter.type) {
-    case 'timerange':
-      return 'inDateRange'; // custom — must be registered
-    case 'slider':
-      return 'inNumberRange'; // TanStack built-in
-    case 'input':
-      return 'includesString'; // TanStack built-in; works for strings and numbers (via toString)
-    case 'checkbox':
+    case "timerange":
+      return "inDateRange"; // custom — must be registered
+    case "slider":
+      return "inNumberRange"; // TanStack built-in
+    case "input":
+      return "includesString"; // TanStack built-in; works for strings and numbers (via toString)
+    case "checkbox":
       // Array columns use arrIncludesSome (checks row's array for filter values)
-      if (kind === 'array') return 'arrIncludesSome'; // TanStack built-in
+      if (kind === "array") return "arrIncludesSome"; // TanStack built-in
       // Single-value columns use arrSome (checks if row value is in filter array)
-      return 'arrSome'; // custom — must be registered
+      return "arrSome"; // custom — must be registered
   }
 }
 
@@ -48,47 +50,47 @@ function renderCell(
   value: unknown,
   row: unknown,
 ): JSX.Element | null {
-  const fallback = <DataTableCellText value={String(value ?? '')} />;
+  const fallback = <DataTableCellText value={String(value ?? "")} />;
   const colorMap = display.colorMap;
   switch (display.type) {
-    case 'text': {
+    case "text": {
       const hex = colorMap?.[String(value)];
-      return typeof value === 'string' || typeof value === 'number' ? (
+      return typeof value === "string" || typeof value === "number" ? (
         <DataTableCellText value={value} color={hex} />
       ) : (
         fallback
       );
     }
-    case 'code': {
+    case "code": {
       const hex = colorMap?.[String(value)];
-      return typeof value === 'string' || typeof value === 'number' ? (
+      return typeof value === "string" || typeof value === "number" ? (
         <DataTableCellCode value={value} color={hex} />
       ) : (
         fallback
       );
     }
-    case 'number': {
+    case "number": {
       const hex = colorMap?.[String(value)];
-      return typeof value === 'number' ? (
+      return typeof value === "number" ? (
         <DataTableCellNumber value={value} unit={display.unit} color={hex} />
       ) : (
         fallback
       );
     }
-    case 'timestamp': {
+    case "timestamp": {
       const hex = colorMap?.[String(value)];
       return value instanceof Date ||
-        typeof value === 'string' ||
-        typeof value === 'number' ? (
+        typeof value === "string" ||
+        typeof value === "number" ? (
         <DataTableCellTimestamp date={value} color={hex} />
       ) : (
         fallback
       );
     }
-    case 'badge': {
+    case "badge": {
       if (Array.isArray(value)) {
         return (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex-no-wrap flex gap-1">
             {value.map((item, i) => (
               <DataTableCellBadge
                 key={i}
@@ -100,21 +102,44 @@ function renderCell(
         );
       }
       const hex = colorMap?.[String(value)];
-      return typeof value === 'string' || typeof value === 'number' ? (
+      return typeof value === "string" || typeof value === "number" ? (
         <DataTableCellBadge value={value} color={hex} />
       ) : (
         fallback
       );
     }
-    case 'boolean': {
+    case "boolean": {
       const hex = colorMap?.[String(value)];
-      return typeof value === 'boolean' ? (
+      return typeof value === "boolean" ? (
         <DataTableCellBoolean value={value} color={hex} />
       ) : (
         fallback
       );
     }
-    case 'custom':
+    case "star": {
+      return typeof value === "boolean" ? (
+        <DataTableCellStar value={value} />
+      ) : (
+        fallback
+      );
+    }
+    case "status-code": {
+      const hex = colorMap?.[String(value)];
+      return typeof value === "number" ? (
+        <DataTableCellStatusCode value={value} color={hex} />
+      ) : (
+        fallback
+      );
+    }
+    case "level-indicator": {
+      const hex = colorMap?.[String(value)];
+      return typeof value === "string" ? (
+        <DataTableCellLevelIndicator value={value} color={hex} />
+      ) : (
+        fallback
+      );
+    }
+    case "custom":
       return display.cell(value, row);
   }
 }
@@ -147,16 +172,16 @@ export function generateColumns<TData>(
 ): ColumnDef<TData>[] {
   return Object.entries(schema).map(([key, builder]) => {
     const config = builder._config;
-    const isDotted = key.includes('.');
+    const isDotted = key.includes(".");
     const filterFn = getFilterFn(config);
 
     const header = config.hideHeader
-      ? () => null
+      ? () => <span className="sr-only">{config.label}</span>
       : config.sortable
         ? ({
             column,
           }: {
-            column: Parameters<typeof DataTableColumnHeader>[0]['column'];
+            column: Parameters<typeof DataTableColumnHeader>[0]["column"];
           }) => <DataTableColumnHeader column={column} title={config.label} />
         : config.label;
 

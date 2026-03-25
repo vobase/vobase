@@ -1,11 +1,10 @@
-'use client';
+"use client";
 
-import type { ColumnFiltersState, Table } from '@tanstack/react-table';
-import { useCallback, useEffect, useRef } from 'react';
-
-import type { DataTableFilterField } from '@/components/data-table/types';
-import { useFilterActions } from './useFilterActions';
-import { useFilterState } from './useFilterState';
+import type { DataTableFilterField } from "@/components/data-table/types";
+import type { ColumnFiltersState, Table } from "@tanstack/react-table";
+import { useCallback, useEffect, useRef } from "react";
+import { useFilterActions } from "./useFilterActions";
+import { useFilterState } from "./useFilterState";
 
 interface UseReactTableSyncOptions<TData> {
   /**
@@ -115,7 +114,7 @@ function isEqual(a: unknown, b: unknown): boolean {
     return a.getTime() === b.getTime();
   }
 
-  if (typeof a === 'object' && typeof b === 'object') {
+  if (typeof a === "object" && typeof b === "object") {
     const keysA = Object.keys(a as object);
     const keysB = Object.keys(b as object);
     if (keysA.length !== keysB.length) return false;

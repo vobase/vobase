@@ -1,4 +1,4 @@
-import type { TableSchemaDefinition } from './types';
+import type { TableSchemaDefinition } from "./types";
 
 /**
  * Validates a table schema definition and throws a descriptive error on the
@@ -21,7 +21,7 @@ export function validateSchema(definition: TableSchemaDefinition): void {
     if (!c.label) {
       throw new Error(
         `[createTableSchema] Column "${key}" is missing a label.\n` +
-          `  Fix: .label("${key[0]?.toUpperCase()}${key.slice(1)}")`,
+          `  Fix: .label("${key[0]!.toUpperCase()}${key.slice(1)}")`,
       );
     }
 
@@ -29,8 +29,8 @@ export function validateSchema(definition: TableSchemaDefinition): void {
     //    has no value list to auto-derive from, so an empty options list would
     //    render a filter with no checkboxes (a silent no-op in the UI).
     if (
-      c.kind === 'number' &&
-      c.filter?.type === 'checkbox' &&
+      c.kind === "number" &&
+      c.filter?.type === "checkbox" &&
       (!c.filter.options || c.filter.options.length === 0)
     ) {
       throw new Error(
@@ -41,7 +41,7 @@ export function validateSchema(definition: TableSchemaDefinition): void {
 
     // 3. Slider bounds must be valid — type system requires { min, max } to be
     //    passed but cannot enforce min < max
-    if (c.filter?.type === 'slider') {
+    if (c.filter?.type === "slider") {
       const { min, max } = c.filter;
       if (min === undefined || max === undefined) {
         throw new Error(

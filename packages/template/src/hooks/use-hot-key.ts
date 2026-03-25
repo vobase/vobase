@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
 export function useHotKey(callback: () => void, key: string): void {
   // Use ref to always have the latest callback without re-registering the listener
@@ -14,9 +14,9 @@ export function useHotKey(callback: () => void, key: string): void {
       }
     }
 
-    window.addEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
     return () => {
-      window.removeEventListener('keydown', handler);
+      window.removeEventListener("keydown", handler);
     };
   }, [key]);
 }

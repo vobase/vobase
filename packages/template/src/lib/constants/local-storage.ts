@@ -10,4 +10,4 @@ export const getCommandHistoryKey = (tableId: string) =>
   `data-table-command-${tableId}`;
 
 // Controls panel open/close state (global)
-export const CONTROLS_KEY = 'data-table-controls';
+export const CONTROLS_KEY = "data-table-controls";

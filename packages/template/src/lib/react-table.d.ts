@@ -1,21 +1,20 @@
-import type { FilterFn, Row, RowData } from '@tanstack/react-table';
+import "@tanstack/react-table";
 
-declare module '@tanstack/react-table' {
+declare module "@tanstack/react-table" {
   // https://github.com/TanStack/table/issues/44#issuecomment-1377024296
-  interface TableMeta<TData> {
+  interface TableMeta<TData extends unknown> {
     getRowClassName?: (row: Row<TData>) => string;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface ColumnMeta<TData extends RowData, TValue> {
+  interface ColumnMeta {
     headerClassName?: string;
     cellClassName?: string;
     label?: string;
   }
 
   interface FilterFns {
-    inDateRange?: FilterFn<unknown>;
-    arrSome?: FilterFn<unknown>;
+    inDateRange?: FilterFn<any>;
+    arrSome?: FilterFn<any>;
   }
 
   // https://github.com/TanStack/table/discussions/4554

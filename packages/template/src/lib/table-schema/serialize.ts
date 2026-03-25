@@ -1,4 +1,4 @@
-import { col } from './col';
+import { col } from "./col";
 import type {
   ColBuilder,
   ColConfig,
@@ -8,11 +8,11 @@ import type {
   SchemaJSON,
   SheetDescriptor,
   TableSchemaDefinition,
-} from './types';
+} from "./types";
 
 // ── Serialization (schema → JSON) ────────────────────────────────────────────
 
-function serializeFilter(filter: ColConfig['filter']): FilterDescriptor | null {
+function serializeFilter(filter: ColConfig["filter"]): FilterDescriptor | null {
   if (!filter) return null;
   const descriptor: FilterDescriptor = {
     type: filter.type,
@@ -31,7 +31,7 @@ function serializeFilter(filter: ColConfig['filter']): FilterDescriptor | null {
   return descriptor;
 }
 
-function serializeSheet(sheet: ColConfig['sheet']): SheetDescriptor | null {
+function serializeSheet(sheet: ColConfig["sheet"]): SheetDescriptor | null {
   if (!sheet) return null;
   const descriptor: SheetDescriptor = {};
   if (sheet.label) descriptor.label = sheet.label;
@@ -54,10 +54,10 @@ export function serializeSchema(definition: TableSchemaDefinition): SchemaJSON {
         hidden: c.hidden,
         sortable: c.sortable,
         display: (() => {
-          const d: ColumnDescriptor['display'] = { type: c.display.type };
+          const d: ColumnDescriptor["display"] = { type: c.display.type };
           if (
-            c.display.type === 'number' &&
-            'unit' in c.display &&
+            c.display.type === "number" &&
+            "unit" in c.display &&
             c.display.unit
           ) {
             d.unit = c.display.unit;
@@ -81,6 +81,7 @@ export function serializeSchema(definition: TableSchemaDefinition): SchemaJSON {
         };
       }
       if (c.size !== undefined) descriptor.size = c.size;
+      if (c.hideHeader) descriptor.hideHeader = true;
       if (c.enableHiding === false) descriptor.enableHiding = false;
       return descriptor;
     },
@@ -98,17 +99,19 @@ export function serializeSchema(definition: TableSchemaDefinition): SchemaJSON {
 
 function defaultDisplayType(kind: ColKind): string {
   switch (kind) {
-    case 'enum':
-    case 'array':
-      return 'badge';
-    case 'boolean':
-      return 'boolean';
-    case 'timestamp':
-      return 'timestamp';
-    case 'number':
-      return 'number';
+    case "enum":
+    case "array":
+      return "badge";
+    case "boolean":
+      return "boolean";
+    case "timestamp":
+      return "timestamp";
+    case "number":
+      return "number";
+    case "string":
+    case "record":
     default:
-      return 'text';
+      return "text";
   }
 }
 
@@ -122,21 +125,21 @@ export function deserializeSchema(json: SchemaJSON): TableSchemaDefinition {
     // deserializeSchema is a runtime operation reading from JSON.
 
     let builder: ColBuilder<unknown, any> =
-      col_.dataType === 'enum' && col_.enumValues
+      col_.dataType === "enum" && col_.enumValues
         ? col.enum(col_.enumValues as readonly string[])
-        : col_.dataType === 'array' &&
-            col_.arrayItemType?.dataType === 'enum' &&
+        : col_.dataType === "array" &&
+            col_.arrayItemType?.dataType === "enum" &&
             col_.arrayItemType.enumValues
           ? col.array(
               col.enum(col_.arrayItemType.enumValues as readonly string[]),
             )
-          : col_.dataType === 'boolean'
+          : col_.dataType === "boolean"
             ? col.boolean()
-            : col_.dataType === 'timestamp'
+            : col_.dataType === "timestamp"
               ? col.timestamp()
-              : col_.dataType === 'number'
+              : col_.dataType === "number"
                 ? col.number()
-                : col_.dataType === 'record'
+                : col_.dataType === "record"
                   ? col.record()
                   : col.string();
 
@@ -146,23 +149,26 @@ export function deserializeSchema(json: SchemaJSON): TableSchemaDefinition {
 
     // 3. Display — fall back to kind default when "custom" (function not serialized)
     const displayType =
-      col_.display.type === 'custom'
+      col_.display.type === "custom"
         ? defaultDisplayType(col_.dataType)
         : col_.display.type;
-    if (displayType === 'number') {
+    if (displayType === "number") {
       const opts: { unit?: string; colorMap?: Record<string, string> } = {};
       if (col_.display.unit) opts.unit = col_.display.unit;
       if (col_.display.colorMap) opts.colorMap = col_.display.colorMap;
       builder = builder.display(
-        'number',
+        "number",
         Object.keys(opts).length > 0 ? opts : undefined,
       );
     } else if (
-      displayType === 'text' ||
-      displayType === 'code' ||
-      displayType === 'boolean' ||
-      displayType === 'badge' ||
-      displayType === 'timestamp'
+      displayType === "text" ||
+      displayType === "code" ||
+      displayType === "boolean" ||
+      displayType === "star" ||
+      displayType === "badge" ||
+      displayType === "timestamp" ||
+      displayType === "status-code" ||
+      displayType === "level-indicator"
     ) {
       builder = builder.display(
         displayType,
@@ -175,16 +181,16 @@ export function deserializeSchema(json: SchemaJSON): TableSchemaDefinition {
       builder = builder.notFilterable();
     } else {
       const f = col_.filter;
-      if (f.type === 'slider' && f.min !== undefined && f.max !== undefined) {
-        builder = builder.filterable('slider', { min: f.min, max: f.max });
-      } else if (f.type === 'checkbox') {
-        builder = builder.filterable('checkbox', {
+      if (f.type === "slider" && f.min !== undefined && f.max !== undefined) {
+        builder = builder.filterable("slider", { min: f.min, max: f.max });
+      } else if (f.type === "checkbox") {
+        builder = builder.filterable("checkbox", {
           ...(f.options ? { options: f.options } : {}),
         });
-      } else if (f.type === 'timerange') {
-        builder = builder.filterable('timerange');
+      } else if (f.type === "timerange") {
+        builder = builder.filterable("timerange");
       } else {
-        builder = builder.filterable('input');
+        builder = builder.filterable("input");
       }
       if (f.defaultOpen) builder = builder.defaultOpen();
       if (f.commandDisabled) builder = builder.commandDisabled();
@@ -196,6 +202,7 @@ export function deserializeSchema(json: SchemaJSON): TableSchemaDefinition {
     } else if (col_.hidden) {
       builder = builder.hidden();
     }
+    if (col_.hideHeader) builder = builder.hideHeader();
     if (col_.sortable) builder = builder.sortable();
     if (col_.optional) builder = builder.optional();
     if (col_.size !== undefined) builder = builder.size(col_.size);

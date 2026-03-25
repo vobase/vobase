@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
 // REMINDER: React Compiler is not compatible with Tanstack Table v8 https://github.com/TanStack/table/issues/5567
-'use no memo';
+"use no memo";
 
 import {
   Table,
@@ -10,39 +10,39 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/custom/table';
-import { DataTableFilterControls } from '@/components/data-table/data-table-filter-controls';
-import { DataTableProvider } from '@/components/data-table/data-table-provider';
-import { DataTableResetButton } from '@/components/data-table/data-table-reset-button';
-import { DataTableToolbar } from '@/components/data-table/data-table-toolbar'; // TODO: check where to put this
-import type { DataTableFilterField } from '@/components/data-table/types';
-import { Button } from '@/components/ui/button';
-import { useHotKey } from '@/hooks/use-hot-key';
-import { useLocalStorage } from '@/hooks/use-local-storage';
+} from "@/components/custom/table";
+import { DataTableFilterControls } from "@/components/data-table/data-table-filter-controls";
+import { DataTableProvider } from "@/components/data-table/data-table-provider";
+import { DataTableResetButton } from "@/components/data-table/data-table-reset-button";
+import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"; // TODO: check where to put this
+import type { DataTableFilterField } from "@/components/data-table/types";
+import { Button } from "@/components/ui/button";
+import { useHotKey } from "@/hooks/use-hot-key";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   getColumnOrderKey,
   getColumnVisibilityKey,
-} from '@/lib/constants/local-storage';
-import { formatCompactNumber } from '@/lib/format';
-import { useFilterState } from '@/lib/store/hooks/useFilterState';
-import { arrSome, inDateRange } from '@/lib/table/filterfns';
-import { cn } from '@/lib/utils';
+} from "@/lib/constants/local-storage";
+import { getFacetedUniqueValuesFlattened } from "@/lib/data-table/faceted";
+import { formatCompactNumber } from "@/lib/format";
+import { useFilterState } from "@/lib/store/hooks/useFilterState";
+import { arrSome, inDateRange } from "@/lib/table/filterfns";
+import { cn } from "@/lib/utils";
 import {
   type FetchNextPageOptions,
   type FetchPreviousPageOptions,
   type RefetchOptions,
-} from '@tanstack/react-query';
+} from "@tanstack/react-query";
 import type {
   ColumnDef,
   ColumnFiltersState,
-  FilterFn,
   Row,
   RowSelectionState,
   SortingState,
   TableOptions,
   Table as TTable,
   VisibilityState,
-} from '@tanstack/react-table';
+} from "@tanstack/react-table";
 import {
   flexRender,
   getCoreRowModel,
@@ -50,18 +50,17 @@ import {
   getFilteredRowModel,
   getSortedRowModel,
   getFacetedMinMaxValues as getTTableFacetedMinMaxValues,
-  getFacetedUniqueValues as getTTableFacetedUniqueValues,
   useReactTable,
-} from '@tanstack/react-table';
-import { LoaderCircle } from 'lucide-react';
-import * as React from 'react';
+} from "@tanstack/react-table";
+import { LoaderCircle } from "lucide-react";
+import * as React from "react";
 
 // TODO: add a possible chartGroupBy
 export interface DataTableInfiniteProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   getRowClassName?: (row: Row<TData>) => string;
   // REMINDER: make sure to pass the correct id to access the rows
-  getRowId?: TableOptions<TData>['getRowId'];
+  getRowId?: TableOptions<TData>["getRowId"];
   data: TData[];
   defaultColumnFilters?: ColumnFiltersState;
   defaultColumnSorting?: SortingState;
@@ -123,7 +122,7 @@ export function DataTableInfinite<TData, TValue>({
   getFacetedUniqueValues,
   getFacetedMinMaxValues,
   renderLiveRow,
-  tableId = 'infinite',
+  tableId = "infinite",
   commandSlot,
   sheetSlot,
   toolbarActions,
@@ -188,7 +187,7 @@ export function DataTableInfinite<TData, TValue>({
       columnOrder,
     },
     enableMultiRowSelection: false,
-    columnResizeMode: 'onChange',
+    columnResizeMode: "onChange",
     getRowId,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnFiltersChange: setColumnFilters,
@@ -199,10 +198,10 @@ export function DataTableInfinite<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getTTableFacetedUniqueValues(),
+    getFacetedUniqueValues: getFacetedUniqueValuesFlattened(),
     getFacetedMinMaxValues: getTTableFacetedMinMaxValues(),
-    filterFns: { inDateRange, arrSome } as Record<string, FilterFn<TData>>,
-    debugAll: process.env.NEXT_PUBLIC_TABLE_DEBUG === 'true',
+    filterFns: { inDateRange, arrSome },
+    debugAll: false,
     meta: { getRowClassName },
   });
 
@@ -221,9 +220,9 @@ export function DataTableInfinite<TData, TValue>({
     for (let i = 0; i < headers.length; i++) {
       const header = headers[i]!;
       // REMINDER: replace "." with "-" to avoid invalid CSS variable name (e.g. "timing.dns" -> "timing-dns")
-      colSizes[`--header-${header.id.replace('.', '-')}-size`] =
+      colSizes[`--header-${header.id.replace(".", "-")}-size`] =
         `${header.getSize()}px`;
-      colSizes[`--col-${header.column.id.replace('.', '-')}-size`] =
+      colSizes[`--col-${header.column.id.replace(".", "-")}-size`] =
         `${header.column.getSize()}px`;
     }
     return colSizes;
@@ -236,7 +235,7 @@ export function DataTableInfinite<TData, TValue>({
   useHotKey(() => {
     setColumnOrder([]);
     setColumnVisibility(defaultColumnVisibility);
-  }, 'u');
+  }, "u");
 
   // Memoize column state as strings for efficient row memoization comparison
   const visibleColumnIds = React.useMemo(
@@ -244,12 +243,12 @@ export function DataTableInfinite<TData, TValue>({
       table
         .getVisibleLeafColumns()
         .map((c) => c.id)
-        .join(','),
+        .join(","),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [table.getState().columnVisibility],
   );
   const columnOrderString = React.useMemo(
-    () => columnOrder.join(','),
+    () => columnOrder.join(","),
     [columnOrder],
   );
 
@@ -266,7 +265,7 @@ export function DataTableInfinite<TData, TValue>({
       enableColumnOrdering={true}
       isLoading={isFetching || isLoading}
       totalRows={totalRows}
-      filterRows={filterRows}
+      filterRows={filterRows ?? table.getFilteredRowModel().rows.length}
       getFacetedUniqueValues={getFacetedUniqueValues}
       getFacetedMinMaxValues={getFacetedMinMaxValues}
     >
@@ -274,16 +273,16 @@ export function DataTableInfinite<TData, TValue>({
         className="flex h-full min-h-screen w-full flex-col sm:flex-row"
         style={
           {
-            '--top-bar-height': `${topBarHeight}px`,
+            "--top-bar-height": `${topBarHeight}px`,
             ...columnSizeVars,
           } as React.CSSProperties
         }
       >
         <div
           className={cn(
-            'h-full w-full flex-col sm:sticky sm:top-0 sm:max-h-screen sm:min-h-screen sm:max-w-52 sm:min-w-52 sm:self-start md:max-w-72 md:min-w-72',
-            'group-data-[expanded=false]/controls:hidden',
-            'hidden sm:flex',
+            "h-full w-full flex-col sm:sticky sm:top-0 sm:max-h-screen sm:min-h-screen sm:max-w-52 sm:min-w-52 sm:self-start md:max-w-72 md:min-w-72",
+            "group-data-[expanded=false]/controls:hidden",
+            "hidden sm:flex",
           )}
         >
           <div className="border-border bg-background border-b p-2 md:sticky md:top-0">
@@ -307,16 +306,16 @@ export function DataTableInfinite<TData, TValue>({
         </div>
         <div
           className={cn(
-            'border-border flex max-w-full flex-1 flex-col sm:border-l',
+            "border-border flex max-w-full flex-1 flex-col sm:border-l",
             // Chrome issue
-            'sm:group-data-[expanded=true]/controls:max-w-[calc(100vw-208px)] md:group-data-[expanded=true]/controls:max-w-[calc(100vw-288px)]',
+            "sm:group-data-[expanded=true]/controls:max-w-[calc(100vw-208px)] md:group-data-[expanded=true]/controls:max-w-[calc(100vw-288px)]",
           )}
         >
           <div
             ref={topBarRef}
             className={cn(
-              'bg-background flex flex-col gap-4 p-2',
-              'sticky top-0 z-10 pb-4',
+              "bg-background flex flex-col gap-4 p-2",
+              "sticky top-0 z-10 pb-4",
             )}
           >
             {commandSlot}
@@ -334,13 +333,13 @@ export function DataTableInfinite<TData, TValue>({
               className="border-separate border-spacing-0"
               containerClassName="max-h-[calc(100vh-var(--top-bar-height))]"
             >
-              <TableHeader className={cn('bg-background sticky top-0 z-20')}>
+              <TableHeader className={cn("bg-background sticky top-0 z-20")}>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow
                     key={headerGroup.id}
                     className={cn(
-                      'bg-muted/50 hover:bg-muted/50',
-                      '*:border-t [&>:not(:last-child)]:border-r',
+                      "bg-muted/50 hover:bg-muted/50",
+                      "*:border-t [&>:not(:last-child)]:border-r",
                     )}
                   >
                     {headerGroup.headers.map((header) => {
@@ -350,21 +349,21 @@ export function DataTableInfinite<TData, TValue>({
                           style={
                             header.column.getCanResize()
                               ? {
-                                  width: `var(--header-${header.id.replace('.', '-')}-size)`,
-                                  minWidth: `var(--header-${header.id.replace('.', '-')}-size)`,
+                                  width: `var(--header-${header.id.replace(".", "-")}-size)`,
+                                  minWidth: `var(--header-${header.id.replace(".", "-")}-size)`,
                                 }
                               : undefined
                           }
                           className={cn(
-                            'border-border relative truncate border-b select-none last:[&>.cursor-col-resize]:opacity-0',
+                            "border-border relative truncate border-b select-none last:[&>.cursor-col-resize]:opacity-0",
                             header.column.columnDef.meta?.headerClassName,
                           )}
                           aria-sort={
-                            header.column.getIsSorted() === 'asc'
-                              ? 'ascending'
-                              : header.column.getIsSorted() === 'desc'
-                                ? 'descending'
-                                : 'none'
+                            header.column.getIsSorted() === "asc"
+                              ? "ascending"
+                              : header.column.getIsSorted() === "desc"
+                                ? "descending"
+                                : "none"
                           }
                         >
                           {header.isPlaceholder
@@ -379,8 +378,8 @@ export function DataTableInfinite<TData, TValue>({
                               onMouseDown={header.getResizeHandler()}
                               onTouchStart={header.getResizeHandler()}
                               className={cn(
-                                'user-select-none absolute top-0 -right-2 z-10 flex h-full w-4 cursor-col-resize touch-none justify-center',
-                                'before:bg-border before:absolute before:inset-y-0 before:w-px before:translate-x-px',
+                                "user-select-none absolute top-0 -right-2 z-10 flex h-full w-4 cursor-col-resize touch-none justify-center",
+                                "before:bg-border before:absolute before:inset-y-0 before:w-px before:translate-x-px",
                               )}
                             />
                           )}
@@ -396,7 +395,7 @@ export function DataTableInfinite<TData, TValue>({
                 className="outline-primary outline-1 -outline-offset-1 transition-colors outline-none focus-visible:outline-solid"
                 // REMINDER: avoids scroll (skipping the table header) when using skip to content
                 style={{
-                  scrollMarginTop: 'calc(var(--top-bar-height) + 40px)',
+                  scrollMarginTop: "calc(var(--top-bar-height) + 40px)",
                 }}
               >
                 {table.getRowModel().rows?.length ? (
@@ -444,11 +443,11 @@ export function DataTableInfinite<TData, TValue>({
                         No more data to load (
                         <span className="font-mono font-medium">
                           {formatCompactNumber(filterRows ?? 0)}
-                        </span>{' '}
-                        of{' '}
+                        </span>{" "}
+                        of{" "}
                         <span className="font-mono font-medium">
                           {formatCompactNumber(totalRows ?? 0)}
-                        </span>{' '}
+                        </span>{" "}
                         rows)
                       </p>
                     )}
@@ -492,17 +491,17 @@ function Row<TData>({
     <TableRow
       id={row.id}
       tabIndex={0}
-      data-state={selected && 'selected'}
+      data-state={selected && "selected"}
       onClick={() => row.toggleSelected()}
       onKeyDown={(event) => {
-        if (event.key === 'Enter') {
+        if (event.key === "Enter") {
           event.preventDefault();
           row.toggleSelected();
         }
       }}
       className={cn(
-        '[&>:not(:last-child)]:border-r',
-        'outline-primary focus-visible:bg-muted/50 outline-1 -outline-offset-1 transition-colors outline-none focus-visible:outline-solid data-[state=selected]:outline-solid',
+        "[&>:not(:last-child)]:border-r",
+        "outline-primary focus-visible:bg-muted/50 outline-1 -outline-offset-1 transition-colors outline-none focus-visible:outline-solid data-[state=selected]:outline-solid",
         table.options.meta?.getRowClassName?.(row),
       )}
     >
@@ -512,13 +511,13 @@ function Row<TData>({
           style={
             cell.column.getCanResize()
               ? {
-                  width: `var(--col-${cell.column.id.replace('.', '-')}-size)`,
-                  maxWidth: `var(--col-${cell.column.id.replace('.', '-')}-size)`,
+                  width: `var(--col-${cell.column.id.replace(".", "-")}-size)`,
+                  maxWidth: `var(--col-${cell.column.id.replace(".", "-")}-size)`,
                 }
               : undefined
           }
           className={cn(
-            'border-border truncate border-b',
+            "border-border truncate border-b",
             cell.column.columnDef.meta?.cellClassName,
           )}
         >

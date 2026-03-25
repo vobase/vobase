@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useCallback, useMemo, useRef } from 'react';
-
-import type { InternalStoreAdapter } from '../../adapter/types';
-import { getSchemaDefaults } from '../../schema/serialization';
-import type { SchemaDefinition, StoreSnapshot } from '../../schema/types';
+import { useCallback, useMemo, useRef } from "react";
+import type { InternalStoreAdapter } from "../../adapter/types";
+import { getSchemaDefaults } from "../../schema/serialization";
+import type { SchemaDefinition, StoreSnapshot } from "../../schema/types";
 
 export function useMemoryAdapter<T extends Record<string, unknown>>(
   schema: SchemaDefinition,
+  options?: { id?: string },
 ): InternalStoreAdapter<T> {
   const defaults = useMemo(() => getSchemaDefaults(schema) as T, [schema]);
 
@@ -100,7 +100,7 @@ export function useMemoryAdapter<T extends Record<string, unknown>>(
       },
 
       getTableId() {
-        return 'builder';
+        return options?.id ?? "memory";
       },
 
       getSchema() {

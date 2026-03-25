@@ -1,8 +1,7 @@
-'use client';
+"use client";
 
-import { useCallback, useSyncExternalStore } from 'react';
-
-import { useStoreContext } from '../context';
+import { useCallback, useSyncExternalStore } from "react";
+import { useStoreContext } from "../context";
 
 /**
  * Hook to read filter state from the adapter
@@ -23,7 +22,7 @@ export function useFilterState<T extends Record<string, unknown>, R = T>(
 
   if (!context) {
     throw new Error(
-      'useFilterState must be used within a DataTableStoreProvider',
+      "useFilterState must be used within a DataTableStoreProvider",
     );
   }
 

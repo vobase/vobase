@@ -1,5 +1,5 @@
-import { col } from './col';
-import type { ColBuilder } from './types';
+import { col } from "./col";
+import type { ColBuilder } from "./types";
 
 const DEFAULT_HTTP_STATUS_CODES = [
   200, 201, 204, 301, 302, 400, 401, 403, 404, 422, 429, 500, 502, 503, 504,
@@ -44,11 +44,11 @@ export const presets = {
    */
   logLevel<T extends readonly string[]>(
     values: T,
-  ): ColBuilder<T[number], 'checkbox'> {
+  ): ColBuilder<T[number], "checkbox"> {
     return col
       .enum(values)
-      .label('Level')
-      .filterable('checkbox', {
+      .label("Level")
+      .filterable("checkbox", {
         options: values.map((v) => ({ label: v, value: v })),
       })
       .defaultOpen();
@@ -69,12 +69,12 @@ export const presets = {
    */
   httpMethod<T extends readonly string[]>(
     values: T,
-  ): ColBuilder<T[number], 'checkbox'> {
+  ): ColBuilder<T[number], "checkbox"> {
     return col
       .enum(values)
-      .label('Method')
-      .display('text')
-      .filterable('checkbox', {
+      .label("Method")
+      .display("text")
+      .filterable("checkbox", {
         options: values.map((v) => ({ label: v, value: v })),
       });
   },
@@ -97,11 +97,11 @@ export const presets = {
    */
   httpStatus(
     codes?: number[],
-  ): ColBuilder<number, 'input' | 'slider' | 'checkbox'> {
+  ): ColBuilder<number, "input" | "slider" | "checkbox"> {
     return col
       .number()
-      .label('Status')
-      .filterable('checkbox', {
+      .label("Status")
+      .filterable("checkbox", {
         options: (codes ?? DEFAULT_HTTP_STATUS_CODES).map((code) => ({
           label: String(code),
           value: code,
@@ -127,12 +127,12 @@ export const presets = {
   duration(
     unit?: string,
     slider?: { min: number; max: number },
-  ): ColBuilder<number, 'input' | 'slider' | 'checkbox'> {
+  ): ColBuilder<number, "input" | "slider" | "checkbox"> {
     return col
       .number()
-      .label('Duration')
-      .display('number', { unit })
-      .filterable('slider', slider ?? { min: 0, max: 5000 });
+      .label("Duration")
+      .display("number", { unit })
+      .filterable("slider", slider ?? { min: 0, max: 5000 });
   },
 
   /**
@@ -146,8 +146,8 @@ export const presets = {
    * col.presets.timestamp().label("Date").commandDisabled().size(200).sheet()
    * ```
    */
-  timestamp(): ColBuilder<Date, 'timerange'> {
-    return col.timestamp().label('Timestamp').display('timestamp').sortable();
+  timestamp(): ColBuilder<Date, "timerange"> {
+    return col.timestamp().label("Timestamp").display("timestamp").sortable();
   },
 
   /**
@@ -162,7 +162,7 @@ export const presets = {
    * ```
    */
   traceId(): ColBuilder<string, never> {
-    return col.string().label('Trace ID').display('code').notFilterable();
+    return col.string().label("Trace ID").display("code").notFilterable();
   },
 
   /**
@@ -175,7 +175,7 @@ export const presets = {
    * col.presets.pathname().size(130).sheet()
    * ```
    */
-  pathname(): ColBuilder<string, 'input'> {
-    return col.string().label('Pathname').filterable('input');
+  pathname(): ColBuilder<string, "input"> {
+    return col.string().label("Pathname").filterable("input");
   },
 };

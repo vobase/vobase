@@ -87,7 +87,7 @@ export function useAutocomplete(
       }
 
       try {
-        const res = await fetch(url);
+        const res = await globalThis.fetch(url);
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as { suggestions: string[] };
         const { suggestions } = data;

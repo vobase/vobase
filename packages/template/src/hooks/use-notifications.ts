@@ -14,7 +14,9 @@ export function useEscalationNotifications() {
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['conversations-sessions', 'alerts'],
     queryFn: async () => {
-      const res = await fetch('/api/conversations/sessions?status=failed');
+      const res = await globalThis.fetch(
+        '/api/conversations/sessions?status=failed',
+      );
       if (!res.ok) return 0;
       const sessions: unknown[] = await res.json();
       return sessions.length;

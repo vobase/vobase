@@ -1,28 +1,30 @@
-import type { JSX } from 'react';
-
-import type { DatePreset, Option } from '@/components/data-table/types';
+import type { DatePreset, Option } from "@/components/data-table/types";
+import type { JSX } from "react";
 
 export type ColKind =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'timestamp'
-  | 'enum'
-  | 'array'
-  | 'record';
+  | "string"
+  | "number"
+  | "boolean"
+  | "timestamp"
+  | "enum"
+  | "array"
+  | "record";
 
 /** The set of filter UI types. Used as the `F` generic on `ColBuilder<T, F>`. */
-export type FilterType = 'input' | 'checkbox' | 'slider' | 'timerange';
+export type FilterType = "input" | "checkbox" | "slider" | "timerange";
 
 export type DisplayConfig =
-  | { type: 'text'; colorMap?: Record<string, string> }
-  | { type: 'code'; colorMap?: Record<string, string> }
-  | { type: 'boolean'; colorMap?: Record<string, string> }
-  | { type: 'badge'; colorMap?: Record<string, string> }
-  | { type: 'timestamp'; colorMap?: Record<string, string> }
-  | { type: 'number'; unit?: string; colorMap?: Record<string, string> }
+  | { type: "text"; colorMap?: Record<string, string> }
+  | { type: "code"; colorMap?: Record<string, string> }
+  | { type: "boolean"; colorMap?: Record<string, string> }
+  | { type: "star"; colorMap?: Record<string, string> }
+  | { type: "badge"; colorMap?: Record<string, string> }
+  | { type: "timestamp"; colorMap?: Record<string, string> }
+  | { type: "number"; unit?: string; colorMap?: Record<string, string> }
+  | { type: "status-code"; colorMap?: Record<string, string> }
+  | { type: "level-indicator"; colorMap?: Record<string, string> }
   | {
-      type: 'custom';
+      type: "custom";
       cell: (value: unknown, row: unknown) => JSX.Element | null;
       colorMap?: Record<string, string>;
     };
@@ -126,15 +128,23 @@ export interface ColBuilder<T, F extends FilterType = FilterType> {
    * col.enum(LEVELS).display("custom", { cell: (value) => <LevelBadge value={value} /> })
    */
   display(
-    type: 'text' | 'code' | 'boolean' | 'badge' | 'timestamp',
+    type:
+      | "text"
+      | "code"
+      | "boolean"
+      | "star"
+      | "badge"
+      | "timestamp"
+      | "status-code"
+      | "level-indicator",
     options?: { colorMap?: Record<string, string> },
   ): ColBuilder<T, F>;
   display(
-    type: 'number',
+    type: "number",
     options?: { unit?: string; colorMap?: Record<string, string> },
   ): ColBuilder<T, F>;
   display(
-    type: 'custom',
+    type: "custom",
     options: {
       cell: (value: unknown, row: unknown) => JSX.Element | null;
       colorMap?: Record<string, string>;
@@ -164,22 +174,22 @@ export interface ColBuilder<T, F extends FilterType = FilterType> {
    * col.enum(LEVELS).filterable("checkbox", { options: LEVELS.map(v => ({ label: v, value: v })) })
    * col.number().filterable("slider", { min: 0, max: 5000 })
    */
-  filterable(type: F & 'input'): ColBuilder<T, 'input'>;
+  filterable(type: F & "input"): ColBuilder<T, "input">;
   filterable(
-    type: F & 'timerange',
+    type: F & "timerange",
     options?: { presets?: DatePreset[] },
-  ): ColBuilder<T, 'timerange'>;
+  ): ColBuilder<T, "timerange">;
   filterable(
-    type: F & 'checkbox',
+    type: F & "checkbox",
     options?: {
       options?: Option[];
       component?: (props: Option) => JSX.Element | null;
     },
-  ): ColBuilder<T, 'checkbox'>;
+  ): ColBuilder<T, "checkbox">;
   filterable(
-    type: F & 'slider',
+    type: F & "slider",
     options: { min: number; max: number; unit?: string },
-  ): ColBuilder<T, 'slider'>;
+  ): ColBuilder<T, "slider">;
 
   /**
    * Removes filtering from this column.
@@ -344,6 +354,7 @@ export type ColumnDescriptor = {
   arrayItemType?: { dataType: ColKind; enumValues?: readonly string[] };
   optional: boolean;
   hidden: boolean;
+  hideHeader?: boolean;
   enableHiding?: boolean;
   sortable: boolean;
   size?: number;

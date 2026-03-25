@@ -1,8 +1,7 @@
-'use client';
+"use client";
 
-import { useCallback, useMemo } from 'react';
-
-import { useStoreContext } from '../context';
+import { useCallback, useMemo } from "react";
+import { useStoreContext } from "../context";
 
 /**
  * Actions returned by useFilterActions
@@ -70,22 +69,11 @@ export function useFilterActions<
 >(): FilterActions<T> {
   const context = useStoreContext();
 
-  // Return no-op stubs when used outside a DataTableStoreProvider
-  // (e.g. when DataTableProvider renders DataTableStoreSync without BYOS)
-  const noopActions = useMemo(
-    (): FilterActions<T> => ({
-      setFilter: () => {},
-      setFilters: () => {},
-      resetFilter: () => {},
-      resetAllFilters: () => {},
-      pause: () => {},
-      resume: () => {},
-      isPaused: () => false,
-    }),
-    [],
-  );
-
-  if (!context) return noopActions;
+  if (!context) {
+    throw new Error(
+      "useFilterActions must be used within a DataTableStoreProvider",
+    );
+  }
 
   const { adapter } = context;
 

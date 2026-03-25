@@ -1,7 +1,7 @@
 export type {
-  AdapterFactory,
-  AdapterType,
-  CreateAdapterOptions,
-  InternalStoreAdapter,
   StoreAdapter,
-} from './types';
+  CreateAdapterOptions,
+  AdapterFactory,
+  InternalStoreAdapter,
+  AdapterType,
+} from "./types";

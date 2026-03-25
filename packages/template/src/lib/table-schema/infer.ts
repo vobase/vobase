@@ -1,4 +1,4 @@
-import type { ColumnDescriptor, FilterDescriptor, SchemaJSON } from './types';
+import type { ColumnDescriptor, FilterDescriptor, SchemaJSON } from "./types";
 
 // Unix ms timestamps are 13-digit numbers (> Sep 2001, < Nov 2286)
 const UNIX_MS_MIN = 1_000_000_000_000;
@@ -6,8 +6,8 @@ const UNIX_MS_MAX = 9_999_999_999_999;
 
 function isIso8601(value: string): boolean {
   return (
-    /^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]+)?$/.test(value) &&
-    !Number.isNaN(Date.parse(value))
+    /^\d{4}-\d{2}-\d{2}(T[\d:.Z+\-]+)?$/.test(value) &&
+    !isNaN(Date.parse(value))
   );
 }
 
@@ -19,25 +19,25 @@ function isUnixMs(value: number): boolean {
 
 /** Convert camelCase, snake_case, or kebab-case key to a human-readable label. */
 function keyToLabel(key: string): string {
-  let label = key.replace(/[-_]/g, ' ');
-  label = label.replace(/([a-z])([A-Z])/g, '$1 $2');
+  let label = key.replace(/[-_]/g, " ");
+  label = label.replace(/([a-z])([A-Z])/g, "$1 $2");
   return label.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function makeDescriptor(
   key: string,
   label: string,
-  dataType: ColumnDescriptor['dataType'],
+  dataType: ColumnDescriptor["dataType"],
   filter: FilterDescriptor | null,
 ): ColumnDescriptor {
   const displayMap: Record<string, string> = {
-    string: 'text',
-    number: 'number',
-    boolean: 'boolean',
-    timestamp: 'timestamp',
-    enum: 'badge',
-    array: 'badge',
-    record: 'text',
+    string: "text",
+    number: "number",
+    boolean: "boolean",
+    timestamp: "timestamp",
+    enum: "badge",
+    array: "badge",
+    record: "text",
   };
   return {
     key,
@@ -46,7 +46,7 @@ function makeDescriptor(
     optional: false,
     hidden: false,
     sortable: false,
-    display: { type: displayMap[dataType] ?? 'text' },
+    display: { type: displayMap[dataType] ?? "text" },
     filter,
     sheet: {},
   };
@@ -55,36 +55,102 @@ function makeDescriptor(
 /** Split a key into lowercase words, handling camelCase, snake_case, and kebab-case. */
 function keyToWords(key: string): string[] {
   return key
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
     .split(/[-_]/)
     .map((w) => w.toLowerCase())
     .filter(Boolean);
 }
 
-const ID_WORDS = new Set(['id', 'uuid', 'hash', 'token', 'key']);
-const CODE_WORDS = new Set(['path', 'url', 'uri', 'endpoint', 'route', 'host']);
-const LATENCY_WORDS = new Set(['latency', 'duration', 'elapsed']);
-const SIZE_WORDS = new Set(['size', 'bytes', 'length']);
-const LEVEL_WORDS = new Set(['level', 'severity']);
-const TRACE_ID_WORDS = new Set(['trace', 'span', 'request']);
+const ID_WORDS = new Set(["id", "uuid", "hash", "token", "key"]);
+const CODE_WORDS = new Set([
+  "path",
+  "url",
+  "uri",
+  "endpoint",
+  "route",
+  "host",
+  "link",
+  "href",
+  "website",
+]);
+const LATENCY_WORDS = new Set(["latency", "duration", "elapsed"]);
+const SIZE_WORDS = new Set(["size", "bytes", "length"]);
+const LEVEL_WORDS = new Set(["level", "severity"]);
+const TRACE_ID_WORDS = new Set(["trace", "span", "request"]);
+const FAVORITE_WORDS = new Set(["favorite", "starred", "bookmarked", "pinned"]);
+const EMAIL_WORDS = new Set(["email", "mail"]);
+const STATUS_WORDS = new Set(["status", "state"]);
+
+/** Semantic color mapping for status-like enum values. */
+const STATUS_COLORS: Record<string, string> = {
+  active: "#22c55e",
+  completed: "#22c55e",
+  success: "#22c55e",
+  published: "#22c55e",
+  approved: "#22c55e",
+  pending: "#f59e0b",
+  draft: "#f59e0b",
+  inactive: "#f59e0b",
+  paused: "#f59e0b",
+  error: "#ef4444",
+  failed: "#ef4444",
+  rejected: "#ef4444",
+  cancelled: "#ef4444",
+  archived: "#6b7280",
+  deleted: "#6b7280",
+  disabled: "#6b7280",
+};
+
+/** Neutral palette for enum values without semantic meaning. */
+const NEUTRAL_PALETTE = [
+  "#6366f1",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
+  "#f97316",
+  "#06b6d4",
+  "#84cc16",
+  "#eab308",
+  "#ef4444",
+  "#64748b",
+];
+
+/** Generate a colorMap for enum values, using semantic colors where possible. */
+function generateColorMap(values: readonly string[]): Record<string, string> {
+  const colorMap: Record<string, string> = {};
+  let neutralIdx = 0;
+  for (const value of values) {
+    const lower = value.toLowerCase();
+    if (STATUS_COLORS[lower]) {
+      colorMap[value] = STATUS_COLORS[lower];
+    } else {
+      colorMap[value] = NEUTRAL_PALETTE[neutralIdx % NEUTRAL_PALETTE.length]!;
+      neutralIdx++;
+    }
+  }
+  return colorMap;
+}
 
 /** Post-process an inferred descriptor with smart display/config heuristics. */
 function enhanceDescriptor(descriptor: ColumnDescriptor): ColumnDescriptor {
   const words = keyToWords(descriptor.key);
-  const joined = words.join('');
+  const joined = words.join("");
   const d = { ...descriptor };
 
   const hasIdWord = words.some((w) => ID_WORDS.has(w));
   const hasCodeWord = words.some((w) => CODE_WORDS.has(w));
   const hasLatencyWord =
-    words.some((w) => LATENCY_WORDS.has(w)) || joined.includes('responsetime');
+    words.some((w) => LATENCY_WORDS.has(w)) || joined.includes("responsetime");
   const hasSizeWord = words.some((w) => SIZE_WORDS.has(w));
   const hasLevelWord = words.some((w) => LEVEL_WORDS.has(w));
   const isTraceId = hasIdWord && words.some((w) => TRACE_ID_WORDS.has(w));
+  const hasFavoriteWord = words.some((w) => FAVORITE_WORDS.has(w));
+  const hasEmailWord = words.some((w) => EMAIL_WORDS.has(w));
+  const hasStatusWord = words.some((w) => STATUS_WORDS.has(w));
 
   // ID-like columns → code display, not sortable
   if (hasIdWord) {
-    d.display = { type: 'code' };
+    d.display = { type: "code" };
     d.sortable = false;
     // Trace/span/request IDs → hidden, not filterable (matches col.presets.traceId())
     if (isTraceId) {
@@ -92,31 +158,45 @@ function enhanceDescriptor(descriptor: ColumnDescriptor): ColumnDescriptor {
       d.filter = null;
     }
   }
+  // Favorite/starred booleans → star display, hide column header
+  else if (hasFavoriteWord && d.dataType === "boolean") {
+    d.display = { type: "star" };
+    d.hideHeader = true;
+  }
+  // Email columns → code display
+  else if (hasEmailWord && d.dataType === "string") {
+    d.display = { type: "code" };
+  }
   // Path/URL-like columns → code display
   else if (hasCodeWord) {
-    d.display = { type: 'code' };
+    d.display = { type: "code" };
   }
   // Latency-like number columns → number with ms unit, sortable
-  else if (hasLatencyWord && d.dataType === 'number') {
-    d.display = { type: 'number', unit: 'ms' };
+  else if (hasLatencyWord && d.dataType === "number") {
+    d.display = { type: "number", unit: "ms" };
     d.sortable = true;
   }
   // Size-like number columns → number with B unit, sortable
-  else if (hasSizeWord && d.dataType === 'number') {
-    d.display = { type: 'number', unit: 'B' };
+  else if (hasSizeWord && d.dataType === "number") {
+    d.display = { type: "number", unit: "B" };
     d.sortable = true;
   }
 
   // Sortable defaults by type (unless ID-like)
   if (!hasIdWord) {
-    if (d.dataType === 'timestamp' || d.dataType === 'number') {
+    if (d.dataType === "timestamp" || d.dataType === "number") {
       d.sortable = true;
     }
   }
 
   // Log level / severity enums: expand filter by default (matches col.presets.logLevel())
-  if (hasLevelWord && d.dataType === 'enum' && d.filter) {
+  if (hasLevelWord && d.dataType === "enum" && d.filter) {
     d.filter = { ...d.filter, defaultOpen: true };
+  }
+
+  // Status/state enums → semantic colorMap on badge display
+  if (hasStatusWord && d.dataType === "enum" && d.enumValues) {
+    d.display = { type: "badge", colorMap: generateColorMap(d.enumValues) };
   }
 
   // Column sizing defaults
@@ -138,26 +218,26 @@ function inferColDescriptor(key: string, values: unknown[]): ColumnDescriptor {
   const nonNull = values.filter((v) => v !== null && v !== undefined);
 
   if (nonNull.length === 0) {
-    return makeDescriptor(key, label, 'string', {
-      type: 'input',
+    return makeDescriptor(key, label, "string", {
+      type: "input",
       defaultOpen: false,
       commandDisabled: false,
     });
   }
 
   // Timestamp: ISO 8601 strings
-  if (nonNull.every((v) => typeof v === 'string' && isIso8601(v as string))) {
-    return makeDescriptor(key, label, 'timestamp', {
-      type: 'timerange',
+  if (nonNull.every((v) => typeof v === "string" && isIso8601(v as string))) {
+    return makeDescriptor(key, label, "timestamp", {
+      type: "timerange",
       defaultOpen: false,
       commandDisabled: true,
     });
   }
 
   // Timestamp: Unix ms numbers
-  if (nonNull.every((v) => typeof v === 'number' && isUnixMs(v as number))) {
-    return makeDescriptor(key, label, 'timestamp', {
-      type: 'timerange',
+  if (nonNull.every((v) => typeof v === "number" && isUnixMs(v as number))) {
+    return makeDescriptor(key, label, "timestamp", {
+      type: "timerange",
       defaultOpen: false,
       commandDisabled: true,
     });
@@ -165,31 +245,31 @@ function inferColDescriptor(key: string, values: unknown[]): ColumnDescriptor {
 
   // Boolean
   if (nonNull.every((v) => v === true || v === false)) {
-    return makeDescriptor(key, label, 'boolean', {
-      type: 'checkbox',
+    return makeDescriptor(key, label, "boolean", {
+      type: "checkbox",
       defaultOpen: false,
       commandDisabled: false,
     });
   }
 
   // Number
-  if (nonNull.every((v) => typeof v === 'number')) {
+  if (nonNull.every((v) => typeof v === "number")) {
     const nums = nonNull as number[];
     const min = Math.min(...nums);
     const max = Math.max(...nums);
     const filter: FilterDescriptor =
       min !== max
         ? {
-            type: 'slider',
+            type: "slider",
             defaultOpen: false,
             commandDisabled: false,
             min,
             max,
           }
-        : { type: 'input', defaultOpen: false, commandDisabled: false };
+        : { type: "input", defaultOpen: false, commandDisabled: false };
     return {
-      ...makeDescriptor(key, label, 'number', filter),
-      display: { type: 'number' },
+      ...makeDescriptor(key, label, "number", filter),
+      display: { type: "number" },
     };
   }
 
@@ -199,7 +279,7 @@ function inferColDescriptor(key: string, values: unknown[]): ColumnDescriptor {
       .flat()
       .filter((v) => v !== null && v !== undefined);
     const allStrings =
-      allItems.length > 0 && allItems.every((v) => typeof v === 'string');
+      allItems.length > 0 && allItems.every((v) => typeof v === "string");
     if (allStrings) {
       const distinct = new Set(allItems as string[]);
       if (distinct.size <= 10) {
@@ -207,14 +287,14 @@ function inferColDescriptor(key: string, values: unknown[]): ColumnDescriptor {
         return {
           key,
           label,
-          dataType: 'array',
-          arrayItemType: { dataType: 'enum', enumValues },
+          dataType: "array",
+          arrayItemType: { dataType: "enum", enumValues },
           optional: false,
           hidden: false,
           sortable: false,
-          display: { type: 'badge' },
+          display: { type: "badge" },
           filter: {
-            type: 'checkbox',
+            type: "checkbox",
             defaultOpen: false,
             commandDisabled: false,
             options: enumValues.map((v) => ({ label: v, value: v })),
@@ -224,30 +304,30 @@ function inferColDescriptor(key: string, values: unknown[]): ColumnDescriptor {
       }
     }
     // Non-enum array: not filterable
-    return makeDescriptor(key, label, 'array', null);
+    return makeDescriptor(key, label, "array", null);
   }
 
   // Record (plain object, non-array)
-  if (nonNull.every((v) => typeof v === 'object' && !Array.isArray(v))) {
-    return makeDescriptor(key, label, 'record', null);
+  if (nonNull.every((v) => typeof v === "object" && !Array.isArray(v))) {
+    return makeDescriptor(key, label, "record", null);
   }
 
   // String: check if enum (≤ 10 distinct values)
-  if (nonNull.every((v) => typeof v === 'string')) {
+  if (nonNull.every((v) => typeof v === "string")) {
     const distinct = new Set(nonNull as string[]);
     if (distinct.size <= 10) {
       const enumValues = Array.from(distinct);
       return {
         key,
         label,
-        dataType: 'enum',
+        dataType: "enum",
         enumValues,
         optional: false,
         hidden: false,
         sortable: false,
-        display: { type: 'badge' },
+        display: { type: "badge" },
         filter: {
-          type: 'checkbox',
+          type: "checkbox",
           defaultOpen: false,
           commandDisabled: false,
           options: enumValues.map((v) => ({ label: v, value: v })),
@@ -255,8 +335,8 @@ function inferColDescriptor(key: string, values: unknown[]): ColumnDescriptor {
         sheet: {},
       };
     }
-    return makeDescriptor(key, label, 'string', {
-      type: 'input',
+    return makeDescriptor(key, label, "string", {
+      type: "input",
       defaultOpen: false,
       commandDisabled: false,
     });
@@ -264,14 +344,14 @@ function inferColDescriptor(key: string, values: unknown[]): ColumnDescriptor {
 
   // Fallback: mixed or unrecognised types — warn and treat as string
   const types = [
-    ...new Set(nonNull.map((v) => (Array.isArray(v) ? 'array' : typeof v))),
+    ...new Set(nonNull.map((v) => (Array.isArray(v) ? "array" : typeof v))),
   ];
   console.warn(
-    `[inferSchemaFromJSON] Column "${key}" has mixed or ambiguous types (${types.join(', ')}). ` +
+    `[inferSchemaFromJSON] Column "${key}" has mixed or ambiguous types (${types.join(", ")}). ` +
       `Falling back to string input filter.`,
   );
-  return makeDescriptor(key, label, 'string', {
-    type: 'input',
+  return makeDescriptor(key, label, "string", {
+    type: "input",
     defaultOpen: false,
     commandDisabled: false,
   });
@@ -301,10 +381,10 @@ export function inferSchemaFromJSON(data: unknown[]): SchemaJSON {
   const keyValues = new Map<string, unknown[]>();
 
   for (const row of data) {
-    if (typeof row !== 'object' || row === null || Array.isArray(row)) continue;
+    if (typeof row !== "object" || row === null || Array.isArray(row)) continue;
     for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
       if (!keyValues.has(key)) keyValues.set(key, []);
-      keyValues.get(key)?.push(value);
+      keyValues.get(key)!.push(value);
     }
   }
 

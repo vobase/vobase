@@ -1,4 +1,4 @@
-import type { SchemaDefinition, StoreSnapshot } from '../schema/types';
+import type { SchemaDefinition, StoreSnapshot } from "../schema/types";
 
 /**
  * Store adapter interface that all adapters must implement
@@ -116,7 +116,7 @@ export type AdapterFactory<T extends Record<string, unknown>> = (
 /**
  * Available adapter types
  */
-export type AdapterType = 'nuqs' | 'zustand';
+export type AdapterType = "nuqs" | "zustand";
 
 /**
  * Internal adapter with additional methods for providers

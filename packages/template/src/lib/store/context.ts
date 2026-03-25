@@ -1,9 +1,8 @@
-'use client';
+"use client";
 
-import { createContext, useContext } from 'react';
-
-import type { StoreAdapter } from './adapter/types';
-import type { SchemaDefinition } from './schema/types';
+import { createContext, useContext } from "react";
+import type { StoreAdapter } from "./adapter/types";
+import type { SchemaDefinition } from "./schema/types";
 
 /**
  * Context value for the store provider
@@ -28,6 +27,12 @@ export const StoreContext = createContext<StoreContextValue<
  */
 export function useStoreContext<
   T extends Record<string, unknown> = Record<string, unknown>,
->(): StoreContextValue<T> | null {
-  return useContext(StoreContext) as StoreContextValue<T> | null;
+>(): StoreContextValue<T> {
+  const context = useContext(StoreContext) as StoreContextValue<T> | null;
+  if (!context) {
+    throw new Error(
+      "useStoreContext must be used within a DataTableStoreProvider",
+    );
+  }
+  return context;
 }

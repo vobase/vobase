@@ -5,7 +5,7 @@ import type {
   FilterConfig,
   FilterType,
   SheetConfig,
-} from './types';
+} from "./types";
 
 function createColBuilder<T, F extends FilterType = FilterType>(
   config: ColConfig,
@@ -39,7 +39,7 @@ function createColBuilder<T, F extends FilterType = FilterType>(
     ): ColBuilder<T, F> {
       const filterType = (type ||
         config.filter?.type ||
-        'input') as FilterConfig['type'];
+        "input") as FilterConfig["type"];
       const existing = config.filter;
       const sameType = filterType === existing?.type;
       const newFilter: FilterConfig = {
@@ -127,18 +127,18 @@ function createColBuilder<T, F extends FilterType = FilterType>(
  * col.string().label("Host").size(125).sheet()
  * col.string().label("Message").notFilterable().optional().hidden()
  */
-function string(): ColBuilder<string, 'input'> {
-  return createColBuilder<string, 'input'>({
-    kind: 'string',
+function string(): ColBuilder<string, "input"> {
+  return createColBuilder<string, "input">({
+    kind: "string",
     optional: false,
-    label: '',
-    display: { type: 'text' },
+    label: "",
+    display: { type: "text" },
     hidden: false,
     enableHiding: true,
     hideHeader: false,
     resizable: false,
     sortable: false,
-    filter: { type: 'input', defaultOpen: false, commandDisabled: false },
+    filter: { type: "input", defaultOpen: false, commandDisabled: false },
     sheet: null,
   });
 }
@@ -157,18 +157,18 @@ function string(): ColBuilder<string, 'input'> {
  * col.number().label("Latency").display("number", { unit: "ms" }).filterable("slider", { min: 0, max: 5000 }).sortable()
  * col.number().label("Status").filterable("checkbox", { options: [{ label: "200", value: 200 }] })
  */
-function number(): ColBuilder<number, 'input' | 'slider' | 'checkbox'> {
-  return createColBuilder<number, 'input' | 'slider' | 'checkbox'>({
-    kind: 'number',
+function number(): ColBuilder<number, "input" | "slider" | "checkbox"> {
+  return createColBuilder<number, "input" | "slider" | "checkbox">({
+    kind: "number",
     optional: false,
-    label: '',
-    display: { type: 'number' },
+    label: "",
+    display: { type: "number" },
     hidden: false,
     enableHiding: true,
     hideHeader: false,
     resizable: false,
     sortable: false,
-    filter: { type: 'input', defaultOpen: false, commandDisabled: false },
+    filter: { type: "input", defaultOpen: false, commandDisabled: false },
     sheet: null,
   });
 }
@@ -184,24 +184,24 @@ function number(): ColBuilder<number, 'input' | 'slider' | 'checkbox'> {
  * @example
  * col.boolean().label("Cache Hit").defaultOpen()
  */
-function boolean(): ColBuilder<boolean, 'checkbox'> {
-  return createColBuilder<boolean, 'checkbox'>({
-    kind: 'boolean',
+function boolean(): ColBuilder<boolean, "checkbox"> {
+  return createColBuilder<boolean, "checkbox">({
+    kind: "boolean",
     optional: false,
-    label: '',
-    display: { type: 'boolean' },
+    label: "",
+    display: { type: "boolean" },
     hidden: false,
     enableHiding: true,
     hideHeader: false,
     resizable: false,
     sortable: false,
     filter: {
-      type: 'checkbox',
+      type: "checkbox",
       defaultOpen: false,
       commandDisabled: false,
       options: [
-        { label: 'true', value: true },
-        { label: 'false', value: false },
+        { label: "true", value: true },
+        { label: "false", value: false },
       ],
     },
     sheet: null,
@@ -219,18 +219,18 @@ function boolean(): ColBuilder<boolean, 'checkbox'> {
  * @example
  * col.timestamp().label("Date").sortable().commandDisabled().size(200).sheet()
  */
-function timestamp(): ColBuilder<Date, 'timerange'> {
-  return createColBuilder<Date, 'timerange'>({
-    kind: 'timestamp',
+function timestamp(): ColBuilder<Date, "timerange"> {
+  return createColBuilder<Date, "timerange">({
+    kind: "timestamp",
     optional: false,
-    label: '',
-    display: { type: 'timestamp' },
+    label: "",
+    display: { type: "timestamp" },
     hidden: false,
     enableHiding: true,
     hideHeader: false,
     resizable: false,
     sortable: false,
-    filter: { type: 'timerange', defaultOpen: false, commandDisabled: true },
+    filter: { type: "timerange", defaultOpen: false, commandDisabled: true },
     sheet: null,
   });
 }
@@ -257,20 +257,20 @@ function timestamp(): ColBuilder<Date, 'timerange'> {
  */
 function colEnum<T extends readonly string[]>(
   values: T,
-): ColBuilder<T[number], 'checkbox'> {
-  return createColBuilder<T[number], 'checkbox'>({
-    kind: 'enum',
+): ColBuilder<T[number], "checkbox"> {
+  return createColBuilder<T[number], "checkbox">({
+    kind: "enum",
     enumValues: values,
     optional: false,
-    label: '',
-    display: { type: 'badge' },
+    label: "",
+    display: { type: "badge" },
     hidden: false,
     enableHiding: true,
     hideHeader: false,
     resizable: false,
     sortable: false,
     filter: {
-      type: 'checkbox',
+      type: "checkbox",
       defaultOpen: false,
       commandDisabled: false,
       options: Array.from(values).map((v) => ({ label: v, value: v })),
@@ -299,19 +299,19 @@ function colEnum<T extends readonly string[]>(
 
 function array<U>(
   itemBuilder: ColBuilder<U, any>,
-): ColBuilder<U[], 'checkbox'> {
-  return createColBuilder<U[], 'checkbox'>({
-    kind: 'array',
+): ColBuilder<U[], "checkbox"> {
+  return createColBuilder<U[], "checkbox">({
+    kind: "array",
     arrayItem: itemBuilder._config,
     optional: false,
-    label: '',
-    display: { type: 'badge' },
+    label: "",
+    display: { type: "badge" },
     hidden: false,
     enableHiding: true,
     hideHeader: false,
     resizable: false,
     sortable: false,
-    filter: { type: 'checkbox', defaultOpen: false, commandDisabled: false },
+    filter: { type: "checkbox", defaultOpen: false, commandDisabled: false },
     sheet: null,
   });
 }
@@ -334,10 +334,10 @@ function array<U>(
  */
 function record(): ColBuilder<Record<string, string>, never> {
   return createColBuilder<Record<string, string>, never>({
-    kind: 'record',
+    kind: "record",
     optional: false,
-    label: '',
-    display: { type: 'text' },
+    label: "",
+    display: { type: "text" },
     hidden: false,
     enableHiding: true,
     hideHeader: false,
