@@ -117,7 +117,7 @@ function MemoryPage() {
         <div>
           <h2 className="text-lg font-semibold">Memory</h2>
           <p className="text-sm text-muted-foreground">
-            Conversation history organized into episodes and facts
+            Knowledge organized into episodes and facts from conversations
           </p>
         </div>
         <MemoryScopeSelector
@@ -170,6 +170,6 @@ function MemoryPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/ai/memory')({
+export const Route = createFileRoute('/_app/conversations/ai/memory')({
   component: MemoryPage,
 });

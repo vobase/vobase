@@ -1,6 +1,7 @@
-import { infiniteQueryOptions, keepPreviousData } from "@tanstack/react-query";
-import SuperJSON from "superjson";
-import type { BaseChartSchema, FacetMetadataSchema } from "./types";
+import { infiniteQueryOptions, keepPreviousData } from '@tanstack/react-query';
+import SuperJSON from 'superjson';
+
+import type { BaseChartSchema, FacetMetadataSchema } from './types';
 
 export type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
   totalRowCount: number;
@@ -18,7 +19,7 @@ export type InfiniteQueryResponse<TData, TMeta = unknown> = {
 };
 
 function getBaseUrl() {
-  return "";
+  return '';
 }
 
 /**
@@ -58,7 +59,7 @@ export function createDataTableQueryOptions<TData, TMeta>(config: {
       queryKey: [config.queryKeyPrefix, stableKey],
       queryFn: async ({ pageParam }) => {
         const cursorDate = new Date(pageParam.cursor);
-        const direction = pageParam.direction as "next" | "prev" | undefined;
+        const direction = pageParam.direction as 'next' | 'prev' | undefined;
         const serialize = config.searchParamsSerializer({
           ...search,
           cursor: cursorDate,
@@ -66,20 +67,20 @@ export function createDataTableQueryOptions<TData, TMeta>(config: {
           uuid: null,
           live: null,
         });
-        const response = await fetch(
+        const response = await globalThis.fetch(
           `${getBaseUrl()}${config.apiEndpoint}${serialize}`,
         );
         const json = await response.json();
         return SuperJSON.deserialize<InfiniteQueryResponse<TData, TMeta>>(json);
       },
-      initialPageParam: { cursor: initialCursor, direction: "next" },
+      initialPageParam: { cursor: initialCursor, direction: 'next' },
       getPreviousPageParam: (firstPage) => {
         if (!firstPage.prevCursor) return null;
-        return { cursor: firstPage.prevCursor, direction: "prev" };
+        return { cursor: firstPage.prevCursor, direction: 'prev' };
       },
       getNextPageParam: (lastPage) => {
         if (!lastPage.nextCursor) return null;
-        return { cursor: lastPage.nextCursor, direction: "next" };
+        return { cursor: lastPage.nextCursor, direction: 'next' };
       },
       refetchOnWindowFocus: false,
       placeholderData: keepPreviousData,

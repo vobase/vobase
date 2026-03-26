@@ -61,7 +61,7 @@ export function MemoryScopeSelector({
     : null;
 
   const label = isUserScope
-    ? 'My conversations'
+    ? 'My memory'
     : (selectedContact?.name ??
       selectedContact?.phone ??
       selectedContact?.email ??
@@ -100,7 +100,7 @@ export function MemoryScopeSelector({
                 }}
               >
                 <UserIcon className="size-3.5" />
-                <span>My conversations</span>
+                <span>My memory</span>
                 {isUserScope && <CheckIcon className="ml-auto size-3.5" />}
               </CommandItem>
             </CommandGroup>

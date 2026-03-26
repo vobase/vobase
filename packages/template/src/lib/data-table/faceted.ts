@@ -1,5 +1,6 @@
-import type { RowModel, Table as TTable } from "@tanstack/react-table";
-import type { FacetMetadataSchema } from "./types";
+import type { RowModel, Table as TTable } from '@tanstack/react-table';
+
+import type { FacetMetadataSchema } from './types';
 
 /**
  * Drop-in replacement for TanStack's `getFacetedUniqueValues` that flattens
@@ -51,9 +52,9 @@ export function getFacetedMinMaxValues<TData>(
   return (_: TTable<TData>, columnId: string): [number, number] | undefined => {
     const min = facets?.[columnId]?.min;
     const max = facets?.[columnId]?.max;
-    if (typeof min === "number" && typeof max === "number") return [min, max];
-    if (typeof min === "number") return [min, min];
-    if (typeof max === "number") return [max, max];
+    if (typeof min === 'number' && typeof max === 'number') return [min, max];
+    if (typeof min === 'number') return [min, min];
+    if (typeof max === 'number') return [max, max];
     return undefined;
   };
 }

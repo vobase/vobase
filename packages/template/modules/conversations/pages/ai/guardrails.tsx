@@ -67,7 +67,7 @@ function ConfigSection() {
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Input processor applied to all agents
+                Applied to all AI agents
               </p>
             </div>
           </div>
@@ -128,7 +128,7 @@ function GuardrailsPage() {
       <div>
         <h2 className="text-lg font-semibold">Guardrails</h2>
         <p className="text-sm text-muted-foreground">
-          Content moderation rules applied to all agent messages
+          Content moderation rules applied to all AI agent messages
         </p>
       </div>
 
@@ -142,6 +142,6 @@ function GuardrailsPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/ai/guardrails')({
+export const Route = createFileRoute('/_app/conversations/ai/guardrails')({
   component: GuardrailsPage,
 });

@@ -16,7 +16,6 @@ import {
 } from '@/components/data-table/data-table-cell';
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
 import { DataTableInfinite } from '@/components/data-table/data-table-infinite';
-import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -188,14 +187,14 @@ function getColumns(
     {
       accessorKey: 'agentId',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Agent" />
+        <DataTableColumnHeader column={column} title="AI Agent" />
       ),
       cell: ({ row }) => {
         const agentId = row.getValue<string>('agentId');
         return <DataTableCellText value={agentMap.get(agentId) ?? agentId} />;
       },
       enableSorting: true,
-      meta: { label: 'Agent' },
+      meta: { label: 'AI Agent' },
     },
     {
       id: 'channel',
@@ -230,7 +229,7 @@ function getColumns(
         return (
           <div className="flex items-center gap-2">
             <Link
-              to="/sessions/$sessionId"
+              to="/conversations/sessions/$sessionId"
               params={{ sessionId: session.id }}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -372,7 +371,12 @@ function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <PageHeader title="Agent Dashboard" />
+      <div>
+        <h2 className="text-lg font-semibold">Conversations</h2>
+        <p className="text-sm text-muted-foreground">
+          Overview of active AI agents and conversations
+        </p>
+      </div>
 
       {agentsLoading && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -386,7 +390,7 @@ function DashboardPage() {
       {!agentsLoading && agents.length > 0 && (
         <div>
           <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Agents
+            AI Agents
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {agents.map((agent) => {
@@ -425,7 +429,7 @@ function DashboardPage() {
                             <span className="font-medium text-foreground">
                               {agentStats.consultations}
                             </span>{' '}
-                            consultations
+                            escalations
                           </span>
                           <span>
                             error rate{' '}
@@ -446,10 +450,10 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* Sessions table */}
+      {/* Conversations table */}
       <div>
         <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Sessions
+          Conversations
         </h2>
         <DataTableStoreProvider adapter={adapter}>
           <SessionsTableInner
@@ -463,6 +467,6 @@ function DashboardPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/sessions/')({
+export const Route = createFileRoute('/_app/conversations/sessions/overview')({
   component: DashboardPage,
 });

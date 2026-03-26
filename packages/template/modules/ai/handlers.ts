@@ -349,6 +349,31 @@ const evalRunSchema = z.object({
   ),
 });
 
+/** GET /evals — list recent eval runs ordered by createdAt desc */
+aiRoutes.get('/evals', async (c) => {
+  const { db, user } = getCtx(c);
+  if (!user) throw unauthorized();
+
+  const runs = await db
+    .select()
+    .from(aiEvalRuns)
+    .orderBy(desc(aiEvalRuns.createdAt))
+    .limit(20);
+
+  return c.json(
+    runs.map((run) => ({
+      id: run.id,
+      agentId: run.agentId,
+      status: run.status,
+      itemCount: run.itemCount,
+      results: run.status === 'complete' ? safeJsonParse(run.results) : null,
+      errorMessage: run.errorMessage,
+      createdAt: run.createdAt,
+      completedAt: run.completedAt,
+    })),
+  );
+});
+
 /** POST /evals/run — create an eval run and queue the scoring job */
 aiRoutes.post('/evals/run', async (c) => {
   const { db, user, scheduler } = getCtx(c);

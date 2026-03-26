@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
-import { cn } from "@/lib/utils";
-import * as SliderPrimitive from "@radix-ui/react-slider";
-import * as React from "react";
+import * as SliderPrimitive from '@radix-ui/react-slider';
+import * as React from 'react';
+
+import { cn } from '@/lib/utils';
 
 function Slider({
   className,
@@ -16,7 +17,7 @@ function Slider({
     <SliderPrimitive.Root
       data-slot="slider"
       className={cn(
-        "relative flex w-full touch-none items-center select-none",
+        'relative flex w-full touch-none items-center select-none',
         className,
       )}
       {...props}
@@ -25,6 +26,7 @@ function Slider({
         <SliderPrimitive.Range className="bg-primary absolute h-full" />
       </SliderPrimitive.Track>
       {initialValue.map((_, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: slider thumbs have no unique id
         <React.Fragment key={index}>
           <SliderPrimitive.Thumb className="border-primary bg-background focus-visible:border-ring focus-visible:ring-ring/50 block h-4 w-4 rounded-full border-2 transition-all outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50" />
         </React.Fragment>

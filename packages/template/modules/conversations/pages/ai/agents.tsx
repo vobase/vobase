@@ -229,7 +229,7 @@ function AgentDetailSheet({
               </h4>
               {agentThreads.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No conversations yet
+                  No recent conversations
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -279,7 +279,7 @@ function AgentsPage() {
     onSuccess: (conversation) => {
       setSelectedAgent(null);
       navigate({
-        to: '/sessions/$sessionId',
+        to: '/conversations/sessions/$sessionId',
         params: { sessionId: conversation.id },
       });
     },
@@ -288,7 +288,7 @@ function AgentsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-lg font-semibold">Agents</h2>
+        <h2 className="text-lg font-semibold">AI Agents</h2>
         <p className="text-sm text-muted-foreground">
           AI agents available in your workspace
         </p>
@@ -310,7 +310,7 @@ function AgentsPage() {
 
       {agents && agents.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-12">
-          No agents defined yet. Agents are configured by your development team.
+          No AI agents configured yet.
         </p>
       )}
 
@@ -342,6 +342,6 @@ function AgentsPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/ai/agents')({
+export const Route = createFileRoute('/_app/conversations/ai/agents')({
   component: AgentsPage,
 });
