@@ -15,7 +15,7 @@ import { StatCard } from '@/components/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { systemClient } from '@/lib/api-client';
+import { conversationsClient, systemClient } from '@/lib/api-client';
 
 // ─── Data fetchers ───────────────────────────────────────────────────
 
@@ -49,22 +49,21 @@ interface Session {
 }
 
 async function fetchAgents(): Promise<Agent[]> {
-  const res = await globalThis.fetch('/api/conversations/agents');
+  const res = await conversationsClient.agents.$get();
   if (!res.ok) return [];
   return res.json();
 }
 
 async function fetchSessions(): Promise<Session[]> {
-  const res = await globalThis.fetch('/api/conversations/sessions');
+  const res = await conversationsClient.sessions.$get();
   if (!res.ok) return [];
   return res.json();
 }
 
 async function fetchContactCount(): Promise<number> {
   try {
-    const res = await globalThis.fetch(
-      '/api/conversations/contacts-table/data?limit=1',
-    );
+    // biome-ignore lint/style/noRestrictedGlobals: Dynamic data-table endpoint with query string
+    const res = await fetch('/api/conversations/contacts-table/data?limit=1');
     if (!res.ok) return 0;
     const data = await res.json();
     return data?.meta?.totalRowCount ?? 0;

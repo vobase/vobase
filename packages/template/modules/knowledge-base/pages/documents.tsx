@@ -15,21 +15,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { knowledgeBaseClient } from '@/lib/api-client';
 
 async function fetchDocuments() {
-  const res = await globalThis.fetch('/api/knowledge-base/documents');
+  const res = await knowledgeBaseClient.documents.$get();
   if (!res.ok) throw new Error('Failed to fetch documents');
-  return res.json() as Promise<
-    Array<{
-      id: string;
-      title: string;
-      sourceType: string;
-      status: string;
-      chunkCount: number;
-      mimeType: string;
-      createdAt: string;
-    }>
-  >;
+  return res.json();
 }
 
 type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline';
@@ -77,7 +68,8 @@ function DocumentsPage() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await globalThis.fetch('/api/knowledge-base/documents', {
+      // biome-ignore lint/style/noRestrictedGlobals: FormData upload — RPC client doesn't support multipart
+      const res = await fetch('/api/knowledge-base/documents', {
         method: 'POST',
         body: formData,
       });
@@ -90,12 +82,9 @@ function DocumentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await globalThis.fetch(
-        `/api/knowledge-base/documents/${id}`,
-        {
-          method: 'DELETE',
-        },
-      );
+      const res = await knowledgeBaseClient.documents[':id'].$delete({
+        param: { id },
+      });
       if (!res.ok) throw new Error('Delete failed');
     },
     onSuccess: () =>

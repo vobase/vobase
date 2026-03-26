@@ -67,7 +67,8 @@ export function createDataTableQueryOptions<TData, TMeta>(config: {
           uuid: null,
           live: null,
         });
-        const response = await globalThis.fetch(
+        // biome-ignore lint/style/noRestrictedGlobals: Generic data-table factory — endpoint is configurable
+        const response = await fetch(
           `${getBaseUrl()}${config.apiEndpoint}${serialize}`,
         );
         const json = await response.json();

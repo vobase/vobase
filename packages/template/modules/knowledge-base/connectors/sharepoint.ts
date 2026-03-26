@@ -1,4 +1,7 @@
 import type { IntegrationsService } from '@vobase/core';
+import { createHttpClient } from '@vobase/core';
+
+const http = createHttpClient();
 
 import type {
   ConnectorConfig,
@@ -70,9 +73,10 @@ export function createSharePointConnector(
 
   async function graphFetch(path: string): Promise<Response> {
     const token = await getAccessToken();
-    return fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    const res = await http.fetch(`https://graph.microsoft.com/v1.0${path}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    return res.raw;
   }
 
   return {

@@ -19,6 +19,7 @@ import { DataTableInfinite } from '@/components/data-table/data-table-infinite';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { conversationsClient } from '@/lib/api-client';
 import {
   createDataTableQueryOptions,
   getFacetedMinMaxValues,
@@ -69,34 +70,34 @@ interface AgentStats {
 // ─── Data fetchers (agents + stats remain separate) ──────────────────
 
 async function fetchAgents(): Promise<Agent[]> {
-  const res = await globalThis.fetch('/api/conversations/agents');
+  const res = await conversationsClient.agents.$get();
   if (!res.ok) throw new Error('Failed to fetch agents');
   return res.json();
 }
 
 async function fetchStats(): Promise<Record<string, AgentStats>> {
-  const res = await globalThis.fetch('/api/conversations/stats');
+  const res = await conversationsClient.stats.$get();
   if (!res.ok) throw new Error('Failed to fetch stats');
   return res.json();
 }
 
 async function pauseSession(sessionId: string): Promise<void> {
-  const res = await globalThis.fetch(
-    `/api/conversations/sessions/${sessionId}`,
+  const res = await conversationsClient.sessions[':id'].$patch(
+    { param: { id: sessionId } },
     {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'paused' }),
+      init: {
+        body: JSON.stringify({ status: 'paused' }),
+        headers: { 'Content-Type': 'application/json' },
+      },
     },
   );
   if (!res.ok) throw new Error('Failed to pause session');
 }
 
 async function retryOutboxMessage(outboxId: string): Promise<void> {
-  const res = await globalThis.fetch(
-    `/api/conversations/outbox/${outboxId}/retry`,
-    { method: 'POST' },
-  );
+  const res = await conversationsClient.outbox[':id'].retry.$post({
+    param: { id: outboxId },
+  });
   if (!res.ok) throw new Error('Failed to retry message');
 }
 
@@ -339,9 +340,9 @@ function DashboardPage() {
   const { data: allSessions = [] } = useQuery<Session[]>({
     queryKey: ['conversations-sessions'],
     queryFn: async () => {
-      const res = await globalThis.fetch('/api/conversations/sessions');
+      const res = await conversationsClient.sessions.$get();
       if (!res.ok) throw new Error('Failed to fetch sessions');
-      return res.json();
+      return res.json() as unknown as Session[];
     },
   });
 

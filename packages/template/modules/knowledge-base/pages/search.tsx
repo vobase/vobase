@@ -8,25 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AUTOCOMPLETE_SEED, CATEGORIES, EXAMPLES } from '@/config/search';
+import { knowledgeBaseClient } from '@/lib/api-client';
 
 async function searchKnowledgeBase(query: string) {
-  const res = await globalThis.fetch('/api/knowledge-base/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, limit: 20 }),
+  const res = await knowledgeBaseClient.search.$post({
+    json: { query, limit: 20 },
   });
   if (!res.ok) throw new Error('Search failed');
-  return res.json() as Promise<{
-    query: string;
-    results: Array<{
-      chunkId: string;
-      documentId: string;
-      documentTitle: string;
-      content: string;
-      score: number;
-      chunkIndex: number;
-    }>;
-  }>;
+  return res.json();
 }
 
 function highlightTerms(text: string, query: string): React.ReactNode {

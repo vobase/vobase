@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import { conversationsClient } from '@/lib/api-client';
 
 interface Agent {
   id: string;
@@ -41,19 +42,20 @@ interface Thread {
 }
 
 async function fetchAgents(): Promise<Agent[]> {
-  const res = await globalThis.fetch('/api/conversations/agents');
+  const res = await conversationsClient.agents.$get();
   if (!res.ok) throw new Error('Failed to fetch agents');
-  return res.json();
+  return res.json() as unknown as Promise<Agent[]>;
 }
 
 async function fetchConversations(): Promise<Thread[]> {
-  const res = await globalThis.fetch('/api/conversations/sessions');
+  const res = await conversationsClient.sessions.$get();
   if (!res.ok) throw new Error('Failed to fetch conversations');
-  return res.json();
+  return res.json() as unknown as Promise<Thread[]>;
 }
 
 async function createConversation(agentId: string): Promise<Thread> {
-  const res = await globalThis.fetch('/api/conversations/sessions', {
+  // biome-ignore lint/style/noRestrictedGlobals: No typed POST /sessions route — sessions are created via chat flow
+  const res = await fetch('/api/conversations/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ agentId }),

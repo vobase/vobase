@@ -1,5 +1,7 @@
 import type { IntegrationsService, VobaseDb } from '@vobase/core';
-import { defineJob, logger } from '@vobase/core';
+import { createHttpClient, defineJob, logger } from '@vobase/core';
+
+const http = createHttpClient();
 
 const META_GRAPH_API = 'https://graph.facebook.com/v22.0';
 
@@ -51,12 +53,15 @@ export const whatsappSetupJob = defineJob(
 
     // Step 1: Subscribe app to WABA webhooks
     logger.info('WhatsApp setup job: subscribing app to WABA', { wabaId });
-    const subRes = await fetch(`${META_GRAPH_API}/${wabaId}/subscribed_apps`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const subRes = await http.fetch(
+      `${META_GRAPH_API}/${wabaId}/subscribed_apps`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
     if (!subRes.ok) {
-      const body = await subRes.text();
+      const body = await subRes.raw.text();
       logger.error('WhatsApp setup job: subscribe to WABA failed', {
         status: subRes.status,
         body,
@@ -82,7 +87,7 @@ export const whatsappSetupJob = defineJob(
       });
       const verifyToken =
         process.env.META_WEBHOOK_VERIFY_TOKEN ?? 'vobase-webhook-verify';
-      const cbRes = await fetch(
+      const cbRes = await http.fetch(
         `${META_GRAPH_API}/${metaAppId}/subscriptions`,
         {
           method: 'POST',
@@ -90,16 +95,16 @@ export const whatsappSetupJob = defineJob(
             Authorization: `Bearer ${metaAppId}|${metaAppSecret}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
+          body: {
             object: 'whatsapp_business_account',
             callback_url: webhookUrl,
             verify_token: verifyToken,
             fields: ['messages'],
-          }),
+          },
         },
       );
       if (!cbRes.ok) {
-        const body = await cbRes.text();
+        const body = await cbRes.raw.text();
         logger.error('WhatsApp setup job: set webhook URL failed', {
           status: cbRes.status,
           body,
@@ -114,20 +119,23 @@ export const whatsappSetupJob = defineJob(
     logger.info('WhatsApp setup job: registering phone number', {
       phoneNumberId,
     });
-    const regRes = await fetch(`${META_GRAPH_API}/${phoneNumberId}/register`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+    const regRes = await http.fetch(
+      `${META_GRAPH_API}/${phoneNumberId}/register`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: {
+          messaging_product: 'whatsapp',
+          pin: '000000',
+        },
       },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        pin: '000000',
-      }),
-    });
+    );
     // 200 = success, 4xx with "already registered" is also fine for coexistence
     if (!regRes.ok) {
-      const body = await regRes.text();
+      const body = await regRes.raw.text();
       // Don't retry if already registered
       const isAlreadyRegistered =
         body.includes('already registered') ||

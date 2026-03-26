@@ -87,7 +87,8 @@
               "level": "warn",
               "options": {
                 "deniedGlobals": {
-                  "fetch": "Use ctx.http or the Hono RPC client instead of raw fetch."
+                  "fetch": "Use the Hono RPC client (from @/lib/api-client) for internal API calls, or plain fetch() only for dynamic URLs.",
+                  "globalThis": "Use the Hono RPC client (from @/lib/api-client) instead of globalThis.fetch."
                 }
               }
             }

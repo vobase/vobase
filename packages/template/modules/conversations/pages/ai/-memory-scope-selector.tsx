@@ -22,6 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { conversationsClient } from '@/lib/api-client';
 
 interface Contact {
   id: string;
@@ -32,9 +33,10 @@ interface Contact {
 }
 
 async function fetchContacts(): Promise<Contact[]> {
-  const res = await globalThis.fetch('/api/conversations/contacts');
+  const res = await conversationsClient.contacts.$get();
   if (!res.ok) throw new Error('Failed to fetch contacts');
-  return res.json();
+  const result = await res.json();
+  return result.data as unknown as Contact[];
 }
 
 export function MemoryScopeSelector({

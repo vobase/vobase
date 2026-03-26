@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { aiClient } from '@/lib/api-client';
 
 interface Episode {
   id: string;
@@ -45,9 +46,9 @@ async function fetchEpisodes(
   scope: string,
   cursor?: string,
 ): Promise<EpisodesResponse> {
-  const params = new URLSearchParams({ scope });
-  if (cursor) params.set('cursor', cursor);
-  const res = await globalThis.fetch(`/api/ai/memory/episodes?${params}`);
+  const res = await aiClient.memory.episodes.$get({
+    query: { scope, ...(cursor ? { cursor } : {}) },
+  });
   if (!res.ok) throw new Error('Failed to fetch episodes');
   return res.json();
 }
@@ -56,15 +57,14 @@ async function fetchFacts(
   scope: string,
   episodeId: string,
 ): Promise<FactsResponse> {
-  const params = new URLSearchParams({ scope, episodeId });
-  const res = await globalThis.fetch(`/api/ai/memory/facts?${params}`);
+  const res = await aiClient.memory.facts.$get({ query: { scope, episodeId } });
   if (!res.ok) throw new Error('Failed to fetch facts');
   return res.json();
 }
 
 async function deleteFact(factId: string): Promise<void> {
-  const res = await globalThis.fetch(`/api/ai/memory/facts/${factId}`, {
-    method: 'DELETE',
+  const res = await aiClient.memory.facts[':id'].$delete({
+    param: { id: factId },
   });
   if (!res.ok) throw new Error('Failed to delete fact');
 }

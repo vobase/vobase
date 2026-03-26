@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { aiClient } from '@/lib/api-client';
 import { GuardrailsLogList } from './-guardrails-log-list';
 
 interface GuardrailRule {
@@ -18,7 +19,7 @@ interface GuardrailRule {
 }
 
 async function fetchConfig(): Promise<{ rules: GuardrailRule[] }> {
-  const res = await globalThis.fetch('/api/ai/guardrails/config');
+  const res = await aiClient.guardrails.config.$get();
   if (!res.ok) throw new Error('Failed to fetch guardrails config');
   return res.json();
 }

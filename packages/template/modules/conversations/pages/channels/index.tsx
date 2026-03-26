@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { conversationsClient } from '@/lib/api-client';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -67,19 +68,19 @@ interface Agent {
 // ─── Data fetchers ───────────────────────────────────────────────────
 
 async function fetchInstances(): Promise<ChannelInstance[]> {
-  const res = await globalThis.fetch('/api/conversations/instances');
+  const res = await conversationsClient.instances.$get();
   if (!res.ok) throw new Error('Failed to fetch instances');
-  return res.json();
+  return res.json() as unknown as Promise<ChannelInstance[]>;
 }
 
 async function fetchEndpoints(): Promise<Endpoint[]> {
-  const res = await globalThis.fetch('/api/conversations/endpoints');
+  const res = await conversationsClient.endpoints.$get();
   if (!res.ok) throw new Error('Failed to fetch endpoints');
   return res.json();
 }
 
 async function fetchAgents(): Promise<Agent[]> {
-  const res = await globalThis.fetch('/api/conversations/agents');
+  const res = await conversationsClient.agents.$get();
   if (!res.ok) return [];
   return res.json();
 }
@@ -87,22 +88,20 @@ async function fetchAgents(): Promise<Agent[]> {
 async function createInstance(
   data: Pick<ChannelInstance, 'type' | 'label' | 'source'>,
 ): Promise<ChannelInstance> {
-  const res = await globalThis.fetch('/api/conversations/instances', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
+  const res = await conversationsClient.instances.$post({ json: data });
   if (!res.ok) throw new Error('Failed to create instance');
-  return res.json();
+  return res.json() as unknown as Promise<ChannelInstance>;
 }
 
 async function deleteInstance(id: string): Promise<void> {
-  const res = await globalThis.fetch(`/api/conversations/instances/${id}`, {
-    method: 'DELETE',
+  const res = await conversationsClient.instances[':id'].$delete({
+    param: { id },
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.message ?? 'Failed to delete instance');
+    throw new Error(
+      (data as { message?: string }).message ?? 'Failed to delete instance',
+    );
   }
 }
 
@@ -112,11 +111,7 @@ async function createEndpoint(data: {
   agentId: string;
   assignmentPattern: string;
 }): Promise<Endpoint> {
-  const res = await globalThis.fetch('/api/conversations/endpoints', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
+  const res = await conversationsClient.endpoints.$post({ json: data });
   if (!res.ok) throw new Error('Failed to create endpoint');
   return res.json();
 }

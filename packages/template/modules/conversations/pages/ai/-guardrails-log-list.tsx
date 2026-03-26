@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { aiClient } from '@/lib/api-client';
 
 interface ModerationLog {
   id: string;
@@ -23,9 +24,9 @@ async function fetchLogs(
   cursor: string | null,
   limit: number,
 ): Promise<{ logs: ModerationLog[]; nextCursor: string | null }> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  if (cursor) params.set('cursor', cursor);
-  const res = await globalThis.fetch(`/api/ai/guardrails/logs?${params}`);
+  const res = await aiClient.guardrails.logs.$get({
+    query: { limit: String(limit), ...(cursor ? { cursor } : {}) },
+  });
   if (!res.ok) throw new Error('Failed to fetch moderation logs');
   return res.json();
 }

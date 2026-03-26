@@ -1,9 +1,13 @@
+import { createHttpClient } from '@vobase/core';
+
 import type {
   ConnectorConfig,
   DocumentContent,
   DocumentSource,
   ExternalDocument,
 } from './types';
+
+const http = createHttpClient();
 
 export interface CrawlConfig extends ConnectorConfig {
   url: string;
@@ -21,22 +25,24 @@ export function createCrawlConnector(config: CrawlConfig): DocumentSource {
   const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/browser-rendering`;
 
   async function startCrawl(): Promise<string> {
-    const res = await fetch(`${baseUrl}/crawl`, {
+    const res = await http.fetch(`${baseUrl}/crawl`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      body: {
         url: config.url,
         maxPages: config.maxPages ?? 10,
         maxDepth: config.maxDepth ?? 2,
         scrapeOptions: { formats: ['markdown'] },
-      }),
+      },
     });
     if (!res.ok)
-      throw new Error(`Crawl start failed: ${res.status} ${await res.text()}`);
-    const data = (await res.json()) as { result: { crawlId: string } };
+      throw new Error(
+        `Crawl start failed: ${res.status} ${await res.raw.text()}`,
+      );
+    const data = res.data as { result: { crawlId: string } };
     return data.result.crawlId;
   }
 
@@ -45,11 +51,11 @@ export function createCrawlConnector(config: CrawlConfig): DocumentSource {
   ): Promise<Array<{ url: string; markdown: string }>> {
     const maxAttempts = 30;
     for (let i = 0; i < maxAttempts; i++) {
-      const res = await fetch(`${baseUrl}/crawl/${crawlId}`, {
+      const res = await http.fetch(`${baseUrl}/crawl/${crawlId}`, {
         headers: { Authorization: `Bearer ${apiToken}` },
       });
       if (!res.ok) throw new Error(`Crawl poll failed: ${res.status}`);
-      const data = (await res.json()) as {
+      const data = res.data as {
         result: {
           status: string;
           data?: Array<{ url: string; markdown: string }>;

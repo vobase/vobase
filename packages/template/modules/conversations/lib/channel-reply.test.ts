@@ -3,6 +3,7 @@ import { describe, expect, it, mock } from 'bun:test';
 // Mock logger to capture warnings without noise
 mock.module('@vobase/core', () => ({
   logger: {
+    debug: mock(() => {}),
     warn: mock(() => {}),
     error: mock(() => {}),
     info: mock(() => {}),

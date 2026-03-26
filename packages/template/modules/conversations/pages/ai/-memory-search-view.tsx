@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { aiClient } from '@/lib/api-client';
 
 interface SearchEpisode {
   id: string;
@@ -42,15 +43,14 @@ async function searchMemory(
   scope: string,
   query: string,
 ): Promise<SearchResult> {
-  const params = new URLSearchParams({ scope, q: query });
-  const res = await globalThis.fetch(`/api/ai/memory/search?${params}`);
+  const res = await aiClient.memory.search.$get({ query: { scope, q: query } });
   if (!res.ok) throw new Error('Failed to search memory');
   return res.json();
 }
 
 async function deleteFact(factId: string): Promise<void> {
-  const res = await globalThis.fetch(`/api/ai/memory/facts/${factId}`, {
-    method: 'DELETE',
+  const res = await aiClient.memory.facts[':id'].$delete({
+    param: { id: factId },
   });
   if (!res.ok) throw new Error('Failed to delete fact');
 }

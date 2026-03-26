@@ -6,9 +6,7 @@ import { createDrizzleHandler } from '@/lib/drizzle';
 import { sessionsTableSchema } from '../lib/table-schemas';
 import { sessions } from '../schema';
 
-export const sessionsTableHandlers = new Hono();
-
-sessionsTableHandlers.get('/data', async (c) => {
+export const sessionsTableHandlers = new Hono().get('/data', async (c) => {
   const { db, user } = getCtx(c);
   if (!user) throw unauthorized();
 

@@ -30,6 +30,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { aiClient, conversationsClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -103,39 +104,41 @@ interface Contact {
 // ─── Data fetchers ───────────────────────────────────────────────────
 
 async function fetchSession(id: string): Promise<Session> {
-  const res = await globalThis.fetch(`/api/conversations/sessions/${id}`);
+  const res = await conversationsClient.sessions[':id'].$get({ param: { id } });
   if (!res.ok) throw new Error('Session not found');
-  return res.json();
+  return res.json() as unknown as Promise<Session>;
 }
 
 async function fetchMessages(id: string): Promise<MessagesResponse> {
-  const res = await globalThis.fetch(
-    `/api/conversations/sessions/${id}/messages`,
-  );
+  const res = await conversationsClient.sessions[':id'].messages.$get({
+    param: { id },
+  });
   if (!res.ok) return { messages: [] };
-  return res.json();
+  return res.json() as unknown as Promise<MessagesResponse>;
 }
 
 async function fetchConsultations(id: string): Promise<Consultation[]> {
-  const res = await globalThis.fetch(
-    `/api/conversations/sessions/${id}/consultations`,
-  );
+  const res = await conversationsClient.sessions[':id'].consultations.$get({
+    param: { id },
+  });
   if (!res.ok) return [];
   return res.json();
 }
 
 async function fetchContact(id: string): Promise<Contact | null> {
-  const res = await globalThis.fetch(`/api/conversations/contacts/${id}`);
+  const res = await conversationsClient.contacts[':id'].$get({ param: { id } });
   if (!res.ok) return null;
-  return res.json();
+  return res.json() as unknown as Promise<Contact>;
 }
 
 async function fetchChannelInstance(
   id: string,
 ): Promise<ChannelInstance | null> {
-  const res = await globalThis.fetch(`/api/conversations/instances/${id}`);
+  const res = await conversationsClient.instances[':id'].$get({
+    param: { id },
+  });
   if (!res.ok) return null;
-  return res.json();
+  return res.json() as unknown as Promise<ChannelInstance>;
 }
 
 interface MemoryStats {
@@ -153,42 +156,51 @@ interface MemoryFact {
 async function fetchContactMemoryStats(
   contactId: string,
 ): Promise<MemoryStats> {
-  const res = await globalThis.fetch(
-    `/api/ai/memory/stats?scope=contact:${contactId}`,
-  );
+  const res = await aiClient.memory.stats.$get({
+    query: { scope: `contact:${contactId}` },
+  });
   if (!res.ok) return { cells: 0, episodes: 0, facts: 0 };
   return res.json();
 }
 
 async function fetchContactFacts(contactId: string): Promise<MemoryFact[]> {
-  const res = await globalThis.fetch(
-    `/api/ai/memory/facts?scope=contact:${contactId}`,
-  );
+  const res = await aiClient.memory.facts.$get({
+    query: { scope: `contact:${contactId}` },
+  });
   if (!res.ok) return [];
-  const data = await res.json();
-  return (data.facts ?? data ?? []).slice(0, 5);
+  const data = (await res.json()) as unknown as {
+    facts?: Array<{ id: string; fact: string; createdAt: string }>;
+  };
+  return (data.facts ?? [])
+    .slice(0, 5)
+    .map((f) => ({ id: f.id, content: f.fact, createdAt: f.createdAt }));
 }
 
 async function updateSessionStatus(
   id: string,
   status: 'paused' | 'completed' | 'failed',
 ): Promise<Session> {
-  const res = await globalThis.fetch(`/api/conversations/sessions/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
-  });
+  const res = await conversationsClient.sessions[':id'].$patch(
+    { param: { id } },
+    {
+      init: {
+        body: JSON.stringify({ status }),
+        headers: { 'Content-Type': 'application/json' },
+      },
+    },
+  );
   if (!res.ok) throw new Error('Failed to update session');
-  return res.json();
+  return res.json() as unknown as Promise<Session>;
 }
 
 async function sendReply(sessionId: string, content: string): Promise<unknown> {
-  const res = await globalThis.fetch(
-    `/api/conversations/sessions/${sessionId}/reply`,
+  const res = await conversationsClient.sessions[':id'].reply.$post(
+    { param: { id: sessionId } },
     {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      init: {
+        body: JSON.stringify({ content }),
+        headers: { 'Content-Type': 'application/json' },
+      },
     },
   );
   if (!res.ok) throw new Error('Failed to send reply');

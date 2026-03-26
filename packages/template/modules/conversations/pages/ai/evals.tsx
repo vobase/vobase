@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { aiClient } from '@/lib/api-client';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ interface ParsedScores {
 // ─── Data ─────────────────────────────────────────────────────────────
 
 async function fetchEvalRuns(): Promise<EvalRun[]> {
-  const res = await globalThis.fetch('/api/ai/evals');
+  const res = await aiClient.evals.$get();
   if (!res.ok) throw new Error('Failed to fetch eval runs');
   return res.json();
 }

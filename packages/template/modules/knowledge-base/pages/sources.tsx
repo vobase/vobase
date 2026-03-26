@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { knowledgeBaseClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
 interface KBSource {
@@ -20,9 +21,9 @@ interface KBSource {
 }
 
 async function fetchSources() {
-  const res = await globalThis.fetch('/api/knowledge-base/sources');
+  const res = await knowledgeBaseClient.sources.$get();
   if (!res.ok) throw new Error('Failed to fetch sources');
-  return res.json() as Promise<KBSource[]>;
+  return res.json();
 }
 
 function StatusDot({ status }: { status: string }) {
@@ -55,10 +56,8 @@ function SourcesPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const config = newType === 'crawl' ? { url: newUrl } : {};
-      const res = await globalThis.fetch('/api/knowledge-base/sources', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName, type: newType, config }),
+      const res = await knowledgeBaseClient.sources.$post({
+        json: { name: newName, type: newType, config },
       });
       if (!res.ok) throw new Error('Create failed');
       return res.json();
@@ -73,12 +72,9 @@ function SourcesPage() {
 
   const syncMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await globalThis.fetch(
-        `/api/knowledge-base/sources/${id}/sync`,
-        {
-          method: 'POST',
-        },
-      );
+      const res = await knowledgeBaseClient.sources[':id'].sync.$post({
+        param: { id },
+      });
       if (!res.ok) throw new Error('Sync failed');
     },
     onSuccess: () =>
@@ -87,8 +83,8 @@ function SourcesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await globalThis.fetch(`/api/knowledge-base/sources/${id}`, {
-        method: 'DELETE',
+      const res = await knowledgeBaseClient.sources[':id'].$delete({
+        param: { id },
       });
       if (!res.ok) throw new Error('Delete failed');
     },
@@ -98,7 +94,8 @@ function SourcesPage() {
 
   async function handleConnect(source: KBSource) {
     if (source.type === 'google-drive' || source.type === 'sharepoint') {
-      const res = await globalThis.fetch(
+      // biome-ignore lint/style/noRestrictedGlobals: No typed auth-url route
+      const res = await fetch(
         `/api/knowledge-base/sources/${source.id}/auth-url`,
       );
       const { url } = await res.json();

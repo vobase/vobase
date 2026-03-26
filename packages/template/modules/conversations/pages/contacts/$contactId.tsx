@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { aiClient, conversationsClient } from '@/lib/api-client';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -67,23 +68,21 @@ interface MemoryFact {
 // ─── Data fetchers ───────────────────────────────────────────────────
 
 async function fetchContact(id: string): Promise<Contact> {
-  const res = await globalThis.fetch(`/api/conversations/contacts/${id}`);
+  const res = await conversationsClient.contacts[':id'].$get({ param: { id } });
   if (!res.ok) throw new Error('Contact not found');
-  return res.json();
+  return res.json() as unknown as Promise<Contact>;
 }
 
 async function fetchContactSessions(contactId: string): Promise<Session[]> {
-  const res = await globalThis.fetch(
-    `/api/conversations/sessions?contactId=${contactId}`,
-  );
+  const res = await conversationsClient.sessions.$get({ query: { contactId } });
   if (!res.ok) return [];
-  return res.json();
+  return res.json() as unknown as Promise<Session[]>;
 }
 
 async function fetchMemoryStats(contactId: string): Promise<MemoryStats> {
-  const res = await globalThis.fetch(
-    `/api/ai/memory/stats?scope=contact:${contactId}`,
-  );
+  const res = await aiClient.memory.stats.$get({
+    query: { scope: `contact:${contactId}` },
+  });
   if (!res.ok) return { cells: 0, episodes: 0, facts: 0 };
   return res.json();
 }
@@ -91,21 +90,27 @@ async function fetchMemoryStats(contactId: string): Promise<MemoryStats> {
 async function fetchMemoryEpisodes(
   contactId: string,
 ): Promise<MemoryEpisode[]> {
-  const res = await globalThis.fetch(
-    `/api/ai/memory/episodes?scope=contact:${contactId}`,
-  );
+  const res = await aiClient.memory.episodes.$get({
+    query: { scope: `contact:${contactId}` },
+  });
   if (!res.ok) return [];
-  const data = await res.json();
-  return data.episodes ?? data ?? [];
+  const data = (await res.json()) as unknown as { episodes?: MemoryEpisode[] };
+  return data.episodes ?? [];
 }
 
 async function fetchMemoryFacts(contactId: string): Promise<MemoryFact[]> {
-  const res = await globalThis.fetch(
-    `/api/ai/memory/facts?scope=contact:${contactId}`,
-  );
+  const res = await aiClient.memory.facts.$get({
+    query: { scope: `contact:${contactId}` },
+  });
   if (!res.ok) return [];
-  const data = await res.json();
-  return data.facts ?? data ?? [];
+  const data = (await res.json()) as unknown as {
+    facts?: Array<{ id: string; fact: string; createdAt: string }>;
+  };
+  return (data.facts ?? []).map((f) => ({
+    id: f.id,
+    content: f.fact,
+    createdAt: f.createdAt,
+  }));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────

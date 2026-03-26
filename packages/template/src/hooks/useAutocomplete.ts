@@ -87,7 +87,8 @@ export function useAutocomplete(
       }
 
       try {
-        const res = await globalThis.fetch(url);
+        // biome-ignore lint/style/noRestrictedGlobals: Dynamic suggestionsUrl — can't use typed RPC
+        const res = await fetch(url);
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as { suggestions: string[] };
         const { suggestions } = data;

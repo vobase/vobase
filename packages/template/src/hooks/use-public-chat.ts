@@ -74,7 +74,8 @@ export function usePublicChat(endpointId: string): UsePublicChatResult {
       // Try to resume existing conversation
       if (storedConvId) {
         try {
-          const res = await globalThis.fetch(
+          // biome-ignore lint/style/noRestrictedGlobals: Public chat routes lack Hono validators for typed RPC
+          const res = await fetch(
             `/api/conversations/chat/${endpointId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
           );
           if (res.ok) {
@@ -96,7 +97,8 @@ export function usePublicChat(endpointId: string): UsePublicChatResult {
       }
 
       // Start new conversation
-      const startRes = await globalThis.fetch(
+      // biome-ignore lint/style/noRestrictedGlobals: Public chat routes lack Hono validators for typed RPC
+      const startRes = await fetch(
         `/api/conversations/chat/${endpointId}/start`,
         {
           method: 'POST',

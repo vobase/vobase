@@ -6,9 +6,7 @@ import { createDrizzleHandler } from '@/lib/drizzle';
 import { contacts } from '../../contacts/schema';
 import { contactsTableSchema } from '../lib/table-schemas';
 
-export const contactsTableHandlers = new Hono();
-
-contactsTableHandlers.get('/data', async (c) => {
+export const contactsTableHandlers = new Hono().get('/data', async (c) => {
   const { db, user } = getCtx(c);
   if (!user) throw unauthorized();
 

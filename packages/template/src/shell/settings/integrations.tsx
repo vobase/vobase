@@ -264,22 +264,19 @@ function IntegrationsPage() {
     },
   });
 
-  const { data: instances = [], isLoading } = useQuery<ChannelInstance[]>({
+  const { data: instances = [], isLoading } = useQuery({
     queryKey: ['integrations-instances'],
-    queryFn: async () => {
-      const res = await globalThis.fetch('/api/integrations/instances');
+    queryFn: async (): Promise<ChannelInstance[]> => {
+      const res = await integrationsClient.instances.$get();
       return res.json() as Promise<ChannelInstance[]>;
     },
   });
 
   const disconnectMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await globalThis.fetch(
-        `/api/integrations/instances/${id}/disconnect`,
-        {
-          method: 'POST',
-        },
-      );
+      const res = await integrationsClient.instances[':id'].disconnect.$post({
+        param: { id },
+      });
       return res.json();
     },
     onSettled: () => {

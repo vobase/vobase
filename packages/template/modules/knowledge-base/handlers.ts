@@ -109,282 +109,267 @@ async function syncSource(
   }
 }
 
-export const knowledgeBaseRoutes = new Hono();
+export const knowledgeBaseRoutes = new Hono()
+  // Auth guard: require authenticated user for all KB routes (except OAuth callbacks)
+  .use('*', async (c, next) => {
+    const path = c.req.path;
+    // OAuth callbacks come from external providers — skip auth
+    if (path.includes('/oauth/')) return next();
+    const ctx = getCtx(c);
+    if (!ctx.user) throw unauthorized('Authentication required');
+    return next();
+  })
+  // Documents — accepts multipart/form-data with a 'file' field
+  .post('/documents', async (c) => {
+    const ctx = getCtx(c);
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!(file instanceof File)) {
+      return c.json({ error: 'Missing file field in form data' }, 400);
+    }
 
-// Auth guard: require authenticated user for all KB routes (except OAuth callbacks)
-knowledgeBaseRoutes.use('*', async (c, next) => {
-  const path = c.req.path;
-  // OAuth callbacks come from external providers — skip auth
-  if (path.includes('/oauth/')) return next();
-  const ctx = getCtx(c);
-  if (!ctx.user) throw unauthorized('Authentication required');
-  return next();
-});
+    // 1. Insert document with pending status
+    const [doc] = await ctx.db
+      .insert(kbDocuments)
+      .values({
+        title: file.name,
+        sourceType: 'upload',
+        mimeType: file.type || 'text/plain',
+      })
+      .returning();
 
-// Documents — accepts multipart/form-data with a 'file' field
-knowledgeBaseRoutes.post('/documents', async (c) => {
-  const ctx = getCtx(c);
-  const body = await c.req.parseBody();
-  const file = body.file;
-  if (!(file instanceof File)) {
-    return c.json({ error: 'Missing file field in form data' }, 400);
-  }
+    // 2. Upload file to storage bucket for durable async job processing
+    const storageKey = `uploads/${doc.id}-${file.name}`;
+    await ctx.storage
+      .bucket(KB_STORAGE_BUCKET)
+      .upload(storageKey, new Uint8Array(await file.arrayBuffer()));
 
-  // 1. Insert document with pending status
-  const [doc] = await ctx.db
-    .insert(kbDocuments)
-    .values({
-      title: file.name,
-      sourceType: 'upload',
+    // 3. Enqueue processing job (extraction + chunking + embedding happen async)
+    await ctx.scheduler.add('knowledge-base:process-document', {
+      documentId: doc.id,
+      storageKey,
       mimeType: file.type || 'text/plain',
-    })
-    .returning();
+    });
 
-  // 2. Upload file to storage bucket for durable async job processing
-  const storageKey = `uploads/${doc.id}-${file.name}`;
-  await ctx.storage
-    .bucket(KB_STORAGE_BUCKET)
-    .upload(storageKey, new Uint8Array(await file.arrayBuffer()));
-
-  // 3. Enqueue processing job (extraction + chunking + embedding happen async)
-  await ctx.scheduler.add('knowledge-base:process-document', {
-    documentId: doc.id,
-    storageKey,
-    mimeType: file.type || 'text/plain',
-  });
-
-  return c.json(doc, 201);
-});
-
-knowledgeBaseRoutes.get('/documents', async (c) => {
-  const ctx = getCtx(c);
-  const docs = await ctx.db
-    .select()
-    .from(kbDocuments)
-    .orderBy(desc(kbDocuments.createdAt));
-  return c.json(docs);
-});
-
-knowledgeBaseRoutes.get('/documents/:id', async (c) => {
-  const ctx = getCtx(c);
-  const doc = (
-    await ctx.db
+    return c.json(doc, 201);
+  })
+  .get('/documents', async (c) => {
+    const ctx = getCtx(c);
+    const docs = await ctx.db
       .select()
       .from(kbDocuments)
-      .where(eq(kbDocuments.id, c.req.param('id')))
-  )[0];
-  if (!doc) throw notFound('Document not found');
-  const chunks = await ctx.db
-    .select()
-    .from(kbChunks)
-    .where(eq(kbChunks.documentId, doc.id))
-    .orderBy(kbChunks.chunkIndex);
-  return c.json({ ...doc, chunks });
-});
+      .orderBy(desc(kbDocuments.createdAt));
+    return c.json(docs);
+  })
+  .get('/documents/:id', async (c) => {
+    const ctx = getCtx(c);
+    const doc = (
+      await ctx.db
+        .select()
+        .from(kbDocuments)
+        .where(eq(kbDocuments.id, c.req.param('id')))
+    )[0];
+    if (!doc) throw notFound('Document not found');
+    const chunks = await ctx.db
+      .select()
+      .from(kbChunks)
+      .where(eq(kbChunks.documentId, doc.id))
+      .orderBy(kbChunks.chunkIndex);
+    return c.json({ ...doc, chunks });
+  })
+  .delete('/documents/:id', async (c) => {
+    const ctx = getCtx(c);
+    const id = c.req.param('id');
+    await ctx.db.delete(kbChunks).where(eq(kbChunks.documentId, id));
+    await ctx.db.delete(kbDocuments).where(eq(kbDocuments.id, id));
+    return c.json({ success: true });
+  })
+  // Search
+  .post('/search', async (c) => {
+    const ctx = getCtx(c);
+    const body = await c.req.json();
+    const { extractIntent } = await import('./search-config');
+    const { hybridSearch } = await import('./lib/search');
 
-knowledgeBaseRoutes.delete('/documents/:id', async (c) => {
-  const ctx = getCtx(c);
-  const id = c.req.param('id');
-  await ctx.db.delete(kbChunks).where(eq(kbChunks.documentId, id));
-  await ctx.db.delete(kbDocuments).where(eq(kbDocuments.id, id));
-  return c.json({ success: true });
-});
+    // Strip intent signals (e.g. "recent", "latest") before search
+    const { cleanQuery, sortHint } = extractIntent(body.query);
 
-// Search
-knowledgeBaseRoutes.post('/search', async (c) => {
-  const ctx = getCtx(c);
-  const body = await c.req.json();
-  const { extractIntent } = await import('./search-config');
-  const { hybridSearch } = await import('./lib/search');
+    const results = await hybridSearch(ctx.db, cleanQuery, {
+      limit: body.limit,
+      vectorWeight: body.vectorWeight,
+      keywordWeight: body.keywordWeight,
+      sourceIds: body.sourceIds,
+      sortHint,
+    });
+    return c.json({ query: body.query, results });
+  })
+  // Suggestions for autocomplete (document titles)
+  .get('/suggestions', async (c) => {
+    const ctx = getCtx(c);
+    const docs = await ctx.db
+      .select({ title: kbDocuments.title })
+      .from(kbDocuments)
+      .orderBy(desc(kbDocuments.createdAt))
+      .limit(200);
+    const suggestions = docs.map((d) => d.title).filter(Boolean);
+    return c.json({ suggestions });
+  })
+  // Sources CRUD
+  .post('/sources', async (c) => {
+    const ctx = getCtx(c);
+    const body = await c.req.json();
+    const [source] = await ctx.db
+      .insert(kbSources)
+      .values({
+        name: body.name,
+        type: body.type,
+        config: body.config ? JSON.stringify(body.config) : null,
+        syncSchedule: body.syncSchedule,
+      })
+      .returning();
+    return c.json(source, 201);
+  })
+  .get('/sources', async (c) => {
+    const ctx = getCtx(c);
+    const sources = await ctx.db
+      .select()
+      .from(kbSources)
+      .orderBy(desc(kbSources.createdAt));
+    return c.json(sources);
+  })
+  .put('/sources/:id', async (c) => {
+    const ctx = getCtx(c);
+    const body = await c.req.json();
+    const [source] = await ctx.db
+      .update(kbSources)
+      .set({
+        name: body.name,
+        type: body.type,
+        config: body.config ? JSON.stringify(body.config) : undefined,
+        syncSchedule: body.syncSchedule,
+      })
+      .where(eq(kbSources.id, c.req.param('id')))
+      .returning();
+    if (!source) throw notFound('Source not found');
+    return c.json(source);
+  })
+  .delete('/sources/:id', async (c) => {
+    const ctx = getCtx(c);
+    const id = c.req.param('id');
+    const docs = await ctx.db
+      .select({ id: kbDocuments.id })
+      .from(kbDocuments)
+      .where(eq(kbDocuments.sourceId, id));
+    for (const doc of docs) {
+      await ctx.db.delete(kbChunks).where(eq(kbChunks.documentId, doc.id));
+    }
+    await ctx.db.delete(kbDocuments).where(eq(kbDocuments.sourceId, id));
+    await ctx.db.delete(kbSources).where(eq(kbSources.id, id));
+    return c.json({ success: true });
+  })
+  // Sync trigger + logs
+  .post('/sources/:id/sync', async (c) => {
+    const ctx = getCtx(c);
+    const sourceId = c.req.param('id');
+    const source = (
+      await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
+    )[0];
+    if (!source) throw notFound('Source not found');
 
-  // Strip intent signals (e.g. "recent", "latest") before search
-  const { cleanQuery, sortHint } = extractIntent(body.query);
+    // Trigger sync in background (fire and forget)
+    syncSource(ctx.db, ctx.integrations, source).catch(console.error);
+    return c.json({ message: 'Sync started' });
+  })
+  .get('/sources/:id/logs', async (c) => {
+    const ctx = getCtx(c);
+    const logs = await ctx.db
+      .select()
+      .from(kbSyncLogs)
+      .where(eq(kbSyncLogs.sourceId, c.req.param('id')))
+      .orderBy(desc(kbSyncLogs.startedAt));
+    return c.json(logs);
+  })
+  // OAuth callbacks
+  .get('/oauth/google/callback', async (c) => {
+    const ctx = getCtx(c);
+    const code = c.req.query('code');
+    const sourceId = c.req.query('state');
+    if (!code || !sourceId) return c.text('Missing code or state', 400);
 
-  const results = await hybridSearch(ctx.db, cleanQuery, {
-    limit: body.limit,
-    vectorWeight: body.vectorWeight,
-    keywordWeight: body.keywordWeight,
-    sourceIds: body.sourceIds,
-    sortHint,
+    const source = (
+      await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
+    )[0];
+    const { exchangeGoogleCode } = await import('./connectors/google-drive');
+    const integrationId = await exchangeGoogleCode(
+      ctx.integrations,
+      sourceId,
+      code,
+      {
+        createdBy: ctx.user?.id,
+        label: source?.name ?? `KB source ${sourceId}`,
+      },
+    );
+
+    const existingConfig = source?.config ? JSON.parse(source.config) : {};
+    await ctx.db
+      .update(kbSources)
+      .set({ config: JSON.stringify({ ...existingConfig, integrationId }) })
+      .where(eq(kbSources.id, sourceId));
+
+    return c.redirect('/knowledge-base/sources');
+  })
+  .get('/oauth/microsoft/callback', async (c) => {
+    const ctx = getCtx(c);
+    const code = c.req.query('code');
+    const sourceId = c.req.query('state');
+    if (!code || !sourceId) return c.text('Missing code or state', 400);
+
+    const source = (
+      await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
+    )[0];
+    const { exchangeSharePointCode } = await import('./connectors/sharepoint');
+    const integrationId = await exchangeSharePointCode(
+      ctx.integrations,
+      sourceId,
+      code,
+      {
+        createdBy: ctx.user?.id,
+        label: source?.name ?? `KB source ${sourceId}`,
+      },
+    );
+
+    const existingConfig = source?.config ? JSON.parse(source.config) : {};
+    await ctx.db
+      .update(kbSources)
+      .set({ config: JSON.stringify({ ...existingConfig, integrationId }) })
+      .where(eq(kbSources.id, sourceId));
+
+    return c.redirect('/knowledge-base/sources');
+  })
+  // OAuth auth URL generators
+  .get('/sources/:id/auth-url', async (c) => {
+    const ctx = getCtx(c);
+    const sourceId = c.req.param('id');
+    const source = (
+      await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
+    )[0];
+    if (!source) throw notFound('Source not found');
+
+    if (source.type === 'google-drive') {
+      const { getGoogleAuthUrl } = await import('./connectors/google-drive');
+      const url = await getGoogleAuthUrl(sourceId);
+      return c.json({ url });
+    }
+    if (source.type === 'sharepoint') {
+      const { getSharePointAuthUrl } = await import('./connectors/sharepoint');
+      const url = getSharePointAuthUrl(sourceId);
+      return c.json({ url });
+    }
+    return c.json({ error: 'Source type does not require OAuth' }, 400);
+  })
+  // Reindex
+  .post('/reindex', async (c) => {
+    return c.json({ message: 'Reindex triggered' });
   });
-  return c.json({ query: body.query, results });
-});
 
-// Suggestions for autocomplete (document titles)
-knowledgeBaseRoutes.get('/suggestions', async (c) => {
-  const ctx = getCtx(c);
-  const docs = await ctx.db
-    .select({ title: kbDocuments.title })
-    .from(kbDocuments)
-    .orderBy(desc(kbDocuments.createdAt))
-    .limit(200);
-  const suggestions = docs.map((d) => d.title).filter(Boolean);
-  return c.json({ suggestions });
-});
-
-// Sources CRUD
-knowledgeBaseRoutes.post('/sources', async (c) => {
-  const ctx = getCtx(c);
-  const body = await c.req.json();
-  const [source] = await ctx.db
-    .insert(kbSources)
-    .values({
-      name: body.name,
-      type: body.type,
-      config: body.config ? JSON.stringify(body.config) : null,
-      syncSchedule: body.syncSchedule,
-    })
-    .returning();
-  return c.json(source, 201);
-});
-
-knowledgeBaseRoutes.get('/sources', async (c) => {
-  const ctx = getCtx(c);
-  const sources = await ctx.db
-    .select()
-    .from(kbSources)
-    .orderBy(desc(kbSources.createdAt));
-  return c.json(sources);
-});
-
-knowledgeBaseRoutes.put('/sources/:id', async (c) => {
-  const ctx = getCtx(c);
-  const body = await c.req.json();
-  const [source] = await ctx.db
-    .update(kbSources)
-    .set({
-      name: body.name,
-      type: body.type,
-      config: body.config ? JSON.stringify(body.config) : undefined,
-      syncSchedule: body.syncSchedule,
-    })
-    .where(eq(kbSources.id, c.req.param('id')))
-    .returning();
-  if (!source) throw notFound('Source not found');
-  return c.json(source);
-});
-
-knowledgeBaseRoutes.delete('/sources/:id', async (c) => {
-  const ctx = getCtx(c);
-  const id = c.req.param('id');
-  const docs = await ctx.db
-    .select({ id: kbDocuments.id })
-    .from(kbDocuments)
-    .where(eq(kbDocuments.sourceId, id));
-  for (const doc of docs) {
-    await ctx.db.delete(kbChunks).where(eq(kbChunks.documentId, doc.id));
-  }
-  await ctx.db.delete(kbDocuments).where(eq(kbDocuments.sourceId, id));
-  await ctx.db.delete(kbSources).where(eq(kbSources.id, id));
-  return c.json({ success: true });
-});
-
-// Sync trigger + logs
-knowledgeBaseRoutes.post('/sources/:id/sync', async (c) => {
-  const ctx = getCtx(c);
-  const sourceId = c.req.param('id');
-  const source = (
-    await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
-  )[0];
-  if (!source) throw notFound('Source not found');
-
-  // Trigger sync in background (fire and forget)
-  syncSource(ctx.db, ctx.integrations, source).catch(console.error);
-  return c.json({ message: 'Sync started' });
-});
-
-knowledgeBaseRoutes.get('/sources/:id/logs', async (c) => {
-  const ctx = getCtx(c);
-  const logs = await ctx.db
-    .select()
-    .from(kbSyncLogs)
-    .where(eq(kbSyncLogs.sourceId, c.req.param('id')))
-    .orderBy(desc(kbSyncLogs.startedAt));
-  return c.json(logs);
-});
-
-// OAuth callbacks
-knowledgeBaseRoutes.get('/oauth/google/callback', async (c) => {
-  const ctx = getCtx(c);
-  const code = c.req.query('code');
-  const sourceId = c.req.query('state');
-  if (!code || !sourceId) return c.text('Missing code or state', 400);
-
-  const source = (
-    await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
-  )[0];
-  const { exchangeGoogleCode } = await import('./connectors/google-drive');
-  const integrationId = await exchangeGoogleCode(
-    ctx.integrations,
-    sourceId,
-    code,
-    {
-      createdBy: ctx.user?.id,
-      label: source?.name ?? `KB source ${sourceId}`,
-    },
-  );
-
-  const existingConfig = source?.config ? JSON.parse(source.config) : {};
-  await ctx.db
-    .update(kbSources)
-    .set({ config: JSON.stringify({ ...existingConfig, integrationId }) })
-    .where(eq(kbSources.id, sourceId));
-
-  return c.redirect('/knowledge-base/sources');
-});
-
-knowledgeBaseRoutes.get('/oauth/microsoft/callback', async (c) => {
-  const ctx = getCtx(c);
-  const code = c.req.query('code');
-  const sourceId = c.req.query('state');
-  if (!code || !sourceId) return c.text('Missing code or state', 400);
-
-  const source = (
-    await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
-  )[0];
-  const { exchangeSharePointCode } = await import('./connectors/sharepoint');
-  const integrationId = await exchangeSharePointCode(
-    ctx.integrations,
-    sourceId,
-    code,
-    {
-      createdBy: ctx.user?.id,
-      label: source?.name ?? `KB source ${sourceId}`,
-    },
-  );
-
-  const existingConfig = source?.config ? JSON.parse(source.config) : {};
-  await ctx.db
-    .update(kbSources)
-    .set({ config: JSON.stringify({ ...existingConfig, integrationId }) })
-    .where(eq(kbSources.id, sourceId));
-
-  return c.redirect('/knowledge-base/sources');
-});
-
-// OAuth auth URL generators
-knowledgeBaseRoutes.get('/sources/:id/auth-url', async (c) => {
-  const ctx = getCtx(c);
-  const sourceId = c.req.param('id');
-  const source = (
-    await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
-  )[0];
-  if (!source) throw notFound('Source not found');
-
-  if (source.type === 'google-drive') {
-    const { getGoogleAuthUrl } = await import('./connectors/google-drive');
-    const url = await getGoogleAuthUrl(sourceId);
-    return c.json({ url });
-  }
-  if (source.type === 'sharepoint') {
-    const { getSharePointAuthUrl } = await import('./connectors/sharepoint');
-    const url = getSharePointAuthUrl(sourceId);
-    return c.json({ url });
-  }
-  return c.json({ error: 'Source type does not require OAuth' }, 400);
-});
-
-// Reindex
-knowledgeBaseRoutes.post('/reindex', async (c) => {
-  return c.json({ message: 'Reindex triggered' });
-});
+export type KnowledgeBaseRoutes = typeof knowledgeBaseRoutes;

@@ -18,3 +18,5 @@ export const conversationsRoutes = new Hono()
   .route('/contacts', contactsHandlers)
   .route('/contacts-table', contactsTableHandlers)
   .route('/sessions-table', sessionsTableHandlers);
+
+export type ConversationsRoutes = typeof conversationsRoutes;

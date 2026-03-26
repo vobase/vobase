@@ -68,20 +68,23 @@ export const integrationsRoutes = new Hono()
 
     // Step 1: Exchange authorization code for BISU access token
     // Code expires in ~60 seconds — must be exchanged immediately
-    const tokenRes = await fetch(`${META_GRAPH_API}/oauth/access_token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: metaAppId,
-        client_secret: metaAppSecret,
-        code: body.code,
-      }),
-    });
+    const tokenRes = await ctx.http.fetch(
+      `${META_GRAPH_API}/oauth/access_token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: metaAppId,
+          client_secret: metaAppSecret,
+          code: body.code,
+        }),
+      },
+    );
     if (!tokenRes.ok) {
-      const err = await tokenRes.text();
+      const err = await tokenRes.raw.text();
       return c.json({ error: `Code exchange failed: ${err}` }, 502);
     }
-    const tokenData = (await tokenRes.json()) as { access_token: string };
+    const tokenData = tokenRes.data as { access_token: string };
     const accessToken = tokenData.access_token;
     logger.info('WhatsApp connect: code exchanged for BISU token');
 
@@ -94,13 +97,13 @@ export const integrationsRoutes = new Hono()
     // Fallback: extract from debug_token if session listener didn't provide them
     if (!wabaId || !phoneNumberId) {
       try {
-        const debugRes = await fetch(
+        const debugRes = await ctx.http.fetch(
           `${META_GRAPH_API}/debug_token?input_token=${accessToken}`,
           {
             headers: { Authorization: `Bearer ${metaAppId}|${metaAppSecret}` },
           },
         );
-        const debugData = (await debugRes.json()) as {
+        const debugData = debugRes.data as {
           data?: {
             granular_scopes?: Array<{
               scope: string;
@@ -117,11 +120,11 @@ export const integrationsRoutes = new Hono()
         }
 
         if (!phoneNumberId && wabaId) {
-          const phoneRes = await fetch(
+          const phoneRes = await ctx.http.fetch(
             `${META_GRAPH_API}/${wabaId}/phone_numbers`,
             { headers: { Authorization: `Bearer ${accessToken}` } },
           );
-          const phoneData = (await phoneRes.json()) as {
+          const phoneData = phoneRes.data as {
             data?: Array<{ id: string; display_phone_number: string }>;
           };
           phoneNumberId = phoneData.data?.[0]?.id;

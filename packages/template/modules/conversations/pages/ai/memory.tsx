@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
 import { MemoryScopeSelector } from './-memory-scope-selector';
 import { MemorySearchView } from './-memory-search-view';
@@ -24,9 +25,7 @@ interface MemoryStats {
 }
 
 async function fetchStats(scope: string): Promise<MemoryStats> {
-  const res = await globalThis.fetch(
-    `/api/ai/memory/stats?${new URLSearchParams({ scope })}`,
-  );
+  const res = await aiClient.memory.stats.$get({ query: { scope } });
   if (!res.ok) throw new Error('Failed to fetch memory stats');
   return res.json();
 }
