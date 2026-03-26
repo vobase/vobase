@@ -61,6 +61,21 @@ channelsHandlers.get('/instances', async (c) => {
   return c.json(rows);
 });
 
+/** GET /instances/:id — Get a single channel instance. */
+channelsHandlers.get('/instances/:id', async (c) => {
+  const { db, user } = getCtx(c);
+  if (!user) throw unauthorized();
+
+  const [row] = await db
+    .select()
+    .from(channelInstances)
+    .where(eq(channelInstances.id, c.req.param('id')));
+
+  if (!row) throw notFound('Channel instance not found');
+
+  return c.json(row);
+});
+
 /** POST /instances — Create a channel instance. */
 channelsHandlers.post('/instances', async (c) => {
   const { db, user } = getCtx(c);

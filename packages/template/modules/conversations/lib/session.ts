@@ -70,6 +70,7 @@ export async function createSession(
     await memory.saveThread({
       thread: {
         id,
+        title: 'New conversation',
         resourceId: `contact:${input.contactId}`,
         createdAt: now,
         updatedAt: now,

@@ -3,13 +3,23 @@
  *
  * Loads the session, checks for consultation replies, generates an agent
  * response using the inbound message, and enqueues the outbound message.
+ *
+ * Phase 2: Injects RequestContext with channel type so sendCard tool and
+ *   processors can access channel type during generation.
+ * Phase 3: Extracts CardElement results from sendCard tool calls and routes
+ *   them through serializeCard() → outbox pipeline.
  */
+
+import { RequestContext } from '@mastra/core/request-context';
 import type { ChannelsService, Scheduler, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
+import type { CardElement } from 'chat';
 import { eq } from 'drizzle-orm';
 
 import { getAgent } from '../../../mastra/agents';
 import { channelInstances, sessions } from '../schema';
+import { formatConstraintsForPrompt } from './channel-constraints';
+import { serializeCard } from './chat-bridge';
 import { getChatState } from './chat-init';
 import { enqueueMessage } from './outbox';
 
@@ -18,6 +28,85 @@ interface ReplyDeps {
   scheduler: Scheduler;
   channels: ChannelsService;
 }
+
+// ─── CardElement extraction ──────────────────────────────────────────
+
+/**
+ * Extract CardElement results from sendCard tool calls in the agent response.
+ *
+ * Mastra ToolResultChunk shape: { type: 'tool-result', payload: ToolResultPayload }
+ * ToolResultPayload: { toolCallId, toolName, result, isError? }
+ * NOTE: .payload nesting is real — see @mastra/core/dist/stream/types.d.ts
+ * NOTE: result field is .result (not .output — that is the AI SDK frontend type)
+ */
+export function extractSendCardResults(response: {
+  steps?: unknown[];
+  toolResults?: unknown[];
+}): CardElement[] {
+  const cards: CardElement[] = [];
+
+  if (!response.steps || !Array.isArray(response.steps)) {
+    logger.warn(
+      '[conversations] extractSendCardResults: response.steps is missing or not an array — possible Mastra API drift',
+    );
+    return cards;
+  }
+
+  for (const step of response.steps) {
+    const s = step as Record<string, unknown>;
+    if (!s.toolResults || !Array.isArray(s.toolResults)) continue;
+
+    for (const tr of s.toolResults as unknown[]) {
+      const result = tr as Record<string, unknown>;
+
+      if (!result.payload) {
+        logger.warn(
+          '[conversations] extractSendCardResults: toolResult missing .payload — possible Mastra API drift',
+          { tr },
+        );
+        continue;
+      }
+
+      const payload = result.payload as Record<string, unknown>;
+      if (
+        payload.toolName === 'send_card' &&
+        !payload.isError &&
+        payload.result &&
+        (payload.result as Record<string, unknown>).card
+      ) {
+        cards.push(
+          (payload.result as Record<string, unknown>).card as CardElement,
+        );
+      }
+    }
+  }
+
+  // Fallback: check top-level response.toolResults
+  if (
+    cards.length === 0 &&
+    response.toolResults &&
+    Array.isArray(response.toolResults)
+  ) {
+    for (const tr of response.toolResults as unknown[]) {
+      const result = tr as Record<string, unknown>;
+      const payload = result.payload as Record<string, unknown> | undefined;
+      if (
+        payload?.toolName === 'send_card' &&
+        !payload.isError &&
+        payload.result &&
+        (payload.result as Record<string, unknown>).card
+      ) {
+        cards.push(
+          (payload.result as Record<string, unknown>).card as CardElement,
+        );
+      }
+    }
+  }
+
+  return cards;
+}
+
+// ─── Main function ───────────────────────────────────────────────────
 
 /** Generate an AI reply for a channel session and enqueue for delivery. */
 export async function generateChannelReply(
@@ -50,6 +139,15 @@ export async function generateChannelReply(
     return null;
   }
 
+  // Resolve channel type early (needed for context injection and card routing)
+  const [instance] = session.channelInstanceId
+    ? await db
+        .select({ type: channelInstances.type })
+        .from(channelInstances)
+        .where(eq(channelInstances.id, session.channelInstanceId))
+    : [];
+  const channelType = instance?.type ?? 'web';
+
   // Check for consultation reply in chat state
   const state = getChatState();
   const consultationReply = await state.get<{
@@ -75,39 +173,66 @@ export async function generateChannelReply(
     return null;
   }
 
+  // Prepend channel constraints so the agent tailors card structure per channel
+  const constraintText = formatConstraintsForPrompt(channelType);
+  const contextPrefix = `[Channel: ${channelType}]\n${constraintText}\n\n`;
+
+  // Build RequestContext so sendCard tool and processors can access channel type
+  const rc = new RequestContext();
+  rc.set('conversationId', sessionId);
+  rc.set('contactId', session.contactId);
+  rc.set('channel', channelType);
+  rc.set('agentId', session.agentId);
+
   // Generate response using agent (non-streaming for channels)
-  // Pass as a string — the agent + memory will handle context retrieval
   try {
-    const response = await registered.agent.generate(messageContent, {
-      memory: {
-        thread: sessionId,
-        resource: `contact:${session.contactId}`,
+    const response = await registered.agent.generate(
+      contextPrefix + messageContent,
+      {
+        memory: {
+          thread: sessionId,
+          resource: `contact:${session.contactId}`,
+        },
+        maxSteps: 5,
+        requestContext: rc,
       },
-      maxSteps: 5,
-    });
+    );
 
+    // Extract sendCard tool results and route through serialization pipeline
+    const cardElements = extractSendCardResults(
+      response as {
+        steps?: unknown[];
+        toolResults?: unknown[];
+      },
+    );
+
+    for (const cardElement of cardElements) {
+      const serialized = serializeCard(cardElement);
+      await enqueueMessage(db, scheduler, {
+        sessionId,
+        content: serialized.content,
+        channelType,
+        channelInstanceId: session.channelInstanceId,
+        payload: serialized.payload,
+      });
+    }
+
+    // Also enqueue any text response (agent may combine text + cards)
     const responseText =
-      typeof response.text === 'string' ? response.text : String(response.text);
+      typeof response.text === 'string'
+        ? response.text
+        : String(response.text ?? '');
 
-    if (!responseText) return null;
+    if (responseText) {
+      await enqueueMessage(db, scheduler, {
+        sessionId,
+        content: responseText,
+        channelType,
+        channelInstanceId: session.channelInstanceId,
+      });
+    }
 
-    // Enqueue outbound message via outbox
-    // Resolve channel type from instance
-    const [instance] = session.channelInstanceId
-      ? await db
-          .select({ type: channelInstances.type })
-          .from(channelInstances)
-          .where(eq(channelInstances.id, session.channelInstanceId))
-      : [];
-
-    await enqueueMessage(db, scheduler, {
-      sessionId,
-      content: responseText,
-      channelType: instance?.type ?? 'web',
-      channelInstanceId: session.channelInstanceId,
-    });
-
-    return responseText;
+    return responseText || null;
   } catch (err) {
     logger.error('[conversations] Agent generation failed', {
       sessionId,
@@ -116,18 +241,11 @@ export async function generateChannelReply(
     });
 
     // Enqueue a fallback message so the customer is not left without a response
-    const [instance] = session.channelInstanceId
-      ? await db
-          .select({ type: channelInstances.type })
-          .from(channelInstances)
-          .where(eq(channelInstances.id, session.channelInstanceId))
-      : [];
-
     await enqueueMessage(db, scheduler, {
       sessionId,
       content:
         "We're experiencing a temporary issue. Please try again shortly.",
-      channelType: instance?.type ?? 'web',
+      channelType,
       channelInstanceId: session.channelInstanceId,
     });
 

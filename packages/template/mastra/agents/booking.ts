@@ -10,6 +10,7 @@ import {
   consultHumanTool,
   rescheduleBookingTool,
   searchKnowledgeBaseTool,
+  sendCardTool,
   sendReminderTool,
 } from '../tools';
 
@@ -61,6 +62,7 @@ export const bookingAgent = new Agent({
     reschedule_booking: rescheduleBookingTool,
     send_reminder: sendReminderTool,
     consult_human: consultHumanTool,
+    send_card: sendCardTool,
   },
   defaultOptions: { maxSteps: 5 },
   inputProcessors: resolveInputProcessors,

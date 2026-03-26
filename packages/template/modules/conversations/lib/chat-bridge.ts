@@ -200,7 +200,7 @@ export function createChannelBridge(
 
 // ─── Serialization ─────────────────────────────────────────────────
 
-interface SerializedOutput {
+export interface SerializedOutput {
   content: string;
   payload?:
     | {
@@ -255,7 +255,7 @@ function serializeForChannel(
 }
 
 /** Serialize a CardElement to outbox content + payload. */
-function serializeCard(card: unknown): SerializedOutput {
+export function serializeCard(card: unknown): SerializedOutput {
   const cardObj = card as Record<string, unknown>;
 
   // CardElement is a plain object: { type: 'card', title?, children, metadata? }
