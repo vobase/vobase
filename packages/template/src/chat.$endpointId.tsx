@@ -1,62 +1,31 @@
 import { useChat } from '@ai-sdk/react';
 import { createFileRoute, useParams } from '@tanstack/react-router';
-import { DefaultChatTransport, type TextUIPart, type UIMessage } from 'ai';
-import { Bot, Loader2, Send } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TextUIPart } from 'ai';
+import { DefaultChatTransport, type UIMessage } from 'ai';
+import { Bot, MessageSquareIcon } from 'lucide-react';
+import { useMemo } from 'react';
 
 import {
   Conversation,
   ConversationContent,
+  ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
+import { Message, MessageContent } from '@/components/ai-elements/message';
 import {
-  Message,
-  MessageContent,
-  MessageResponse,
-} from '@/components/ai-elements/message';
+  PromptInput,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+} from '@/components/ai-elements/prompt-input';
 import { Shimmer } from '@/components/ai-elements/shimmer';
+import { MessagePartsRenderer } from '@/components/chat/message-parts-renderer';
+import { ThinkingMessage } from '@/components/chat/thinking-message';
 import { Button } from '@/components/ui/button';
+import { usePublicChat } from '@/hooks/use-public-chat';
 
-// ─── Types ───────────────────────────────────────────────────────────
-
-interface StartResponse {
-  conversationId: string;
-  agentId: string | null;
-}
-
-interface ConversationMessages {
-  id: string;
-  title: string | null;
-  agentId: string | null;
-  messages: Array<{
-    id: string;
-    role: string;
-    content: string;
-    createdAt: string;
-  }>;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────
-
-function getVisitorToken(endpointId: string): string {
-  const key = `vobase-visitor-${endpointId}`;
-  let token = localStorage.getItem(key);
-  if (!token) {
-    token = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-    localStorage.setItem(key, token);
-  }
-  return token;
-}
-
-function getStoredConversationId(endpointId: string): string | null {
-  return localStorage.getItem(`vobase-conv-${endpointId}`);
-}
-
-function storeConversationId(endpointId: string, conversationId: string) {
-  localStorage.setItem(`vobase-conv-${endpointId}`, conversationId);
-}
-
-// ─── Chat Component ──────────────────────────────────────────────────
+// ─── Chat View ──────────────────────────────────────────────────────────
 
 function PublicChatView({
   endpointId,
@@ -69,9 +38,6 @@ function PublicChatView({
   visitorToken: string;
   initialMessages: UIMessage[];
 }) {
-  const [input, setInput] = useState('');
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -80,7 +46,7 @@ function PublicChatView({
     [endpointId, visitorToken],
   );
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, stop } = useChat({
     id: conversationId,
     transport,
     messages: initialMessages,
@@ -98,174 +64,85 @@ function PublicChatView({
           .map((p) => p.text)
           .join('')
       : '';
-  const showShimmer =
+  const showThinking =
     isStreaming && (lastMessage?.role === 'user' || !lastAssistantText.trim());
-
-  function handleSubmit() {
-    const text = input.trim();
-    if (!text || isStreaming) return;
-    sendMessage({ text });
-    setInput('');
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }
 
   return (
     <>
       <Conversation className="flex-1">
-        <ConversationContent className="max-w-2xl mx-auto p-4">
+        <ConversationContent className="mx-auto max-w-2xl">
           {messages.length === 0 && !isStreaming && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Bot className="size-8 text-muted-foreground/50 mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Send a message to start the conversation.
-              </p>
-            </div>
+            <ConversationEmptyState
+              title="How can I help you?"
+              description="Send a message to start the conversation."
+              icon={
+                <MessageSquareIcon className="size-8 text-muted-foreground/40" />
+              }
+            />
           )}
           {messages.map((msg) => (
             <Message key={msg.id} from={msg.role}>
               <MessageContent>
-                {msg.parts.map((part, partIdx) => {
-                  if (part.type === 'text') {
-                    return (
-                      // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no unique id
-                      <MessageResponse key={`${msg.id}-${partIdx}`}>
-                        {part.text}
-                      </MessageResponse>
-                    );
+                <MessagePartsRenderer
+                  parts={
+                    msg.parts as Array<{
+                      type: string;
+                      text?: string;
+                      [key: string]: unknown;
+                    }>
                   }
-                  return null;
-                })}
+                  messageId={msg.id}
+                  onAction={(actionId) => {
+                    // Strip chat: prefix (used by WhatsApp convention) and
+                    // JSON.parse to recover the original clean action ID
+                    const text = actionId.startsWith('chat:')
+                      ? (JSON.parse(actionId.slice(5)) as string)
+                      : actionId;
+                    sendMessage({ text });
+                  }}
+                />
               </MessageContent>
             </Message>
           ))}
-          {showShimmer && (
-            <Message from="assistant">
-              <MessageContent>
-                <Shimmer className="text-sm" duration={1.5}>
-                  Thinking...
-                </Shimmer>
-              </MessageContent>
-            </Message>
-          )}
+          {showThinking && <ThinkingMessage />}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <div className="border-t p-4">
-        <div className="max-w-2xl mx-auto flex gap-2">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            rows={1}
-            className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <Button
-            size="icon"
-            disabled={!input.trim() || isStreaming}
-            onClick={handleSubmit}
-            className="shrink-0 self-end"
+
+      <div className="border-t bg-background px-4 pb-4 pt-3">
+        <div className="mx-auto max-w-2xl">
+          <PromptInput
+            onSubmit={({ text }) => {
+              if (!text.trim() || isStreaming) return;
+              sendMessage({ text });
+            }}
+            className="rounded-xl border bg-muted/30"
           >
-            {isStreaming ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Send className="size-4" />
-            )}
-          </Button>
+            <PromptInputTextarea placeholder="Type a message..." autoFocus />
+            <PromptInputFooter>
+              <PromptInputTools />
+              <PromptInputSubmit status={status} onStop={stop} />
+            </PromptInputFooter>
+          </PromptInput>
         </div>
       </div>
     </>
   );
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────
+// ─── Main Page ───────────────────────────────────────────────────────────
 
 function PublicChatPage() {
   const { endpointId } = useParams({ from: '/chat/$endpointId' });
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [errorRetryable, setErrorRetryable] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const initRef = useRef(false);
-
-  const initChat = useCallback(async () => {
-    if (initRef.current) return;
-    initRef.current = true;
-
-    try {
-      const visitorToken = getVisitorToken(endpointId);
-      const storedConvId = getStoredConversationId(endpointId);
-
-      // Try to resume existing conversation
-      if (storedConvId) {
-        try {
-          const res = await globalThis.fetch(
-            `/api/conversations/chat/${endpointId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
-          );
-          if (res.ok) {
-            const data: ConversationMessages = await res.json();
-            const uiMessages: UIMessage[] = data.messages.map((m) => ({
-              id: m.id,
-              role: m.role as 'user' | 'assistant',
-              parts: [{ type: 'text' as const, text: m.content }],
-              createdAt: new Date(m.createdAt),
-            }));
-            setConversationId(data.id);
-            setInitialMessages(uiMessages);
-            setLoading(false);
-            return;
-          }
-        } catch {
-          // Failed to resume — start fresh
-        }
-      }
-
-      // Start new conversation
-      const startRes = await globalThis.fetch(
-        `/api/conversations/chat/${endpointId}/start`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorToken }),
-        },
-      );
-
-      if (!startRes.ok) {
-        const errData = await startRes.json().catch(() => ({}));
-        const msg =
-          (errData as { message?: string }).message ?? 'Chat unavailable';
-        if (startRes.status === 404) {
-          setError('This chat is unavailable.');
-          setErrorRetryable(false);
-        } else {
-          setError(msg);
-          setErrorRetryable(true);
-        }
-        setLoading(false);
-        return;
-      }
-
-      const startData: StartResponse = await startRes.json();
-      storeConversationId(endpointId, startData.conversationId);
-      setConversationId(startData.conversationId);
-      setLoading(false);
-    } catch {
-      setError('Failed to connect to chat');
-      setLoading(false);
-    }
-  }, [endpointId]);
-
-  useEffect(() => {
-    initChat();
-  }, [initChat]);
+  const {
+    conversationId,
+    visitorToken,
+    initialMessages,
+    loading,
+    error,
+    errorRetryable,
+    retry,
+  } = usePublicChat(endpointId);
 
   if (loading) {
     return (
@@ -280,20 +157,11 @@ function PublicChatPage() {
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
-        <div className="text-center space-y-2">
+        <div className="space-y-3 text-center">
+          <Bot className="mx-auto size-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">{error}</p>
           {errorRetryable && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                initRef.current = false;
-                setError(null);
-                setErrorRetryable(true);
-                setLoading(true);
-                initChat();
-              }}
-            >
+            <Button variant="outline" size="sm" onClick={retry}>
               Retry
             </Button>
           )}
@@ -304,12 +172,9 @@ function PublicChatPage() {
 
   if (!conversationId) return null;
 
-  const visitorToken = getVisitorToken(endpointId);
-
   return (
     <div className="flex h-screen flex-col bg-background">
-      {/* Minimal header */}
-      <div className="border-b px-4 py-3 flex items-center gap-2">
+      <div className="flex items-center gap-2 border-b px-4 py-3">
         <Bot className="size-5 text-primary" />
         <span className="text-sm font-medium">Chat</span>
       </div>
