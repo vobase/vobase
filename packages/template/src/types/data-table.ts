@@ -1,11 +1,3 @@
-import type { RowData } from '@tanstack/react-table';
-
-declare module '@tanstack/react-table' {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface ColumnMeta<TData extends RowData, TValue> {
-    label?: string;
-    placeholder?: string;
-    variant?: 'text' | 'select' | 'multiSelect';
-    options?: { label: string; value: string; count?: number }[];
-  }
-}
+// ColumnMeta is augmented in src/lib/react-table.d.ts
+// This file re-exports the augmented module to avoid duplicate declarations.
+export {};

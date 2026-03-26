@@ -1,4 +1,5 @@
 import {
+  index,
   layout,
   physical,
   rootRoute,
@@ -13,20 +14,34 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'home.tsx'),
-    route('/sessions', '../modules/conversations/pages/sessions/layout.tsx', [
-      route('/', '../modules/conversations/pages/sessions/overview.tsx'),
+    route('/conversations', '../modules/conversations/pages/layout.tsx', [
+      route('/ai', '../modules/conversations/pages/ai/layout.tsx', [
+        route('/agents', '../modules/conversations/pages/ai/agents.tsx'),
+        route('/evals', '../modules/conversations/pages/ai/evals.tsx'),
+        route(
+          '/guardrails',
+          '../modules/conversations/pages/ai/guardrails.tsx',
+        ),
+        route('/memory', '../modules/conversations/pages/ai/memory.tsx'),
+      ]),
+      route('/sessions', '../modules/conversations/pages/sessions/layout.tsx', [
+        route(
+          '/overview',
+          '../modules/conversations/pages/sessions/overview.tsx',
+        ),
+        route(
+          '/$sessionId',
+          '../modules/conversations/pages/sessions/$sessionId.tsx',
+        ),
+      ]),
+      route('/channels', '../modules/conversations/pages/channels/layout.tsx', [
+        index('../modules/conversations/pages/channels/index.tsx'),
+      ]),
       route(
-        '/$sessionId',
-        '../modules/conversations/pages/sessions/$sessionId.tsx',
+        '/contacts/$contactId',
+        '../modules/conversations/pages/contacts/$contactId.tsx',
       ),
-    ]),
-    route('/contacts', '../modules/conversations/pages/contacts/list.tsx'),
-    route(
-      '/contacts/$contactId',
-      '../modules/conversations/pages/contacts/$contactId.tsx',
-    ),
-    route('/ai', '../modules/conversations/pages/ai/layout.tsx', [
-      physical('../modules/conversations/pages/ai/'),
+      route('/contacts', '../modules/conversations/pages/contacts/list.tsx'),
     ]),
     route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx', [
       physical('../modules/knowledge-base/pages/'),

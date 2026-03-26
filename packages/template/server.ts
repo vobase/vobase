@@ -19,7 +19,7 @@ try {
   const mastra = getMastra();
   const mastraServer = new MastraServer({
     // MastraServer expects its own Hono type; our app is compatible at runtime
-    app: app as unknown as Parameters<typeof MastraServer>[0]['app'],
+    app: app as unknown as ConstructorParameters<typeof MastraServer>[0]['app'],
     mastra,
     prefix: '/api/mastra',
   });

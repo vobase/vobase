@@ -1,5 +1,5 @@
 import type { Column } from "drizzle-orm";
-import type { PgDatabase } from "drizzle-orm/pg-core";
+import type { PgAsyncDatabase } from "drizzle-orm/pg-core";
 
 /**
  * Maps tableSchema field keys to Drizzle table columns.
@@ -15,7 +15,7 @@ import type { PgDatabase } from "drizzle-orm/pg-core";
  */
 export type ColumnMapping = Record<string, Column>;
 
-export type DrizzleDB = PgDatabase<any, any, any>;
+export type DrizzleDB = PgAsyncDatabase<any, any, any>;
 
 /** Sort descriptor matching the URL state shape. */
 export type SortDescriptor = { id: string; desc: boolean } | null;

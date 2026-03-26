@@ -51,11 +51,12 @@ export const sessionsTableSchema = {
     .defaultOpen()
     .sortable(),
   agentId: col
-    .string()
-    .label('Agent')
-    .filterable('checkbox', {
-      options: [{ label: 'Booking Assistant', value: 'booking' }],
+    .enum(['booking'] as const)
+    .label('AI Agent')
+    .display('badge', {
+      colorMap: { booking: '#8b5cf6' },
     })
+    .filterable('checkbox')
     .sortable(),
   channelInstanceId: col.string().label('Channel').notFilterable(),
   contactId: col.string().label('Contact').notFilterable().hidden(),

@@ -5,7 +5,6 @@ import { MailIcon, PhoneIcon } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { DataTableInfinite } from '@/components/data-table/data-table-infinite';
-import { PageHeader } from '@/components/page-header';
 import {
   createDataTableQueryOptions,
   getFacetedMinMaxValues,
@@ -93,7 +92,7 @@ function buildColumns(): ColumnDef<Contact>[] {
           const label = contact.name ?? contact.identifier ?? contact.id;
           return (
             <Link
-              to="/contacts/$contactId"
+              to="/conversations/contacts/$contactId"
               params={{ contactId: contact.id }}
               className="font-medium hover:underline underline-offset-2"
             >
@@ -192,7 +191,12 @@ function ContactsPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <PageHeader title="Contacts" />
+      <div>
+        <h2 className="text-lg font-semibold">Contacts</h2>
+        <p className="text-sm text-muted-foreground">
+          Manage your contact directory
+        </p>
+      </div>
       <DataTableStoreProvider adapter={adapter}>
         <ContactsTableInner />
       </DataTableStoreProvider>
@@ -200,6 +204,6 @@ function ContactsPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/contacts')({
+export const Route = createFileRoute('/_app/conversations/contacts')({
   component: ContactsPage,
 });

@@ -7,10 +7,10 @@ import {
 } from '@tanstack/react-router';
 
 const tabs = [
-  { label: 'Agents', to: '/ai/agents' },
-  { label: 'Evals', to: '/ai/evals' },
-  { label: 'Guardrails', to: '/ai/guardrails' },
-  { label: 'Memory', to: '/ai/memory' },
+  { label: 'AI Agents', to: '/conversations/ai/agents' },
+  { label: 'Evals', to: '/conversations/ai/evals' },
+  { label: 'Guardrails', to: '/conversations/ai/guardrails' },
+  { label: 'Memory', to: '/conversations/ai/memory' },
 ] as const;
 
 function AILayout() {
@@ -45,10 +45,11 @@ function AILayout() {
   );
 }
 
-export const Route = createFileRoute('/_app/ai')({
+// biome-ignore lint/suspicious/noExplicitAny: tsr generate doesn't register sub-layouts from virtual routes
+export const Route = createFileRoute('/_app/conversations/ai' as any)({
   beforeLoad: ({ location }) => {
-    if (location.pathname === '/ai') {
-      throw redirect({ to: '/ai/agents' });
+    if (location.pathname === '/conversations/ai') {
+      throw redirect({ to: '/conversations/ai/agents' });
     }
   },
   component: AILayout,
