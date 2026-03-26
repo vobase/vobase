@@ -204,6 +204,6 @@ function ContactsPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/conversations/contacts')({
+export const Route = createFileRoute('/_app/conversations/contacts/')({
   component: ContactsPage,
 });
