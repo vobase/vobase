@@ -4,7 +4,7 @@
 
 # AI-Native Messaging: Multi-Channel Agent + Conversations Workspace
 
-![Multi-Channel Agent](https://raw.githubusercontent.com/nicepkg/vobase/main/.changeset/og-multi-channel-agent-v0.12.0.png)
+![Multi-Channel Agent](https://raw.githubusercontent.com/vobase/vobase/main/.changeset/og-multi-channel-agent-v0.12.0.png)
 
 ## Overview
 
