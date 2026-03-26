@@ -121,7 +121,7 @@ export const processInboundJob = defineJob(
   'conversations:process-inbound',
   async (data) => {
     const { event, adapterName } = processInboundDataSchema.parse(data);
-    const deps = getConversationsDeps();
+    const _deps = getConversationsDeps();
 
     const { getChat } = await import('./lib/chat-init');
     const chat = getChat();
@@ -165,6 +165,7 @@ export const retryMemoryThreadJob = defineJob(
       await memory.saveThread({
         thread: {
           id: input.sessionId,
+          title: 'New conversation',
           resourceId: `contact:${input.contactId}`,
           createdAt: now,
           updatedAt: now,

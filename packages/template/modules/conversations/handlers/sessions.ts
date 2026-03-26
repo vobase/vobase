@@ -4,7 +4,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { getMemory } from '../../../mastra';
-import { outbox, sessions } from '../schema';
+import { enqueueMessage } from '../lib/outbox';
+import { channelInstances, consultations, outbox, sessions } from '../schema';
 
 const updateSessionSchema = z.object({
   status: z.enum(['paused', 'completed', 'failed']),
@@ -84,7 +85,23 @@ sessionsHandlers.get('/sessions/:id/messages', async (c) => {
     const memory = getMemory();
     const result = await memory.recall({ threadId: sessionId });
     if (result?.messages && result.messages.length > 0) {
-      return c.json({ messages: result.messages, source: 'memory' });
+      // Also fetch outbox records so the frontend can show delivery status
+      const outboxRecords = await db
+        .select({
+          id: outbox.id,
+          content: outbox.content,
+          status: outbox.status,
+          createdAt: outbox.createdAt,
+        })
+        .from(outbox)
+        .where(eq(outbox.sessionId, sessionId))
+        .orderBy(asc(outbox.createdAt));
+
+      return c.json({
+        messages: result.messages,
+        outboxRecords,
+        source: 'memory',
+      });
     }
   } catch {
     // Memory unavailable — fall through to outbox
@@ -107,6 +124,7 @@ sessionsHandlers.get('/sessions/:id/messages', async (c) => {
     role: 'assistant' as const,
     content: msg.content,
     createdAt: msg.createdAt,
+    deliveryStatus: msg.status,
   }));
 
   return c.json({ messages, source: 'outbox' });
@@ -147,4 +165,118 @@ sessionsHandlers.patch('/sessions/:id', async (c) => {
     .where(eq(sessions.id, sessionId));
 
   return c.json(updated);
+});
+
+const replySchema = z.object({
+  content: z.string().min(1),
+});
+
+/** POST /sessions/:id/reply — Human agent reply: save to memory + deliver via channel. */
+sessionsHandlers.post('/sessions/:id/reply', async (c) => {
+  const { db, user, scheduler } = getCtx(c);
+  if (!user) throw unauthorized();
+
+  const body = replySchema.parse(await c.req.json());
+  const sessionId = c.req.param('id');
+
+  const [session] = await db
+    .select({
+      id: sessions.id,
+      status: sessions.status,
+      contactId: sessions.contactId,
+      channelInstanceId: sessions.channelInstanceId,
+    })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId));
+
+  if (!session) throw notFound('Session not found');
+
+  if (session.status !== 'active' && session.status !== 'paused') {
+    throw notFound('Session is not active or paused');
+  }
+
+  let channelType = 'web';
+  if (session.channelInstanceId) {
+    const [instance] = await db
+      .select({ id: channelInstances.id, type: channelInstances.type })
+      .from(channelInstances)
+      .where(eq(channelInstances.id, session.channelInstanceId));
+    if (instance) channelType = instance.type;
+  }
+
+  // Save to Mastra Memory so it appears in the conversation transcript
+  const staffLabel = user.name ?? user.email;
+  const replyText = body.content;
+  try {
+    const memory = getMemory();
+    await memory.saveMessages({
+      messages: [
+        {
+          id: `staff-${Date.now()}`,
+          threadId: sessionId,
+          resourceId: `contact:${session.contactId}`,
+          role: 'assistant' as const,
+          createdAt: new Date(),
+          content: {
+            format: 2,
+            parts: [
+              { type: 'text', text: `[Staff: ${staffLabel}] ${replyText}` },
+            ],
+            content: `[Staff: ${staffLabel}] ${replyText}`,
+          },
+        } as unknown as Parameters<
+          typeof memory.saveMessages
+        >[0]['messages'][number],
+      ],
+    });
+  } catch (err) {
+    console.error('[conversations] Failed to save staff reply to memory:', err);
+  }
+
+  // For non-web channels, also enqueue for outbound delivery to the contact
+  if (channelType !== 'web') {
+    await enqueueMessage(db, scheduler, {
+      sessionId,
+      content: replyText,
+      channelType,
+      channelInstanceId: session.channelInstanceId ?? undefined,
+    });
+  }
+
+  return c.json({ success: true, channelType }, 201);
+});
+
+/** GET /sessions/:id/consultations — List consultations for a session. */
+sessionsHandlers.get('/sessions/:id/consultations', async (c) => {
+  const { db, user } = getCtx(c);
+  if (!user) throw unauthorized();
+
+  const sessionId = c.req.param('id');
+
+  const [session] = await db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId));
+
+  if (!session) throw notFound('Session not found');
+
+  const rows = await db
+    .select({
+      id: consultations.id,
+      sessionId: consultations.sessionId,
+      staffContactId: consultations.staffContactId,
+      channelType: consultations.channelType,
+      reason: consultations.reason,
+      summary: consultations.summary,
+      status: consultations.status,
+      requestedAt: consultations.requestedAt,
+      repliedAt: consultations.repliedAt,
+      timeoutMinutes: consultations.timeoutMinutes,
+      createdAt: consultations.createdAt,
+    })
+    .from(consultations)
+    .where(eq(consultations.sessionId, sessionId))
+    .orderBy(desc(consultations.createdAt));
+
+  return c.json(rows);
 });
