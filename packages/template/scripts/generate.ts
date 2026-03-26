@@ -148,9 +148,15 @@ async function main() {
     `Generated src/routes.ts with modules: ${modulesWithPages.join(', ') || '(none)'}`,
   );
 
-  // 2. Generate typed API client (all modules)
+  // 2. Generate typed API client (modules with index.ts = proper defineModule exports)
   const modulesDir = join(cwd, 'modules');
-  const allModules = await listModuleDirs(modulesDir);
+  const allDirs = await listModuleDirs(modulesDir);
+  const allModules: string[] = [];
+  for (const name of allDirs) {
+    if (await exists(join(modulesDir, name, 'index.ts'))) {
+      allModules.push(name);
+    }
+  }
   const apiTypesPath = join(cwd, 'src', 'api-types.generated.ts');
   await Bun.write(apiTypesPath, buildApiTypesSource(allModules));
   console.log(
