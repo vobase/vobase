@@ -5,12 +5,17 @@ import {
   unauthorized,
   validation,
 } from '@vobase/core';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { getAgent } from '../../../mastra/agents';
-import { channelInstances, endpoints, outbox, sessions } from '../schema';
+import {
+  channelInstances,
+  channelRoutings,
+  conversations,
+  outbox,
+} from '../schema';
 
 const createChannelInstanceSchema = z.object({
   type: z.string().min(1),
@@ -136,32 +141,39 @@ export const channelsHandlers = new Hono()
 
     if (!existing) throw notFound('Channel instance not found');
 
-    // M8: Prevent deletion if active sessions exist on endpoints bound to this instance
-    const activeSessions = await db
-      .select({ id: sessions.id })
-      .from(sessions)
-      .innerJoin(endpoints, eq(sessions.endpointId, endpoints.id))
+    // M8: Prevent deletion if active conversations exist on channel routings bound to this instance
+    const activeConversations = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .innerJoin(
+        channelRoutings,
+        eq(conversations.channelRoutingId, channelRoutings.id),
+      )
       .where(
         and(
-          eq(endpoints.channelInstanceId, instanceId),
-          eq(sessions.status, 'active'),
+          eq(channelRoutings.channelInstanceId, instanceId),
+          eq(conversations.status, 'active'),
         ),
       )
       .limit(1);
 
-    if (activeSessions.length > 0) {
-      throw conflict('Cannot delete channel instance with active sessions');
+    if (activeConversations.length > 0) {
+      throw conflict(
+        'Cannot delete channel instance with active conversations',
+      );
     }
 
-    // Clean up completed sessions and endpoints before deleting instance (FK safety)
-    const relatedEndpoints = await db
-      .select({ id: endpoints.id })
-      .from(endpoints)
-      .where(eq(endpoints.channelInstanceId, instanceId));
+    // Clean up completed conversations and channel routings before deleting instance (FK safety)
+    const relatedRoutings = await db
+      .select({ id: channelRoutings.id })
+      .from(channelRoutings)
+      .where(eq(channelRoutings.channelInstanceId, instanceId));
 
-    for (const ep of relatedEndpoints) {
-      await db.delete(sessions).where(eq(sessions.endpointId, ep.id));
-      await db.delete(endpoints).where(eq(endpoints.id, ep.id));
+    for (const ep of relatedRoutings) {
+      await db
+        .delete(conversations)
+        .where(eq(conversations.channelRoutingId, ep.id));
+      await db.delete(channelRoutings).where(eq(channelRoutings.id, ep.id));
     }
 
     await db
@@ -170,20 +182,20 @@ export const channelsHandlers = new Hono()
 
     return c.json({ success: true });
   })
-  /** GET /endpoints — List configured endpoints. */
-  .get('/endpoints', async (c) => {
+  /** GET /endpoints — List configured channel routings. */
+  .get('/channel-routings', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
     const rows = await db
       .select()
-      .from(endpoints)
-      .orderBy(desc(endpoints.createdAt));
+      .from(channelRoutings)
+      .orderBy(desc(channelRoutings.createdAt));
 
     return c.json(rows);
   })
-  /** POST /endpoints — Create an endpoint. */
-  .post('/endpoints', async (c) => {
+  /** POST /endpoints — Create a channel routing. */
+  .post('/channel-routings', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
@@ -195,7 +207,7 @@ export const channelsHandlers = new Hono()
       throw validation({ agentId: `Agent '${body.agentId}' not found` });
 
     const [row] = await db
-      .insert(endpoints)
+      .insert(channelRoutings)
       .values({
         name: body.name,
         channelInstanceId: body.channelInstanceId,
@@ -207,23 +219,23 @@ export const channelsHandlers = new Hono()
 
     return c.json(row, 201);
   })
-  /** PATCH /endpoints/:id — Update an endpoint. */
-  .patch('/endpoints/:id', async (c) => {
+  /** PATCH /endpoints/:id — Update a channel routing. */
+  .patch('/channel-routings/:id', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
     const body = updateEndpointSchema.parse(await c.req.json());
-    const endpointId = c.req.param('id');
+    const channelRoutingId = c.req.param('id');
 
     const [existing] = await db
       .select()
-      .from(endpoints)
-      .where(eq(endpoints.id, endpointId));
+      .from(channelRoutings)
+      .where(eq(channelRoutings.id, channelRoutingId));
 
-    if (!existing) throw notFound('Endpoint not found');
+    if (!existing) throw notFound('Channel routing not found');
 
     const [row] = await db
-      .update(endpoints)
+      .update(channelRoutings)
       .set({
         ...(body.name !== undefined && { name: body.name }),
         ...(body.channelInstanceId !== undefined && {
@@ -236,10 +248,44 @@ export const channelsHandlers = new Hono()
         ...(body.config !== undefined && { config: body.config }),
         ...(body.enabled !== undefined && { enabled: body.enabled }),
       })
-      .where(eq(endpoints.id, endpointId))
+      .where(eq(channelRoutings.id, channelRoutingId))
       .returning();
 
     return c.json(row);
+  })
+  /** GET /channels/status — List channel instances with active conversation counts. */
+  .get('/channels/status', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    // Two queries to avoid correlated subquery issues with Drizzle SQL templates
+    const instances = await db
+      .select()
+      .from(channelInstances)
+      .orderBy(channelInstances.type);
+
+    const conversationCounts = await db
+      .select({
+        channelInstanceId: conversations.channelInstanceId,
+        count: count(),
+      })
+      .from(conversations)
+      .where(eq(conversations.status, 'active'))
+      .groupBy(conversations.channelInstanceId);
+
+    const countMap = new Map(
+      conversationCounts.map((r) => [r.channelInstanceId, Number(r.count)]),
+    );
+
+    const channels = instances.map((inst) => ({
+      id: inst.id,
+      type: inst.type,
+      label: inst.label,
+      status: inst.status,
+      activeSessionCount: countMap.get(inst.id) ?? 0,
+    }));
+
+    return c.json({ channels });
   })
   /** POST /outbox/:id/retry — Retry a failed outbox message. */
   .post('/outbox/:id/retry', async (c) => {

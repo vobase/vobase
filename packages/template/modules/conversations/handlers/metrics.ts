@@ -1,0 +1,75 @@
+import { getCtx, unauthorized } from '@vobase/core';
+import { count, eq, sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+
+import { listAgents } from '../../../mastra/agents';
+import { conversations, outbox } from '../schema';
+
+export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
+  const { db, user } = getCtx(c);
+  if (!user) throw unauthorized();
+
+  const agents = listAgents();
+
+  // Active sessions per agent
+  const activeCounts = await db
+    .select({
+      agentId: conversations.agentId,
+      activeCount: count(),
+    })
+    .from(conversations)
+    .where(eq(conversations.status, 'active'))
+    .groupBy(conversations.agentId);
+
+  // Queued outbox per agent (via conversation join)
+  const queuedCounts = await db
+    .select({
+      agentId: conversations.agentId,
+      queuedCount: count(),
+    })
+    .from(outbox)
+    .innerJoin(conversations, eq(outbox.conversationId, conversations.id))
+    .where(eq(outbox.status, 'queued'))
+    .groupBy(conversations.agentId);
+
+  // Weighted success score per agent
+  // resolved=1.0, escalated_resolved=0.5, failed=0.0, abandoned=0.0
+  const successScores = await db
+    .select({
+      agentId: conversations.agentId,
+      score: sql<number>`
+          CASE WHEN COUNT(*) FILTER (WHERE ${conversations.resolutionOutcome} IS NOT NULL) = 0 THEN 0
+          ELSE (
+            COUNT(*) FILTER (WHERE ${conversations.resolutionOutcome} = 'resolved') * 1.0 +
+            COUNT(*) FILTER (WHERE ${conversations.resolutionOutcome} = 'escalated_resolved') * 0.5
+          ) / NULLIF(COUNT(*) FILTER (WHERE ${conversations.resolutionOutcome} IS NOT NULL), 0)
+          END
+        `.as('score'),
+    })
+    .from(conversations)
+    .where(sql`${conversations.status} IN ('completed', 'failed')`)
+    .groupBy(conversations.agentId);
+
+  // Merge results
+  const activeMap = new Map(
+    activeCounts.map((r) => [r.agentId, Number(r.activeCount)]),
+  );
+  const queuedMap = new Map(
+    queuedCounts.map((r) => [r.agentId, Number(r.queuedCount)]),
+  );
+  const scoreMap = new Map(
+    successScores.map((r) => [r.agentId, Number(r.score)]),
+  );
+
+  const metrics = agents.map((a) => ({
+    agentId: a.meta.id,
+    name: a.meta.name,
+    model: a.meta.model,
+    channels: a.meta.channels ?? ['web'],
+    activeCount: activeMap.get(a.meta.id) ?? 0,
+    queuedCount: queuedMap.get(a.meta.id) ?? 0,
+    successScore: scoreMap.get(a.meta.id) ?? 0,
+  }));
+
+  return c.json({ agents: metrics });
+});

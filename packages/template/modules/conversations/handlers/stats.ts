@@ -2,7 +2,7 @@ import { getCtx, unauthorized } from '@vobase/core';
 import { count, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
-import { consultations, sessions } from '../schema';
+import { consultations, conversations } from '../schema';
 
 export const statsHandlers = new Hono()
   /** GET /stats — Per-agent consultation count + error rate for dashboard. */
@@ -10,25 +10,30 @@ export const statsHandlers = new Hono()
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
-    // Per-agent session counts (total + failed)
-    const sessionStats = await db
+    // Per-agent conversation counts (total + failed)
+    const conversationStats = await db
       .select({
-        agentId: sessions.agentId,
+        agentId: conversations.agentId,
         total: count(),
-        failed: count(sql`CASE WHEN ${sessions.status} = 'failed' THEN 1 END`),
+        failed: count(
+          sql`CASE WHEN ${conversations.status} = 'failed' THEN 1 END`,
+        ),
       })
-      .from(sessions)
-      .groupBy(sessions.agentId);
+      .from(conversations)
+      .groupBy(conversations.agentId);
 
-    // Per-agent consultation counts (via session → consultation join)
+    // Per-agent consultation counts (via conversation → consultation join)
     const consultationStats = await db
       .select({
-        agentId: sessions.agentId,
+        agentId: conversations.agentId,
         consultations: count(),
       })
       .from(consultations)
-      .innerJoin(sessions, eq(consultations.sessionId, sessions.id))
-      .groupBy(sessions.agentId);
+      .innerJoin(
+        conversations,
+        eq(consultations.conversationId, conversations.id),
+      )
+      .groupBy(conversations.agentId);
 
     // Merge into a map
     const statsMap = new Map<
@@ -41,7 +46,7 @@ export const statsHandlers = new Hono()
       }
     >();
 
-    for (const row of sessionStats) {
+    for (const row of conversationStats) {
       statsMap.set(row.agentId, {
         total: Number(row.total),
         failed: Number(row.failed),

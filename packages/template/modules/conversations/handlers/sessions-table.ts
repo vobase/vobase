@@ -3,26 +3,26 @@ import { Hono } from 'hono';
 import SuperJSON from 'superjson';
 
 import { createDrizzleHandler } from '@/lib/drizzle';
-import { sessionsTableSchema } from '../lib/table-schemas';
-import { sessions } from '../schema';
+import { conversationsTableSchema } from '../lib/table-schemas';
+import { conversations } from '../schema';
 
-export const sessionsTableHandlers = new Hono().get('/data', async (c) => {
+export const conversationsTableHandlers = new Hono().get('/data', async (c) => {
   const { db, user } = getCtx(c);
   if (!user) throw unauthorized();
 
   const handler = createDrizzleHandler({
     // biome-ignore lint/suspicious/noExplicitAny: DrizzleDB generic mismatch with PGlite
     db: db as any,
-    table: sessions,
-    schema: sessionsTableSchema,
+    table: conversations,
+    schema: conversationsTableSchema,
     columnMapping: {
-      id: sessions.id,
-      status: sessions.status,
-      agentId: sessions.agentId,
-      channelInstanceId: sessions.channelInstanceId,
-      contactId: sessions.contactId,
-      startedAt: sessions.startedAt,
-      endedAt: sessions.endedAt,
+      id: conversations.id,
+      status: conversations.status,
+      agentId: conversations.agentId,
+      channelInstanceId: conversations.channelInstanceId,
+      contactId: conversations.contactId,
+      startedAt: conversations.startedAt,
+      endedAt: conversations.endedAt,
     },
     cursorColumn: 'startedAt',
     defaultSize: 40,
