@@ -50,7 +50,7 @@ interface ChannelInstance {
   createdAt: string;
 }
 
-interface Endpoint {
+interface ChannelRouting {
   id: string;
   name: string;
   channelInstanceId: string;
@@ -73,15 +73,29 @@ async function fetchInstances(): Promise<ChannelInstance[]> {
   return res.json() as unknown as Promise<ChannelInstance[]>;
 }
 
-async function fetchEndpoints(): Promise<Endpoint[]> {
-  const res = await conversationsClient.endpoints.$get();
-  if (!res.ok) throw new Error('Failed to fetch endpoints');
+async function fetchChannelRoutings(): Promise<ChannelRouting[]> {
+  const res = await conversationsClient['channel-routings'].$get();
+  if (!res.ok) throw new Error('Failed to fetch channel routings');
   return res.json();
 }
 
 async function fetchAgents(): Promise<Agent[]> {
   const res = await conversationsClient.agents.$get();
   if (!res.ok) return [];
+  return res.json();
+}
+
+interface ChannelStatus {
+  id: string;
+  type: string;
+  label: string;
+  status: string;
+  activeSessionCount: number;
+}
+
+async function fetchChannelStatus(): Promise<{ channels: ChannelStatus[] }> {
+  const res = await conversationsClient.channels.status.$get();
+  if (!res.ok) return { channels: [] };
   return res.json();
 }
 
@@ -105,14 +119,16 @@ async function deleteInstance(id: string): Promise<void> {
   }
 }
 
-async function createEndpoint(data: {
+async function createChannelRouting(data: {
   name: string;
   channelInstanceId: string;
   agentId: string;
   assignmentPattern: string;
-}): Promise<Endpoint> {
-  const res = await conversationsClient.endpoints.$post({ json: data });
-  if (!res.ok) throw new Error('Failed to create endpoint');
+}): Promise<ChannelRouting> {
+  const res = await conversationsClient['channel-routings'].$post({
+    json: data,
+  });
+  if (!res.ok) throw new Error('Failed to create channel routing');
   return res.json();
 }
 
@@ -227,9 +243,9 @@ function CreateInstanceDialog({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-// ─── Create Endpoint Dialog ──────────────────────────────────────────
+// ─── Create Channel Routing Dialog ───────────────────────────────────
 
-function CreateEndpointDialog({
+function CreateChannelRoutingDialog({
   instances,
   agents,
   onCreated,
@@ -246,7 +262,7 @@ function CreateEndpointDialog({
 
   const mutation = useMutation({
     mutationFn: () =>
-      createEndpoint({
+      createChannelRouting({
         name,
         channelInstanceId: instanceId,
         agentId,
@@ -266,12 +282,12 @@ function CreateEndpointDialog({
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5">
           <PlusIcon className="h-3.5 w-3.5" />
-          Add Endpoint
+          Add Channel Routing
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Endpoint</DialogTitle>
+          <DialogTitle>Add Channel Routing</DialogTitle>
           <DialogDescription>
             Connect a channel to an AI agent.
           </DialogDescription>
@@ -361,27 +377,40 @@ function ChannelsPage() {
     queryFn: fetchInstances,
   });
 
-  const { data: endpoints = [], isLoading: endpointsLoading } = useQuery({
-    queryKey: ['channel-endpoints'],
-    queryFn: fetchEndpoints,
-  });
+  const { data: channelRoutings = [], isLoading: channelRoutingsLoading } =
+    useQuery({
+      queryKey: ['channel-routings'],
+      queryFn: fetchChannelRoutings,
+    });
 
   const { data: agents = [] } = useQuery({
     queryKey: ['conversations-agents'],
     queryFn: fetchAgents,
   });
 
+  const { data: channelStatusData } = useQuery({
+    queryKey: ['conversations-channel-status'],
+    queryFn: fetchChannelStatus,
+  });
+
+  const sessionCountMap = new Map(
+    (channelStatusData?.channels ?? []).map((ch) => [
+      ch.id,
+      ch.activeSessionCount,
+    ]),
+  );
+
   const deleteMutation = useMutation({
     mutationFn: deleteInstance,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['channel-instances'] });
-      queryClient.invalidateQueries({ queryKey: ['channel-endpoints'] });
+      queryClient.invalidateQueries({ queryKey: ['channel-routings'] });
     },
   });
 
   function invalidateAll() {
     queryClient.invalidateQueries({ queryKey: ['channel-instances'] });
-    queryClient.invalidateQueries({ queryKey: ['channel-endpoints'] });
+    queryClient.invalidateQueries({ queryKey: ['channel-routings'] });
   }
 
   // Group instances by type
@@ -397,6 +426,8 @@ function ChannelsPage() {
 
   const agentMap = new Map(agents.map((a) => [a.id, a.name]));
   const instanceMap = new Map(instances.map((i) => [i.id, i]));
+  const endpointCount = (id: string) =>
+    channelRoutings.filter((cr) => cr.channelInstanceId === id).length;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -408,7 +439,7 @@ function ChannelsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CreateEndpointDialog
+          <CreateChannelRoutingDialog
             instances={instances}
             agents={agents}
             onCreated={invalidateAll}
@@ -451,8 +482,6 @@ function ChannelsPage() {
 
         {Object.entries(grouped).map(([type, list]) => {
           const Icon = channelIcon(type);
-          const endpointCount = (id: string) =>
-            endpoints.filter((ep) => ep.channelInstanceId === id).length;
 
           return (
             <div key={type} className="mb-4">
@@ -485,9 +514,14 @@ function ChannelsPage() {
                               {inst.source}
                             </Badge>
                             <span className="text-[10px] text-muted-foreground">
-                              {endpointCount(inst.id)} endpoint
+                              {endpointCount(inst.id)} routing
                               {endpointCount(inst.id) !== 1 ? 's' : ''}
                             </span>
+                            {(sessionCountMap.get(inst.id) ?? 0) > 0 && (
+                              <span className="text-[10px] font-medium text-foreground">
+                                {sessionCountMap.get(inst.id)} active
+                              </span>
+                            )}
                           </div>
                         </div>
                         <Button
@@ -511,24 +545,24 @@ function ChannelsPage() {
 
       <Separator />
 
-      {/* Endpoints */}
+      {/* Channel Routings */}
       <div>
         <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Endpoints
+          Channel Routings
         </h2>
 
-        {endpointsLoading && <Skeleton className="h-32 w-full" />}
+        {channelRoutingsLoading && <Skeleton className="h-32 w-full" />}
 
-        {!endpointsLoading && endpoints.length === 0 && (
+        {!channelRoutingsLoading && channelRoutings.length === 0 && (
           <div className="rounded-lg border bg-muted/20 py-6 text-center">
             <p className="text-sm text-muted-foreground">
-              No endpoints configured. Create one to connect a channel to an AI
-              agent.
+              No channel routings configured. Create one to connect a channel to
+              an AI agent.
             </p>
           </div>
         )}
 
-        {endpoints.length > 0 && (
+        {channelRoutings.length > 0 && (
           <div className="overflow-hidden rounded-md border">
             <table className="w-full text-sm">
               <thead>
@@ -554,42 +588,42 @@ function ChannelsPage() {
                 </tr>
               </thead>
               <tbody>
-                {endpoints.map((ep) => {
-                  const inst = instanceMap.get(ep.channelInstanceId);
+                {channelRoutings.map((cr) => {
+                  const inst = instanceMap.get(cr.channelInstanceId);
                   return (
                     <tr
-                      key={ep.id}
+                      key={cr.id}
                       className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                     >
-                      <td className="px-3 py-2.5 font-medium">{ep.name}</td>
+                      <td className="px-3 py-2.5 font-medium">{cr.name}</td>
                       <td className="px-3 py-2.5 text-muted-foreground">
                         {inst
                           ? `${inst.label} (${inst.type})`
-                          : ep.channelInstanceId}
+                          : cr.channelInstanceId}
                       </td>
                       <td className="px-3 py-2.5 text-muted-foreground">
-                        {agentMap.get(ep.agentId) ?? ep.agentId}
+                        {agentMap.get(cr.agentId) ?? cr.agentId}
                       </td>
                       <td className="px-3 py-2.5">
                         <Badge
                           variant="outline"
                           className="text-[10px] capitalize"
                         >
-                          {ep.assignmentPattern}
+                          {cr.assignmentPattern}
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5">
                         <Badge
-                          variant={ep.enabled ? 'success' : 'secondary'}
+                          variant={cr.enabled ? 'success' : 'secondary'}
                           className="text-[10px]"
                         >
-                          {ep.enabled ? 'Active' : 'Disabled'}
+                          {cr.enabled ? 'Active' : 'Disabled'}
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5">
                         {inst?.type === 'web' && (
                           <a
-                            href={`/chat/${ep.id}`}
+                            href={`/chat/${cr.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"

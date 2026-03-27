@@ -6,7 +6,7 @@ import {
 } from '@tanstack/virtual-file-routes';
 
 export const routes = rootRoute('root.tsx', [
-  route('/chat/$endpointId', 'chat.$endpointId.tsx'),
+  route('/chat/$channelRoutingId', 'chat.$channelRoutingId.tsx'),
   layout('auth', 'shell/auth/layout.tsx', [
     route('/login', 'shell/auth/login.tsx'),
     route('/signup', 'shell/auth/signup.tsx'),

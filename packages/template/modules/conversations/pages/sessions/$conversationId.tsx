@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   BotIcon,
   BrainIcon,
+  CheckIcon,
   ChevronRightIcon,
   CircleAlertIcon,
   CornerDownLeftIcon,
@@ -35,19 +36,22 @@ import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
-interface Session {
+interface ConversationDetail {
   id: string;
   agentId: string | null;
   contactId: string | null;
   channelInstanceId: string;
-  endpointId: string;
-  sessionType: string;
+  channelRoutingId: string;
+  conversationType: string;
   status: string;
   startedAt: string;
   endedAt: string | null;
   createdAt: string;
   updatedAt: string;
   metadata: Record<string, unknown>;
+  handler: 'ai' | 'human' | 'supervised' | 'paused' | null;
+  assignedUserId: string | null;
+  resolutionOutcome: string | null;
 }
 
 interface MemoryMessage {
@@ -82,7 +86,7 @@ interface MessagesResponse {
 
 interface Consultation {
   id: string;
-  sessionId: string;
+  conversationId: string;
   staffContactId: string;
   channelType: string;
   reason: string;
@@ -103,14 +107,16 @@ interface Contact {
 
 // ─── Data fetchers ───────────────────────────────────────────────────
 
-async function fetchSession(id: string): Promise<Session> {
-  const res = await conversationsClient.sessions[':id'].$get({ param: { id } });
-  if (!res.ok) throw new Error('Session not found');
-  return res.json() as unknown as Promise<Session>;
+async function fetchConversation(id: string): Promise<ConversationDetail> {
+  const res = await conversationsClient.conversations[':id'].$get({
+    param: { id },
+  });
+  if (!res.ok) throw new Error('Conversation not found');
+  return res.json() as unknown as Promise<ConversationDetail>;
 }
 
 async function fetchMessages(id: string): Promise<MessagesResponse> {
-  const res = await conversationsClient.sessions[':id'].messages.$get({
+  const res = await conversationsClient.conversations[':id'].messages.$get({
     param: { id },
   });
   if (!res.ok) return { messages: [] };
@@ -118,9 +124,11 @@ async function fetchMessages(id: string): Promise<MessagesResponse> {
 }
 
 async function fetchConsultations(id: string): Promise<Consultation[]> {
-  const res = await conversationsClient.sessions[':id'].consultations.$get({
-    param: { id },
-  });
+  const res = await conversationsClient.conversations[':id'].consultations.$get(
+    {
+      param: { id },
+    },
+  );
   if (!res.ok) return [];
   return res.json();
 }
@@ -176,11 +184,11 @@ async function fetchContactFacts(contactId: string): Promise<MemoryFact[]> {
     .map((f) => ({ id: f.id, content: f.fact, createdAt: f.createdAt }));
 }
 
-async function updateSessionStatus(
+async function updateConversationStatus(
   id: string,
   status: 'paused' | 'completed' | 'failed',
-): Promise<Session> {
-  const res = await conversationsClient.sessions[':id'].$patch(
+): Promise<ConversationDetail> {
+  const res = await conversationsClient.conversations[':id'].$patch(
     { param: { id } },
     {
       init: {
@@ -189,13 +197,16 @@ async function updateSessionStatus(
       },
     },
   );
-  if (!res.ok) throw new Error('Failed to update session');
-  return res.json() as unknown as Promise<Session>;
+  if (!res.ok) throw new Error('Failed to update conversation');
+  return res.json() as unknown as Promise<ConversationDetail>;
 }
 
-async function sendReply(sessionId: string, content: string): Promise<unknown> {
-  const res = await conversationsClient.sessions[':id'].reply.$post(
-    { param: { id: sessionId } },
+async function sendReply(
+  conversationId: string,
+  content: string,
+): Promise<unknown> {
+  const res = await conversationsClient.conversations[':id'].reply.$post(
+    { param: { id: conversationId } },
     {
       init: {
         body: JSON.stringify({ content }),
@@ -285,6 +296,18 @@ function consultationStatusVariant(
   return 'secondary';
 }
 
+function handlerVariant(handler: string): 'default' | 'secondary' | 'outline' {
+  if (handler === 'ai') return 'default';
+  if (handler === 'paused') return 'secondary';
+  return 'outline'; // human, supervised
+}
+
+function handlerColor(handler: string): string {
+  if (handler === 'human') return 'text-orange-600 dark:text-orange-400';
+  if (handler === 'supervised') return 'text-yellow-600 dark:text-yellow-400';
+  return '';
+}
+
 function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
@@ -301,23 +324,23 @@ function formatRelativeTime(dateStr: string): string {
 // ─── Human Reply Input ───────────────────────────────────────────────
 
 function HumanReplyInput({
-  sessionId,
+  conversationId,
   onSent,
 }: {
-  sessionId: string;
+  conversationId: string;
   onSent: () => void;
 }) {
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const replyMutation = useMutation({
-    mutationFn: (text: string) => sendReply(sessionId, text),
+    mutationFn: (text: string) => sendReply(conversationId, text),
     onSuccess: () => {
       setContent('');
       onSent();
     },
     onError: (err) => {
-      console.error('[session-reply] Failed:', err);
+      console.error('[conversation-reply] Failed:', err);
     },
   });
 
@@ -407,73 +430,114 @@ function ConsultationCard({ consultation }: { consultation: Consultation }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
-function SessionDetailPage() {
-  const { sessionId } = Route.useParams();
+function ConversationDetailPage() {
+  const { conversationId } = Route.useParams();
   const queryClient = useQueryClient();
 
   const {
-    data: session,
-    isLoading: sessionLoading,
-    isError: sessionError,
+    data: conversation,
+    isLoading: conversationLoading,
+    isError: conversationError,
   } = useQuery({
-    queryKey: ['conversations-sessions', sessionId],
-    queryFn: () => fetchSession(sessionId),
+    queryKey: ['conversations-list', conversationId],
+    queryFn: () => fetchConversation(conversationId),
   });
 
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
-    queryKey: ['conversations-messages', sessionId],
-    queryFn: () => fetchMessages(sessionId),
-    enabled: !!session,
+    queryKey: ['conversations-messages', conversationId],
+    queryFn: () => fetchMessages(conversationId),
+    enabled: !!conversation,
   });
 
   const { data: consultations = [] } = useQuery({
-    queryKey: ['conversations-consultations', sessionId],
-    queryFn: () => fetchConsultations(sessionId),
-    enabled: !!session,
+    queryKey: ['conversations-consultations', conversationId],
+    queryFn: () => fetchConsultations(conversationId),
+    enabled: !!conversation,
   });
 
   const { data: contact } = useQuery({
-    queryKey: ['contacts', session?.contactId],
-    queryFn: () => fetchContact(session?.contactId ?? ''),
-    enabled: !!session?.contactId,
+    queryKey: ['contacts', conversation?.contactId],
+    queryFn: () => fetchContact(conversation?.contactId ?? ''),
+    enabled: !!conversation?.contactId,
   });
 
   const { data: channelInstance } = useQuery({
-    queryKey: ['channel-instance', session?.channelInstanceId],
-    queryFn: () => fetchChannelInstance(session?.channelInstanceId ?? ''),
-    enabled: !!session?.channelInstanceId,
+    queryKey: ['channel-instance', conversation?.channelInstanceId],
+    queryFn: () => fetchChannelInstance(conversation?.channelInstanceId ?? ''),
+    enabled: !!conversation?.channelInstanceId,
   });
 
   const { data: memoryStats } = useQuery({
-    queryKey: ['memory-stats', `contact:${session?.contactId}`],
-    queryFn: () => fetchContactMemoryStats(session?.contactId ?? ''),
-    enabled: !!session?.contactId,
+    queryKey: ['memory-stats', `contact:${conversation?.contactId}`],
+    queryFn: () => fetchContactMemoryStats(conversation?.contactId ?? ''),
+    enabled: !!conversation?.contactId,
   });
 
   const { data: memoryFacts = [] } = useQuery({
-    queryKey: ['memory-facts', `contact:${session?.contactId}`],
-    queryFn: () => fetchContactFacts(session?.contactId ?? ''),
-    enabled: !!session?.contactId && (memoryStats?.facts ?? 0) > 0,
+    queryKey: ['memory-facts', `contact:${conversation?.contactId}`],
+    queryFn: () => fetchContactFacts(conversation?.contactId ?? ''),
+    enabled: !!conversation?.contactId && (memoryStats?.facts ?? 0) > 0,
   });
 
   const updateMutation = useMutation({
     mutationFn: (status: 'paused' | 'completed' | 'failed') =>
-      updateSessionStatus(sessionId, status),
+      updateConversationStatus(conversationId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['conversations-sessions', sessionId],
+        queryKey: ['conversations-list', conversationId],
       });
-      queryClient.invalidateQueries({ queryKey: ['conversations-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-list'] });
+    },
+  });
+
+  const handbackMutation = useMutation({
+    mutationFn: async () => {
+      const res = await conversationsClient.conversations[':id'].handback.$post(
+        {
+          param: { id: conversationId },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to hand back');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['conversations-list', conversationId],
+      });
+    },
+  });
+
+  const [approveDraftError, setApproveDraftError] = useState<string | null>(
+    null,
+  );
+  const approveDraftMutation = useMutation({
+    mutationFn: async () => {
+      const res = await conversationsClient.conversations[':id'][
+        'approve-draft'
+      ].$post({ param: { id: conversationId } });
+      if (res.status === 404) throw new Error('No draft to approve');
+      if (res.status === 409) throw new Error('Draft already approved');
+      if (!res.ok) throw new Error('Failed to approve draft');
+      return res.json();
+    },
+    onSuccess: () => {
+      setApproveDraftError(null);
+      queryClient.invalidateQueries({
+        queryKey: ['conversations-list', conversationId],
+      });
+    },
+    onError: (err: Error) => {
+      setApproveDraftError(err.message);
     },
   });
 
   function invalidateMessages() {
     queryClient.invalidateQueries({
-      queryKey: ['conversations-messages', sessionId],
+      queryKey: ['conversations-messages', conversationId],
     });
   }
 
-  if (sessionLoading) {
+  if (conversationLoading) {
     return (
       <div className="flex h-full">
         <div className="flex-1 p-6">
@@ -487,10 +551,10 @@ function SessionDetailPage() {
     );
   }
 
-  if (sessionError || !session) {
+  if (conversationError || !conversation) {
     return (
       <div className="p-6">
-        <p className="text-sm text-destructive">Session not found.</p>
+        <p className="text-sm text-destructive">Conversation not found.</p>
         <Link
           to="/conversations/sessions/overview"
           className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -507,7 +571,7 @@ function SessionDetailPage() {
     (messagesData?.outboxRecords ?? []).map((r) => [r.content, r.status]),
   );
   const isTerminal =
-    session.status === 'completed' || session.status === 'failed';
+    conversation.status === 'completed' || conversation.status === 'failed';
   const canReply = !isTerminal;
 
   return (
@@ -525,7 +589,7 @@ function SessionDetailPage() {
             </Link>
             <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" />
             <span className="text-foreground font-medium font-mono text-xs truncate">
-              {session.id}
+              {conversation.id}
             </span>
             {channelInstance && (
               <Badge
@@ -548,7 +612,37 @@ function SessionDetailPage() {
             )}
             {!isTerminal && (
               <>
-                {session.status === 'active' && (
+                {(conversation.handler === 'human' ||
+                  conversation.handler === 'supervised') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    disabled={handbackMutation.isPending}
+                    onClick={() => handbackMutation.mutate()}
+                  >
+                    <BotIcon className="h-3.5 w-3.5" />
+                    Hand Back to AI
+                  </Button>
+                )}
+                {conversation.handler === 'supervised' && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    disabled={approveDraftMutation.isPending}
+                    onClick={() => approveDraftMutation.mutate()}
+                  >
+                    <CheckIcon className="h-3.5 w-3.5" />
+                    Approve Draft
+                  </Button>
+                )}
+                {approveDraftError && (
+                  <span className="text-[10px] text-destructive">
+                    {approveDraftError}
+                  </span>
+                )}
+                {conversation.status === 'active' && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -682,11 +776,14 @@ function SessionDetailPage() {
 
         {/* Human reply input */}
         {canReply && (
-          <HumanReplyInput sessionId={sessionId} onSent={invalidateMessages} />
+          <HumanReplyInput
+            conversationId={conversationId}
+            onSent={invalidateMessages}
+          />
         )}
 
-        {/* Failed session alert */}
-        {session.status === 'failed' && (
+        {/* Failed conversation alert */}
+        {conversation.status === 'failed' && (
           <div className="flex items-center gap-2 border-t bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
             <CircleAlertIcon className="h-4 w-4 shrink-0" />
             This conversation has failed and cannot be resumed.
@@ -703,11 +800,23 @@ function SessionDetailPage() {
               Status
             </p>
             <Badge
-              variant={statusVariant(session.status)}
+              variant={statusVariant(conversation.status)}
               className="capitalize"
             >
-              {session.status}
+              {conversation.status}
             </Badge>
+            {/* Handler Mode */}
+            {conversation.handler && (
+              <Badge
+                variant={handlerVariant(conversation.handler)}
+                className={cn(
+                  'capitalize mt-1',
+                  handlerColor(conversation.handler),
+                )}
+              >
+                {conversation.handler === 'ai' ? 'AI' : conversation.handler}
+              </Badge>
+            )}
           </div>
 
           <Separator />
@@ -735,9 +844,9 @@ function SessionDetailPage() {
                   </p>
                 </div>
               </Link>
-            ) : session.contactId ? (
+            ) : conversation.contactId ? (
               <p className="text-xs text-muted-foreground font-mono">
-                {session.contactId}
+                {conversation.contactId}
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">No contact</p>
@@ -752,19 +861,31 @@ function SessionDetailPage() {
               Details
             </p>
             <div className="space-y-1.5">
-              <DetailRow label="AI Agent" value={session.agentId ?? '—'} />
-              <DetailRow label="Type" value={session.sessionType} />
+              <DetailRow label="AI Agent" value={conversation.agentId ?? '—'} />
+              <DetailRow label="Type" value={conversation.conversationType} />
               <DetailRow
                 label="Started"
-                value={new Date(session.startedAt).toLocaleString()}
+                value={new Date(conversation.startedAt).toLocaleString()}
               />
-              {session.endedAt && (
+              {conversation.endedAt && (
                 <DetailRow
                   label="Ended"
-                  value={new Date(session.endedAt).toLocaleString()}
+                  value={new Date(conversation.endedAt).toLocaleString()}
                 />
               )}
               <DetailRow label="Messages" value={String(messages.length)} />
+              {conversation.assignedUserId && (
+                <DetailRow
+                  label="Assigned To"
+                  value={conversation.assignedUserId}
+                />
+              )}
+              {conversation.resolutionOutcome && (
+                <DetailRow
+                  label="Resolution"
+                  value={conversation.resolutionOutcome}
+                />
+              )}
             </div>
           </div>
 
@@ -788,7 +909,7 @@ function SessionDetailPage() {
           )}
 
           {/* Contact Memory */}
-          {session.contactId &&
+          {conversation.contactId &&
             memoryStats &&
             (memoryStats.facts > 0 ||
               memoryStats.episodes > 0 ||
@@ -839,7 +960,7 @@ function SessionDetailPage() {
                     )}
                     <Link
                       to="/conversations/contacts/$contactId"
-                      params={{ contactId: session.contactId }}
+                      params={{ contactId: conversation.contactId }}
                       className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
                     >
                       View all memory &rarr;
@@ -865,8 +986,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export const Route = createFileRoute('/_app/conversations/sessions/$sessionId')(
-  {
-    component: SessionDetailPage,
-  },
-);
+export const Route = createFileRoute(
+  '/_app/conversations/sessions/$conversationId',
+)({
+  component: ConversationDetailPage,
+});

@@ -28,12 +28,13 @@ export interface UsePublicChatResult {
   error: string | null;
   errorRetryable: boolean;
   retry: () => void;
+  reset: () => Promise<void>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-export function getVisitorToken(endpointId: string): string {
-  const key = `vobase-visitor-${endpointId}`;
+export function getVisitorToken(channelRoutingId: string): string {
+  const key = `vobase-visitor-${channelRoutingId}`;
   let token = localStorage.getItem(key);
   if (!token) {
     token = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -42,20 +43,22 @@ export function getVisitorToken(endpointId: string): string {
   return token;
 }
 
-export function getStoredConversationId(endpointId: string): string | null {
-  return localStorage.getItem(`vobase-conv-${endpointId}`);
+export function getStoredConversationId(
+  channelRoutingId: string,
+): string | null {
+  return localStorage.getItem(`vobase-conv-${channelRoutingId}`);
 }
 
 export function storeConversationId(
-  endpointId: string,
+  channelRoutingId: string,
   conversationId: string,
 ) {
-  localStorage.setItem(`vobase-conv-${endpointId}`, conversationId);
+  localStorage.setItem(`vobase-conv-${channelRoutingId}`, conversationId);
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────
 
-export function usePublicChat(endpointId: string): UsePublicChatResult {
+export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -68,15 +71,15 @@ export function usePublicChat(endpointId: string): UsePublicChatResult {
     initRef.current = true;
 
     try {
-      const visitorToken = getVisitorToken(endpointId);
-      const storedConvId = getStoredConversationId(endpointId);
+      const visitorToken = getVisitorToken(channelRoutingId);
+      const storedConvId = getStoredConversationId(channelRoutingId);
 
       // Try to resume existing conversation
       if (storedConvId) {
         try {
           // biome-ignore lint/style/noRestrictedGlobals: Public chat routes lack Hono validators for typed RPC
           const res = await fetch(
-            `/api/conversations/chat/${endpointId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
+            `/api/conversations/chat/${channelRoutingId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
           );
           if (res.ok) {
             const data: ConversationMessages = await res.json();
@@ -99,7 +102,7 @@ export function usePublicChat(endpointId: string): UsePublicChatResult {
       // Start new conversation
       // biome-ignore lint/style/noRestrictedGlobals: Public chat routes lack Hono validators for typed RPC
       const startRes = await fetch(
-        `/api/conversations/chat/${endpointId}/start`,
+        `/api/conversations/chat/${channelRoutingId}/start`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -123,14 +126,14 @@ export function usePublicChat(endpointId: string): UsePublicChatResult {
       }
 
       const startData: StartResponse = await startRes.json();
-      storeConversationId(endpointId, startData.conversationId);
+      storeConversationId(channelRoutingId, startData.conversationId);
       setConversationId(startData.conversationId);
       setLoading(false);
     } catch {
       setError('Failed to connect to chat');
       setLoading(false);
     }
-  }, [endpointId]);
+  }, [channelRoutingId]);
 
   const retry = useCallback(() => {
     initRef.current = false;
@@ -140,11 +143,45 @@ export function usePublicChat(endpointId: string): UsePublicChatResult {
     initChat();
   }, [initChat]);
 
+  const reset = useCallback(async () => {
+    const visitorToken = getVisitorToken(channelRoutingId);
+    try {
+      setLoading(true);
+      setError(null);
+      // biome-ignore lint/style/noRestrictedGlobals: Public chat routes lack Hono validators for typed RPC
+      const res = await fetch(
+        `/api/conversations/chat/${channelRoutingId}/reset`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitorToken }),
+        },
+      );
+
+      if (!res.ok) {
+        setError('Failed to reset conversation');
+        setErrorRetryable(true);
+        setLoading(false);
+        return;
+      }
+
+      const data: StartResponse = await res.json();
+      storeConversationId(channelRoutingId, data.conversationId);
+      setConversationId(data.conversationId);
+      setInitialMessages([]);
+      setLoading(false);
+    } catch {
+      setError('Failed to reset conversation');
+      setErrorRetryable(true);
+      setLoading(false);
+    }
+  }, [channelRoutingId]);
+
   useEffect(() => {
     initChat();
   }, [initChat]);
 
-  const visitorToken = getVisitorToken(endpointId);
+  const visitorToken = getVisitorToken(channelRoutingId);
 
   return {
     conversationId,
@@ -154,5 +191,6 @@ export function usePublicChat(endpointId: string): UsePublicChatResult {
     error,
     errorRetryable,
     retry,
+    reset,
   };
 }

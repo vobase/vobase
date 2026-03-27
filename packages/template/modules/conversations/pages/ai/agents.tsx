@@ -48,7 +48,7 @@ async function fetchAgents(): Promise<Agent[]> {
 }
 
 async function fetchConversations(): Promise<Thread[]> {
-  const res = await conversationsClient.sessions.$get();
+  const res = await conversationsClient.conversations.$get();
   if (!res.ok) throw new Error('Failed to fetch conversations');
   return res.json() as unknown as Promise<Thread[]>;
 }
@@ -281,8 +281,8 @@ function AgentsPage() {
     onSuccess: (conversation) => {
       setSelectedAgent(null);
       navigate({
-        to: '/conversations/sessions/$sessionId',
-        params: { sessionId: conversation.id },
+        to: '/conversations/sessions/$conversationId',
+        params: { conversationId: conversation.id },
       });
     },
   });

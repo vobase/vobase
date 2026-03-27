@@ -35,11 +35,11 @@ interface Contact {
   updatedAt: string;
 }
 
-interface Session {
+interface Conversation {
   id: string;
   agentId: string | null;
   channelInstanceId: string;
-  sessionType: string;
+  conversationType: string;
   status: string;
   startedAt: string;
   endedAt: string | null;
@@ -73,10 +73,14 @@ async function fetchContact(id: string): Promise<Contact> {
   return res.json() as unknown as Promise<Contact>;
 }
 
-async function fetchContactSessions(contactId: string): Promise<Session[]> {
-  const res = await conversationsClient.sessions.$get({ query: { contactId } });
+async function fetchContactConversations(
+  contactId: string,
+): Promise<Conversation[]> {
+  const res = await conversationsClient.conversations.$get({
+    query: { contactId },
+  });
   if (!res.ok) return [];
-  return res.json() as unknown as Promise<Session[]>;
+  return res.json() as unknown as Promise<Conversation[]>;
 }
 
 async function fetchMemoryStats(contactId: string): Promise<MemoryStats> {
@@ -96,6 +100,17 @@ async function fetchMemoryEpisodes(
   if (!res.ok) return [];
   const data = (await res.json()) as unknown as { episodes?: MemoryEpisode[] };
   return data.episodes ?? [];
+}
+
+async function fetchWorkingMemory(contactId: string): Promise<string | null> {
+  const res = await aiClient.memory.working.$get({
+    query: { scope: `contact:${contactId}` },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as unknown as {
+    workingMemory: string | null;
+  };
+  return data.workingMemory ?? null;
 }
 
 async function fetchMemoryFacts(contactId: string): Promise<MemoryFact[]> {
@@ -242,10 +257,10 @@ function OverviewTab({ contact }: { contact: Contact }) {
 
 // ─── Sessions Tab ────────────────────────────────────────────────────
 
-function SessionsTab({ contactId }: { contactId: string }) {
-  const { data: sessions = [], isLoading } = useQuery({
-    queryKey: ['conversations-sessions', { contactId }],
-    queryFn: () => fetchContactSessions(contactId),
+function ConversationsTab({ contactId }: { contactId: string }) {
+  const { data: conversations = [], isLoading } = useQuery({
+    queryKey: ['conversations-list', { contactId }],
+    queryFn: () => fetchContactConversations(contactId),
   });
 
   if (isLoading) {
@@ -258,7 +273,7 @@ function SessionsTab({ contactId }: { contactId: string }) {
     );
   }
 
-  if (sessions.length === 0) {
+  if (conversations.length === 0) {
     return (
       <div className="rounded-lg border bg-muted/20 py-8 text-center">
         <p className="text-sm text-muted-foreground">No conversations yet.</p>
@@ -287,32 +302,32 @@ function SessionsTab({ contactId }: { contactId: string }) {
           </tr>
         </thead>
         <tbody>
-          {sessions.map((session) => (
+          {conversations.map((conversation) => (
             <tr
-              key={session.id}
+              key={conversation.id}
               className="border-b last:border-0 hover:bg-muted/30 transition-colors"
             >
               <td className="px-3 py-2.5">
                 <Badge
-                  variant={statusVariant(session.status)}
+                  variant={statusVariant(conversation.status)}
                   className="capitalize text-[10px]"
                 >
-                  {session.status}
+                  {conversation.status}
                 </Badge>
               </td>
               <td className="px-3 py-2.5 text-muted-foreground text-xs">
-                {session.agentId ?? '—'}
+                {conversation.agentId ?? '—'}
               </td>
               <td className="px-3 py-2.5 text-muted-foreground text-xs capitalize">
-                {session.sessionType}
+                {conversation.conversationType}
               </td>
               <td className="px-3 py-2.5 text-muted-foreground text-xs">
-                {formatDateTime(session.startedAt)}
+                {formatDateTime(conversation.startedAt)}
               </td>
               <td className="px-3 py-2.5 text-right">
                 <Link
-                  to="/conversations/sessions/$sessionId"
-                  params={{ sessionId: session.id }}
+                  to="/conversations/sessions/$conversationId"
+                  params={{ conversationId: conversation.id }}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   View
@@ -344,6 +359,11 @@ function MemoryTab({ contactId }: { contactId: string }) {
     queryFn: () => fetchMemoryFacts(contactId),
   });
 
+  const { data: workingMemory } = useQuery({
+    queryKey: ['memory-working', `contact:${contactId}`],
+    queryFn: () => fetchWorkingMemory(contactId),
+  });
+
   const statCards = [
     { label: 'Facts', value: stats?.facts ?? 0, icon: BrainIcon },
     { label: 'Episodes', value: stats?.episodes ?? 0, icon: BookOpenIcon },
@@ -352,7 +372,8 @@ function MemoryTab({ contactId }: { contactId: string }) {
 
   const isEmpty =
     !statsLoading &&
-    (stats?.facts ?? 0) + (stats?.episodes ?? 0) + (stats?.cells ?? 0) === 0;
+    (stats?.facts ?? 0) + (stats?.episodes ?? 0) + (stats?.cells ?? 0) === 0 &&
+    !workingMemory;
 
   return (
     <div className="space-y-5">
@@ -390,6 +411,28 @@ function MemoryTab({ contactId }: { contactId: string }) {
           <p className="text-xs text-muted-foreground mt-1">
             Memory is built from conversations with AI agents.
           </p>
+        </div>
+      )}
+
+      {/* Working Memory (Mastra) */}
+      {workingMemory && (
+        <div>
+          <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+            Working Memory
+          </h4>
+          <Card>
+            <CardContent className="py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <BrainIcon className="h-3.5 w-3.5 text-primary/60" />
+                <span className="text-[10px] text-muted-foreground">
+                  Agent's live context for this contact
+                </span>
+              </div>
+              <pre className="text-xs text-foreground whitespace-pre-wrap leading-relaxed bg-muted/50 rounded-md p-2.5 overflow-auto max-h-64">
+                {workingMemory}
+              </pre>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -540,7 +583,7 @@ function ContactDetailPage() {
 
       {/* Tab content */}
       {activeTab === 'overview' && <OverviewTab contact={contact} />}
-      {activeTab === 'sessions' && <SessionsTab contactId={contact.id} />}
+      {activeTab === 'sessions' && <ConversationsTab contactId={contact.id} />}
       {activeTab === 'memory' && <MemoryTab contactId={contact.id} />}
     </div>
   );

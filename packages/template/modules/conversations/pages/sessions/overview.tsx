@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
-import { BotIcon, RefreshCwIcon, UsersIcon } from 'lucide-react';
+import { BotIcon, RefreshCwIcon } from 'lucide-react';
 import { useMemo } from 'react';
 
 import {
@@ -34,7 +34,7 @@ import {
   generateFilterSchema,
   getDefaultColumnVisibility,
 } from '@/lib/table-schema';
-import { sessionsTableSchema } from '../../lib/table-schemas';
+import { conversationsTableSchema } from '../../lib/table-schemas';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -45,14 +45,14 @@ interface Agent {
   channels?: string[];
 }
 
-interface Session {
+interface Conversation {
   id: string;
   agentId: string;
   contactId: string;
   channelInstanceId: string;
-  endpointId: string;
+  channelRoutingId: string;
   status: string;
-  sessionType: string;
+  conversationType: string;
   startedAt: string;
   endedAt: string | null;
   createdAt: string;
@@ -60,14 +60,17 @@ interface Session {
   metadata: Record<string, unknown>;
 }
 
-interface AgentStats {
-  total: number;
-  failed: number;
-  consultations: number;
-  errorRate: number;
+interface AgentMetric {
+  agentId: string;
+  name: string;
+  model: string;
+  channels: string[];
+  activeCount: number;
+  queuedCount: number;
+  successScore: number;
 }
 
-// ─── Data fetchers (agents + stats remain separate) ──────────────────
+// ─── Data fetchers ────────────────────────────────────────────────────
 
 async function fetchAgents(): Promise<Agent[]> {
   const res = await conversationsClient.agents.$get();
@@ -75,15 +78,15 @@ async function fetchAgents(): Promise<Agent[]> {
   return res.json();
 }
 
-async function fetchStats(): Promise<Record<string, AgentStats>> {
-  const res = await conversationsClient.stats.$get();
-  if (!res.ok) throw new Error('Failed to fetch stats');
-  return res.json();
+async function fetchAgentMetrics(): Promise<{ agents: AgentMetric[] }> {
+  const res = await conversationsClient.agents.metrics.$get();
+  if (!res.ok) throw new Error('Failed to fetch metrics');
+  return res.json() as unknown as Promise<{ agents: AgentMetric[] }>;
 }
 
-async function pauseSession(sessionId: string): Promise<void> {
-  const res = await conversationsClient.sessions[':id'].$patch(
-    { param: { id: sessionId } },
+async function pauseConversation(conversationId: string): Promise<void> {
+  const res = await conversationsClient.conversations[':id'].$patch(
+    { param: { id: conversationId } },
     {
       init: {
         body: JSON.stringify({ status: 'paused' }),
@@ -91,7 +94,7 @@ async function pauseSession(sessionId: string): Promise<void> {
       },
     },
   );
-  if (!res.ok) throw new Error('Failed to pause session');
+  if (!res.ok) throw new Error('Failed to pause conversation');
 }
 
 async function retryOutboxMessage(outboxId: string): Promise<void> {
@@ -116,17 +119,17 @@ function deriveChannel(channelInstanceId: string): string {
   return channelInstanceId;
 }
 
-function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
 // ─── Schema-driven generation ────────────────────────────────────────
 
-const filterFields = generateFilterFields<Session>(sessionsTableSchema);
-const filterSchema = generateFilterSchema(sessionsTableSchema, {
+const filterFields = generateFilterFields<Conversation>(
+  conversationsTableSchema,
+);
+const filterSchema = generateFilterSchema(conversationsTableSchema, {
   sort: field.sort(),
 });
-const defaultColumnVisibility = getDefaultColumnVisibility(sessionsTableSchema);
+const defaultColumnVisibility = getDefaultColumnVisibility(
+  conversationsTableSchema,
+);
 
 // ─── Search params serializer ────────────────────────────────────────
 
@@ -155,9 +158,12 @@ const searchParamsSerializer = (search: Record<string, unknown>) => {
 
 // ─── Query options factory ───────────────────────────────────────────
 
-const sessionsQueryOptions = createDataTableQueryOptions<Session[], unknown>({
-  queryKeyPrefix: 'sessions-table',
-  apiEndpoint: '/api/conversations/sessions-table/data',
+const conversationsQueryOptions = createDataTableQueryOptions<
+  Conversation[],
+  unknown
+>({
+  queryKeyPrefix: 'conversations-table',
+  apiEndpoint: '/api/conversations/conversations-table/data',
   searchParamsSerializer,
 });
 
@@ -167,7 +173,7 @@ function getColumns(
   agents: Agent[],
   pauseMutation: { mutate: (id: string) => void; isPending: boolean },
   retryMutation: { mutate: (id: string) => void; isPending: boolean },
-): ColumnDef<Session>[] {
+): ColumnDef<Conversation>[] {
   const agentMap = new Map(agents.map((a) => [a.id, a.name]));
 
   return [
@@ -226,34 +232,34 @@ function getColumns(
       header: 'Actions',
       enableSorting: false,
       cell: ({ row }) => {
-        const session = row.original;
+        const conversation = row.original;
         return (
           <div className="flex items-center gap-2">
             <Link
-              to="/conversations/sessions/$sessionId"
-              params={{ sessionId: session.id }}
+              to="/conversations/sessions/$conversationId"
+              params={{ conversationId: conversation.id }}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               View
             </Link>
-            {session.status === 'active' && (
+            {conversation.status === 'active' && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-xs text-muted-foreground"
                 disabled={pauseMutation.isPending}
-                onClick={() => pauseMutation.mutate(session.id)}
+                onClick={() => pauseMutation.mutate(conversation.id)}
               >
                 Pause
               </Button>
             )}
-            {session.status === 'failed' && (
+            {conversation.status === 'failed' && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-xs text-muted-foreground"
                 disabled={retryMutation.isPending}
-                onClick={() => retryMutation.mutate(session.id)}
+                onClick={() => retryMutation.mutate(conversation.id)}
               >
                 <RefreshCwIcon className="mr-1 h-3 w-3" />
                 Retry
@@ -268,7 +274,7 @@ function getColumns(
 
 // ─── Inner table (needs store context for useFilterState) ────────────
 
-function SessionsTableInner({
+function ConversationsTableInner({
   agents,
   pauseMutation,
   retryMutation,
@@ -285,7 +291,7 @@ function SessionsTableInner({
   );
 
   const queryOptions = useMemo(
-    () => sessionsQueryOptions(search as Record<string, unknown>),
+    () => conversationsQueryOptions(search as Record<string, unknown>),
     [search],
   );
 
@@ -326,49 +332,32 @@ function SessionsTableInner({
 function DashboardPage() {
   const queryClient = useQueryClient();
 
-  const { data: agents = [], isLoading: agentsLoading } = useQuery({
+  const { data: agents = [] } = useQuery({
     queryKey: ['conversations-agents'],
     queryFn: fetchAgents,
   });
 
-  const { data: stats = {} } = useQuery({
-    queryKey: ['conversations-stats'],
-    queryFn: fetchStats,
+  const { data: metricsData } = useQuery({
+    queryKey: ['conversations-metrics'],
+    queryFn: fetchAgentMetrics,
   });
-
-  // Fetch all sessions client-side only for agent card counts
-  const { data: allSessions = [] } = useQuery<Session[]>({
-    queryKey: ['conversations-sessions'],
-    queryFn: async () => {
-      const res = await conversationsClient.sessions.$get();
-      if (!res.ok) throw new Error('Failed to fetch sessions');
-      return res.json() as unknown as Session[];
-    },
-  });
+  const agentMetrics = metricsData?.agents ?? [];
 
   const pauseMutation = useMutation({
-    mutationFn: pauseSession,
+    mutationFn: pauseConversation,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions-table'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-table'] });
     },
   });
 
   const retryMutation = useMutation({
     mutationFn: retryOutboxMessage,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions-table'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-table'] });
     },
   });
 
   const adapter = useMemoryAdapter(filterSchema.definition);
-
-  function agentSessionCount(agentId: string, status?: string) {
-    return allSessions.filter(
-      (s) => s.agentId === agentId && (status ? s.status === status : true),
-    ).length;
-  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -379,7 +368,7 @@ function DashboardPage() {
         </p>
       </div>
 
-      {agentsLoading && (
+      {!metricsData && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Skeleton className="h-28 w-full rounded-lg" />
           <Skeleton className="h-28 w-full rounded-lg" />
@@ -388,65 +377,59 @@ function DashboardPage() {
       )}
 
       {/* Agent cards */}
-      {!agentsLoading && agents.length > 0 && (
+      {agentMetrics.length > 0 && (
         <div>
           <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">
             AI Agents
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {agents.map((agent) => {
-              const active = agentSessionCount(agent.id, 'active');
-              const completed = agentSessionCount(agent.id, 'completed');
-              const agentStats = stats[agent.id];
-
-              return (
-                <Card key={agent.id} size="sm">
-                  <CardHeader>
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
-                        <BotIcon className="h-4 w-4 text-primary" />
-                      </div>
-                      <CardTitle className="text-sm">{agent.name}</CardTitle>
+            {agentMetrics.map((metric) => (
+              <Card key={metric.agentId} size="sm">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
+                      <BotIcon className="h-4 w-4 text-primary" />
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      <span>
-                        <span className="font-medium text-foreground">
-                          {active}
-                        </span>{' '}
-                        active
+                    <CardTitle className="text-sm">{metric.name}</CardTitle>
+                    {metric.model && (
+                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        {metric.model}
                       </span>
-                      <span>
-                        <span className="font-medium text-foreground">
-                          {completed}
-                        </span>{' '}
-                        completed
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span>
+                      <span className="font-medium text-foreground">
+                        {metric.activeCount}
+                      </span>{' '}
+                      active
+                    </span>
+                    <span>
+                      <span className="font-medium text-foreground">
+                        {metric.queuedCount}
+                      </span>{' '}
+                      queued
+                    </span>
+                    <span>
+                      score{' '}
+                      <span
+                        className={`font-medium ${
+                          metric.successScore >= 0.8
+                            ? 'text-green-600 dark:text-green-400'
+                            : metric.successScore >= 0.5
+                              ? 'text-orange-600 dark:text-orange-400'
+                              : 'text-destructive'
+                        }`}
+                      >
+                        {(metric.successScore * 100).toFixed(0)}%
                       </span>
-                      {agentStats && (
-                        <>
-                          <span className="flex items-center gap-1">
-                            <UsersIcon className="h-3 w-3" />
-                            <span className="font-medium text-foreground">
-                              {agentStats.consultations}
-                            </span>{' '}
-                            escalations
-                          </span>
-                          <span>
-                            error rate{' '}
-                            <span
-                              className={`font-medium ${agentStats.errorRate > 0.1 ? 'text-destructive' : 'text-foreground'}`}
-                            >
-                              {formatPercent(agentStats.errorRate)}
-                            </span>
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       )}
@@ -457,7 +440,7 @@ function DashboardPage() {
           Conversations
         </h2>
         <DataTableStoreProvider adapter={adapter}>
-          <SessionsTableInner
+          <ConversationsTableInner
             agents={agents}
             pauseMutation={pauseMutation}
             retryMutation={retryMutation}

@@ -14,14 +14,14 @@ export function useEscalationNotifications() {
   const prevCountRef = useRef(-1);
 
   const { data: unreadCount = 0 } = useQuery({
-    queryKey: ['conversations-sessions', 'alerts'],
+    queryKey: ['conversations-list', 'alerts'],
     queryFn: async () => {
-      const res = await conversationsClient.sessions.$get({
+      const res = await conversationsClient.conversations.$get({
         query: { status: 'failed' },
       });
       if (!res.ok) return 0;
-      const sessions: unknown[] = await res.json();
-      return sessions.length;
+      const conversations: unknown[] = await res.json();
+      return conversations.length;
     },
     refetchInterval: 30_000,
   });

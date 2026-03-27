@@ -1,340 +1,588 @@
-import { useQuery } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
-  ActivityIcon,
-  BotIcon,
-  ContactIcon,
-  FileText,
-  Heart,
-  RadioIcon,
-  Search,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle,
+  MessageSquare,
+  Shield,
+  Wrench,
 } from 'lucide-react';
 
-import { PageHeader } from '@/components/page-header';
-import { StatCard } from '@/components/stat-card';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { conversationsClient, systemClient } from '@/lib/api-client';
+import { type RealtimeStatus, useRealtimeStatus } from '@/hooks/use-realtime';
+import { conversationsClient } from '@/lib/api-client';
 
-// ─── Data fetchers ───────────────────────────────────────────────────
+// ─── Data fetchers ────────────────────────────────────────────────────
 
-async function fetchHealth() {
-  const response = await systemClient.health.$get();
-  if (!response.ok) throw new Error('Health endpoint failed');
-  return response.json();
-}
-
-async function fetchSystemInfo() {
-  const response = await systemClient.index.$get();
-  if (!response.ok) throw new Error('System info failed');
-  return response.json();
-}
-
-async function fetchRecentAudit() {
-  const response = await systemClient['audit-log'].$get();
-  if (!response.ok) throw new Error('Audit log failed');
-  return response.json();
-}
-
-interface Agent {
-  id: string;
-  name: string;
-}
-
-interface Session {
-  id: string;
-  agentId: string;
-  status: string;
-}
-
-async function fetchAgents(): Promise<Agent[]> {
-  const res = await conversationsClient.agents.$get();
-  if (!res.ok) return [];
+async function fetchDashboard() {
+  const res = await conversationsClient.dashboard.$get();
+  if (!res.ok) throw new Error('Dashboard endpoint failed');
   return res.json();
 }
 
-async function fetchSessions(): Promise<Session[]> {
-  const res = await conversationsClient.sessions.$get();
-  if (!res.ok) return [];
+async function fetchAgentMetrics() {
+  const res = await conversationsClient.agents.metrics.$get();
+  if (!res.ok) throw new Error('Agent metrics endpoint failed');
   return res.json();
 }
 
-async function fetchContactCount(): Promise<number> {
-  try {
-    // biome-ignore lint/style/noRestrictedGlobals: Dynamic data-table endpoint with query string
-    const res = await fetch('/api/conversations/contacts-table/data?limit=1');
-    if (!res.ok) return 0;
-    const data = await res.json();
-    return data?.meta?.totalRowCount ?? 0;
-  } catch {
-    return 0;
-  }
+async function fetchAttention() {
+  const res = await conversationsClient.attention.$get();
+  if (!res.ok) throw new Error('Attention endpoint failed');
+  return res.json();
+}
+
+async function fetchActivity({ pageParam }: { pageParam: string | undefined }) {
+  const query: Record<string, string> = { limit: '15' };
+  if (pageParam) query.cursor = pageParam;
+  const res = await conversationsClient.activity.$get({ query });
+  if (!res.ok) throw new Error('Activity endpoint failed');
+  return res.json();
+}
+
+async function fetchContacts(): Promise<{ id: string; name: string | null }[]> {
+  const res = await conversationsClient.contacts.$get();
+  if (!res.ok) return [];
+  const body = await res.json();
+  if (Array.isArray(body)) return body as { id: string; name: string | null }[];
+  const wrapper = body as unknown as {
+    data: { id: string; name: string | null }[];
+  };
+  return wrapper.data ?? [];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function formatTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
-  return date.toLocaleString();
+function formatResponseTime(ms: number): string {
+  if (!ms) return '0.0s';
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
-// ─── Quick links ─────────────────────────────────────────────────────
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
 
-const quickLinks = [
+function waitingMinutes(dateStr: string): string {
+  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (mins < 1) return '<1 min';
+  return `${mins} min`;
+}
+
+function successScoreColor(score: number): string {
+  if (score >= 80) return 'text-green-600 dark:text-green-400';
+  if (score >= 50) return 'text-orange-500 dark:text-orange-400';
+  return 'text-destructive';
+}
+
+interface ActivityEventData {
+  reason?: string;
+  toolName?: string;
+  handler?: string;
+  [key: string]: unknown;
+}
+
+function eventIcon(type: string) {
+  if (type.startsWith('session.completed') || type === 'attention.reviewed')
+    return CheckCircle;
+  if (type.startsWith('escalation') || type === 'session.failed')
+    return AlertTriangle;
+  if (type.startsWith('guardrail')) return Shield;
+  if (type === 'agent.tool_executed') return Wrench;
+  if (type === 'handler.changed') return ArrowRight;
+  return MessageSquare;
+}
+
+const STATUS_DOT: Record<RealtimeStatus, { color: string; animate: boolean }> =
   {
-    label: 'Conversations',
-    description: 'Monitor active conversations',
-    to: '/conversations/sessions/overview' as const,
-    icon: ActivityIcon,
-  },
-  {
-    label: 'Contacts',
-    description: 'Browse customer and staff directory',
-    to: '/conversations/contacts' as const,
-    icon: ContactIcon,
-  },
-  {
-    label: 'Channels',
-    description: 'Manage channel instances and endpoints',
-    to: '/conversations/channels' as const,
-    icon: RadioIcon,
-  },
-  {
-    label: 'AI Agents',
-    description: 'View AI agent configurations',
-    to: '/conversations/ai/agents' as const,
-    icon: BotIcon,
-  },
-  {
-    label: 'Knowledge Base',
-    description: 'Search knowledge documents',
-    to: '/knowledge-base/search' as const,
-    icon: Search,
-  },
-  {
-    label: 'Documents',
-    description: 'Upload and manage source documents',
-    to: '/knowledge-base/documents' as const,
-    icon: FileText,
-  },
-];
+    connected: { color: 'bg-green-500', animate: true },
+    connecting: { color: 'bg-amber-500', animate: true },
+    disconnected: { color: 'bg-red-500', animate: false },
+  };
+
+function RealtimeDot({ status }: { status: RealtimeStatus }) {
+  const { color, animate } = STATUS_DOT[status];
+  return (
+    <span className="relative flex h-2 w-2">
+      {animate && (
+        <span
+          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${color}`}
+        />
+      )}
+      <span className={`relative inline-flex h-2 w-2 rounded-full ${color}`} />
+    </span>
+  );
+}
+
+function formatToolName(name: string): string {
+  return name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function eventDescription(
+  type: string,
+  agentId: string | null,
+  contactId: string | null,
+  data: ActivityEventData,
+  agentNames: Map<string, string>,
+  contactNames: Map<string, string>,
+) {
+  const agent = (agentId && agentNames.get(agentId)) ?? 'Agent';
+  const contact =
+    (contactId && contactNames.get(contactId)) ?? contactId ?? 'a visitor';
+
+  const n = 'font-medium text-foreground'; // names (bold, black/white)
+  const v = 'text-muted-foreground'; // verbs & connectors (gray)
+
+  switch (type) {
+    case 'session.created':
+      return (
+        <>
+          <span className={n}>{agent}</span>
+          <span className={v}> started a conversation with </span>
+          <span className={n}>{contact}</span>
+        </>
+      );
+    case 'session.completed':
+      return (
+        <>
+          <span className={n}>{agent}</span>
+          <span className={v}> resolved </span>
+          <span className={n}>{contact}</span>
+          <span className={v}>'s inquiry</span>
+        </>
+      );
+    case 'session.failed':
+      return (
+        <>
+          <span className={n}>{agent}</span>
+          <span className={v}> failed handling </span>
+          <span className={n}>{contact}</span>
+        </>
+      );
+    case 'escalation.created':
+      return (
+        <>
+          <span className={n}>{agent}</span>{' '}
+          <span className="font-medium text-destructive">escalated</span>{' '}
+          <span className={n}>{contact}</span>
+          {data.reason && (
+            <span className={v}>
+              {' '}
+              —{' '}
+              {data.reason.length > 60
+                ? `${data.reason.slice(0, 60)}…`
+                : data.reason}
+            </span>
+          )}
+        </>
+      );
+    case 'guardrail.block':
+      return (
+        <>
+          <span className={v}>Guardrail blocked a message from </span>
+          <span className={n}>{contact}</span>
+        </>
+      );
+    case 'agent.tool_executed':
+      return (
+        <>
+          <span className={n}>{agent}</span>
+          <span className={v}> used </span>
+          <span className={n}>
+            {data.toolName ? formatToolName(data.toolName) : 'a tool'}
+          </span>
+          <span className={v}> for </span>
+          <span className={n}>{contact}</span>
+        </>
+      );
+    case 'attention.reviewed':
+      return (
+        <>
+          <span className={n}>{contact}</span>
+          <span className={v}>'s escalation was reviewed</span>
+        </>
+      );
+    case 'attention.dismissed':
+      return (
+        <>
+          <span className={n}>{contact}</span>
+          <span className={v}>'s escalation was dismissed</span>
+        </>
+      );
+    case 'handler.changed':
+      return (
+        <>
+          <span className={n}>{contact}</span>
+          <span className={v}>'s session handed to </span>
+          <span className={n}>{data.handler ?? 'another handler'}</span>
+        </>
+      );
+    case 'message.outbound_queued':
+      return (
+        <>
+          <span className={v}>Message queued for </span>
+          <span className={n}>{contact}</span>
+        </>
+      );
+    case 'message.inbound_human_mode':
+      return (
+        <>
+          <span className={n}>{contact}</span>
+          <span className={v}> sent a message (human mode)</span>
+        </>
+      );
+    case 'guardrail.warn':
+      return (
+        <>
+          <span className={v}>Guardrail warning for </span>
+          <span className={n}>{contact}</span>
+        </>
+      );
+    case 'agent.draft_generated':
+      return (
+        <>
+          <span className={n}>{agent}</span>
+          <span className={v}> drafted a response for </span>
+          <span className={n}>{contact}</span>
+        </>
+      );
+    default:
+      return <span className="text-muted-foreground">{type}</span>;
+  }
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 export function HomePage() {
-  const healthQuery = useQuery({
-    queryKey: ['health'],
-    queryFn: fetchHealth,
+  const queryClient = useQueryClient();
+
+  const dashboardQuery = useQuery({
+    queryKey: ['conversations-dashboard'],
+    queryFn: fetchDashboard,
   });
 
-  const _infoQuery = useQuery({
-    queryKey: ['system-info'],
-    queryFn: fetchSystemInfo,
+  const metricsQuery = useQuery({
+    queryKey: ['conversations-metrics'],
+    queryFn: fetchAgentMetrics,
   });
 
-  const auditQuery = useQuery({
-    queryKey: ['system-audit', 'recent'],
-    queryFn: fetchRecentAudit,
+  const attentionQuery = useQuery({
+    queryKey: ['conversations-attention'],
+    queryFn: fetchAttention,
   });
 
-  const { data: agents = [] } = useQuery({
-    queryKey: ['conversations-agents'],
-    queryFn: fetchAgents,
+  const contactsQuery = useQuery({
+    queryKey: ['conversations-contacts'],
+    queryFn: fetchContacts,
   });
 
-  const { data: sessions = [] } = useQuery({
-    queryKey: ['conversations-sessions'],
-    queryFn: fetchSessions,
+  const activityQuery = useInfiniteQuery({
+    queryKey: ['conversations-activity'],
+    queryFn: fetchActivity,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
-  const { data: contactCount = 0 } = useQuery({
-    queryKey: ['contacts-count'],
-    queryFn: fetchContactCount,
+  const reviewMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      const res = await conversationsClient.attention[':eventId'].review.$post({
+        param: { eventId },
+      });
+      if (!res.ok) throw new Error('Review failed');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-activity'] });
+    },
   });
 
-  const activeSessions = sessions.filter((s) => s.status === 'active').length;
-  const recentEntries = (auditQuery.data?.entries ?? []).slice(0, 5);
+  const dismissMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      const res = await conversationsClient.attention[':eventId'].dismiss.$post(
+        {
+          param: { eventId },
+        },
+      );
+      if (!res.ok) throw new Error('Dismiss failed');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations-activity'] });
+    },
+  });
+
+  const dashboard = dashboardQuery.data;
+  const agents = metricsQuery.data?.agents ?? [];
+  const attentionItems = attentionQuery.data?.items ?? [];
+  const attentionCount = attentionQuery.data?.count ?? 0;
+  const allEvents =
+    activityQuery.data?.pages.flatMap((page) => page.events) ?? [];
+  const hasAttention = attentionCount > 0;
+  const realtimeStatus = useRealtimeStatus();
+
+  const agentNames = new Map(agents.map((a) => [a.agentId, a.name]));
+  const contactNames = new Map(
+    (contactsQuery.data ?? [])
+      .filter((c) => c.name)
+      .map((c) => [c.id, c.name as string]),
+  );
 
   return (
-    <div className="flex flex-col gap-6 p-6 lg:p-10">
-      <PageHeader title="Dashboard" />
-
-      {/* Primary stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={ActivityIcon}
-          label="Active Conversations"
-          value={activeSessions}
-        />
-        <StatCard icon={BotIcon} label="AI Agents" value={agents.length} />
-        <StatCard icon={ContactIcon} label="Contacts" value={contactCount} />
-        <StatCard
-          icon={Heart}
-          label="System"
-          value={
-            healthQuery.isPending
-              ? '—'
-              : healthQuery.isError
-                ? 'Unavailable'
-                : (healthQuery.data.status ?? '—')
-          }
-        />
-      </div>
-
-      {/* AI Agent breakdown */}
-      {agents.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">
-              AI Agent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {agents.map((agent) => {
-                const agentSessions = sessions.filter(
-                  (s) => s.agentId === agent.id,
-                );
-                const active = agentSessions.filter(
-                  (s) => s.status === 'active',
-                ).length;
-                const completed = agentSessions.filter(
-                  (s) => s.status === 'completed',
-                ).length;
-                const failed = agentSessions.filter(
-                  (s) => s.status === 'failed',
-                ).length;
-
-                return (
-                  <div
-                    key={agent.id}
-                    className="flex items-center gap-3 rounded-md border p-3"
-                  >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
-                      <BotIcon className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">
-                        {agent.name}
-                      </p>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>
-                          <span className="font-medium text-foreground">
-                            {active}
-                          </span>{' '}
-                          active
-                        </span>
-                        <span>
-                          <span className="font-medium text-foreground">
-                            {completed}
-                          </span>{' '}
-                          done
-                        </span>
-                        {failed > 0 && (
-                          <span>
-                            <span className="font-medium text-destructive">
-                              {failed}
-                            </span>{' '}
-                            failed
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {auditQuery.isPending ? (
-            <div className="flex flex-col gap-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : auditQuery.isError ? (
-            <p className="text-sm text-destructive">
-              Unable to load recent activity.
-            </p>
-          ) : recentEntries.length > 0 ? (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b text-xs font-medium text-muted-foreground">
-                      <th className="pb-2 pr-4">Event</th>
-                      <th className="pb-2 pr-4">Actor</th>
-                      <th className="pb-2">Timestamp</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentEntries.map((entry, index) => (
-                      <tr
-                        key={entry.id ?? `${entry.event}-${index}`}
-                        className="border-b last:border-0"
-                      >
-                        <td className="py-2.5 pr-4 font-medium">
-                          {entry.event}
-                        </td>
-                        <td className="py-2.5 pr-4 text-muted-foreground">
-                          {entry.actorEmail ?? 'System'}
-                        </td>
-                        <td className="py-2.5 text-muted-foreground">
-                          {formatTimestamp(entry.createdAt)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Separator className="my-4" />
-              <Link
-                to="/system/logs"
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                View all audit logs &rarr;
-              </Link>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">No recent activity.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Quick links */}
+    <div className="flex flex-col gap-8 p-6 lg:p-10">
+      {/* ── Hero Metric Section ─────────────────────────────────── */}
       <div>
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-          Quick Links
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {quickLinks.map((link) => (
-            <Link key={link.to} to={link.to}>
-              <Card
-                size="sm"
-                className="h-full transition-colors hover:bg-muted/50"
-              >
-                <CardContent>
-                  <link.icon className="mb-2 h-4 w-4 text-muted-foreground" />
-                  <p className="font-medium text-sm">{link.label}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {link.description}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        {dashboardQuery.isPending ? (
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-14 w-48" />
+            <Skeleton className="h-4 w-80" />
+          </div>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-3">
+              <span className="text-6xl font-black tracking-tight">
+                {dashboard?.needsAttentionCount ?? 0}
+              </span>
+              <span className="text-lg text-muted-foreground">
+                need your attention
+              </span>
+            </div>
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>{dashboard?.activeSessions ?? 0} active</span>
+              <span>&middot;</span>
+              <span>{dashboard?.resolvedToday ?? 0} resolved today</span>
+              <span>&middot;</span>
+              <span>
+                {formatResponseTime(dashboard?.avgResponseTimeMs ?? 0)} avg
+                response
+              </span>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* ── Two-Column Layout ───────────────────────────────────── */}
+      <div
+        className={`grid gap-6 ${hasAttention ? 'lg:grid-cols-[1fr_42%]' : ''}`}
+      >
+        {/* Left: Activity Feed */}
+        <div>
+          <h2 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            <RealtimeDot status={realtimeStatus} />
+            Activity
+          </h2>
+          <div className="flex flex-col">
+            {activityQuery.isPending ? (
+              ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8'].map((k) => (
+                <div key={k} className="flex h-11 items-center gap-3 px-2">
+                  <Skeleton className="h-4 w-4 shrink-0 rounded" />
+                  <Skeleton className="h-3 flex-1" />
+                  <Skeleton className="h-3 w-8" />
+                </div>
+              ))
+            ) : allEvents.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No activity yet
+              </p>
+            ) : (
+              <>
+                {allEvents.map((event) => {
+                  const Icon = eventIcon(event.type);
+                  const eventData = (event.data ?? {}) as ActivityEventData;
+                  return (
+                    <div
+                      key={event.id}
+                      className="group flex h-11 items-center gap-3 rounded-md px-2 hover:bg-muted/30"
+                    >
+                      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        {eventDescription(
+                          event.type,
+                          event.agentId,
+                          event.contactId,
+                          eventData,
+                          agentNames,
+                          contactNames,
+                        )}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {event.conversationId ? (
+                          <Link
+                            to="/conversations/sessions/$conversationId"
+                            params={{ conversationId: event.conversationId }}
+                            className="hidden text-xs text-muted-foreground hover:text-foreground group-hover:inline"
+                          >
+                            View &rarr;
+                          </Link>
+                        ) : null}
+                        <span
+                          className={
+                            event.conversationId ? 'group-hover:hidden' : ''
+                          }
+                        >
+                          {relativeTime(event.createdAt)}
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
+                {activityQuery.hasNextPage && (
+                  <button
+                    type="button"
+                    onClick={() => activityQuery.fetchNextPage()}
+                    disabled={activityQuery.isFetchingNextPage}
+                    className="mt-2 px-2 text-left text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {activityQuery.isFetchingNextPage
+                      ? 'Loading...'
+                      : 'Show more'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Attention Queue */}
+        {hasAttention && (
+          <div className="rounded-xl bg-muted/30 p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Attention
+              </span>
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium text-destructive-foreground">
+                {attentionCount}
+              </span>
+            </div>
+            <div className="flex flex-col gap-3">
+              {attentionQuery.isPending
+                ? ['b1', 'b2', 'b3'].map((k) => (
+                    <Skeleton key={k} className="h-28 rounded-xl" />
+                  ))
+                : attentionItems.map((item) => {
+                    const isEscalation = item.type === 'escalation.created';
+                    const itemData = (item.data ?? {}) as ActivityEventData;
+                    const borderColor = isEscalation
+                      ? 'border-l-blue-500'
+                      : 'border-l-destructive';
+                    const contactName =
+                      (item.contactId && contactNames.get(item.contactId)) ??
+                      item.contactId ??
+                      'Visitor';
+                    const isPending =
+                      reviewMutation.isPending || dismissMutation.isPending;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`rounded-xl border-l-[3px] bg-background p-4 ${borderColor}`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <span className="text-sm font-medium">
+                            {contactName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Waiting {waitingMinutes(item.createdAt)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {item.channelType ?? 'web'} &middot;{' '}
+                          {(item.agentId && agentNames.get(item.agentId)) ??
+                            item.agentId ??
+                            'Unknown agent'}
+                        </p>
+                        {itemData.reason && (
+                          <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
+                            {String(itemData.reason)}
+                          </p>
+                        )}
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={isPending}
+                            onClick={() => reviewMutation.mutate(item.id)}
+                          >
+                            Review
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={isPending}
+                            onClick={() => dismissMutation.mutate(item.id)}
+                          >
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Agent Row ───────────────────────────────────────────── */}
+      {(metricsQuery.isPending || agents.length > 0) && (
+        <div>
+          <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Agents
+          </h2>
+          {metricsQuery.isPending ? (
+            <div className="flex gap-4 overflow-x-auto">
+              {['c1', 'c2', 'c3', 'c4'].map((k) => (
+                <Skeleton key={k} className="h-16 w-40 shrink-0 rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto">
+              {agents.map((agent) => (
+                <div
+                  key={agent.agentId}
+                  className="flex shrink-0 items-center gap-3 rounded-lg px-3 py-2"
+                >
+                  <div className="relative">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+                      {agent.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{agent.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {agent.activeCount} active &middot;{' '}
+                      <span
+                        className={successScoreColor(
+                          Math.round(agent.successScore * 100),
+                        )}
+                      >
+                        {Math.round(agent.successScore * 100)}%
+                      </span>{' '}
+                      success
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

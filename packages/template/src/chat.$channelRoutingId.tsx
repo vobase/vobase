@@ -27,23 +27,27 @@ import { usePublicChat } from '@/hooks/use-public-chat';
 
 // ─── Chat View ──────────────────────────────────────────────────────────
 
+const RESET_COMMANDS = new Set(['/reset', '/restart']);
+
 function PublicChatView({
-  endpointId,
+  channelRoutingId,
   conversationId,
   visitorToken,
   initialMessages,
+  onReset,
 }: {
-  endpointId: string;
+  channelRoutingId: string;
   conversationId: string;
   visitorToken: string;
   initialMessages: UIMessage[];
+  onReset: () => Promise<void>;
 }) {
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: `/api/conversations/chat/${endpointId}/stream?visitorToken=${encodeURIComponent(visitorToken)}`,
+        api: `/api/conversations/chat/${channelRoutingId}/stream?visitorToken=${encodeURIComponent(visitorToken)}`,
       }),
-    [endpointId, visitorToken],
+    [channelRoutingId, visitorToken],
   );
 
   const { messages, sendMessage, status, stop } = useChat({
@@ -114,6 +118,10 @@ function PublicChatView({
           <PromptInput
             onSubmit={({ text }) => {
               if (!text.trim() || isStreaming) return;
+              if (RESET_COMMANDS.has(text.trim().toLowerCase())) {
+                onReset();
+                return;
+              }
               sendMessage({ text });
             }}
             className="rounded-xl border bg-muted/30"
@@ -133,7 +141,7 @@ function PublicChatView({
 // ─── Main Page ───────────────────────────────────────────────────────────
 
 function PublicChatPage() {
-  const { endpointId } = useParams({ from: '/chat/$endpointId' });
+  const { channelRoutingId } = useParams({ from: '/chat/$channelRoutingId' });
   const {
     conversationId,
     visitorToken,
@@ -142,7 +150,8 @@ function PublicChatPage() {
     error,
     errorRetryable,
     retry,
-  } = usePublicChat(endpointId);
+    reset,
+  } = usePublicChat(channelRoutingId);
 
   if (loading) {
     return (
@@ -180,15 +189,16 @@ function PublicChatPage() {
       </div>
 
       <PublicChatView
-        endpointId={endpointId}
+        channelRoutingId={channelRoutingId}
         conversationId={conversationId}
         visitorToken={visitorToken}
         initialMessages={initialMessages}
+        onReset={reset}
       />
     </div>
   );
 }
 
-export const Route = createFileRoute('/chat/$endpointId')({
+export const Route = createFileRoute('/chat/$channelRoutingId')({
   component: PublicChatPage,
 });

@@ -7,6 +7,7 @@ interface StatCardProps {
   label: string;
   value: string | number;
   description?: string;
+  valueClassName?: string;
 }
 
 export function StatCard({
@@ -14,6 +15,7 @@ export function StatCard({
   label,
   value,
   description,
+  valueClassName,
 }: StatCardProps) {
   return (
     <Card size="sm">
@@ -22,7 +24,11 @@ export function StatCard({
           <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
             <p className="text-sm text-muted-foreground">{label}</p>
-            <p className="text-2xl font-bold tracking-tight">{value}</p>
+            <p
+              className={`text-2xl font-bold tracking-tight${valueClassName ? ` ${valueClassName}` : ''}`}
+            >
+              {value}
+            </p>
             {description !== undefined && (
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {description}
