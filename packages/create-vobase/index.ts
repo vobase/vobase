@@ -179,6 +179,51 @@ const biomePath = resolve(dest, 'biome.json');
   console.log(`${green('✓')} Generated biome.json`);
 }
 
+// --- Generate knip.json (standalone, single-project config) ---
+const knipPath = resolve(dest, 'knip.json');
+{
+  const knipConfig = {
+    $schema: 'https://unpkg.com/knip@6/schema.json',
+    tags: ['-lintignore'],
+    entry: [
+      'server.ts',
+      'src/main.tsx',
+      'scripts/*.ts',
+      'vobase.config.ts',
+      'drizzle.config.ts',
+      'vite.config.ts',
+      'modules/*/index.ts',
+      'modules/*/seed.ts',
+      'modules/seed-types.ts',
+    ],
+    project: [
+      'src/**/*.{ts,tsx}',
+      'modules/**/*.{ts,tsx}',
+      'scripts/**/*.ts',
+      '*.config.ts',
+    ],
+    ignore: [
+      'src/components/ai-elements/**',
+      'src/components/data-table/**',
+      'src/components/ui/**',
+      'src/lib/store/**',
+      'src/lib/table-schema/**',
+      'src/lib/compose-refs.ts',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+    ],
+    ignoreDependencies: [
+      'shadcn',
+      'mastra',
+      '@fontsource-variable/geist',
+      'tailwindcss',
+      'tw-animate-css',
+    ],
+  };
+  writeFileSync(knipPath, `${JSON.stringify(knipConfig, null, 2)}\n`);
+  console.log(`${green('✓')} Generated knip.json`);
+}
+
 if (!templateMode) {
   // --- Copy .env.example → .env with a real secret ---
   const envExample = resolve(dest, '.env.example');

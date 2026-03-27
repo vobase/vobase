@@ -16,16 +16,19 @@
     "typecheck": "turbo run typecheck",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "bash scripts/release.sh"
+    "release": "bash scripts/release.sh",
+    "knip": "knip"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.30.0",
     "@types/bun": "^1.3.11",
+    "@types/node": "^25.5.0",
+    "knip": "^6.0.6",
     "npm-check-updates": "^19.6.5",
     "turbo": "^2.8.20",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   },
   "dependencies": {
     "drizzle-kit": "^1.0.0-beta.18-7eb39f0",

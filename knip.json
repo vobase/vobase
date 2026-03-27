@@ -1,0 +1,50 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "tags": ["-lintignore"],
+  "workspaces": {
+    ".": {
+      "entry": "scripts/*.{ts,js}",
+      "project": "scripts/**/*.{ts,js}",
+      "ignoreDependencies": ["drizzle-kit", "drizzle-orm", "nanoid"]
+    },
+    "packages/core": {
+      "project": "src/**/*.ts",
+      "ignore": ["src/**/*.test.ts"]
+    },
+    "packages/template": {
+      "entry": [
+        "scripts/*.ts",
+        "vobase.config.ts",
+        "modules/*/index.ts",
+        "modules/*/seed.ts",
+        "modules/seed-types.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "modules/**/*.{ts,tsx}",
+        "scripts/**/*.ts",
+        "*.config.ts"
+      ],
+      "ignore": [
+        "src/components/ai-elements/**",
+        "src/components/data-table/**",
+        "src/components/ui/**",
+        "src/lib/store/**",
+        "src/lib/table-schema/**",
+        "src/lib/compose-refs.ts",
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ],
+      "ignoreDependencies": [
+        "shadcn",
+        "mastra",
+        "@fontsource-variable/geist",
+        "tailwindcss",
+        "tw-animate-css"
+      ]
+    },
+    "packages/create-vobase": {
+      "project": "**/*.ts"
+    }
+  }
+}

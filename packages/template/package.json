@@ -16,6 +16,7 @@
     "db:reset": "bun run scripts/db-reset.ts",
     "db:nuke": "rm -rf ./data/pgdata",
     "generate": "bun run scripts/generate.ts",
+    "knip": "knip",
     "lint": "biome check . && bun run ../../scripts/check-deprecated-imports.ts .",
     "lint:fix": "biome check --write .",
     "build": "bun run generate && tsc --noEmit"
@@ -105,6 +106,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
     "drizzle-kit": "1.0.0-beta.18-7eb39f0",
+    "knip": "^6.0.6",
     "mastra": "^1.3.14",
     "npm-check-updates": "^19.6.5",
     "shadcn": "^4.1.0",
