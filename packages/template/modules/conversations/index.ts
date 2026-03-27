@@ -6,10 +6,10 @@ import { conversationsRoutes } from './handlers';
 import {
   channelReplyJob,
   consultationTimeoutJob,
+  conversationCleanupJob,
   processInboundJob,
   retryMemoryThreadJob,
   sendJob,
-  sessionCleanupJob,
 } from './jobs';
 import { registerHandlers } from './lib/chat-handlers';
 import { initChat } from './lib/chat-init';
@@ -25,24 +25,20 @@ export const conversationsModule = defineModule({
     sendJob,
     channelReplyJob,
     consultationTimeoutJob,
-    sessionCleanupJob,
+    conversationCleanupJob,
     processInboundJob,
     retryMemoryThreadJob,
   ],
 
   async init(ctx) {
-    // Wire module-level deps for jobs and lib functions
-    setConversationsDeps({
-      db: ctx.db,
-      scheduler: ctx.scheduler,
-      channels: ctx.channels,
-    });
-
     const deps = {
       db: ctx.db,
       scheduler: ctx.scheduler,
       channels: ctx.channels,
+      realtime: ctx.realtime,
     };
+
+    setConversationsDeps(deps);
 
     // Auto-create default web channel_instance if none exists (H5: awaited)
     try {
@@ -218,9 +214,9 @@ async function scheduleRecurringJobs(
 
   await scheduler
     .add(
-      'conversations:session-cleanup',
+      'conversations:conversation-cleanup',
       {},
-      { singletonKey: 'conversations:session-cleanup' },
+      { singletonKey: 'conversations:conversation-cleanup' },
     )
     .catch(() => {
       // Ignore — job may already be registered

@@ -71,9 +71,9 @@ const workflowRunsSchema = paginationSchema.extend({
   status: z.enum(['running', 'suspended', 'completed', 'failed']).optional(),
 });
 
-import { sessionLifecycleMeta } from '../../mastra/workflows/session-lifecycle';
+import { conversationLifecycleMeta } from '../../mastra/workflows/session-lifecycle';
 
-const workflowRegistry = [sessionLifecycleMeta];
+const workflowRegistry = [conversationLifecycleMeta];
 
 export const aiRoutes = new Hono()
   /** GET /memory/stats?scope=contact:ID|user:ID */
@@ -345,6 +345,38 @@ export const aiRoutes = new Hono()
     await db.delete(aiMemEpisodes).where(eq(aiMemEpisodes.id, episodeId));
 
     return c.json({ success: true });
+  })
+  /** GET /memory/working?scope=contact:ID — Get Mastra working memory for each thread */
+  .get('/memory/working', async (c) => {
+    const { user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const rawScope = c.req.query('scope');
+    if (!rawScope)
+      throw validation({ scope: 'Required. Format: contact:ID or user:ID' });
+
+    const parsed = scopeSchema.safeParse(rawScope);
+    if (!parsed.success) throw validation({ scope: parsed.error.message });
+
+    const scope = parseScope(rawScope);
+    const resourceId = rawScope; // e.g. "contact:abc123"
+
+    try {
+      const { getMemory } = await import('../../mastra/index');
+      const memory = getMemory();
+
+      // Working memory is stored per resource (e.g. "contact:abc123")
+      const wm = await memory
+        .getWorkingMemory({ threadId: '', resourceId })
+        .catch(() => null);
+
+      return c.json({
+        workingMemory: wm,
+        resourceId,
+      });
+    } catch {
+      return c.json({ workingMemory: null, resourceId });
+    }
   })
   /** GET /evals — list recent eval runs ordered by createdAt desc */
   .get('/evals', async (c) => {

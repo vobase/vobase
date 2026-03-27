@@ -65,7 +65,7 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "conversations"."endpoints" (
+    CREATE TABLE "conversations"."channel_routings" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       name TEXT NOT NULL,
       channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
@@ -77,14 +77,14 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "conversations"."sessions" (
+    CREATE TABLE "conversations"."conversations" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      endpoint_id TEXT NOT NULL REFERENCES "conversations"."endpoints" (id),
+      channel_routing_id TEXT NOT NULL REFERENCES "conversations"."channel_routings" (id),
       contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id),
       agent_id TEXT NOT NULL,
       channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
-      session_type TEXT NOT NULL DEFAULT 'message' CHECK (session_type IN ('message', 'voice')),
-      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed', 'paused')),
+      conversation_type TEXT NOT NULL DEFAULT 'message' CHECK (conversation_type IN ('message', 'voice')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed', 'paused', 'escalated')),
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       ended_at TIMESTAMPTZ,
       call_started_at TIMESTAMPTZ,
@@ -92,13 +92,16 @@ export async function createTestDb(options?: {
       call_duration INTEGER,
       recording_url TEXT,
       metadata JSONB DEFAULT '{}',
+      handler TEXT NOT NULL DEFAULT 'ai' CHECK (handler IN ('ai', 'human', 'supervised', 'paused')),
+      assigned_user_id TEXT,
+      resolution_outcome TEXT CHECK (resolution_outcome IS NULL OR resolution_outcome IN ('resolved', 'escalated_resolved', 'abandoned', 'failed')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE "conversations"."consultations" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      session_id TEXT NOT NULL REFERENCES "conversations"."sessions" (id),
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id),
       staff_contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id),
       channel_type TEXT NOT NULL,
       channel_instance_id TEXT REFERENCES "conversations"."channel_instances" (id),
@@ -111,9 +114,24 @@ export async function createTestDb(options?: {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE "conversations"."activity_events" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      type TEXT NOT NULL,
+      agent_id TEXT,
+      user_id TEXT,
+      source TEXT NOT NULL CHECK (source IN ('agent', 'staff', 'system')),
+      contact_id TEXT,
+      conversation_id TEXT,
+      channel_routing_id TEXT,
+      channel_type TEXT,
+      data JSONB DEFAULT '{}',
+      resolution_status TEXT CHECK (resolution_status IS NULL OR resolution_status IN ('pending', 'reviewed', 'dismissed')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE "conversations"."outbox" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      session_id TEXT NOT NULL REFERENCES "conversations"."sessions" (id) ON DELETE CASCADE,
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id) ON DELETE CASCADE,
       content TEXT NOT NULL,
       channel_type TEXT NOT NULL,
       channel_instance_id TEXT REFERENCES "conversations"."channel_instances" (id),
@@ -130,7 +148,7 @@ export async function createTestDb(options?: {
     CREATE TABLE "conversations"."dead_letters" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       original_outbox_id TEXT NOT NULL,
-      session_id TEXT NOT NULL,
+      conversation_id TEXT NOT NULL,
       channel_type TEXT NOT NULL,
       channel_instance_id TEXT,
       recipient_address TEXT,

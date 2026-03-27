@@ -421,26 +421,26 @@ describe('AI Guardrails & Workflow Endpoints', () => {
       const body = await res.json();
       expect(body.workflows).toHaveLength(1);
 
-      const sessionLifecycle = body.workflows.find(
-        (w: { id: string }) => w.id === 'ai:session-lifecycle',
+      const conversationLifecycle = body.workflows.find(
+        (w: { id: string }) => w.id === 'ai:conversation-lifecycle',
       );
-      expect(sessionLifecycle).toBeDefined();
-      expect(sessionLifecycle.name).toBe('Session Lifecycle');
-      expect(sessionLifecycle.stepCount).toBe(3);
-      expect(sessionLifecycle.steps).toHaveLength(3);
+      expect(conversationLifecycle).toBeDefined();
+      expect(conversationLifecycle.name).toBe('Conversation Lifecycle');
+      expect(conversationLifecycle.stepCount).toBe(3);
+      expect(conversationLifecycle.steps).toHaveLength(3);
     });
 
     it('includes run counts', async () => {
       await db.insert(aiWorkflowRuns).values({
         id: 'run-1',
-        workflowId: 'ai:session-lifecycle',
+        workflowId: 'ai:conversation-lifecycle',
         userId: 'user-1',
         status: 'completed',
         inputData: '{}',
       });
       await db.insert(aiWorkflowRuns).values({
         id: 'run-2',
-        workflowId: 'ai:session-lifecycle',
+        workflowId: 'ai:conversation-lifecycle',
         userId: 'user-1',
         status: 'suspended',
         inputData: '{}',
@@ -448,10 +448,10 @@ describe('AI Guardrails & Workflow Endpoints', () => {
 
       const res = await app.request(`${BASE}/workflows/registry`);
       const body = await res.json();
-      const sessionLifecycle = body.workflows.find(
-        (w: { id: string }) => w.id === 'ai:session-lifecycle',
+      const conversationLifecycle = body.workflows.find(
+        (w: { id: string }) => w.id === 'ai:conversation-lifecycle',
       );
-      expect(sessionLifecycle.runCount).toBe(2);
+      expect(conversationLifecycle.runCount).toBe(2);
     });
   });
 

@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import { createTestDb } from '../../lib/test-helpers';
 import { contacts } from '../contacts/schema';
 import { conversationsRoutes } from './handlers';
-import { channelInstances, endpoints, sessions } from './schema';
+import { channelInstances, channelRoutings, conversations } from './schema';
 
 const BASE = 'http://localhost/api/conversations';
 
@@ -54,11 +54,11 @@ afterEach(async () => {
   await (pglite as unknown as { close: () => Promise<void> }).close();
 });
 
-describe('endpoint CRUD with channelInstanceId', () => {
+describe('channel routing CRUD with channelInstanceId', () => {
   it('POST /endpoints creates endpoint with channelInstanceId', async () => {
     const app = createApp(db);
 
-    const res = await app.request(`${BASE}/endpoints`, {
+    const res = await app.request(`${BASE}/channel-routings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -78,15 +78,15 @@ describe('endpoint CRUD with channelInstanceId', () => {
   it('GET /endpoints lists endpoints', async () => {
     const app = createApp(db);
 
-    // Create an endpoint first
-    await db.insert(endpoints).values({
+    // Create a channel routing first
+    await db.insert(channelRoutings).values({
       id: 'ep-test-1',
       name: 'Test EP',
       channelInstanceId: 'ci-web-test',
       agentId: 'booking',
     });
 
-    const res = await app.request(`${BASE}/endpoints`);
+    const res = await app.request(`${BASE}/channel-routings`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.length).toBe(1);
@@ -105,14 +105,14 @@ describe('endpoint CRUD with channelInstanceId', () => {
       status: 'active',
     });
 
-    await db.insert(endpoints).values({
+    await db.insert(channelRoutings).values({
       id: 'ep-test-2',
       name: 'Test EP',
       channelInstanceId: 'ci-web-test',
       agentId: 'booking',
     });
 
-    const res = await app.request(`${BASE}/endpoints/ep-test-2`, {
+    const res = await app.request(`${BASE}/channel-routings/ep-test-2`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channelInstanceId: 'ci-wa-test' }),
@@ -148,16 +148,16 @@ describe('channel instance deletion protection (M8)', () => {
       role: 'customer',
     });
 
-    await db.insert(endpoints).values({
+    await db.insert(channelRoutings).values({
       id: 'ep-m8',
-      name: 'M8 Endpoint',
+      name: 'M8 Channel Routing',
       channelInstanceId: 'ci-web-test',
       agentId: 'booking',
     });
 
-    await db.insert(sessions).values({
+    await db.insert(conversations).values({
       id: 'session-m8',
-      endpointId: 'ep-m8',
+      channelRoutingId: 'ep-m8',
       contactId: 'contact-m8',
       agentId: 'booking',
       channelInstanceId: 'ci-web-test',
@@ -190,16 +190,16 @@ describe('channel instance deletion protection (M8)', () => {
       role: 'customer',
     });
 
-    await db.insert(endpoints).values({
+    await db.insert(channelRoutings).values({
       id: 'ep-m8b',
-      name: 'M8B Endpoint',
+      name: 'M8B Channel Routing',
       channelInstanceId: 'ci-web-m8b',
       agentId: 'booking',
     });
 
-    await db.insert(sessions).values({
+    await db.insert(conversations).values({
       id: 'session-m8b',
-      endpointId: 'ep-m8b',
+      channelRoutingId: 'ep-m8b',
       contactId: 'contact-m8b',
       agentId: 'booking',
       channelInstanceId: 'ci-web-m8b',

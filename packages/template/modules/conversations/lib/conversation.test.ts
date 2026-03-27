@@ -1,10 +1,3 @@
-/**
- * Tests for session lifecycle: M1 (structured logging), M9 (endpoint validation).
- *
- * Uses initChat with PGlite to properly initialize the state singleton.
- * For M9 (endpoint validation), notFound() throws before reaching getMemory,
- * so no memory stub is needed for those tests.
- */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
@@ -12,9 +5,13 @@ import { eq } from 'drizzle-orm';
 
 import { createTestDb } from '../../../lib/test-helpers';
 import { contacts } from '../../contacts/schema';
-import { channelInstances, endpoints, sessions } from '../schema';
+import { channelInstances, channelRoutings, conversations } from '../schema';
 import { initChat } from './chat-init';
-import { completeSession, createSession, failSession } from './session';
+import {
+  completeConversation,
+  createConversation,
+  failConversation,
+} from './conversation';
 
 let pglite: PGlite;
 let db: VobaseDb;
@@ -25,12 +22,16 @@ const mockScheduler = {
 
 const mockChannels = {} as never;
 
+const mockRealtime = {
+  notify: async () => {},
+} as never;
+
 beforeEach(async () => {
   const result = await createTestDb();
   pglite = result.pglite as unknown as PGlite;
   db = result.db;
 
-  // Initialize chat state so getChatState() works in session functions
+  // Initialize chat state so getChatState() works in conversation functions
   await initChat({ db, scheduler: mockScheduler, channels: mockChannels });
 
   await db.insert(contacts).values({
@@ -48,7 +49,7 @@ beforeEach(async () => {
     status: 'active',
   });
 
-  await db.insert(endpoints).values({
+  await db.insert(channelRoutings).values({
     id: 'ep-sess',
     name: 'Web Endpoint',
     channelInstanceId: 'ci-sess',
@@ -60,15 +61,15 @@ afterEach(async () => {
   await (pglite as unknown as { close: () => Promise<void> }).close();
 });
 
-describe('createSession (M9 — endpoint validation)', () => {
-  it('throws when endpoint does not exist', async () => {
+describe('createConversation (M9 — endpoint validation)', () => {
+  it('throws when channel routing does not exist', async () => {
     // M9: notFound() fires before any memory/DB insert, so no memory stub needed
     let threw = false;
     try {
-      await createSession(
-        { db, scheduler: mockScheduler },
+      await createConversation(
+        { db, scheduler: mockScheduler, realtime: mockRealtime },
         {
-          endpointId: 'ep-nonexistent',
+          channelRoutingId: 'ep-nonexistent',
           contactId: 'contact-sess',
           agentId: 'booking',
           channelInstanceId: 'ci-sess',
@@ -85,13 +86,13 @@ describe('createSession (M9 — endpoint validation)', () => {
     expect(threw).toBe(true);
   });
 
-  it('does not insert session row when endpoint is missing', async () => {
-    // M9: throws before insert — sessions table stays empty
+  it('does not insert conversation row when channel routing is missing', async () => {
+    // M9: throws before insert — conversations table stays empty
     try {
-      await createSession(
-        { db, scheduler: mockScheduler },
+      await createConversation(
+        { db, scheduler: mockScheduler, realtime: mockRealtime },
         {
-          endpointId: 'ep-missing',
+          channelRoutingId: 'ep-missing',
           contactId: 'contact-sess',
           agentId: 'booking',
           channelInstanceId: 'ci-sess',
@@ -101,18 +102,18 @@ describe('createSession (M9 — endpoint validation)', () => {
       // expected — notFound() thrown before insert
     }
 
-    const all = await db.select().from(sessions);
+    const all = await db.select().from(conversations);
     expect(all.length).toBe(0);
   });
 });
 
-describe('completeSession (M1 — structured logging)', () => {
+describe('completeConversation (M1 — structured logging)', () => {
   it('sets status to completed and records endedAt', async () => {
-    const [sess] = await db
-      .insert(sessions)
+    const [conv] = await db
+      .insert(conversations)
       .values({
         id: 'sess-complete',
-        endpointId: 'ep-sess',
+        channelRoutingId: 'ep-sess',
         contactId: 'contact-sess',
         agentId: 'booking',
         channelInstanceId: 'ci-sess',
@@ -120,25 +121,25 @@ describe('completeSession (M1 — structured logging)', () => {
       })
       .returning();
 
-    await completeSession(db, sess.id);
+    await completeConversation(db, conv.id);
 
     const [updated] = await db
       .select()
-      .from(sessions)
-      .where(eq(sessions.id, sess.id));
+      .from(conversations)
+      .where(eq(conversations.id, conv.id));
 
     expect(updated.status).toBe('completed');
     expect(updated.endedAt).not.toBeNull();
   });
 });
 
-describe('failSession (M1 — structured logging)', () => {
+describe('failConversation (M1 — structured logging)', () => {
   it('sets status to failed with reason stored in metadata', async () => {
-    const [sess] = await db
-      .insert(sessions)
+    const [conv] = await db
+      .insert(conversations)
       .values({
         id: 'sess-fail',
-        endpointId: 'ep-sess',
+        channelRoutingId: 'ep-sess',
         contactId: 'contact-sess',
         agentId: 'booking',
         channelInstanceId: 'ci-sess',
@@ -146,12 +147,12 @@ describe('failSession (M1 — structured logging)', () => {
       })
       .returning();
 
-    await failSession(db, sess.id, 'Agent error');
+    await failConversation(db, conv.id, 'Agent error');
 
     const [updated] = await db
       .select()
-      .from(sessions)
-      .where(eq(sessions.id, sess.id));
+      .from(conversations)
+      .where(eq(conversations.id, conv.id));
 
     expect(updated.status).toBe('failed');
     expect(updated.endedAt).not.toBeNull();

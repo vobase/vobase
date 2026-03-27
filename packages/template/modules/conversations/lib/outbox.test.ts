@@ -7,10 +7,10 @@ import { createTestDb } from '../../../lib/test-helpers';
 import { contacts } from '../../contacts/schema';
 import {
   channelInstances,
+  channelRoutings,
+  conversations,
   deadLetters,
-  endpoints,
   outbox,
-  sessions,
 } from '../schema';
 import { enqueueMessage, MAX_RETRIES, processOutboxMessage } from './outbox';
 
@@ -52,16 +52,16 @@ beforeEach(async () => {
     },
   ]);
 
-  await db.insert(endpoints).values({
+  await db.insert(channelRoutings).values({
     id: 'ep-wa-1',
     name: 'WhatsApp Booking',
     channelInstanceId: 'ci-wa-1',
     agentId: 'booking',
   });
 
-  await db.insert(sessions).values({
+  await db.insert(conversations).values({
     id: 'session-1',
-    endpointId: 'ep-wa-1',
+    channelRoutingId: 'ep-wa-1',
     contactId: 'contact-1',
     agentId: 'booking',
     channelInstanceId: 'ci-wa-1',
@@ -76,7 +76,7 @@ afterEach(async () => {
 describe('enqueueMessage', () => {
   it('enqueues with channelType and channelInstanceId', async () => {
     const record = await enqueueMessage(db, mockScheduler, {
-      sessionId: 'session-1',
+      conversationId: 'session-1',
       content: 'Hello',
       channelType: 'whatsapp',
       channelInstanceId: 'ci-wa-1',
@@ -90,7 +90,7 @@ describe('enqueueMessage', () => {
 
   it('enqueues without channelInstanceId (nullable)', async () => {
     const record = await enqueueMessage(db, mockScheduler, {
-      sessionId: 'session-1',
+      conversationId: 'session-1',
       content: 'Hello web',
       channelType: 'web',
     });
@@ -107,7 +107,7 @@ describe('processOutboxMessage', () => {
       .insert(outbox)
       .values({
         id: 'outbox-1',
-        sessionId: 'session-1',
+        conversationId: 'session-1',
         content: 'Test message',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -136,16 +136,16 @@ describe('processOutboxMessage', () => {
   });
 
   it('marks web messages as sent without external delivery', async () => {
-    // Create web session
-    await db.insert(endpoints).values({
+    // Create web conversation
+    await db.insert(channelRoutings).values({
       id: 'ep-web-1',
       name: 'Web',
       channelInstanceId: 'ci-web-1',
       agentId: 'booking',
     });
-    await db.insert(sessions).values({
+    await db.insert(conversations).values({
       id: 'session-web',
-      endpointId: 'ep-web-1',
+      channelRoutingId: 'ep-web-1',
       contactId: 'contact-1',
       agentId: 'booking',
       channelInstanceId: 'ci-web-1',
@@ -156,7 +156,7 @@ describe('processOutboxMessage', () => {
       .insert(outbox)
       .values({
         id: 'outbox-web',
-        sessionId: 'session-web',
+        conversationId: 'session-web',
         content: 'Web message',
         channelType: 'web',
         channelInstanceId: 'ci-web-1',
@@ -176,16 +176,16 @@ describe('processOutboxMessage', () => {
   });
 
   it('moves to dead_letters when contact is missing', async () => {
-    // Insert a session with contact-1, then patch contact_id via raw SQL to bypass FK
-    await db.insert(endpoints).values({
+    // Insert a conversation with contact-1, then patch contact_id via raw SQL to bypass FK
+    await db.insert(channelRoutings).values({
       id: 'ep-temp',
       name: 'Temp',
       channelInstanceId: 'ci-wa-1',
       agentId: 'booking',
     });
-    await db.insert(sessions).values({
+    await db.insert(conversations).values({
       id: 'session-nocontact',
-      endpointId: 'ep-temp',
+      channelRoutingId: 'ep-temp',
       contactId: 'contact-1', // valid FK for insert
       agentId: 'booking',
       channelInstanceId: 'ci-wa-1',
@@ -196,7 +196,7 @@ describe('processOutboxMessage', () => {
       .insert(outbox)
       .values({
         id: 'outbox-nocontact',
-        sessionId: 'session-nocontact',
+        conversationId: 'session-nocontact',
         content: 'Orphaned message',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -207,7 +207,7 @@ describe('processOutboxMessage', () => {
     // Patch contact_id to a nonexistent value bypassing FK (deferred constraint)
     await db.execute(sql`SET session_replication_role = replica`);
     await db.execute(
-      sql`UPDATE conversations.sessions SET contact_id = 'ghost-contact' WHERE id = 'session-nocontact'`,
+      sql`UPDATE conversations.conversations SET contact_id = 'ghost-contact' WHERE id = 'session-nocontact'`,
     );
     await db.execute(sql`SET session_replication_role = DEFAULT`);
 
@@ -235,7 +235,7 @@ describe('processOutboxMessage', () => {
       .insert(outbox)
       .values({
         id: 'outbox-maxretry',
-        sessionId: 'session-1',
+        conversationId: 'session-1',
         content: 'Retry exhausted',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',

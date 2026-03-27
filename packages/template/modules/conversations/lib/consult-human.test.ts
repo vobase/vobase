@@ -7,9 +7,9 @@ import { createTestDb } from '../../../lib/test-helpers';
 import { contacts } from '../../contacts/schema';
 import {
   channelInstances,
+  channelRoutings,
   consultations,
-  endpoints,
-  sessions,
+  conversations,
 } from '../schema';
 import { handleStaffReply, requestConsultation } from './consult-human';
 
@@ -46,16 +46,16 @@ beforeEach(async () => {
     status: 'active',
   });
 
-  await db.insert(endpoints).values({
+  await db.insert(channelRoutings).values({
     id: 'ep-wa-1',
     name: 'WhatsApp Booking',
     channelInstanceId: 'ci-wa-1',
     agentId: 'booking',
   });
 
-  await db.insert(sessions).values({
+  await db.insert(conversations).values({
     id: 'session-1',
-    endpointId: 'ep-wa-1',
+    channelRoutingId: 'ep-wa-1',
     contactId: 'contact-cust',
     agentId: 'booking',
     channelInstanceId: 'ci-wa-1',
@@ -67,6 +67,10 @@ afterEach(async () => {
   await (pglite as unknown as { close: () => Promise<void> }).close();
 });
 
+const mockRealtime = {
+  notify: async () => {},
+} as never;
+
 describe('requestConsultation', () => {
   it('creates consultation with channelType and channelInstanceId', async () => {
     const mockChannels = {
@@ -75,9 +79,14 @@ describe('requestConsultation', () => {
     } as never;
 
     const consultation = await requestConsultation(
-      { db, scheduler: {} as never, channels: mockChannels },
       {
-        sessionId: 'session-1',
+        db,
+        scheduler: {} as never,
+        channels: mockChannels,
+        realtime: mockRealtime,
+      },
+      {
+        conversationId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -99,9 +108,14 @@ describe('requestConsultation', () => {
     } as never;
 
     const consultation = await requestConsultation(
-      { db, scheduler: {} as never, channels: mockChannels },
       {
-        sessionId: 'session-1',
+        db,
+        scheduler: {} as never,
+        channels: mockChannels,
+        realtime: mockRealtime,
+      },
+      {
+        conversationId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'email',
         reason: 'Escalation needed',
@@ -118,9 +132,14 @@ describe('requestConsultation', () => {
       whatsapp: { send: async () => ({ success: true }) },
     } as never;
 
-    const deps = { db, scheduler: {} as never, channels: mockChannels };
+    const deps = {
+      db,
+      scheduler: {} as never,
+      channels: mockChannels,
+      realtime: mockRealtime,
+    };
     const input = {
-      sessionId: 'session-1',
+      conversationId: 'session-1',
       staffContactId: 'contact-staff',
       channelType: 'whatsapp',
       channelInstanceId: 'ci-wa-1',
@@ -141,7 +160,7 @@ describe('handleStaffReply', () => {
     const [timedOut] = await db
       .insert(consultations)
       .values({
-        sessionId: 'session-1',
+        conversationId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -154,7 +173,12 @@ describe('handleStaffReply', () => {
       whatsapp: { send: async () => ({ success: true }) },
     } as never;
 
-    const deps = { db, scheduler: {} as never, channels: mockChannels };
+    const deps = {
+      db,
+      scheduler: {} as never,
+      channels: mockChannels,
+      realtime: mockRealtime,
+    };
 
     const mockEvent = {
       channel: 'whatsapp',

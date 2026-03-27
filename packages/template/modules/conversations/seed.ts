@@ -3,9 +3,9 @@
  *
  * Uses @faker-js/faker to generate volume that makes every UI page look populated:
  * - ~50 contacts (customers, leads, staff)
- * - 3 channel instances + 3 endpoints
- * - ~80 sessions across all lifecycle states, spread over 30 days
- * - ~3 outbox messages per session (agent responses for transcript fallback)
+ * - 3 channel instances + 3 channel routings
+ * - ~80 conversations across all lifecycle states, spread over 30 days
+ * - ~3 outbox messages per conversation (agent responses for transcript fallback)
  * - ~12 consultations across all states
  * - ~5 dead letters showing the DLQ terminal store
  */
@@ -15,12 +15,13 @@ import type { VobaseDb } from '@vobase/core';
 
 import { contacts } from '../contacts/schema';
 import {
+  activityEvents,
   channelInstances,
+  channelRoutings,
   consultations,
+  conversations,
   deadLetters,
-  endpoints,
   outbox,
-  sessions,
 } from './schema';
 
 // Deterministic seed so `bun run db:seed` always produces the same data
@@ -208,8 +209,8 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   await db.insert(channelInstances).values(seedInstances).onConflictDoNothing();
 
-  // ─── Endpoints ───────────────────────────────────────────────────
-  const seedEndpoints = [
+  // ─── Channel Routings ─────────────────────────────────────────────
+  const seedChannelRoutings = [
     {
       id: 'ep-wa-booking',
       name: 'WhatsApp Booking',
@@ -239,30 +240,33 @@ export default async function seed(ctx: { db: VobaseDb }) {
     },
   ];
 
-  await db.insert(endpoints).values(seedEndpoints).onConflictDoNothing();
+  await db
+    .insert(channelRoutings)
+    .values(seedChannelRoutings)
+    .onConflictDoNothing();
 
-  // ─── Sessions ────────────────────────────────────────────────────
-  // ~80 sessions spread over last 30 days, all lifecycle states
+  // ─── Conversations ───────────────────────────────────────────────
+  // ~80 conversations spread over last 30 days, all lifecycle states
   const customerContacts = seedContacts.filter((c) => c.role !== 'staff');
   const staffContacts = seedContacts.filter((c) => c.role === 'staff');
-  const activeEndpoints = seedEndpoints.filter((e) => e.enabled);
+  const activeChannelRoutings = seedChannelRoutings.filter((e) => e.enabled);
 
-  const SESSION_COUNT = 80;
-  const seedSessions: Array<{
+  const CONVERSATION_COUNT = 80;
+  const seedConversations: Array<{
     id: string;
-    endpointId: string;
+    channelRoutingId: string;
     contactId: string;
     agentId: string;
     channelInstanceId: string;
     status: string;
-    sessionType: string;
+    conversationType: string;
     startedAt: Date;
     endedAt?: Date;
     metadata: Record<string, unknown>;
   }> = [];
 
-  for (let i = 0; i < SESSION_COUNT; i++) {
-    const ep = randomItem(activeEndpoints);
+  for (let i = 0; i < CONVERSATION_COUNT; i++) {
+    const ep = randomItem(activeChannelRoutings);
     const contact = randomItem(customerContacts);
     const startHoursAgo = faker.number.int({ min: 1, max: 720 }); // up to 30 days
 
@@ -292,27 +296,132 @@ export default async function seed(ctx: { db: VobaseDb }) {
       metadata.memoryDegraded = true;
     }
 
-    seedSessions.push({
+    seedConversations.push({
       id: `sess-${faker.string.alphanumeric(10)}`,
-      endpointId: ep.id,
+      channelRoutingId: ep.id,
       contactId: contact.id,
       agentId: 'booking',
       channelInstanceId: ep.channelInstanceId,
       status,
-      sessionType: 'message',
+      conversationType: 'message',
       startedAt,
       ...(endedAt && { endedAt }),
       metadata,
     });
   }
 
-  await db.insert(sessions).values(seedSessions).onConflictDoNothing();
+  await db
+    .insert(conversations)
+    .values(seedConversations)
+    .onConflictDoNothing();
+
+  // ─── Handler Mode Conversations (for control plane testing) ─────────
+  const handlerModeConversations = [
+    {
+      id: 'sess-human-mode',
+      channelRoutingId: 'ep-web-booking',
+      contactId: customerContacts[0].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-web',
+      status: 'active',
+      conversationType: 'message',
+      handler: 'human',
+      assignedUserId: null,
+      startedAt: hoursAgo(2),
+      metadata: {},
+    },
+    {
+      id: 'sess-supervised-mode',
+      channelRoutingId: 'ep-web-booking',
+      contactId: customerContacts[1].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-web',
+      status: 'active',
+      conversationType: 'message',
+      handler: 'supervised',
+      assignedUserId: null,
+      startedAt: hoursAgo(1),
+      metadata: {},
+    },
+    {
+      id: 'sess-paused-mode',
+      channelRoutingId: 'ep-wa-booking',
+      contactId: customerContacts[2].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-wa-main',
+      status: 'active',
+      conversationType: 'message',
+      handler: 'paused',
+      assignedUserId: null,
+      startedAt: hoursAgo(3),
+      metadata: {},
+    },
+    {
+      id: 'sess-for-handoff',
+      channelRoutingId: 'ep-web-booking',
+      contactId: customerContacts[3].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-web',
+      status: 'active',
+      conversationType: 'message',
+      handler: 'ai',
+      assignedUserId: null,
+      startedAt: hoursAgo(0.5),
+      metadata: {},
+    },
+    {
+      id: 'sess-for-completion',
+      channelRoutingId: 'ep-web-booking',
+      contactId: customerContacts[4].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-web',
+      status: 'active',
+      conversationType: 'message',
+      handler: 'ai',
+      assignedUserId: null,
+      startedAt: hoursAgo(1),
+      metadata: {},
+    },
+    {
+      id: 'sess-with-resolution',
+      channelRoutingId: 'ep-wa-booking',
+      contactId: customerContacts[5].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-wa-main',
+      status: 'completed',
+      conversationType: 'message',
+      handler: 'ai',
+      resolutionOutcome: 'resolved',
+      startedAt: hoursAgo(24),
+      endedAt: hoursAgo(23),
+      metadata: {},
+    },
+    {
+      id: 'sess-escalated-resolved',
+      channelRoutingId: 'ep-wa-booking',
+      contactId: customerContacts[6].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-wa-main',
+      status: 'completed',
+      conversationType: 'message',
+      handler: 'ai',
+      resolutionOutcome: 'escalated_resolved',
+      startedAt: hoursAgo(48),
+      endedAt: hoursAgo(47),
+      metadata: {},
+    },
+  ];
+
+  await db
+    .insert(conversations)
+    .values(handlerModeConversations)
+    .onConflictDoNothing();
 
   // ─── Outbox ──────────────────────────────────────────────────────
-  // 2-4 messages per session → gives transcript content
+  // 2-4 messages per conversation → gives transcript content
   const seedOutbox: Array<{
     id: string;
-    sessionId: string;
+    conversationId: string;
     content: string;
     channelType: string;
     channelInstanceId: string;
@@ -322,7 +431,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     createdAt: Date;
   }> = [];
 
-  for (const sess of seedSessions) {
+  for (const sess of seedConversations) {
     const channelType =
       sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web';
     const msgCount = faker.number.int({ min: 2, max: 5 });
@@ -361,7 +470,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
       seedOutbox.push({
         id: `ob-${faker.string.alphanumeric(10)}`,
-        sessionId: sess.id,
+        conversationId: sess.id,
         content: randomMessage(categories[m]),
         channelType,
         channelInstanceId: sess.channelInstanceId,
@@ -386,12 +495,12 @@ export default async function seed(ctx: { db: VobaseDb }) {
   }
 
   // ─── Consultations ───────────────────────────────────────────────
-  // Pick ~12 sessions that had human escalation
-  const completedSessions = seedSessions.filter(
+  // Pick ~12 conversations that had human escalation
+  const completedSessions = seedConversations.filter(
     (s) => s.status === 'completed',
   );
-  const activeSessions = seedSessions.filter((s) => s.status === 'active');
-  const failedSessions = seedSessions.filter((s) => s.status === 'failed');
+  const activeSessions = seedConversations.filter((s) => s.status === 'active');
+  const failedSessions = seedConversations.filter((s) => s.status === 'failed');
 
   const CONSULTATION_REASONS = [
     'Customer requesting special pricing for a package deal.',
@@ -410,7 +519,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   const seedConsultations: Array<{
     id: string;
-    sessionId: string;
+    conversationId: string;
     staffContactId: string;
     channelType: string;
     channelInstanceId?: string;
@@ -427,7 +536,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     const sess = activeSessions[i];
     seedConsultations.push({
       id: `consult-${faker.string.alphanumeric(8)}`,
-      sessionId: sess.id,
+      conversationId: sess.id,
       staffContactId: randomItem(staffContacts).id,
       channelType: sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
       channelInstanceId: sess.channelInstanceId,
@@ -444,7 +553,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     const reqHours = faker.number.int({ min: 24, max: 200 });
     seedConsultations.push({
       id: `consult-${faker.string.alphanumeric(8)}`,
-      sessionId: sess.id,
+      conversationId: sess.id,
       staffContactId: randomItem(staffContacts).id,
       channelType: sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
       channelInstanceId: sess.channelInstanceId,
@@ -468,7 +577,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     if (!sess) break;
     seedConsultations.push({
       id: `consult-${faker.string.alphanumeric(8)}`,
-      sessionId: sess.id,
+      conversationId: sess.id,
       staffContactId: randomItem(staffContacts).id,
       channelType: sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
       channelInstanceId: sess.channelInstanceId,
@@ -484,7 +593,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     const sess = failedSessions[i];
     seedConsultations.push({
       id: `consult-${faker.string.alphanumeric(8)}`,
-      sessionId: sess.id,
+      conversationId: sess.id,
       staffContactId: randomItem(staffContacts).id,
       channelType: 'whatsapp',
       channelInstanceId: 'ci-wa-main',
@@ -512,11 +621,11 @@ export default async function seed(ctx: { db: VobaseDb }) {
   ];
 
   const seedDeadLetters = DL_ERRORS.map((error, i) => {
-    const sess = completedSessions[i] ?? seedSessions[i];
+    const sess = completedSessions[i] ?? seedConversations[i];
     return {
       id: `dl-${faker.string.alphanumeric(8)}`,
       originalOutboxId: `ob-expired-${faker.string.alphanumeric(6)}`,
-      sessionId: sess.id,
+      conversationId: sess.id,
       channelType: i < 3 ? 'whatsapp' : 'web',
       channelInstanceId: i < 3 ? 'ci-wa-main' : 'ci-web',
       recipientAddress: randomItem(customerContacts).phone,
@@ -530,9 +639,193 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   await db.insert(deadLetters).values(seedDeadLetters).onConflictDoNothing();
 
+  // ─── Activity Events (control plane) ──────────────────────────────
+  const seedActivityEvents = [
+    // Escalation events (attention queue)
+    {
+      type: 'escalation.created',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: customerContacts[0].id,
+      conversationId: activeSessions[0]?.id ?? seedConversations[0].id,
+      channelRoutingId: 'ep-wa-booking',
+      channelType: 'whatsapp',
+      data: {
+        reason: 'Customer requesting special pricing',
+        staffContactId: 'contact-staff-david',
+      },
+      resolutionStatus: 'pending',
+      createdAt: hoursAgo(3),
+    },
+    {
+      type: 'escalation.created',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: customerContacts[1].id,
+      conversationId: activeSessions[1]?.id ?? seedConversations[1].id,
+      channelRoutingId: 'ep-web-booking',
+      channelType: 'web',
+      data: { reason: 'Complex scheduling conflict' },
+      resolutionStatus: 'pending',
+      createdAt: hoursAgo(2),
+    },
+    // Guardrail block event (attention queue)
+    {
+      type: 'guardrail.block',
+      agentId: 'booking',
+      source: 'system',
+      contactId: customerContacts[2].id,
+      conversationId: activeSessions[2]?.id ?? seedConversations[2].id,
+      channelRoutingId: 'ep-wa-booking',
+      channelType: 'whatsapp',
+      data: { reason: 'Blocked offensive content', matchedTerm: 'profanity' },
+      resolutionStatus: 'pending',
+      createdAt: hoursAgo(1),
+    },
+    // Already reviewed escalation
+    {
+      type: 'escalation.created',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: customerContacts[3].id,
+      conversationId: completedSessions[0]?.id ?? seedConversations[3].id,
+      channelRoutingId: 'ep-wa-booking',
+      channelType: 'whatsapp',
+      data: { reason: 'VIP customer needs priority' },
+      resolutionStatus: 'reviewed',
+      createdAt: hoursAgo(24),
+    },
+    // Session lifecycle events
+    {
+      type: 'conversation.created',
+      agentId: 'booking',
+      source: 'system',
+      contactId: customerContacts[0].id,
+      conversationId: activeSessions[0]?.id ?? seedConversations[0].id,
+      channelRoutingId: 'ep-wa-booking',
+      channelType: 'whatsapp',
+      data: {},
+      createdAt: hoursAgo(5),
+    },
+    {
+      type: 'conversation.created',
+      agentId: 'booking',
+      source: 'system',
+      contactId: customerContacts[1].id,
+      conversationId: activeSessions[1]?.id ?? seedConversations[1].id,
+      channelRoutingId: 'ep-web-booking',
+      channelType: 'web',
+      data: {},
+      createdAt: hoursAgo(4.5),
+    },
+    {
+      type: 'conversation.completed',
+      agentId: 'booking',
+      source: 'system',
+      conversationId: completedSessions[0]?.id ?? seedConversations[3].id,
+      data: { resolutionOutcome: 'resolved' },
+      createdAt: hoursAgo(20),
+    },
+    {
+      type: 'conversation.failed',
+      agentId: 'booking',
+      source: 'system',
+      conversationId: failedSessions[0]?.id ?? seedConversations[4].id,
+      data: { reason: 'Agent exceeded max steps' },
+      createdAt: hoursAgo(18),
+    },
+    // Tool execution events
+    {
+      type: 'agent.tool_executed',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: customerContacts[0].id,
+      conversationId: activeSessions[0]?.id ?? seedConversations[0].id,
+      channelType: 'whatsapp',
+      data: { toolName: 'book_slot', isError: false },
+      createdAt: hoursAgo(4),
+    },
+    {
+      type: 'agent.tool_executed',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: customerContacts[1].id,
+      conversationId: activeSessions[1]?.id ?? seedConversations[1].id,
+      channelType: 'web',
+      data: { toolName: 'check_availability', isError: false },
+      createdAt: hoursAgo(3.5),
+    },
+    {
+      type: 'agent.tool_executed',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: customerContacts[2].id,
+      conversationId: activeSessions[2]?.id ?? seedConversations[2].id,
+      channelType: 'whatsapp',
+      data: { toolName: 'send_reminder', isError: false },
+      createdAt: hoursAgo(3),
+    },
+    // Handler mode change event
+    {
+      type: 'handler.changed',
+      agentId: 'booking',
+      source: 'agent',
+      conversationId: 'sess-human-mode',
+      data: {
+        from: 'ai',
+        to: 'human',
+        reason: 'Customer requested human agent',
+      },
+      createdAt: hoursAgo(2),
+    },
+    // Message events
+    {
+      type: 'message.outbound_queued',
+      source: 'agent',
+      conversationId: activeSessions[0]?.id ?? seedConversations[0].id,
+      channelType: 'whatsapp',
+      data: { outboxId: 'ob-test-1' },
+      createdAt: hoursAgo(4),
+    },
+    // Guardrail warn (non-attention, just activity)
+    {
+      type: 'guardrail.warn',
+      agentId: 'booking',
+      source: 'system',
+      contactId: customerContacts[4].id,
+      conversationId: activeSessions[3]?.id ?? seedConversations[4].id,
+      channelType: 'web',
+      data: { reason: 'Potential PII detected', matchedTerm: 'NRIC' },
+      createdAt: hoursAgo(6),
+    },
+    // Supervised draft event
+    {
+      type: 'agent.draft_generated',
+      agentId: 'booking',
+      source: 'agent',
+      conversationId: 'sess-supervised-mode',
+      channelType: 'web',
+      data: {
+        handlerMode: 'supervised',
+        draftContent: 'Here is your appointment confirmation for Monday 10am.',
+      },
+      resolutionStatus: 'pending',
+      createdAt: hoursAgo(0.5),
+    },
+  ];
+
+  await db
+    .insert(activityEvents)
+    .values(seedActivityEvents)
+    .onConflictDoNothing();
+
+  console.log(
+    `${green('✓')} Seeded ${handlerModeConversations.length} handler-mode conversations, ${seedActivityEvents.length} activity events`,
+  );
+
   // ─── Summary ─────────────────────────────────────────────────────
   console.log(
-    `${green('✓')} Seeded ${seedInstances.length} channel instances, ${seedEndpoints.length} endpoints, ${seedSessions.length} sessions`,
+    `${green('✓')} Seeded ${seedInstances.length} channel instances, ${seedChannelRoutings.length} channel routings, ${seedConversations.length} conversations`,
   );
   console.log(
     `${green('✓')} Seeded ${seedOutbox.length} outbox, ${seedConsultations.length} consultations, ${seedDeadLetters.length} dead letters`,

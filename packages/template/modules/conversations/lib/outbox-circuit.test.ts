@@ -4,7 +4,12 @@ import type { VobaseDb } from '@vobase/core';
 
 import { createTestDb } from '../../../lib/test-helpers';
 import { contacts } from '../../contacts/schema';
-import { channelInstances, endpoints, outbox, sessions } from '../schema';
+import {
+  channelInstances,
+  channelRoutings,
+  conversations,
+  outbox,
+} from '../schema';
 import {
   isCircuitOpen,
   processOutboxMessage,
@@ -46,16 +51,16 @@ beforeEach(async () => {
     status: 'active',
   });
 
-  await db.insert(endpoints).values({
+  await db.insert(channelRoutings).values({
     id: 'ep-wa-cb',
     name: 'WhatsApp Booking',
     channelInstanceId: 'ci-wa-cb',
     agentId: 'booking',
   });
 
-  await db.insert(sessions).values({
+  await db.insert(conversations).values({
     id: 'session-cb',
-    endpointId: 'ep-wa-cb',
+    channelRoutingId: 'ep-wa-cb',
     contactId: 'contact-cb',
     agentId: 'booking',
     channelInstanceId: 'ci-wa-cb',
@@ -116,7 +121,7 @@ describe('processOutboxMessage circuit breaker integration', () => {
       .insert(outbox)
       .values({
         id: 'outbox-cb-1',
-        sessionId: 'session-cb',
+        conversationId: 'session-cb',
         content: 'Test message',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-cb',
@@ -145,7 +150,7 @@ describe('processOutboxMessage circuit breaker integration', () => {
       .insert(outbox)
       .values({
         id: 'outbox-cb-2',
-        sessionId: 'session-cb',
+        conversationId: 'session-cb',
         content: 'Test message',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-cb',
