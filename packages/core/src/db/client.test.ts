@@ -1,13 +1,22 @@
-import { describe, expect, it } from 'bun:test';
+import { rmSync } from 'node:fs';
+import { afterAll, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 
 import { createDatabase } from './client';
 
+const tmpDir1 = `/tmp/vobase-test-client-${Date.now()}-1`;
+const tmpDir2 = `/tmp/vobase-test-client-${Date.now()}-2`;
+
+afterAll(() => {
+  rmSync(tmpDir1, { recursive: true, force: true });
+  rmSync(tmpDir2, { recursive: true, force: true });
+});
+
 describe('createDatabase', () => {
   it('creates a PGlite-backed drizzle instance for local paths', async () => {
-    const db = createDatabase('/tmp/vobase-test-client');
+    const db = createDatabase(tmpDir1);
 
     expect(db).toBeDefined();
   });
@@ -25,7 +34,7 @@ describe('createDatabase', () => {
   });
 
   it('createDatabase returns a working Drizzle instance', async () => {
-    const db = createDatabase('/tmp/vobase-test-client-2');
+    const db = createDatabase(tmpDir2);
 
     // Should not throw
     expect(db).toBeDefined();
