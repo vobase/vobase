@@ -1,7 +1,8 @@
-import type { VobaseDb } from '@vobase/core';
+import type { RealtimeService, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
 
 import { aiModerationLogs } from '../../modules/ai/schema';
+import { emitActivityEvent } from '../../modules/conversations/lib/activity-events';
 import type { OnBlockCallback } from './moderation';
 
 interface ModerationLogContext {
@@ -12,13 +13,10 @@ interface ModerationLogContext {
   conversationId?: string | null;
 }
 
-/**
- * Create a fire-and-forget onBlock callback that logs moderation events to the DB.
- * Centralizes insert logic so both chat-agent and channel-reply-agent use the same code.
- */
 export function createModerationLogger(
   db: VobaseDb,
   context: ModerationLogContext,
+  realtime?: RealtimeService,
 ): OnBlockCallback {
   return (info) => {
     db.insert(aiModerationLogs)
@@ -37,5 +35,25 @@ export function createModerationLogger(
           error: err,
         });
       });
+
+    if (realtime) {
+      emitActivityEvent(db, realtime, {
+        type: 'guardrail.block',
+        agentId: context.agentId,
+        source: 'system',
+        contactId: context.contactId ?? undefined,
+        conversationId: context.conversationId ?? undefined,
+        channelType: context.channel,
+        data: {
+          reason: info.reason,
+          matchedTerm: info.matchedTerm,
+        },
+        resolutionStatus: 'pending',
+      }).catch((err) => {
+        logger.error('[guardrails] Failed to emit guardrail.block event', {
+          error: err,
+        });
+      });
+    }
   };
 }

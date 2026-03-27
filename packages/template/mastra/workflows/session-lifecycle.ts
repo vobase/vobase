@@ -2,40 +2,40 @@ import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 
 /**
- * Session lifecycle workflow — placeholder for the E→S session state machine.
+ * Conversation lifecycle workflow — placeholder for the E→S conversation state machine.
  *
- * Steps: start-session → process → complete
+ * Steps: start-conversation → process → complete
  *
- * This is the foundation for tracking booking session state:
- * a session starts when a contact initiates, progresses through agent
+ * This is the foundation for tracking booking conversation state:
+ * a conversation starts when a contact initiates, progresses through agent
  * interactions, and completes when the booking is confirmed or the
  * customer ends the conversation.
  */
 
-const sessionInputSchema = z.object({
-  sessionId: z.string(),
+const conversationInputSchema = z.object({
+  conversationId: z.string(),
   contactId: z.string(),
   channel: z.enum(['whatsapp', 'web']),
 });
 
-const sessionOutputSchema = z.object({
-  sessionId: z.string(),
+const conversationOutputSchema = z.object({
+  conversationId: z.string(),
   status: z.enum(['completed', 'abandoned']),
 });
 
-/** Step 1: Initialize the session. */
-const startSessionStep = createStep({
-  id: 'start-session',
-  inputSchema: sessionInputSchema,
+/** Step 1: Initialize the conversation. */
+const startConversationStep = createStep({
+  id: 'start-conversation',
+  inputSchema: conversationInputSchema,
   outputSchema: z.object({
-    sessionId: z.string(),
+    conversationId: z.string(),
     contactId: z.string(),
     channel: z.enum(['whatsapp', 'web']),
     startedAt: z.string(),
   }),
   execute: async ({ inputData }) => {
     return {
-      sessionId: inputData.sessionId,
+      conversationId: inputData.conversationId,
       contactId: inputData.contactId,
       channel: inputData.channel,
       startedAt: new Date().toISOString(),
@@ -43,38 +43,38 @@ const startSessionStep = createStep({
   },
 });
 
-/** Step 2: Process the session (agent interactions happen here). */
+/** Step 2: Process the conversation (agent interactions happen here). */
 const processStep = createStep({
   id: 'process',
   inputSchema: z.object({
-    sessionId: z.string(),
+    conversationId: z.string(),
     contactId: z.string(),
     channel: z.enum(['whatsapp', 'web']),
     startedAt: z.string(),
   }),
   outputSchema: z.object({
-    sessionId: z.string(),
+    conversationId: z.string(),
     resolved: z.boolean(),
   }),
   execute: async ({ inputData }) => {
     return {
-      sessionId: inputData.sessionId,
+      conversationId: inputData.conversationId,
       resolved: true,
     };
   },
 });
 
-/** Step 3: Complete the session. */
+/** Step 3: Complete the conversation. */
 const completeStep = createStep({
   id: 'complete',
   inputSchema: z.object({
-    sessionId: z.string(),
+    conversationId: z.string(),
     resolved: z.boolean(),
   }),
-  outputSchema: sessionOutputSchema,
+  outputSchema: conversationOutputSchema,
   execute: async ({ inputData }) => {
     return {
-      sessionId: inputData.sessionId,
+      conversationId: inputData.conversationId,
       status: inputData.resolved
         ? ('completed' as const)
         : ('abandoned' as const),
@@ -83,16 +83,16 @@ const completeStep = createStep({
 });
 
 /** Metadata for the UI — co-located with the workflow definition. */
-export const sessionLifecycleMeta = {
-  id: 'ai:session-lifecycle',
-  name: 'Session Lifecycle',
+export const conversationLifecycleMeta = {
+  id: 'ai:conversation-lifecycle',
+  name: 'Conversation Lifecycle',
   description:
-    'Tracks the lifecycle of a booking session from start to completion',
+    'Tracks the lifecycle of a booking conversation from start to completion',
   steps: [
     {
-      id: 'start-session',
-      name: 'Start Session',
-      description: 'Initializes the session',
+      id: 'start-conversation',
+      name: 'Start Conversation',
+      description: 'Initializes the conversation',
       type: 'action' as const,
     },
     {
@@ -104,18 +104,18 @@ export const sessionLifecycleMeta = {
     {
       id: 'complete',
       name: 'Complete',
-      description: 'Finalizes the session status',
+      description: 'Finalizes the conversation status',
       type: 'action' as const,
     },
   ],
 };
 
-export const sessionLifecycleWorkflow = createWorkflow({
-  id: 'ai:session-lifecycle',
-  inputSchema: sessionInputSchema,
-  outputSchema: sessionOutputSchema,
+export const conversationLifecycleWorkflow = createWorkflow({
+  id: 'ai:conversation-lifecycle',
+  inputSchema: conversationInputSchema,
+  outputSchema: conversationOutputSchema,
 })
-  .then(startSessionStep)
+  .then(startConversationStep)
   .then(processStep)
   .then(completeStep)
   .commit();

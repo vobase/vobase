@@ -8,19 +8,15 @@ import { requestConsultation } from '../../modules/conversations/lib/consult-hum
 import {
   getModuleChannels,
   getModuleDb,
+  getModuleRealtimeOrNull,
   getModuleScheduler,
 } from '../lib/deps';
 
-/**
- * consult_human — Escalate to a human operator for a given session.
- * Creates a consultation record in the DB and notifies staff via channels.
- */
 export const consultHumanTool = createTool({
   id: 'consult_human',
   description:
-    'Request human operator assistance for a session. Use when the customer has an issue that requires human judgment, approval, or intervention.',
+    'Request a specific action from a human team member. Only use this AFTER you have exhausted all available tools (search_knowledge_base, check_availability, etc.) and still cannot resolve the issue. The request must include a concrete, actionable task for the human — not a vague "please help". Examples: "Verify the refund of $50 was processed for order #1234", "Confirm the physical room setup for tomorrow 3pm booking", "Approve a 20% discount for returning customer". The conversation continues normally while staff works on it.',
   inputSchema: z.object({
-    sessionId: z.string().describe('The current conversation session ID'),
     reason: z
       .string()
       .describe('Why human consultation is needed (shown to the operator)'),
@@ -39,13 +35,23 @@ export const consultHumanTool = createTool({
       .describe('Consultation status after creation'),
     error: z.string().optional().describe('Error message if creation failed'),
   }),
-  execute: async ({ sessionId, reason, message }) => {
+  execute: async ({ reason, message }, context) => {
     const db = getModuleDb();
     const channels = getModuleChannels();
     const scheduler = getModuleScheduler();
+    const conversationId =
+      (context?.requestContext?.get('conversationId') as string | undefined) ??
+      '';
+
+    if (!conversationId) {
+      return {
+        consultationId: '',
+        status: 'error' as const,
+        error: 'No conversation context available',
+      };
+    }
 
     try {
-      // Find the first available staff contact to route to
       const staffContacts = await db
         .select()
         .from(contacts)
@@ -62,13 +68,13 @@ export const consultHumanTool = createTool({
       }
 
       const staffContact = staffContacts[0];
-      // Determine channel: prefer whatsapp if staff has phone, else email
       const channel = staffContact.phone ? 'whatsapp' : 'email';
 
+      const realtime = getModuleRealtimeOrNull();
       const consultation = await requestConsultation(
-        { db, scheduler, channels },
+        { db, scheduler, channels, realtime },
         {
-          sessionId,
+          conversationId,
           staffContactId: staffContact.id,
           channelType: channel,
           reason,
@@ -82,7 +88,7 @@ export const consultHumanTool = createTool({
       };
     } catch (err) {
       logger.error('[consult-human] Failed to create consultation', {
-        sessionId,
+        conversationId,
         error: err,
       });
       return {

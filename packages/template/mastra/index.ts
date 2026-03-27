@@ -22,7 +22,7 @@ import {
   searchKnowledgeBaseTool,
   sendReminderTool,
 } from './tools';
-import { sessionLifecycleWorkflow } from './workflows/session-lifecycle';
+import { conversationLifecycleWorkflow } from './workflows/session-lifecycle';
 
 let mastraInstance: Mastra | undefined;
 let memoryInstance: Memory | undefined;
@@ -73,7 +73,7 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
       consult_human: consultHumanTool,
     },
     workflows: {
-      'ai:session-lifecycle': sessionLifecycleWorkflow,
+      'ai:conversation-lifecycle': conversationLifecycleWorkflow,
     },
     memory: { 'agent-memory': memoryInstance },
     storage: store,

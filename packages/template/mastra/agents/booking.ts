@@ -7,11 +7,13 @@ import {
   bookSlotTool,
   cancelBookingTool,
   checkAvailabilityTool,
+  completeConversationTool,
   consultHumanTool,
   rescheduleBookingTool,
   searchKnowledgeBaseTool,
   sendCardTool,
   sendReminderTool,
+  setHandlerModeTool,
 } from '../tools';
 
 export const bookingMeta: AgentMeta = {
@@ -62,7 +64,9 @@ export const bookingAgent = new Agent({
     reschedule_booking: rescheduleBookingTool,
     send_reminder: sendReminderTool,
     consult_human: consultHumanTool,
+    set_handler_mode: setHandlerModeTool,
     send_card: sendCardTool,
+    complete_conversation: completeConversationTool,
   },
   defaultOptions: { maxSteps: 5 },
   inputProcessors: resolveInputProcessors,
