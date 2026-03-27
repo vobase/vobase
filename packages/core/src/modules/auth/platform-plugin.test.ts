@@ -204,6 +204,8 @@ beforeAll(async () => {
   const setup = await createTestDatabase();
   sharedPg = setup.pg;
   sharedAuth = createTestAuth(setup.db);
+  // Warmup: ensure better-auth + PGlite are fully operational before tests
+  await sharedPg.query('SELECT 1');
 });
 
 afterAll(async () => {

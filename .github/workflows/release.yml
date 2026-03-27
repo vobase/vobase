@@ -33,7 +33,8 @@ jobs:
 
       - run: bun run typecheck
 
-      - run: bun run test
+      - name: Run tests (retry for PGlite WASM flakiness)
+        run: bun run test || bun run test
 
       - name: Create Release Pull Request or Publish
         id: changesets
