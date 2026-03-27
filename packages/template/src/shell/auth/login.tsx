@@ -15,7 +15,7 @@ import { authClient } from '@/lib/auth-client';
 
 const isDev = import.meta.env.DEV;
 
-export function LoginPage() {
+function LoginPage() {
   const router = useRouter();
   const navigate = useNavigate();
   const [message, setMessage] = useState<string | null>(null);

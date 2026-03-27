@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { sidebarNavigation } from '@/constants/navigation';
 import { cn } from '@/lib/utils';
 
-export interface MobileNavProps {
+interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
   /** Number of escalated conversations awaiting human attention */

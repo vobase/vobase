@@ -20,7 +20,7 @@ function getInitials(
   return '??';
 }
 
-export function ProfilePage() {
+function ProfilePage() {
   const { data: session } = authClient.useSession();
   const user = session?.user;
   const initials = getInitials(user?.name, user?.email);

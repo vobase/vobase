@@ -28,9 +28,9 @@ async function fetchSystemHealth() {
   return response.json();
 }
 
-export type SystemDashboardPageProps = Record<string, never>;
+type SystemDashboardPageProps = Record<string, never>;
 
-export function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
+function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
   const infoQuery = useQuery({
     queryKey: ['system-info'],
     queryFn: fetchSystemInfo,

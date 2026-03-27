@@ -68,9 +68,9 @@ function LogsFilterPanel() {
   );
 }
 
-export type SystemLogsPageProps = Record<string, never>;
+type SystemLogsPageProps = Record<string, never>;
 
-export function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
+function SystemLogsPage(_: Readonly<SystemLogsPageProps>) {
   const [cursor, setCursor] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<string | null>>([]);
   const [sorting, setSorting] = useState<SortingState>([]);

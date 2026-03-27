@@ -10,7 +10,7 @@ import type {
   ExternalDocument,
 } from './types';
 
-export interface SharePointConfig extends ConnectorConfig {
+interface SharePointConfig extends ConnectorConfig {
   siteId?: string;
   driveId?: string;
   integrationId?: string;

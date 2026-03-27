@@ -7,7 +7,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/custom/sheet";
+} from "@/components/ui/sheet";
 import { useDataTable } from "@/components/data-table/data-table-provider";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
@@ -110,7 +110,7 @@ export function DataTableSheetDetails({
       <SheetContent
         // onCloseAutoFocus={(e) => e.preventDefault()}
         className="overflow-y-auto p-0 sm:max-w-md"
-        hideClose
+        showCloseButton={false}
       >
         <SheetHeader className="bg-background sticky top-0 z-10 border-b p-4">
           <div className="flex items-center justify-between gap-2">

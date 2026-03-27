@@ -5,7 +5,7 @@ import type {
   VobaseDb,
 } from '@vobase/core';
 
-export interface ConversationsDeps {
+interface ConversationsDeps {
   db: VobaseDb;
   scheduler: Scheduler;
   channels: ChannelsService;

@@ -11,6 +11,7 @@ import { contacts } from '../../contacts/schema';
 import { conversations, deadLetters, outbox } from '../schema';
 import { emitActivityEvent } from './activity-events';
 
+/** @lintignore */
 export const MAX_RETRIES = 5;
 
 // OPTIONAL HARDENING: In-memory circuit breaker — single-instance only, lost on restart.
@@ -24,6 +25,7 @@ const circuitBreakers = new Map<string, CircuitState>();
 const CIRCUIT_FAILURE_THRESHOLD = 5;
 const CIRCUIT_OPEN_MS = 60_000; // 60s
 
+/** @lintignore */
 export function isCircuitOpen(channelType: string): boolean {
   const state = circuitBreakers.get(channelType);
   if (!state || state.openAt === null) return false;
@@ -35,10 +37,12 @@ export function isCircuitOpen(channelType: string): boolean {
   return true;
 }
 
+/** @lintignore */
 export function recordCircuitSuccess(channelType: string): void {
   circuitBreakers.set(channelType, { failures: 0, openAt: null });
 }
 
+/** @lintignore */
 export function recordCircuitFailure(channelType: string): void {
   const state = circuitBreakers.get(channelType) ?? {
     failures: 0,
@@ -55,6 +59,7 @@ export function recordCircuitFailure(channelType: string): void {
   circuitBreakers.set(channelType, state);
 }
 
+/** @lintignore */
 export function resetCircuit(channelType: string): void {
   circuitBreakers.delete(channelType);
 }
@@ -334,15 +339,4 @@ async function moveToDeadLetters(
     error,
     retryCount: record.retryCount,
   });
-}
-
-export async function handleDeliveryStatus(
-  db: VobaseDb,
-  externalMessageId: string,
-  status: 'delivered' | 'read' | 'failed',
-): Promise<void> {
-  await db
-    .update(outbox)
-    .set({ status })
-    .where(eq(outbox.externalMessageId, externalMessageId));
 }

@@ -20,7 +20,7 @@ const settingsNav = [
   { label: 'Organization', to: '/settings/organization', icon: BuildingIcon },
 ] as const;
 
-export function SettingsLayout() {
+function SettingsLayout() {
   return (
     <div className="flex min-h-0 flex-1 gap-8 p-6">
       <nav className="w-[200px] shrink-0">

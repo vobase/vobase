@@ -9,7 +9,7 @@ import type {
 
 const http = createHttpClient();
 
-export interface CrawlConfig extends ConnectorConfig {
+interface CrawlConfig extends ConnectorConfig {
   url: string;
   maxPages?: number;
   maxDepth?: number;

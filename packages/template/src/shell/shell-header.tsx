@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/shell/breadcrumbs';
 import { CommandPalette } from '@/shell/command-palette';
 
-export interface ShellHeaderProps {
+interface ShellHeaderProps {
   onMobileMenuOpen: () => void;
 }
 

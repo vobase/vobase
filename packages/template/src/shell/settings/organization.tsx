@@ -3,7 +3,7 @@ import { BuildingIcon } from 'lucide-react';
 
 import { EmptyState } from '@/components/empty-state';
 
-export function OrganizationPage() {
+function OrganizationPage() {
   return (
     <div className="max-w-lg">
       <div className="mb-6">

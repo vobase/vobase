@@ -358,7 +358,6 @@ export const aiRoutes = new Hono()
     const parsed = scopeSchema.safeParse(rawScope);
     if (!parsed.success) throw validation({ scope: parsed.error.message });
 
-    const scope = parseScope(rawScope);
     const resourceId = rawScope; // e.g. "contact:abc123"
 
     try {

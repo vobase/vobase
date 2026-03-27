@@ -7,7 +7,7 @@ import type {
   ExternalDocument,
 } from './types';
 
-export interface GoogleDriveConfig extends ConnectorConfig {
+interface GoogleDriveConfig extends ConnectorConfig {
   folderId?: string;
   integrationId?: string;
 }

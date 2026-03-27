@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 
-export function SystemLayoutPage() {
+function SystemLayoutPage() {
   return <Outlet />;
 }
 

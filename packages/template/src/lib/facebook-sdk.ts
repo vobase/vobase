@@ -1,6 +1,6 @@
 // ─── FB SDK Types ─────────────────────────────────────────────────────────────
 
-export interface FBLoginResponse {
+interface FBLoginResponse {
   status: 'connected' | 'not_authorized' | string;
   authResponse?: {
     code?: string;
@@ -33,7 +33,7 @@ declare global {
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
-export function loadFacebookSDK(appId: string): Promise<void> {
+function loadFacebookSDK(appId: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if (window.FB) {
       resolve();
@@ -64,7 +64,7 @@ export function loadFacebookSDK(appId: string): Promise<void> {
 
 // ─── Embedded Signup Flow ─────────────────────────────────────────────────────
 
-export interface WhatsAppSignupResult {
+interface WhatsAppSignupResult {
   code: string;
   wabaId: string | undefined;
   phoneNumberId: string | undefined;

@@ -12,7 +12,7 @@ import { useSidebar } from '@/hooks/use-sidebar';
 import { cn } from '@/lib/utils';
 import { UserMenu } from '@/shell/user-menu';
 
-export interface ShellSidebarProps {
+interface ShellSidebarProps {
   className?: string;
   /** Number of escalated conversations awaiting human attention */
   escalationCount?: number;

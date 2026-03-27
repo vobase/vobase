@@ -265,7 +265,7 @@ function eventDescription(
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
-export function HomePage() {
+function HomePage() {
   const queryClient = useQueryClient();
 
   const dashboardQuery = useQuery({

@@ -5,7 +5,7 @@
  * system prompts so the agent can tailor card structure per channel.
  */
 
-export interface ChannelConstraints {
+interface ChannelConstraints {
   /** Maximum number of interactive buttons. null = unlimited. */
   maxButtons: number | null;
   maxButtonLabelLength: number;
@@ -14,6 +14,7 @@ export interface ChannelConstraints {
   name: string;
 }
 
+/** @lintignore */
 export const CHANNEL_CONSTRAINTS: Record<string, ChannelConstraints> = {
   whatsapp: {
     maxButtons: 3,

@@ -8,7 +8,7 @@ interface ControlsContextType {
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export const ControlsContext = createContext<ControlsContextType | null>(null);
+const ControlsContext = createContext<ControlsContextType | null>(null);
 
 export function ControlsProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useLocalStorage(CONTROLS_KEY, true);

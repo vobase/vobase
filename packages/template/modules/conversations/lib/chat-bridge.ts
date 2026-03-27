@@ -25,7 +25,7 @@ import { enqueueMessage } from './outbox';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export interface BridgeDeps {
+interface BridgeDeps {
   db: VobaseDb;
   scheduler: Scheduler;
 }
@@ -33,7 +33,7 @@ export interface BridgeDeps {
 // ─── Factory ─────────────────────────────────────────────────────────
 
 /** Channel instance record shape (subset of schema). */
-export interface ChannelInstanceRecord {
+interface ChannelInstanceRecord {
   id: string;
   type: string;
   label: string;
@@ -200,7 +200,7 @@ export function createChannelBridge(
 
 // ─── Serialization ─────────────────────────────────────────────────
 
-export interface SerializedOutput {
+interface SerializedOutput {
   content: string;
   payload?:
     | {

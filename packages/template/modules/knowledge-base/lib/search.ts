@@ -6,7 +6,7 @@ import { buildRankMap, computeRRFScores } from '../../../lib/search-utils';
 import { kbChunks, kbDocuments } from '../schema';
 import { embedQuery } from './embeddings';
 
-export interface SearchResult {
+interface SearchResult {
   chunkId: string;
   documentId: string;
   documentTitle: string;
@@ -15,7 +15,7 @@ export interface SearchResult {
   chunkIndex: number;
 }
 
-export interface SearchOptions {
+interface SearchOptions {
   limit?: number;
   /** @deprecated Ignored — RRF is now used for score fusion. Kept for backward compatibility. */
   vectorWeight?: number;

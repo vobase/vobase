@@ -3,7 +3,7 @@ import { KeyIcon } from 'lucide-react';
 
 import { EmptyState } from '@/components/empty-state';
 
-export function ApiKeysPage() {
+function ApiKeysPage() {
   return (
     <div className="max-w-lg">
       <div className="mb-6">

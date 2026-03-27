@@ -5,7 +5,7 @@ import { extractText as extractPdfText, getDocumentProxy } from 'unpdf';
  * - ok: text was successfully extracted
  * - needs_ocr: document requires OCR but no API key is configured
  */
-export interface ExtractionResult {
+interface ExtractionResult {
   text: string;
   status: 'ok' | 'needs_ocr';
   warning?: string;

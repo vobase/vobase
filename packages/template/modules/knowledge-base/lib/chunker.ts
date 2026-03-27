@@ -1,9 +1,9 @@
-export interface ChunkOptions {
+interface ChunkOptions {
   maxTokens?: number; // Default: 512
   overlap?: number; // Default: 50 tokens overlap between chunks
 }
 
-export interface Chunk {
+interface Chunk {
   content: string;
   index: number;
   tokenCount: number;

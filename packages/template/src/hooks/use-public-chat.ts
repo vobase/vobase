@@ -20,7 +20,7 @@ interface ConversationMessages {
   }>;
 }
 
-export interface UsePublicChatResult {
+interface UsePublicChatResult {
   conversationId: string | null;
   visitorToken: string;
   initialMessages: UIMessage[];
@@ -33,7 +33,7 @@ export interface UsePublicChatResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-export function getVisitorToken(channelRoutingId: string): string {
+function getVisitorToken(channelRoutingId: string): string {
   const key = `vobase-visitor-${channelRoutingId}`;
   let token = localStorage.getItem(key);
   if (!token) {
@@ -43,16 +43,11 @@ export function getVisitorToken(channelRoutingId: string): string {
   return token;
 }
 
-export function getStoredConversationId(
-  channelRoutingId: string,
-): string | null {
+function getStoredConversationId(channelRoutingId: string): string | null {
   return localStorage.getItem(`vobase-conv-${channelRoutingId}`);
 }
 
-export function storeConversationId(
-  channelRoutingId: string,
-  conversationId: string,
-) {
+function storeConversationId(channelRoutingId: string, conversationId: string) {
   localStorage.setItem(`vobase-conv-${channelRoutingId}`, conversationId);
 }
 

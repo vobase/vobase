@@ -5,7 +5,7 @@ import { activityEvents } from '../schema';
 
 type ActivitySource = 'agent' | 'staff' | 'system';
 
-export interface EmitActivityEventInput {
+interface EmitActivityEventInput {
   type: string;
   agentId?: string;
   userId?: string;

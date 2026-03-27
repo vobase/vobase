@@ -142,20 +142,6 @@ export async function createConversation(
   return conversation;
 }
 
-export async function resumeConversation(
-  db: VobaseDb,
-  conversationId: string,
-): Promise<typeof conversations.$inferSelect | null> {
-  const [conversation] = await db
-    .select()
-    .from(conversations)
-    .where(eq(conversations.id, conversationId));
-
-  if (!conversation || conversation.status !== 'active') return null;
-
-  return conversation;
-}
-
 export async function completeConversation(
   db: VobaseDb,
   conversationId: string,

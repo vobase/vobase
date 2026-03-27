@@ -3,7 +3,7 @@ import SuperJSON from 'superjson';
 
 import type { BaseChartSchema, FacetMetadataSchema } from './types';
 
-export type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
+type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
   totalRowCount: number;
   filterRowCount: number;
   chartData: BaseChartSchema[];
@@ -11,7 +11,7 @@ export type InfiniteQueryMeta<TMeta = Record<string, unknown>> = {
   metadata?: TMeta;
 };
 
-export type InfiniteQueryResponse<TData, TMeta = unknown> = {
+type InfiniteQueryResponse<TData, TMeta = unknown> = {
   data: TData;
   meta: InfiniteQueryMeta<TMeta>;
   prevCursor: number | null;

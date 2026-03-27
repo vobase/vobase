@@ -18,7 +18,7 @@ import {
   UserIcon,
 } from 'lucide-react';
 
-export interface NavItem {
+interface NavItem {
   label: string;
   to: string;
   icon: LucideIcon;
@@ -26,7 +26,7 @@ export interface NavItem {
   keywords?: string[];
 }
 
-export interface NavGroup {
+interface NavGroup {
   label: string;
   items: NavItem[];
 }
@@ -188,19 +188,3 @@ export const allNavItems: NavItem[] = navigation.flatMap((g) => g.items);
 export const sidebarNavigation: NavGroup[] = navigation.filter(
   (g) => g.label !== 'Settings',
 );
-
-// Backward-compatible exports
-export const shellNavigation = [{ label: 'Overview', to: '/' }] as const;
-
-export const knowledgeBaseNavigation = [
-  { label: 'Search', to: '/knowledge-base/search' },
-  { label: 'Documents', to: '/knowledge-base/documents' },
-  { label: 'Sources', to: '/knowledge-base/sources' },
-] as const;
-
-export const systemNavigation = [
-  { label: 'Operations', to: '/system/list' },
-  { label: 'Audit log', to: '/system/logs' },
-] as const;
-
-export const moduleNames = ['System', 'Knowledge Base'];

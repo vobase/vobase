@@ -347,4 +347,4 @@ function SortableDragHandle({
   );
 }
 
-export { Sortable, SortableDragHandle, SortableItem, SortableOverlay };
+export { Sortable, SortableDragHandle, SortableItem };

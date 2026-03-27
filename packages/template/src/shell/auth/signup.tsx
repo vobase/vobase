@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { authClient } from '@/lib/auth-client';
 
-export function SignupPage() {
+function SignupPage() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');

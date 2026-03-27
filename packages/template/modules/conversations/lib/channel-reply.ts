@@ -39,6 +39,7 @@ interface ReplyDeps {
  * NOTE: .payload nesting is real — see @mastra/core/dist/stream/types.d.ts
  * NOTE: result field is .result (not .output — that is the AI SDK frontend type)
  */
+/** @lintignore */
 export function extractSendCardResults(response: {
   steps?: unknown[];
   toolResults?: unknown[];

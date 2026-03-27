@@ -411,7 +411,8 @@ export const chatHandlers = new Hono()
     if (conversation.handler === 'human' || conversation.handler === 'paused') {
       return c.json(
         {
-          error: 'Conversation is in human/paused mode — AI responses are disabled',
+          error:
+            'Conversation is in human/paused mode — AI responses are disabled',
         },
         403,
       );

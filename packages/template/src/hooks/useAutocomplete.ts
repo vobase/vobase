@@ -25,7 +25,7 @@ export interface AutocompleteConfig {
   cacheKey?: string;
 }
 
-export interface AutocompleteState extends Completions {
+interface AutocompleteState extends Completions {
   activeIndex: number;
   setActiveIndex: (i: number) => void;
   dismiss: () => void;

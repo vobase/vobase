@@ -30,7 +30,7 @@ const themeOptions: {
   },
 ];
 
-export function AppearancePage() {
+function AppearancePage() {
   const { theme, setTheme } = useTheme();
 
   return (
