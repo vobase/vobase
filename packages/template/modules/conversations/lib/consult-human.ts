@@ -1,13 +1,7 @@
-/**
- * Consult-human pattern — request human staff assistance during AI sessions.
- *
- * Agents use the consult_human tool, which creates a consultation record
- * and notifies staff via channels. Staff replies are routed back via
- * the inbound priority pipeline (AD-4 step 1).
- */
 import type {
   ChannelsService,
   MessageReceivedEvent,
+  RealtimeService,
   Scheduler,
   VobaseDb,
 } from '@vobase/core';
@@ -15,17 +9,19 @@ import { logger } from '@vobase/core';
 import { and, eq, lt, sql } from 'drizzle-orm';
 
 import { contacts } from '../../contacts/schema';
-import { consultations } from '../schema';
+import { consultations, conversations } from '../schema';
+import { emitActivityEvent } from './activity-events';
 import { getChatState } from './chat-init';
 
 interface ConsultDeps {
   db: VobaseDb;
   scheduler: Scheduler;
   channels: ChannelsService;
+  realtime?: RealtimeService;
 }
 
 interface RequestConsultationInput {
-  sessionId: string;
+  conversationId: string;
   staffContactId: string;
   channelType: string;
   channelInstanceId?: string;
@@ -33,7 +29,6 @@ interface RequestConsultationInput {
   message: string;
 }
 
-/** Request a human consultation — notify staff via channels. */
 export async function requestConsultation(
   deps: ConsultDeps,
   input: RequestConsultationInput,
@@ -41,13 +36,13 @@ export async function requestConsultation(
   const { db, channels } = deps;
   const start = Date.now();
 
-  // Check no active (pending) consultation for this session
+  // Check no active (pending) consultation for this conversation
   const [existing] = await db
     .select()
     .from(consultations)
     .where(
       and(
-        eq(consultations.sessionId, input.sessionId),
+        eq(consultations.conversationId, input.conversationId),
         eq(consultations.status, 'pending'),
       ),
     );
@@ -56,18 +51,51 @@ export async function requestConsultation(
     return existing;
   }
 
-  // Insert consultation record
-  const [consultation] = await db
-    .insert(consultations)
-    .values({
-      sessionId: input.sessionId,
-      staffContactId: input.staffContactId,
-      channelType: input.channelType,
-      channelInstanceId: input.channelInstanceId ?? null,
-      reason: input.reason,
-      status: 'pending',
+  // Look up conversation for event context
+  const [conversation] = await db
+    .select({
+      agentId: conversations.agentId,
+      contactId: conversations.contactId,
+      channelRoutingId: conversations.channelRoutingId,
     })
-    .returning();
+    .from(conversations)
+    .where(eq(conversations.id, input.conversationId));
+
+  // Insert consultation + emit escalation.created transactionally
+  const consultation = await db.transaction(async (tx) => {
+    const [record] = await tx
+      .insert(consultations)
+      .values({
+        conversationId: input.conversationId,
+        staffContactId: input.staffContactId,
+        channelType: input.channelType,
+        channelInstanceId: input.channelInstanceId ?? null,
+        reason: input.reason,
+        status: 'pending',
+      })
+      .returning();
+
+    if (deps.realtime) {
+      await emitActivityEvent(
+        deps.db,
+        deps.realtime,
+        {
+          type: 'escalation.created',
+          agentId: conversation?.agentId,
+          source: 'agent',
+          contactId: conversation?.contactId,
+          conversationId: input.conversationId,
+          channelRoutingId: conversation?.channelRoutingId,
+          channelType: input.channelType,
+          data: { reason: input.reason, staffContactId: input.staffContactId },
+          resolutionStatus: 'pending',
+        },
+        tx as unknown as VobaseDb,
+      );
+    }
+
+    return record;
+  });
 
   // Look up staff contact for delivery address
   const [staffContact] = await db
@@ -125,7 +153,7 @@ export async function requestConsultation(
 
   logger.info('[conversations] consultation_request', {
     consultationId: consultation.id,
-    sessionId: input.sessionId,
+    conversationId: input.conversationId,
     channelType: input.channelType,
     durationMs: Date.now() - start,
     outcome: 'requested',
@@ -134,7 +162,6 @@ export async function requestConsultation(
   return consultation;
 }
 
-/** Handle a staff reply to a pending consultation. Returns true if reply was accepted. */
 export async function handleStaffReply(
   deps: ConsultDeps,
   consultation: typeof consultations.$inferSelect,
@@ -168,7 +195,7 @@ export async function handleStaffReply(
   // Store reply in chat state for the agent to pick up
   const state = getChatState();
   await state.set(
-    `consultation:${consultation.sessionId}`,
+    `consultation:${consultation.conversationId}`,
     {
       reply: event.content,
       staffId: consultation.staffContactId,
@@ -180,19 +207,18 @@ export async function handleStaffReply(
 
   // Queue channel-reply so the agent processes the consultation response
   await scheduler.add('conversations:channel-reply', {
-    sessionId: consultation.sessionId,
+    conversationId: consultation.conversationId,
   });
 
   logger.info('[conversations] consultation_reply', {
     consultationId: consultation.id,
-    sessionId: consultation.sessionId,
+    conversationId: consultation.conversationId,
     outcome: 'replied',
   });
 
   return true;
 }
 
-/** Check for timed-out consultations and mark them. */
 export async function checkConsultationTimeouts(
   db: VobaseDb,
   _channels: ChannelsService,
@@ -230,7 +256,7 @@ export async function checkConsultationTimeouts(
     // Store timeout flag in chat state so agent knows
     const state = getChatState();
     await state.set(
-      `consultation:${c.sessionId}`,
+      `consultation:${c.conversationId}`,
       { timeout: true, consultationId: c.id },
       60 * 60 * 1000,
     );

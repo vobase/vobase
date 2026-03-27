@@ -65,7 +65,7 @@ export function createChannelBridge(
       const { content, payload } = serializeForChannel(message);
 
       const record = await enqueueMessage(deps.db, deps.scheduler, {
-        sessionId: threadId,
+        conversationId: threadId,
         content,
         channelType,
         channelInstanceId: instanceId,

@@ -1,15 +1,3 @@
-/**
- * Channel reply generation — non-streaming AI response for channel sessions.
- *
- * Loads the session, checks for consultation replies, generates an agent
- * response using the inbound message, and enqueues the outbound message.
- *
- * Phase 2: Injects RequestContext with channel type so sendCard tool and
- *   processors can access channel type during generation.
- * Phase 3: Extracts CardElement results from sendCard tool calls and routes
- *   them through serializeCard() → outbox pipeline.
- */
-
 import { RequestContext } from '@mastra/core/request-context';
 import type { ChannelsService, Scheduler, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
@@ -17,11 +5,23 @@ import type { CardElement } from 'chat';
 import { eq } from 'drizzle-orm';
 
 import { getAgent } from '../../../mastra/agents';
-import { channelInstances, sessions } from '../schema';
+import { channelInstances, conversations } from '../schema';
+import { emitActivityEvent } from './activity-events';
 import { formatConstraintsForPrompt } from './channel-constraints';
 import { serializeCard } from './chat-bridge';
 import { getChatState } from './chat-init';
+import { getConversationsDeps } from './deps';
 import { enqueueMessage } from './outbox';
+
+/** Tools that emit activity events on execution (side-effect tools). */
+const EMIT_EVENT_TOOLS = new Set([
+  'book_slot',
+  'cancel_booking',
+  'reschedule_booking',
+  'send_reminder',
+  'consult_human',
+  'send_card',
+]);
 
 interface ReplyDeps {
   db: VobaseDb;
@@ -46,9 +46,6 @@ export function extractSendCardResults(response: {
   const cards: CardElement[] = [];
 
   if (!response.steps || !Array.isArray(response.steps)) {
-    logger.warn(
-      '[conversations] extractSendCardResults: response.steps is missing or not an array — possible Mastra API drift',
-    );
     return cards;
   }
 
@@ -108,43 +105,46 @@ export function extractSendCardResults(response: {
 
 // ─── Main function ───────────────────────────────────────────────────
 
-/** Generate an AI reply for a channel session and enqueue for delivery. */
 export async function generateChannelReply(
   deps: ReplyDeps,
-  sessionId: string,
+  conversationId: string,
   inboundContent?: string,
 ): Promise<string | null> {
   const { db, scheduler } = deps;
+  const { realtime } = getConversationsDeps();
 
-  // Load session
-  const [session] = await db
+  // Load conversation
+  const [conversation] = await db
     .select()
-    .from(sessions)
-    .where(eq(sessions.id, sessionId));
+    .from(conversations)
+    .where(eq(conversations.id, conversationId));
 
-  if (!session || session.status !== 'active') {
-    logger.warn('[conversations] Cannot generate reply for inactive session', {
-      sessionId,
-      status: session?.status,
-    });
+  if (!conversation || conversation.status !== 'active') {
+    logger.warn(
+      '[conversations] Cannot generate reply for inactive conversation',
+      {
+        conversationId,
+        status: conversation?.status,
+      },
+    );
     return null;
   }
 
   // Get agent
-  const registered = getAgent(session.agentId);
+  const registered = getAgent(conversation.agentId);
   if (!registered) {
     logger.error('[conversations] Agent not found', {
-      agentId: session.agentId,
+      agentId: conversation.agentId,
     });
     return null;
   }
 
   // Resolve channel type early (needed for context injection and card routing)
-  const [instance] = session.channelInstanceId
+  const [instance] = conversation.channelInstanceId
     ? await db
         .select({ type: channelInstances.type })
         .from(channelInstances)
-        .where(eq(channelInstances.id, session.channelInstanceId))
+        .where(eq(channelInstances.id, conversation.channelInstanceId))
     : [];
   const channelType = instance?.type ?? 'web';
 
@@ -154,7 +154,7 @@ export async function generateChannelReply(
     reply?: string;
     timeout?: boolean;
     staffId?: string;
-  }>(`consultation:${sessionId}`);
+  }>(`consultation:${conversationId}`);
 
   // Build the message to send to the agent
   let messageContent = inboundContent ?? '';
@@ -166,7 +166,7 @@ export async function generateChannelReply(
       messageContent +=
         '\n\n[System]: Staff consultation timed out. Please proceed with your best judgment or inform the customer.';
     }
-    await state.delete(`consultation:${sessionId}`);
+    await state.delete(`consultation:${conversationId}`);
   }
 
   if (!messageContent) {
@@ -179,10 +179,10 @@ export async function generateChannelReply(
 
   // Build RequestContext so sendCard tool and processors can access channel type
   const rc = new RequestContext();
-  rc.set('conversationId', sessionId);
-  rc.set('contactId', session.contactId);
+  rc.set('conversationId', conversationId);
+  rc.set('contactId', conversation.contactId);
   rc.set('channel', channelType);
-  rc.set('agentId', session.agentId);
+  rc.set('agentId', conversation.agentId);
 
   // Generate response using agent (non-streaming for channels)
   try {
@@ -190,11 +190,37 @@ export async function generateChannelReply(
       contextPrefix + messageContent,
       {
         memory: {
-          thread: sessionId,
-          resource: `contact:${session.contactId}`,
+          thread: conversationId,
+          resource: `contact:${conversation.contactId}`,
         },
         maxSteps: 5,
         requestContext: rc,
+        onStepFinish: async (step) => {
+          if (!step.toolResults || !Array.isArray(step.toolResults)) return;
+          for (const tr of step.toolResults as unknown[]) {
+            const result = tr as Record<string, unknown>;
+            const payload = (result.payload ?? result) as Record<
+              string,
+              unknown
+            >;
+            const toolName = payload.toolName as string | undefined;
+            if (toolName && EMIT_EVENT_TOOLS.has(toolName)) {
+              await emitActivityEvent(db, realtime, {
+                type: 'agent.tool_executed',
+                agentId: conversation.agentId,
+                source: 'agent',
+                contactId: conversation.contactId,
+                conversationId,
+                channelRoutingId: conversation.channelRoutingId,
+                channelType,
+                data: {
+                  toolName,
+                  isError: (payload.isError as boolean) ?? false,
+                },
+              });
+            }
+          }
+        },
       },
     );
 
@@ -208,13 +234,18 @@ export async function generateChannelReply(
 
     for (const cardElement of cardElements) {
       const serialized = serializeCard(cardElement);
-      await enqueueMessage(db, scheduler, {
-        sessionId,
-        content: serialized.content,
-        channelType,
-        channelInstanceId: session.channelInstanceId,
-        payload: serialized.payload,
-      });
+      await enqueueMessage(
+        db,
+        scheduler,
+        {
+          conversationId,
+          content: serialized.content,
+          channelType,
+          channelInstanceId: conversation.channelInstanceId,
+          payload: serialized.payload,
+        },
+        realtime,
+      );
     }
 
     // Also enqueue any text response (agent may combine text + cards)
@@ -224,29 +255,65 @@ export async function generateChannelReply(
         : String(response.text ?? '');
 
     if (responseText) {
-      await enqueueMessage(db, scheduler, {
-        sessionId,
-        content: responseText,
-        channelType,
-        channelInstanceId: session.channelInstanceId,
-      });
+      await enqueueMessage(
+        db,
+        scheduler,
+        {
+          conversationId,
+          content: responseText,
+          channelType,
+          channelInstanceId: conversation.channelInstanceId,
+        },
+        realtime,
+      );
+    }
+
+    // Post-generation: check if agent called complete_conversation
+    // Re-read conversation metadata in case complete_conversation tool modified it during generation
+    const [updatedConversation] = await db
+      .select({ metadata: conversations.metadata })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId));
+
+    const updatedMeta = (
+      updatedConversation?.metadata &&
+      typeof updatedConversation.metadata === 'object'
+        ? updatedConversation.metadata
+        : {}
+    ) as Record<string, unknown>;
+
+    if (updatedMeta.completing) {
+      const { completeConversation: doComplete } = await import(
+        './conversation'
+      );
+
+      // Check if conversation had any consultations
+      const { consultations: consultationsTable } = await import('../schema');
+      const [hasConsultation] = await db
+        .select({ id: consultationsTable.id })
+        .from(consultationsTable)
+        .where(eq(consultationsTable.conversationId, conversationId))
+        .limit(1);
+
+      const outcome = hasConsultation ? 'escalated_resolved' : 'resolved';
+      await doComplete(db, conversationId, realtime, outcome);
     }
 
     return responseText || null;
   } catch (err) {
     logger.error('[conversations] Agent generation failed', {
-      sessionId,
-      agentId: session.agentId,
+      conversationId,
+      agentId: conversation.agentId,
       error: err,
     });
 
     // Enqueue a fallback message so the customer is not left without a response
     await enqueueMessage(db, scheduler, {
-      sessionId,
+      conversationId,
       content:
         "We're experiencing a temporary issue. Please try again shortly.",
       channelType,
-      channelInstanceId: session.channelInstanceId,
+      channelInstanceId: conversation.channelInstanceId,
     });
 
     return null;

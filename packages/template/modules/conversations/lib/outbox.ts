@@ -1,16 +1,16 @@
-/**
- * Outbox — outbound message delivery tracking.
- *
- * Messages are queued, then sent via core _channels, with status tracking.
- */
-import type { ChannelsService, Scheduler, VobaseDb } from '@vobase/core';
+import type {
+  ChannelsService,
+  RealtimeService,
+  Scheduler,
+  VobaseDb,
+} from '@vobase/core';
 import { logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
 import { contacts } from '../../contacts/schema';
-import { deadLetters, outbox, sessions } from '../schema';
+import { conversations, deadLetters, outbox } from '../schema';
+import { emitActivityEvent } from './activity-events';
 
-/** Maximum send retries before moving to dead_letters. */
 export const MAX_RETRIES = 5;
 
 // OPTIONAL HARDENING: In-memory circuit breaker — single-instance only, lost on restart.
@@ -24,7 +24,6 @@ const circuitBreakers = new Map<string, CircuitState>();
 const CIRCUIT_FAILURE_THRESHOLD = 5;
 const CIRCUIT_OPEN_MS = 60_000; // 60s
 
-/** Returns true if the channel is currently open (blocking sends). */
 export function isCircuitOpen(channelType: string): boolean {
   const state = circuitBreakers.get(channelType);
   if (!state || state.openAt === null) return false;
@@ -36,12 +35,10 @@ export function isCircuitOpen(channelType: string): boolean {
   return true;
 }
 
-/** Record a send success — resets failures to 0 (closed). */
 export function recordCircuitSuccess(channelType: string): void {
   circuitBreakers.set(channelType, { failures: 0, openAt: null });
 }
 
-/** Record a send failure — opens circuit after threshold. */
 export function recordCircuitFailure(channelType: string): void {
   const state = circuitBreakers.get(channelType) ?? {
     failures: 0,
@@ -58,13 +55,12 @@ export function recordCircuitFailure(channelType: string): void {
   circuitBreakers.set(channelType, state);
 }
 
-/** Reset circuit state (for testing). */
 export function resetCircuit(channelType: string): void {
   circuitBreakers.delete(channelType);
 }
 
 interface EnqueueInput {
-  sessionId: string;
+  conversationId: string;
   content: string;
   channelType: string;
   channelInstanceId?: string;
@@ -74,18 +70,18 @@ interface EnqueueInput {
   };
 }
 
-/** Enqueue an outbound message for delivery. */
 export async function enqueueMessage(
   db: VobaseDb,
   scheduler: Scheduler,
   input: EnqueueInput,
+  realtime?: RealtimeService,
 ): Promise<typeof outbox.$inferSelect> {
   const start = Date.now();
 
   const [record] = await db
     .insert(outbox)
     .values({
-      sessionId: input.sessionId,
+      conversationId: input.conversationId,
       content: input.content,
       channelType: input.channelType,
       channelInstanceId: input.channelInstanceId ?? null,
@@ -96,9 +92,20 @@ export async function enqueueMessage(
 
   await scheduler.add('conversations:send', { outboxId: record.id });
 
+  // Emit message.outbound_queued activity event (fire-and-forget)
+  if (realtime) {
+    await emitActivityEvent(db, realtime, {
+      type: 'message.outbound_queued',
+      source: 'agent',
+      conversationId: input.conversationId,
+      channelType: input.channelType,
+      data: { outboxId: record.id },
+    });
+  }
+
   logger.info('[conversations] outbox_enqueue', {
     outboxId: record.id,
-    sessionId: input.sessionId,
+    conversationId: input.conversationId,
     channelType: input.channelType,
     durationMs: Date.now() - start,
     outcome: 'queued',
@@ -107,7 +114,6 @@ export async function enqueueMessage(
   return record;
 }
 
-/** Process a queued outbox message — send via channels, update status. */
 export async function processOutboxMessage(
   db: VobaseDb,
   channels: ChannelsService,
@@ -138,14 +144,14 @@ export async function processOutboxMessage(
     return;
   }
 
-  // Load session to get contact info for routing
-  const [session] = await db
+  // Load conversation to get contact info for routing
+  const [conversation] = await db
     .select()
-    .from(sessions)
-    .where(eq(sessions.id, record.sessionId));
+    .from(conversations)
+    .where(eq(conversations.id, record.conversationId));
 
-  if (!session) {
-    await moveToDeadLetters(db, record, 'Session not found');
+  if (!conversation) {
+    await moveToDeadLetters(db, record, 'Conversation not found');
     return;
   }
 
@@ -153,7 +159,7 @@ export async function processOutboxMessage(
     const [contact] = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.id, session.contactId));
+      .where(eq(contacts.id, conversation.contactId));
 
     if (!contact) {
       await moveToDeadLetters(db, record, 'Contact not found');
@@ -221,7 +227,7 @@ export async function processOutboxMessage(
 
       logger.info('[conversations] outbox_send', {
         outboxId,
-        sessionId: record.sessionId,
+        conversationId: record.conversationId,
         channelType: record.channelType,
         durationMs: Date.now() - start,
         outcome: 'sent',
@@ -238,7 +244,7 @@ export async function processOutboxMessage(
 
       logger.info('[conversations] outbox_send', {
         outboxId,
-        sessionId: record.sessionId,
+        conversationId: record.conversationId,
         channelType: record.channelType,
         durationMs: Date.now() - start,
         outcome: 'failed',
@@ -254,7 +260,7 @@ export async function processOutboxMessage(
 
     logger.info('[conversations] outbox_send', {
       outboxId,
-      sessionId: record.sessionId,
+      conversationId: record.conversationId,
       channelType: record.channelType,
       durationMs: Date.now() - start,
       outcome: 'error',
@@ -269,7 +275,6 @@ export async function processOutboxMessage(
   }
 }
 
-/** Retry with exponential backoff or move to dead_letters after MAX_RETRIES. */
 async function retryOrDeadLetter(
   db: VobaseDb,
   scheduler: Scheduler,
@@ -305,7 +310,6 @@ async function retryOrDeadLetter(
   });
 }
 
-/** Move a failed outbox record to the dead_letters table (terminal). */
 async function moveToDeadLetters(
   db: VobaseDb,
   record: typeof outbox.$inferSelect,
@@ -313,7 +317,7 @@ async function moveToDeadLetters(
 ): Promise<void> {
   await db.insert(deadLetters).values({
     originalOutboxId: record.id,
-    sessionId: record.sessionId,
+    conversationId: record.conversationId,
     channelType: record.channelType,
     channelInstanceId: record.channelInstanceId,
     content: record.content,
@@ -332,7 +336,6 @@ async function moveToDeadLetters(
   });
 }
 
-/** Update outbox record based on external delivery status callback. */
 export async function handleDeliveryStatus(
   db: VobaseDb,
   externalMessageId: string,

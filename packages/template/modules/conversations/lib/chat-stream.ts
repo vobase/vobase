@@ -2,7 +2,7 @@
  * Chat streaming — web chat SSE response generation.
  *
  * Acquires a distributed lock, streams agent response, releases lock.
- * Used by the POST /chat handler for web-based sessions.
+ * Used by the POST /chat handler for web-based conversations.
  *
  * Phase 2: Passes RequestContext with channel type so sendCard tool and
  *   processors can access channel type during streaming generation.
@@ -14,7 +14,7 @@ import { getAgent } from '../../../mastra/agents';
 import { getChatState } from './chat-init';
 
 interface StreamChatInput {
-  sessionId: string;
+  conversationId: string;
   /** Last user message text — passed as a string to the agent. */
   message: string;
   agentId: string;
@@ -27,8 +27,14 @@ interface StreamChatInput {
 
 /** Stream an agent response for web chat. Returns the Mastra stream result. */
 export async function streamChat(input: StreamChatInput) {
-  const { sessionId, message, agentId, resourceId, contactId, channelType } =
-    input;
+  const {
+    conversationId,
+    message,
+    agentId,
+    resourceId,
+    contactId,
+    channelType,
+  } = input;
 
   const registered = getAgent(agentId);
   if (!registered) {
@@ -37,17 +43,17 @@ export async function streamChat(input: StreamChatInput) {
 
   // Acquire lock via state-pg to prevent concurrent generation
   const state = getChatState();
-  const lock = await state.acquireLock(sessionId, 30_000);
+  const lock = await state.acquireLock(conversationId, 30_000);
 
   if (!lock) {
     throw new Error(
-      `Session ${sessionId} is locked — concurrent generation in progress`,
+      `Conversation ${conversationId} is locked — concurrent generation in progress`,
     );
   }
 
   // Build RequestContext so sendCard tool and processors can access channel type
   const rc = new RequestContext();
-  rc.set('conversationId', sessionId);
+  rc.set('conversationId', conversationId);
   rc.set('contactId', contactId ?? null);
   rc.set('channel', channelType ?? 'web');
   rc.set('agentId', agentId);
@@ -56,7 +62,7 @@ export async function streamChat(input: StreamChatInput) {
     // Pass as a string — agent + memory handles full conversation context
     const result = await registered.agent.stream(message, {
       memory: {
-        thread: sessionId,
+        thread: conversationId,
         resource: resourceId,
       },
       maxSteps: 5,
@@ -66,7 +72,7 @@ export async function streamChat(input: StreamChatInput) {
     return result;
   } catch (err) {
     logger.error('[conversations] Stream generation failed', {
-      sessionId,
+      conversationId,
       agentId,
       error: err,
     });

@@ -1,23 +1,23 @@
-/**
- * Shared module-level dependencies for the conversations module.
- * Set once during module init, accessed by jobs and lib functions at runtime.
- */
-import type { ChannelsService, Scheduler, VobaseDb } from '@vobase/core';
+import type {
+  ChannelsService,
+  RealtimeService,
+  Scheduler,
+  VobaseDb,
+} from '@vobase/core';
 
-interface ConversationsDeps {
+export interface ConversationsDeps {
   db: VobaseDb;
   scheduler: Scheduler;
   channels: ChannelsService;
+  realtime: RealtimeService;
 }
 
 let moduleDeps: ConversationsDeps | undefined;
 
-/** Called from the conversations module init hook. */
 export function setConversationsDeps(deps: ConversationsDeps): void {
   moduleDeps = deps;
 }
 
-/** Get module-level deps. Throws if init hook hasn't run. */
 export function getConversationsDeps(): ConversationsDeps {
   if (!moduleDeps)
     throw new Error(

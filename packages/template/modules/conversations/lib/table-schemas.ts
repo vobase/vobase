@@ -30,11 +30,11 @@ export const contactsTableSchema = {
     .commandDisabled(),
 };
 
-// ─── Sessions ─────────────────────────────────────────────────────────
+// ─── Conversations ────────────────────────────────────────────────────
 
 const SESSION_STATUSES = ['active', 'completed', 'failed', 'paused'] as const;
 
-export const sessionsTableSchema = {
+export const conversationsTableSchema = {
   id: col.string().label('ID').display('code').notFilterable().hidden(),
   status: col
     .enum(SESSION_STATUSES)
