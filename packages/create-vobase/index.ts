@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -98,6 +99,13 @@ const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 
 pkg.name = projectName;
 delete pkg.private;
+delete pkg.patchedDependencies;
+
+// Remove monorepo-specific patches dir (not needed for standalone projects)
+const patchesDir = resolve(dest, 'patches');
+if (existsSync(patchesDir)) {
+  rmSync(patchesDir, { recursive: true });
+}
 
 // Replace workspace:* dependencies with latest published versions
 for (const depField of ['dependencies', 'devDependencies']) {
