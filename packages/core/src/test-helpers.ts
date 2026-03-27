@@ -1,47 +1,18 @@
 /**
- * Shared PGlite test helper — creates instances from a cached golden image
- * to avoid running initdb per test file (PGlite 0.4+ spawns 2-3 WASM contexts
- * per initdb, causing OOM when many test files run in parallel).
+ * PGlite test helper — creates in-memory instances with core schemas.
+ *
+ * PGlite has limited support for concurrent in-memory instances in a single
+ * process (electric-sql/pglite#324). Core tests run with --concurrency 1
+ * to avoid WASM contention.
  */
 import { PGlite } from '@electric-sql/pglite';
 
-let goldenDumpPromise: Promise<Blob> | null = null;
-
-function getGoldenDump(): Promise<Blob> {
-  if (!goldenDumpPromise) {
-    goldenDumpPromise = (async () => {
-      const seed = new PGlite();
-      await seed.waitReady;
-      await seed.query('CREATE SCHEMA IF NOT EXISTS "auth"');
-      await seed.query('CREATE SCHEMA IF NOT EXISTS "audit"');
-      await seed.query('CREATE SCHEMA IF NOT EXISTS "infra"');
-      const dump = await seed.dumpDataDir('none');
-      await seed.close();
-      return dump;
-    })();
-  }
-  return goldenDumpPromise;
-}
-
-/** Create a fresh PGlite instance from a cached golden image (no initdb). */
+/** Create a fresh in-memory PGlite instance with core schemas. */
 export async function createTestPGlite(): Promise<PGlite> {
-  const dump = await getGoldenDump();
-  for (let attempt = 0; attempt < 3; attempt++) {
-    let pg: PGlite | null = null;
-    try {
-      pg = new PGlite({ loadDataDir: dump });
-      // Attach error handler immediately to prevent unhandled rejection
-      pg.waitReady.catch(() => {});
-      await pg.waitReady;
-      // Verify the instance is functional
-      await pg.query('SELECT 1');
-      return pg;
-    } catch {
-      // Close the failed instance if it was partially created
-      try { await pg?.close(); } catch {}
-      if (attempt === 2) throw new Error('PGlite failed to initialize after 3 attempts');
-      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
-    }
-  }
-  throw new Error('unreachable');
+  const pg = new PGlite();
+  await pg.waitReady;
+  await pg.query('CREATE SCHEMA IF NOT EXISTS "auth"');
+  await pg.query('CREATE SCHEMA IF NOT EXISTS "audit"');
+  await pg.query('CREATE SCHEMA IF NOT EXISTS "infra"');
+  return pg;
 }

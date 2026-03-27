@@ -58,17 +58,8 @@ describe('RealtimeService (PGlite direct)', () => {
   });
 
   it('full service roundtrip via createRealtimeService', async () => {
-    const pglite = new PGlite();
-    await pglite.waitReady;
-
-    // Use createDatabase to populate the cache properly
     const { createDatabase } = await import('../db/client');
-    // createDatabase with a PGlite path populates pgliteCache
-    // But we already have a PGlite — we need to use its datadir
-    // Simplest: use an in-memory path and create via createDatabase
     const testPath = `memory://test-rt-${Date.now()}`;
-    await pglite.close();
-
     const db = createDatabase(testPath);
 
     const service = await createRealtimeService(testPath, db);

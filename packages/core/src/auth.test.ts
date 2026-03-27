@@ -1,5 +1,4 @@
-import { rmSync } from 'node:fs';
-import { afterAll, describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { Context, Next } from 'hono';
 
@@ -13,12 +12,6 @@ import {
 } from './modules/auth/middleware';
 
 type DbWithClient = VobaseDb & { $client: PGlite };
-
-const testDb = `/tmp/vobase-test-auth-${Date.now()}`;
-
-afterAll(() => {
-  rmSync(testDb, { recursive: true, force: true });
-});
 
 function createMockContext() {
   const values = new Map<string, unknown>();
@@ -47,15 +40,13 @@ function createMockAdapter(
 
 describe('createAuthModule', () => {
   it('returns a module with adapter having handler and getSession', async () => {
-    const db = createDatabase(testDb) as DbWithClient;
+    const db = createDatabase('memory://') as DbWithClient;
     const authMod = createAuthModule(db);
 
     expect(authMod).toHaveProperty('adapter');
     expect(authMod.adapter).toHaveProperty('handler');
     expect(authMod.adapter).toHaveProperty('getSession');
     expect(authMod.name).toBe('_auth');
-
-    await db.$client.close();
   });
 });
 
