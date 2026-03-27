@@ -1,15 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "tags": ["-lintignore"],
+  "ignoreWorkspaces": ["packages/core"],
   "workspaces": {
     ".": {
       "entry": "scripts/*.{ts,js}",
       "project": "scripts/**/*.{ts,js}",
       "ignoreDependencies": ["drizzle-kit", "drizzle-orm", "nanoid"]
-    },
-    "packages/core": {
-      "project": "src/**/*.ts",
-      "ignore": ["src/**/*.test.ts"]
     },
     "packages/template": {
       "entry": [
@@ -17,11 +14,14 @@
         "vobase.config.ts",
         "modules/*/index.ts",
         "modules/*/seed.ts",
-        "modules/seed-types.ts"
+        "modules/seed-types.ts",
+        "modules/*/pages/**/layout.tsx",
+        "mastra/**/*.ts"
       ],
       "project": [
         "src/**/*.{ts,tsx}",
         "modules/**/*.{ts,tsx}",
+        "mastra/**/*.ts",
         "scripts/**/*.ts",
         "*.config.ts"
       ],
@@ -33,18 +33,22 @@
         "src/lib/table-schema/**",
         "src/lib/compose-refs.ts",
         "**/*.test.ts",
-        "**/*.test.tsx"
+        "**/*.test.tsx",
+        "modules/conversations/lib/chat-cards.ts"
       ],
       "ignoreDependencies": [
         "shadcn",
         "mastra",
         "@fontsource-variable/geist",
         "tailwindcss",
-        "tw-animate-css"
+        "tw-animate-css",
+        "googleapis",
+        "@azure/msal-node"
       ]
     },
     "packages/create-vobase": {
-      "project": "**/*.ts"
+      "project": "**/*.ts",
+      "ignoreBinaries": ["version"]
     }
   }
 }
