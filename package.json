@@ -20,22 +20,22 @@
     "knip": "knip"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.8",
+    "@biomejs/biome": "^2.4.9",
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.30.0",
     "@types/bun": "^1.3.11",
     "@types/node": "^25.5.0",
     "knip": "^6.0.6",
-    "npm-check-updates": "^19.6.5",
+    "npm-check-updates": "^19.6.6",
     "turbo": "^2.8.20",
     "typescript": "^6.0.2"
   },
   "dependencies": {
-    "drizzle-kit": "^1.0.0-beta.18-7eb39f0",
-    "drizzle-orm": "^1.0.0-beta.18-7eb39f0",
+    "drizzle-kit": "1.0.0-beta.19",
+    "drizzle-orm": "1.0.0-beta.19",
     "nanoid": "^5.1.7"
   },
   "patchedDependencies": {
-    "drizzle-kit@1.0.0-beta.18-7eb39f0": "patches/drizzle-kit@1.0.0-beta.18-7eb39f0.patch"
+    "drizzle-kit@1.0.0-beta.19": "patches/drizzle-kit@1.0.0-beta.19.patch"
   }
 }

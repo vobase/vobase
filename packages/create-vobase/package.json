@@ -18,10 +18,10 @@
     "build": "bun build ./index.ts --outdir ./dist --target=bun --packages=external"
   },
   "dependencies": {
-    "drizzle-orm": "^1.0.0-beta.18-7eb39f0",
-    "giget": "^3.1.2"
+    "drizzle-orm": "^1.0.0-beta.19",
+    "giget": "^3.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   }
 }
