@@ -24,5 +24,16 @@ async function getGoldenDump(): Promise<Blob> {
 /** Create a fresh PGlite instance from a cached golden image (no initdb). */
 export async function createTestPGlite(): Promise<PGlite> {
   const dump = await getGoldenDump();
-  return new PGlite({ loadDataDir: dump });
+  // Retry on transient WASM initialization failures under parallel test load
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const pg = new PGlite({ loadDataDir: dump });
+      await pg.waitReady;
+      return pg;
+    } catch {
+      if (attempt === 2) throw new Error('PGlite failed to initialize after 3 attempts');
+      await new Promise((r) => setTimeout(r, 100 * (attempt + 1)));
+    }
+  }
+  throw new Error('unreachable');
 }

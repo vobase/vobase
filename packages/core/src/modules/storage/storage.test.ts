@@ -159,17 +159,21 @@ describe('StorageService', () => {
     },
   };
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const result = await createTestDb();
     db = result.db;
     pglite = result.pglite;
+  });
+
+  beforeEach(async () => {
+    await pglite.query('DELETE FROM "infra"."storage_objects"');
     try {
       rmSync(`${testBasePath}/svc`, { recursive: true, force: true });
     } catch {}
     mkdirSync(`${testBasePath}/svc`, { recursive: true });
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await pglite.close();
   });
 

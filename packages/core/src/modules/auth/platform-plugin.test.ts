@@ -195,32 +195,35 @@ async function queryAccounts(pg: PGlite) {
 }
 
 // ===========================================================================
+// Shared test database (single PGlite instance for all describe blocks)
+// ===========================================================================
+let sharedPg: PGlite;
+let sharedAuth: ReturnType<typeof createTestAuth>;
+
+beforeAll(async () => {
+  const setup = await createTestDatabase();
+  sharedPg = setup.pg;
+  sharedAuth = createTestAuth(setup.db);
+});
+
+afterAll(async () => {
+  await sharedPg.close();
+});
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
 describe('platformAuth plugin – JWT verification', () => {
-  let pg: PGlite;
-  let auth: ReturnType<typeof createTestAuth>;
-
-  beforeAll(async () => {
-    const setup = await createTestDatabase();
-    pg = setup.pg;
-    auth = createTestAuth(setup.db);
-  });
-
-  afterAll(async () => {
-    await pg.close();
-  });
-
   it('valid token proceeds (redirects after session creation)', async () => {
     const token = await createTestJWT();
-    const res = await hitCallback(auth, token);
+    const res = await hitCallback(sharedAuth, token);
     expect(res.status).toBe(302);
   });
 
   it('expired token returns 400', async () => {
     const token = await createTestJWT({ expired: true });
-    const res = await hitCallback(auth, token);
+    const res = await hitCallback(sharedAuth, token);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { message: string };
     expect(body.message).toBe('Invalid or expired token');
@@ -228,7 +231,7 @@ describe('platformAuth plugin – JWT verification', () => {
 
   it('wrong audience returns 400', async () => {
     const token = await createTestJWT({ audience: 'http://attacker.com' });
-    const res = await hitCallback(auth, token);
+    const res = await hitCallback(sharedAuth, token);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { message: string };
     expect(body.message).toBe('Invalid or expired token');
@@ -247,14 +250,14 @@ describe('platformAuth plugin – JWT verification', () => {
       .setExpirationTime('5m')
       .sign(wrongKey);
 
-    const res = await hitCallback(auth, token);
+    const res = await hitCallback(sharedAuth, token);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { message: string };
     expect(body.message).toBe('Invalid or expired token');
   });
 
   it('malformed / garbage token returns 400', async () => {
-    const res = await hitCallback(auth, 'not.a.valid.jwt.at.all');
+    const res = await hitCallback(sharedAuth, 'not.a.valid.jwt.at.all');
     expect(res.status).toBe(400);
     const body = (await res.json()) as { message: string };
     expect(body.message).toBe('Invalid or expired token');
@@ -262,24 +265,11 @@ describe('platformAuth plugin – JWT verification', () => {
 });
 
 describe('platformAuth plugin – payload validation', () => {
-  let pg: PGlite;
-  let auth: ReturnType<typeof createTestAuth>;
-
-  beforeAll(async () => {
-    const setup = await createTestDatabase();
-    pg = setup.pg;
-    auth = createTestAuth(setup.db);
-  });
-
-  afterAll(async () => {
-    await pg.close();
-  });
-
   it('token without email in profile returns 400', async () => {
     const token = await createTestJWT({
       profile: { name: 'No Email', providerId: 'noemail-id' },
     });
-    const res = await hitCallback(auth, token);
+    const res = await hitCallback(sharedAuth, token);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { message: string };
     expect(body.message).toBe('Invalid token payload');
@@ -299,7 +289,7 @@ describe('platformAuth plugin – payload validation', () => {
       .setExpirationTime('5m')
       .sign(secretKey);
 
-    const res = await hitCallback(auth, token);
+    const res = await hitCallback(sharedAuth, token);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { message: string };
     expect(body.message).toBe('Invalid token payload');
@@ -307,19 +297,6 @@ describe('platformAuth plugin – payload validation', () => {
 });
 
 describe('platformAuth plugin – user upsert', () => {
-  let pg: PGlite;
-  let auth: ReturnType<typeof createTestAuth>;
-
-  beforeAll(async () => {
-    const setup = await createTestDatabase();
-    pg = setup.pg;
-    auth = createTestAuth(setup.db);
-  });
-
-  afterAll(async () => {
-    await pg.close();
-  });
-
   it('new user: creates user row and account row', async () => {
     const token = await createTestJWT({
       profile: {
@@ -330,11 +307,11 @@ describe('platformAuth plugin – user upsert', () => {
       provider: 'github',
     });
 
-    const res = await hitCallback(auth, token);
+    const res = await hitCallback(sharedAuth, token);
     expect(res.status).toBe(302);
 
-    const users = await queryUsers(pg);
-    const accounts = await queryAccounts(pg);
+    const users = await queryUsers(sharedPg);
+    const accounts = await queryAccounts(sharedPg);
 
     const user = users.find((u) => u.email === 'newuser@example.com');
     expect(user).toBeDefined();
@@ -354,15 +331,15 @@ describe('platformAuth plugin – user upsert', () => {
       profile: { email, name: 'Multi Auth', providerId: 'github-multi-id' },
       provider: 'github',
     });
-    await hitCallback(auth, firstToken);
+    await hitCallback(sharedAuth, firstToken);
 
     const secondToken = await createTestJWT({
       profile: { email, name: 'Multi Auth', providerId: 'google-multi-id' },
       provider: 'google',
     });
-    await hitCallback(auth, secondToken);
+    await hitCallback(sharedAuth, secondToken);
 
-    const accounts = await queryAccounts(pg);
+    const accounts = await queryAccounts(sharedPg);
     const userAccounts = accounts.filter(
       (a) =>
         (a.provider_id === 'github' && a.account_id === 'github-multi-id') ||
@@ -383,12 +360,12 @@ describe('platformAuth plugin – user upsert', () => {
     };
 
     const token1 = await createTestJWT({ profile, provider: 'github' });
-    await hitCallback(auth, token1);
+    await hitCallback(sharedAuth, token1);
 
     const token2 = await createTestJWT({ profile, provider: 'github' });
-    await hitCallback(auth, token2);
+    await hitCallback(sharedAuth, token2);
 
-    const accounts = await queryAccounts(pg);
+    const accounts = await queryAccounts(sharedPg);
     const deduped = accounts.filter(
       (a) => a.provider_id === 'github' && a.account_id === 'dedup-provider-id',
     );
@@ -398,24 +375,11 @@ describe('platformAuth plugin – user upsert', () => {
 });
 
 describe('platformAuth plugin – returnTo redirect', () => {
-  let pg: PGlite;
-  let auth: ReturnType<typeof createTestAuth>;
-
-  beforeAll(async () => {
-    const setup = await createTestDatabase();
-    pg = setup.pg;
-    auth = createTestAuth(setup.db);
-  });
-
-  afterAll(async () => {
-    await pg.close();
-  });
-
   async function getRedirectLocation(
     token: string,
     returnTo?: string,
   ): Promise<string> {
-    const res = await hitCallback(auth, token, returnTo);
+    const res = await hitCallback(sharedAuth, token, returnTo);
     expect(res.status).toBe(302);
     return res.headers.get('location') ?? '';
   }
