@@ -49,11 +49,11 @@ export const channelInstances = conversationsPgSchema.table(
   ],
 );
 
-// ─── Endpoints ──────────────────────────────────────────────────────
-// Channel instance → agent mapping. Replaces "inboxes" concept.
+// ─── Channel Routings ───────────────────────────────────────────────
+// Channel instance → agent mapping. Determines which agent handles messages.
 
-export const endpoints = conversationsPgSchema.table(
-  'endpoints',
+export const channelRoutings = conversationsPgSchema.table(
+  'channel_routings',
   {
     id: nanoidPrimaryKey(),
     name: text('name').notNull(),
@@ -73,25 +73,25 @@ export const endpoints = conversationsPgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('endpoints_channel_instance_idx').on(table.channelInstanceId),
-    index('endpoints_agent_id_idx').on(table.agentId),
+    index('channel_routings_channel_instance_idx').on(table.channelInstanceId),
+    index('channel_routings_agent_id_idx').on(table.agentId),
     check(
-      'endpoints_assignment_check',
+      'channel_routings_assignment_check',
       sql`assignment_pattern IN ('direct', 'router', 'workflow')`,
     ),
   ],
 );
 
-// ─── Sessions ───────────────────────────────────────────────────────
-// AI ↔ person conversation sessions. Replaces "conversations" (ticketing).
+// ─── Conversations ──────────────────────────────────────────────────
+// AI ↔ person conversations. The primary entity of this module.
 
-export const sessions = conversationsPgSchema.table(
-  'sessions',
+export const conversations = conversationsPgSchema.table(
+  'conversations',
   {
     id: nanoidPrimaryKey(),
-    endpointId: text('endpoint_id')
+    channelRoutingId: text('channel_routing_id')
       .notNull()
-      .references(() => endpoints.id),
+      .references(() => channelRoutings.id),
     contactId: text('contact_id')
       .notNull()
       .references(() => contacts.id),
@@ -99,7 +99,7 @@ export const sessions = conversationsPgSchema.table(
     channelInstanceId: text('channel_instance_id')
       .notNull()
       .references(() => channelInstances.id),
-    sessionType: text('session_type').notNull().default('message'),
+    conversationType: text('conversation_type').notNull().default('message'),
     status: text('status').notNull().default('active'),
     startedAt: timestamp('started_at', { withTimezone: true })
       .notNull()
@@ -110,6 +110,9 @@ export const sessions = conversationsPgSchema.table(
     callDuration: integer('call_duration'),
     recordingUrl: text('recording_url'),
     metadata: jsonb('metadata').default({}),
+    handler: text('handler').notNull().default('ai'),
+    assignedUserId: text('assigned_user_id'),
+    resolutionOutcome: text('resolution_outcome'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -119,21 +122,29 @@ export const sessions = conversationsPgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('sessions_contact_id_idx').on(table.contactId),
-    index('sessions_agent_id_idx').on(table.agentId),
-    index('sessions_status_idx').on(table.status),
-    index('sessions_endpoint_id_idx').on(table.endpointId),
-    index('sessions_channel_instance_idx').on(table.channelInstanceId),
-    index('sessions_active_stale_idx')
+    index('conversations_contact_id_idx').on(table.contactId),
+    index('conversations_agent_id_idx').on(table.agentId),
+    index('conversations_status_idx').on(table.status),
+    index('conversations_channel_routing_id_idx').on(table.channelRoutingId),
+    index('conversations_channel_instance_idx').on(table.channelInstanceId),
+    index('conversations_active_stale_idx')
       .on(table.status, table.updatedAt)
       .where(sql`status = 'active'`),
     check(
-      'sessions_status_check',
-      sql`status IN ('active', 'completed', 'failed', 'paused')`,
+      'conversations_status_check',
+      sql`status IN ('active', 'completed', 'failed', 'paused', 'escalated')`,
     ),
     check(
-      'sessions_session_type_check',
-      sql`session_type IN ('message', 'voice')`,
+      'conversations_type_check',
+      sql`conversation_type IN ('message', 'voice')`,
+    ),
+    check(
+      'conversations_handler_check',
+      sql`handler IN ('ai', 'human', 'supervised', 'paused')`,
+    ),
+    check(
+      'conversations_resolution_outcome_check',
+      sql`resolution_outcome IS NULL OR resolution_outcome IN ('resolved', 'escalated_resolved', 'abandoned', 'failed')`,
     ),
   ],
 );
@@ -145,9 +156,9 @@ export const consultations = conversationsPgSchema.table(
   'consultations',
   {
     id: nanoidPrimaryKey(),
-    sessionId: text('session_id')
+    conversationId: text('conversation_id')
       .notNull()
-      .references(() => sessions.id),
+      .references(() => conversations.id),
     staffContactId: text('staff_contact_id')
       .notNull()
       .references(() => contacts.id),
@@ -168,7 +179,7 @@ export const consultations = conversationsPgSchema.table(
       .defaultNow(),
   },
   (table) => [
-    index('consultations_session_id_idx').on(table.sessionId),
+    index('consultations_conversation_id_idx').on(table.conversationId),
     index('consultations_status_idx').on(table.status),
     index('consultations_staff_idx').on(table.staffContactId),
     index('consultations_pending_timeout_idx')
@@ -181,6 +192,49 @@ export const consultations = conversationsPgSchema.table(
   ],
 );
 
+// ─── Activity Events ──────────────────────────────────────────────
+// AVO (Actor-Verb-Object) pattern event stream for the control plane.
+
+export const activityEvents = conversationsPgSchema.table(
+  'activity_events',
+  {
+    id: nanoidPrimaryKey(),
+    type: text('type').notNull(), // dot-notation: conversation.created, agent.tool_executed, etc.
+    agentId: text('agent_id'),
+    userId: text('user_id'), // staff user who triggered (null for system/agent)
+    source: text('source').notNull(), // agent | staff | system
+    contactId: text('contact_id'),
+    conversationId: text('conversation_id'), // references conversations.id
+    channelRoutingId: text('channel_routing_id'), // denormalized for dashboard queries
+    channelType: text('channel_type'), // whatsapp | web | email
+    data: jsonb('data').default({}), // event-specific payload
+    resolutionStatus: text('resolution_status'), // pending | reviewed | dismissed (null for non-attention events)
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('activity_events_agent_created_idx').on(
+      table.agentId,
+      table.createdAt,
+    ),
+    index('activity_events_resolution_created_idx').on(
+      table.resolutionStatus,
+      table.createdAt,
+    ),
+    index('activity_events_conversation_idx').on(table.conversationId),
+    index('activity_events_type_created_idx').on(table.type, table.createdAt),
+    check(
+      'activity_events_source_check',
+      sql`source IN ('agent', 'staff', 'system')`,
+    ),
+    check(
+      'activity_events_resolution_check',
+      sql`resolution_status IS NULL OR resolution_status IN ('pending', 'reviewed', 'dismissed')`,
+    ),
+  ],
+);
+
 // ─── Outbox ─────────────────────────────────────────────────────────
 // Outbound message delivery tracking.
 
@@ -188,9 +242,9 @@ export const outbox = conversationsPgSchema.table(
   'outbox',
   {
     id: nanoidPrimaryKey(),
-    sessionId: text('session_id')
+    conversationId: text('conversation_id')
       .notNull()
-      .references(() => sessions.id, { onDelete: 'cascade' }),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
     content: text('content').notNull(),
     channelType: text('channel_type').notNull(),
     channelInstanceId: text('channel_instance_id').references(
@@ -209,7 +263,7 @@ export const outbox = conversationsPgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('outbox_session_id_idx').on(table.sessionId),
+    index('outbox_conversation_id_idx').on(table.conversationId),
     index('outbox_external_id_idx').on(table.externalMessageId),
     index('outbox_status_created_idx').on(table.status, table.createdAt),
     uniqueIndex('outbox_external_id_unique_idx')
@@ -230,7 +284,7 @@ export const deadLetters = conversationsPgSchema.table(
   {
     id: nanoidPrimaryKey(),
     originalOutboxId: text('original_outbox_id').notNull(),
-    sessionId: text('session_id').notNull(),
+    conversationId: text('conversation_id').notNull(),
     channelType: text('channel_type').notNull(),
     channelInstanceId: text('channel_instance_id'),
     recipientAddress: text('recipient_address'),
@@ -251,7 +305,7 @@ export const deadLetters = conversationsPgSchema.table(
       table.channelType,
       table.failedAt,
     ),
-    index('dead_letters_session_idx').on(table.sessionId),
+    index('dead_letters_conversation_idx').on(table.conversationId),
     check('dead_letters_status_check', sql`status IN ('dead', 'retried')`),
   ],
 );
