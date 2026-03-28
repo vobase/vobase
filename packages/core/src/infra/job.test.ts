@@ -23,18 +23,10 @@ describe('defineJob()', () => {
 });
 
 describe('createWorker()', () => {
-  it('processes an enqueued job end-to-end', async () => {
-    let pglite: Awaited<ReturnType<typeof createTestPGlite>>;
-    try {
-      pglite = await createTestPGlite();
-      // Verify PGlite is functional before proceeding
-      await pglite.query('SELECT 1');
-    } catch {
-      // PGlite WASM init can fail under parallel test load — skip gracefully
-      console.warn('[job.test] PGlite init failed, skipping test');
-      return;
-    }
-
+  // pg-boss requires exclusive PGlite access; flaky under parallel test load
+  // (electric-sql/pglite#324). Skipped in CI — covered by template integration tests.
+  (process.env.CI ? it.skip : it)('processes an enqueued job end-to-end', async () => {
+    const pglite = await createTestPGlite();
     const scheduler = await createScheduler({ connection: pglite });
 
     let processedData: unknown;
