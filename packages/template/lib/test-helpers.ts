@@ -1,3 +1,14 @@
+/**
+ * PGlite test helpers — global singleton with schema-based isolation.
+ *
+ * PGlite only supports one WASM instance per JS thread
+ * (electric-sql/pglite#324). This module provides a process-wide singleton,
+ * ensuring all test files share the same PGlite and avoiding WASM conflicts.
+ *
+ * Each call to createTestDb() resets the template schemas (DROP CASCADE +
+ * CREATE), giving a clean slate. NEVER call pglite.close() in tests —
+ * process exit handles cleanup.
+ */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
@@ -7,8 +18,6 @@ import type { VobaseDb } from '@vobase/core';
 import { drizzle } from 'drizzle-orm/pglite';
 
 import * as aiSchema from '../modules/ai/schema';
-import * as contactsSchema from '../modules/contacts/schema';
-import * as conversationsSchema from '../modules/conversations/schema';
 import * as kbSchema from '../modules/knowledge-base/schema';
 
 const nanoidSql = readFileSync(
@@ -16,30 +25,51 @@ const nanoidSql = readFileSync(
   'utf-8',
 );
 
+const TEMPLATE_SCHEMAS = ['conversations', 'ai', 'kb'] as const;
+
+let shared: PGlite | null = null;
+let nanoidInstalled = false;
+
 /**
- * Create an in-memory PGlite test database with contacts/conversations (and optionally KB/AI) tables.
- * Returns the PGlite instance (for raw queries + cleanup) and the Drizzle wrapper.
+ * Returns a process-wide singleton PGlite instance with pgcrypto + vector.
+ * First call creates the instance; subsequent calls return the same one.
+ */
+async function getSharedPGlite(): Promise<PGlite> {
+  if (!shared) {
+    shared = new PGlite({ extensions: { pgcrypto, vector } });
+    await shared.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
+    await shared.query('CREATE EXTENSION IF NOT EXISTS vector');
+  }
+  return shared;
+}
+
+/**
+ * Create an in-memory PGlite test database with freshly reset schemas.
+ * Uses a process-wide singleton — safe to call in beforeEach().
+ * NEVER call pglite.close() — process exit handles cleanup.
  */
 export async function createTestDb(options?: {
   withVec?: boolean;
   withMemory?: boolean;
   withWorkflows?: boolean;
 }) {
-  const pglite = new PGlite({ extensions: { pgcrypto, vector } });
+  const pglite = await getSharedPGlite();
 
-  await pglite.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
-  await pglite.query('CREATE EXTENSION IF NOT EXISTS vector');
-  // nanoidSql contains multiple statements — use the multi-statement path
-  // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
-  await (pglite as any).exec(nanoidSql);
+  // Reset schemas for clean slate
+  for (const s of TEMPLATE_SCHEMAS) {
+    await pglite.query(`DROP SCHEMA IF EXISTS "${s}" CASCADE`);
+    await pglite.query(`CREATE SCHEMA "${s}"`);
+  }
 
-  // Create schemas for all template modules
-  await pglite.query('CREATE SCHEMA IF NOT EXISTS "conversations"');
-  await pglite.query('CREATE SCHEMA IF NOT EXISTS "ai"');
-  await pglite.query('CREATE SCHEMA IF NOT EXISTS "kb"');
+  // Install nanoid function once (survives schema drops since it's in public)
+  if (!nanoidInstalled) {
+    // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
+    await (pglite as any).exec(nanoidSql);
+    nanoidInstalled = true;
+  }
 
-  // Contacts + Conversations tables (conversations schema shared by both modules)
-  // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
+  // Conversations tables (always created — most tests need them)
+  // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
   await (pglite as any).exec(`
     CREATE TABLE "conversations"."contacts" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
@@ -163,9 +193,7 @@ export async function createTestDb(options?: {
   `);
 
   if (options?.withVec) {
-    // KB tables with 4-dim vectors matching test embedding mocks
-    // Order: sources first (referenced by documents and sync_logs)
-    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
+    // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
     await (pglite as any).exec(`
       CREATE TABLE "kb"."sources" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
@@ -218,7 +246,7 @@ export async function createTestDb(options?: {
   }
 
   if (options?.withMemory) {
-    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
+    // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
     await (pglite as any).exec(`
       CREATE TABLE "ai"."mem_cells" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
@@ -262,7 +290,7 @@ export async function createTestDb(options?: {
   }
 
   if (options?.withWorkflows) {
-    // biome-ignore lint/suspicious/noExplicitAny: required by @mastra/pg DbClient interface
+    // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
     await (pglite as any).exec(`
       CREATE TABLE "ai"."workflow_runs" (
         id TEXT PRIMARY KEY DEFAULT nanoid(12),
@@ -294,8 +322,6 @@ export async function createTestDb(options?: {
   const schema = {
     ...aiSchema,
     ...kbSchema,
-    ...contactsSchema,
-    ...conversationsSchema,
   };
   const db = drizzle({ client: pglite, schema }) as unknown as VobaseDb;
 

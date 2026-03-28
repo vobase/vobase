@@ -26,9 +26,7 @@ describe('processDocument()', () => {
     db = testDb.db;
   });
 
-  afterEach(async () => {
-    await pglite.close();
-  });
+  // Singleton PGlite — never close; process exit handles cleanup
 
   async function insertDoc(id: string, title: string) {
     await db.insert(kbDocuments).values({

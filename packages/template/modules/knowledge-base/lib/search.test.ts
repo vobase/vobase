@@ -39,9 +39,7 @@ describe('hybridSearch()', () => {
     await seedTestData();
   });
 
-  afterEach(async () => {
-    await pglite.close();
-  });
+  // Singleton PGlite — never close; process exit handles cleanup
 
   async function seedTestData() {
     const now = new Date().toISOString();

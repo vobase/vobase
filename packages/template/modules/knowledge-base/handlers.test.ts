@@ -60,9 +60,7 @@ describe('Knowledge Base Routes', () => {
     app = createApp(db);
   });
 
-  afterEach(async () => {
-    await pglite.close();
-  });
+  // Singleton PGlite — never close; process exit handles cleanup
 
   describe('Auth', () => {
     it('returns 401 for unauthenticated requests', async () => {
