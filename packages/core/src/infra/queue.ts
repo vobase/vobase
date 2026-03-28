@@ -28,6 +28,8 @@ export interface Scheduler {
     data: unknown,
     options?: JobOptions,
   ): Promise<string | null>;
+  /** Stop the scheduler (pg-boss maintenance loop). Call during graceful shutdown. */
+  stop(): Promise<void>;
 }
 
 // Cache PGlite instances by path so scheduler and worker share state within a process
@@ -135,5 +137,8 @@ export async function createScheduler(
       await send(name, data, opts);
     },
     send,
+    async stop() {
+      await boss.stop();
+    },
   };
 }

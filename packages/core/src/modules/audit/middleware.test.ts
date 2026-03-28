@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
@@ -21,7 +21,7 @@ describe('audit middleware and hooks', () => {
   let pglite: PGlite;
   let db: VobaseDb;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     pglite = await createTestPGlite();
     await pglite.query(`
       CREATE TABLE "audit"."audit_log" (
@@ -37,8 +37,8 @@ describe('audit middleware and hooks', () => {
     db = drizzle({ client: pglite, schema }) as unknown as VobaseDb;
   });
 
-  afterEach(async () => {
-    await pglite.close();
+  beforeEach(async () => {
+    await pglite.query('DELETE FROM "audit"."audit_log"');
   });
 
   async function getRows(): Promise<AuditRow[]> {

@@ -1,17 +1,49 @@
 /**
- * PGlite test helper — creates in-memory instances with core schemas.
+ * PGlite test helpers — global singleton with schema-based isolation.
  *
- * PGlite has limited support for concurrent in-memory instances in a single
- * process (electric-sql/pglite#324).
+ * PGlite only supports one WASM instance per JS thread
+ * (electric-sql/pglite#324). This module provides a process-wide singleton
+ * created via createDatabase('memory://'), ensuring all test files share
+ * the same PGlite and avoiding WASM conflicts.
+ *
+ * Each test file calls createTestPGlite() in beforeAll() which resets
+ * the core schemas (DROP CASCADE + CREATE), giving a clean slate.
+ * Individual tests use DELETE/TRUNCATE in beforeEach() for data isolation.
+ *
+ * NEVER call pglite.close() in tests — process exit handles cleanup.
  */
-import { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
 
-/** Create a fresh in-memory PGlite instance with core schemas. */
+let shared: PGlite | null = null;
+
+const CORE_SCHEMAS = ['auth', 'audit', 'infra'] as const;
+
+/**
+ * Returns a process-wide singleton PGlite instance with pgcrypto + vector
+ * extensions. The instance is created via createDatabase('memory://') so it
+ * is registered in the client cache — getPgliteClient('memory://') and
+ * subsequent createDatabase('memory://') calls reuse the same instance.
+ */
+export async function getSharedPGlite(): Promise<PGlite> {
+  if (!shared) {
+    const { createDatabase, getPgliteClient } = await import('./db/client');
+    createDatabase('memory://');
+    shared = getPgliteClient('memory://')!;
+    await shared.waitReady;
+  }
+  return shared;
+}
+
+/**
+ * Returns the shared PGlite with freshly reset core schemas.
+ * Call in beforeAll() to give each test file a clean slate.
+ * Tables can then be created in the clean schemas.
+ */
 export async function createTestPGlite(): Promise<PGlite> {
-  const pg = new PGlite();
-  await pg.waitReady;
-  await pg.query('CREATE SCHEMA IF NOT EXISTS "auth"');
-  await pg.query('CREATE SCHEMA IF NOT EXISTS "audit"');
-  await pg.query('CREATE SCHEMA IF NOT EXISTS "infra"');
+  const pg = await getSharedPGlite();
+  for (const s of CORE_SCHEMAS) {
+    await pg.query(`DROP SCHEMA IF EXISTS "${s}" CASCADE`);
+    await pg.query(`CREATE SCHEMA "${s}"`);
+  }
   return pg;
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
 
@@ -16,7 +16,9 @@ const MODULES_WITH_SCHEMA: VobaseModule[] = [
   },
 ];
 
-async function createTestDb(): Promise<VobaseDb> {
+let db: VobaseDb;
+
+beforeAll(async () => {
   const pg = await createTestPGlite();
   await pg.query(`
     CREATE TABLE IF NOT EXISTS _audit_log (
@@ -29,8 +31,8 @@ async function createTestDb(): Promise<VobaseDb> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  return drizzle({ client: pg }) as unknown as VobaseDb;
-}
+  db = drizzle({ client: pg }) as unknown as VobaseDb;
+});
 
 async function postMcp(
   handler: (req: Request) => Promise<Response>,
@@ -52,11 +54,10 @@ async function postMcp(
   return { response, body };
 }
 
-// PGlite WASM flaky under parallel test load (electric-sql/pglite#324)
-(process.env.CI ? describe.skip : describe)('MCP API key auth', () => {
+describe('MCP API key auth', () => {
   it('allows unauthenticated access to discovery tools', async () => {
     const handler = createMcpHandler({
-      db: await createTestDb(),
+      db,
       modules: MODULES_WITH_SCHEMA,
       verifyApiKey: async () => null,
     });
@@ -80,7 +81,7 @@ async function postMcp(
 
   it('exposes CRUD tools when valid API key is provided', async () => {
     const handler = createMcpHandler({
-      db: await createTestDb(),
+      db,
       modules: MODULES_WITH_SCHEMA,
       verifyApiKey: async (key) =>
         key === 'valid-key' ? { userId: 'u1' } : null,
@@ -107,7 +108,7 @@ async function postMcp(
 
   it('does not expose CRUD tools with invalid API key', async () => {
     const handler = createMcpHandler({
-      db: await createTestDb(),
+      db,
       modules: MODULES_WITH_SCHEMA,
       verifyApiKey: async () => null,
     });

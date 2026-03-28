@@ -35,9 +35,10 @@ jobs:
 
       - name: Run tests
         run: |
+          # PGlite WASM keeps handles alive, causing bun test to exit 99
+          # even when all tests pass. Capture output to check for real failures.
           output=$(bunx turbo run test --force 2>&1) || true
           echo "$output"
-          # Check for actual test failures (not PGlite WASM errors which show as "errors")
           if echo "$output" | grep -qE '^\s+[1-9][0-9]* fail'; then
             echo "::error::Tests failed"
             exit 1

@@ -1,43 +1,20 @@
 import { describe, expect, it } from 'bun:test';
-import { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
+import { sql } from 'drizzle-orm';
 
+import { createDatabase } from '../db/client';
+import { getSharedPGlite } from '../test-helpers';
 import { createNoopRealtime, createRealtimeService } from './realtime';
-
-/**
- * Create a PGlite + Drizzle pair and register in the pglite cache
- * so createRealtimeService can find the PGlite client via getPgliteClient().
- */
-async function createTestRealtimeDb() {
-  const pglite = new PGlite();
-  await pglite.waitReady;
-  const db = drizzle({ client: pglite });
-
-  // Register in the module-level cache so getPgliteClient() can find it
-  const _clientModule = await import('../db/client');
-  // getPgliteClient reads from the Map — we need to populate it
-  // Use createDatabase's side effect: it caches the PGlite by path
-  // Instead, we'll use a test-only approach: access the cache via the module
-  const fakePath = `test-realtime-${Date.now()}-${Math.random()}`;
-
-  // The pgliteCache is module-private, but we can work around it:
-  // getPgliteClient returns pgliteCache.get(path), so we need the PGlite in there.
-  // We'll directly NOTIFY via pglite.exec and test the listen path directly.
-  return { pglite, db, fakePath };
-}
 
 describe('RealtimeService (PGlite direct)', () => {
   it('roundtrip: notify() delivers to subscribe()', async () => {
-    const { pglite, db } = await createTestRealtimeDb();
+    const pglite = await getSharedPGlite();
+    const db = createDatabase('memory://');
 
-    // Set up listener directly on PGlite
     const received: string[] = [];
     const unsub = await pglite.listen('vobase_events', (payload) => {
       received.push(payload);
     });
 
-    // Use db.execute to send NOTIFY (same as the service does)
-    const { sql } = await import('drizzle-orm');
     const json = JSON.stringify({
       table: 'messaging-threads',
       id: 'abc-123',
@@ -54,15 +31,12 @@ describe('RealtimeService (PGlite direct)', () => {
     expect(parsed.action).toBe('insert');
 
     await unsub();
-    await pglite.close();
   });
 
   it('full service roundtrip via createRealtimeService', async () => {
-    const { createDatabase } = await import('../db/client');
-    const testPath = `memory://test-rt-${Date.now()}`;
-    const db = createDatabase(testPath);
-
-    const service = await createRealtimeService(testPath, db);
+    await getSharedPGlite();
+    const db = createDatabase('memory://');
+    const service = await createRealtimeService('memory://', db);
 
     const received: string[] = [];
     service.subscribe((payload) => {
@@ -87,11 +61,9 @@ describe('RealtimeService (PGlite direct)', () => {
   });
 
   it('subscribe returns working unsubscribe function', async () => {
-    const testPath = `memory://test-rt-unsub-${Date.now()}`;
-    const { createDatabase } = await import('../db/client');
-    const db = createDatabase(testPath);
-
-    const service = await createRealtimeService(testPath, db);
+    await getSharedPGlite();
+    const db = createDatabase('memory://');
+    const service = await createRealtimeService('memory://', db);
 
     const received: string[] = [];
     const unsub = service.subscribe((payload) => {
@@ -109,11 +81,9 @@ describe('RealtimeService (PGlite direct)', () => {
   });
 
   it('multiple subscribers receive the same event', async () => {
-    const testPath = `memory://test-rt-multi-${Date.now()}`;
-    const { createDatabase } = await import('../db/client');
-    const db = createDatabase(testPath);
-
-    const service = await createRealtimeService(testPath, db);
+    await getSharedPGlite();
+    const db = createDatabase('memory://');
+    const service = await createRealtimeService('memory://', db);
 
     const received1: string[] = [];
     const received2: string[] = [];
@@ -131,11 +101,9 @@ describe('RealtimeService (PGlite direct)', () => {
   });
 
   it('shutdown clears subscribers', async () => {
-    const testPath = `memory://test-rt-shutdown-${Date.now()}`;
-    const { createDatabase } = await import('../db/client');
-    const db = createDatabase(testPath);
-
-    const service = await createRealtimeService(testPath, db);
+    await getSharedPGlite();
+    const db = createDatabase('memory://');
+    const service = await createRealtimeService('memory://', db);
 
     const received: string[] = [];
     service.subscribe((p) => received.push(p));

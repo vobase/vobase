@@ -23,8 +23,7 @@ describe('defineJob()', () => {
 });
 
 describe('createWorker()', () => {
-  // pg-boss requires exclusive PGlite access; flaky under parallel test load
-  // (electric-sql/pglite#324). Skipped in CI — covered by template integration tests.
+  // pg-boss worker requires exclusive PGlite access for polling; keep skipped in CI.
   (process.env.CI ? it.skip : it)('processes an enqueued job end-to-end', async () => {
     const pglite = await createTestPGlite();
     const scheduler = await createScheduler({ connection: pglite });

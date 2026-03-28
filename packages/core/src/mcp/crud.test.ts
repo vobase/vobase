@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
@@ -14,7 +14,9 @@ interface McpServerInternals {
   _registeredTools: Record<string, unknown>;
 }
 
-async function createTestDb(): Promise<VobaseDb> {
+let db: VobaseDb;
+
+beforeAll(async () => {
   const pg = await createTestPGlite();
   await pg.query(`
     CREATE TABLE IF NOT EXISTS _audit_log (
@@ -27,13 +29,12 @@ async function createTestDb(): Promise<VobaseDb> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  return drizzle({ client: pg }) as unknown as VobaseDb;
-}
+  db = drizzle({ client: pg }) as unknown as VobaseDb;
+});
 
 describe('registerCrudTools', () => {
-  it('registers 5 CRUD tools per real Drizzle table', async () => {
+  it('registers 5 CRUD tools per real Drizzle table', () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
-    const db = await createTestDb();
 
     const modules: VobaseModule[] = [
       {
@@ -64,9 +65,8 @@ describe('registerCrudTools', () => {
     expect(toolNames).toContain('delete_audit_log');
   });
 
-  it('skips non-Drizzle schema entries gracefully', async () => {
+  it('skips non-Drizzle schema entries gracefully', () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
-    const db = await createTestDb();
 
     const modules: VobaseModule[] = [
       {
@@ -94,9 +94,8 @@ describe('registerCrudTools', () => {
     );
   });
 
-  it('respects exclude map', async () => {
+  it('respects exclude map', () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
-    const db = await createTestDb();
 
     const modules: VobaseModule[] = [
       {
@@ -126,9 +125,8 @@ describe('registerCrudTools', () => {
     );
   });
 
-  it('write tools check admin role when org is disabled', async () => {
+  it('write tools check admin role when org is disabled', () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
-    const db = await createTestDb();
 
     const modules: VobaseModule[] = [
       {

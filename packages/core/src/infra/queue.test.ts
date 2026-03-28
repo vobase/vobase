@@ -1,13 +1,23 @@
-import { describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import type { PGlite } from '@electric-sql/pglite';
 
 import { createTestPGlite } from '../test-helpers';
-import { createScheduler } from './queue';
+import { createScheduler, type Scheduler } from './queue';
+
+let pglite: PGlite;
+let scheduler: Scheduler;
+
+beforeAll(async () => {
+  pglite = await createTestPGlite();
+  scheduler = await createScheduler({ connection: pglite });
+});
+
+afterAll(async () => {
+  await scheduler.stop();
+});
 
 describe('createScheduler()', () => {
   it('enqueues a job via scheduler.add()', async () => {
-    const pglite = await createTestPGlite();
-    const scheduler = await createScheduler({ connection: pglite });
-
     await scheduler.add('email.send', { to: 'user@example.com' });
 
     const result = await pglite.query<{ name: string }>(
@@ -18,9 +28,6 @@ describe('createScheduler()', () => {
   });
 
   it('send() returns a job ID string', async () => {
-    const pglite = await createTestPGlite();
-    const scheduler = await createScheduler({ connection: pglite });
-
     const id = await scheduler.send('invoice.generate', { number: 'INV-001' });
 
     expect(typeof id).toBe('string');
@@ -28,9 +35,6 @@ describe('createScheduler()', () => {
   });
 
   it('send() with retryLimit stores job with correct name', async () => {
-    const pglite = await createTestPGlite();
-    const scheduler = await createScheduler({ connection: pglite });
-
     await scheduler.add(
       'report.build',
       { period: 'weekly' },

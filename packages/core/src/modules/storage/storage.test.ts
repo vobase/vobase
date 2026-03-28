@@ -173,9 +173,7 @@ describe('StorageService', () => {
     mkdirSync(`${testBasePath}/svc`, { recursive: true });
   });
 
-  afterAll(async () => {
-    await pglite.close();
-  });
+  // Never close the shared PGlite — process exit handles cleanup
 
   it('throws for unknown bucket name', () => {
     const provider = createLocalAdapter({

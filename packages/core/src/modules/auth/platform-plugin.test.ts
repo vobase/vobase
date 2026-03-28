@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -208,9 +208,7 @@ beforeAll(async () => {
   await sharedPg.query('SELECT 1');
 });
 
-afterAll(async () => {
-  await sharedPg.close();
-});
+// Never close the shared PGlite — process exit handles cleanup
 
 // ===========================================================================
 // Tests

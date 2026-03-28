@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 
@@ -11,7 +11,7 @@ describe('nextSequence()', () => {
   let pglite: PGlite;
   let db: VobaseDb;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     pglite = await createTestPGlite();
     await pglite.exec(`
       CREATE TABLE "infra"."sequences" (
@@ -24,8 +24,8 @@ describe('nextSequence()', () => {
     db = drizzle({ client: pglite, schema }) as unknown as VobaseDb;
   });
 
-  afterEach(async () => {
-    await pglite.close();
+  beforeEach(async () => {
+    await pglite.query('DELETE FROM "infra"."sequences"');
   });
 
   it('returns gap-free numbers for same prefix', async () => {

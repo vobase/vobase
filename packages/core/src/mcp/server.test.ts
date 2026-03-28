@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
 import { drizzle } from 'drizzle-orm/pglite';
 import { Hono } from 'hono';
 
@@ -20,7 +20,9 @@ const MODULES: VobaseModule[] = [
   },
 ];
 
-async function createTestDb(): Promise<VobaseDb> {
+let db: VobaseDb;
+
+beforeAll(async () => {
   const pg = await createTestPGlite();
   await pg.query(`
     CREATE TABLE IF NOT EXISTS _audit_log (
@@ -33,8 +35,8 @@ async function createTestDb(): Promise<VobaseDb> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
-  return drizzle({ client: pg }) as unknown as VobaseDb;
-}
+  db = drizzle({ client: pg }) as unknown as VobaseDb;
+});
 
 async function postMcp(
   handler: (req: Request) => Promise<Response>,
@@ -70,11 +72,10 @@ function parseStructuredToolResult(
   return text ? (JSON.parse(text) as Record<string, unknown>) : {};
 }
 
-// PGlite WASM flaky under parallel test load (electric-sql/pglite#324)
-(process.env.CI ? describe.skip : describe)('createMcpHandler()', () => {
-  it('creates a request handler function', async () => {
+describe('createMcpHandler()', () => {
+  it('creates a request handler function', () => {
     const handler = createMcpHandler({
-      db: await createTestDb(),
+      db,
       modules: MODULES,
     });
     expect(typeof handler).toBe('function');
@@ -82,7 +83,7 @@ function parseStructuredToolResult(
 
   it('returns all four read-only tools for tools/list', async () => {
     const handler = createMcpHandler({
-      db: await createTestDb(),
+      db,
       modules: MODULES,
     });
 
@@ -107,7 +108,7 @@ function parseStructuredToolResult(
 
   it('list_modules returns registered module names', async () => {
     const handler = createMcpHandler({
-      db: await createTestDb(),
+      db,
       modules: MODULES,
     });
 
@@ -126,7 +127,7 @@ function parseStructuredToolResult(
 
   it('get_schema returns table names across modules', async () => {
     const handler = createMcpHandler({
-      db: await createTestDb(),
+      db,
       modules: MODULES,
     });
 
@@ -145,7 +146,7 @@ function parseStructuredToolResult(
 
   it('does not expose write tools', async () => {
     const handler = createMcpHandler({
-      db: await createTestDb(),
+      db,
       modules: MODULES,
     });
 
