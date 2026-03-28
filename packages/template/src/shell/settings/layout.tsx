@@ -5,16 +5,22 @@ import {
   redirect,
 } from '@tanstack/react-router';
 import {
+  BellIcon,
   BuildingIcon,
   CableIcon,
   KeyIcon,
+  MonitorIcon,
   PaletteIcon,
   UserIcon,
+  WrenchIcon,
 } from 'lucide-react';
 
 const settingsNav = [
   { label: 'Profile', to: '/settings/profile', icon: UserIcon },
+  { label: 'Account', to: '/settings/account', icon: WrenchIcon },
   { label: 'Appearance', to: '/settings/appearance', icon: PaletteIcon },
+  { label: 'Notifications', to: '/settings/notifications', icon: BellIcon },
+  { label: 'Display', to: '/settings/display', icon: MonitorIcon },
   { label: 'API Keys', to: '/settings/api-keys', icon: KeyIcon },
   { label: 'Integrations', to: '/settings/integrations', icon: CableIcon },
   { label: 'Organization', to: '/settings/organization', icon: BuildingIcon },

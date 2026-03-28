@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { ArrowRight, Laptop, Moon, Sun } from 'lucide-react';
 
 import {
   CommandDialog,
@@ -8,55 +8,112 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from '@/components/ui/command';
-import { navigation } from '@/constants/navigation';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { navGroups } from '@/constants/navigation';
+import { type Theme, useTheme } from '@/hooks/use-theme';
+import { useSearch } from '@/providers/search-provider';
 
 export function CommandPalette() {
-  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const { setTheme } = useTheme();
+  const { open, setOpen } = useSearch();
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setOpen((prev) => !prev);
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  function handleSelect(to: string) {
+  function runCommand(command: () => unknown) {
     setOpen(false);
-    void navigate({ to });
+    command();
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen} showCloseButton={false}>
-      <CommandInput placeholder="Go to..." />
+    <CommandDialog
+      modal
+      open={open}
+      onOpenChange={setOpen}
+      showCloseButton={false}
+    >
+      <CommandInput placeholder="Type a command or search..." />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        {navigation.map((group) => (
-          <CommandGroup key={group.label} heading={group.label}>
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              // Include keywords in the searchable value so "whatsapp" finds "Integrations"
-              const searchValue = [item.label, ...(item.keywords ?? [])].join(
-                ' ',
-              );
-              return (
-                <CommandItem
-                  key={item.to}
-                  value={searchValue}
-                  onSelect={() => handleSelect(item.to)}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </CommandItem>
-              );
-            })}
+        <ScrollArea type="hover" className="h-72 pe-1">
+          <CommandEmpty>No results found.</CommandEmpty>
+          {navGroups.map((group) => (
+            <CommandGroup key={group.title} heading={group.title}>
+              {group.items.map((navItem) => {
+                if (navItem.url) {
+                  const searchValue = [
+                    navItem.title,
+                    ...(navItem.keywords ?? []),
+                  ].join(' ');
+                  return (
+                    <CommandItem
+                      key={navItem.url}
+                      value={searchValue}
+                      onSelect={() => {
+                        runCommand(() => navigate({ to: navItem.url }));
+                      }}
+                    >
+                      <div className="flex size-4 items-center justify-center">
+                        {navItem.icon ? (
+                          <navItem.icon className="size-3.5 text-muted-foreground/80" />
+                        ) : (
+                          <ArrowRight className="size-2 text-muted-foreground/80" />
+                        )}
+                      </div>
+                      {navItem.title}
+                    </CommandItem>
+                  );
+                }
+
+                return navItem.items?.map((subItem) => {
+                  const searchValue = [
+                    navItem.title,
+                    subItem.title,
+                    ...(subItem.keywords ?? []),
+                  ].join(' ');
+                  return (
+                    <CommandItem
+                      key={`${navItem.title}-${subItem.url}`}
+                      value={searchValue}
+                      onSelect={() => {
+                        runCommand(() => navigate({ to: subItem.url }));
+                      }}
+                    >
+                      <div className="flex size-4 items-center justify-center">
+                        {subItem.icon ? (
+                          <subItem.icon className="size-3.5 text-muted-foreground/80" />
+                        ) : (
+                          <ArrowRight className="size-2 text-muted-foreground/80" />
+                        )}
+                      </div>
+                      {subItem.title}
+                    </CommandItem>
+                  );
+                });
+              })}
+            </CommandGroup>
+          ))}
+          <CommandSeparator />
+          <CommandGroup heading="Theme">
+            <CommandItem
+              onSelect={() => runCommand(() => setTheme('light' as Theme))}
+            >
+              <Sun />
+              <span>Light</span>
+            </CommandItem>
+            <CommandItem
+              onSelect={() => runCommand(() => setTheme('dark' as Theme))}
+            >
+              <Moon className="scale-90" />
+              <span>Dark</span>
+            </CommandItem>
+            <CommandItem
+              onSelect={() => runCommand(() => setTheme('system' as Theme))}
+            >
+              <Laptop />
+              <span>System</span>
+            </CommandItem>
           </CommandGroup>
-        ))}
+        </ScrollArea>
       </CommandList>
     </CommandDialog>
   );

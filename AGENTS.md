@@ -67,7 +67,7 @@ Linear-inspired: clean density, information-forward, keyboard-first. Light + dar
 2. **ai-elements** — AI-native UI components (48 available). Skill: `ai-elements`. Install: `bunx --bun ai-elements@latest add <component>`. Installed components live in `src/components/ai-elements/` as owned source — customize freely. Currently installed: conversation, message, prompt-input, code-block, suggestion, shimmer. Many more available: tool, reasoning, sources, inline-citation, artifact, canvas, file-tree, terminal, plan, task, confirmation, attachments, audio-player, image, sandbox, web-preview, etc.
 3. **DiceUI** — advanced interactions shadcn doesn't cover (combobox, tags-input, sortable, kanban, file-upload, data-table, mention, color-picker, timeline, tour, masonry, media-player, 40+ more). Skill: `diceui`. Registry configured in `components.json`. Install: `bunx shadcn@latest add "https://diceui.com/r/<component>.json"`.
 
-4. **data-table-filters** — filterable data tables with faceted filters (checkbox, input, slider, timerange), sorting, infinite scroll, virtualization. Skill: `data-table-filters`. Install: `npx shadcn@latest add <block>` (9 registry blocks). Use for any non-trivial table — only skip for simple static tables.
+4. **DiceUI data-table** — production-ready data tables with server-side filtering, sorting, pagination, and URL state via nuqs. Skill: `data-table`. Install: `bunx shadcn@latest add "https://diceui.com/r/data-table.json"`. Use for any non-trivial table — only skip for simple static tables.
 
 Always check these libraries before writing custom components. Each has a corresponding agent skill with full component catalogs in `references/`.
 

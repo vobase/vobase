@@ -5,8 +5,8 @@ import { allNavItems } from '@/constants/navigation';
 import { cn } from '@/lib/utils';
 
 function labelFromPathname(pathname: string): string | null {
-  const item = allNavItems.find((n) => n.to === pathname);
-  if (item) return item.label;
+  const item = allNavItems.find((n) => n.url === pathname);
+  if (item) return item.title;
 
   // Fallback: capitalize last path segment
   const segment = pathname.split('/').filter(Boolean).pop();

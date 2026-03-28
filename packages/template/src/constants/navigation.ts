@@ -1,3 +1,4 @@
+import type { LinkProps } from '@tanstack/react-router';
 import {
   Activity,
   BarChart3,
@@ -19,38 +20,52 @@ import {
   UserIcon,
 } from 'lucide-react';
 
-interface NavItem {
-  label: string;
-  to: string;
-  icon: LucideIcon;
+type BaseNavItem = {
+  title: string;
+  badge?: string;
+  icon?: LucideIcon;
   /** Extra keywords for Cmd+K search (not displayed, just searchable) */
   keywords?: string[];
-}
+};
 
-interface NavGroup {
-  label: string;
+type NavLink = BaseNavItem & {
+  url: LinkProps['to'] | (string & {});
+  items?: never;
+};
+
+type NavCollapsible = BaseNavItem & {
+  items: (BaseNavItem & { url: LinkProps['to'] | (string & {}) })[];
+  url?: never;
+};
+
+type NavItem = NavCollapsible | NavLink;
+
+type NavGroup = {
+  title: string;
   items: NavItem[];
-}
+};
 
-export const navigation: NavGroup[] = [
+export type { NavCollapsible, NavGroup, NavItem, NavLink };
+
+export const navGroups: NavGroup[] = [
   {
-    label: 'Overview',
+    title: 'Overview',
     items: [
       {
-        label: 'Overview',
-        to: '/',
+        title: 'Home',
+        url: '/',
         icon: Home,
-        keywords: ['home', 'overview', 'status'],
+        keywords: ['home', 'overview', 'dashboard', 'status'],
       },
       {
-        label: 'Contacts',
-        to: '/contacts',
+        title: 'Contacts',
+        url: '/contacts',
         icon: Contact,
         keywords: ['people', 'customers', 'staff', 'phone', 'directory'],
       },
       {
-        label: 'Channels',
-        to: '/channels',
+        title: 'Channels',
+        url: '/channels',
         icon: RadioIcon,
         keywords: [
           'whatsapp',
@@ -64,98 +79,98 @@ export const navigation: NavGroup[] = [
     ],
   },
   {
-    label: 'AI',
+    title: 'AI',
     items: [
       {
-        label: 'Agents',
-        to: '/ai/agents',
+        title: 'Agents',
+        url: '/ai/agents',
         icon: BotIcon,
         keywords: ['ai', 'agents', 'bot', 'llm'],
       },
       {
-        label: 'Evals',
-        to: '/ai/evals',
+        title: 'Evals',
+        url: '/ai/evals',
         icon: BarChart3,
         keywords: ['evaluation', 'scoring', 'quality', 'faithfulness'],
       },
       {
-        label: 'Guardrails',
-        to: '/ai/guardrails',
+        title: 'Guardrails',
+        url: '/ai/guardrails',
         icon: ShieldCheckIcon,
         keywords: ['moderation', 'safety', 'content', 'filter'],
       },
       {
-        label: 'Memory',
-        to: '/ai/memory',
+        title: 'Memory',
+        url: '/ai/memory',
         icon: BrainIcon,
         keywords: ['context', 'recall', 'knowledge', 'memory'],
       },
     ],
   },
   {
-    label: 'Knowledge Base',
+    title: 'Knowledge Base',
     items: [
       {
-        label: 'Search',
-        to: '/knowledge-base/search',
+        title: 'Search',
+        url: '/knowledge-base/search',
         icon: Search,
         keywords: ['find', 'query', 'semantic', 'rag'],
       },
       {
-        label: 'Documents',
-        to: '/knowledge-base/documents',
+        title: 'Documents',
+        url: '/knowledge-base/documents',
         icon: FileText,
         keywords: ['upload', 'pdf', 'files', 'kb'],
       },
       {
-        label: 'Sources',
-        to: '/knowledge-base/sources',
+        title: 'Sources',
+        url: '/knowledge-base/sources',
         icon: Globe,
         keywords: ['connectors', 'google drive', 'sharepoint', 'crawl', 'sync'],
       },
     ],
   },
   {
-    label: 'System',
+    title: 'System',
     items: [
       {
-        label: 'Operations',
-        to: '/system/list',
+        title: 'Operations',
+        url: '/system/list',
         icon: Activity,
         keywords: ['health', 'modules', 'status', 'monitoring'],
       },
       {
-        label: 'Audit Log',
-        to: '/system/logs',
+        title: 'Audit Log',
+        url: '/system/logs',
         icon: ScrollText,
         keywords: ['activity', 'history', 'events', 'logs'],
       },
     ],
   },
   {
-    label: 'Settings',
+    title: 'Settings',
     items: [
       {
-        label: 'Profile',
-        to: '/settings/profile',
+        title: 'Profile',
+        url: '/settings/profile',
         icon: UserIcon,
         keywords: ['account', 'name', 'email', 'user'],
       },
       {
-        label: 'Appearance',
-        to: '/settings/appearance',
+        title: 'Appearance',
+        url: '/settings/appearance',
         icon: PaletteIcon,
         keywords: ['theme', 'dark mode', 'light mode', 'colors'],
       },
       {
-        label: 'API Keys',
-        to: '/settings/api-keys',
+        title: 'API Keys',
+        url: '/settings/api-keys',
         icon: KeyIcon,
         keywords: ['tokens', 'access', 'mcp', 'authentication'],
       },
       {
-        label: 'Integrations',
-        to: '/settings/integrations',
+        title: 'Integrations',
+        url: '/settings/integrations',
         icon: CableIcon,
         keywords: [
           'whatsapp',
@@ -167,8 +182,8 @@ export const navigation: NavGroup[] = [
         ],
       },
       {
-        label: 'Organization',
-        to: '/settings/organization',
+        title: 'Organization',
+        url: '/settings/organization',
         icon: BuildingIcon,
         keywords: ['team', 'members', 'roles', 'workspace'],
       },
@@ -176,10 +191,18 @@ export const navigation: NavGroup[] = [
   },
 ];
 
-/** All nav items including settings — used by command palette (Cmd+K) */
-export const allNavItems: NavItem[] = navigation.flatMap((g) => g.items);
+/** All nav items flattened — used by command palette and breadcrumbs */
+export const allNavItems = navGroups.flatMap((g) =>
+  g.items.flatMap((item) =>
+    item.items
+      ? [item, ...item.items].filter(
+          (i): i is BaseNavItem & { url: string } => 'url' in i && !!i.url,
+        )
+      : [item as BaseNavItem & { url: string }],
+  ),
+);
 
 /** Sidebar navigation — excludes Settings (settings has its own layout) */
-export const sidebarNavigation: NavGroup[] = navigation.filter(
-  (g) => g.label !== 'Settings',
+export const sidebarNavGroups: NavGroup[] = navGroups.filter(
+  (g) => g.title !== 'Settings',
 );

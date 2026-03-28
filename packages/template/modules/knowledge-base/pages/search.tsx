@@ -62,11 +62,6 @@ function KnowledgeBaseSearch() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h2 className="text-lg font-semibold mb-1">Knowledge Base</h2>
-      <p className="text-sm text-muted-foreground mb-6">
-        Search across all documents and sources
-      </p>
-
       <div className="mb-8">
         <SearchBar
           onSearch={handleSearch}

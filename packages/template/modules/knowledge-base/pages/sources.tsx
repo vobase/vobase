@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 
-import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -104,15 +103,12 @@ function SourcesPage() {
   }
 
   return (
-    <div className="p-6">
-      <PageHeader
-        title="Sources"
-        description="Connect external document sources"
-      >
+    <div className="p-6 space-y-6">
+      <div className="flex justify-end">
         <Button size="sm" onClick={() => setShowAdd(!showAdd)}>
           {showAdd ? 'Cancel' : 'Add source'}
         </Button>
-      </PageHeader>
+      </div>
 
       {showAdd && (
         <Card className="mb-6">

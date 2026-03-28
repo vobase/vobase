@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
+import { NuqsAdapter } from 'nuqs/adapters/react';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
@@ -21,11 +22,13 @@ if (rootElement && !rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <RouterProvider router={router} />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <NuqsAdapter>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <RouterProvider router={router} />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </NuqsAdapter>
     </React.StrictMode>,
   );
 }

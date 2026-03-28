@@ -1,42 +1,35 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
-import { useState } from 'react';
 
+import { AppSidebar } from '@/components/layout/app-sidebar';
+import { Header } from '@/components/layout/header';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useEscalationNotifications } from '@/hooks/use-notifications';
 import { useRealtimeInvalidation } from '@/hooks/use-realtime';
 import { authClient } from '@/lib/auth-client';
-import { MobileNav } from '@/shell/mobile-nav';
-import { ShellHeader } from '@/shell/shell-header';
-import { ShellSidebar } from '@/shell/shell-sidebar';
+import { SearchProvider } from '@/providers/search-provider';
 
 function AppLayout() {
   useRealtimeInvalidation();
-  const { unreadCount: escalationCount } = useEscalationNotifications();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  useEscalationNotifications();
+
+  const defaultOpen =
+    document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('sidebar_state='))
+      ?.split('=')[1] !== 'false';
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Desktop sidebar */}
-      <ShellSidebar
-        className="hidden lg:flex sticky top-0 h-screen"
-        escalationCount={escalationCount}
-      />
-
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <ShellHeader onMobileMenuOpen={() => setMobileNavOpen(true)} />
-
-        <main className="flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* Mobile navigation drawer */}
-      <MobileNav
-        isOpen={mobileNavOpen}
-        onClose={() => setMobileNavOpen(false)}
-        escalationCount={escalationCount}
-      />
-    </div>
+    <SearchProvider>
+      <SidebarProvider defaultOpen={defaultOpen}>
+        <AppSidebar />
+        <SidebarInset>
+          <Header fixed />
+          <div id="content" className="flex flex-1 flex-col overflow-y-auto">
+            <Outlet />
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </SearchProvider>
   );
 }
 

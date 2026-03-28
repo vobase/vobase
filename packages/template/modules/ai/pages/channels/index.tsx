@@ -431,21 +431,13 @@ function ChannelsPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Channels</h2>
-          <p className="text-sm text-muted-foreground">
-            Configure messaging channels and endpoints
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <CreateChannelRoutingDialog
-            instances={instances}
-            agents={agents}
-            onCreated={invalidateAll}
-          />
-          <CreateInstanceDialog onCreated={invalidateAll} />
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        <CreateChannelRoutingDialog
+          instances={instances}
+          agents={agents}
+          onCreated={invalidateAll}
+        />
+        <CreateInstanceDialog onCreated={invalidateAll} />
       </div>
 
       {/* Channel Instances */}

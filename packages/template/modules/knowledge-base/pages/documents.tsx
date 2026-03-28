@@ -10,7 +10,6 @@ import {
   Upload,
 } from 'lucide-react';
 
-import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -104,11 +103,8 @@ function DocumentsPage() {
   }
 
   return (
-    <div className="p-6">
-      <PageHeader
-        title="Documents"
-        description="Manage knowledge base documents"
-      >
+    <div className="p-6 space-y-6">
+      <div className="flex justify-end">
         <Button
           onClick={handleFileUpload}
           disabled={uploadMutation.isPending}
@@ -117,7 +113,7 @@ function DocumentsPage() {
           <Upload className="mr-2 h-4 w-4" />
           {uploadMutation.isPending ? 'Uploading…' : 'Upload document'}
         </Button>
-      </PageHeader>
+      </div>
 
       {isLoading && (
         <div className="space-y-2">

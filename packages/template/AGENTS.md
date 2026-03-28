@@ -12,6 +12,10 @@ Every change must be clean, type-safe, tested, and maintainable.
 - Tests for every feature, colocated as `*.test.ts`. Run `bun test` before done.
 - Biome formatting + linting. Run `bun run lint`.
 - Frontend: use `<Link>` and `navigate()` from TanStack Router — never `<a href>` for internal routes
+- Frontend components: prefer shadcn/ui → ai-elements → DiceUI → custom, in that order. See root CLAUDE.md "Component Libraries" for install commands. Each library has an agent skill (`shadcn`, `ai-elements`, `diceui`) with full component catalogs — check before building custom.
+- Data tables: use DiceUI data-table (skill: `data-table`) for any non-trivial table with filtering/sorting/pagination. Supports server-side and client-side modes. Only use plain shadcn Table for simple static tables.
+- AI chat UI: use ai-elements components from `src/components/ai-elements/`. 6 installed (conversation, message, prompt-input, code-block, suggestion, shimmer), 48 available. Install more: `bunx --bun ai-elements@latest add <component>`. Check `ai-elements` skill references for full catalog.
+- Design mockups: use `react-components` skill + Stitch MCP for visual inspiration. Always include the Vobase design guideline in the prompt (see root CLAUDE.md "Design Mockups with Stitch"). Convert output to project component libraries, never ship raw Stitch HTML.
 - Path aliases: `@/` = `src/`, `@modules/` = `modules/`
 - Prefer Bun native APIs over `node:*` modules: `Bun.file()`, `Bun.write()`, `Bun.spawnSync()`, `Bun.Glob`, `$` shell. Use `node:path` and `node:fs` only when no Bun equivalent exists.
 - Import order: external, then `@vobase/core`, then local
@@ -28,7 +32,8 @@ Name: lowercase alphanumeric + hyphens. Routes mount at `/api/{name}`.
 - Timestamps: `timestamp('col', { withTimezone: true }).defaultNow()`, UTC always
 - Status: TEXT with explicit transition logic, not arbitrary strings
 - IDs: `nanoidPrimaryKey()` (12 chars, lowercase alphanumeric)
-- Cross-module refs: plain text columns, no `.references()` across modules
+- Cross-module refs: plain text columns, no `.references()` across modules. Intra-module (same pgSchema) refs use `.references()` with appropriate `onDelete`
+- Status columns: TEXT with CHECK constraints enforcing valid values. Update both the CHECK constraint and application code when adding new status values
 
 ## Why Things Are This Way
 
@@ -38,9 +43,10 @@ Core identity: "AI agents need a codebase they can understand." Every convention
 - No plugin system. Adapters are factory functions in config — no lifecycle hooks, no registration ceremony.
 - No outbound webhooks. Vobase is code-first — outbound events are `fetch()` in job handlers. No webhook delivery system needed.
 - No developer admin UI. The template UI is for end-users/clients. For dev data browsing, use `bun run db:studio`.
-- No realtime / WebSocket. Polling and SSE cover actual use cases.
+- SSE for server-push via LISTEN/NOTIFY. No WebSocket — no use case needs bidirectional. Modules emit NOTIFY after mutations; the core SSE endpoint streams events to browsers; `useRealtimeInvalidation()` invalidates matching TanStack Query keys automatically.
 - For any new feature, ask "is this genuinely blocking someone?" Prefer direct implementations over "nice-to-have from competitor research."
-- What goes in core vs template modules: core owns infrastructure primitives every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. Template modules own business logic, UI, domain features — anything an AI agent would modify per-app (messaging threads, knowledge base, chatbot agents, etc.).
+- What goes in core vs template modules: core owns infrastructure primitives every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. Template modules own business logic, UI, domain features — anything an AI agent would modify per-app (messaging threads, knowledge base, AI agents, etc.).
+- AI agents use Mastra (`@mastra/core`). Tools via `createTool()` from `@mastra/core/tools`. Agents via `new Agent()` from `@mastra/core/agent`. Streaming bridged to AI SDK via `toAISdkStream` from `@mastra/ai-sdk`. Frontend stays on AI SDK `useChat` from `@ai-sdk/react`.
 - This file documents core's full public API so you never need to read node_modules. Keep it accurate when core changes.
 
 ## How Core Works
@@ -75,36 +81,30 @@ Encrypted credential vault for external services. `ctx.integrations.getActive(pr
 
 `defineJob('module:name', async (data) => { ... })` for background work. Schedule via `ctx.scheduler.add(jobName, data, opts)`. pg-boss backed (Postgres), retries, cron, job chains. No Redis.
 
-### Platform Integration
+### Realtime (SSE)
 
-Opt-in multi-tenant support via `PLATFORM_HMAC_SECRET` env var. When set, enables:
-- `platformAuth({ hmacSecret })` — better-auth plugin that handles `GET /api/auth/platform-callback?token=JWT`. Verifies handoff JWT (`jose`, HS256), upserts user by email, links OAuth account (provider + providerId), creates session via `internalAdapter.createSession()`. Cookie signing handled natively by better-auth.
-- `createPlatformIntegrationsRoutes()` — mounts at `/api/integrations`. Handles `POST /:provider/configure` (store credentials) and `POST /token/update` (refresh tokens). Both verify `X-Platform-Signature` HMAC.
+Event-driven server-push via PostgreSQL LISTEN/NOTIFY + SSE. Modules opt in.
 
-When `PLATFORM_HMAC_SECRET` is not set, all platform routes return 404.
+Server: `ctx.realtime.notify({ table: 'my-table', id?, action? }, tx?)` after mutations. With `tx`, NOTIFY fires on commit only. Without `tx`, fire-and-forget.
+
+Client: `useRealtimeInvalidation()` hook mounted in app shell. Automatically invalidates TanStack Query keys matching the `table` field. No per-query changes needed.
+
+Query key convention: NOTIFY payload `table` field must match the first element of the `queryKey` array (e.g., `table: 'messaging-threads'` invalidates `queryKey: ['messaging-threads', ...]`).
+
+SSE endpoint: `GET /api/events` (authenticated, cookie-based). Returns `text/event-stream`. Events: `invalidate` (data change), `ping` (keep-alive).
 
 ### Key Exports
 
 Helpers: `nanoidPrimaryKey()`, `nextSequence(tx, prefix)`, `trackChanges(tx, table, id, old, new, userId)`, `createHttpClient(opts)`.
 Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `validation(details)`, `dbBusy()`.
 Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
-Auth schemas: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`.
-Platform: `platformAuth({ hmacSecret })`, `isPlatformEnabled()`, `verifyPlatformSignature()`, `createPlatformIntegrationsRoutes()`.
+Auth tables: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`. Auth table map: `authTableMap` (object passed to better-auth's drizzle adapter — renamed from `authSchema`).
+PostgreSQL schemas: `authPgSchema`, `auditPgSchema`, `infraPgSchema` — pgSchema objects for core modules. Template modules define their own: `messagingPgSchema`, `aiPgSchema`, `kbPgSchema`. Mastra uses `schemaName: 'mastra'` via PGliteStore config.
+Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAuth callback (JWT verification, user upsert, account linking, session creation). Opt-in via `PLATFORM_HMAC_SECRET` env var.
 
 ### Config Shape
 
-`vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled). Platform features are env-only: set `PLATFORM_HMAC_SECRET` to enable (not part of `vobase.config.ts`).
-
-## AI Agents (Mastra)
-
-Backend AI uses [Mastra](https://mastra.ai) (`@mastra/core`, `@mastra/ai-sdk`, `@mastra/evals`). Frontend stays on AI SDK (`useChat`). Docs: https://mastra.ai/docs/llms.txt
-
-- Agents: `new Agent()` from `@mastra/core/agent` — see `modules/messaging/lib/agents.ts`
-- Tools: `createTool()` from `@mastra/core/tools` — see `modules/messaging/lib/tools.ts`
-- Streaming: `agent.stream()` → `toAISdkStream()` → `createUIMessageStreamResponse()`
-- Non-streaming: `agent.generate()` → `.text`
-- Models use `provider/model` format (e.g. `openai/gpt-5-mini`, `anthropic/claude-3-5-sonnet`)
-- Embeddings + HyDE/re-ranking stay on raw AI SDK (`embed`, `generateText`)
+`vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled).
 
 ### Schema Management
 

@@ -126,13 +126,6 @@ function ConfigSection() {
 function GuardrailsPage() {
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Guardrails</h2>
-        <p className="text-sm text-muted-foreground">
-          Content moderation rules applied to all AI agent messages
-        </p>
-      </div>
-
       <ConfigSection />
 
       <div>

@@ -288,14 +288,7 @@ function AgentsPage() {
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold">AI Agents</h2>
-        <p className="text-sm text-muted-foreground">
-          AI agents available in your workspace
-        </p>
-      </div>
-
+    <div className="p-6 space-y-6">
       {isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Skeleton className="h-36 w-full rounded-lg" />

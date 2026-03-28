@@ -1,124 +1,154 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { type FormEvent, useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  createFileRoute,
+  Link,
+  useNavigate,
+  useRouter,
+} from '@tanstack/react-router';
+import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
+import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/spinner';
+import { PasswordInput } from '@/components/ui/password-input';
 import { authClient } from '@/lib/auth-client';
+
+const signupSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email(),
+  password: z.string().min(7, 'Password must be at least 7 characters'),
+});
+
+type SignupValues = z.infer<typeof signupSchema>;
 
 function SignupPage() {
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setMessage(null);
-    setIsError(false);
+  const form = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+    },
+  });
 
-    const result = await authClient.signUp.email({
-      name,
-      email,
-      password,
-    });
+  const isSubmitting = form.formState.isSubmitting;
+
+  async function onSubmit(values: SignupValues) {
+    const { name, email, password } = values;
+
+    const result = await authClient.signUp.email({ name, email, password });
 
     if (result.error) {
-      setMessage(result.error.message ?? 'Unable to create account.');
-      setIsError(true);
-      setIsSubmitting(false);
+      toast.error(result.error.message ?? 'Unable to create account.');
       return;
     }
 
-    // Auto-login after signup
     const loginResult = await authClient.signIn.email({ email, password });
 
     if (loginResult.error) {
-      setMessage('Account created. You can now log in.');
-      setIsSubmitting(false);
+      toast.error('Account created. You can now log in.');
       return;
     }
 
+    await router.invalidate();
     navigate({ to: '/' });
   }
 
   return (
-    <>
-      <div className="mb-6">
+    <Card className="w-full max-w-sm">
+      <CardHeader>
         <h1 className="text-xl font-semibold tracking-tight">Create account</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Start your vobase workspace in minutes.
         </p>
-      </div>
+      </CardHeader>
 
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="signup-name">Name</FieldLabel>
-            <Input
-              id="signup-name"
-              placeholder="Jane Doe"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="signup-email">Email</FieldLabel>
-            <Input
-              id="signup-email"
-              type="email"
-              placeholder="name@company.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="signup-password">Password</FieldLabel>
-            <Input
-              id="signup-password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </Field>
-        </FieldGroup>
-
-        {message ? (
-          <div
-            className={`rounded-md px-3 py-2 ${isError ? 'bg-destructive/10' : 'bg-muted'}`}
+      <CardContent>
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex flex-col gap-4"
           >
-            <p
-              className={`text-sm ${isError ? 'text-destructive' : 'text-muted-foreground'}`}
-            >
-              {message}
-            </p>
-          </div>
-        ) : null}
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Jane Doe" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      placeholder="name@company.com"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <PasswordInput {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create account'}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? <Spinner /> : null}
-          {isSubmitting ? 'Creating...' : 'Create account'}
-        </Button>
-      </form>
-
-      <p className="mt-6 text-center text-xs text-muted-foreground">
-        Already have an account?{' '}
-        <Link
-          to="/login"
-          className="font-medium text-foreground hover:underline"
-        >
-          Sign in
-        </Link>
-      </p>
-    </>
+      <CardFooter className="justify-center">
+        <p className="text-xs text-muted-foreground">
+          Already have an account?{' '}
+          <Link
+            to="/login"
+            className="font-medium text-foreground hover:underline"
+          >
+            Sign in
+          </Link>
+        </p>
+      </CardFooter>
+    </Card>
   );
 }
 

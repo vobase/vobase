@@ -25,9 +25,12 @@ import { Route as LogsRouteImport } from './../modules/system/pages/logs'
 import { Route as ListRouteImport } from './../modules/system/pages/list'
 import { Route as shellSettingsProfileRouteImport } from './shell/settings/profile'
 import { Route as shellSettingsOrganizationRouteImport } from './shell/settings/organization'
+import { Route as shellSettingsNotificationsRouteImport } from './shell/settings/notifications'
 import { Route as shellSettingsIntegrationsRouteImport } from './shell/settings/integrations'
+import { Route as shellSettingsDisplayRouteImport } from './shell/settings/display'
 import { Route as shellSettingsAppearanceRouteImport } from './shell/settings/appearance'
 import { Route as shellSettingsApiKeysRouteImport } from './shell/settings/api-keys'
+import { Route as shellSettingsAccountRouteImport } from './shell/settings/account'
 import { Route as SourcesRouteImport } from './../modules/knowledge-base/pages/sources'
 import { Route as SearchRouteImport } from './../modules/knowledge-base/pages/search'
 import { Route as DocumentsRouteImport } from './../modules/knowledge-base/pages/documents'
@@ -121,12 +124,23 @@ const shellSettingsOrganizationRoute =
     path: '/organization',
     getParentRoute: () => shellSettingsLayoutRoute,
   } as any)
+const shellSettingsNotificationsRoute =
+  shellSettingsNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => shellSettingsLayoutRoute,
+  } as any)
 const shellSettingsIntegrationsRoute =
   shellSettingsIntegrationsRouteImport.update({
     id: '/integrations',
     path: '/integrations',
     getParentRoute: () => shellSettingsLayoutRoute,
   } as any)
+const shellSettingsDisplayRoute = shellSettingsDisplayRouteImport.update({
+  id: '/display',
+  path: '/display',
+  getParentRoute: () => shellSettingsLayoutRoute,
+} as any)
 const shellSettingsAppearanceRoute = shellSettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -135,6 +149,11 @@ const shellSettingsAppearanceRoute = shellSettingsAppearanceRouteImport.update({
 const shellSettingsApiKeysRoute = shellSettingsApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
+  getParentRoute: () => shellSettingsLayoutRoute,
+} as any)
+const shellSettingsAccountRoute = shellSettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
 const SourcesRoute = SourcesRouteImport.update({
@@ -204,9 +223,12 @@ export interface FileRoutesByFullPath {
   '/knowledge-base/documents': typeof DocumentsRoute
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
+  '/settings/account': typeof shellSettingsAccountRoute
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/settings/appearance': typeof shellSettingsAppearanceRoute
+  '/settings/display': typeof shellSettingsDisplayRoute
   '/settings/integrations': typeof shellSettingsIntegrationsRoute
+  '/settings/notifications': typeof shellSettingsNotificationsRoute
   '/settings/organization': typeof shellSettingsOrganizationRoute
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
@@ -231,9 +253,12 @@ export interface FileRoutesByTo {
   '/knowledge-base/documents': typeof DocumentsRoute
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
+  '/settings/account': typeof shellSettingsAccountRoute
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/settings/appearance': typeof shellSettingsAppearanceRoute
+  '/settings/display': typeof shellSettingsDisplayRoute
   '/settings/integrations': typeof shellSettingsIntegrationsRoute
+  '/settings/notifications': typeof shellSettingsNotificationsRoute
   '/settings/organization': typeof shellSettingsOrganizationRoute
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
@@ -262,9 +287,12 @@ export interface FileRoutesById {
   '/_app/knowledge-base/documents': typeof DocumentsRoute
   '/_app/knowledge-base/search': typeof SearchRoute
   '/_app/knowledge-base/sources': typeof SourcesRoute
+  '/_app/settings/account': typeof shellSettingsAccountRoute
   '/_app/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/_app/settings/appearance': typeof shellSettingsAppearanceRoute
+  '/_app/settings/display': typeof shellSettingsDisplayRoute
   '/_app/settings/integrations': typeof shellSettingsIntegrationsRoute
+  '/_app/settings/notifications': typeof shellSettingsNotificationsRoute
   '/_app/settings/organization': typeof shellSettingsOrganizationRoute
   '/_app/settings/profile': typeof shellSettingsProfileRoute
   '/_app/system/list': typeof ListRoute
@@ -291,9 +319,12 @@ export interface FileRouteTypes {
     | '/knowledge-base/documents'
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
+    | '/settings/account'
     | '/settings/api-keys'
     | '/settings/appearance'
+    | '/settings/display'
     | '/settings/integrations'
+    | '/settings/notifications'
     | '/settings/organization'
     | '/settings/profile'
     | '/system/list'
@@ -318,9 +349,12 @@ export interface FileRouteTypes {
     | '/knowledge-base/documents'
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
+    | '/settings/account'
     | '/settings/api-keys'
     | '/settings/appearance'
+    | '/settings/display'
     | '/settings/integrations'
+    | '/settings/notifications'
     | '/settings/organization'
     | '/settings/profile'
     | '/system/list'
@@ -348,9 +382,12 @@ export interface FileRouteTypes {
     | '/_app/knowledge-base/documents'
     | '/_app/knowledge-base/search'
     | '/_app/knowledge-base/sources'
+    | '/_app/settings/account'
     | '/_app/settings/api-keys'
     | '/_app/settings/appearance'
+    | '/_app/settings/display'
     | '/_app/settings/integrations'
+    | '/_app/settings/notifications'
     | '/_app/settings/organization'
     | '/_app/settings/profile'
     | '/_app/system/list'
@@ -481,11 +518,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof shellSettingsOrganizationRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
+    '/_app/settings/notifications': {
+      id: '/_app/settings/notifications'
+      path: '/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof shellSettingsNotificationsRouteImport
+      parentRoute: typeof shellSettingsLayoutRoute
+    }
     '/_app/settings/integrations': {
       id: '/_app/settings/integrations'
       path: '/integrations'
       fullPath: '/settings/integrations'
       preLoaderRoute: typeof shellSettingsIntegrationsRouteImport
+      parentRoute: typeof shellSettingsLayoutRoute
+    }
+    '/_app/settings/display': {
+      id: '/_app/settings/display'
+      path: '/display'
+      fullPath: '/settings/display'
+      preLoaderRoute: typeof shellSettingsDisplayRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/appearance': {
@@ -500,6 +551,13 @@ declare module '@tanstack/react-router' {
       path: '/api-keys'
       fullPath: '/settings/api-keys'
       preLoaderRoute: typeof shellSettingsApiKeysRouteImport
+      parentRoute: typeof shellSettingsLayoutRoute
+    }
+    '/_app/settings/account': {
+      id: '/_app/settings/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof shellSettingsAccountRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/knowledge-base/sources': {
@@ -608,17 +666,23 @@ const DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren =
   )
 
 interface shellSettingsLayoutRouteChildren {
+  shellSettingsAccountRoute: typeof shellSettingsAccountRoute
   shellSettingsApiKeysRoute: typeof shellSettingsApiKeysRoute
   shellSettingsAppearanceRoute: typeof shellSettingsAppearanceRoute
+  shellSettingsDisplayRoute: typeof shellSettingsDisplayRoute
   shellSettingsIntegrationsRoute: typeof shellSettingsIntegrationsRoute
+  shellSettingsNotificationsRoute: typeof shellSettingsNotificationsRoute
   shellSettingsOrganizationRoute: typeof shellSettingsOrganizationRoute
   shellSettingsProfileRoute: typeof shellSettingsProfileRoute
 }
 
 const shellSettingsLayoutRouteChildren: shellSettingsLayoutRouteChildren = {
+  shellSettingsAccountRoute: shellSettingsAccountRoute,
   shellSettingsApiKeysRoute: shellSettingsApiKeysRoute,
   shellSettingsAppearanceRoute: shellSettingsAppearanceRoute,
+  shellSettingsDisplayRoute: shellSettingsDisplayRoute,
   shellSettingsIntegrationsRoute: shellSettingsIntegrationsRoute,
+  shellSettingsNotificationsRoute: shellSettingsNotificationsRoute,
   shellSettingsOrganizationRoute: shellSettingsOrganizationRoute,
   shellSettingsProfileRoute: shellSettingsProfileRoute,
 }

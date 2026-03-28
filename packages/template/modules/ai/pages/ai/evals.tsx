@@ -120,14 +120,6 @@ function EvalsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Evals</h2>
-        <p className="text-sm text-muted-foreground">
-          Evaluation runs that score AI agent responses for quality and
-          faithfulness
-        </p>
-      </div>
-
       {isLoading && (
         <div className="space-y-3">
           <Skeleton className="h-16 w-full rounded-lg" />

@@ -68,7 +68,10 @@ function buildRoutesSource(moduleNames: string[]): string {
   const settingsRoutes = [
     "    route('/settings', 'shell/settings/layout.tsx', [",
     "      route('/profile', 'shell/settings/profile.tsx'),",
+    "      route('/account', 'shell/settings/account.tsx'),",
     "      route('/appearance', 'shell/settings/appearance.tsx'),",
+    "      route('/notifications', 'shell/settings/notifications.tsx'),",
+    "      route('/display', 'shell/settings/display.tsx'),",
     "      route('/api-keys', 'shell/settings/api-keys.tsx'),",
     "      route('/integrations', 'shell/settings/integrations.tsx'),",
     "      route('/organization', 'shell/settings/organization.tsx'),",
