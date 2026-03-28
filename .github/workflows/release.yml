@@ -34,7 +34,7 @@ jobs:
       - run: bun run typecheck
 
       - name: Run tests (retry once for PGlite WASM flakiness)
-        run: turbo run test || turbo run test --force
+        run: bunx turbo run test || bunx turbo run test --force
 
       - name: Create Release Pull Request or Publish
         id: changesets
