@@ -5,7 +5,6 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import * as React from 'react';
 import type { DateRange } from 'react-day-picker';
 
-import type { DatePreset } from '@/components/data-table/types';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
@@ -29,6 +28,13 @@ import { Separator } from '@/components/ui/separator';
 import { presets as defaultPresets } from '@/constants/date-preset';
 import { useDebounce } from '@/hooks/use-debounce';
 import { cn } from '@/lib/utils';
+
+export interface DatePreset {
+  label: string;
+  shortcut: string;
+  from: Date;
+  to: Date;
+}
 
 interface DatePickerWithRangeProps
   extends React.HTMLAttributes<HTMLDivElement> {

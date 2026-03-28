@@ -1,11 +1,8 @@
 "use client";
 
-import {
-  Sortable,
-  SortableDragHandle,
-  SortableItem,
-} from "@/components/custom/sortable";
-import { useDataTable } from "@/components/data-table/data-table-provider";
+import type { Table } from "@tanstack/react-table";
+import { Check, Settings2 } from "lucide-react";
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -21,103 +18,68 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { Check, GripVertical, Settings2 } from "lucide-react";
-import { useMemo, useState } from "react";
 
-export function DataTableViewOptions() {
-  const { table, enableColumnOrdering } = useDataTable();
-  const [open, setOpen] = useState(false);
-  const [drag, setDrag] = useState(false);
-  const [search, setSearch] = useState("");
+interface DataTableViewOptionsProps<TData>
+  extends React.ComponentProps<typeof PopoverContent> {
+  table: Table<TData>;
+  disabled?: boolean;
+}
 
-  const columnOrder = table.getState().columnOrder;
-
-  const sortedColumns = useMemo(
+export function DataTableViewOptions<TData>({
+  table,
+  disabled,
+  ...props
+}: DataTableViewOptionsProps<TData>) {
+  const columns = React.useMemo(
     () =>
-      table.getAllColumns().sort((a, b) => {
-        return columnOrder.indexOf(a.id) - columnOrder.indexOf(b.id);
-      }),
-    [columnOrder, table],
+      table
+        .getAllColumns()
+        .filter(
+          (column) =>
+            typeof column.accessorFn !== "undefined" && column.getCanHide(),
+        ),
+    [table],
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
-          size="icon"
+          aria-label="Toggle columns"
           role="combobox"
-          aria-expanded={open}
-          className="shadow-none"
+          variant="outline"
+          size="sm"
+          className="ml-auto hidden h-8 font-normal lg:flex"
+          disabled={disabled}
         >
-          <Settings2 className="h-4 w-4" />
-          <span className="sr-only">View</span>
+          <Settings2 className="text-muted-foreground" />
+          View
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="end" className="w-[200px] p-0">
+      <PopoverContent className="w-44 p-0" {...props}>
         <Command>
-          <CommandInput
-            value={search}
-            onValueChange={setSearch}
-            placeholder="Search options..."
-          />
+          <CommandInput placeholder="Search columns..." />
           <CommandList>
-            <CommandEmpty>No option found.</CommandEmpty>
+            <CommandEmpty>No columns found.</CommandEmpty>
             <CommandGroup>
-              <Sortable
-                value={sortedColumns.map((c) => ({ id: c.id }))}
-                onValueChange={(items) =>
-                  table.setColumnOrder(items.map((c) => c.id))
-                }
-                overlay={<div className="bg-muted/60 h-8 w-full rounded-md" />}
-                onDragStart={() => setDrag(true)}
-                onDragEnd={() => setDrag(false)}
-                onDragCancel={() => setDrag(false)}
-              >
-                {sortedColumns
-                  .filter(
-                    (column) =>
-                      typeof column.accessorFn !== "undefined" &&
-                      column.getCanHide(),
-                  )
-                  .map((column) => (
-                    <SortableItem key={column.id} value={column.id} asChild>
-                      <CommandItem
-                        value={column.id}
-                        onSelect={() =>
-                          column.toggleVisibility(!column.getIsVisible())
-                        }
-                        className={"capitalize"}
-                        disabled={drag}
-                      >
-                        <div
-                          className={cn(
-                            "border-foreground! flex h-4 w-4 items-center justify-center rounded-sm border",
-                            column.getIsVisible()
-                              ? "bg-primary text-primary-foreground"
-                              : "opacity-50 [&_svg]:invisible",
-                          )}
-                        >
-                          <Check className={cn("text-background size-3")} />
-                        </div>
-                        <span>{column.columnDef.meta?.label || column.id}</span>
-                        <span data-slot="command-shortcut" className="hidden" />
-                        {enableColumnOrdering && !search ? (
-                          <SortableDragHandle
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground hover:text-foreground focus:bg-muted focus:text-foreground ml-auto size-5"
-                          >
-                            <GripVertical
-                              className="size-4"
-                              aria-hidden="true"
-                            />
-                          </SortableDragHandle>
-                        ) : null}
-                      </CommandItem>
-                    </SortableItem>
-                  ))}
-              </Sortable>
+              {columns.map((column) => (
+                <CommandItem
+                  key={column.id}
+                  onSelect={() =>
+                    column.toggleVisibility(!column.getIsVisible())
+                  }
+                >
+                  <span className="truncate">
+                    {column.columnDef.meta?.label ?? column.id}
+                  </span>
+                  <Check
+                    className={cn(
+                      "ml-auto size-4 shrink-0",
+                      column.getIsVisible() ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                </CommandItem>
+              ))}
             </CommandGroup>
           </CommandList>
         </Command>

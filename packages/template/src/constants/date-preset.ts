@@ -1,4 +1,4 @@
-import type { DatePreset } from '@/components/data-table/types';
+import type { DatePreset } from '@/components/custom/date-picker-with-range';
 
 // NOTE: `now` is captured at module-load time. In long-lived browser tabs,
 // presets like "Today" become stale after midnight. If this becomes an issue,

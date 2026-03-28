@@ -1,7 +1,7 @@
-import { flexRender, type Row, type Table as TanstackTable } from '@tanstack/react-table';
-import { Fragment, type ComponentProps, type ReactNode } from 'react';
+import { flexRender, type Table as TanstackTable } from "@tanstack/react-table";
+import type * as React from "react";
 
-import { DataTablePagination } from '@/components/data-table/data-table-pagination';
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import {
   Table,
   TableBody,
@@ -9,26 +9,25 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/table";
+import { getColumnPinningStyle } from "@/lib/data-table";
+import { cn } from "@/lib/utils";
 
-interface DataTableProps<TData> extends ComponentProps<'div'> {
+interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   table: TanstackTable<TData>;
-  renderSubComponent?: (props: { row: Row<TData> }) => ReactNode;
-  onRowClick?: (row: Row<TData>) => void;
+  actionBar?: React.ReactNode;
 }
 
 export function DataTable<TData>({
   table,
+  actionBar,
   children,
   className,
-  renderSubComponent,
-  onRowClick,
   ...props
 }: DataTableProps<TData>) {
   return (
     <div
-      className={cn('flex w-full flex-col gap-2.5 overflow-auto', className)}
+      className={cn("flex w-full flex-col gap-2.5 overflow-auto", className)}
       {...props}
     >
       {children}
@@ -38,7 +37,13 @@ export function DataTable<TData>({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} colSpan={header.colSpan}>
+                  <TableHead
+                    key={header.id}
+                    colSpan={header.colSpan}
+                    style={{
+                      ...getColumnPinningStyle({ column: header.column }),
+                    }}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -53,31 +58,24 @@ export function DataTable<TData>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <Fragment key={row.id}>
-                  <TableRow
-                    className={onRowClick ? 'cursor-pointer' : undefined}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                  {row.getIsExpanded() && renderSubComponent ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={row.getVisibleCells().length}
-                        className="bg-muted/30 p-0"
-                      >
-                        {renderSubComponent({ row })}
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </Fragment>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      style={{
+                        ...getColumnPinningStyle({ column: cell.column }),
+                      }}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))
             ) : (
               <TableRow>
@@ -92,7 +90,12 @@ export function DataTable<TData>({
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
+      <div className="flex flex-col gap-2.5">
+        <DataTablePagination table={table} />
+        {actionBar &&
+          table.getFilteredSelectedRowModel().rows.length > 0 &&
+          actionBar}
+      </div>
     </div>
   );
 }
