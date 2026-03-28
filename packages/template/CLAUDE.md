@@ -13,7 +13,7 @@ Every change must be clean, type-safe, tested, and maintainable.
 - Biome formatting + linting. Run `bun run lint`.
 - Frontend: use `<Link>` and `navigate()` from TanStack Router — never `<a href>` for internal routes
 - Frontend components: prefer shadcn/ui → ai-elements → DiceUI → custom, in that order. See root CLAUDE.md "Component Libraries" for install commands. Each library has an agent skill (`shadcn`, `ai-elements`, `diceui`) with full component catalogs — check before building custom.
-- Data tables: use `data-table-filters` (skill: `data-table-filters`) for any non-trivial table with filtering/sorting/pagination. Only use plain shadcn Table for simple static tables.
+- Data tables: use DiceUI data-table (skill: `data-table`) for any non-trivial table with filtering/sorting/pagination. Supports server-side and client-side modes. Only use plain shadcn Table for simple static tables.
 - AI chat UI: use ai-elements components from `src/components/ai-elements/`. 6 installed (conversation, message, prompt-input, code-block, suggestion, shimmer), 48 available. Install more: `bunx --bun ai-elements@latest add <component>`. Check `ai-elements` skill references for full catalog.
 - Design mockups: use `react-components` skill + Stitch MCP for visual inspiration. Always include the Vobase design guideline in the prompt (see root CLAUDE.md "Design Mockups with Stitch"). Convert output to project component libraries, never ship raw Stitch HTML.
 - Path aliases: `@/` = `src/`, `@modules/` = `modules/`
