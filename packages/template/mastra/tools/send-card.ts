@@ -9,7 +9,7 @@ import { createTool } from '@mastra/core/tools';
 import { Actions, Button, Card, CardText } from 'chat';
 import { z } from 'zod';
 
-import { getConstraints } from '../../modules/conversations/lib/channel-constraints';
+import { getConstraints } from '../../modules/ai/lib/channel-constraints';
 
 export const sendCardTool = createTool({
   id: 'send_card',

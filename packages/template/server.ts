@@ -12,7 +12,7 @@ const app = await createApp({ ...config, modules });
 // Initialize Mastra after createApp (init hook sets deps synchronously, but Mastra init is async)
 try {
   // db.$client gives us the PGlite instance from the Drizzle connection
-  const { getModuleDb } = await import('./mastra/lib/deps');
+  const { getModuleDb } = await import('./modules/ai/lib/deps');
   const db = getModuleDb();
   await initMastra(db as unknown as { $client: unknown });
 
@@ -71,7 +71,7 @@ export type { AppType } from './src/api-types.generated';
 async function shutdown(signal: string) {
   console.log(`[server] ${signal} received, shutting down...`);
   try {
-    const { getModuleDb } = await import('./mastra/lib/deps');
+    const { getModuleDb } = await import('./modules/ai/lib/deps');
     const db = getModuleDb();
     const client = (
       db as unknown as { $client: { close?: () => Promise<void> } }

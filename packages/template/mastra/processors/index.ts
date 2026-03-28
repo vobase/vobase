@@ -10,8 +10,11 @@ import type {
 } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 
+import {
+  getModuleDbOrNull,
+  getModuleScheduler,
+} from '../../modules/ai/lib/deps';
 import { resolveScope } from '../lib/agents/shared';
-import { getModuleDbOrNull, getModuleScheduler } from '../lib/deps';
 import {
   createMemoryInputProcessor,
   createMemoryOutputProcessor,

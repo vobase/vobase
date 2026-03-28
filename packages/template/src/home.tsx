@@ -17,24 +17,24 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type RealtimeStatus, useRealtimeStatus } from '@/hooks/use-realtime';
-import { conversationsClient } from '@/lib/api-client';
+import { aiClient } from '@/lib/api-client';
 
 // ─── Data fetchers ────────────────────────────────────────────────────
 
 async function fetchDashboard() {
-  const res = await conversationsClient.dashboard.$get();
+  const res = await aiClient.dashboard.$get();
   if (!res.ok) throw new Error('Dashboard endpoint failed');
   return res.json();
 }
 
 async function fetchAgentMetrics() {
-  const res = await conversationsClient.agents.metrics.$get();
+  const res = await aiClient.agents.metrics.$get();
   if (!res.ok) throw new Error('Agent metrics endpoint failed');
   return res.json();
 }
 
 async function fetchAttention() {
-  const res = await conversationsClient.attention.$get();
+  const res = await aiClient.attention.$get();
   if (!res.ok) throw new Error('Attention endpoint failed');
   return res.json();
 }
@@ -42,13 +42,13 @@ async function fetchAttention() {
 async function fetchActivity({ pageParam }: { pageParam: string | undefined }) {
   const query: Record<string, string> = { limit: '15' };
   if (pageParam) query.cursor = pageParam;
-  const res = await conversationsClient.activity.$get({ query });
+  const res = await aiClient.activity.$get({ query });
   if (!res.ok) throw new Error('Activity endpoint failed');
   return res.json();
 }
 
 async function fetchContacts(): Promise<{ id: string; name: string | null }[]> {
-  const res = await conversationsClient.contacts.$get();
+  const res = await aiClient.contacts.$get();
   if (!res.ok) return [];
   const body = await res.json();
   if (Array.isArray(body)) return body as { id: string; name: string | null }[];
@@ -297,7 +297,7 @@ function HomePage() {
 
   const reviewMutation = useMutation({
     mutationFn: async (eventId: string) => {
-      const res = await conversationsClient.attention[':eventId'].review.$post({
+      const res = await aiClient.attention[':eventId'].review.$post({
         param: { eventId },
       });
       if (!res.ok) throw new Error('Review failed');
@@ -312,11 +312,9 @@ function HomePage() {
 
   const dismissMutation = useMutation({
     mutationFn: async (eventId: string) => {
-      const res = await conversationsClient.attention[':eventId'].dismiss.$post(
-        {
-          param: { eventId },
-        },
-      );
+      const res = await aiClient.attention[':eventId'].dismiss.$post({
+        param: { eventId },
+      });
       if (!res.ok) throw new Error('Dismiss failed');
       return res.json();
     },
@@ -423,7 +421,7 @@ function HomePage() {
                       <span className="shrink-0 text-xs text-muted-foreground">
                         {event.conversationId ? (
                           <Link
-                            to="/conversations/sessions/$conversationId"
+                            to="/conversations/$conversationId"
                             params={{ conversationId: event.conversationId }}
                             className="hidden text-xs text-muted-foreground hover:text-foreground group-hover:inline"
                           >

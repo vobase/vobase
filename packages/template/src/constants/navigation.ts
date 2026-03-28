@@ -1,5 +1,6 @@
 import {
   Activity,
+  BarChart3,
   BotIcon,
   BrainIcon,
   BuildingIcon,
@@ -42,20 +43,14 @@ export const navigation: NavGroup[] = [
         keywords: ['home', 'overview', 'status'],
       },
       {
-        label: 'Conversations',
-        to: '/conversations/sessions/overview',
-        icon: Activity,
-        keywords: ['conversations', 'sessions', 'monitoring', 'control plane'],
-      },
-      {
         label: 'Contacts',
-        to: '/conversations/contacts',
+        to: '/contacts',
         icon: Contact,
         keywords: ['people', 'customers', 'staff', 'phone', 'directory'],
       },
       {
         label: 'Channels',
-        to: '/conversations/channels',
+        to: '/channels',
         icon: RadioIcon,
         keywords: [
           'whatsapp',
@@ -72,26 +67,26 @@ export const navigation: NavGroup[] = [
     label: 'AI',
     items: [
       {
-        label: 'AI Agents',
-        to: '/conversations/ai/agents',
+        label: 'Agents',
+        to: '/ai/agents',
         icon: BotIcon,
         keywords: ['ai', 'agents', 'bot', 'llm'],
       },
       {
         label: 'Evals',
-        to: '/conversations/ai/evals',
-        icon: Activity,
+        to: '/ai/evals',
+        icon: BarChart3,
         keywords: ['evaluation', 'scoring', 'quality', 'faithfulness'],
       },
       {
         label: 'Guardrails',
-        to: '/conversations/ai/guardrails',
+        to: '/ai/guardrails',
         icon: ShieldCheckIcon,
         keywords: ['moderation', 'safety', 'content', 'filter'],
       },
       {
         label: 'Memory',
-        to: '/conversations/ai/memory',
+        to: '/ai/memory',
         icon: BrainIcon,
         keywords: ['context', 'recall', 'knowledge', 'memory'],
       },

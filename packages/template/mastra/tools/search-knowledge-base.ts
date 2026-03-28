@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-import { getModuleDbOrNull } from '../lib/deps';
+import { getModuleDbOrNull } from '../../modules/ai/lib/deps';
 
 /**
  * RAG tool: search the knowledge base and return relevant chunks with citations.

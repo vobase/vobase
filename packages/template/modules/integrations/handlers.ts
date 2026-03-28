@@ -10,8 +10,8 @@ import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { reinitChat } from '../conversations/lib/chat-init';
-import { channelInstances } from '../conversations/schema';
+import { reinitChat } from '../ai/lib/chat-init';
+import { channelInstances } from '../ai/schema';
 
 export type IntegrationsRoutes = typeof integrationsRoutes;
 

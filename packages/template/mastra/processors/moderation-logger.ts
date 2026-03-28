@@ -1,8 +1,8 @@
 import type { RealtimeService, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
 
+import { emitActivityEvent } from '../../modules/ai/lib/activity-events';
 import { aiModerationLogs } from '../../modules/ai/schema';
-import { emitActivityEvent } from '../../modules/conversations/lib/activity-events';
 import type { OnBlockCallback } from './moderation';
 
 interface ModerationLogContext {

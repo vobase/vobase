@@ -3,14 +3,14 @@ import { logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { contacts } from '../../modules/contacts/schema';
-import { requestConsultation } from '../../modules/conversations/lib/consult-human';
+import { requestConsultation } from '../../modules/ai/lib/consult-human';
 import {
   getModuleChannels,
   getModuleDb,
   getModuleRealtimeOrNull,
   getModuleScheduler,
-} from '../lib/deps';
+} from '../../modules/ai/lib/deps';
+import { contacts } from '../../modules/ai/schema';
 
 export const consultHumanTool = createTool({
   id: 'consult_human',

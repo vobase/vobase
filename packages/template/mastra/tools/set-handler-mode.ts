@@ -3,9 +3,9 @@ import type { VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { emitActivityEvent } from '../../modules/conversations/lib/activity-events';
-import { getConversationsDeps } from '../../modules/conversations/lib/deps';
-import { conversations } from '../../modules/conversations/schema';
+import { emitActivityEvent } from '../../modules/ai/lib/activity-events';
+import { getModuleDeps } from '../../modules/ai/lib/deps';
+import { conversations } from '../../modules/ai/schema';
 
 const HANDLER_MODES = ['supervised', 'human'] as const;
 
@@ -41,7 +41,7 @@ For background help without changing the mode, use consult_human instead.`,
     message: z.string(),
   }),
   execute: async (input, context) => {
-    const deps = getConversationsDeps();
+    const deps = getModuleDeps();
     const { db, realtime } = deps;
 
     const conversationId =

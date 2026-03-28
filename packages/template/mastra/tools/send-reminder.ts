@@ -3,8 +3,8 @@ import { logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { contacts } from '../../modules/contacts/schema';
-import { getModuleChannels, getModuleDb } from '../lib/deps';
+import { getModuleChannels, getModuleDb } from '../../modules/ai/lib/deps';
+import { contacts } from '../../modules/ai/schema';
 
 /**
  * send_reminder — Send a reminder message to a contact via their preferred channel.

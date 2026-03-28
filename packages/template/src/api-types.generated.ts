@@ -3,7 +3,6 @@
 import { Hono } from 'hono';
 
 import { aiModule } from '../modules/ai';
-import { conversationsModule } from '../modules/conversations';
 import { integrationsModule } from '../modules/integrations';
 import { knowledgeBaseModule } from '../modules/knowledge-base';
 import { systemModule } from '../modules/system';
@@ -14,7 +13,6 @@ function _typedApp() {
   return new Hono()
     .get('/health', (c) => c.json({ status: 'ok' as const, uptime: 0 }))
     .route('/api/ai', aiModule.routes)
-    .route('/api/conversations', conversationsModule.routes)
     .route('/api/integrations', integrationsModule.routes)
     .route('/api/knowledge-base', knowledgeBaseModule.routes)
     .route('/api/system', systemModule.routes)

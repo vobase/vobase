@@ -34,12 +34,31 @@ async function findModulesWithPages(projectRoot: string): Promise<string[]> {
   return results;
 }
 
+// Modules whose pages are registered as flat individual routes rather than
+// using physical() scanning. These are listed explicitly in buildRoutesSource.
+const FLAT_ROUTE_MODULES = new Set(['ai']);
+
 function buildModuleRoute(moduleName: string): string {
   return [
     `    route('/${moduleName}', '../modules/${moduleName}/pages/layout.tsx', [`,
     `      physical('../modules/${moduleName}/pages/'),`,
     '    ]),',
   ].join('\n');
+}
+
+function buildAiRoutes(): string[] {
+  return [
+    "    route('/conversations/$conversationId', '../modules/ai/pages/conversations/$conversationId.tsx'),",
+    "    route('/contacts', '../modules/ai/pages/contacts/index.tsx'),",
+    "    route('/contacts/$contactId', '../modules/ai/pages/contacts/$contactId.tsx'),",
+    "    route('/channels', '../modules/ai/pages/channels/index.tsx'),",
+    "    layout('ai', '../modules/ai/pages/ai/layout.tsx', [",
+    "      route('/ai/agents', '../modules/ai/pages/ai/agents.tsx'),",
+    "      route('/ai/evals', '../modules/ai/pages/ai/evals.tsx'),",
+    "      route('/ai/guardrails', '../modules/ai/pages/ai/guardrails.tsx'),",
+    "      route('/ai/memory', '../modules/ai/pages/ai/memory.tsx'),",
+    '    ]),',
+  ];
 }
 
 function buildRoutesSource(moduleNames: string[]): string {
@@ -56,9 +75,14 @@ function buildRoutesSource(moduleNames: string[]): string {
     '    ]),',
   ];
 
+  const moduleRoutes = sortedModuleNames.flatMap((name) => {
+    if (FLAT_ROUTE_MODULES.has(name)) return buildAiRoutes();
+    return [buildModuleRoute(name)];
+  });
+
   const appChildren = [
     "    route('/', 'home.tsx'),",
-    ...sortedModuleNames.map(buildModuleRoute),
+    ...moduleRoutes,
     ...settingsRoutes,
   ];
 
