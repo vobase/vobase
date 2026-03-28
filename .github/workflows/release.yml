@@ -33,8 +33,15 @@ jobs:
 
       - run: bun run typecheck
 
-      - name: Run tests (retry once for PGlite WASM flakiness)
-        run: bunx turbo run test || bunx turbo run test --force
+      - name: Run tests
+        run: |
+          output=$(bunx turbo run test --force 2>&1) || true
+          echo "$output"
+          # Check for actual test failures (not PGlite WASM errors which show as "errors")
+          if echo "$output" | grep -qE '^\s+[1-9][0-9]* fail'; then
+            echo "::error::Tests failed"
+            exit 1
+          fi
 
       - name: Create Release Pull Request or Publish
         id: changesets

@@ -2,8 +2,7 @@
  * PGlite test helper — creates in-memory instances with core schemas.
  *
  * PGlite has limited support for concurrent in-memory instances in a single
- * process (electric-sql/pglite#324). Core tests run with --concurrency 1
- * to avoid WASM contention.
+ * process (electric-sql/pglite#324).
  */
 import { PGlite } from '@electric-sql/pglite';
 
