@@ -13,12 +13,10 @@ import {
   UserIcon,
   XCircleIcon,
 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { ConversationEmptyState } from '@/components/ai-elements/conversation';
 import { ChatMessageList } from '@/components/chat/chat-message-list';
-import { authClient } from '@/lib/auth-client';
-import { useFeedback } from '@/hooks/use-feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,11 +27,13 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { useFeedback } from '@/hooks/use-feedback';
 import {
   useTypingListener,
   useTypingSender,
 } from '@/hooks/use-typing-indicator';
 import { aiClient } from '@/lib/api-client';
+import { authClient } from '@/lib/auth-client';
 import {
   extractText,
   type MemoryMessage as MemoryMessageType,

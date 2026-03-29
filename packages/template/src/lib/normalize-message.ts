@@ -192,11 +192,15 @@ export function normalizeUIMessage(msg: UIMessage): NormalizedMessage {
     }
     // AI SDK v5 tool-invocation format (from Mastra memory after refresh)
     if (part.type === 'tool-invocation') {
-      return convertMemoryPart(part as { type: string; [key: string]: unknown });
+      return convertMemoryPart(
+        part as { type: string; [key: string]: unknown },
+      );
     }
     // Mastra native tool-call format
     if (part.type === 'tool-call') {
-      return convertMemoryPart(part as { type: string; [key: string]: unknown });
+      return convertMemoryPart(
+        part as { type: string; [key: string]: unknown },
+      );
     }
     // AI SDK v6 tool parts: type is `tool-${toolName}`, with direct state/input/output
     if (part.type.startsWith('tool-')) {
@@ -208,16 +212,18 @@ export function normalizeUIMessage(msg: UIMessage): NormalizedMessage {
         output?: unknown;
         [key: string]: unknown;
       };
-      return [{
-        type: toolPart.type,
-        toolCallId: toolPart.toolCallId,
-        state:
-          toolPart.state === 'result' || toolPart.state === 'output-available'
-            ? 'output-available'
-            : 'input-streaming',
-        input: toolPart.input,
-        ...(toolPart.output !== undefined ? { output: toolPart.output } : {}),
-      }];
+      return [
+        {
+          type: toolPart.type,
+          toolCallId: toolPart.toolCallId,
+          state:
+            toolPart.state === 'result' || toolPart.state === 'output-available'
+              ? 'output-available'
+              : 'input-streaming',
+          input: toolPart.input,
+          ...(toolPart.output !== undefined ? { output: toolPart.output } : {}),
+        },
+      ];
     }
     // dynamic-tool, file, reasoning, etc. — pass through
     return [part as NormalizedPart];

@@ -69,32 +69,44 @@ export const ConversationEmptyState = ({
   </div>
 );
 
-export type ConversationScrollButtonProps = ComponentProps<typeof Button>;
+export type ConversationScrollButtonProps = ComponentProps<typeof Button> & {
+  /** Number of new messages while scrolled up */
+  newMessageCount?: number;
+};
 
 export const ConversationScrollButton = ({
   className,
+  newMessageCount,
+  onClick,
   ...props
 }: ConversationScrollButtonProps) => {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();
 
-  const handleScrollToBottom = useCallback(() => {
+  const handleScrollToBottom = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     scrollToBottom();
-  }, [scrollToBottom]);
+    onClick?.(e);
+  }, [scrollToBottom, onClick]);
 
   return (
     !isAtBottom && (
       <Button
         className={cn(
           "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full dark:bg-background dark:hover:bg-muted",
+          newMessageCount ? "px-3 gap-1.5" : "",
           className
         )}
         onClick={handleScrollToBottom}
-        size="icon"
+        size={newMessageCount ? "sm" : "icon"}
         type="button"
         variant="outline"
         {...props}
       >
         <ArrowDownIcon className="size-4" />
+        {!!newMessageCount && (
+          <span className="text-xs font-medium">
+            {newMessageCount} new {newMessageCount === 1 ? "message" : "messages"}
+          </span>
+        )}
       </Button>
     )
   );

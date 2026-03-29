@@ -136,7 +136,6 @@ function PublicChatView({
           viewMode="public"
           conversationId={conversationId}
           chatStatus={status}
-          isStreaming={isStreaming}
           feedbackMap={feedbackMap}
           currentUserId={session?.user?.id}
           onReact={handleReact}

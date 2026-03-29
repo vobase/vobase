@@ -74,6 +74,15 @@ export function useReadTracking(
       if (el) {
         elementMapRef.current.set(el, messageId);
         observerRef.current.observe(el);
+      } else {
+        // Cleanup on unmount: unobserve and remove from map
+        for (const [existingEl, id] of elementMapRef.current) {
+          if (id === messageId) {
+            observerRef.current.unobserve(existingEl);
+            elementMapRef.current.delete(existingEl);
+            break;
+          }
+        }
       }
     },
     [],

@@ -3,8 +3,11 @@ import { useMemo } from 'react';
 import {
   Conversation,
   ConversationContent,
+  ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
+import { useReadTracking } from '@/hooks/use-read-tracking';
+import { useSmartScroll } from '@/hooks/use-smart-scroll';
 import { groupMessagesIntoTurns } from '@/lib/group-turns';
 import {
   isInternalNote,
@@ -13,10 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { InternalNote } from './internal-note';
 import { KbCurationOverlay } from './kb-curation-overlay';
-import {
-  MessageFeedback,
-  type MessageReactions,
-} from './message-feedback';
+import { MessageFeedback, type MessageReactions } from './message-feedback';
 import { MessagePartsRenderer } from './message-parts-renderer';
 import { TurnGroup } from './turn-group';
 import { TypingIndicator } from './typing-indicator';
@@ -45,12 +45,10 @@ interface ChatMessageListProps {
 }
 
 /**
- * Unified message list for both chat surfaces.
- * viewMode gates:
- *   'public' — feedback buttons on assistant msgs, no internal notes, no KB curation
- *   'staff'  — internal notes visible, sender labels, KB curation, all feedback, delivery status
+ * Inner component that lives inside Conversation (StickToBottom context).
+ * Must be a child of Conversation so useSmartScroll can access useStickToBottomContext.
  */
-export function ChatMessageList({
+function ChatMessageListInner({
   messages,
   viewMode,
   conversationId,
@@ -76,23 +74,27 @@ export function ChatMessageList({
     [filteredMessages, contactLabel],
   );
 
+  // Smart scroll: track new messages while user is scrolled up
+  const { newMessageCount, resetNewMessages } = useSmartScroll(
+    filteredMessages.length,
+  );
+
+  // Read tracking: observe message elements for staff view
+  const { observeRef } = useReadTracking(conversationId, viewMode === 'staff');
+
   // Show "thinking" until the AI outputs visible text.
-  // The submitted→streaming transition is <30ms (too brief to see), and the
-  // assistant message appears in the array before any text content arrives.
   const lastMsg = filteredMessages.at(-1);
   const isActivelyStreaming = chatStatus === 'streaming';
   const hasAssistantText =
     lastMsg?.role === 'assistant' &&
     lastMsg.parts.some((p) => p.type === 'text' && !!p.text?.trim());
   const isAiThinking =
-    (chatStatus === 'submitted' || isActivelyStreaming) &&
-    !hasAssistantText;
-  // ID of the message currently being streamed (for animation)
+    (chatStatus === 'submitted' || isActivelyStreaming) && !hasAssistantText;
   const streamingMessageId =
     isActivelyStreaming && lastMsg?.role === 'assistant' ? lastMsg.id : null;
 
   return (
-    <Conversation className="h-full flex-1">
+    <>
       <ConversationContent
         className={cn(
           'gap-4 py-4',
@@ -117,6 +119,7 @@ export function ChatMessageList({
               return (
                 <div
                   key={msg.id}
+                  ref={viewMode === 'staff' ? observeRef(msg.id) : undefined}
                   className={cn(
                     'relative flex flex-col gap-1',
                     kbCurationActive && msg.role === 'assistant' && 'pl-8',
@@ -186,6 +189,24 @@ export function ChatMessageList({
           excludeUserId={excludeUserId}
         />
       </ConversationContent>
+      <ConversationScrollButton
+        newMessageCount={newMessageCount}
+        onClick={() => resetNewMessages()}
+      />
+    </>
+  );
+}
+
+/**
+ * Unified message list for both chat surfaces.
+ * viewMode gates:
+ *   'public' — feedback buttons on assistant msgs, no internal notes, no KB curation
+ *   'staff'  — internal notes visible, sender labels, KB curation, all feedback, delivery status
+ */
+export function ChatMessageList(props: ChatMessageListProps) {
+  return (
+    <Conversation className="h-full flex-1">
+      <ChatMessageListInner {...props} />
     </Conversation>
   );
 }
