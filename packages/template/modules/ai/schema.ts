@@ -355,6 +355,48 @@ export const deadLetters = conversationsPgSchema.table(
   ],
 );
 
+// Per-message feedback (like/dislike) from visitors and staff.
+
+export const messageFeedback = conversationsPgSchema.table(
+  'message_feedback',
+  {
+    id: nanoidPrimaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    messageId: text('message_id').notNull(),
+    rating: text('rating').notNull(),
+    reason: text('reason'),
+    userId: text('user_id'),
+    contactId: text('contact_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('message_feedback_conversation_idx').on(table.conversationId),
+    index('message_feedback_message_idx').on(table.messageId),
+    uniqueIndex('message_feedback_unique_idx').on(
+      table.conversationId,
+      table.messageId,
+      table.userId,
+      table.contactId,
+    ),
+    check(
+      'message_feedback_rating_check',
+      sql`rating IN ('positive', 'negative')`,
+    ),
+    check(
+      'message_feedback_actor_check',
+      sql`user_id IS NOT NULL OR contact_id IS NOT NULL`,
+    ),
+  ],
+);
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AI pgSchema — memory, evals, workflows, moderation
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

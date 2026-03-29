@@ -10,6 +10,8 @@ interface MessagePartsRendererProps {
   messageId: string;
   onAction?: (actionId: string, value?: string) => void;
   readOnly?: boolean;
+  /** Pass true for the currently streaming assistant message */
+  isStreaming?: boolean;
 }
 
 /** Extract tool name from any tool part format */
@@ -45,14 +47,25 @@ export function MessagePartsRenderer({
   messageId,
   onAction,
   readOnly,
+  isStreaming,
 }: MessagePartsRendererProps) {
+  // Find the last text part index for streaming animation
+  const lastTextIdx = isStreaming
+    ? parts.findLastIndex((p) => p.type === 'text')
+    : -1;
+
   return (
     <>
       {parts.map((part, partIdx) => {
         if (part.type === 'text') {
+          const isActiveStream = partIdx === lastTextIdx;
           return (
             // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no unique id
-            <MessageResponse key={`${messageId}-${partIdx}`}>
+            <MessageResponse
+              key={`${messageId}-${partIdx}`}
+              isAnimating={isActiveStream}
+              caret={isActiveStream ? 'circle' : undefined}
+            >
               {part.text as string}
             </MessageResponse>
           );
@@ -76,10 +89,7 @@ export function MessagePartsRenderer({
             );
           }
 
-          // In readOnly mode (admin view), hide tool calls that don't produce visible output
-          if (readOnly) {
-            return null;
-          }
+          // In readOnly mode (staff view), show tool calls collapsed (no hide)
 
           return (
             // biome-ignore lint/suspicious/noArrayIndexKey: tool parts have no unique id
