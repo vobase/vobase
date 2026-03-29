@@ -16,6 +16,7 @@
       "!**/*.generated.ts",
       "!src/components/ai-elements",
       "!src/components/data-table",
+      "!src/components/tool-ui",
       "!src/components/ui",
       "!src/lib/store",
       "!src/lib/table-schema",
