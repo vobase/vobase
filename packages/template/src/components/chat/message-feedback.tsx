@@ -72,15 +72,15 @@ function ReactionBubble({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs transition-colors',
-        'hover:bg-muted/80',
+        'flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs transition-all cursor-pointer',
         isActive &&
           variant === 'positive' &&
-          'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950',
+          'border-green-200 bg-green-50 hover:bg-green-100 dark:border-green-800 dark:bg-green-950 dark:hover:bg-green-900',
         isActive &&
           variant === 'negative' &&
-          'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950',
-        !isActive && 'border-transparent bg-muted/40',
+          'border-red-200 bg-red-50 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:hover:bg-red-900',
+        !isActive &&
+          'border-transparent bg-muted/40 hover:bg-muted hover:border-border',
       )}
     >
       {icon}
@@ -154,7 +154,7 @@ export function MessageFeedback({
   const showEmpty = !showPositive && !showNegative;
 
   return (
-    <div className="flex items-center gap-1 ml-[18px]">
+    <div className="flex items-center gap-1">
       <ReactionBubble
         icon={
           <ThumbsUpIcon

@@ -154,7 +154,12 @@ export const chatHandlers = new Hono()
     });
 
     // Bridge Mastra stream to AI SDK SSE format
-    const stream = toAISdkStream(result, { from: 'agent', version: 'v6' });
+    const stream = toAISdkStream(result, {
+      from: 'agent',
+      version: 'v6',
+      sendReasoning: true,
+      sendSources: true,
+    });
 
     return new Response(stream as unknown as BodyInit, {
       headers: {
@@ -489,6 +494,8 @@ export const chatHandlers = new Hono()
         for await (const part of toAISdkStream(result, {
           from: 'agent',
           version: 'v6',
+          sendReasoning: true,
+          sendSources: true,
         })) {
           writer.write(part);
         }
