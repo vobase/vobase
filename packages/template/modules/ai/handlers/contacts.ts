@@ -214,10 +214,7 @@ export const contactsHandlers = new Hono()
           const end = new Date(day);
           end.setHours(23, 59, 59, 999);
           conditions.push(
-            and(
-              gte(contacts.createdAt, start),
-              lte(contacts.createdAt, end),
-            ),
+            and(gte(contacts.createdAt, start), lte(contacts.createdAt, end)),
           );
         }
       }

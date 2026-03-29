@@ -13,14 +13,12 @@ import {
   UserIcon,
   XCircleIcon,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
-import {
-  Conversation,
-  ConversationContent,
-  ConversationEmptyState,
-} from '@/components/ai-elements/conversation';
-import { MessagePartsRenderer } from '@/components/chat/message-parts-renderer';
+import { ConversationEmptyState } from '@/components/ai-elements/conversation';
+import { ChatMessageList } from '@/components/chat/chat-message-list';
+import { authClient } from '@/lib/auth-client';
+import { useFeedback } from '@/hooks/use-feedback';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,7 +29,16 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  useTypingListener,
+  useTypingSender,
+} from '@/hooks/use-typing-indicator';
 import { aiClient } from '@/lib/api-client';
+import {
+  extractText,
+  type MemoryMessage as MemoryMessageType,
+  normalizeMemoryMessage,
+} from '@/lib/normalize-message';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -202,12 +209,13 @@ async function updateConversationStatus(
 async function sendReply(
   conversationId: string,
   content: string,
+  isInternal = false,
 ): Promise<unknown> {
   const res = await aiClient.conversations[':id'].reply.$post(
     { param: { id: conversationId } },
     {
       init: {
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, isInternal }),
         headers: { 'Content-Type': 'application/json' },
       },
     },
@@ -217,63 +225,7 @@ async function sendReply(
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-function extractText(content: MemoryMessage['content']): string {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .filter((p) => p.type === 'text' && p.text)
-      .map((p) => (p.text as string) ?? '')
-      .join('');
-  }
-  if (content && typeof content === 'object' && 'parts' in content) {
-    return (content as { parts: { type: string; text?: string }[] }).parts
-      .filter((p) => p.type === 'text' && p.text)
-      .map((p) => p.text ?? '')
-      .join('');
-  }
-  return '';
-}
-
-function convertMemoryPart(part: {
-  type: string;
-  [key: string]: unknown;
-}): { type: string; [key: string]: unknown }[] {
-  if (part.type === 'text') {
-    return [{ type: 'text', text: part.text }];
-  }
-  if (part.type === 'tool-call') {
-    const toolName = part.toolName as string;
-    const result = part.result;
-    return [
-      {
-        type: `tool-${toolName}`,
-        state: result !== undefined ? 'output-available' : 'input-available',
-        ...(result !== undefined ? { output: result } : { input: part.args }),
-      },
-    ];
-  }
-  return [part];
-}
-
-function getMessageParts(
-  content: MemoryMessage['content'],
-): { type: string; [key: string]: unknown }[] {
-  if (typeof content === 'string') {
-    return content ? [{ type: 'text', text: content }] : [];
-  }
-  if (Array.isArray(content)) {
-    return content.flatMap((p) =>
-      convertMemoryPart(p as { type: string; [key: string]: unknown }),
-    );
-  }
-  if (content && typeof content === 'object' && 'parts' in content) {
-    return (
-      content as { parts: { type: string; [key: string]: unknown }[] }
-    ).parts.flatMap((p) => convertMemoryPart(p));
-  }
-  return [];
-}
+// extractText, convertMemoryPart, getMessageParts moved to @/lib/normalize-message
 
 function statusVariant(
   status: string,
@@ -319,6 +271,23 @@ function formatRelativeTime(dateStr: string): string {
   return `${diffDays}d ago`;
 }
 
+// ─── Staff Message List (turn-grouped) ──────────────────────────────
+
+function normalizeMessages(
+  messages: MemoryMessage[],
+  outboxByContent: Map<string, string>,
+) {
+  return messages.map((msg) => {
+    const norm = normalizeMemoryMessage(msg as MemoryMessageType);
+    if (norm.role === 'assistant' && !norm.metadata.deliveryStatus) {
+      const text = extractText(msg.content);
+      const outboxStatus = outboxByContent.get(text);
+      if (outboxStatus) norm.metadata.deliveryStatus = outboxStatus;
+    }
+    return norm;
+  });
+}
+
 // ─── Human Reply Input ───────────────────────────────────────────────
 
 function HumanReplyInput({
@@ -329,10 +298,13 @@ function HumanReplyInput({
   onSent: () => void;
 }) {
   const [content, setContent] = useState('');
+  const [isInternal, setIsInternal] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { signalTyping } = useTypingSender(conversationId);
 
   const replyMutation = useMutation({
-    mutationFn: (text: string) => sendReply(conversationId, text),
+    mutationFn: (params: { text: string; internal: boolean }) =>
+      sendReply(conversationId, params.text, params.internal),
     onSuccess: () => {
       setContent('');
       onSent();
@@ -345,7 +317,7 @@ function HumanReplyInput({
   function handleSubmit() {
     const trimmed = content.trim();
     if (!trimmed || replyMutation.isPending) return;
-    replyMutation.mutate(trimmed);
+    replyMutation.mutate({ text: trimmed, internal: isInternal });
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -361,10 +333,19 @@ function HumanReplyInput({
         <Textarea
           ref={textareaRef}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => {
+            setContent(e.target.value);
+            if (e.target.value.trim() && !isInternal) signalTyping();
+          }}
           onKeyDown={handleKeyDown}
-          placeholder="Reply as team member..."
-          className="min-h-[60px] max-h-[120px] resize-none text-sm"
+          placeholder={
+            isInternal ? 'Write an internal note...' : 'Reply as team member...'
+          }
+          className={cn(
+            'min-h-[60px] max-h-[120px] resize-none text-sm',
+            isInternal &&
+              'border-violet-300 bg-violet-50/50 dark:border-violet-800 dark:bg-violet-950/20',
+          )}
           rows={2}
         />
         <Button
@@ -374,16 +355,30 @@ function HumanReplyInput({
           onClick={handleSubmit}
         >
           <SendIcon className="h-3.5 w-3.5" />
-          Send
+          {isInternal ? 'Note' : 'Send'}
         </Button>
       </div>
       <div className="mt-1.5 flex items-center justify-between">
-        <p className="text-[10px] text-muted-foreground">
-          <kbd className="rounded border bg-muted px-1 py-0.5 text-[9px]">
-            {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter
-          </kbd>{' '}
-          to send
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-[10px] text-muted-foreground">
+            <kbd className="rounded border bg-muted px-1 py-0.5 text-[9px]">
+              {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter
+            </kbd>{' '}
+            to send
+          </p>
+          <button
+            type="button"
+            onClick={() => setIsInternal(!isInternal)}
+            className={cn(
+              'text-[10px] font-medium transition-colors',
+              isInternal
+                ? 'text-violet-600 dark:text-violet-400'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {isInternal ? '← Back to reply' : 'Internal note'}
+          </button>
+        </div>
         {replyMutation.isError && (
           <p className="text-[10px] text-destructive">Failed to send reply</p>
         )}
@@ -431,6 +426,8 @@ function ConsultationCard({ consultation }: { consultation: Consultation }) {
 function ConversationDetailPage() {
   const { conversationId } = Route.useParams();
   const queryClient = useQueryClient();
+  const { data: session } = authClient.useSession();
+  useTypingListener(conversationId);
 
   const {
     data: conversation,
@@ -452,6 +449,8 @@ function ConversationDetailPage() {
     queryFn: () => fetchConsultations(conversationId),
     enabled: !!conversation,
   });
+
+  const { feedbackMap, handleReact } = useFeedback(conversationId);
 
   const { data: contact } = useQuery({
     queryKey: ['contacts', conversation?.contactId],
@@ -566,6 +565,8 @@ function ConversationDetailPage() {
   const outboxByContent = new Map<string, string>(
     (messagesData?.outboxRecords ?? []).map((r) => [r.content, r.status]),
   );
+  // Note: Cannot use useMemo here — after early returns. normalizeMessages is cheap (pure map).
+  const normalizedMessages = normalizeMessages(messages, outboxByContent);
   const isTerminal =
     conversation.status === 'completed' || conversation.status === 'failed';
   const canReply = !isTerminal;
@@ -680,93 +681,17 @@ function ConversationDetailPage() {
               icon={<MessageSquareIcon className="h-8 w-8" />}
             />
           ) : (
-            <Conversation className="h-full">
-              <ConversationContent className="gap-6 px-6 py-4">
-                {messages.map((msg) => {
-                  const parts = getMessageParts(msg.content);
-                  if (parts.length === 0) return null;
-                  const role = msg.role === 'user' ? 'user' : 'assistant';
-
-                  const msgText = extractText(msg.content);
-                  const deliveryStatus =
-                    role === 'assistant'
-                      ? (msg.deliveryStatus ?? outboxByContent.get(msgText))
-                      : undefined;
-
-                  const contactLabel = contact?.name ?? 'Visitor';
-
-                  // Detect staff replies: text starts with "[Staff: Name]"
-                  const staffMatch = msgText.match(/^\[Staff:\s*(.+?)\]\s*/);
-                  const isStaffReply = role === 'assistant' && !!staffMatch;
-                  const senderLabel = isStaffReply
-                    ? staffMatch[1]
-                    : role === 'user'
-                      ? contactLabel
-                      : 'AI Agent';
-
-                  return (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        'flex w-full flex-col gap-1 rounded-lg px-3 py-2',
-                        role === 'user'
-                          ? 'bg-muted/60 border border-border/50'
-                          : '',
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        {role === 'user' ? (
-                          <UserIcon className="h-3 w-3 text-muted-foreground" />
-                        ) : isStaffReply ? (
-                          <UserIcon className="h-3 w-3 text-blue-500" />
-                        ) : (
-                          <BotIcon className="h-3 w-3 text-muted-foreground" />
-                        )}
-                        <span
-                          className={cn(
-                            'text-[10px] font-medium',
-                            role === 'user'
-                              ? 'text-foreground'
-                              : isStaffReply
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : 'text-muted-foreground',
-                          )}
-                        >
-                          {senderLabel}
-                        </span>
-                        {msg.createdAt && (
-                          <span className="text-[10px] text-muted-foreground/60">
-                            {formatRelativeTime(msg.createdAt)}
-                          </span>
-                        )}
-                        {deliveryStatus && (
-                          <span
-                            className={cn(
-                              'text-[10px]',
-                              deliveryStatus === 'delivered' ||
-                                deliveryStatus === 'read'
-                                ? 'text-green-600 dark:text-green-400'
-                                : deliveryStatus === 'failed'
-                                  ? 'text-destructive'
-                                  : 'text-muted-foreground',
-                            )}
-                          >
-                            {deliveryStatus}
-                          </span>
-                        )}
-                      </div>
-                      <div className="pl-[18px] prose-sm prose-neutral dark:prose-invert max-w-none [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-medium [&_p]:text-sm [&_li]:text-sm [&_ol]:text-sm [&_ul]:text-sm">
-                        <MessagePartsRenderer
-                          parts={parts}
-                          messageId={msg.id}
-                          readOnly
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </ConversationContent>
-            </Conversation>
+            <ChatMessageList
+              messages={normalizedMessages}
+              viewMode="staff"
+              conversationId={conversationId}
+              contactLabel={contact?.name ?? 'Visitor'}
+              feedbackMap={feedbackMap}
+              currentUserId={session?.user?.id}
+              onReact={handleReact}
+              readOnly
+              excludeUserId={session?.user?.id}
+            />
           )}
         </div>
 

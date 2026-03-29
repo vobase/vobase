@@ -28,33 +28,25 @@ const chatSchema = z.object({
   ),
 });
 
-const startSchema = z.object({
-  visitorToken: z.string().min(1),
-});
-
-const resetSchema = z.object({
-  visitorToken: z.string().min(1),
-});
-
 /**
- * Upsert a visitor contact by their token. Returns the contact ID.
- * Uses the identifier field to store the visitor token for lookup.
+ * Upsert a visitor contact by their auth user ID. Returns the contact ID.
+ * Uses the identifier field to store the user ID for lookup.
  */
 async function upsertVisitorContact(
   db: VobaseDb,
-  visitorToken: string,
+  userId: string,
 ): Promise<string> {
   const [existing] = await db
     .select({ id: contacts.id })
     .from(contacts)
-    .where(eq(contacts.identifier, `visitor:${visitorToken}`));
+    .where(eq(contacts.identifier, `user:${userId}`));
 
   if (existing) return existing.id;
 
   const [created] = await db
     .insert(contacts)
     .values({
-      identifier: `visitor:${visitorToken}`,
+      identifier: `user:${userId}`,
       name: 'Visitor',
       role: 'customer',
     })
@@ -175,9 +167,9 @@ export const chatHandlers = new Hono()
   })
   /** POST /chat/:channelRoutingId/start — Start or resume a public chat conversation. */
   .post('/chat/:channelRoutingId/start', async (c) => {
-    const { db, scheduler, realtime } = getCtx(c);
+    const { db, user, scheduler, realtime } = getCtx(c);
+    if (!user) throw unauthorized();
     const channelRoutingId = c.req.param('channelRoutingId');
-    const body = startSchema.parse(await c.req.json());
 
     // Look up channel routing
     const [channelRouting] = await db
@@ -200,8 +192,8 @@ export const chatHandlers = new Hono()
 
     if (!instance) throw notFound('Channel instance not found');
 
-    // Upsert visitor contact
-    const contactId = await upsertVisitorContact(db, body.visitorToken);
+    // Upsert visitor contact from session user
+    const contactId = await upsertVisitorContact(db, user.id);
 
     // Check for existing active conversation for this visitor + channel routing
     const [existingConversation] = await db
@@ -240,14 +232,12 @@ export const chatHandlers = new Hono()
   })
   /** GET /chat/:channelRoutingId/conversations/:conversationId — Load message history. */
   .get('/chat/:channelRoutingId/conversations/:conversationId', async (c) => {
-    const { db } = getCtx(c);
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
     const channelRoutingId = c.req.param('channelRoutingId');
     const conversationId = c.req.param('conversationId');
-    const visitorToken = c.req.query('visitorToken') ?? '';
 
-    if (!visitorToken) throw unauthorized();
-
-    // Verify the conversation belongs to this channel routing and visitor
+    // Verify the conversation belongs to this channel routing
     const [conversation] = await db
       .select()
       .from(conversations)
@@ -264,7 +254,7 @@ export const chatHandlers = new Hono()
     const [contact] = await db
       .select({ id: contacts.id })
       .from(contacts)
-      .where(eq(contacts.identifier, `visitor:${visitorToken}`));
+      .where(eq(contacts.identifier, `user:${user.id}`));
 
     if (!contact || contact.id !== conversation.contactId) throw unauthorized();
 
@@ -272,38 +262,84 @@ export const chatHandlers = new Hono()
     try {
       const memory = getMemory();
       const result = await memory.recall({ threadId: conversationId });
-      const messages = (result?.messages ?? []).map((m) => {
-        // Mastra v2 stores content as { format: 2, parts: [...], content: "text" }
-        const raw = m.content as unknown;
-        let parts: Array<{
-          type: string;
-          text?: string;
-          [key: string]: unknown;
-        }>;
+      const messages = (result?.messages ?? [])
+        .filter((m) => {
+          // Filter out internal notes from public chat history
+          const raw = m.content as unknown;
+          if (typeof raw === 'object' && raw !== null && 'metadata' in raw) {
+            const meta = (raw as { metadata?: { visibility?: string } })
+              .metadata;
+            if (meta?.visibility === 'internal') return false;
+          }
+          return true;
+        })
+        .map((m) => {
+          // Mastra v2 stores content as { format: 2, parts: [...], content: "text" }
+          const raw = m.content as unknown;
+          let parts: Array<{
+            type: string;
+            text?: string;
+            [key: string]: unknown;
+          }>;
 
-        if (
-          typeof raw === 'object' &&
-          raw !== null &&
-          'format' in raw &&
-          'parts' in raw
-        ) {
-          const v2 = raw as { parts: typeof parts; content?: string };
-          parts = v2.parts;
-        } else if (typeof raw === 'string') {
-          parts = [{ type: 'text', text: raw }];
-        } else if (Array.isArray(raw)) {
-          parts = raw;
-        } else {
-          parts = [{ type: 'text', text: '' }];
-        }
+          if (
+            typeof raw === 'object' &&
+            raw !== null &&
+            'format' in raw &&
+            'parts' in raw
+          ) {
+            const v2 = raw as { parts: typeof parts; content?: string };
+            parts = v2.parts;
+          } else if (typeof raw === 'string') {
+            parts = [{ type: 'text', text: raw }];
+          } else if (Array.isArray(raw)) {
+            parts = raw;
+          } else {
+            parts = [{ type: 'text', text: '' }];
+          }
 
-        return {
-          id: m.id,
-          role: m.role,
-          parts,
-          createdAt: m.createdAt ?? new Date().toISOString(),
-        };
-      });
+          // Normalize tool parts from Mastra/v5 format to AI SDK v6 format
+          const normalizedParts = parts.map((p) => {
+            // Mastra native: { type: 'tool-call', toolName, args, result }
+            if (p.type === 'tool-call' && p.toolName) {
+              const hasResult = p.result !== undefined;
+              return {
+                type: `tool-${p.toolName as string}`,
+                toolCallId: p.toolCallId as string | undefined,
+                state: hasResult ? 'output-available' : 'input-available',
+                input: p.args,
+                ...(hasResult ? { output: p.result } : {}),
+              };
+            }
+            // AI SDK v5: { type: 'tool-invocation', toolInvocation: { toolName, state, args, result } }
+            if (p.type === 'tool-invocation' && p.toolInvocation) {
+              const inv = p.toolInvocation as {
+                toolName: string;
+                toolCallId?: string;
+                state: string;
+                args?: unknown;
+                result?: unknown;
+              };
+              const hasResult =
+                inv.state === 'result' || inv.result !== undefined;
+              return {
+                type: `tool-${inv.toolName}`,
+                toolCallId: inv.toolCallId,
+                state: hasResult ? 'output-available' : 'input-available',
+                input: inv.args,
+                ...(hasResult ? { output: inv.result } : {}),
+              };
+            }
+            return p;
+          });
+
+          return {
+            id: m.id,
+            role: m.role,
+            parts: normalizedParts,
+            createdAt: m.createdAt ?? new Date().toISOString(),
+          };
+        });
 
       return c.json({
         id: conversation.id,
@@ -323,9 +359,9 @@ export const chatHandlers = new Hono()
   })
   /** POST /chat/:channelRoutingId/reset — Reset: complete current conversation + start a new one. */
   .post('/chat/:channelRoutingId/reset', async (c) => {
-    const { db, scheduler, realtime } = getCtx(c);
+    const { db, user, scheduler, realtime } = getCtx(c);
+    if (!user) throw unauthorized();
     const channelRoutingId = c.req.param('channelRoutingId');
-    const body = resetSchema.parse(await c.req.json());
 
     // Look up channel routing
     const [channelRouting] = await db
@@ -340,8 +376,8 @@ export const chatHandlers = new Hono()
 
     if (!channelRouting) throw notFound('Channel routing not found');
 
-    // Verify visitor
-    const contactId = await upsertVisitorContact(db, body.visitorToken);
+    // Resolve visitor contact from session
+    const contactId = await upsertVisitorContact(db, user.id);
 
     // Complete any active conversation for this visitor + channel routing
     const [activeConversation] = await db
@@ -382,18 +418,15 @@ export const chatHandlers = new Hono()
   })
   /** POST /chat/:channelRoutingId/stream — Stream agent response for public chat. */
   .post('/chat/:channelRoutingId/stream', async (c) => {
-    const { db } = getCtx(c);
+    const { db, user, realtime } = getCtx(c);
+    if (!user) throw unauthorized();
     const channelRoutingId = c.req.param('channelRoutingId');
-    const visitorToken =
-      new URL(c.req.url).searchParams.get('visitorToken') ?? '';
 
-    if (!visitorToken) throw unauthorized();
-
-    // Verify visitor
+    // Resolve visitor contact from session
     const [contact] = await db
       .select({ id: contacts.id })
       .from(contacts)
-      .where(eq(contacts.identifier, `visitor:${visitorToken}`));
+      .where(eq(contacts.identifier, `user:${user.id}`));
 
     if (!contact) throw unauthorized();
 
@@ -450,6 +483,7 @@ export const chatHandlers = new Hono()
     });
 
     // Bridge to AI SDK v6 UIMessageStream format
+    const conversationIdForNotify = conversation.id;
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         for await (const part of toAISdkStream(result, {
@@ -458,6 +492,11 @@ export const chatHandlers = new Hono()
         })) {
           writer.write(part);
         }
+        // Notify staff view that messages have been updated
+        realtime.notify({
+          table: 'conversations-messages',
+          id: conversationIdForNotify,
+        });
       },
     });
 

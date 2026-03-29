@@ -1,4 +1,4 @@
-import { conflict, getCtx, notFound, unauthorized } from '@vobase/core';
+import { authUser, conflict, getCtx, notFound, unauthorized } from '@vobase/core';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import {
   channelInstances,
   consultations,
   conversations,
+  messageFeedback,
   outbox,
 } from '../schema';
 
@@ -26,6 +27,7 @@ const paginationSchema = z.object({
 
 const replySchema = z.object({
   content: z.string().min(1),
+  isInternal: z.boolean().optional().default(false),
 });
 
 export const conversationsDetailHandlers = new Hono()
@@ -184,7 +186,7 @@ export const conversationsDetailHandlers = new Hono()
   })
   /** POST /sessions/:id/reply — Human agent reply: save to memory + deliver via channel. */
   .post('/conversations/:id/reply', async (c) => {
-    const { db, user, scheduler } = getCtx(c);
+    const { db, user, scheduler, realtime } = getCtx(c);
     if (!user) throw unauthorized();
 
     const body = replySchema.parse(await c.req.json());
@@ -218,8 +220,17 @@ export const conversationsDetailHandlers = new Hono()
     // Save to Mastra Memory so it appears in the conversation transcript
     const staffLabel = user.name ?? user.email;
     const replyText = body.content;
+    const isInternal = body.isInternal;
     try {
       const memory = getMemory();
+      const displayText = isInternal
+        ? replyText
+        : `[Staff: ${staffLabel}] ${replyText}`;
+      const metadata: Record<string, unknown> = {
+        isStaffReply: true,
+        staffName: staffLabel,
+        ...(isInternal ? { visibility: 'internal' } : {}),
+      };
       await memory.saveMessages({
         messages: [
           {
@@ -230,10 +241,9 @@ export const conversationsDetailHandlers = new Hono()
             createdAt: new Date(),
             content: {
               format: 2,
-              parts: [
-                { type: 'text', text: `[Staff: ${staffLabel}] ${replyText}` },
-              ],
-              content: `[Staff: ${staffLabel}] ${replyText}`,
+              parts: [{ type: 'text', text: displayText }],
+              content: displayText,
+              metadata,
             },
           } as unknown as Parameters<
             typeof memory.saveMessages
@@ -256,6 +266,12 @@ export const conversationsDetailHandlers = new Hono()
         channelInstanceId: conversation.channelInstanceId ?? undefined,
       });
     }
+
+    // Notify all connected clients that messages have been updated
+    realtime.notify({
+      table: 'conversations-messages',
+      id: conversationId,
+    });
 
     return c.json({ success: true, channelType }, 201);
   })
@@ -397,4 +413,110 @@ export const conversationsDetailHandlers = new Hono()
     }
 
     return c.json({ success: true, draftId: draft.id });
+  })
+  /** POST /conversations/:id/typing — Staff signals typing (fire-and-forget NOTIFY). */
+  .post('/conversations/:id/typing', async (c) => {
+    const { user } = getCtx(c);
+    if (!user) throw unauthorized();
+    const conversationId = c.req.param('id');
+    const { realtime } = getModuleDeps();
+    await realtime.notify({
+      table: 'conversations-typing',
+      id: conversationId,
+      action: `${user.id}:${user.name ?? user.email}`,
+    });
+    return c.json({ ok: true });
+  })
+  /** POST /conversations/:id/read — Mark conversation as read by current user. */
+  .post('/conversations/:id/read', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+    const conversationId = c.req.param('id');
+    const body = z
+      .object({ lastReadMessageId: z.string() })
+      .parse(await c.req.json());
+
+    const { realtime } = getModuleDeps();
+    await emitActivityEvent(db, realtime, {
+      type: 'message.read',
+      conversationId,
+      source: 'staff',
+      userId: user.id,
+      data: { lastReadMessageId: body.lastReadMessageId },
+    });
+    return c.json({ ok: true });
+  })
+  /** POST /conversations/:id/messages/:messageId/feedback — Toggle reaction. */
+  .post('/conversations/:id/messages/:messageId/feedback', async (c) => {
+    const { db, user } = getCtx(c);
+    const conversationId = c.req.param('id');
+    const messageId = c.req.param('messageId');
+    const body = z
+      .object({
+        rating: z.enum(['positive', 'negative']),
+      })
+      .parse(await c.req.json());
+
+    if (!user) throw unauthorized();
+
+    // Check if user already has this exact rating → toggle off
+    const [existing] = await db
+      .select({ id: messageFeedback.id, rating: messageFeedback.rating })
+      .from(messageFeedback)
+      .where(
+        and(
+          eq(messageFeedback.conversationId, conversationId),
+          eq(messageFeedback.messageId, messageId),
+          eq(messageFeedback.userId, user.id),
+        ),
+      );
+
+    const { realtime } = getModuleDeps();
+
+    if (existing?.rating === body.rating) {
+      // Same reaction → remove it (toggle off)
+      await db
+        .delete(messageFeedback)
+        .where(eq(messageFeedback.id, existing.id));
+      realtime.notify({ table: 'conversations-feedback', id: conversationId });
+      return c.json({ ok: true, action: 'removed' });
+    }
+
+    // Different or no existing → delete old + insert new
+    if (existing) {
+      await db
+        .delete(messageFeedback)
+        .where(eq(messageFeedback.id, existing.id));
+    }
+    await db.insert(messageFeedback).values({
+      conversationId,
+      messageId,
+      rating: body.rating,
+      userId: user.id,
+      contactId: null,
+    });
+
+    realtime.notify({ table: 'conversations-feedback', id: conversationId });
+    return c.json({ ok: true, action: 'added' });
+  })
+  /** GET /conversations/:id/feedback — List all reactions with user info. */
+  .get('/conversations/:id/feedback', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+    const conversationId = c.req.param('id');
+
+    const rows = await db
+      .select({
+        messageId: messageFeedback.messageId,
+        rating: messageFeedback.rating,
+        userId: messageFeedback.userId,
+        userName: authUser.name,
+        userImage: authUser.image,
+      })
+      .from(messageFeedback)
+      .leftJoin(authUser, eq(messageFeedback.userId, authUser.id))
+      .where(eq(messageFeedback.conversationId, conversationId))
+      .orderBy(asc(messageFeedback.createdAt));
+
+    return c.json(rows);
   });

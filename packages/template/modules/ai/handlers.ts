@@ -6,13 +6,13 @@ import { attentionHandlers } from './handlers/attention';
 import { channelsHandlers } from './handlers/channels';
 import { chatHandlers } from './handlers/chat';
 import { contactsHandlers } from './handlers/contacts';
+import { conversationsDetailHandlers } from './handlers/conversations';
 import { dashboardHandlers } from './handlers/dashboard';
 import { evalsHandlers } from './handlers/evals';
 import { guardrailsHandlers } from './handlers/guardrails';
 import { mcpHandlers } from './handlers/mcp';
 import { memoryHandlers } from './handlers/memory';
 import { metricsHandlers } from './handlers/metrics';
-import { conversationsDetailHandlers } from './handlers/conversations';
 import { statsHandlers } from './handlers/stats';
 import { workflowsHandlers } from './handlers/workflows';
 

@@ -1,17 +1,10 @@
 import { useChat } from '@ai-sdk/react';
 import { createFileRoute, useParams } from '@tanstack/react-router';
-import type { TextUIPart } from 'ai';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import { Bot, MessageSquareIcon } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
-import {
-  Conversation,
-  ConversationContent,
-  ConversationEmptyState,
-  ConversationScrollButton,
-} from '@/components/ai-elements/conversation';
-import { Message, MessageContent } from '@/components/ai-elements/message';
+import { ConversationEmptyState } from '@/components/ai-elements/conversation';
 import {
   PromptInput,
   PromptInputFooter,
@@ -20,10 +13,21 @@ import {
   PromptInputTools,
 } from '@/components/ai-elements/prompt-input';
 import { Shimmer } from '@/components/ai-elements/shimmer';
-import { MessagePartsRenderer } from '@/components/chat/message-parts-renderer';
-import { ThinkingMessage } from '@/components/chat/thinking-message';
+import { ChatMessageList } from '@/components/chat/chat-message-list';
 import { Button } from '@/components/ui/button';
+import { useFeedback } from '@/hooks/use-feedback';
 import { usePublicChat } from '@/hooks/use-public-chat';
+import {
+  type RealtimePayload,
+  subscribeToPayloads,
+  useRealtimeInvalidation,
+} from '@/hooks/use-realtime';
+import {
+  useTypingListener,
+  useTypingSender,
+} from '@/hooks/use-typing-indicator';
+import { authClient } from '@/lib/auth-client';
+import { normalizeUIMessage } from '@/lib/normalize-message';
 
 // ─── Chat View ──────────────────────────────────────────────────────────
 
@@ -32,25 +36,27 @@ const RESET_COMMANDS = new Set(['/reset', '/restart']);
 function PublicChatView({
   channelRoutingId,
   conversationId,
-  visitorToken,
   initialMessages,
   onReset,
 }: {
   channelRoutingId: string;
   conversationId: string;
-  visitorToken: string;
   initialMessages: UIMessage[];
   onReset: () => Promise<void>;
 }) {
+  // SSE connection for realtime events — mounted here (after anonymous sign-in)
+  useRealtimeInvalidation();
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: `/api/conversations/chat/${channelRoutingId}/stream?visitorToken=${encodeURIComponent(visitorToken)}`,
+        api: `/api/ai/chat/${channelRoutingId}/stream`,
+        credentials: 'include',
       }),
-    [channelRoutingId, visitorToken],
+    [channelRoutingId],
   );
 
-  const { messages, sendMessage, status, stop } = useChat({
+  const { messages, sendMessage, setMessages, status, stop } = useChat({
     id: conversationId,
     transport,
     messages: initialMessages,
@@ -60,58 +66,89 @@ function PublicChatView({
   });
 
   const isStreaming = status === 'streaming' || status === 'submitted';
-  const lastMessage = messages[messages.length - 1];
-  const lastAssistantText =
-    lastMessage?.role === 'assistant'
-      ? lastMessage.parts
-          .filter((p): p is TextUIPart => p.type === 'text')
-          .map((p) => p.text)
-          .join('')
-      : '';
-  const showThinking =
-    isStreaming && (lastMessage?.role === 'user' || !lastAssistantText.trim());
+
+  // Use a ref for status so the SSE listener doesn't re-subscribe on every status change
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
+  useEffect(() => {
+    const unsubscribe = subscribeToPayloads((payload: RealtimePayload) => {
+      if (
+        payload.table === 'conversations-messages' &&
+        payload.id === conversationId &&
+        statusRef.current === 'ready'
+      ) {
+        fetch(
+          `/api/ai/chat/${channelRoutingId}/conversations/${conversationId}`,
+          { credentials: 'include' },
+        )
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (!data?.messages) return;
+            const uiMessages: UIMessage[] = data.messages.map(
+              (m: {
+                id: string;
+                role: string;
+                parts: UIMessage['parts'];
+                createdAt: string;
+              }) => ({
+                id: m.id,
+                role: m.role as 'user' | 'assistant',
+                parts: m.parts,
+                createdAt: new Date(m.createdAt),
+              }),
+            );
+            setMessages(uiMessages);
+          })
+          .catch((err) =>
+            console.error('[public-chat] message reload error:', err),
+          );
+      }
+    });
+    return unsubscribe;
+  }, [conversationId, channelRoutingId, setMessages]);
+
+  const normalized = useMemo(
+    () => messages.map(normalizeUIMessage),
+    [messages],
+  );
+
+  useTypingListener(conversationId);
+  const { signalTyping } = useTypingSender(conversationId);
+  const { data: session } = authClient.useSession();
+  const { feedbackMap, handleReact } = useFeedback(conversationId);
 
   return (
     <>
-      <Conversation className="flex-1">
-        <ConversationContent className="mx-auto max-w-2xl">
-          {messages.length === 0 && !isStreaming && (
-            <ConversationEmptyState
-              title="How can I help you?"
-              description="Send a message to start the conversation."
-              icon={
-                <MessageSquareIcon className="size-8 text-muted-foreground/40" />
-              }
-            />
-          )}
-          {messages.map((msg) => (
-            <Message key={msg.id} from={msg.role}>
-              <MessageContent>
-                <MessagePartsRenderer
-                  parts={
-                    msg.parts as Array<{
-                      type: string;
-                      text?: string;
-                      [key: string]: unknown;
-                    }>
-                  }
-                  messageId={msg.id}
-                  onAction={(actionId) => {
-                    // Strip chat: prefix (used by WhatsApp convention) and
-                    // JSON.parse to recover the original clean action ID
-                    const text = actionId.startsWith('chat:')
-                      ? (JSON.parse(actionId.slice(5)) as string)
-                      : actionId;
-                    sendMessage({ text });
-                  }}
-                />
-              </MessageContent>
-            </Message>
-          ))}
-          {showThinking && <ThinkingMessage />}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
+      {messages.length === 0 && !isStreaming ? (
+        <div className="flex flex-1 items-center justify-center">
+          <ConversationEmptyState
+            title="How can I help you?"
+            description="Send a message to start the conversation."
+            icon={
+              <MessageSquareIcon className="size-8 text-muted-foreground/40" />
+            }
+          />
+        </div>
+      ) : (
+        <ChatMessageList
+          messages={normalized}
+          viewMode="public"
+          conversationId={conversationId}
+          chatStatus={status}
+          isStreaming={isStreaming}
+          feedbackMap={feedbackMap}
+          currentUserId={session?.user?.id}
+          onReact={handleReact}
+          excludeUserId={session?.user?.id}
+          onAction={(actionId) => {
+            const text = actionId.startsWith('chat:')
+              ? (JSON.parse(actionId.slice(5)) as string)
+              : actionId;
+            sendMessage({ text });
+          }}
+        />
+      )}
 
       <div className="border-t bg-background px-4 pb-4 pt-3">
         <div className="mx-auto max-w-2xl">
@@ -126,7 +163,11 @@ function PublicChatView({
             }}
             className="rounded-xl border bg-muted/30"
           >
-            <PromptInputTextarea placeholder="Type a message..." autoFocus />
+            <PromptInputTextarea
+              placeholder="Type a message..."
+              autoFocus
+              onChange={signalTyping}
+            />
             <PromptInputFooter>
               <PromptInputTools />
               <PromptInputSubmit status={status} onStop={stop} />
@@ -144,7 +185,6 @@ function PublicChatPage() {
   const { channelRoutingId } = useParams({ from: '/chat/$channelRoutingId' });
   const {
     conversationId,
-    visitorToken,
     initialMessages,
     loading,
     error,
@@ -191,7 +231,6 @@ function PublicChatPage() {
       <PublicChatView
         channelRoutingId={channelRoutingId}
         conversationId={conversationId}
-        visitorToken={visitorToken}
         initialMessages={initialMessages}
         onReset={reset}
       />
