@@ -27,6 +27,23 @@ export function useRealtimeStatus(): RealtimeStatus {
   return useSyncExternalStore(subscribe, getSnapshot, () => 'connecting');
 }
 
+// ─── Raw payload dispatch (for typing indicators, etc.) ──────────────
+
+export interface RealtimePayload {
+  table: string;
+  id?: string;
+  action?: string;
+}
+
+type PayloadListener = (payload: RealtimePayload) => void;
+const _payloadListeners = new Set<PayloadListener>();
+
+/** Subscribe to raw SSE payloads from the single shared connection. */
+export function subscribeToPayloads(fn: PayloadListener): () => void {
+  _payloadListeners.add(fn);
+  return () => _payloadListeners.delete(fn);
+}
+
 export function useRealtimeInvalidation() {
   const queryClient = useQueryClient();
   const isFirstConnect = useRef(true);
@@ -36,8 +53,17 @@ export function useRealtimeInvalidation() {
     const es = new EventSource('/api/events');
 
     es.addEventListener('invalidate', (e) => {
-      const { table } = JSON.parse(e.data);
-      queryClient.invalidateQueries({ queryKey: [table] });
+      const payload = JSON.parse(e.data) as RealtimePayload;
+      // Dispatch to raw payload subscribers (typing indicators, etc.)
+      for (const fn of _payloadListeners) {
+        try {
+          fn(payload);
+        } catch {
+          // subscriber errors must not crash the dispatch loop
+        }
+      }
+      // Invalidate TanStack Query keys
+      queryClient.invalidateQueries({ queryKey: [payload.table] });
     });
 
     es.addEventListener('open', () => {

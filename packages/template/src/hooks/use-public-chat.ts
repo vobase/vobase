@@ -1,6 +1,8 @@
 import type { UIMessage } from 'ai';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { authClient } from '@/lib/auth-client';
+
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface StartResponse {
@@ -22,7 +24,6 @@ interface ConversationMessages {
 
 interface UsePublicChatResult {
   conversationId: string | null;
-  visitorToken: string;
   initialMessages: UIMessage[];
   loading: boolean;
   error: string | null;
@@ -33,22 +34,23 @@ interface UsePublicChatResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function getVisitorToken(channelRoutingId: string): string {
-  const key = `vobase-visitor-${channelRoutingId}`;
-  let token = localStorage.getItem(key);
-  if (!token) {
-    token = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-    localStorage.setItem(key, token);
-  }
-  return token;
-}
-
 function getStoredConversationId(channelRoutingId: string): string | null {
   return localStorage.getItem(`vobase-conv-${channelRoutingId}`);
 }
 
 function storeConversationId(channelRoutingId: string, conversationId: string) {
   localStorage.setItem(`vobase-conv-${channelRoutingId}`, conversationId);
+}
+
+/**
+ * Ensure the visitor has an anonymous session.
+ * If already signed in (anonymous or real), returns the existing session.
+ * Otherwise, signs in anonymously via better-auth.
+ */
+async function ensureAnonymousSession(): Promise<void> {
+  const { data: session } = await authClient.getSession();
+  if (session) return;
+  await authClient.signIn.anonymous();
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────
@@ -66,15 +68,17 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
     initRef.current = true;
 
     try {
-      const visitorToken = getVisitorToken(channelRoutingId);
+      // Sign in anonymously if no session exists
+      await ensureAnonymousSession();
+
       const storedConvId = getStoredConversationId(channelRoutingId);
 
       // Try to resume existing conversation
       if (storedConvId) {
         try {
-          // biome-ignore lint/style/noRestrictedGlobals: Public chat routes lack Hono validators for typed RPC
           const res = await fetch(
-            `/api/conversations/chat/${channelRoutingId}/conversations/${storedConvId}?visitorToken=${encodeURIComponent(visitorToken)}`,
+            `/api/ai/chat/${channelRoutingId}/conversations/${storedConvId}`,
+            { credentials: 'include' },
           );
           if (res.ok) {
             const data: ConversationMessages = await res.json();
@@ -95,15 +99,12 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       }
 
       // Start new conversation
-      // biome-ignore lint/style/noRestrictedGlobals: Public chat routes lack Hono validators for typed RPC
-      const startRes = await fetch(
-        `/api/conversations/chat/${channelRoutingId}/start`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorToken }),
-        },
-      );
+      const startRes = await fetch(`/api/ai/chat/${channelRoutingId}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
 
       if (!startRes.ok) {
         const errData = await startRes.json().catch(() => ({}));
@@ -139,19 +140,15 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
   }, [initChat]);
 
   const reset = useCallback(async () => {
-    const visitorToken = getVisitorToken(channelRoutingId);
     try {
       setLoading(true);
       setError(null);
-      // biome-ignore lint/style/noRestrictedGlobals: Public chat routes lack Hono validators for typed RPC
-      const res = await fetch(
-        `/api/conversations/chat/${channelRoutingId}/reset`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorToken }),
-        },
-      );
+      const res = await fetch(`/api/ai/chat/${channelRoutingId}/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
 
       if (!res.ok) {
         setError('Failed to reset conversation');
@@ -176,11 +173,8 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
     initChat();
   }, [initChat]);
 
-  const visitorToken = getVisitorToken(channelRoutingId);
-
   return {
     conversationId,
-    visitorToken,
     initialMessages,
     loading,
     error,
