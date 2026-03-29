@@ -131,6 +131,11 @@ export function getMessageParts(
 const STAFF_REGEX = /^\[Staff:\s*(.+?)\]\s*/;
 const INTERNAL_REGEX = /^\[Internal\]/i;
 
+/** Check if text starts with [Staff: ...] prefix */
+export function hasStaffPrefix(text: string): boolean {
+  return STAFF_REGEX.test(text);
+}
+
 /** Extract metadata from message content's metadata field (format v2). */
 function extractContentMetadata(
   content: MemoryMessageContent,
@@ -229,11 +234,23 @@ export function normalizeUIMessage(msg: UIMessage): NormalizedMessage {
     return [part as NormalizedPart];
   });
 
+  // Detect staff reply from text prefix
+  const textContent = parts
+    .filter((p) => p.type === 'text')
+    .map((p) => p.text ?? '')
+    .join('');
+  const staffMatch = textContent.match(STAFF_REGEX);
+  const metadata: NormalizedMessageMetadata = {};
+  if (staffMatch) {
+    metadata.isStaffReply = true;
+    metadata.staffName = staffMatch[1];
+  }
+
   return {
     id: msg.id,
     role: msg.role === 'user' ? 'user' : 'assistant',
     parts,
-    metadata: {},
+    metadata,
   };
 }
 

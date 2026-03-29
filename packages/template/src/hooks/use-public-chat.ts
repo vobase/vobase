@@ -2,6 +2,7 @@ import type { UIMessage } from 'ai';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { authClient } from '@/lib/auth-client';
+import { hasStaffPrefix } from '@/lib/normalize-message';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -20,6 +21,51 @@ interface ConversationMessages {
     parts: Array<{ type: string; text?: string; [key: string]: unknown }>;
     createdAt: string;
   }>;
+}
+
+function isStaffReply(m: ConversationMessages['messages'][number]): boolean {
+  return (
+    m.role === 'assistant' &&
+    m.parts.some((p) => p.type === 'text' && hasStaffPrefix(p.text ?? ''))
+  );
+}
+
+/**
+ * Process messages for public chat display:
+ * Insert invisible separator between AI + staff assistant messages
+ * so useChat doesn't merge them into one turn.
+ */
+export function preparePublicMessages(
+  messages: ConversationMessages['messages'],
+): UIMessage[] {
+  const result: UIMessage[] = [];
+  let prevStaff = false;
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    const staff = isStaffReply(m);
+
+    // Insert separator between consecutive assistant messages when either involves staff
+    if (
+      i > 0 &&
+      m.role === 'assistant' &&
+      messages[i - 1].role === 'assistant' &&
+      (staff || prevStaff)
+    ) {
+      result.push({
+        id: `sep-${m.id}`,
+        role: 'user',
+        parts: [{ type: 'text', text: '' }],
+      });
+    }
+
+    result.push({
+      id: m.id,
+      role: m.role as 'user' | 'assistant',
+      parts: m.parts as UIMessage['parts'],
+    });
+    prevStaff = staff;
+  }
+  return result;
 }
 
 interface UsePublicChatResult {
@@ -82,12 +128,7 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
           );
           if (res.ok) {
             const data: ConversationMessages = await res.json();
-            const uiMessages: UIMessage[] = data.messages.map((m) => ({
-              id: m.id,
-              role: m.role as 'user' | 'assistant',
-              parts: m.parts as UIMessage['parts'],
-              createdAt: new Date(m.createdAt),
-            }));
+            const uiMessages = preparePublicMessages(data.messages);
             setConversationId(data.id);
             setInitialMessages(uiMessages);
             setLoading(false);

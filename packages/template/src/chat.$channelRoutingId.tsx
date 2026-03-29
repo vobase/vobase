@@ -1,22 +1,19 @@
 import { useChat } from '@ai-sdk/react';
+import { AssistantRuntimeProvider } from '@assistant-ui/react';
+import { useAISDKRuntime } from '@assistant-ui/react-ai-sdk';
 import { createFileRoute, useParams } from '@tanstack/react-router';
 import { DefaultChatTransport, type UIMessage } from 'ai';
-import { Bot, MessageSquareIcon } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 
-import { ConversationEmptyState } from '@/components/ai-elements/conversation';
-import {
-  PromptInput,
-  PromptInputFooter,
-  PromptInputSubmit,
-  PromptInputTextarea,
-  PromptInputTools,
-} from '@/components/ai-elements/prompt-input';
 import { Shimmer } from '@/components/ai-elements/shimmer';
-import { ChatMessageList } from '@/components/chat/chat-message-list';
+import { ThreadMessages } from '@/components/assistant-ui/thread';
+import { VobaseComposer } from '@/components/chat/vobase-composer';
+import { VobaseThreadProvider } from '@/components/chat/vobase-thread-context';
+import { VobaseToolUIs } from '@/components/chat/vobase-tool-uis';
 import { Button } from '@/components/ui/button';
 import { useFeedback } from '@/hooks/use-feedback';
-import { usePublicChat } from '@/hooks/use-public-chat';
+import { preparePublicMessages, usePublicChat } from '@/hooks/use-public-chat';
 import {
   type RealtimePayload,
   subscribeToPayloads,
@@ -31,18 +28,14 @@ import { normalizeUIMessage } from '@/lib/normalize-message';
 
 // ─── Chat View ──────────────────────────────────────────────────────────
 
-const RESET_COMMANDS = new Set(['/reset', '/restart']);
-
 function PublicChatView({
   channelRoutingId,
   conversationId,
   initialMessages,
-  onReset,
 }: {
   channelRoutingId: string;
   conversationId: string;
   initialMessages: UIMessage[];
-  onReset: () => Promise<void>;
 }) {
   // SSE connection for realtime events — mounted here (after anonymous sign-in)
   useRealtimeInvalidation();
@@ -56,7 +49,7 @@ function PublicChatView({
     [channelRoutingId],
   );
 
-  const { messages, sendMessage, setMessages, status, stop } = useChat({
+  const chatHelpers = useChat({
     id: conversationId,
     transport,
     messages: initialMessages,
@@ -65,7 +58,16 @@ function PublicChatView({
     },
   });
 
-  const isStreaming = status === 'streaming' || status === 'submitted';
+  const { messages, setMessages, status } = chatHelpers;
+
+  // Wrap useChat with assistant-ui runtime (preserves usePublicChat lifecycle)
+  const runtime = useAISDKRuntime(chatHelpers);
+
+  // Normalized messages for VobaseThreadProvider (feedback, metadata access)
+  const normalizedMessages = useMemo(
+    () => messages.map(normalizeUIMessage),
+    [messages],
+  );
 
   // Use a ref for status so the SSE listener doesn't re-subscribe on every status change
   const statusRef = useRef(status);
@@ -85,19 +87,7 @@ function PublicChatView({
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (!data?.messages) return;
-            const uiMessages: UIMessage[] = data.messages.map(
-              (m: {
-                id: string;
-                role: string;
-                parts: UIMessage['parts'];
-                createdAt: string;
-              }) => ({
-                id: m.id,
-                role: m.role as 'user' | 'assistant',
-                parts: m.parts,
-                createdAt: new Date(m.createdAt),
-              }),
-            );
+            const uiMessages = preparePublicMessages(data.messages);
             setMessages(uiMessages);
           })
           .catch((err) =>
@@ -108,73 +98,29 @@ function PublicChatView({
     return unsubscribe;
   }, [conversationId, channelRoutingId, setMessages]);
 
-  const normalized = useMemo(
-    () => messages.map(normalizeUIMessage),
-    [messages],
-  );
-
   useTypingListener(conversationId);
   const { signalTyping } = useTypingSender(conversationId);
   const { data: session } = authClient.useSession();
   const { feedbackMap, handleReact } = useFeedback(conversationId);
 
   return (
-    <>
-      {messages.length === 0 && !isStreaming ? (
-        <div className="flex flex-1 items-center justify-center">
-          <ConversationEmptyState
-            title="How can I help you?"
-            description="Send a message to start the conversation."
-            icon={
-              <MessageSquareIcon className="size-8 text-muted-foreground/40" />
-            }
-          />
+    <AssistantRuntimeProvider runtime={runtime}>
+      <VobaseThreadProvider
+        viewMode="public"
+        messages={normalizedMessages}
+        feedbackMap={feedbackMap}
+        currentUserId={session?.user?.id}
+        onReact={handleReact}
+        conversationId={conversationId}
+        isAiThinking={status === 'submitted' || status === 'streaming'}
+      >
+        <VobaseToolUIs />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <ThreadMessages />
         </div>
-      ) : (
-        <ChatMessageList
-          messages={normalized}
-          viewMode="public"
-          conversationId={conversationId}
-          chatStatus={status}
-          feedbackMap={feedbackMap}
-          currentUserId={session?.user?.id}
-          onReact={handleReact}
-          excludeUserId={session?.user?.id}
-          onAction={(actionId) => {
-            const text = actionId.startsWith('chat:')
-              ? (JSON.parse(actionId.slice(5)) as string)
-              : actionId;
-            sendMessage({ text });
-          }}
-        />
-      )}
-
-      <div className="border-t bg-background px-4 pb-4 pt-3">
-        <div className="mx-auto max-w-2xl">
-          <PromptInput
-            onSubmit={({ text }) => {
-              if (!text.trim() || isStreaming) return;
-              if (RESET_COMMANDS.has(text.trim().toLowerCase())) {
-                onReset();
-                return;
-              }
-              sendMessage({ text });
-            }}
-            className="rounded-xl border bg-muted/30"
-          >
-            <PromptInputTextarea
-              placeholder="Type a message..."
-              autoFocus
-              onChange={signalTyping}
-            />
-            <PromptInputFooter>
-              <PromptInputTools />
-              <PromptInputSubmit status={status} onStop={stop} />
-            </PromptInputFooter>
-          </PromptInput>
-        </div>
-      </div>
-    </>
+        <VobaseComposer onInputChange={signalTyping} />
+      </VobaseThreadProvider>
+    </AssistantRuntimeProvider>
   );
 }
 
@@ -189,7 +135,6 @@ function PublicChatPage() {
     error,
     errorRetryable,
     retry,
-    reset,
   } = usePublicChat(channelRoutingId);
 
   if (loading) {
@@ -231,7 +176,6 @@ function PublicChatPage() {
         channelRoutingId={channelRoutingId}
         conversationId={conversationId}
         initialMessages={initialMessages}
-        onReset={reset}
       />
     </div>
   );

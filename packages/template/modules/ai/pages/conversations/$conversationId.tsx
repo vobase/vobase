@@ -1,3 +1,7 @@
+import {
+  AssistantRuntimeProvider,
+  useExternalStoreRuntime,
+} from '@assistant-ui/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
@@ -7,16 +11,21 @@ import {
   ChevronRightIcon,
   CircleAlertIcon,
   CornerDownLeftIcon,
-  MessageSquareIcon,
   PauseCircleIcon,
   SendIcon,
   UserIcon,
   XCircleIcon,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
-import { ConversationEmptyState } from '@/components/ai-elements/conversation';
-import { ChatMessageList } from '@/components/chat/chat-message-list';
+import { ThreadMessages } from '@/components/assistant-ui/thread';
+import {
+  KbCurationBar,
+  KbCurationToggle,
+} from '@/components/chat/kb-curation-overlay';
+import { createStaffAdapter } from '@/components/chat/staff-runtime-adapter';
+import { VobaseThreadProvider } from '@/components/chat/vobase-thread-context';
+import { VobaseToolUIs } from '@/components/chat/vobase-tool-uis';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -225,7 +234,6 @@ async function sendReply(
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-// extractText, convertMemoryPart, getMessageParts moved to @/lib/normalize-message
 
 function statusVariant(
   status: string,
@@ -428,7 +436,6 @@ function ConversationDetailPage() {
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   useTypingListener(conversationId);
-
   const {
     data: conversation,
     isLoading: conversationLoading,
@@ -532,6 +539,18 @@ function ConversationDetailPage() {
     });
   }
 
+  // Hooks must be called unconditionally (before any early returns)
+  const messages = messagesData?.messages ?? [];
+  const outboxByContent = new Map<string, string>(
+    (messagesData?.outboxRecords ?? []).map((r) => [r.content, r.status]),
+  );
+  const normalizedMessages = normalizeMessages(messages, outboxByContent);
+  const staffAdapter = useMemo(
+    () => createStaffAdapter(normalizedMessages),
+    [normalizedMessages],
+  );
+  const staffRuntime = useExternalStoreRuntime(staffAdapter);
+
   if (conversationLoading) {
     return (
       <div className="flex h-full">
@@ -561,12 +580,6 @@ function ConversationDetailPage() {
     );
   }
 
-  const messages = messagesData?.messages ?? [];
-  const outboxByContent = new Map<string, string>(
-    (messagesData?.outboxRecords ?? []).map((r) => [r.content, r.status]),
-  );
-  // Note: Cannot use useMemo here — after early returns. normalizeMessages is cheap (pure map).
-  const normalizedMessages = normalizeMessages(messages, outboxByContent);
   const isTerminal =
     conversation.status === 'completed' || conversation.status === 'failed';
   const canReply = !isTerminal;
@@ -602,6 +615,7 @@ function ConversationDetailPage() {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <KbCurationToggle />
             {messagesData?.source === 'outbox' && messages.length > 0 && (
               <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                 AI responses only
@@ -674,26 +688,25 @@ function ConversationDetailPage() {
               <Skeleton className="ml-auto h-16 w-2/3" />
               <Skeleton className="h-16 w-3/4" />
             </div>
-          ) : messages.length === 0 ? (
-            <ConversationEmptyState
-              title="No messages yet"
-              description="Messages will appear once the conversation starts"
-              icon={<MessageSquareIcon className="h-8 w-8" />}
-            />
           ) : (
-            <ChatMessageList
-              messages={normalizedMessages}
-              viewMode="staff"
-              conversationId={conversationId}
-              contactLabel={contact?.name ?? 'Visitor'}
-              feedbackMap={feedbackMap}
-              currentUserId={session?.user?.id}
-              onReact={handleReact}
-              readOnly
-              excludeUserId={session?.user?.id}
-            />
+            <AssistantRuntimeProvider runtime={staffRuntime}>
+              <VobaseThreadProvider
+                viewMode="staff"
+                messages={normalizedMessages}
+                feedbackMap={feedbackMap}
+                currentUserId={session?.user?.id}
+                onReact={handleReact}
+                contactLabel={contact?.name ?? 'Visitor'}
+                conversationId={conversationId}
+              >
+                <VobaseToolUIs />
+                <ThreadMessages />
+              </VobaseThreadProvider>
+            </AssistantRuntimeProvider>
           )}
         </div>
+
+        <KbCurationBar />
 
         {/* Human reply input */}
         {canReply && (
