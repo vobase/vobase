@@ -16,6 +16,7 @@ export const authUser = authPgSchema.table('user', {
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),
   role: text('role').notNull().default('user'),
+  isAnonymous: boolean('is_anonymous').default(false),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

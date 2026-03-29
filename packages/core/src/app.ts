@@ -217,6 +217,11 @@ export async function createApp(config: CreateAppConfig) {
 
       stream.onAbort(unsub);
 
+      // Immediate ping flushes response headers through proxies (Vite dev,
+      // nginx, Cloudflare, etc.) so the browser's EventSource transitions
+      // from CONNECTING → OPEN without waiting for the first heartbeat.
+      await stream.writeSSE({ data: '', event: 'connected' });
+
       // Keep-alive heartbeat every 25s (well within idleTimeout: 255)
       while (true) {
         await stream.sleep(25_000);

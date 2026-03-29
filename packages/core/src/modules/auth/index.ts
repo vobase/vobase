@@ -3,7 +3,7 @@ import { apiKey } from '@better-auth/api-key';
 import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { organization } from 'better-auth/plugins';
+import { anonymous, organization } from 'better-auth/plugins';
 import { Hono } from 'hono';
 
 import type { AuthAdapter, AuthSession } from '../../contracts/auth';
@@ -45,7 +45,12 @@ export function createAuthModule(
   // structurally compatible with BetterAuthPlugin but TypeScript's deep conditional
   // type resolution makes the union assignment fail. Casting here is safe — both
   // plugins implement the BetterAuthPlugin interface at runtime.
-  const plugins: BetterAuthPlugin[] = [apiKey() as BetterAuthPlugin];
+  const plugins: BetterAuthPlugin[] = [
+    apiKey() as BetterAuthPlugin,
+    anonymous({
+      emailDomainName: 'visitor.vobase.local',
+    }) as BetterAuthPlugin,
+  ];
   if (orgEnabled) {
     plugins.push(organization() as BetterAuthPlugin);
   }
@@ -82,6 +87,11 @@ export function createAuthModule(
     plugins,
     hooks: createAuthAuditHooks(db),
     ...(config?.trustedOrigins && { trustedOrigins: config.trustedOrigins }),
+    advanced: {
+      // Only use Secure cookies in production. In dev, the server runs on
+      // http://localhost and Secure cookies are rejected by the browser.
+      useSecureCookies: process.env.NODE_ENV === 'production',
+    },
   });
 
   const adapter: AuthAdapter = {
