@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 

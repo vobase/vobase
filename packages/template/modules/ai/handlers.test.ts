@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 import { errorHandler } from '@vobase/core';
@@ -36,12 +36,12 @@ function createApp(db: VobaseDb) {
   return app;
 }
 
-let pglite: PGlite;
+let _pglite: PGlite;
 let db: VobaseDb;
 
 beforeEach(async () => {
   const result = await createTestDb();
-  pglite = result.pglite as unknown as PGlite;
+  _pglite = result.pglite as unknown as PGlite;
   db = result.db;
 
   // Seed a web channel instance for tests

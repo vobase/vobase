@@ -1,11 +1,14 @@
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 
 import type {
   MessageReactions,
   Reactor,
 } from '@/components/chat/message-feedback';
-import { subscribeToPayloads, type RealtimePayload } from '@/hooks/use-realtime';
+import {
+  type RealtimePayload,
+  subscribeToPayloads,
+} from '@/hooks/use-realtime';
 
 interface FeedbackApiRow {
   messageId: string;

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
@@ -17,7 +17,7 @@ import {
   failConversation,
 } from './conversation';
 
-let pglite: PGlite;
+let _pglite: PGlite;
 let db: VobaseDb;
 
 const mockScheduler = {
@@ -32,7 +32,7 @@ const mockRealtime = {
 
 beforeEach(async () => {
   const result = await createTestDb();
-  pglite = result.pglite as unknown as PGlite;
+  _pglite = result.pglite as unknown as PGlite;
   db = result.db;
 
   // Initialize chat state so getChatState() works in conversation functions

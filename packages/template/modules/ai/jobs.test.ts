@@ -6,7 +6,7 @@
  * pollution that would break sibling test files (Bun shares module registry
  * within a process when multiple test files run together).
  */
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 import { z } from 'zod';
@@ -141,12 +141,12 @@ import {
   conversations,
 } from './schema';
 
-let pglite: PGlite;
+let _pglite: PGlite;
 let db: VobaseDb;
 
 beforeEach(async () => {
   const result = await createTestDb();
-  pglite = result.pglite as unknown as PGlite;
+  _pglite = result.pglite as unknown as PGlite;
   db = result.db;
 });
 

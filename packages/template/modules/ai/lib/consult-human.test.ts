@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
@@ -13,12 +13,12 @@ import {
 } from '../schema';
 import { handleStaffReply, requestConsultation } from './consult-human';
 
-let pglite: PGlite;
+let _pglite: PGlite;
 let db: VobaseDb;
 
 beforeEach(async () => {
   const result = await createTestDb();
-  pglite = result.pglite as unknown as PGlite;
+  _pglite = result.pglite as unknown as PGlite;
   db = result.db;
 
   // Seed required data

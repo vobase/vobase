@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 import { errorHandler } from '@vobase/core';
@@ -49,13 +49,13 @@ function createApp(
 }
 
 describe('Knowledge Base Routes', () => {
-  let pglite: PGlite;
+  let _pglite: PGlite;
   let db: VobaseDb;
   let app: Hono;
 
   beforeEach(async () => {
     const testDb = await createTestDb({ withVec: true });
-    pglite = testDb.pglite;
+    _pglite = testDb.pglite;
     db = testDb.db;
     app = createApp(db);
   });

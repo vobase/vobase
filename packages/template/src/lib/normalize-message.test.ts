@@ -76,7 +76,9 @@ describe('convertMemoryPart', () => {
     expect(result).toEqual([
       {
         type: 'tool-search',
+        toolCallId: undefined,
         state: 'output-available',
+        input: { query: 'test' },
         output: { items: [] },
       },
     ]);
@@ -91,6 +93,7 @@ describe('convertMemoryPart', () => {
     expect(result).toEqual([
       {
         type: 'tool-search',
+        toolCallId: undefined,
         state: 'input-available',
         input: { query: 'test' },
       },
@@ -245,7 +248,9 @@ describe('normalizeUIMessage', () => {
       parts: [{ type: 'text' as const, text: 'Hello' }],
       content: '',
     };
-    const result = normalizeUIMessage(uiMsg as any);
+    const result = normalizeUIMessage(
+      uiMsg as unknown as Parameters<typeof normalizeUIMessage>[0],
+    );
     expect(result.id).toBe('msg-1');
     expect(result.role).toBe('user');
     expect(result.parts).toEqual([{ type: 'text', text: 'Hello' }]);
@@ -268,7 +273,9 @@ describe('normalizeUIMessage', () => {
       ],
       content: '',
     };
-    const result = normalizeUIMessage(uiMsg as any);
+    const result = normalizeUIMessage(
+      uiMsg as unknown as Parameters<typeof normalizeUIMessage>[0],
+    );
     expect(result.role).toBe('assistant');
     expect(result.parts).toHaveLength(2);
     expect(result.parts[0].type).toBe('tool-search');

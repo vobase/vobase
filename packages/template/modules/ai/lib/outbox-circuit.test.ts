@@ -18,7 +18,7 @@ import {
   resetCircuit,
 } from './outbox';
 
-let pglite: PGlite;
+let _pglite: PGlite;
 let db: VobaseDb;
 
 const mockScheduler = {
@@ -27,7 +27,7 @@ const mockScheduler = {
 
 beforeEach(async () => {
   const result = await createTestDb();
-  pglite = result.pglite as unknown as PGlite;
+  _pglite = result.pglite as unknown as PGlite;
   db = result.db;
 
   // Reset circuit state for each test
