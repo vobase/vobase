@@ -14,7 +14,6 @@ import {
 interface ToolGroupProps {
   parts: NormalizedPart[];
   messageId: string;
-  readOnly?: boolean;
 }
 
 interface ToolGroupSegment {
