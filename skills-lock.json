@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "84f3a2a57fa71ae5061786280987575d673792d6dda9a63941efb2795b83543a"
     },
+    "assistant-ui": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "computedHash": "cfce3ce8c4c2da38f0fc8e881af677efa8166d379862541f79c54e66f1a599d5"
+    },
     "better-auth-best-practices": {
       "source": "better-auth/skills",
       "sourceType": "github",
@@ -95,6 +100,11 @@
       "source": "deckardger/tanstack-agent-skills",
       "sourceType": "github",
       "computedHash": "65764bc7b90e47f6023cb7f89b3af93eaaafc517754f10b9382e184d4646a77d"
+    },
+    "tool-ui": {
+      "source": "assistant-ui/tool-ui",
+      "sourceType": "github",
+      "computedHash": "ef3b319307a8fd68cf3e29a4431c5a85990aa478d1f2632646936a778aa2ff24"
     },
     "use-railway": {
       "source": "railwayapp/railway-skills",
