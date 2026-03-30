@@ -3,7 +3,7 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
-import { Slot } from "radix-ui"
+import { ScrollArea as ScrollAreaPrimitive, Slot } from "radix-ui"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -368,17 +368,29 @@ function SidebarSeparator({
   )
 }
 
-function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
+function SidebarContent({ className, children, dir: _dir, ...props }: React.ComponentProps<"div">) {
   return (
-    <div
+    <ScrollAreaPrimitive.Root
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "min-h-0 flex-1 group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
       {...props}
-    />
+    >
+      <ScrollAreaPrimitive.Viewport className="size-full rounded-[inherit]">
+        <div className="flex flex-col gap-2">
+          {children}
+        </div>
+      </ScrollAreaPrimitive.Viewport>
+      <ScrollAreaPrimitive.ScrollAreaScrollbar
+        orientation="vertical"
+        className="flex touch-none p-px transition-colors select-none h-full w-2.5 border-l border-l-transparent"
+      >
+        <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+      </ScrollAreaPrimitive.ScrollAreaScrollbar>
+    </ScrollAreaPrimitive.Root>
   )
 }
 
