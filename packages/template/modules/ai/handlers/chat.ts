@@ -123,18 +123,18 @@ export const chatHandlers = new Hono()
     // Check handler mode for web chat
     if (conversationId) {
       const [conversationCheck] = await db
-        .select({ handler: conversations.handler })
+        .select({ mode: conversations.mode })
         .from(conversations)
         .where(eq(conversations.id, conversationId));
 
       if (
-        conversationCheck?.handler === 'human' ||
-        conversationCheck?.handler === 'paused'
+        conversationCheck?.mode === 'human' ||
+        conversationCheck?.mode === 'held'
       ) {
         return c.json(
           {
             error:
-              'Conversation is in human/paused mode — AI responses are disabled',
+              'Conversation is in human/held mode — AI responses are disabled',
           },
           403,
         );
@@ -450,11 +450,11 @@ export const chatHandlers = new Hono()
     if (!conversation) throw notFound('No active conversation');
 
     // Check handler mode
-    if (conversation.handler === 'human' || conversation.handler === 'paused') {
+    if (conversation.mode === 'human' || conversation.mode === 'held') {
       return c.json(
         {
           error:
-            'Conversation is in human/paused mode — AI responses are disabled',
+            'Conversation is in human/held mode — AI responses are disabled',
         },
         403,
       );

@@ -11,6 +11,7 @@ import {
   contacts,
   conversations,
 } from '../schema';
+import { initChat } from './chat-init';
 import { handleStaffReply, requestConsultation } from './consult-human';
 
 let _pglite: PGlite;
@@ -150,6 +151,30 @@ describe('requestConsultation', () => {
 
     expect(first.id).toBe(second.id);
   });
+
+  it('sets hasPendingEscalation: true on the conversation', async () => {
+    const mockChannels = {
+      whatsapp: { send: async () => ({ success: true }) },
+    } as never;
+
+    await requestConsultation(
+      { db, scheduler: {} as never, channels: mockChannels, realtime: mockRealtime },
+      {
+        conversationId: 'session-1',
+        staffContactId: 'contact-staff',
+        channelType: 'whatsapp',
+        channelInstanceId: 'ci-wa-1',
+        reason: 'Complex issue',
+        message: 'Customer needs specialist',
+      },
+    );
+
+    const [conv] = await db
+      .select({ hasPendingEscalation: conversations.hasPendingEscalation })
+      .from(conversations)
+      .where(eq(conversations.id, 'session-1'));
+    expect(conv.hasPendingEscalation).toBe(true);
+  });
 });
 
 describe('handleStaffReply', () => {
@@ -196,5 +221,112 @@ describe('handleStaffReply', () => {
       .from(consultations)
       .where(eq(consultations.id, timedOut.id));
     expect(unchanged.status).toBe('timeout');
+  });
+});
+
+const mockScheduler = { add: async () => ({ id: 'job-1' }) } as never;
+
+describe('handleStaffReply — hasPendingEscalation', () => {
+  beforeEach(async () => {
+    // Initialize chat state (state-pg via PGlite) so getChatState() works in success path
+    await initChat({
+      db,
+      scheduler: mockScheduler,
+      channels: { whatsapp: { send: async () => ({ success: true }) } } as never,
+    });
+  });
+
+  it('clears hasPendingEscalation when no other pending consultations remain', async () => {
+    await db
+      .update(conversations)
+      .set({ hasPendingEscalation: true })
+      .where(eq(conversations.id, 'session-1'));
+
+    const [pending] = await db
+      .insert(consultations)
+      .values({
+        conversationId: 'session-1',
+        staffContactId: 'contact-staff',
+        channelType: 'whatsapp',
+        channelInstanceId: 'ci-wa-1',
+        reason: 'Help needed',
+        status: 'pending',
+      })
+      .returning();
+
+    const mockChannels = {
+      whatsapp: { send: async () => ({ success: true }) },
+    } as never;
+    const mockEvent = {
+      channel: 'whatsapp',
+      from: '+6598765432',
+      content: 'Here is my answer',
+      timestamp: new Date().toISOString(),
+    } as never;
+
+    const result = await handleStaffReply(
+      { db, scheduler: mockScheduler, channels: mockChannels, realtime: mockRealtime },
+      pending,
+      mockEvent,
+    );
+
+    expect(result).toBe(true);
+
+    const [conv] = await db
+      .select({ hasPendingEscalation: conversations.hasPendingEscalation })
+      .from(conversations)
+      .where(eq(conversations.id, 'session-1'));
+    expect(conv.hasPendingEscalation).toBe(false);
+  });
+
+  it('keeps hasPendingEscalation: true when other pending consultations remain', async () => {
+    await db
+      .update(conversations)
+      .set({ hasPendingEscalation: true })
+      .where(eq(conversations.id, 'session-1'));
+
+    const [first] = await db
+      .insert(consultations)
+      .values({
+        conversationId: 'session-1',
+        staffContactId: 'contact-staff',
+        channelType: 'whatsapp',
+        channelInstanceId: 'ci-wa-1',
+        reason: 'First issue',
+        status: 'pending',
+      })
+      .returning();
+
+    // Second pending consultation — not replied to yet
+    await db.insert(consultations).values({
+      conversationId: 'session-1',
+      staffContactId: 'contact-staff',
+      channelType: 'whatsapp',
+      channelInstanceId: 'ci-wa-1',
+      reason: 'Second issue',
+      status: 'pending',
+    });
+
+    const mockChannels = {
+      whatsapp: { send: async () => ({ success: true }) },
+    } as never;
+    const mockEvent = {
+      channel: 'whatsapp',
+      from: '+6598765432',
+      content: 'Reply to first issue',
+      timestamp: new Date().toISOString(),
+    } as never;
+
+    await handleStaffReply(
+      { db, scheduler: mockScheduler, channels: mockChannels, realtime: mockRealtime },
+      first,
+      mockEvent,
+    );
+
+    const [conv] = await db
+      .select({ hasPendingEscalation: conversations.hasPendingEscalation })
+      .from(conversations)
+      .where(eq(conversations.id, 'session-1'));
+    expect(conv.hasPendingEscalation).toBe(true);
   });
 });

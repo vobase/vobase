@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 
 import { contacts, conversations, deadLetters, outbox } from '../schema';
 import { emitActivityEvent } from './activity-events';
+import { updateLastSignal } from './last-signal';
 
 /** @lintignore */
 export const MAX_RETRIES = 5;
@@ -106,6 +107,9 @@ export async function enqueueMessage(
       data: { outboxId: record.id },
     });
   }
+
+  // Update last-signal pointer on conversation
+  await updateLastSignal(db, input.conversationId, 'message', record.id);
 
   logger.info('[conversations] outbox_enqueue', {
     outboxId: record.id,

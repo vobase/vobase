@@ -6,12 +6,13 @@ import type {
 } from '@vobase/core';
 import { logger } from '@vobase/core';
 import type { Chat } from 'chat';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { channelRoutings, consultations, conversations } from '../schema';
-import { emitActivityEvent } from './activity-events';
+import { computeTab, emitActivityEvent } from './activity-events';
 import { handleStaffReply } from './consult-human';
 import { createConversation } from './conversation';
+import { updateLastSignal } from './last-signal';
 import { enqueueMessage } from './outbox';
 import { findContactByAddress, findOrCreateContact } from './routing';
 
@@ -83,7 +84,7 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
         );
 
       if (existingConversation) {
-        await routeByHandlerMode(
+        await routeByMode(
           { db, scheduler, realtime },
           existingConversation,
           message.text,
@@ -126,7 +127,7 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
       );
 
       // Route by handler mode (new conversations default to 'ai')
-      await routeByHandlerMode(
+      await routeByMode(
         { db, scheduler, realtime },
         conversation,
         message.text,
@@ -144,11 +145,11 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
 
   chat.onSubscribedMessage(async (thread, message) => {
     try {
-      // Load conversation to check handler mode
+      // Load conversation to check mode
       const [conversation] = await db
         .select({
           id: conversations.id,
-          handler: conversations.handler,
+          mode: conversations.mode,
           contactId: conversations.contactId,
           channelInstanceId: conversations.channelInstanceId,
         })
@@ -165,7 +166,7 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
         return;
       }
 
-      await routeByHandlerMode(
+      await routeByMode(
         { db, scheduler, realtime },
         conversation as typeof conversations.$inferSelect,
         message.text,
@@ -204,11 +205,11 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
   });
 }
 
-async function routeByHandlerMode(
+async function routeByMode(
   deps: { db: VobaseDb; scheduler: Scheduler; realtime: RealtimeService },
   conversation: {
     id: string;
-    handler: string | null;
+    mode: string | null;
     contactId: string;
     channelInstanceId: string;
   },
@@ -216,21 +217,39 @@ async function routeByHandlerMode(
   contactId: string,
 ): Promise<void> {
   const { db, scheduler, realtime } = deps;
-  const handlerMode = conversation.handler ?? 'ai';
+  const mode = conversation.mode ?? 'ai';
 
-  if (handlerMode === 'human') {
+  // Increment unread count for conversations with a human reader
+  if (['human', 'supervised', 'held'].includes(mode)) {
+    await db
+      .update(conversations)
+      .set({ unreadCount: sql`unread_count + 1` })
+      .where(eq(conversations.id, conversation.id));
+  }
+
+  // Notify inbox so the conversation row refreshes with new preview/unread count
+  await realtime.notify({
+    table: 'conversations',
+    id: conversation.id,
+    tab: computeTab(mode, 'active', false),
+  });
+
+  if (mode === 'human') {
     // Forward to assigned staff — emit activity event, do NOT schedule AI
-    await emitActivityEvent(db, realtime, {
+    const eventId = await emitActivityEvent(db, realtime, {
       type: 'message.inbound_human_mode',
       source: 'system',
       conversationId: conversation.id,
       contactId,
       data: { content: messageText?.slice(0, 200) },
     });
+    if (eventId) {
+      await updateLastSignal(db, conversation.id, 'activity', eventId);
+    }
     return;
   }
 
-  if (handlerMode === 'paused') {
+  if (mode === 'held') {
     // Auto-acknowledge, do NOT generate AI response
     await enqueueMessage(
       db,

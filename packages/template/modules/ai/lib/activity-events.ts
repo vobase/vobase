@@ -3,6 +3,25 @@ import { logger } from '@vobase/core';
 
 import { activityEvents } from '../schema';
 
+/**
+ * Compute the inbox tab a conversation belongs to, given its current state.
+ * - "attention": human/supervised/held modes, or has a pending escalation, or status is 'failed'
+ * - "ai": mode is 'ai' and status is 'active'
+ * - "done": status is 'completed' or 'resolved'
+ */
+export function computeTab(
+  mode: string | null,
+  status: string,
+  hasPendingEscalation: boolean,
+): 'attention' | 'ai' | 'done' {
+  if (status === 'completed' || status === 'resolved') return 'done';
+  if (status === 'failed') return 'attention';
+  if (hasPendingEscalation) return 'attention';
+  if (mode === 'human' || mode === 'supervised' || mode === 'held')
+    return 'attention';
+  return 'ai';
+}
+
 type ActivitySource = 'agent' | 'staff' | 'system';
 
 interface EmitActivityEventInput {
@@ -27,7 +46,7 @@ export async function emitActivityEvent(
   realtime: RealtimeService,
   input: EmitActivityEventInput,
   tx?: VobaseDb,
-): Promise<void> {
+): Promise<string | null> {
   const isTransactional = input.resolutionStatus != null;
   const target = tx ?? db;
 
@@ -49,19 +68,25 @@ export async function emitActivityEvent(
       { table: 'conversations-dashboard', action: 'update' },
       tx,
     );
-  } else {
-    // Fire-and-forget tier — catch and log
-    try {
-      await target.insert(activityEvents).values(input);
-      await realtime.notify({
-        table: 'conversations-activity',
-        action: 'insert',
-      });
-    } catch (err) {
-      logger.warn('[activity-events] Failed to emit event (fire-and-forget)', {
-        type: input.type,
-        error: err,
-      });
-    }
+    return row.id;
+  }
+
+  // Fire-and-forget tier — catch and log
+  try {
+    const [row] = await target
+      .insert(activityEvents)
+      .values(input)
+      .returning({ id: activityEvents.id });
+    await realtime.notify({
+      table: 'conversations-activity',
+      action: 'insert',
+    });
+    return row.id;
+  } catch (err) {
+    logger.warn('[activity-events] Failed to emit event (fire-and-forget)', {
+      type: input.type,
+      error: err,
+    });
+    return null;
   }
 }

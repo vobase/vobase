@@ -6,17 +6,18 @@ import type {
   VobaseDb,
 } from '@vobase/core';
 import { logger } from '@vobase/core';
-import { and, eq, lt, sql } from 'drizzle-orm';
+import { and, eq, lt, ne, sql } from 'drizzle-orm';
 
 import { consultations, contacts, conversations } from '../schema';
-import { emitActivityEvent } from './activity-events';
+import { computeTab, emitActivityEvent } from './activity-events';
 import { getChatState } from './chat-init';
+import { updateLastSignal } from './last-signal';
 
 interface ConsultDeps {
   db: VobaseDb;
   scheduler: Scheduler;
   channels: ChannelsService;
-  realtime?: RealtimeService;
+  realtime: RealtimeService;
 }
 
 interface RequestConsultationInput {
@@ -56,11 +57,13 @@ export async function requestConsultation(
       agentId: conversations.agentId,
       contactId: conversations.contactId,
       channelRoutingId: conversations.channelRoutingId,
+      mode: conversations.mode,
     })
     .from(conversations)
     .where(eq(conversations.id, input.conversationId));
 
   // Insert consultation + emit escalation.created transactionally
+  let escalationEventId: string | null = null;
   const consultation = await db.transaction(async (tx) => {
     const [record] = await tx
       .insert(consultations)
@@ -74,26 +77,47 @@ export async function requestConsultation(
       })
       .returning();
 
-    if (deps.realtime) {
-      await emitActivityEvent(
-        deps.db,
-        deps.realtime,
-        {
-          type: 'escalation.created',
-          agentId: conversation?.agentId,
-          source: 'agent',
-          contactId: conversation?.contactId,
-          conversationId: input.conversationId,
-          channelRoutingId: conversation?.channelRoutingId,
-          channelType: input.channelType,
-          data: { reason: input.reason, staffContactId: input.staffContactId },
-          resolutionStatus: 'pending',
-        },
-        tx as unknown as VobaseDb,
-      );
-    }
+    await tx
+      .update(conversations)
+      .set({ hasPendingEscalation: true })
+      .where(eq(conversations.id, input.conversationId));
+
+    escalationEventId = await emitActivityEvent(
+      deps.db,
+      deps.realtime,
+      {
+        type: 'escalation.created',
+        agentId: conversation?.agentId,
+        source: 'agent',
+        contactId: conversation?.contactId,
+        conversationId: input.conversationId,
+        channelRoutingId: conversation?.channelRoutingId,
+        channelType: input.channelType,
+        data: { reason: input.reason, staffContactId: input.staffContactId },
+        resolutionStatus: 'pending',
+      },
+      tx as unknown as VobaseDb,
+    );
 
     return record;
+  });
+
+  // Update last-signal pointer for escalation
+  if (escalationEventId) {
+    await updateLastSignal(
+      db,
+      input.conversationId,
+      'activity',
+      escalationEventId,
+    );
+  }
+
+  // Notify inbox — conversation moved to attention tab (now has pending escalation)
+  await deps.realtime.notify({
+    table: 'conversations',
+    id: input.conversationId,
+    tab: 'attention',
+    prevTab: computeTab(conversation?.mode ?? null, 'active', false),
   });
 
   // Look up staff contact for delivery address
@@ -204,6 +228,32 @@ export async function handleStaffReply(
     60 * 60 * 1000,
   );
 
+  // Clear hasPendingEscalation if no other pending consultations remain
+  const [remaining] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(consultations)
+    .where(
+      and(
+        eq(consultations.conversationId, consultation.conversationId),
+        eq(consultations.status, 'pending'),
+        ne(consultations.id, consultation.id),
+      ),
+    );
+  if ((remaining?.count ?? 0) === 0) {
+    await db
+      .update(conversations)
+      .set({ hasPendingEscalation: false })
+      .where(eq(conversations.id, consultation.conversationId));
+
+    // Escalation cleared — conversation may move from attention back to ai
+    await deps.realtime.notify({
+      table: 'conversations',
+      id: consultation.conversationId,
+      prevTab: 'attention',
+      tab: 'ai',
+    });
+  }
+
   // Queue channel-reply so the agent processes the consultation response
   await scheduler.add('ai:channel-reply', {
     conversationId: consultation.conversationId,
@@ -219,9 +269,9 @@ export async function handleStaffReply(
 }
 
 export async function checkConsultationTimeouts(
-  db: VobaseDb,
-  _channels: ChannelsService,
+  deps: ConsultDeps,
 ): Promise<number> {
+  const { db } = deps;
   const now = new Date();
 
   // Find pending consultations past their timeout
@@ -259,6 +309,30 @@ export async function checkConsultationTimeouts(
       { timeout: true, consultationId: c.id },
       60 * 60 * 1000,
     );
+
+    // Clear hasPendingEscalation if no other pending consultations remain
+    const [remaining] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(consultations)
+      .where(
+        and(
+          eq(consultations.conversationId, c.conversationId),
+          eq(consultations.status, 'pending'),
+        ),
+      );
+    if ((remaining?.count ?? 0) === 0) {
+      await db
+        .update(conversations)
+        .set({ hasPendingEscalation: false })
+        .where(eq(conversations.id, c.conversationId));
+
+      await deps.realtime.notify({
+        table: 'conversations',
+        id: c.conversationId,
+        prevTab: 'attention',
+        tab: 'ai',
+      });
+    }
   }
 
   logger.info('[conversations] Timed out consultations', {

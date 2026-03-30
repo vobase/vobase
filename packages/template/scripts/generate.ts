@@ -48,6 +48,7 @@ function buildModuleRoute(moduleName: string): string {
 
 function buildAiRoutes(): string[] {
   return [
+    "    route('/conversations', '../modules/ai/pages/conversations/index.tsx'),",
     "    route('/conversations/$conversationId', '../modules/ai/pages/conversations/$conversationId.tsx'),",
     "    route('/contacts', '../modules/ai/pages/contacts/index.tsx'),",
     "    route('/contacts/$contactId', '../modules/ai/pages/contacts/$contactId.tsx'),",

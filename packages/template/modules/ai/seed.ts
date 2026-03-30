@@ -12,6 +12,7 @@
 
 import { faker } from '@faker-js/faker';
 import type { VobaseDb } from '@vobase/core';
+import { eq } from 'drizzle-orm';
 
 import {
   activityEvents,
@@ -272,9 +273,8 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
     const status = faker.helpers.weightedArrayElement([
       { value: 'completed', weight: 50 },
-      { value: 'active', weight: 20 },
-      { value: 'failed', weight: 15 },
-      { value: 'paused', weight: 15 },
+      { value: 'active', weight: 30 },
+      { value: 'failed', weight: 20 },
     ]);
 
     const startedAt = hoursAgo(startHoursAgo);
@@ -315,8 +315,8 @@ export default async function seed(ctx: { db: VobaseDb }) {
     .values(seedConversations)
     .onConflictDoNothing();
 
-  // ─── Handler Mode Conversations (for control plane testing) ─────────
-  const handlerModeConversations = [
+  // ─── Mode Conversations (for control plane testing) ─────────────────
+  const modeConversations = [
     {
       id: 'sess-human-mode',
       channelRoutingId: 'ep-web-booking',
@@ -325,9 +325,13 @@ export default async function seed(ctx: { db: VobaseDb }) {
       channelInstanceId: 'ci-web',
       status: 'active',
       conversationType: 'message',
-      handler: 'human',
-      assignedUserId: null,
+      mode: 'human',
+      assignee: null,
+      assignedAt: null,
       startedAt: hoursAgo(2),
+      hasPendingEscalation: true,
+      waitingSince: hoursAgo(2),
+      unreadCount: 3,
       metadata: {},
     },
     {
@@ -338,22 +342,113 @@ export default async function seed(ctx: { db: VobaseDb }) {
       channelInstanceId: 'ci-web',
       status: 'active',
       conversationType: 'message',
-      handler: 'supervised',
-      assignedUserId: null,
+      mode: 'supervised',
+      assignee: null,
+      assignedAt: null,
       startedAt: hoursAgo(1),
+      hasPendingEscalation: true,
+      waitingSince: hoursAgo(1),
+      unreadCount: 2,
       metadata: {},
     },
     {
-      id: 'sess-paused-mode',
+      id: 'sess-held-mode',
       channelRoutingId: 'ep-wa-booking',
       contactId: customerContacts[2].id,
       agentId: 'booking',
       channelInstanceId: 'ci-wa-main',
       status: 'active',
       conversationType: 'message',
-      handler: 'paused',
-      assignedUserId: null,
+      mode: 'held',
+      assignee: null,
+      assignedAt: null,
+      priority: 'high',
       startedAt: hoursAgo(3),
+      waitingSince: hoursAgo(3),
+      unreadCount: 0,
+      metadata: {},
+    },
+    // Additional escalated conversations with priorities for queue testing
+    {
+      id: 'sess-human-urgent',
+      channelRoutingId: 'ep-wa-booking',
+      contactId: customerContacts[7].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-wa-main',
+      status: 'active',
+      conversationType: 'message',
+      mode: 'human',
+      assignee: null,
+      assignedAt: null,
+      priority: 'urgent',
+      startedAt: hoursAgo(0.5),
+      waitingSince: hoursAgo(0.5),
+      unreadCount: 5,
+      metadata: {},
+    },
+    {
+      id: 'sess-human-high',
+      channelRoutingId: 'ep-web-booking',
+      contactId: customerContacts[8].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-web',
+      status: 'active',
+      conversationType: 'message',
+      mode: 'human',
+      assignee: null,
+      assignedAt: null,
+      priority: 'high',
+      startedAt: hoursAgo(1.5),
+      waitingSince: hoursAgo(1.5),
+      unreadCount: 1,
+      metadata: {},
+    },
+    {
+      id: 'sess-supervised-normal',
+      channelRoutingId: 'ep-wa-booking',
+      contactId: customerContacts[9].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-wa-main',
+      status: 'active',
+      conversationType: 'message',
+      mode: 'supervised',
+      assignee: null,
+      assignedAt: null,
+      priority: 'normal',
+      startedAt: hoursAgo(4),
+      waitingSince: hoursAgo(4),
+      metadata: {},
+    },
+    {
+      id: 'sess-human-low',
+      channelRoutingId: 'ep-web-booking',
+      contactId: customerContacts[10].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-web',
+      status: 'active',
+      conversationType: 'message',
+      mode: 'human',
+      assignee: null,
+      assignedAt: null,
+      priority: 'low',
+      startedAt: hoursAgo(12),
+      waitingSince: hoursAgo(12),
+      metadata: {},
+    },
+    {
+      id: 'sess-supervised-high',
+      channelRoutingId: 'ep-wa-booking',
+      contactId: customerContacts[11].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-wa-main',
+      status: 'active',
+      conversationType: 'message',
+      mode: 'supervised',
+      assignee: null,
+      assignedAt: null,
+      priority: 'high',
+      startedAt: hoursAgo(0.25),
+      waitingSince: hoursAgo(0.25),
       metadata: {},
     },
     {
@@ -364,9 +459,11 @@ export default async function seed(ctx: { db: VobaseDb }) {
       channelInstanceId: 'ci-web',
       status: 'active',
       conversationType: 'message',
-      handler: 'ai',
-      assignedUserId: null,
+      mode: 'ai',
+      assignee: null,
+      assignedAt: null,
       startedAt: hoursAgo(0.5),
+      hasPendingEscalation: true,
       metadata: {},
     },
     {
@@ -377,8 +474,9 @@ export default async function seed(ctx: { db: VobaseDb }) {
       channelInstanceId: 'ci-web',
       status: 'active',
       conversationType: 'message',
-      handler: 'ai',
-      assignedUserId: null,
+      mode: 'ai',
+      assignee: null,
+      assignedAt: null,
       startedAt: hoursAgo(1),
       metadata: {},
     },
@@ -390,7 +488,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       channelInstanceId: 'ci-wa-main',
       status: 'completed',
       conversationType: 'message',
-      handler: 'ai',
+      mode: 'ai',
       resolutionOutcome: 'resolved',
       startedAt: hoursAgo(24),
       endedAt: hoursAgo(23),
@@ -404,7 +502,8 @@ export default async function seed(ctx: { db: VobaseDb }) {
       channelInstanceId: 'ci-wa-main',
       status: 'completed',
       conversationType: 'message',
-      handler: 'ai',
+      mode: 'ai',
+      priority: 'high',
       resolutionOutcome: 'escalated_resolved',
       startedAt: hoursAgo(48),
       endedAt: hoursAgo(47),
@@ -414,7 +513,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   await db
     .insert(conversations)
-    .values(handlerModeConversations)
+    .values(modeConversations)
     .onConflictDoNothing();
 
   // ─── Outbox ──────────────────────────────────────────────────────
@@ -431,7 +530,8 @@ export default async function seed(ctx: { db: VobaseDb }) {
     createdAt: Date;
   }> = [];
 
-  for (const sess of seedConversations) {
+  const allConversationsForOutbox = [...seedConversations, ...modeConversations];
+  for (const sess of allConversationsForOutbox) {
     const channelType =
       sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web';
     const msgCount = faker.number.int({ min: 2, max: 5 });
@@ -814,13 +914,41 @@ export default async function seed(ctx: { db: VobaseDb }) {
     },
   ];
 
-  await db
+  const insertedEvents = await db
     .insert(activityEvents)
     .values(seedActivityEvents)
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: activityEvents.id, conversationId: activityEvents.conversationId });
+
+  // ─── Update last-signal pointers ────────────────────────────────
+  // For mode conversations: point to their most relevant activity event
+  for (const evt of insertedEvents) {
+    if (evt.conversationId) {
+      await db
+        .update(conversations)
+        .set({ lastSignalKind: 'activity', lastSignalId: evt.id })
+        .where(eq(conversations.id, evt.conversationId));
+    }
+  }
+  // For all conversations without an activity signal: point to their last outbox message
+  const conversationsWithActivitySignal = new Set(
+    insertedEvents.filter((e) => e.conversationId).map((e) => e.conversationId),
+  );
+  for (const sess of allConversationsForOutbox) {
+    if (conversationsWithActivitySignal.has(sess.id)) continue;
+    const lastMsg = seedOutbox
+      .filter((o) => o.conversationId === sess.id)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    if (lastMsg) {
+      await db
+        .update(conversations)
+        .set({ lastSignalKind: 'message', lastSignalId: lastMsg.id })
+        .where(eq(conversations.id, sess.id));
+    }
+  }
 
   console.log(
-    `${green('✓')} Seeded ${handlerModeConversations.length} handler-mode conversations, ${seedActivityEvents.length} activity events`,
+    `${green('✓')} Seeded ${modeConversations.length} mode conversations, ${seedActivityEvents.length} activity events`,
   );
 
   // ─── Summary ─────────────────────────────────────────────────────

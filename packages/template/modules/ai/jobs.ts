@@ -150,7 +150,7 @@ export const consultationTimeoutJob = defineJob(
     const deps = getModuleDeps();
 
     const { checkConsultationTimeouts } = await import('./lib/consult-human');
-    const count = await checkConsultationTimeouts(deps.db, deps.channels);
+    const count = await checkConsultationTimeouts(deps);
     if (count > 0) {
       logger.info('[ai] Processed consultation timeouts', {
         count,

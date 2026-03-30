@@ -9,11 +9,11 @@ import {
   checkAvailabilityTool,
   completeConversationTool,
   consultHumanTool,
+  escalateTool,
   rescheduleBookingTool,
   searchKnowledgeBaseTool,
   sendCardTool,
   sendReminderTool,
-  setHandlerModeTool,
 } from '../tools';
 
 export const bookingMeta: AgentMeta = {
@@ -64,7 +64,7 @@ export const bookingAgent = new Agent({
     reschedule_booking: rescheduleBookingTool,
     send_reminder: sendReminderTool,
     consult_human: consultHumanTool,
-    set_handler_mode: setHandlerModeTool,
+    escalate: escalateTool,
     send_card: sendCardTool,
     complete_conversation: completeConversationTool,
   },

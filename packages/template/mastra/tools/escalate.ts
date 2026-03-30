@@ -7,7 +7,8 @@ import { emitActivityEvent } from '../../modules/ai/lib/activity-events';
 import { getModuleDeps } from '../../modules/ai/lib/deps';
 import { conversations } from '../../modules/ai/schema';
 
-const HANDLER_MODES = ['supervised', 'human'] as const;
+const ESCALATION_MODES = ['supervised', 'human'] as const;
+const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 
 /**
  * Graduated escalation tool — lets the agent change how the conversation is handled.
@@ -18,22 +19,27 @@ const HANDLER_MODES = ['supervised', 'human'] as const;
  *   human     — Complete transfer to a human. AI stops responding entirely.
  *                Use ONLY when the customer explicitly refuses AI assistance.
  */
-export const setHandlerModeTool = createTool({
-  id: 'set_handler_mode',
-  description: `Change how this conversation is handled. Two modes available:
+export const escalateTool = createTool({
+  id: 'escalate',
+  description: `Escalate this conversation to involve a human. Two modes available:
 - "supervised": AI drafts responses but a human must approve them before sending. Use for sensitive topics (complaints, billing disputes, legal), uncertain answers, or when the stakes are high. The customer stays engaged while a human reviews.
 - "human": Complete transfer to a human agent — AI stops entirely. Use ONLY when the customer explicitly says they want a real person ("talk to a human", "no more bot"). This is irreversible from your side.
 For background help without changing the mode, use consult_human instead.`,
   inputSchema: z.object({
     mode: z
-      .enum(HANDLER_MODES)
+      .enum(ESCALATION_MODES)
       .describe(
-        'The handler mode to set: "supervised" (AI drafts, human approves) or "human" (full transfer, AI stops)',
+        'The mode to set: "supervised" (AI drafts, human approves) or "human" (full transfer, AI stops)',
       ),
     reason: z
       .string()
       .describe(
-        'Why the mode change is needed (visible to the human operator)',
+        'Why the escalation is needed (visible to the human operator)',
+      ),
+    priority: z
+      .enum(PRIORITIES)
+      .describe(
+        'Priority level for human attention: "low", "normal", "high", or "urgent"',
       ),
   }),
   outputSchema: z.object({
@@ -65,14 +71,14 @@ For background help without changing the mode, use consult_human instead.`,
     }
 
     // Prevent no-op or downgrade (agent can't set back to 'ai')
-    const currentHandler = conversation.handler ?? 'ai';
-    if (currentHandler === input.mode) {
+    const currentMode = conversation.mode ?? 'ai';
+    if (currentMode === input.mode) {
       return {
         success: true,
         message: `Conversation is already in ${input.mode} mode.`,
       };
     }
-    if (currentHandler === 'human') {
+    if (currentMode === 'human') {
       return {
         success: false,
         message:
@@ -80,11 +86,11 @@ For background help without changing the mode, use consult_human instead.`,
       };
     }
 
-    // Update handler + emit escalation event in same transaction
+    // Update mode + priority + emit escalation event in same transaction
     await db.transaction(async (tx) => {
       await (tx as unknown as VobaseDb)
         .update(conversations)
-        .set({ handler: input.mode })
+        .set({ mode: input.mode, priority: input.priority })
         .where(eq(conversations.id, conversationId));
 
       // Emit escalation.created for attention queue (pending review)
@@ -101,7 +107,8 @@ For background help without changing the mode, use consult_human instead.`,
           data: {
             reason: input.reason,
             mode: input.mode,
-            previousMode: currentHandler,
+            priority: input.priority,
+            previousMode: currentMode,
           },
           resolutionStatus: 'pending',
         },
@@ -110,6 +117,7 @@ For background help without changing the mode, use consult_human instead.`,
     });
 
     // Emit handler.changed event (fire-and-forget, for activity feed)
+    // Keep event type as 'handler.changed' for backwards compat with existing data
     await emitActivityEvent(db, realtime, {
       type: 'handler.changed',
       agentId: conversation.agentId,
@@ -117,7 +125,7 @@ For background help without changing the mode, use consult_human instead.`,
       conversationId,
       contactId: conversation.contactId,
       data: {
-        from: currentHandler,
+        from: currentMode,
         to: input.mode,
         reason: input.reason,
       },

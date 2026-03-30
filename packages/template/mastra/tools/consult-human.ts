@@ -7,7 +7,7 @@ import { requestConsultation } from '../../modules/ai/lib/consult-human';
 import {
   getModuleChannels,
   getModuleDb,
-  getModuleRealtimeOrNull,
+  getModuleDeps,
   getModuleScheduler,
 } from '../../modules/ai/lib/deps';
 import { contacts } from '../../modules/ai/schema';
@@ -70,9 +70,8 @@ export const consultHumanTool = createTool({
       const staffContact = staffContacts[0];
       const channel = staffContact.phone ? 'whatsapp' : 'email';
 
-      const realtime = getModuleRealtimeOrNull();
       const consultation = await requestConsultation(
-        { db, scheduler, channels, realtime },
+        { db, scheduler, channels, realtime: getModuleDeps().realtime },
         {
           conversationId,
           staffContactId: staffContact.id,

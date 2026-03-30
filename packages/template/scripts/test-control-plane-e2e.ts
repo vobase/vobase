@@ -427,10 +427,10 @@ console.log(
 );
 
 // ═══════════════════════════════════════════════════════════════════════
-// TEST 9: Handler mode — web chat blocked for human/paused sessions
+// TEST 9: Mode — web chat blocked for human/held sessions
 // ═══════════════════════════════════════════════════════════════════════
 
-console.log('━━━ TEST 9: Handler Mode Guards on Web Chat ━━━');
+console.log('━━━ TEST 9: Mode Guards on Web Chat ━━━');
 
 // Human mode session should block web chat
 const humanSession = await api(
@@ -439,19 +439,19 @@ const humanSession = await api(
 );
 assert('Human-mode session exists', humanSession.status === 200);
 assert(
-  'Human-mode session has handler=human',
-  (humanSession.json as { handler: string }).handler === 'human',
+  'Human-mode session has mode=human',
+  (humanSession.json as { mode: string }).mode === 'human',
 );
 
-// Paused mode session should block web chat
+// Held mode session should block web chat
 const pausedSession = await api(
   'GET',
-  '/api/conversations/sessions/sess-paused-mode',
+  '/api/conversations/sessions/sess-held-mode',
 );
-assert('Paused-mode session exists', pausedSession.status === 200);
+assert('Held-mode session exists', pausedSession.status === 200);
 assert(
-  'Paused-mode session has handler=paused',
-  (pausedSession.json as { handler: string }).handler === 'paused',
+  'Held-mode session has mode=held',
+  (pausedSession.json as { mode: string }).mode === 'held',
 );
 
 // Supervised mode session should allow web chat
@@ -461,8 +461,8 @@ const supervisedSession = await api(
 );
 assert('Supervised-mode session exists', supervisedSession.status === 200);
 assert(
-  'Supervised-mode session has handler=supervised',
-  (supervisedSession.json as { handler: string }).handler === 'supervised',
+  'Supervised-mode session has mode=supervised',
+  (supervisedSession.json as { mode: string }).mode === 'supervised',
 );
 console.log();
 
@@ -479,11 +479,11 @@ const forHandoff = await api(
 );
 assert(
   'Handoff target session is ai mode',
-  (forHandoff.json as { handler: string }).handler === 'ai',
+  (forHandoff.json as { mode: string }).mode === 'ai',
 );
 
 // We can't call the Mastra tool via API, but we can simulate by manually
-// updating the session via the existing PATCH endpoint (set to paused, then test handback)
+// updating the session via the existing PATCH endpoint (set to held, then test handback)
 // Instead, let's test the handback flow on the already-human session
 
 const handback = await api(
@@ -491,8 +491,8 @@ const handback = await api(
   '/api/conversations/sessions/sess-human-mode/handback',
 );
 assert('Handback returns 200', handback.status === 200);
-const hbResult = handback.json as { success: boolean; handler: string };
-assert('Handback result shows ai mode', hbResult.handler === 'ai');
+const hbResult = handback.json as { success: boolean; mode: string };
+assert('Handback result shows ai mode', hbResult.mode === 'ai');
 
 // Verify session is now ai
 const afterHandback = await api(
@@ -500,8 +500,8 @@ const afterHandback = await api(
   '/api/conversations/sessions/sess-human-mode',
 );
 assert(
-  'Session handler is now ai after handback',
-  (afterHandback.json as { handler: string }).handler === 'ai',
+  'Session mode is now ai after handback',
+  (afterHandback.json as { mode: string }).mode === 'ai',
 );
 
 // Check handler.changed event was emitted

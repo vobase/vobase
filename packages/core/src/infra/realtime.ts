@@ -11,6 +11,8 @@ export interface RealtimePayload {
   table: string;
   id?: string;
   action?: string;
+  tab?: string;
+  prevTab?: string;
 }
 
 /** Minimal interface satisfied by both VobaseDb and Drizzle transaction handles. */

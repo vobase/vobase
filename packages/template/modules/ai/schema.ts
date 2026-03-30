@@ -155,9 +155,16 @@ export const conversations = conversationsPgSchema.table(
     callDuration: integer('call_duration'),
     recordingUrl: text('recording_url'),
     metadata: jsonb('metadata').default({}),
-    handler: text('handler').notNull().default('ai'),
-    assignedUserId: text('assigned_user_id'),
+    mode: text('mode').notNull().default('ai'),
+    assignee: text('assignee'),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }),
+    priority: text('priority'),
     resolutionOutcome: text('resolution_outcome'),
+    lastSignalKind: text('last_signal_kind'),
+    lastSignalId: text('last_signal_id'),
+    hasPendingEscalation: boolean('has_pending_escalation').notNull().default(false),
+    waitingSince: timestamp('waiting_since', { withTimezone: true }),
+    unreadCount: integer('unread_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -175,17 +182,27 @@ export const conversations = conversationsPgSchema.table(
     index('conversations_active_stale_idx')
       .on(table.status, table.updatedAt)
       .where(sql`status = 'active'`),
+    index('conversations_assignee_status_idx').on(table.assignee, table.status, table.updatedAt),
+    index('conversations_mode_queue_idx')
+      .on(table.mode, table.status, table.priority)
+      .where(sql`status = 'active'`),
+    index('idx_conv_attention').on(table.status, table.mode, table.updatedAt),
+    index('idx_conv_resolved').on(table.status, table.updatedAt),
     check(
       'conversations_status_check',
-      sql`status IN ('active', 'completed', 'failed', 'paused', 'escalated')`,
+      sql`status IN ('active', 'completed', 'failed')`,
     ),
     check(
       'conversations_type_check',
       sql`conversation_type IN ('message', 'voice')`,
     ),
     check(
-      'conversations_handler_check',
-      sql`handler IN ('ai', 'human', 'supervised', 'paused')`,
+      'conversations_mode_check',
+      sql`mode IN ('ai', 'human', 'supervised', 'held')`,
+    ),
+    check(
+      'conversations_priority_check',
+      sql`priority IS NULL OR priority IN ('low', 'normal', 'high', 'urgent')`,
     ),
     check(
       'conversations_resolution_outcome_check',

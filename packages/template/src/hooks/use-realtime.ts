@@ -33,6 +33,8 @@ export interface RealtimePayload {
   table: string;
   id?: string;
   action?: string;
+  tab?: string;
+  prevTab?: string;
 }
 
 type PayloadListener = (payload: RealtimePayload) => void;
@@ -62,7 +64,21 @@ export function useRealtimeInvalidation() {
           // subscriber errors must not crash the dispatch loop
         }
       }
-      // Invalidate TanStack Query keys
+      // Targeted invalidation for conversation tab events
+      if (payload.table === 'conversations' && payload.tab) {
+        const tabKey = `conversations-${payload.tab === 'ai' ? 'ai-active' : payload.tab === 'done' ? 'resolved' : 'attention'}`;
+        queryClient.invalidateQueries({ queryKey: [tabKey] });
+        if (payload.prevTab && payload.prevTab !== payload.tab) {
+          const prevKey = `conversations-${payload.prevTab === 'ai' ? 'ai-active' : payload.prevTab === 'done' ? 'resolved' : 'attention'}`;
+          queryClient.invalidateQueries({ queryKey: [prevKey] });
+        }
+        queryClient.invalidateQueries({ queryKey: ['conversations-counts'] });
+        if (payload.id) {
+          queryClient.invalidateQueries({ queryKey: ['conversation-detail', payload.id] });
+        }
+        return;
+      }
+      // Broad invalidation for all other events
       queryClient.invalidateQueries({ queryKey: [payload.table] });
     });
 

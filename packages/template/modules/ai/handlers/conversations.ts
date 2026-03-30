@@ -5,25 +5,127 @@ import {
   notFound,
   unauthorized,
 } from '@vobase/core';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { getMemory } from '../../../mastra';
-import { emitActivityEvent } from '../lib/activity-events';
+import { computeTab, emitActivityEvent } from '../lib/activity-events';
 import { getModuleDeps } from '../lib/deps';
+import { updateLastSignal } from '../lib/last-signal';
 import { enqueueMessage } from '../lib/outbox';
 import {
   activityEvents,
   channelInstances,
   consultations,
+  contacts,
   conversations,
   messageFeedback,
   outbox,
 } from '../schema';
 
+// ─── Signal join helper ──────────────────────────────────────────────
+
+interface LastSignal {
+  kind: 'message' | 'activity';
+  content: string | null;
+  type: string | null;
+  data: Record<string, unknown> | null;
+  createdAt: string | null;
+}
+
+async function joinLastSignals<
+  T extends { lastSignalKind: string | null; lastSignalId: string | null },
+>(
+  db: Parameters<typeof import('drizzle-orm')['eq']> extends never[]
+    ? never
+    : any,
+  rows: T[],
+): Promise<
+  (Omit<T, 'lastSignalKind' | 'lastSignalId'> & {
+    lastSignal: LastSignal | null;
+  })[]
+> {
+  const messageIds: string[] = [];
+  const activityIds: string[] = [];
+
+  for (const row of rows) {
+    if (!row.lastSignalId || !row.lastSignalKind) continue;
+    if (row.lastSignalKind === 'message') messageIds.push(row.lastSignalId);
+    else if (row.lastSignalKind === 'activity')
+      activityIds.push(row.lastSignalId);
+  }
+
+  const messageMap = new Map<string, { content: string; createdAt: Date }>();
+  const activityMap = new Map<
+    string,
+    { type: string; data: unknown; createdAt: Date }
+  >();
+
+  if (messageIds.length > 0) {
+    const msgs = await db
+      .select({
+        id: outbox.id,
+        content: outbox.content,
+        createdAt: outbox.createdAt,
+      })
+      .from(outbox)
+      .where(inArray(outbox.id, messageIds));
+    for (const m of msgs) messageMap.set(m.id, m);
+  }
+
+  if (activityIds.length > 0) {
+    const events = await db
+      .select({
+        id: activityEvents.id,
+        type: activityEvents.type,
+        data: activityEvents.data,
+        createdAt: activityEvents.createdAt,
+      })
+      .from(activityEvents)
+      .where(inArray(activityEvents.id, activityIds));
+    for (const e of events) activityMap.set(e.id, e);
+  }
+
+  return rows.map(({ lastSignalKind, lastSignalId, ...rest }) => {
+    let lastSignal: LastSignal | null = null;
+
+    if (lastSignalKind === 'message' && lastSignalId) {
+      const msg = messageMap.get(lastSignalId);
+      if (msg) {
+        lastSignal = {
+          kind: 'message',
+          content: msg.content,
+          type: null,
+          data: null,
+          createdAt: msg.createdAt.toISOString(),
+        };
+      }
+    } else if (lastSignalKind === 'activity' && lastSignalId) {
+      const evt = activityMap.get(lastSignalId);
+      if (evt) {
+        lastSignal = {
+          kind: 'activity',
+          content: null,
+          type: evt.type,
+          data: evt.data as Record<string, unknown> | null,
+          createdAt: evt.createdAt.toISOString(),
+        };
+      }
+    }
+
+    return { ...rest, lastSignal } as Omit<
+      T,
+      'lastSignalKind' | 'lastSignalId'
+    > & { lastSignal: LastSignal | null };
+  });
+}
+
 const updateConversationSchema = z.object({
-  status: z.enum(['paused', 'completed', 'failed']),
+  status: z.enum(['completed', 'failed']).optional(),
+  mode: z.enum(['held', 'ai', 'supervised', 'human']).optional(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']).nullable().optional(),
+  assignee: z.string().nullable().optional(),
 });
 
 const paginationSchema = z.object({
@@ -68,6 +170,246 @@ export const conversationsDetailHandlers = new Hono()
       .offset(offset);
 
     return c.json(rows);
+  })
+  /** GET /conversations/mine — Conversations assigned to the current user. */
+  .get('/conversations/mine', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const { limit, offset } = paginationSchema.parse({
+      limit: c.req.query('limit'),
+      offset: c.req.query('offset'),
+    });
+
+    const rows = await db
+      .select({
+        id: conversations.id,
+        status: conversations.status,
+        mode: conversations.mode,
+        assignee: conversations.assignee,
+        assignedAt: conversations.assignedAt,
+        priority: conversations.priority,
+        contactId: conversations.contactId,
+        contactName: contacts.name,
+        agentId: conversations.agentId,
+        channelInstanceId: conversations.channelInstanceId,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        lastSignalKind: conversations.lastSignalKind,
+        lastSignalId: conversations.lastSignalId,
+      })
+      .from(conversations)
+      .leftJoin(contacts, eq(conversations.contactId, contacts.id))
+      .where(
+        and(
+          eq(conversations.assignee, user.id),
+          eq(conversations.status, 'active'),
+        ),
+      )
+      .orderBy(
+        sql`CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`,
+        asc(conversations.assignedAt),
+      )
+      .limit(limit)
+      .offset(offset);
+
+    const withSignals = await joinLastSignals(db, rows);
+    return c.json(withSignals);
+  })
+  /** GET /conversations/queue — Unassigned escalated conversations waiting to be claimed. */
+  .get('/conversations/queue', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const { limit, offset } = paginationSchema.parse({
+      limit: c.req.query('limit'),
+      offset: c.req.query('offset'),
+    });
+
+    const rows = await db
+      .select({
+        id: conversations.id,
+        status: conversations.status,
+        mode: conversations.mode,
+        priority: conversations.priority,
+        contactId: conversations.contactId,
+        contactName: contacts.name,
+        agentId: conversations.agentId,
+        channelInstanceId: conversations.channelInstanceId,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        lastSignalKind: conversations.lastSignalKind,
+        lastSignalId: conversations.lastSignalId,
+      })
+      .from(conversations)
+      .leftJoin(contacts, eq(conversations.contactId, contacts.id))
+      .where(
+        and(
+          sql`${conversations.assignee} IS NULL`,
+          inArray(conversations.mode, ['human', 'supervised']),
+          eq(conversations.status, 'active'),
+        ),
+      )
+      .orderBy(
+        sql`CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`,
+        asc(conversations.createdAt),
+      )
+      .limit(limit)
+      .offset(offset);
+
+    const withSignals = await joinLastSignals(db, rows);
+    return c.json(withSignals);
+  })
+  /** GET /conversations/attention — Attention tab: human/supervised/held or pending escalation. */
+  .get('/conversations/attention', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const { limit, offset } = paginationSchema.parse({
+      limit: c.req.query('limit'),
+      offset: c.req.query('offset'),
+    });
+
+    const rows = await db
+      .select({
+        id: conversations.id,
+        status: conversations.status,
+        mode: conversations.mode,
+        priority: conversations.priority,
+        contactId: conversations.contactId,
+        contactName: contacts.name,
+        channelInstanceId: conversations.channelInstanceId,
+        channelType: channelInstances.type,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        lastSignalKind: conversations.lastSignalKind,
+        lastSignalId: conversations.lastSignalId,
+        hasPendingEscalation: conversations.hasPendingEscalation,
+        waitingSince: conversations.waitingSince,
+        unreadCount: conversations.unreadCount,
+      })
+      .from(conversations)
+      .leftJoin(contacts, eq(conversations.contactId, contacts.id))
+      .leftJoin(
+        channelInstances,
+        eq(conversations.channelInstanceId, channelInstances.id),
+      )
+      .where(
+        and(
+          eq(conversations.status, 'active'),
+          or(
+            inArray(conversations.mode, ['human', 'supervised', 'held']),
+            eq(conversations.hasPendingEscalation, true),
+          ),
+        ),
+      )
+      .orderBy(asc(conversations.waitingSince))
+      .limit(limit)
+      .offset(offset);
+
+    const withSignals = await joinLastSignals(db, rows);
+    return c.json(withSignals);
+  })
+  /** GET /conversations/ai-active — AI Handling tab: active AI conversations. */
+  .get('/conversations/ai-active', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const { limit, offset } = paginationSchema.parse({
+      limit: c.req.query('limit'),
+      offset: c.req.query('offset'),
+    });
+
+    const rows = await db
+      .select({
+        id: conversations.id,
+        status: conversations.status,
+        mode: conversations.mode,
+        priority: conversations.priority,
+        contactId: conversations.contactId,
+        contactName: contacts.name,
+        channelInstanceId: conversations.channelInstanceId,
+        channelType: channelInstances.type,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        lastSignalKind: conversations.lastSignalKind,
+        lastSignalId: conversations.lastSignalId,
+        hasPendingEscalation: conversations.hasPendingEscalation,
+        waitingSince: conversations.waitingSince,
+        unreadCount: conversations.unreadCount,
+      })
+      .from(conversations)
+      .leftJoin(contacts, eq(conversations.contactId, contacts.id))
+      .leftJoin(
+        channelInstances,
+        eq(conversations.channelInstanceId, channelInstances.id),
+      )
+      .where(
+        and(eq(conversations.status, 'active'), eq(conversations.mode, 'ai')),
+      )
+      .orderBy(desc(conversations.updatedAt))
+      .limit(limit)
+      .offset(offset);
+
+    const withSignals = await joinLastSignals(db, rows);
+    return c.json(withSignals);
+  })
+  /** GET /conversations/resolved — Done tab: completed and failed conversations. */
+  .get('/conversations/resolved', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const { limit, offset } = paginationSchema.parse({
+      limit: c.req.query('limit'),
+      offset: c.req.query('offset'),
+    });
+
+    const rows = await db
+      .select({
+        id: conversations.id,
+        status: conversations.status,
+        mode: conversations.mode,
+        priority: conversations.priority,
+        contactId: conversations.contactId,
+        contactName: contacts.name,
+        channelInstanceId: conversations.channelInstanceId,
+        channelType: channelInstances.type,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        lastSignalKind: conversations.lastSignalKind,
+        lastSignalId: conversations.lastSignalId,
+        hasPendingEscalation: conversations.hasPendingEscalation,
+        waitingSince: conversations.waitingSince,
+        unreadCount: conversations.unreadCount,
+      })
+      .from(conversations)
+      .leftJoin(contacts, eq(conversations.contactId, contacts.id))
+      .leftJoin(
+        channelInstances,
+        eq(conversations.channelInstanceId, channelInstances.id),
+      )
+      .where(inArray(conversations.status, ['completed', 'failed']))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(limit)
+      .offset(offset);
+
+    const withSignals = await joinLastSignals(db, rows);
+    return c.json(withSignals);
+  })
+  /** GET /conversations/counts — Badge counts for all three tabs. */
+  .get('/conversations/counts', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const [counts] = await db
+      .select({
+        attention: sql<number>`count(*) FILTER (WHERE status = 'active' AND (mode IN ('human', 'supervised', 'held') OR has_pending_escalation))::int`,
+        ai: sql<number>`count(*) FILTER (WHERE status = 'active' AND mode = 'ai')::int`,
+        done: sql<number>`count(*) FILTER (WHERE status IN ('completed', 'failed'))::int`,
+      })
+      .from(conversations);
+
+    return c.json(counts ?? { attention: 0, ai: 0, done: 0 });
   })
   /** GET /sessions/:id — Conversation detail. */
   .get('/conversations/:id', async (c) => {
@@ -161,11 +503,12 @@ export const conversationsDetailHandlers = new Hono()
 
     if (!existingConversation) throw notFound('Conversation not found');
 
+    const { realtime } = getModuleDeps();
+
     if (body.status === 'completed' || body.status === 'failed') {
       const { completeConversation, failConversation } = await import(
         '../lib/conversation'
       );
-      const { realtime } = getModuleDeps();
       if (body.status === 'completed') {
         await completeConversation(db, conversationId, realtime);
       } else {
@@ -176,10 +519,58 @@ export const conversationsDetailHandlers = new Hono()
           realtime,
         );
       }
-    } else {
+    }
+
+    if (body.mode) {
+      const previousMode = existingConversation.mode;
+      const isHumanMode = ['human', 'supervised', 'held'].includes(body.mode);
+      const wasHumanMode = ['human', 'supervised', 'held'].includes(
+        existingConversation.mode,
+      );
+      const waitingSinceUpdate: Date | null | undefined =
+        isHumanMode && !wasHumanMode
+          ? new Date()
+          : !isHumanMode
+            ? null
+            : undefined;
       await db
         .update(conversations)
-        .set({ status: body.status })
+        .set({
+          mode: body.mode,
+          ...(waitingSinceUpdate !== undefined
+            ? { waitingSince: waitingSinceUpdate }
+            : {}),
+        })
+        .where(eq(conversations.id, conversationId));
+
+      const eventId = await emitActivityEvent(db, realtime, {
+        type: 'handler.changed',
+        userId: user.id,
+        source: 'staff',
+        conversationId,
+        data: { from: previousMode, to: body.mode, reason: 'Staff action' },
+      });
+      if (eventId) {
+        await updateLastSignal(db, conversationId, 'activity', eventId);
+      }
+    }
+
+    // Update priority if provided
+    if (body.priority !== undefined) {
+      await db
+        .update(conversations)
+        .set({ priority: body.priority })
+        .where(eq(conversations.id, conversationId));
+    }
+
+    // Update assignee if provided
+    if (body.assignee !== undefined) {
+      await db
+        .update(conversations)
+        .set({
+          assignee: body.assignee,
+          assignedAt: body.assignee ? new Date() : null,
+        })
         .where(eq(conversations.id, conversationId));
     }
 
@@ -187,6 +578,21 @@ export const conversationsDetailHandlers = new Hono()
       .select()
       .from(conversations)
       .where(eq(conversations.id, conversationId));
+
+    await realtime.notify({
+      table: 'conversations',
+      id: conversationId,
+      tab: computeTab(
+        updated.mode,
+        updated.status,
+        updated.hasPendingEscalation,
+      ),
+      prevTab: computeTab(
+        existingConversation.mode,
+        existingConversation.status,
+        existingConversation.hasPendingEscalation,
+      ),
+    });
 
     return c.json(updated);
   })
@@ -210,8 +616,8 @@ export const conversationsDetailHandlers = new Hono()
 
     if (!conversation) throw notFound('Conversation not found');
 
-    if (conversation.status !== 'active' && conversation.status !== 'paused') {
-      throw notFound('Conversation is not active or paused');
+    if (conversation.status !== 'active') {
+      throw notFound('Conversation is not active');
     }
 
     let channelType = 'web';
@@ -330,18 +736,26 @@ export const conversationsDetailHandlers = new Hono()
 
     if (!conversation) throw notFound('Conversation not found');
     if (
-      conversation.handler !== 'human' &&
-      conversation.handler !== 'supervised'
+      conversation.mode !== 'human' &&
+      conversation.mode !== 'supervised' &&
+      conversation.mode !== 'held'
     ) {
       return c.json(
-        { error: 'Conversation is not in human or supervised mode' },
+        { error: 'Conversation is not in human, supervised, or held mode' },
         400,
       );
     }
 
     await db
       .update(conversations)
-      .set({ handler: 'ai', assignedUserId: null })
+      .set({
+        mode: 'ai',
+        assignee: null,
+        assignedAt: null,
+        priority: null,
+        waitingSince: null,
+        hasPendingEscalation: false,
+      })
       .where(eq(conversations.id, conversationId));
 
     await emitActivityEvent(db, realtime, {
@@ -349,10 +763,82 @@ export const conversationsDetailHandlers = new Hono()
       userId: user.id,
       source: 'staff',
       conversationId,
-      data: { from: conversation.handler, to: 'ai', reason: 'Staff handback' },
+      data: { from: conversation.mode, to: 'ai', reason: 'Staff handback' },
     });
 
-    return c.json({ success: true, handler: 'ai' });
+    await realtime.notify({
+      table: 'conversations',
+      id: conversationId,
+      prevTab: computeTab(
+        conversation.mode,
+        conversation.status,
+        conversation.hasPendingEscalation,
+      ),
+      tab: 'ai',
+    });
+
+    return c.json({ success: true, mode: 'ai' });
+  })
+  /** POST /conversations/:id/claim — Staff claims an unassigned escalated conversation. */
+  .post('/conversations/:id/claim', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const conversationId = c.req.param('id');
+    const { realtime } = getModuleDeps();
+
+    // Optimistic locking: only claim if assignee is still NULL
+    const updated = await db
+      .update(conversations)
+      .set({ assignee: user.id, assignedAt: new Date() })
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.status, 'active'),
+        ),
+      )
+      .returning({ id: conversations.id, assignee: conversations.assignee });
+
+    // Filter: only succeed if assignee was previously null
+    // (Drizzle doesn't support IS NULL in .where for updates easily, so check result)
+    if (updated.length === 0) {
+      throw notFound('Conversation not found or not active');
+    }
+
+    // Verify the conversation was actually unassigned and in correct mode
+    const [conversation] = await db
+      .select({
+        id: conversations.id,
+        mode: conversations.mode,
+        assignee: conversations.assignee,
+      })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId));
+
+    if (
+      conversation &&
+      conversation.assignee === user.id &&
+      (conversation.mode === 'human' || conversation.mode === 'supervised')
+    ) {
+      await emitActivityEvent(db, realtime, {
+        type: 'conversation.claimed',
+        userId: user.id,
+        source: 'staff',
+        conversationId,
+        data: { assignee: user.id },
+      });
+
+      await realtime.notify({
+        table: 'conversations',
+        id: conversationId,
+        tab: 'attention',
+      });
+
+      return c.json({ success: true, assignee: user.id });
+    }
+
+    // If mode is wrong (ai/held) or was already assigned, revert
+    throw conflict('Conversation already claimed or not in escalated mode');
   })
   /** POST /sessions/:id/approve-draft — Approve a supervised AI draft for sending. */
   .post('/conversations/:id/approve-draft', async (c) => {
@@ -443,6 +929,10 @@ export const conversationsDetailHandlers = new Hono()
       .parse(await c.req.json());
 
     const { realtime } = getModuleDeps();
+    await db
+      .update(conversations)
+      .set({ unreadCount: 0 })
+      .where(eq(conversations.id, conversationId));
     await emitActivityEvent(db, realtime, {
       type: 'message.read',
       conversationId,

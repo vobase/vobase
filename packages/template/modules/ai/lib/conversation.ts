@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 
 import { getMemory } from '../../../mastra';
 import { channelRoutings, conversations } from '../schema';
-import { emitActivityEvent } from './activity-events';
+import { computeTab, emitActivityEvent } from './activity-events';
 import { getChatState } from './chat-init';
 
 const generateId = createNanoid();
@@ -154,11 +154,20 @@ export async function completeConversation(
 ): Promise<void> {
   const start = Date.now();
 
+  const [prev] = await db
+    .select({
+      mode: conversations.mode,
+      hasPendingEscalation: conversations.hasPendingEscalation,
+    })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId));
+
   await db
     .update(conversations)
     .set({
       status: 'completed',
       endedAt: new Date(),
+      waitingSince: null,
       ...(resolutionOutcome ? { resolutionOutcome } : {}),
     })
     .where(eq(conversations.id, conversationId));
@@ -180,6 +189,16 @@ export async function completeConversation(
       action: 'update',
     });
     await realtime.notify({ table: 'conversations-metrics', action: 'update' });
+    await realtime.notify({
+      table: 'conversations',
+      id: conversationId,
+      tab: 'done',
+      prevTab: computeTab(
+        prev?.mode ?? null,
+        'active',
+        prev?.hasPendingEscalation ?? false,
+      ),
+    });
   }
 
   logger.info('[conversations] conversation_complete', {
@@ -198,7 +217,11 @@ export async function failConversation(
   const start = Date.now();
 
   const [existing] = await db
-    .select({ metadata: conversations.metadata })
+    .select({
+      metadata: conversations.metadata,
+      mode: conversations.mode,
+      hasPendingEscalation: conversations.hasPendingEscalation,
+    })
     .from(conversations)
     .where(eq(conversations.id, conversationId));
 
@@ -215,6 +238,7 @@ export async function failConversation(
     .set({
       status: 'failed',
       endedAt: new Date(),
+      waitingSince: null,
       resolutionOutcome: 'failed',
       metadata,
     })
@@ -237,6 +261,16 @@ export async function failConversation(
       action: 'update',
     });
     await realtime.notify({ table: 'conversations-metrics', action: 'update' });
+    await realtime.notify({
+      table: 'conversations',
+      id: conversationId,
+      tab: 'done',
+      prevTab: computeTab(
+        existing?.mode ?? null,
+        'active',
+        existing?.hasPendingEscalation ?? false,
+      ),
+    });
   }
 
   logger.info('[conversations] conversation_fail', {

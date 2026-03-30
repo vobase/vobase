@@ -176,6 +176,7 @@ describe('chat-bridge fallback serialization (M7)', () => {
           };
         },
       }),
+      update: () => ({ set: () => ({ where: async () => {} }) }),
     } as never;
     return { db, getContent: () => capturedContent };
   }
