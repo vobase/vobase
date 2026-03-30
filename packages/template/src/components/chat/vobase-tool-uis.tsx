@@ -342,10 +342,10 @@ const SendReminderToolUI = makeAssistantToolUI({
   },
 });
 
-// ─── set_handler_mode ────────────────────────────────────────────────
+// ─── escalate ────────────────────────────────────────────────────────
 
-const SetHandlerModeToolUI = makeAssistantToolUI({
-  toolName: 'set_handler_mode',
+const EscalateToolUI = makeAssistantToolUI({
+  toolName: 'escalate',
   render: (props) => {
     if (props.status?.type === 'running') return <ToolFallback {...props} />;
 
@@ -356,7 +356,7 @@ const SetHandlerModeToolUI = makeAssistantToolUI({
     return (
       <ToolSpacing>
         <ProgressTracker
-          id="handler-mode"
+          id="escalate"
           steps={[
             {
               id: 'mode-change',
@@ -444,7 +444,7 @@ export function VobaseToolUIs() {
       <CancelBookingToolUI />
       <RescheduleBookingToolUI />
       <SendReminderToolUI />
-      <SetHandlerModeToolUI />
+      <EscalateToolUI />
       <CompleteConversationToolUI />
       <AgentHandoffToolUI />
     </>

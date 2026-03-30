@@ -13,10 +13,12 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'home.tsx'),
-    route(
-      '/conversations/$conversationId',
-      '../modules/ai/pages/conversations/$conversationId.tsx',
-    ),
+    route('/conversations', '../modules/ai/pages/conversations/index.tsx', [
+      route(
+        '/$conversationId',
+        '../modules/ai/pages/conversations/$conversationId.tsx',
+      ),
+    ]),
     route('/contacts', '../modules/ai/pages/contacts/index.tsx'),
     route(
       '/contacts/$contactId',

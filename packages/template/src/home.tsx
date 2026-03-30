@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import {
   AlertTriangle,
   ArrowRight,
@@ -90,7 +90,7 @@ function successScoreColor(score: number): string {
 interface ActivityEventData {
   reason?: string;
   toolName?: string;
-  handler?: string;
+  mode?: string;
   [key: string]: unknown;
 }
 
@@ -226,7 +226,7 @@ function eventDescription(
         <>
           <span className={n}>{contact}</span>
           <span className={v}>'s session handed to </span>
-          <span className={n}>{data.handler ?? 'another handler'}</span>
+          <span className={n}>{data.mode ?? 'another mode'}</span>
         </>
       );
     case 'message.outbound_queued':
@@ -586,5 +586,8 @@ function HomePage() {
 }
 
 export const Route = createFileRoute('/_app/')({
+  beforeLoad: () => {
+    throw redirect({ to: '/conversations' });
+  },
   component: HomePage,
 });

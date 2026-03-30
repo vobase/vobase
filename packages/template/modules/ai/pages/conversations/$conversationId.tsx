@@ -8,15 +8,17 @@ import {
   BotIcon,
   BrainIcon,
   CheckIcon,
-  ChevronRightIcon,
+  ChevronDownIcon,
   CircleAlertIcon,
-  CornerDownLeftIcon,
+  CircleIcon,
+  EllipsisIcon,
+  PanelRightIcon,
   PauseCircleIcon,
   SendIcon,
   UserIcon,
   XCircleIcon,
 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ThreadMessages } from '@/components/assistant-ui/thread';
 import {
@@ -33,6 +35,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,11 +51,14 @@ import {
   useTypingListener,
   useTypingSender,
 } from '@/hooks/use-typing-indicator';
+import { activityDescription } from '@/lib/activity-helpers';
 import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
+import { formatRelativeTime } from '@/lib/format';
 import {
   extractText,
   type MemoryMessage as MemoryMessageType,
+  type NormalizedMessage,
   normalizeMemoryMessage,
 } from '@/lib/normalize-message';
 import { cn } from '@/lib/utils';
@@ -65,8 +78,9 @@ interface ConversationDetail {
   createdAt: string;
   updatedAt: string;
   metadata: Record<string, unknown>;
-  handler: 'ai' | 'human' | 'supervised' | 'paused' | null;
-  assignedUserId: string | null;
+  mode: 'ai' | 'human' | 'supervised' | 'held' | null;
+  assignee: string | null;
+  priority: 'low' | 'normal' | 'high' | 'urgent' | null;
   resolutionOutcome: string | null;
 }
 
@@ -198,15 +212,40 @@ async function fetchContactFacts(contactId: string): Promise<MemoryFact[]> {
     .map((f) => ({ id: f.id, content: f.fact, createdAt: f.createdAt }));
 }
 
-async function updateConversationStatus(
+interface ActivityEvent {
+  id: string;
+  type: string;
+  agentId: string | null;
+  contactId: string | null;
+  data: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+async function fetchConversationActivity(
+  conversationId: string,
+): Promise<ActivityEvent[]> {
+  const res = await aiClient.activity.$get({
+    query: { conversationId, limit: '20' },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data as { events: ActivityEvent[] }).events ?? [];
+}
+
+async function updateConversation(
   id: string,
-  status: 'paused' | 'completed' | 'failed',
+  body: {
+    status?: 'completed' | 'failed';
+    mode?: 'held' | 'ai' | 'supervised' | 'human';
+    priority?: 'low' | 'normal' | 'high' | 'urgent' | null;
+    assignee?: string | null;
+  },
 ): Promise<ConversationDetail> {
   const res = await aiClient.conversations[':id'].$patch(
     { param: { id } },
     {
       init: {
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
         headers: { 'Content-Type': 'application/json' },
       },
     },
@@ -241,7 +280,6 @@ function statusVariant(
   if (status === 'active') return 'default';
   if (status === 'completed') return 'success';
   if (status === 'failed') return 'destructive';
-  if (status === 'paused') return 'outline';
   return 'secondary';
 }
 
@@ -254,29 +292,32 @@ function consultationStatusVariant(
   return 'secondary';
 }
 
-function handlerVariant(handler: string): 'default' | 'secondary' | 'outline' {
-  if (handler === 'ai') return 'default';
-  if (handler === 'paused') return 'secondary';
-  return 'outline'; // human, supervised
+function modeLabel(mode: string): string {
+  if (mode === 'ai') return 'AI';
+  if (mode === 'supervised') return 'Supervised';
+  if (mode === 'human') return 'Human';
+  if (mode === 'held') return 'On Hold';
+  return mode;
 }
 
-function handlerColor(handler: string): string {
-  if (handler === 'human') return 'text-orange-600 dark:text-orange-400';
-  if (handler === 'supervised') return 'text-yellow-600 dark:text-yellow-400';
-  return '';
+function modeColor(mode: string): string {
+  if (mode === 'ai') return 'text-violet-600 dark:text-violet-400';
+  if (mode === 'human') return 'text-blue-600 dark:text-blue-400';
+  if (mode === 'supervised') return 'text-amber-600 dark:text-amber-400';
+  if (mode === 'held') return 'text-muted-foreground';
+  return 'text-foreground';
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHrs = Math.floor(diffMin / 60);
-  if (diffHrs < 24) return `${diffHrs}h ago`;
-  const diffDays = Math.floor(diffHrs / 24);
-  return `${diffDays}d ago`;
+function priorityLabel(priority: string | null): string {
+  if (!priority) return 'No priority';
+  return priority.charAt(0).toUpperCase() + priority.slice(1);
+}
+
+function channelLabel(type: string): string {
+  if (type === 'whatsapp') return 'WhatsApp';
+  if (type === 'web') return 'Web Chat';
+  if (type === 'email') return 'Email';
+  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 // ─── Staff Message List (turn-grouped) ──────────────────────────────
@@ -284,8 +325,9 @@ function formatRelativeTime(dateStr: string): string {
 function normalizeMessages(
   messages: MemoryMessage[],
   outboxByContent: Map<string, string>,
-) {
-  return messages.map((msg) => {
+  activityEvents: ActivityEvent[] = [],
+): NormalizedMessage[] {
+  const normalized: NormalizedMessage[] = messages.map((msg) => {
     const norm = normalizeMemoryMessage(msg as MemoryMessageType);
     if (norm.role === 'assistant' && !norm.metadata.deliveryStatus) {
       const text = extractText(msg.content);
@@ -294,6 +336,114 @@ function normalizeMessages(
     }
     return norm;
   });
+
+  // Merge activity events as system messages
+  for (const event of activityEvents) {
+    normalized.push({
+      id: `activity-${event.id}`,
+      role: 'system',
+      parts: [{ type: 'text', text: activityDescription(event) }],
+      createdAt: event.createdAt,
+      metadata: {
+        activityType: event.type,
+        activityData: event.data ?? undefined,
+      },
+    });
+  }
+
+  // Sort by createdAt so activities appear in chronological order
+  normalized.sort((a, b) => {
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return ta - tb;
+  });
+
+  return normalized;
+}
+
+// ─── Priority Badge (Chatwoot-style) ────────────────────────────────
+
+function PriorityBadge({ priority }: { priority: string | null }) {
+  if (!priority) {
+    return (
+      <span className="text-[8px] font-black text-muted-foreground/40">—</span>
+    );
+  }
+  const marks =
+    priority === 'urgent'
+      ? '!!!'
+      : priority === 'high'
+        ? '!!!'
+        : priority === 'normal'
+          ? '!!'
+          : '!';
+  const isUrgent = priority === 'urgent';
+
+  return (
+    <span
+      className={cn(
+        'text-[8px] font-black',
+        isUrgent ? 'text-red-500' : 'text-muted-foreground',
+      )}
+    >
+      {marks}
+    </span>
+  );
+}
+
+// ─── Inline Property Selector ───────────────────────────────────────
+
+function PropertySelector({
+  label,
+  icon,
+  colorClass,
+  options,
+  value,
+  onSelect,
+  disabled,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  colorClass?: string;
+  options: { value: string; label: string; icon?: React.ReactNode }[];
+  value: string;
+  onSelect: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={disabled}>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
+            'hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+            'disabled:pointer-events-none disabled:opacity-50',
+            colorClass,
+          )}
+        >
+          {icon}
+          <span className="font-medium">{label}</span>
+          <ChevronDownIcon className="h-3 w-3 opacity-40" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[140px]">
+        {options.map((opt) => (
+          <DropdownMenuItem
+            key={opt.value}
+            onClick={() => onSelect(opt.value)}
+            className="gap-2 text-xs"
+          >
+            {opt.icon}
+            {opt.label}
+            {opt.value === value && (
+              <CheckIcon className="ml-auto h-3.5 w-3.5 text-foreground" />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 // ─── Human Reply Input ───────────────────────────────────────────────
@@ -336,44 +486,48 @@ function HumanReplyInput({
   }
 
   return (
-    <div className="border-t bg-background p-3">
+    <div className="border-t bg-background px-4 py-3">
       <div className="flex items-end gap-2">
-        <Textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => {
-            setContent(e.target.value);
-            if (e.target.value.trim() && !isInternal) signalTyping();
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            isInternal ? 'Write an internal note...' : 'Reply as team member...'
-          }
-          className={cn(
-            'min-h-[60px] max-h-[120px] resize-none text-sm',
-            isInternal &&
-              'border-violet-300 bg-violet-50/50 dark:border-violet-800 dark:bg-violet-950/20',
-          )}
-          rows={2}
-        />
-        <Button
-          size="sm"
-          className="shrink-0 gap-1.5"
-          disabled={!content.trim() || replyMutation.isPending}
-          onClick={handleSubmit}
-        >
-          <SendIcon className="h-3.5 w-3.5" />
-          {isInternal ? 'Note' : 'Send'}
-        </Button>
+        <div className="relative flex-1">
+          <Textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              if (e.target.value.trim() && !isInternal) signalTyping();
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isInternal ? 'Write an internal note...' : 'Reply as staff...'
+            }
+            className={cn(
+              'min-h-[56px] max-h-[120px] resize-none pr-20 text-sm',
+              isInternal &&
+                'border-violet-300 bg-violet-50/30 dark:border-violet-800 dark:bg-violet-950/20',
+            )}
+            rows={2}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Button
+            size="sm"
+            className="h-8 gap-1.5 px-3"
+            disabled={!content.trim() || replyMutation.isPending}
+            onClick={handleSubmit}
+          >
+            <SendIcon className="h-3.5 w-3.5" />
+            {isInternal ? 'Note' : 'Send'}
+          </Button>
+        </div>
       </div>
-      <div className="mt-1.5 flex items-center justify-between">
+      <div className="mt-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-[10px] text-muted-foreground">
-            <kbd className="rounded border bg-muted px-1 py-0.5 text-[9px]">
+          <span className="text-[10px] text-muted-foreground">
+            <kbd className="rounded border bg-muted px-1 py-0.5 text-[9px] font-mono">
               {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter
             </kbd>{' '}
             to send
-          </p>
+          </span>
           <button
             type="button"
             onClick={() => setIsInternal(!isInternal)}
@@ -384,11 +538,11 @@ function HumanReplyInput({
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {isInternal ? '← Back to reply' : 'Internal note'}
+            {isInternal ? 'Switch to reply' : 'Internal note'}
           </button>
         </div>
         {replyMutation.isError && (
-          <p className="text-[10px] text-destructive">Failed to send reply</p>
+          <p className="text-[10px] text-destructive">Failed to send</p>
         )}
       </div>
     </div>
@@ -399,32 +553,48 @@ function HumanReplyInput({
 
 function ConsultationCard({ consultation }: { consultation: Consultation }) {
   return (
-    <div className="flex items-start gap-3 rounded-md border p-3">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
-        <UserIcon className="h-3.5 w-3.5 text-muted-foreground" />
+    <div className="rounded-md border bg-background p-2.5">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Badge
+          variant={consultationStatusVariant(consultation.status)}
+          className="text-[10px] capitalize h-4 px-1.5"
+        >
+          {consultation.status}
+        </Badge>
+        <span className="text-[10px] text-muted-foreground capitalize">
+          {consultation.channelType}
+        </span>
+        <span className="ml-auto text-[10px] text-muted-foreground">
+          {formatRelativeTime(consultation.requestedAt)}
+        </span>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <Badge
-            variant={consultationStatusVariant(consultation.status)}
-            className="text-[10px] capitalize"
-          >
-            {consultation.status}
-          </Badge>
-          <span className="text-[10px] text-muted-foreground capitalize">
-            {consultation.channelType}
-          </span>
-          <span className="text-[10px] text-muted-foreground">
-            {formatRelativeTime(consultation.requestedAt)}
-          </span>
-        </div>
-        <p className="text-xs text-foreground">{consultation.reason}</p>
-        {consultation.summary && (
-          <p className="mt-1 text-xs text-muted-foreground italic">
-            Reply: {consultation.summary}
-          </p>
-        )}
-      </div>
+      <p className="text-xs text-foreground leading-relaxed">
+        {consultation.reason}
+      </p>
+      {consultation.summary && (
+        <p className="mt-1.5 text-xs text-muted-foreground italic leading-relaxed">
+          {consultation.summary}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Sidebar Detail Row ─────────────────────────────────────────────
+
+function SidebarRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[80px_1fr] items-baseline gap-2 py-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-xs text-foreground truncate text-right">
+        {children}
+      </span>
     </div>
   );
 }
@@ -435,13 +605,19 @@ function ConversationDetailPage() {
   const { conversationId } = Route.useParams();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => localStorage.getItem('conv-sidebar') === 'open',
+  );
+  useEffect(() => {
+    localStorage.setItem('conv-sidebar', sidebarOpen ? 'open' : 'closed');
+  }, [sidebarOpen]);
   useTypingListener(conversationId);
   const {
     data: conversation,
     isLoading: conversationLoading,
     isError: conversationError,
   } = useQuery({
-    queryKey: ['conversations-list', conversationId],
+    queryKey: ['conversation-detail', conversationId],
     queryFn: () => fetchConversation(conversationId),
   });
 
@@ -483,15 +659,26 @@ function ConversationDetailPage() {
     enabled: !!conversation?.contactId && (memoryStats?.facts ?? 0) > 0,
   });
 
+  const { data: activityEvents = [] } = useQuery({
+    queryKey: ['conversations-activity', conversationId],
+    queryFn: () => fetchConversationActivity(conversationId),
+    enabled: !!conversation,
+  });
+
+  const invalidateConversationQueries = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: ['conversation-detail', conversationId],
+    });
+    queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-ai-active'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-resolved'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-counts'] });
+  }, [queryClient, conversationId]);
+
   const updateMutation = useMutation({
-    mutationFn: (status: 'paused' | 'completed' | 'failed') =>
-      updateConversationStatus(conversationId, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['conversations-list', conversationId],
-      });
-      queryClient.invalidateQueries({ queryKey: ['conversations-list'] });
-    },
+    mutationFn: (body: Parameters<typeof updateConversation>[1]) =>
+      updateConversation(conversationId, body),
+    onSuccess: invalidateConversationQueries,
   });
 
   const handbackMutation = useMutation({
@@ -502,11 +689,7 @@ function ConversationDetailPage() {
       if (!res.ok) throw new Error('Failed to hand back');
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['conversations-list', conversationId],
-      });
-    },
+    onSuccess: invalidateConversationQueries,
   });
 
   const [approveDraftError, setApproveDraftError] = useState<string | null>(
@@ -524,9 +707,7 @@ function ConversationDetailPage() {
     },
     onSuccess: () => {
       setApproveDraftError(null);
-      queryClient.invalidateQueries({
-        queryKey: ['conversations-list', conversationId],
-      });
+      invalidateConversationQueries();
     },
     onError: (err: Error) => {
       setApproveDraftError(err.message);
@@ -539,43 +720,63 @@ function ConversationDetailPage() {
     });
   }
 
-  // Hooks must be called unconditionally (before any early returns)
-  const messages = messagesData?.messages ?? [];
-  const outboxByContent = new Map<string, string>(
-    (messagesData?.outboxRecords ?? []).map((r) => [r.content, r.status]),
-  );
-  const normalizedMessages = normalizeMessages(messages, outboxByContent);
+  const normalizedMessages = useMemo(() => {
+    const msgs = messagesData?.messages ?? [];
+    const outbox = new Map<string, string>(
+      (messagesData?.outboxRecords ?? []).map((r) => [r.content, r.status]),
+    );
+    return normalizeMessages(msgs, outbox, activityEvents);
+  }, [messagesData, activityEvents]);
+
   const staffAdapter = useMemo(
     () => createStaffAdapter(normalizedMessages),
     [normalizedMessages],
   );
   const staffRuntime = useExternalStoreRuntime(staffAdapter);
 
+  // ── Loading ──
   if (conversationLoading) {
     return (
       <div className="flex h-full">
-        <div className="flex-1 p-6">
-          <Skeleton className="h-6 w-48 mb-4" />
-          <Skeleton className="h-[500px] w-full" />
+        <div className="flex flex-1 flex-col">
+          <div className="border-b px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+            </div>
+            <div className="mt-2.5 flex items-center gap-2 pl-7">
+              <Skeleton className="h-5 w-14 rounded-full" />
+              <Skeleton className="h-5 w-20 rounded" />
+              <Skeleton className="h-5 w-16 rounded" />
+            </div>
+          </div>
+          <div className="flex-1 px-4 pt-6">
+            <div className="mx-auto w-full max-w-[44rem] flex flex-col gap-4">
+              <Skeleton className="h-14 w-3/5" />
+              <Skeleton className="ml-auto h-14 w-2/5" />
+              <Skeleton className="h-14 w-3/5" />
+            </div>
+          </div>
         </div>
-        <div className="w-72 border-l p-4">
+        <div className="w-[280px] border-l p-4 space-y-3">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-px w-full" />
           <Skeleton className="h-32 w-full" />
         </div>
       </div>
     );
   }
 
+  // ── Error ──
   if (conversationError || !conversation) {
     return (
-      <div className="p-6">
-        <p className="text-sm text-destructive">Conversation not found.</p>
-        <Link
-          to="/"
-          className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <CornerDownLeftIcon className="h-3.5 w-3.5" />
-          Back to conversations
-        </Link>
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <p className="text-sm text-muted-foreground">
+            Conversation not found
+          </p>
+        </div>
       </div>
     );
   }
@@ -583,132 +784,320 @@ function ConversationDetailPage() {
   const isTerminal =
     conversation.status === 'completed' || conversation.status === 'failed';
   const canReply = !isTerminal;
+  const currentMode = conversation.mode ?? 'ai';
+  const isAssignedToMe = conversation.assignee === session?.user?.id;
+
+  const modeOptions = [
+    {
+      value: 'ai',
+      label: 'AI',
+      icon: <BotIcon className="h-3.5 w-3.5 text-violet-500" />,
+    },
+    {
+      value: 'supervised',
+      label: 'Supervised',
+      icon: (
+        <CircleIcon className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+      ),
+    },
+    {
+      value: 'human',
+      label: 'Human',
+      icon: <UserIcon className="h-3.5 w-3.5 text-blue-500" />,
+    },
+    {
+      value: 'held',
+      label: 'On Hold',
+      icon: <PauseCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />,
+    },
+  ];
+
+  const priorityOptions = [
+    {
+      value: '_none',
+      label: 'No priority',
+      icon: (
+        <span className="text-[8px] font-black text-muted-foreground/40 w-3 text-center">
+          —
+        </span>
+      ),
+    },
+    {
+      value: 'low',
+      label: 'Low',
+      icon: (
+        <span className="text-[8px] font-black text-muted-foreground w-3 text-center">
+          !
+        </span>
+      ),
+    },
+    {
+      value: 'normal',
+      label: 'Normal',
+      icon: (
+        <span className="text-[8px] font-black text-muted-foreground w-3 text-center">
+          !!
+        </span>
+      ),
+    },
+    {
+      value: 'high',
+      label: 'High',
+      icon: (
+        <span className="text-[8px] font-black text-muted-foreground w-3 text-center">
+          !!!
+        </span>
+      ),
+    },
+    {
+      value: 'urgent',
+      label: 'Urgent',
+      icon: (
+        <span className="text-[8px] font-black text-red-500 w-3 text-center">
+          !!!
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
-      {/* Main panel — transcript + reply */}
+    <div className="flex h-full overflow-hidden">
+      {/* ─── Main panel ─── */}
       <div className="flex flex-1 flex-col min-w-0">
-        {/* Header bar */}
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
-            <Link
-              to="/"
-              className="hover:text-foreground transition-colors shrink-0"
-            >
-              Conversations
-            </Link>
-            <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" />
-            <span className="text-foreground font-medium font-mono text-xs truncate">
-              {conversation.id}
-            </span>
-            {channelInstance && (
-              <Badge
-                variant="outline"
-                className="text-[10px] font-normal shrink-0"
-              >
-                {channelInstance.type === 'whatsapp'
-                  ? 'WhatsApp'
-                  : channelInstance.type === 'web'
-                    ? 'Web'
-                    : channelInstance.type}
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <KbCurationToggle />
-            {messagesData?.source === 'outbox' && messages.length > 0 && (
-              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                AI responses only
+        {/* Header */}
+        <div className="border-b bg-background">
+          {/* Row 1: Navigation + contact + actions */}
+          <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-1.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <h1 className="text-sm font-semibold truncate">
+                {contact?.name ?? conversation.contactId ?? 'Unknown'}
+              </h1>
+              {channelInstance && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-normal shrink-0 h-5 border-dashed"
+                >
+                  {channelLabel(channelInstance.type)}
+                </Badge>
+              )}
+              <span className="text-xs text-muted-foreground shrink-0">
+                {formatRelativeTime(conversation.startedAt)}
               </span>
-            )}
-            {!isTerminal && (
-              <>
-                {(conversation.handler === 'human' ||
-                  conversation.handler === 'supervised') && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1 text-xs"
-                    disabled={handbackMutation.isPending}
-                    onClick={() => handbackMutation.mutate()}
-                  >
-                    <BotIcon className="h-3.5 w-3.5" />
-                    Hand Back to AI
-                  </Button>
-                )}
-                {conversation.handler === 'supervised' && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-7 gap-1 text-xs"
-                    disabled={approveDraftMutation.isPending}
-                    onClick={() => approveDraftMutation.mutate()}
-                  >
-                    <CheckIcon className="h-3.5 w-3.5" />
-                    Approve Draft
-                  </Button>
-                )}
-                {approveDraftError && (
-                  <span className="text-[10px] text-destructive">
-                    {approveDraftError}
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <KbCurationToggle />
+              {messagesData?.source === 'outbox' &&
+                (messagesData?.messages?.length ?? 0) > 0 &&
+                conversation.mode === 'ai' && (
+                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                    AI responses only
                   </span>
                 )}
-                {conversation.status === 'active' && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1 text-xs text-muted-foreground"
-                    disabled={updateMutation.isPending}
-                    onClick={() => updateMutation.mutate('paused')}
-                  >
-                    <PauseCircleIcon className="h-3.5 w-3.5" />
-                    Pause
-                  </Button>
-                )}
+              {/* Supervised: approve draft */}
+              {!isTerminal && conversation.mode === 'supervised' && (
                 <Button
-                  variant="ghost"
                   size="sm"
-                  className="h-7 gap-1 text-xs text-destructive hover:text-destructive"
-                  disabled={updateMutation.isPending}
-                  onClick={() => updateMutation.mutate('failed')}
+                  variant="default"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={approveDraftMutation.isPending}
+                  onClick={() => approveDraftMutation.mutate()}
                 >
-                  <XCircleIcon className="h-3.5 w-3.5" />
-                  Kill
+                  <CheckIcon className="h-3.5 w-3.5" />
+                  Approve
                 </Button>
-              </>
+              )}
+              {approveDraftError && (
+                <span className="text-[10px] text-destructive">
+                  {approveDraftError}
+                </span>
+              )}
+              {/* Overflow menu */}
+              {!isTerminal && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <EllipsisIcon className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      disabled={updateMutation.isPending}
+                      onClick={() =>
+                        updateMutation.mutate({ status: 'completed' })
+                      }
+                      className="gap-2 text-xs"
+                    >
+                      <CheckIcon className="h-3.5 w-3.5" />
+                      Mark resolved
+                    </DropdownMenuItem>
+                    {(conversation.mode === 'human' ||
+                      conversation.mode === 'supervised' ||
+                      conversation.mode === 'held') && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          disabled={handbackMutation.isPending}
+                          onClick={() => handbackMutation.mutate()}
+                          className="gap-2 text-xs"
+                        >
+                          <BotIcon className="h-3.5 w-3.5 text-violet-500" />
+                          Hand back to AI
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="gap-2 text-xs text-destructive focus:text-destructive"
+                      disabled={updateMutation.isPending}
+                      onClick={() =>
+                        updateMutation.mutate({ status: 'failed' })
+                      }
+                    >
+                      <XCircleIcon className="h-3.5 w-3.5" />
+                      Kill conversation
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Property bar — Linear-style inline selectors */}
+          <div className="flex items-center gap-1 px-4 pb-2.5 pl-[42px]">
+            {/* Status badge */}
+            <Badge
+              variant={statusVariant(conversation.status)}
+              className="text-[10px] capitalize h-5 px-1.5 mr-1"
+            >
+              {conversation.status}
+            </Badge>
+
+            <Separator orientation="vertical" className="h-4 mx-1" />
+
+            {/* Mode selector */}
+            {!isTerminal ? (
+              <PropertySelector
+                label={modeLabel(currentMode)}
+                icon={
+                  currentMode === 'ai' ? (
+                    <BotIcon className="h-3.5 w-3.5 text-violet-500" />
+                  ) : currentMode === 'human' ? (
+                    <UserIcon className="h-3.5 w-3.5 text-blue-500" />
+                  ) : currentMode === 'supervised' ? (
+                    <CircleIcon className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                  ) : (
+                    <PauseCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                  )
+                }
+                colorClass={modeColor(currentMode)}
+                options={modeOptions}
+                value={currentMode}
+                onSelect={(v) =>
+                  updateMutation.mutate({
+                    mode: v as 'ai' | 'supervised' | 'human' | 'held',
+                  })
+                }
+                disabled={updateMutation.isPending}
+              />
+            ) : (
+              <span className="text-xs text-muted-foreground px-2">
+                {modeLabel(currentMode)}
+              </span>
+            )}
+
+            {/* Priority selector */}
+            {!isTerminal ? (
+              <PropertySelector
+                label={priorityLabel(conversation.priority)}
+                icon={<PriorityBadge priority={conversation.priority} />}
+                options={priorityOptions}
+                value={conversation.priority ?? '_none'}
+                onSelect={(v) =>
+                  updateMutation.mutate({
+                    priority:
+                      v === '_none'
+                        ? null
+                        : (v as 'low' | 'normal' | 'high' | 'urgent'),
+                  })
+                }
+                disabled={updateMutation.isPending}
+              />
+            ) : conversation.priority ? (
+              <span className="text-xs text-muted-foreground px-2">
+                {priorityLabel(conversation.priority)}
+              </span>
+            ) : null}
+
+            <Separator orientation="vertical" className="h-4 mx-1" />
+
+            {/* Assignee */}
+            {!isTerminal && (
+              <div>
+                {conversation.assignee ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted"
+                    onClick={() => updateMutation.mutate({ assignee: null })}
+                    title="Click to unassign"
+                  >
+                    <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <UserIcon className="h-2.5 w-2.5" />
+                    </div>
+                    <span className="font-medium">
+                      {isAssignedToMe ? 'You' : 'Staff'}
+                    </span>
+                    <XCircleIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() =>
+                      updateMutation.mutate({
+                        assignee: session?.user?.id ?? null,
+                      })
+                    }
+                  >
+                    <div className="flex h-4 w-4 items-center justify-center rounded-full border border-dashed border-muted-foreground/50">
+                      <UserIcon className="h-2.5 w-2.5" />
+                    </div>
+                    Assign to me
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Terminal state */}
+            {isTerminal && conversation.resolutionOutcome && (
+              <span className="text-xs text-muted-foreground capitalize">
+                {conversation.resolutionOutcome.replace('_', ' ')}
+              </span>
             )}
           </div>
         </div>
 
-        {/* Transcript using ai-elements */}
+        {/* Transcript */}
         <div className="flex-1 overflow-hidden">
-          {messagesLoading ? (
-            <div className="flex flex-col gap-4 p-6">
-              <Skeleton className="h-16 w-3/4" />
-              <Skeleton className="ml-auto h-16 w-2/3" />
-              <Skeleton className="h-16 w-3/4" />
-            </div>
-          ) : (
-            <AssistantRuntimeProvider runtime={staffRuntime}>
-              <VobaseThreadProvider
-                viewMode="staff"
-                messages={normalizedMessages}
-                feedbackMap={feedbackMap}
-                currentUserId={session?.user?.id}
-                onReact={handleReact}
-                contactLabel={contact?.name ?? 'Visitor'}
-                conversationId={conversationId}
-              >
-                <VobaseToolUIs />
-                <ThreadMessages />
-              </VobaseThreadProvider>
-            </AssistantRuntimeProvider>
-          )}
+          <AssistantRuntimeProvider runtime={staffRuntime}>
+            <VobaseThreadProvider
+              viewMode="staff"
+              messages={normalizedMessages}
+              feedbackMap={feedbackMap}
+              currentUserId={session?.user?.id}
+              onReact={handleReact}
+              contactLabel={contact?.name ?? 'Visitor'}
+              conversationId={conversationId}
+            >
+              <VobaseToolUIs />
+              <ThreadMessages />
+            </VobaseThreadProvider>
+          </AssistantRuntimeProvider>
         </div>
 
         <KbCurationBar />
 
-        {/* Human reply input */}
+        {/* Reply input */}
         {canReply && (
           <HumanReplyInput
             conversationId={conversationId}
@@ -725,197 +1114,201 @@ function ConversationDetailPage() {
         )}
       </div>
 
-      {/* Right sidebar — metadata + consultations */}
-      <div className="w-72 shrink-0 overflow-y-auto border-l bg-muted/20">
-        <div className="p-4 space-y-4">
-          {/* Status */}
-          <div>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
-              Status
-            </p>
-            <Badge
-              variant={statusVariant(conversation.status)}
-              className="capitalize"
-            >
-              {conversation.status}
-            </Badge>
-            {/* Handler Mode */}
-            {conversation.handler && (
-              <Badge
-                variant={handlerVariant(conversation.handler)}
-                className={cn(
-                  'capitalize mt-1',
-                  handlerColor(conversation.handler),
-                )}
+      {/* ─── Right sidebar ─── */}
+      <div
+        className={
+          sidebarOpen
+            ? 'w-[280px] shrink-0 border-l bg-muted/10 transition-all'
+            : 'w-10 shrink-0 border-l bg-muted/10 transition-all flex flex-col items-center pt-2'
+        }
+      >
+        {!sidebarOpen && (
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            title="Open sidebar"
+          >
+            <PanelRightIcon className="h-4 w-4" />
+          </button>
+        )}
+        {sidebarOpen && (
+          <>
+            <div className="flex items-center justify-end px-3 pt-2 pb-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                title="Close sidebar"
               >
-                {conversation.handler === 'ai' ? 'AI' : conversation.handler}
-              </Badge>
-            )}
-          </div>
-
-          <Separator />
-
-          {/* Contact */}
-          <div>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
-              Contact
-            </p>
-            {contact ? (
-              <Link
-                to="/contacts/$contactId"
-                params={{ contactId: contact.id }}
-                className="flex items-center gap-2 rounded-md p-2 -mx-2 hover:bg-muted transition-colors"
-              >
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
-                  <UserIcon className="h-3.5 w-3.5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {contact.name ?? contact.id}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground truncate">
-                    {contact.phone ?? contact.email ?? contact.role}
-                  </p>
-                </div>
-              </Link>
-            ) : conversation.contactId ? (
-              <p className="text-xs text-muted-foreground font-mono">
-                {conversation.contactId}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">No contact</p>
-            )}
-          </div>
-
-          <Separator />
-
-          {/* Details */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Details
-            </p>
-            <div className="space-y-1.5">
-              <DetailRow label="AI Agent" value={conversation.agentId ?? '—'} />
-              <DetailRow label="Type" value={conversation.conversationType} />
-              <DetailRow
-                label="Started"
-                value={new Date(conversation.startedAt).toLocaleString()}
-              />
-              {conversation.endedAt && (
-                <DetailRow
-                  label="Ended"
-                  value={new Date(conversation.endedAt).toLocaleString()}
-                />
-              )}
-              <DetailRow label="Messages" value={String(messages.length)} />
-              {conversation.assignedUserId && (
-                <DetailRow
-                  label="Assigned To"
-                  value={conversation.assignedUserId}
-                />
-              )}
-              {conversation.resolutionOutcome && (
-                <DetailRow
-                  label="Resolution"
-                  value={conversation.resolutionOutcome}
-                />
-              )}
+                <PanelRightIcon className="h-3.5 w-3.5" />
+              </button>
             </div>
-          </div>
-
-          {/* Consultations */}
-          {consultations.length > 0 && (
-            <>
-              <Separator />
-              <Collapsible defaultOpen>
-                <CollapsibleTrigger className="flex w-full items-center justify-between">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Escalations ({consultations.length})
+            <ScrollArea className="flex-1">
+              <div className="px-4 pb-4 space-y-4">
+                {/* Contact */}
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                    Contact
                   </p>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 space-y-2">
-                  {consultations.map((c) => (
-                    <ConsultationCard key={c.id} consultation={c} />
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            </>
-          )}
-
-          {/* Contact Memory */}
-          {conversation.contactId &&
-            memoryStats &&
-            (memoryStats.facts > 0 ||
-              memoryStats.episodes > 0 ||
-              memoryStats.cells > 0) && (
-              <>
-                <Separator />
-                <Collapsible defaultOpen>
-                  <CollapsibleTrigger className="flex w-full items-center justify-between">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                      Contact Memory
-                    </p>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2 space-y-2">
-                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                      <span>
-                        <span className="font-medium text-foreground">
-                          {memoryStats.facts}
-                        </span>{' '}
-                        facts
-                      </span>
-                      <span>
-                        <span className="font-medium text-foreground">
-                          {memoryStats.episodes}
-                        </span>{' '}
-                        episodes
-                      </span>
-                      <span>
-                        <span className="font-medium text-foreground">
-                          {memoryStats.cells}
-                        </span>{' '}
-                        cells
-                      </span>
-                    </div>
-                    {memoryFacts.length > 0 && (
-                      <div className="space-y-1">
-                        {memoryFacts.map((fact) => (
-                          <div
-                            key={fact.id}
-                            className="flex items-start gap-1.5 text-[10px]"
-                          >
-                            <BrainIcon className="h-3 w-3 text-primary/50 mt-0.5 shrink-0" />
-                            <span className="text-muted-foreground line-clamp-2">
-                              {fact.content}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  {contact ? (
                     <Link
                       to="/contacts/$contactId"
-                      params={{ contactId: conversation.contactId }}
-                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                      params={{ contactId: contact.id }}
+                      className="flex items-center gap-2.5 rounded-md p-2 -mx-2 hover:bg-muted/50 transition-colors"
                     >
-                      View all memory &rarr;
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                        <UserIcon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {contact.name ?? contact.id}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {contact.phone ?? contact.email ?? contact.role}
+                        </p>
+                      </div>
                     </Link>
-                  </CollapsibleContent>
-                </Collapsible>
-              </>
-            )}
-        </div>
-      </div>
-    </div>
-  );
-}
+                  ) : conversation.contactId ? (
+                    <p className="text-xs text-muted-foreground font-mono">
+                      {conversation.contactId}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No contact</p>
+                  )}
+                </div>
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
-      <span className="text-xs font-medium text-foreground truncate text-right">
-        {value}
-      </span>
+                <Separator />
+
+                {/* Details — 2-column grid */}
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                    Details
+                  </p>
+                  <div className="space-y-0.5">
+                    <SidebarRow label="Agent">
+                      <span className="font-mono text-[11px]">
+                        {conversation.agentId ?? '—'}
+                      </span>
+                    </SidebarRow>
+                    <SidebarRow label="Channel">
+                      {channelInstance
+                        ? channelLabel(channelInstance.type)
+                        : '—'}
+                    </SidebarRow>
+                    <SidebarRow label="Started">
+                      {formatRelativeTime(conversation.startedAt)}
+                    </SidebarRow>
+                    {conversation.endedAt && (
+                      <SidebarRow label="Ended">
+                        {formatRelativeTime(conversation.endedAt)}
+                      </SidebarRow>
+                    )}
+                    <SidebarRow label="Messages">
+                      {String(messagesData?.messages?.length ?? 0)}
+                    </SidebarRow>
+                    {conversation.resolutionOutcome && (
+                      <SidebarRow label="Resolution">
+                        <span className="capitalize">
+                          {conversation.resolutionOutcome.replace('_', ' ')}
+                        </span>
+                      </SidebarRow>
+                    )}
+                    <SidebarRow label="ID">
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {conversation.id}
+                      </span>
+                    </SidebarRow>
+                  </div>
+                </div>
+
+                {/* Consultations */}
+                {consultations.length > 0 && (
+                  <>
+                    <Separator />
+                    <Collapsible defaultOpen>
+                      <CollapsibleTrigger className="flex w-full items-center justify-between group">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                          Escalations ({consultations.length})
+                        </p>
+                        <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2 space-y-2">
+                        {consultations.map((c) => (
+                          <ConsultationCard key={c.id} consultation={c} />
+                        ))}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </>
+                )}
+
+                {/* Contact Memory */}
+                {conversation.contactId &&
+                  memoryStats &&
+                  (memoryStats.facts > 0 ||
+                    memoryStats.episodes > 0 ||
+                    memoryStats.cells > 0) && (
+                    <>
+                      <Separator />
+                      <Collapsible defaultOpen>
+                        <CollapsibleTrigger className="flex w-full items-center justify-between group">
+                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Memory
+                          </p>
+                          <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-2">
+                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                            <span>
+                              <span className="font-medium text-foreground">
+                                {memoryStats.facts}
+                              </span>{' '}
+                              facts
+                            </span>
+                            <span>
+                              <span className="font-medium text-foreground">
+                                {memoryStats.episodes}
+                              </span>{' '}
+                              episodes
+                            </span>
+                            <span>
+                              <span className="font-medium text-foreground">
+                                {memoryStats.cells}
+                              </span>{' '}
+                              cells
+                            </span>
+                          </div>
+                          {memoryFacts.length > 0 && (
+                            <div className="space-y-1.5">
+                              {memoryFacts.map((fact) => (
+                                <div
+                                  key={fact.id}
+                                  className="flex items-start gap-1.5 text-[11px]"
+                                >
+                                  <BrainIcon className="h-3 w-3 text-primary/40 mt-0.5 shrink-0" />
+                                  <span className="text-muted-foreground line-clamp-2 leading-relaxed">
+                                    {fact.content}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <Link
+                            to="/contacts/$contactId"
+                            params={{ contactId: conversation.contactId }}
+                            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            View all memory &rarr;
+                          </Link>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </>
+                  )}
+              </div>
+            </ScrollArea>
+          </>
+        )}
+      </div>
     </div>
   );
 }
