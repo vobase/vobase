@@ -71,6 +71,26 @@ function convertPart(part: NormalizedPart): ContentPart[] {
 
 /** Convert a NormalizedMessage to ThreadMessageLike for assistant-ui */
 function convertMessage(msg: NormalizedMessage): ThreadMessageLike {
+  // System messages (activity events) — single text part + custom metadata
+  if (msg.role === 'system') {
+    const text = msg.parts
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text ?? '')
+      .join('');
+    return {
+      role: 'system',
+      id: msg.id,
+      createdAt: msg.createdAt ? new Date(msg.createdAt) : undefined,
+      content: [{ type: 'text' as const, text }],
+      metadata: {
+        custom: {
+          activityType: msg.metadata.activityType,
+          activityData: msg.metadata.activityData,
+        },
+      },
+    };
+  }
+
   const content = msg.parts.flatMap(convertPart);
 
   return {

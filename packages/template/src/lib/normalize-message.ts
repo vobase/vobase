@@ -31,11 +31,15 @@ export interface NormalizedMessageMetadata {
   isStaffReply?: boolean;
   staffName?: string;
   deliveryStatus?: string;
+  /** Activity event type (system messages only) */
+  activityType?: string;
+  /** Additional activity event data */
+  activityData?: Record<string, unknown>;
 }
 
 export interface NormalizedMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   parts: NormalizedPart[];
   createdAt?: string;
   metadata: NormalizedMessageMetadata;

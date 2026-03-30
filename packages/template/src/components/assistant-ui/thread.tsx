@@ -29,6 +29,8 @@ import { MessageFeedback } from '@/components/chat/message-feedback';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { useVobaseThread } from '@/components/chat/vobase-thread-context';
 import { Button } from '@/components/ui/button';
+import { activityIcon } from '@/lib/activity-helpers';
+import { formatRelativeTime } from '@/lib/format';
 import { isInternalNote } from '@/lib/normalize-message';
 import { cn } from '@/lib/utils';
 import { useStaffChatStore } from '@/stores/staff-chat-store';
@@ -43,7 +45,7 @@ export const Thread: FC = () => {
     >
       <ThreadPrimitive.Viewport
         turnAnchor="top"
-        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
+        className="thin-scrollbar relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
       >
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <ThreadWelcome />
@@ -72,7 +74,7 @@ export const ThreadMessages: FC = () => {
     >
       <ThreadPrimitive.Viewport
         turnAnchor="top"
-        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
+        className="thin-scrollbar relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
       >
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <ThreadWelcome />
@@ -110,6 +112,9 @@ const ThreadMessage: FC = () => {
     return <InternalNoteMessage original={original} />;
   }
 
+  // Activity events rendered as inline system messages
+  if (role === 'system') return <ActivityEventMessage />;
+
   if (role === 'user') return <UserMessage />;
   return <AssistantMessage />;
 };
@@ -136,6 +141,38 @@ const InternalNoteMessage: FC<{
           <span className="font-medium">Internal note by {staffName}</span>
         </div>
         <p className="text-sm text-foreground">{text}</p>
+      </div>
+    </MessagePrimitive.Root>
+  );
+};
+
+// ─── Activity Event (System Message) ────────────────────────────────
+
+const ActivityEventMessage: FC = () => {
+  const text = useAuiState((s) => {
+    const parts = s.message.content;
+    if (parts.length > 0 && parts[0].type === 'text') return parts[0].text;
+    return '';
+  });
+  const createdAt = useAuiState((s) => s.message.createdAt);
+  const custom = useAuiState(
+    (s) => (s.message.metadata as { custom?: Record<string, unknown> })?.custom,
+  );
+  const activityType = (custom?.activityType as string) ?? '';
+
+  return (
+    <MessagePrimitive.Root
+      className="mx-auto w-full max-w-(--thread-max-width) flex justify-center py-1"
+      data-role="system"
+    >
+      <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 text-[11px] text-muted-foreground">
+        {activityIcon(activityType)}
+        <span>{text}</span>
+        {createdAt && (
+          <span className="text-muted-foreground/50 ml-0.5">
+            {formatRelativeTime(createdAt)}
+          </span>
+        )}
       </div>
     </MessagePrimitive.Root>
   );
@@ -307,66 +344,70 @@ const AssistantMessage: FC = () => {
       className="fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-(--thread-max-width) animate-in py-3 duration-150"
       data-role="assistant"
     >
-     <div
-       className={cn(
-         isStaffMessage && 'my-1 rounded-lg border border-muted-foreground/20 bg-muted/30 px-3 py-3',
-       )}
-     >
-      {deliveryStatus && (
-        <span
-          className={cn(
-            'text-[10px] px-2 mb-0.5 block',
-            deliveryStatus === 'delivered' || deliveryStatus === 'read'
-              ? 'text-green-600 dark:text-green-400'
-              : deliveryStatus === 'failed'
-                ? 'text-destructive'
-                : 'text-muted-foreground',
-          )}
-        >
-          {deliveryStatus}
-        </span>
-      )}
-
       <div
         className={cn(
-          'relative break-words px-2 leading-relaxed text-foreground',
-          kbCurationActive && 'pl-8',
+          isStaffMessage &&
+            'my-1 rounded-lg border border-muted-foreground/20 bg-muted/30 px-3 py-3',
         )}
       >
-        {kbCurationActive && (
-          <KbCurationOverlay messageId={messageId} messageText={messageText} />
+        {deliveryStatus && (
+          <span
+            className={cn(
+              'text-[10px] px-2 mb-0.5 block',
+              deliveryStatus === 'delivered' || deliveryStatus === 'read'
+                ? 'text-green-600 dark:text-green-400'
+                : deliveryStatus === 'failed'
+                  ? 'text-destructive'
+                  : 'text-muted-foreground',
+            )}
+          >
+            {deliveryStatus}
+          </span>
         )}
 
-        <MessagePrimitive.Parts
-          components={{
-            Text: StreamdownText,
-            tools: { Fallback: ToolFallbackWithSpacing },
-          }}
-        />
-        <MessageError />
-
-        <AuiIf
-          condition={(s) =>
-            s.thread.isRunning && s.message.content.length === 0
-          }
+        <div
+          className={cn(
+            'relative break-words px-2 leading-relaxed text-foreground',
+            kbCurationActive && 'pl-8',
+          )}
         >
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <LoaderIcon className="size-4 animate-spin" />
-            <span className="text-sm">Thinking...</span>
-          </div>
-        </AuiIf>
-      </div>
+          {kbCurationActive && (
+            <KbCurationOverlay
+              messageId={messageId}
+              messageText={messageText}
+            />
+          )}
 
-      <div className="mt-1 ml-2 flex min-h-6 items-center gap-2">
-        <MessageFeedback
-          messageId={messageId}
-          reactions={ctx?.feedbackMap?.get(messageId)}
-          currentUserId={ctx?.currentUserId}
-          onReact={ctx?.onReact}
-        />
-        <AssistantActionBar />
+          <MessagePrimitive.Parts
+            components={{
+              Text: StreamdownText,
+              tools: { Fallback: ToolFallbackWithSpacing },
+            }}
+          />
+          <MessageError />
+
+          <AuiIf
+            condition={(s) =>
+              s.thread.isRunning && s.message.content.length === 0
+            }
+          >
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <LoaderIcon className="size-4 animate-spin" />
+              <span className="text-sm">Thinking...</span>
+            </div>
+          </AuiIf>
+        </div>
+
+        <div className="mt-1 ml-2 flex min-h-6 items-center gap-2">
+          <MessageFeedback
+            messageId={messageId}
+            reactions={ctx?.feedbackMap?.get(messageId)}
+            currentUserId={ctx?.currentUserId}
+            onReact={ctx?.onReact}
+          />
+          <AssistantActionBar />
+        </div>
       </div>
-     </div>
     </MessagePrimitive.Root>
   );
 };
