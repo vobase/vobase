@@ -2,21 +2,18 @@ import {
   createAnswerRelevancyScorer,
   createFaithfulnessScorer,
 } from '@mastra/evals/scorers/prebuilt';
+import type { VobaseDb } from '@vobase/core';
+import { eq } from 'drizzle-orm';
 
+import { aiScorers } from '../../modules/ai/schema';
 import { models } from '../lib/models';
+import { buildCustomScorer } from './custom-scorer-factory';
 
 /**
- * Scorer registry — all available eval scorers.
+ * Scorer registry — all code-based eval scorers.
  *
- * Each scorer is a MastraScorer instance with id, name, description.
- * The runner iterates this registry dynamically, so adding a new scorer
- * here automatically flows through to eval runs and the dashboard.
- *
- * To add a custom scorer:
- *   import { createScorer } from '@mastra/core/evals';
- *   const myScorer = createScorer({ id: 'my-scorer', description: '...' })
- *     .generateScore(({ run }) => { ... });
- *   Then add it to the `scorers` array below.
+ * Adding a new scorer here automatically flows through to eval runs,
+ * the Mastra instance, and the dashboard.
  */
 
 const answerRelevancy = createAnswerRelevancyScorer({
@@ -27,10 +24,8 @@ const faithfulness = createFaithfulnessScorer({
   model: models.gpt_mini,
 });
 
-/** All registered scorers. The runner uses this list. */
 export const scorers = [answerRelevancy, faithfulness] as const;
 
-/** Scorer metadata for the dashboard API. */
 export function getScorerMeta() {
   return scorers.map((s) => {
     let steps: Array<{ name: string; type: string; description?: string }> = [];
@@ -49,17 +44,12 @@ export function getScorerMeta() {
   });
 }
 
-/** Look up a scorer by id. */
 export function getScorer(id: string) {
   return scorers.find((s) => s.id === id);
 }
 
 /** Load enabled custom scorers from DB and convert to MastraScorer instances. */
-export async function getActiveCustomScorers(db: { select: () => any }) {
-  const { eq } = await import('drizzle-orm');
-  const { aiScorers } = await import('../../modules/ai/schema');
-  const { buildCustomScorer } = await import('./custom-scorer-factory');
-
+export async function getActiveCustomScorers(db: VobaseDb) {
   const rows = await db
     .select()
     .from(aiScorers)

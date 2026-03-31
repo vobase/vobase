@@ -1,12 +1,51 @@
 import { getCtx, notFound, unauthorized } from '@vobase/core';
-import { desc, eq } from 'drizzle-orm';
+import {
+  and,
+  avg,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  max,
+  sql,
+} from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import {
+  doublePrecision,
+  jsonb,
+  pgSchema,
+  text,
+  timestamp,
+} from 'drizzle-orm/pg-core';
+
 import { getScorerMeta } from '../../../mastra/evals/scorers';
-import { getMastra } from '../../../mastra/index';
-import { aiEvalRuns, aiScorers } from '../schema';
+import { customScorerId } from '../../../mastra/evals/types';
+import { aiEvalRuns, aiScorers, messageFeedback } from '../schema';
 import { safeJsonParse } from './_shared';
+
+/**
+ * Read-only Drizzle reference to Mastra's internal scorers table.
+ * Defined locally (not in schema.ts) to avoid drizzle-kit push/migrate
+ * trying to manage the `mastra` schema which is owned by PGliteStore.
+ */
+const mastraPgSchema = pgSchema('mastra');
+const mastraScorers = mastraPgSchema.table('mastra_scorers', {
+  id: text('id').primaryKey(),
+  scorerId: text('scorerId').notNull(),
+  score: doublePrecision('score').notNull(),
+  reason: text('reason'),
+  entityId: text('entityId'),
+  source: text('source'),
+  threadId: text('threadId'),
+  runId: text('runId'),
+  requestContext: jsonb('requestContext').$type<Record<string, unknown>>(),
+  createdAt: timestamp('createdAt', { withTimezone: true }),
+});
 
 const evalRunSchema = z.object({
   agentId: z.string().min(1),
@@ -34,10 +73,14 @@ const updateScorerSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
+/** COALESCE(threadId, requestContext->>'conversationId') — resolves conversation ID from Mastra scorer data */
+const convId = sql<string>`COALESCE(${mastraScorers.threadId}, ${mastraScorers.requestContext}->>'conversationId')`;
+
 export const evalsHandlers = new Hono()
   /** GET /evals/scorers — list all scorers (code + custom) */
   .get('/evals/scorers', async (c) => {
-    const { db } = getCtx(c);
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
 
     const codeMeta = getScorerMeta().map((s) => ({
       ...s,
@@ -50,7 +93,7 @@ export const evalsHandlers = new Hono()
       .orderBy(aiScorers.createdAt);
 
     const customMeta = customRows.map((row) => ({
-      id: `custom-${row.id}`,
+      id: customScorerId(row.id),
       dbId: row.id,
       name: row.name,
       description: row.description,
@@ -162,54 +205,164 @@ export const evalsHandlers = new Hono()
   })
   /** GET /evals/live — list live scorer results from Mastra storage */
   .get('/evals/live', async (c) => {
-    const { user } = getCtx(c);
+    const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
-    const mastra = getMastra();
-    const storage = mastra.getStorage();
-    if (!storage) return c.json([]);
+    const rows = await db
+      .select({
+        id: mastraScorers.id,
+        scorerId: mastraScorers.scorerId,
+        score: mastraScorers.score,
+        reason: mastraScorers.reason,
+        createdAt: mastraScorers.createdAt,
+        agentId: mastraScorers.entityId,
+        conversationId: convId,
+      })
+      .from(mastraScorers)
+      .where(eq(mastraScorers.source, 'LIVE'))
+      .orderBy(desc(mastraScorers.createdAt))
+      .limit(100);
 
-    const scoresStorage = await storage.getStore('scores');
-    if (!scoresStorage) return c.json([]);
+    return c.json(rows);
+  })
+  /** GET /evals/conversation-scores — batch quality scores for conversation list */
+  .get('/evals/conversation-scores', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
 
-    const scorerMeta = getScorerMeta();
-    const allScores: Array<{
-      id: string;
-      scorerId: string;
-      score: number;
-      reason?: string;
-      createdAt: Date;
-      agentId?: string;
-    }> = [];
+    const idsParam = c.req.query('conversationIds');
+    if (!idsParam) return c.json({});
 
-    for (const scorer of scorerMeta) {
-      try {
-        const result = await scoresStorage.listScoresByScorerId({
-          scorerId: scorer.id,
-          pagination: { page: 1, perPage: 50 },
-          source: 'LIVE',
-        });
-        for (const row of result.scores) {
-          allScores.push({
-            id: row.id,
-            scorerId: row.scorerId,
-            score: row.score,
-            reason: row.reason,
-            createdAt: row.createdAt,
-            agentId: row.entityId,
-          });
-        }
-      } catch {
-        // Scores domain may not be available
+    const ids = idsParam.split(',').filter(Boolean).slice(0, 100);
+    if (ids.length === 0) return c.json({});
+
+    const rows = await db
+      .select({
+        convId,
+        avgScore: avg(mastraScorers.score).mapWith(Number),
+        scoreCount: count(),
+      })
+      .from(mastraScorers)
+      .where(and(eq(mastraScorers.source, 'LIVE'), inArray(convId, ids)))
+      .groupBy(convId);
+
+    const result: Record<string, { avgScore: number; count: number }> = {};
+    for (const row of rows) {
+      if (row.convId) {
+        result[row.convId] = {
+          avgScore: row.avgScore,
+          count: row.scoreCount,
+        };
       }
     }
+    return c.json(result);
+  })
+  /** GET /evals/conversation/:conversationId/scores — individual scores for a conversation */
+  .get('/evals/conversation/:conversationId/scores', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
 
-    allScores.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    const conversationId = c.req.param('conversationId');
+
+    const rows = await db
+      .select({
+        id: mastraScorers.id,
+        scorerId: mastraScorers.scorerId,
+        score: mastraScorers.score,
+        reason: mastraScorers.reason,
+        runId: mastraScorers.runId,
+        createdAt: mastraScorers.createdAt,
+      })
+      .from(mastraScorers)
+      .where(and(eq(mastraScorers.source, 'LIVE'), eq(convId, conversationId)))
+      .orderBy(desc(mastraScorers.createdAt));
+
+    return c.json(rows);
+  })
+  /** GET /evals/quality-overview — aggregate quality stats for the dashboard */
+  .get('/evals/quality-overview', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const days = Number.parseInt(c.req.query('days') ?? '7', 10);
+    const cutoff = new Date(Date.now() - days * 86_400_000);
+
+    const liveAfterCutoff = and(
+      eq(mastraScorers.source, 'LIVE'),
+      gte(mastraScorers.createdAt, cutoff),
     );
 
-    return c.json(allScores);
+    // Aggregate live scores
+    const [scoreStats] = await db
+      .select({
+        avgScore: avg(mastraScorers.score).mapWith(Number),
+        totalScores: count(),
+        conversationsScored: countDistinct(convId),
+      })
+      .from(mastraScorers)
+      .where(liveAfterCutoff);
+
+    // Per-scorer averages
+    const scorerBreakdown = await db
+      .select({
+        scorerId: mastraScorers.scorerId,
+        avgScore: avg(mastraScorers.score).mapWith(Number),
+        count: count(),
+      })
+      .from(mastraScorers)
+      .where(liveAfterCutoff)
+      .groupBy(mastraScorers.scorerId)
+      .orderBy(avg(mastraScorers.score));
+
+    // Human feedback stats
+    const [feedbackStats] = await db
+      .select({
+        positive:
+          count(
+            sql`CASE WHEN ${messageFeedback.rating} = 'positive' THEN 1 END`,
+          ),
+        negative:
+          count(
+            sql`CASE WHEN ${messageFeedback.rating} = 'negative' THEN 1 END`,
+          ),
+      })
+      .from(messageFeedback)
+      .where(gte(messageFeedback.createdAt, cutoff));
+
+    // Worst conversations (lowest avg score)
+    const worstConversations = await db
+      .select({
+        conversationId: convId,
+        avgScore: avg(mastraScorers.score).mapWith(Number),
+        scoreCount: count(),
+        lastScored: max(mastraScorers.createdAt),
+      })
+      .from(mastraScorers)
+      .where(and(liveAfterCutoff, isNotNull(convId)))
+      .groupBy(convId)
+      .orderBy(avg(mastraScorers.score))
+      .limit(20);
+
+    return c.json({
+      avgScore: scoreStats?.avgScore ?? null,
+      totalScores: scoreStats?.totalScores ?? 0,
+      conversationsScored: scoreStats?.conversationsScored ?? 0,
+      feedback: {
+        positive: feedbackStats?.positive ?? 0,
+        negative: feedbackStats?.negative ?? 0,
+      },
+      scorerBreakdown: scorerBreakdown.map((r) => ({
+        scorerId: r.scorerId,
+        avgScore: r.avgScore,
+        count: r.count,
+      })),
+      worstConversations: worstConversations.map((r) => ({
+        conversationId: r.conversationId,
+        avgScore: r.avgScore,
+        scoreCount: r.scoreCount,
+        lastScored: r.lastScored,
+      })),
+    });
   })
   /** GET /evals/:runId — fetch eval run status + results */
   .get('/evals/:runId', async (c) => {

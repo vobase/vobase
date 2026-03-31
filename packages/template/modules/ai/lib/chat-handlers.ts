@@ -227,6 +227,19 @@ async function routeByMode(
       .where(eq(conversations.id, conversation.id));
   }
 
+  // Track every inbound message as the last signal so the conversation list
+  // always shows a preview — even before the AI has responded.
+  const inboundEventId = await emitActivityEvent(db, realtime, {
+    type: mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
+    source: 'system',
+    conversationId: conversation.id,
+    contactId,
+    data: { content: messageText?.slice(0, 200) },
+  });
+  if (inboundEventId) {
+    await updateLastSignal(db, conversation.id, 'activity', inboundEventId);
+  }
+
   // Notify inbox so the conversation row refreshes with new preview/unread count
   await realtime.notify({
     table: 'conversations',
@@ -235,17 +248,7 @@ async function routeByMode(
   });
 
   if (mode === 'human') {
-    // Forward to assigned staff — emit activity event, do NOT schedule AI
-    const eventId = await emitActivityEvent(db, realtime, {
-      type: 'message.inbound_human_mode',
-      source: 'system',
-      conversationId: conversation.id,
-      contactId,
-      data: { content: messageText?.slice(0, 200) },
-    });
-    if (eventId) {
-      await updateLastSignal(db, conversation.id, 'activity', eventId);
-    }
+    // Human mode — activity event already emitted above, nothing else to do
     return;
   }
 

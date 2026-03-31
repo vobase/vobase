@@ -2,6 +2,7 @@ import { createContext, type ReactNode, useContext } from 'react';
 
 import type { NormalizedMessage } from '@/lib/normalize-message';
 import type { MessageReactions } from './message-feedback';
+import type { MessageScoreGroup } from './message-quality';
 
 interface VobaseThreadContextValue {
   viewMode: 'public' | 'staff';
@@ -19,6 +20,8 @@ interface VobaseThreadContextValue {
   ) => void;
   /** Callback to delete a specific feedback entry */
   onDeleteFeedback?: (messageId: string, feedbackId: string) => void;
+  /** Automated quality scores grouped by message ID */
+  qualityScores?: Map<string, MessageScoreGroup>;
   /** Contact label for turn grouping */
   contactLabel?: string;
   /** Conversation ID for typing indicator */

@@ -5,7 +5,7 @@ import type { EvalItemScore, EvalRunResult } from './types';
 
 /**
  * Run scorers against a set of input/output/context items.
- * Uses each scorer's .run() method with message-based input format.
+ * Scorers within each item run concurrently (independent LLM judge calls).
  *
  * Accepts optional additional scorers (e.g. custom DB-backed ones)
  * that are merged with the code-based registry.
@@ -28,8 +28,6 @@ export async function runAgentEvals(options: {
   const items: EvalItemScore[] = [];
 
   for (const item of options.data) {
-    const scores: Record<string, number | null> = {};
-
     const testRun = createAgentTestRun({
       inputMessages: [createTestMessage({ content: item.input, role: 'user' })],
       output: [createTestMessage({ content: item.output, role: 'assistant' })],
@@ -39,23 +37,26 @@ export async function runAgentEvals(options: {
       })),
     });
 
-    for (const scorer of allScorers) {
-      try {
-        const result = await scorer.run({
-          input: testRun.input,
-          output: testRun.output,
-        });
-        scores[scorer.id] = result?.score ?? null;
-      } catch {
-        scores[scorer.id] = null;
-      }
-    }
+    // Run all scorers concurrently for this item
+    const results = await Promise.all(
+      allScorers.map(async (scorer) => {
+        try {
+          const r = await scorer.run({
+            input: testRun.input,
+            output: testRun.output,
+          });
+          return [scorer.id, r?.score ?? null] as const;
+        } catch {
+          return [scorer.id, null] as const;
+        }
+      }),
+    );
 
     items.push({
       input: item.input,
       output: item.output,
       context: item.context,
-      scores,
+      scores: Object.fromEntries(results),
     });
   }
 

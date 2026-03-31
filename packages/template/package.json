@@ -19,7 +19,8 @@
     "knip": "knip",
     "lint": "biome check . && bun run ../../scripts/check-deprecated-imports.ts .",
     "lint:fix": "biome check --write .",
-    "build": "bun run generate && tsc --noEmit"
+    "build": "bun run generate && tsc --noEmit",
+    "postinstall": "bun run scripts/patch-mastra.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.53",

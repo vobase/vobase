@@ -423,6 +423,7 @@ export const messageFeedback = conversationsPgSchema.table(
 
 export const aiPgSchema = pgSchema('ai');
 
+
 /**
  * MemCells — conversation segments detected by boundary detection.
  * Each cell spans a contiguous range of messages in a thread.
@@ -557,7 +558,8 @@ export const aiScorers = aiPgSchema.table(
       .defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
-      .defaultNow(),
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (table) => [index('scorers_enabled_idx').on(table.enabled)],
 );

@@ -23,6 +23,7 @@ import {
   KbCurationBar,
   KbCurationToggle,
 } from '@/components/chat/kb-curation-overlay';
+import type { MessageScoreGroup } from '@/components/chat/message-quality';
 import { createStaffAdapter } from '@/components/chat/staff-runtime-adapter';
 import { VobaseThreadProvider } from '@/components/chat/vobase-thread-context';
 import { VobaseToolUIs } from '@/components/chat/vobase-tool-uis';
@@ -52,6 +53,10 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useFeedback } from '@/hooks/use-feedback';
+import {
+  type RealtimePayload,
+  subscribeToPayloads,
+} from '@/hooks/use-realtime';
 import {
   useTypingListener,
   useTypingSender,
@@ -235,6 +240,25 @@ async function fetchConversationActivity(
   if (!res.ok) return [];
   const data = await res.json();
   return (data as { events: ActivityEvent[] }).events ?? [];
+}
+
+interface ConversationScore {
+  id: string;
+  scorerId: string;
+  score: number;
+  reason: string | null;
+  runId: string | null;
+  createdAt: string | null;
+}
+
+async function fetchConversationScores(
+  conversationId: string,
+): Promise<ConversationScore[]> {
+  const res = await aiClient.evals.conversation[':conversationId'].scores.$get({
+    param: { conversationId },
+  });
+  if (!res.ok) return [];
+  return res.json();
 }
 
 async function updateConversation(
@@ -519,6 +543,45 @@ function ConversationDetailPage() {
   const { feedbackMap, handleReact, handleDeleteFeedback } =
     useFeedback(conversationId);
 
+  const { data: rawScores = [] } = useQuery({
+    queryKey: ['conversation-scores', conversationId],
+    queryFn: () => fetchConversationScores(conversationId),
+    enabled: !!conversation,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+  });
+
+  // Re-fetch scores when new messages arrive (scores are written async after generation)
+  useEffect(() => {
+    const unsubscribe = subscribeToPayloads((payload: RealtimePayload) => {
+      if (
+        payload.table === 'conversations-messages' &&
+        payload.id === conversationId
+      ) {
+        // Delay to allow async LLM judge scoring to complete
+        const t1 = setTimeout(
+          () =>
+            queryClient.invalidateQueries({
+              queryKey: ['conversation-scores', conversationId],
+            }),
+          5_000,
+        );
+        const t2 = setTimeout(
+          () =>
+            queryClient.invalidateQueries({
+              queryKey: ['conversation-scores', conversationId],
+            }),
+          15_000,
+        );
+        return () => {
+          clearTimeout(t1);
+          clearTimeout(t2);
+        };
+      }
+    });
+    return unsubscribe;
+  }, [conversationId, queryClient]);
+
   const { data: contact } = useQuery({
     queryKey: ['contacts', conversation?.contactId],
     queryFn: () => fetchContact(conversation?.contactId ?? ''),
@@ -611,6 +674,62 @@ function ConversationDetailPage() {
     );
     return normalizeMessages(msgs, outbox, activityEvents);
   }, [messagesData, activityEvents]);
+
+  // Correlate quality scores to assistant messages.
+  // Strategy: group scores by runId, then assign each group to the
+  // assistant message with the closest timestamp (absolute delta, handles
+  // timezone mismatches between Mastra memory and scorer storage).
+  const qualityScores = useMemo(() => {
+    if (rawScores.length === 0) return undefined;
+
+    // Group scores by runId (all scores from one generation)
+    const byRun = new Map<string, ConversationScore[]>();
+    for (const s of rawScores) {
+      const key = s.runId ?? s.id;
+      const group = byRun.get(key) ?? [];
+      group.push(s);
+      byRun.set(key, group);
+    }
+
+    const assistantMsgs = normalizedMessages
+      .filter((m) => m.role === 'assistant' && m.createdAt)
+      .map((m) => ({ id: m.id, time: new Date(m.createdAt ?? 0).getTime() }))
+      .sort((a, b) => a.time - b.time);
+
+    if (assistantMsgs.length === 0) return undefined;
+
+    const result = new Map<string, MessageScoreGroup>();
+
+    // Assign each score group to the nth assistant message (by order).
+    // Score groups are sorted by earliest createdAt — group 0 → msg 0, etc.
+    const sortedGroups = [...byRun.entries()].sort((a, b) => {
+      const aTime = Math.min(
+        ...a[1].map((s) => new Date(s.createdAt ?? 0).getTime()),
+      );
+      const bTime = Math.min(
+        ...b[1].map((s) => new Date(s.createdAt ?? 0).getTime()),
+      );
+      return aTime - bTime;
+    });
+
+    for (let i = 0; i < sortedGroups.length; i++) {
+      const [, scores] = sortedGroups[i];
+      // Map to assistant message by index (generation order matches message order)
+      const targetMsg = assistantMsgs[Math.min(i, assistantMsgs.length - 1)];
+
+      const existing = result.get(targetMsg.id) ?? { scores: [] };
+      for (const s of scores) {
+        existing.scores.push({
+          scorerId: s.scorerId,
+          score: s.score,
+          reason: s.reason,
+        });
+      }
+      result.set(targetMsg.id, existing);
+    }
+
+    return result.size > 0 ? result : undefined;
+  }, [rawScores, normalizedMessages]);
 
   const staffAdapter = useMemo(
     () => createStaffAdapter(normalizedMessages),
@@ -825,6 +944,7 @@ function ConversationDetailPage() {
               viewMode="staff"
               messages={normalizedMessages}
               feedbackMap={feedbackMap}
+              qualityScores={qualityScores}
               currentUserId={session?.user?.id}
               onReact={handleReact}
               onDeleteFeedback={handleDeleteFeedback}

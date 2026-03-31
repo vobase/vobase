@@ -566,13 +566,34 @@ export const conversationsDetailHandlers = new Hono()
 
     // Update assignee if provided
     if (body.assignee !== undefined) {
+      const isAssigning = !!body.assignee;
+      const currentMode = existingConversation.mode ?? 'ai';
+      // Assigning moves conversation to human mode so it appears in Attention tab
+      const shouldSwitchToHuman =
+        isAssigning && currentMode === 'ai' && !body.mode;
       await db
         .update(conversations)
         .set({
           assignee: body.assignee,
-          assignedAt: body.assignee ? new Date() : null,
+          assignedAt: isAssigning ? new Date() : null,
+          ...(shouldSwitchToHuman
+            ? { mode: 'human', waitingSince: new Date() }
+            : {}),
         })
         .where(eq(conversations.id, conversationId));
+
+      if (shouldSwitchToHuman) {
+        const eventId = await emitActivityEvent(db, realtime, {
+          type: 'handler.changed',
+          userId: user.id,
+          source: 'staff',
+          conversationId,
+          data: { from: currentMode, to: 'human', reason: 'Assigned to staff' },
+        });
+        if (eventId) {
+          await updateLastSignal(db, conversationId, 'activity', eventId);
+        }
+      }
     }
 
     const [updated] = await db

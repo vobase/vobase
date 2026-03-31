@@ -26,6 +26,7 @@ import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button';
 import { KbCurationOverlay } from '@/components/chat/kb-curation-overlay';
 import { MessageFeedback } from '@/components/chat/message-feedback';
+import { MessageQualityIndicator } from '@/components/chat/message-quality';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { useVobaseThread } from '@/components/chat/vobase-thread-context';
 import { Button } from '@/components/ui/button';
@@ -407,6 +408,10 @@ const AssistantMessage: FC = () => {
               onReact={ctx?.onReact}
               onDeleteFeedback={ctx?.onDeleteFeedback}
             />
+            {(() => {
+              const group = ctx?.qualityScores?.get(messageId);
+              return group ? <MessageQualityIndicator group={group} /> : null;
+            })()}
             <AssistantActionBar />
           </div>
         )}

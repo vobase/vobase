@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useConversationQuality } from '@/hooks/use-conversation-quality';
 import { aiClient } from '@/lib/api-client';
 import { formatRelativeTimeShort } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -81,6 +82,7 @@ function signalPreview(signal: LastSignal | null): string | null {
         return `Escalated — ${(data.reason as string) ?? 'needs attention'}`;
       case 'handler.changed':
         return `Mode changed to ${(data.to as string) ?? 'unknown'}`;
+      case 'message.inbound':
       case 'message.inbound_human_mode':
         return (data.content as string) ?? 'New message from visitor';
       case 'session.completed':
@@ -137,10 +139,12 @@ function InboxRow({
   row,
   showMode,
   isFocused,
+  quality,
 }: {
   row: ConversationRow;
   showMode?: boolean;
   isFocused?: boolean;
+  quality?: { avgScore: number; count: number };
 }) {
   const { conversationId: selectedId } = useParams({ strict: false });
   const isSelected = row.id === selectedId;
@@ -169,6 +173,9 @@ function InboxRow({
           {row.hasPendingEscalation && (
             <span className="inline-flex h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
           )}
+          {quality && (
+            <QualityBadge avgScore={quality.avgScore} count={quality.count} />
+          )}
           {row.unreadCount > 0 && (
             <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground px-1">
               {row.unreadCount > 9 ? '9+' : row.unreadCount}
@@ -193,6 +200,29 @@ function InboxRow({
   );
 }
 
+function QualityBadge({
+  avgScore,
+  count,
+}: {
+  avgScore: number;
+  count: number;
+}) {
+  const pct = Math.round(avgScore * 100);
+  const color =
+    avgScore >= 0.8
+      ? 'bg-green-500'
+      : avgScore >= 0.6
+        ? 'bg-yellow-500'
+        : 'bg-red-500';
+
+  return (
+    <span
+      title={`Quality: ${pct}% (${count} score${count !== 1 ? 's' : ''})`}
+      className={cn('inline-flex h-1.5 w-1.5 rounded-full shrink-0', color)}
+    />
+  );
+}
+
 // ─── Skeleton Row ────────────────────────────────────────────────────
 
 function InboxRowSkeleton() {
@@ -214,6 +244,7 @@ function ConversationList({
   isPending,
   showMode,
   focusedIndex,
+  qualityMap,
   emptyIcon,
   emptyTitle,
   emptySubtitle,
@@ -222,6 +253,7 @@ function ConversationList({
   isPending: boolean;
   showMode?: boolean;
   focusedIndex: number;
+  qualityMap: Record<string, { avgScore: number; count: number }>;
   emptyIcon: React.ReactNode;
   emptyTitle: string;
   emptySubtitle: string;
@@ -257,6 +289,7 @@ function ConversationList({
           row={row}
           showMode={showMode}
           isFocused={i === focusedIndex}
+          quality={qualityMap[row.id]}
         />
       ))}
     </div>
@@ -403,6 +436,8 @@ function ConversationsLayout() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [filteredRows, focusedIndex, navigate]);
 
+  const qualityMap = useConversationQuality(filteredRows.map((r) => r.id));
+
   const showMode = tab === 'attention';
 
   const emptyProps =
@@ -520,6 +555,7 @@ function ConversationsLayout() {
                   isPending={isPending}
                   showMode={showMode}
                   focusedIndex={focusedIndex}
+                  qualityMap={qualityMap}
                   {...emptyProps}
                 />
               </ScrollArea>

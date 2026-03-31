@@ -196,10 +196,7 @@ function NegativeFeedbackPopover({
             <p className="font-medium text-sm">Feedback</p>
             <Timeline className="gap-3">
               {feedbackEntries.map((reactor) => (
-                <TimelineItem
-                  key={reactor.id}
-                  className="gap-2 pb-3 last:pb-0"
-                >
+                <TimelineItem key={reactor.id} className="gap-2 pb-3 last:pb-0">
                   <TimelineDot className="size-2.5 border-red-400 dark:border-red-500" />
                   <TimelineConnector className="bg-border" />
                   <TimelineContent className="pt-0 pb-0">
