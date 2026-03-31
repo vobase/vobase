@@ -1,27 +1,35 @@
-import { createScorerSuite } from './scorers';
+import type { MastraScorer } from '@mastra/core/evals';
+
+import { scorers } from './scorers';
 import type { EvalItemScore, EvalRunResult } from './types';
 
 /**
- * Run eval scorers against a set of input/output/context items.
- * Uses the scorer's .run() method with message-based input format.
+ * Run scorers against a set of input/output/context items.
+ * Uses each scorer's .run() method with message-based input format.
+ *
+ * Accepts optional additional scorers (e.g. custom DB-backed ones)
+ * that are merged with the code-based registry.
  *
  * Each scorer is an LLM judge call, so this should run in a background job.
  */
 export async function runAgentEvals(options: {
   data: Array<{ input: string; output: string; context: string[] }>;
+  additionalScorers?: MastraScorer[];
 }): Promise<EvalRunResult> {
-  const scorers = createScorerSuite();
   const { createAgentTestRun, createTestMessage } = await import(
     '@mastra/evals/scorers/utils'
   );
 
+  const allScorers: MastraScorer[] = [
+    ...scorers,
+    ...(options.additionalScorers ?? []),
+  ];
+
   const items: EvalItemScore[] = [];
 
   for (const item of options.data) {
-    let answerRelevancy: number | null = null;
-    let faithfulness: number | null = null;
+    const scores: Record<string, number | null> = {};
 
-    // Convert simple string format to Mastra's message-based scorer input
     const testRun = createAgentTestRun({
       inputMessages: [createTestMessage({ content: item.input, role: 'user' })],
       output: [createTestMessage({ content: item.output, role: 'assistant' })],
@@ -31,52 +39,36 @@ export async function runAgentEvals(options: {
       })),
     });
 
-    try {
-      const relevancyResult = await scorers.answerRelevancy.run({
-        input: testRun.input,
-        output: testRun.output,
-      });
-      answerRelevancy = relevancyResult?.score ?? null;
-    } catch {
-      // Scorer failure for this item — record null
-    }
-
-    try {
-      const faithfulnessResult = await scorers.faithfulness.run({
-        input: testRun.input,
-        output: testRun.output,
-      });
-      faithfulness = faithfulnessResult?.score ?? null;
-    } catch {
-      // Scorer failure for this item — record null
+    for (const scorer of allScorers) {
+      try {
+        const result = await scorer.run({
+          input: testRun.input,
+          output: testRun.output,
+        });
+        scores[scorer.id] = result?.score ?? null;
+      } catch {
+        scores[scorer.id] = null;
+      }
     }
 
     items.push({
       input: item.input,
       output: item.output,
       context: item.context,
-      scores: { answerRelevancy, faithfulness },
+      scores,
     });
   }
 
-  // Compute averages (excluding nulls)
-  const relevancyScores = items
-    .map((i) => i.scores.answerRelevancy)
-    .filter((s): s is number => s !== null);
-  const faithfulnessScores = items
-    .map((i) => i.scores.faithfulness)
-    .filter((s): s is number => s !== null);
+  // Compute averages per scorer (excluding nulls)
+  const averages: Record<string, number | null> = {};
+  for (const scorer of allScorers) {
+    const vals = items
+      .map((i) => i.scores[scorer.id])
+      .filter((s): s is number => s !== null);
+    averages[scorer.id] = vals.length
+      ? vals.reduce((a, b) => a + b, 0) / vals.length
+      : null;
+  }
 
-  return {
-    items,
-    averages: {
-      answerRelevancy: relevancyScores.length
-        ? relevancyScores.reduce((a, b) => a + b, 0) / relevancyScores.length
-        : null,
-      faithfulness: faithfulnessScores.length
-        ? faithfulnessScores.reduce((a, b) => a + b, 0) /
-          faithfulnessScores.length
-        : null,
-    },
-  };
+  return { items, averages };
 }

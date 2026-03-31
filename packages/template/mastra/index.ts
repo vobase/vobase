@@ -13,6 +13,7 @@ import { Memory } from '@mastra/memory';
 import { PostgresStore } from '@mastra/pg';
 
 import { getMastraAgents } from './agents';
+import { scorers } from './evals/scorers';
 import {
   bookSlotTool,
   cancelBookingTool,
@@ -77,6 +78,7 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
     },
     memory: { 'agent-memory': memoryInstance },
     storage: store,
+    scorers: Object.fromEntries(scorers.map((s) => [s.id, s])),
   });
 
   // Wire memory to agents after Mastra init — agents are static singletons

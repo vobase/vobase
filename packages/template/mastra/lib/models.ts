@@ -6,8 +6,8 @@
  */
 export const models = {
   gpt_embedding: 'openai/text-embedding-3-small',
-  gpt_mini: 'openai/gpt-5-mini',
-  gpt_standard: 'openai/gpt-5.2',
+  gpt_mini: 'openai/gpt-5.4-mini',
+  gpt_standard: 'openai/gpt-5.4',
   claude_haiku: 'anthropic/claude-haiku-4-5',
   claude_sonnet: 'anthropic/claude-sonnet-4-6',
   gemini_flash: 'google/gemini-flash-latest',

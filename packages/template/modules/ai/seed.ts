@@ -8,6 +8,7 @@
  * - ~3 outbox messages per conversation (agent responses for transcript fallback)
  * - ~12 consultations across all states
  * - ~5 dead letters showing the DLQ terminal store
+ * - ~6 eval runs across all statuses (complete, running, pending, error)
  */
 
 import { faker } from '@faker-js/faker';
@@ -16,6 +17,8 @@ import { eq } from 'drizzle-orm';
 
 import {
   activityEvents,
+  aiEvalRuns,
+  aiScorers,
   channelInstances,
   channelRoutings,
   consultations,
@@ -955,6 +958,214 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   console.log(
     `${green('✓')} Seeded ${modeConversations.length} mode conversations, ${seedActivityEvents.length} activity events`,
+  );
+
+  // ─── Eval runs ──────────────────────────────────────────────────
+  // Realistic eval run history so the /ai/evals page renders populated.
+
+  // Deterministic scores using faker (re-seed for eval block)
+  faker.seed(99);
+
+  const bookingQAPairs = [
+    {
+      input: 'Can I book an appointment for next Monday at 10am?',
+      output:
+        'I can check availability for Monday at 10am. Let me look that up for you.',
+      context: [
+        'You are a booking assistant for a service business.',
+        'Available slots are managed via the check-availability tool.',
+      ],
+    },
+    {
+      input: 'I need to reschedule my appointment from Tuesday to Thursday.',
+      output:
+        "I'll help you reschedule. Let me check Thursday availability and move your booking.",
+      context: [
+        'You are a booking assistant.',
+        'Use reschedule-booking tool to move appointments.',
+      ],
+    },
+    {
+      input: 'What services do you offer?',
+      output:
+        'We offer haircuts, coloring, styling, and treatments. Would you like to book any of these?',
+      context: [
+        'You are a booking assistant for a hair salon.',
+        'Services: haircut ($30), coloring ($80), styling ($50), treatments ($60).',
+      ],
+    },
+    {
+      input: 'Cancel my appointment please.',
+      output:
+        "I'll cancel your upcoming appointment right away. You'll receive a confirmation shortly.",
+      context: [
+        'You are a booking assistant.',
+        'Use cancel-booking tool. Always confirm cancellation with the customer.',
+      ],
+    },
+    {
+      input: 'Do you have any availability this weekend?',
+      output:
+        'Let me check our weekend slots for you. We typically have Saturday morning and afternoon openings.',
+      context: [
+        'You are a booking assistant.',
+        'Weekend hours: Saturday 9am-5pm, Sunday closed.',
+      ],
+    },
+    {
+      input: 'How much does a haircut cost?',
+      output:
+        'A standard haircut is $30. We also have premium cuts at $45 which include a wash and style.',
+      context: [
+        'You are a booking assistant for a hair salon.',
+        'Pricing: standard cut $30, premium cut $45, kids cut $20.',
+      ],
+    },
+  ];
+
+  function makeEvalItems(
+    pairs: typeof bookingQAPairs,
+    scoreRange: [number, number],
+  ) {
+    return pairs.map((p) => ({
+      ...p,
+      scores: {
+        'answer-relevancy-scorer':
+          Math.round(
+            faker.number.float({ min: scoreRange[0], max: scoreRange[1] }) *
+              100,
+          ) / 100,
+        'faithfulness-scorer':
+          Math.round(
+            faker.number.float({ min: scoreRange[0], max: scoreRange[1] }) *
+              100,
+          ) / 100,
+      },
+    }));
+  }
+
+  const seedEvalRuns = [
+    {
+      id: 'eval-run-001',
+      agentId: 'booking',
+      status: 'complete' as const,
+      itemCount: 6,
+      results: JSON.stringify(makeEvalItems(bookingQAPairs, [0.82, 0.97])),
+      createdAt: hoursAgo(7 * 24),
+      completedAt: hoursAgo(7 * 24),
+    },
+    {
+      id: 'eval-run-002',
+      agentId: 'booking',
+      status: 'complete' as const,
+      itemCount: 4,
+      results: JSON.stringify(
+        makeEvalItems(bookingQAPairs.slice(0, 4), [0.58, 0.78]),
+      ),
+      createdAt: hoursAgo(5 * 24),
+      completedAt: hoursAgo(5 * 24),
+    },
+    {
+      id: 'eval-run-003',
+      agentId: 'booking',
+      status: 'complete' as const,
+      itemCount: 6,
+      results: JSON.stringify(makeEvalItems(bookingQAPairs, [0.85, 0.99])),
+      createdAt: hoursAgo(2 * 24),
+      completedAt: hoursAgo(2 * 24),
+    },
+    {
+      id: 'eval-run-004',
+      agentId: 'booking',
+      status: 'running' as const,
+      itemCount: 3,
+      results: null,
+      createdAt: hoursAgo(1),
+      completedAt: null,
+    },
+    {
+      id: 'eval-run-005',
+      agentId: 'booking',
+      status: 'pending' as const,
+      itemCount: 5,
+      results: null,
+      createdAt: hoursAgo(0.25),
+      completedAt: null,
+    },
+    {
+      id: 'eval-run-006',
+      agentId: 'booking',
+      status: 'error' as const,
+      itemCount: 6,
+      results: null,
+      errorMessage: 'Scorer API rate limit exceeded — retry after 60s',
+      createdAt: hoursAgo(3 * 24),
+      completedAt: hoursAgo(3 * 24),
+    },
+  ];
+
+  await db.insert(aiEvalRuns).values(seedEvalRuns).onConflictDoNothing();
+
+  // Restore original faker seed
+  faker.seed(42);
+
+  console.log(`${green('✓')} Seeded ${seedEvalRuns.length} eval runs`);
+
+  // ─── Custom scorers ─────────────────────────────────────────────
+  const seedCustomScorers = [
+    {
+      id: 'scorer-policy',
+      name: 'Policy Compliance',
+      description:
+        'Checks if the response follows booking and cancellation policies',
+      criteria: [
+        'Evaluate whether the AI response correctly follows the business booking and cancellation policies:',
+        '- Cancellations must be made at least 24 hours in advance',
+        '- Rescheduling is free for the first change, $25 fee after',
+        '- No-shows are charged the full appointment fee',
+        '- The agent should never promise exceptions to these policies',
+        'Score 1.0 if the response fully complies, 0.0 if it contradicts a policy.',
+      ].join('\n'),
+      model: 'openai/gpt-5.4-mini',
+      enabled: true,
+    },
+    {
+      id: 'scorer-tone',
+      name: 'Professional Tone',
+      description:
+        'Rates whether the response maintains a professional, helpful tone',
+      criteria: [
+        'Evaluate the tone and professionalism of the AI response:',
+        '- Warm but professional (not overly casual or robotic)',
+        '- Empathetic when the customer has a complaint or frustration',
+        '- Clear and direct without unnecessary filler',
+        '- Uses the customer name when available',
+        'Score 1.0 for perfect tone, 0.5 for acceptable, 0.0 for inappropriate.',
+      ].join('\n'),
+      model: 'openai/gpt-5.4-mini',
+      enabled: true,
+    },
+    {
+      id: 'scorer-accuracy',
+      name: 'Availability Accuracy',
+      description:
+        'Checks if the agent accurately reports appointment availability',
+      criteria: [
+        'Evaluate whether the AI agent accurately handled appointment availability:',
+        '- Did it check availability before confirming a booking?',
+        '- Did it offer alternative times when the requested slot was unavailable?',
+        '- Did it avoid confirming appointments without tool verification?',
+        'Score 1.0 if availability handling was correct, 0.0 if it made up availability.',
+      ].join('\n'),
+      model: 'openai/gpt-5.4-mini',
+      enabled: true,
+    },
+  ];
+
+  await db.insert(aiScorers).values(seedCustomScorers).onConflictDoNothing();
+
+  console.log(
+    `${green('✓')} Seeded ${seedCustomScorers.length} custom scorers`,
   );
 
   // ─── Summary ─────────────────────────────────────────────────────

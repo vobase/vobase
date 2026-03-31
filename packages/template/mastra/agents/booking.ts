@@ -1,5 +1,7 @@
 import { Agent } from '@mastra/core/agent';
+import type { MastraScorers } from '@mastra/core/evals';
 
+import { scorers } from '../evals/scorers';
 import type { AgentMeta } from '../lib/agents/define';
 import { models } from '../lib/models';
 import { resolveInputProcessors, resolveOutputProcessors } from '../processors';
@@ -71,4 +73,10 @@ export const bookingAgent = new Agent({
   defaultOptions: { maxSteps: 5 },
   inputProcessors: resolveInputProcessors,
   outputProcessors: resolveOutputProcessors,
+  scorers: Object.fromEntries(
+    scorers.map((s) => [
+      s.id,
+      { scorer: s, sampling: { type: 'ratio' as const, rate: 1 } },
+    ]),
+  ) as MastraScorers,
 });

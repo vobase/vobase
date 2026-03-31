@@ -7,6 +7,7 @@ import { getModuleDb, getModuleDeps } from './lib/deps';
 export { setModuleDeps } from './lib/deps';
 
 import { runAgentEvals } from '../../mastra/evals/runner';
+import { getActiveCustomScorers } from '../../mastra/evals/scorers';
 import { processMemCell } from '../../mastra/processors/memory/formation';
 import { aiEvalRuns } from './schema';
 
@@ -63,7 +64,11 @@ export const evalRunJob = defineJob('ai:eval-run', async (data) => {
       context: string[];
     }> = Array.isArray(parsed) ? parsed : [];
 
-    const result = await runAgentEvals({ data: evalData });
+    const customScorers = await getActiveCustomScorers(moduleDb);
+    const result = await runAgentEvals({
+      data: evalData,
+      additionalScorers: customScorers,
+    });
 
     await moduleDb
       .update(aiEvalRuns)
