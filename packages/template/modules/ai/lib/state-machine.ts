@@ -25,8 +25,8 @@ export type TransitionEvent =
         | 'failed';
     }
   | { type: 'FAIL'; reason: string }
-  | { type: 'ESCALATE'; consultationId: string }
-  | { type: 'RESOLVE_ESCALATION'; consultationId: string }
+  | { type: 'ESCALATE' }
+  | { type: 'RESOLVE_ESCALATION' }
   | { type: 'INBOUND_MESSAGE'; contactId: string; content?: string }
   | { type: 'CLAIM'; userId: string };
 
@@ -165,14 +165,9 @@ export async function transition(
 
   if (event.type === 'SET_MODE') {
     const { mode, userId } = event;
-    const currentMode = current.mode;
+    const currentMode = current.mode ?? 'ai';
 
     if (mode === currentMode) return invalid(state, 'SET_MODE');
-    if (
-      !HUMAN_MODES.includes(currentMode as (typeof HUMAN_MODES)[number]) &&
-      currentMode !== 'ai'
-    )
-      return invalid(state, 'SET_MODE');
 
     const isHumanMode = HUMAN_MODES.includes(
       mode as (typeof HUMAN_MODES)[number],
@@ -506,10 +501,39 @@ export async function transition(
     );
   }
 
-  // ── ESCALATE / RESOLVE_ESCALATION ────────────────────────────────────────
+  // ── ESCALATE ─────────────────────────────────────────────────────────────
 
-  if (event.type === 'ESCALATE' || event.type === 'RESOLVE_ESCALATION') {
+  if (event.type === 'ESCALATE') {
+    // Caller already inserted the consultation — hasPendingEscalation is always true
+    const [updated] = await db
+      .update(conversations)
+      .set({ hasPendingEscalation: true })
+      .where(
+        and(
+          eq(conversations.id, conversationId),
+          eq(conversations.status, 'active'),
+          eq(conversations.mode, current.mode),
+        ),
+      )
+      .returning();
+
+    if (!updated) return conflict();
+    return commitTransition(
+      db,
+      realtime,
+      conversationId,
+      updated,
+      current,
+      previousState,
+      null,
+    );
+  }
+
+  // ── RESOLVE_ESCALATION ────────────────────────────────────────────────────
+
+  if (event.type === 'RESOLVE_ESCALATION') {
     const result = await db.transaction(async (tx) => {
+      // Re-derive — may still be true if other consultations are pending
       const pendingExists = await hasPendingConsultations(
         txDb(tx),
         conversationId,
@@ -547,25 +571,31 @@ export async function transition(
 
   if (event.type === 'INBOUND_MESSAGE') {
     const { contactId, content } = event;
-    const mode = current.mode;
+    const mode = current.mode ?? 'ai';
     const isHumanHandled = HUMAN_MODES.includes(
       mode as (typeof HUMAN_MODES)[number],
     );
 
+    // Optimistic concurrency: only increment if mode hasn't changed since read
+    let updated = current;
     if (isHumanHandled) {
-      await db
+      const [row] = await db
         .update(conversations)
         .set({ unreadCount: sql`unread_count + 1` })
         .where(
           and(
             eq(conversations.id, conversationId),
             eq(conversations.status, 'active'),
+            eq(conversations.mode, current.mode),
           ),
-        );
+        )
+        .returning();
+      if (row) updated = row;
     }
 
     const eventId = await emitActivityEvent(db, realtime, {
-      type: mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
+      type:
+        mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
       source: 'system',
       contactId,
       conversationId,
@@ -582,7 +612,7 @@ export async function transition(
       tab: computeTab(mode, current.status, current.hasPendingEscalation),
     });
 
-    return { ok: true, conversation: current, previousState };
+    return { ok: true, conversation: updated, previousState };
   }
 
   // ── CLAIM ─────────────────────────────────────────────────────────────────

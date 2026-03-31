@@ -507,7 +507,7 @@ export const conversationsDetailHandlers = new Hono()
     const { realtime } = getModuleDeps();
     const deps = { db, realtime };
 
-    // status → wrappers (completeConversation/failConversation will delegate to machine after Task #3)
+    // status → terminal state: complete or fail, then return immediately
     if (body.status === 'completed' || body.status === 'failed') {
       const { completeConversation, failConversation } = await import(
         '../lib/conversation'
@@ -522,6 +522,11 @@ export const conversationsDetailHandlers = new Hono()
           realtime,
         );
       }
+      const [updated] = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.id, conversationId));
+      return c.json(updated);
     }
 
     // mode change → machine (only when assignee is not being set; ASSIGN handles mode atomically)

@@ -109,10 +109,7 @@ export async function requestConsultation(
   }
 
   // Update conversation state via machine (derives hasPendingEscalation + notifies realtime)
-  await transition(deps, input.conversationId, {
-    type: 'ESCALATE',
-    consultationId: consultation.id,
-  });
+  await transition(deps, input.conversationId, { type: 'ESCALATE' });
 
   // Look up staff contact for delivery address
   const [staffContact] = await db
@@ -225,7 +222,6 @@ export async function handleStaffReply(
   // Update conversation state via machine (re-derives hasPendingEscalation + notifies realtime)
   await transition(deps, consultation.conversationId, {
     type: 'RESOLVE_ESCALATION',
-    consultationId: consultation.id,
   });
 
   // Queue channel-reply so the agent processes the consultation response
@@ -287,7 +283,6 @@ export async function checkConsultationTimeouts(
     // Update conversation state via machine (re-derives hasPendingEscalation + notifies realtime)
     await transition(deps, c.conversationId, {
       type: 'RESOLVE_ESCALATION',
-      consultationId: c.id,
     });
   }
 
