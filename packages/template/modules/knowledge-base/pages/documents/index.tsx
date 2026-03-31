@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   File,
   FileCode,
@@ -154,7 +154,11 @@ function DocumentsPage() {
                 className="transition-colors hover:bg-muted/30"
               >
                 <CardContent className="flex items-center justify-between py-3 px-4">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <Link
+                    to="/knowledge-base/documents/$id"
+                    params={{ id: doc.id }}
+                    className="flex min-w-0 flex-1 items-center gap-3"
+                  >
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                       <Icon className="h-4 w-4 text-muted-foreground" />
                     </div>
@@ -168,7 +172,7 @@ function DocumentsPage() {
                         {doc.sourceType}
                       </p>
                     </div>
-                  </div>
+                  </Link>
                   <div className="flex shrink-0 items-center gap-2 ml-4">
                     <Badge variant={status.variant}>{status.label}</Badge>
                     <Button
@@ -192,6 +196,6 @@ function DocumentsPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/knowledge-base/documents')({
+export const Route = createFileRoute('/_app/knowledge-base/documents/')({
   component: DocumentsPage,
 });

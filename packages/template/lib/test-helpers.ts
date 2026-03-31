@@ -224,6 +224,8 @@ export async function createTestDb(options?: {
         status TEXT NOT NULL DEFAULT 'pending',
         chunk_count INTEGER NOT NULL DEFAULT 0,
         metadata TEXT,
+        content JSONB,
+        raw_content JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );

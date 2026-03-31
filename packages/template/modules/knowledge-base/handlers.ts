@@ -1,10 +1,20 @@
 import type { IntegrationsService, VobaseDb } from '@vobase/core';
-import { getCtx, notFound, unauthorized } from '@vobase/core';
+import {
+  conflict,
+  getCtx,
+  logger,
+  notFound,
+  unauthorized,
+  validation,
+} from '@vobase/core';
 import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { z } from 'zod';
 
 import type { DocumentSource } from './connectors/types';
 import { KB_STORAGE_BUCKET } from './constants';
+import type { PlateValue } from './lib/plate-types';
+import { plateValueSchema } from './lib/plate-types';
 import { kbChunks, kbDocuments, kbSources, kbSyncLogs } from './schema';
 
 async function syncSource(
@@ -70,7 +80,9 @@ async function syncSource(
         .returning();
 
       const content = await connector.fetchDocument(doc.externalId);
-      await processDocument(db, docRecord.id, content.text);
+      const { markdownToPlate } = await import('./lib/plate-deserialize');
+      const value: PlateValue = content.value ?? markdownToPlate(content.text);
+      await processDocument(db, docRecord.id, value);
       processed++;
     }
 
@@ -155,8 +167,21 @@ export const knowledgeBaseRoutes = new Hono()
   })
   .get('/documents', async (c) => {
     const ctx = getCtx(c);
+    // Exclude large jsonb columns (content, rawContent) from list query for performance
     const docs = await ctx.db
-      .select()
+      .select({
+        id: kbDocuments.id,
+        title: kbDocuments.title,
+        sourceType: kbDocuments.sourceType,
+        sourceId: kbDocuments.sourceId,
+        sourceUrl: kbDocuments.sourceUrl,
+        mimeType: kbDocuments.mimeType,
+        status: kbDocuments.status,
+        chunkCount: kbDocuments.chunkCount,
+        metadata: kbDocuments.metadata,
+        createdAt: kbDocuments.createdAt,
+        updatedAt: kbDocuments.updatedAt,
+      })
       .from(kbDocuments)
       .orderBy(desc(kbDocuments.createdAt));
     return c.json(docs);
@@ -175,23 +200,163 @@ export const knowledgeBaseRoutes = new Hono()
       .from(kbChunks)
       .where(eq(kbChunks.documentId, doc.id))
       .orderBy(kbChunks.chunkIndex);
-    return c.json({ ...doc, chunks });
+
+    // Return Plate Value content; fall back to reconstructing from chunk text
+    let content = doc.content as PlateValue | null;
+    if (!content && chunks.length > 0) {
+      const { markdownToPlate } = await import('./lib/plate-deserialize');
+      content = markdownToPlate(chunks.map((ch) => ch.content).join('\n\n'));
+    }
+
+    return c.json({ ...doc, content, chunks });
+  })
+  .patch('/documents/:id/content', async (c) => {
+    const ctx = getCtx(c);
+    const id = c.req.param('id');
+    const body = await c.req.json();
+
+    // 1. Validate input
+    const parsed = plateValueSchema.safeParse(body.content);
+    if (!parsed.success) {
+      throw validation(parsed.error.flatten().fieldErrors);
+    }
+    const newValue = parsed.data as PlateValue;
+
+    // 2. Load existing document — must exist and be ready
+    const [doc] = await ctx.db
+      .select()
+      .from(kbDocuments)
+      .where(eq(kbDocuments.id, id));
+    if (!doc) throw notFound('Document not found');
+    if (doc.status !== 'ready')
+      throw conflict('Document is not ready for editing');
+
+    const { markdownToPlate } = await import('./lib/plate-deserialize');
+    const { blockChunk } = await import('./lib/chunker');
+    const { embedChunks } = await import('./lib/embeddings');
+    const { diffPlateValue, isBlockRangeAffected } = await import(
+      './lib/plate-diff'
+    );
+
+    // 3. Determine old value
+    const existingContent = doc.content;
+    let oldValue: PlateValue;
+    if (existingContent && Array.isArray(existingContent)) {
+      oldValue = existingContent as PlateValue;
+    } else {
+      const oldChunks = await ctx.db
+        .select({ content: kbChunks.content })
+        .from(kbChunks)
+        .where(eq(kbChunks.documentId, id))
+        .orderBy(kbChunks.chunkIndex);
+      const concatenated = oldChunks.map((ch) => ch.content).join('\n\n');
+      oldValue = concatenated
+        ? markdownToPlate(concatenated)
+        : [{ type: 'p', children: [{ text: '' }] }];
+    }
+
+    // 4. Diff top-level blocks
+    const diff = diffPlateValue(oldValue, newValue);
+    const affectedRanges = [...diff.changed, ...diff.added, ...diff.removed];
+
+    // 5. Re-chunk full document
+    const allNewChunks = blockChunk(newValue).filter(
+      (ch) => ch.content.trim().length > 0,
+    );
+
+    if (affectedRanges.length === 0) {
+      // No semantic changes — just persist the new value
+      await ctx.db
+        .update(kbDocuments)
+        .set({ content: newValue as unknown })
+        .where(eq(kbDocuments.id, id));
+      return c.json({ success: true, rechunkedCount: 0, reembeddedCount: 0 });
+    }
+
+    // 6. Identify chunks that need re-embedding vs. can reuse old embeddings
+    const rechunkedChunks = allNewChunks.filter((ch) =>
+      isBlockRangeAffected(ch.blockRange, affectedRanges),
+    );
+
+    // Build a content→embedding map from existing chunks to reuse unchanged embeddings
+    const oldChunkRecords = await ctx.db
+      .select({ content: kbChunks.content, embedding: kbChunks.embedding })
+      .from(kbChunks)
+      .where(eq(kbChunks.documentId, id));
+    const oldEmbeddingMap = new Map<string, number[] | null>(
+      oldChunkRecords.map((ch) => [ch.content, ch.embedding]),
+    );
+
+    // 7. Embed only changed chunks (outside transaction — API call can't be rolled back)
+    const newEmbeddings =
+      rechunkedChunks.length > 0
+        ? await embedChunks(rechunkedChunks.map((ch) => ch.content))
+        : [];
+    const rechunkedEmbeddingMap = new Map<number, number[]>(
+      rechunkedChunks.map((ch, idx) => [ch.index, newEmbeddings[idx]]),
+    );
+
+    // 8. Fully transactional: delete all old chunks → batch insert new → update doc
+    await ctx.db.transaction(async (tx) => {
+      await tx.delete(kbChunks).where(eq(kbChunks.documentId, id));
+
+      if (allNewChunks.length > 0) {
+        await tx.insert(kbChunks).values(
+          allNewChunks.map((chunk) => {
+            const isChanged = isBlockRangeAffected(
+              chunk.blockRange,
+              affectedRanges,
+            );
+            const embedding = isChanged
+              ? (rechunkedEmbeddingMap.get(chunk.index) ?? undefined)
+              : (oldEmbeddingMap.get(chunk.content) ?? undefined);
+            return {
+              documentId: id,
+              content: chunk.content,
+              chunkIndex: chunk.index,
+              tokenCount: chunk.tokenCount,
+              embedding: embedding as number[] | undefined,
+            };
+          }),
+        );
+      }
+
+      await tx
+        .update(kbDocuments)
+        .set({ content: newValue as unknown, chunkCount: allNewChunks.length })
+        .where(eq(kbDocuments.id, id));
+    });
+
+    return c.json({
+      success: true,
+      rechunkedCount: rechunkedChunks.length,
+      reembeddedCount: rechunkedChunks.length,
+    });
   })
   .delete('/documents/:id', async (c) => {
     const ctx = getCtx(c);
     const id = c.req.param('id');
-    await ctx.db.delete(kbChunks).where(eq(kbChunks.documentId, id));
+    // Chunks cascade-delete via FK onDelete: 'cascade'
     await ctx.db.delete(kbDocuments).where(eq(kbDocuments.id, id));
     return c.json({ success: true });
   })
   // Search
   .post('/search', async (c) => {
     const ctx = getCtx(c);
-    const body = await c.req.json();
+    const searchSchema = z.object({
+      query: z.string().min(1),
+      limit: z.number().int().positive().optional(),
+      vectorWeight: z.number().min(0).max(1).optional(),
+      keywordWeight: z.number().min(0).max(1).optional(),
+      sourceIds: z.array(z.string()).optional(),
+    });
+    const parsed = searchSchema.safeParse(await c.req.json());
+    if (!parsed.success) throw validation(parsed.error.flatten().fieldErrors);
+    const body = parsed.data;
+
     const { extractIntent } = await import('./search-config');
     const { hybridSearch } = await import('./lib/search');
 
-    // Strip intent signals (e.g. "recent", "latest") before search
     const { cleanQuery, sortHint } = extractIntent(body.query);
 
     const results = await hybridSearch(ctx.db, cleanQuery, {
@@ -217,7 +382,16 @@ export const knowledgeBaseRoutes = new Hono()
   // Sources CRUD
   .post('/sources', async (c) => {
     const ctx = getCtx(c);
-    const body = await c.req.json();
+    const sourceSchema = z.object({
+      name: z.string().min(1),
+      type: z.enum(['crawl', 'google-drive', 'sharepoint']),
+      config: z.record(z.string(), z.unknown()).optional(),
+      syncSchedule: z.string().optional(),
+    });
+    const parsed = sourceSchema.safeParse(await c.req.json());
+    if (!parsed.success) throw validation(parsed.error.flatten().fieldErrors);
+    const body = parsed.data;
+
     const [source] = await ctx.db
       .insert(kbSources)
       .values({
@@ -239,7 +413,16 @@ export const knowledgeBaseRoutes = new Hono()
   })
   .put('/sources/:id', async (c) => {
     const ctx = getCtx(c);
-    const body = await c.req.json();
+    const sourceUpdateSchema = z.object({
+      name: z.string().min(1).optional(),
+      type: z.enum(['crawl', 'google-drive', 'sharepoint']).optional(),
+      config: z.record(z.string(), z.unknown()).optional(),
+      syncSchedule: z.string().nullable().optional(),
+    });
+    const parsed = sourceUpdateSchema.safeParse(await c.req.json());
+    if (!parsed.success) throw validation(parsed.error.flatten().fieldErrors);
+    const body = parsed.data;
+
     const [source] = await ctx.db
       .update(kbSources)
       .set({
@@ -277,7 +460,12 @@ export const knowledgeBaseRoutes = new Hono()
     if (!source) throw notFound('Source not found');
 
     // Trigger sync in background (fire and forget)
-    syncSource(ctx.db, ctx.integrations, source).catch(console.error);
+    syncSource(ctx.db, ctx.integrations, source).catch((err) =>
+      logger.error('[kb] sync_source_error', {
+        sourceId: source.id,
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
     return c.json({ message: 'Sync started' });
   })
   .get('/sources/:id/logs', async (c) => {
@@ -367,8 +555,18 @@ export const knowledgeBaseRoutes = new Hono()
     }
     return c.json({ error: 'Source type does not require OAuth' }, 400);
   })
-  // Reindex
+  // Reindex: backfill Plate Value content for existing documents, then re-chunk/re-embed all
   .post('/reindex', async (c) => {
+    const ctx = getCtx(c);
+    const { migrateExistingDocuments } = await import('./lib/migrate-content');
+
+    // Fire-and-forget: migration can be slow for large document sets
+    migrateExistingDocuments(ctx.db, { reembed: true }).catch((err) =>
+      logger.error('[kb] reindex_error', {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+
     return c.json({ message: 'Reindex triggered' });
   });
 

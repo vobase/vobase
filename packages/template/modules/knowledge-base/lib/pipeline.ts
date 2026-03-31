@@ -2,19 +2,26 @@ import type { VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
 import { kbChunks, kbDocuments } from '../schema';
-import { recursiveChunk } from './chunker';
+import { blockChunk } from './chunker';
 import { embedChunks } from './embeddings';
+import type { PlateValue } from './plate-types';
 
 /**
  * Process a document: chunk → embed → store in kbChunks.
  * searchVector (tsvector) is generated automatically by PostgreSQL.
  * Updates the document status through the pipeline.
+ *
+ * @param value    Plate Value (structured document content)
+ * @param rawValue Immutable original extraction. Defaults to value when omitted.
  */
 export async function processDocument(
   db: VobaseDb,
   documentId: string,
-  content: string,
+  value: PlateValue,
+  rawValue?: PlateValue,
 ): Promise<void> {
+  const storedRaw = rawValue ?? value;
+
   // Mark as processing
   await db
     .update(kbDocuments)
@@ -22,12 +29,18 @@ export async function processDocument(
     .where(eq(kbDocuments.id, documentId));
 
   try {
-    // 1. Chunk the content
-    const chunks = recursiveChunk(content);
+    // 1. Chunk the Plate Value; discard empty chunks
+    const chunks = blockChunk(value).filter((c) => c.content.trim().length > 0);
+
     if (chunks.length === 0) {
       await db
         .update(kbDocuments)
-        .set({ status: 'ready', chunkCount: 0 })
+        .set({
+          status: 'ready',
+          chunkCount: 0,
+          content: value as unknown,
+          rawContent: storedRaw as unknown,
+        })
         .where(eq(kbDocuments.id, documentId));
       return;
     }
@@ -38,21 +51,26 @@ export async function processDocument(
     // 3. Insert chunks with embeddings in a transaction
     //    PostgreSQL automatically populates searchVector via generatedAlwaysAs.
     await db.transaction(async (tx) => {
-      for (let i = 0; i < chunks.length; i++) {
-        await tx.insert(kbChunks).values({
+      await tx.insert(kbChunks).values(
+        chunks.map((chunk, i) => ({
           documentId,
-          content: chunks[i].content,
-          chunkIndex: chunks[i].index,
-          tokenCount: chunks[i].tokenCount,
+          content: chunk.content,
+          chunkIndex: chunk.index,
+          tokenCount: chunk.tokenCount,
           embedding: embeddings[i],
-        });
-      }
+        })),
+      );
     });
 
-    // 4. Mark document as ready
+    // 4. Mark document as ready and store Plate Value
     await db
       .update(kbDocuments)
-      .set({ status: 'ready', chunkCount: chunks.length })
+      .set({
+        status: 'ready',
+        chunkCount: chunks.length,
+        content: value as unknown,
+        rawContent: storedRaw as unknown,
+      })
       .where(eq(kbDocuments.id, documentId));
   } catch (error) {
     await db

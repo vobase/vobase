@@ -64,7 +64,12 @@ export const processDocumentJob = defineJob(
 
       // 3. Process document (chunk + embed + store)
       const { processDocument } = await import('./lib/pipeline');
-      await processDocument(moduleDb, documentId, result.text);
+      await processDocument(
+        moduleDb,
+        documentId,
+        result.value,
+        result.rawValue,
+      );
     } finally {
       // 4. Clean up local temp file
       try {

@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm';
 
 import { createTestDb } from '../../../lib/test-helpers';
 import { kbChunks, kbDocuments } from '../schema';
+import type { PlateValue } from './plate-types';
+import { createParagraph, createText } from './plate-types';
 
 // Mock embeddings to return deterministic 4-dim vectors
 mock.module('./embeddings', () => ({
@@ -15,6 +17,14 @@ mock.module('./embeddings', () => ({
 
 // Re-import after mocking
 const { processDocument } = await import('./pipeline');
+
+/** Helper: wrap a plain string into a minimal PlateValue */
+function textPlate(text: string): PlateValue {
+  return [createParagraph([createText(text)])];
+}
+
+/** Empty PlateValue (single empty paragraph — filters to 0 chunks) */
+const EMPTY_PLATE: PlateValue = [createParagraph()];
 
 describe('processDocument()', () => {
   let pglite: PGlite;
@@ -40,7 +50,7 @@ describe('processDocument()', () => {
 
   it('marks document as ready after processing', async () => {
     await insertDoc('doc-1', 'Test Doc');
-    await processDocument(db, 'doc-1', 'Some short content.');
+    await processDocument(db, 'doc-1', textPlate('Some short content.'));
 
     const [doc] = await db
       .select()
@@ -51,7 +61,7 @@ describe('processDocument()', () => {
 
   it('sets chunkCount to 0 for empty content', async () => {
     await insertDoc('doc-2', 'Empty Doc');
-    await processDocument(db, 'doc-2', '');
+    await processDocument(db, 'doc-2', EMPTY_PLATE);
 
     const [doc] = await db
       .select()
@@ -66,7 +76,7 @@ describe('processDocument()', () => {
     await processDocument(
       db,
       'doc-3',
-      'This is a piece of content that will become a chunk.',
+      textPlate('This is a piece of content that will become a chunk.'),
     );
 
     const chunks = await db
@@ -80,7 +90,11 @@ describe('processDocument()', () => {
 
   it('stores embeddings inline in kb_chunks', async () => {
     await insertDoc('doc-4', 'Vector Doc');
-    await processDocument(db, 'doc-4', 'Content for vector embedding.');
+    await processDocument(
+      db,
+      'doc-4',
+      textPlate('Content for vector embedding.'),
+    );
 
     const result = await pglite.query<{ id: string }>(
       'SELECT id FROM "kb"."chunks" WHERE embedding IS NOT NULL AND document_id = $1',
@@ -91,7 +105,11 @@ describe('processDocument()', () => {
 
   it('generates tsvector for full-text search', async () => {
     await insertDoc('doc-5', 'FTS Doc');
-    await processDocument(db, 'doc-5', 'Searchable full text content here.');
+    await processDocument(
+      db,
+      'doc-5',
+      textPlate('Searchable full text content here.'),
+    );
 
     const result = await pglite.query<{ id: string }>(
       'SELECT id FROM "kb"."chunks" WHERE search_vector @@ to_tsquery(\'english\', \'searchable\') AND document_id = $1',
@@ -102,7 +120,7 @@ describe('processDocument()', () => {
 
   it('assigns chunkIndex starting at 0', async () => {
     await insertDoc('doc-6', 'Indexed Doc');
-    await processDocument(db, 'doc-6', 'First chunk content.');
+    await processDocument(db, 'doc-6', textPlate('First chunk content.'));
 
     const chunks = await db
       .select()
@@ -130,7 +148,7 @@ describe('processDocument()', () => {
     const { processDocument: processWithError } = await import('./pipeline');
 
     try {
-      await processWithError(db, 'doc-7', 'Content that will fail.');
+      await processWithError(db, 'doc-7', textPlate('Content that will fail.'));
     } catch {
       // expected
     }
@@ -150,7 +168,7 @@ describe('processDocument()', () => {
 
   it('updates document chunkCount correctly', async () => {
     await insertDoc('doc-8', 'Counted Doc');
-    await processDocument(db, 'doc-8', 'A short piece of text.');
+    await processDocument(db, 'doc-8', textPlate('A short piece of text.'));
 
     const [doc] = await db
       .select()
@@ -161,5 +179,19 @@ describe('processDocument()', () => {
       .from(kbChunks)
       .where(eq(kbChunks.documentId, 'doc-8'));
     expect(doc?.chunkCount).toBe(chunks.length);
+  });
+
+  it('stores content and rawContent as jsonb on the document', async () => {
+    await insertDoc('doc-9', 'Plate Doc');
+    const value = textPlate('Stored as jsonb.');
+    await processDocument(db, 'doc-9', value, value);
+
+    const [doc] = await db
+      .select()
+      .from(kbDocuments)
+      .where(eq(kbDocuments.id, 'doc-9'));
+    expect(doc?.content).toBeTruthy();
+    expect(Array.isArray(doc?.content)).toBe(true);
+    expect(doc?.rawContent).toBeTruthy();
   });
 });

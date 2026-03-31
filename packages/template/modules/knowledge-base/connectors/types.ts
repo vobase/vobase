@@ -1,3 +1,5 @@
+import type { PlateValue } from '../lib/plate-types';
+
 export interface ExternalDocument {
   externalId: string;
   title: string;
@@ -8,6 +10,8 @@ export interface ExternalDocument {
 
 export interface DocumentContent {
   text: string;
+  /** Optional pre-parsed Plate Value. If provided, skips markdownToPlate() conversion. */
+  value?: PlateValue;
   metadata?: Record<string, unknown>;
 }
 

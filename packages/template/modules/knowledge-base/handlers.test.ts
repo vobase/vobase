@@ -133,6 +133,23 @@ describe('Knowledge Base Routes', () => {
       expect(docs).toHaveLength(2);
     });
 
+    it('GET /documents does not include content or rawContent', async () => {
+      await db.insert(kbDocuments).values({
+        id: 'doc-list-check',
+        title: 'List Check',
+        sourceType: 'upload',
+        mimeType: 'text/plain',
+      });
+
+      const res = await app.request(`${BASE}/documents`);
+      expect(res.status).toBe(200);
+      const docs = await res.json();
+      const doc = docs.find((d: { id: string }) => d.id === 'doc-list-check');
+      expect(doc).toBeDefined();
+      expect('content' in doc).toBe(false);
+      expect('rawContent' in doc).toBe(false);
+    });
+
     it('GET /documents/:id returns document with chunks array', async () => {
       await db.insert(kbDocuments).values({
         id: 'doc-get',
@@ -146,11 +163,90 @@ describe('Knowledge Base Routes', () => {
       const data = await res.json();
       expect(data.title).toBe('Get Me');
       expect(data.chunks).toEqual([]);
+      // content is null for an unprocessed document
+      expect(data.content).toBeNull();
     });
 
     it('GET /documents/:id returns 404 for nonexistent document', async () => {
       const res = await app.request(`${BASE}/documents/nope`);
       expect(res.status).toBe(404);
+    });
+
+    it('PATCH /documents/:id/content returns 400 for invalid Plate Value', async () => {
+      await db.insert(kbDocuments).values({
+        id: 'doc-patch-invalid',
+        title: 'Invalid Patch',
+        sourceType: 'upload',
+        mimeType: 'text/plain',
+        status: 'ready',
+      });
+
+      const res = await app.request(
+        `${BASE}/documents/doc-patch-invalid/content`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: 'not-an-array' }),
+        },
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('PATCH /documents/:id/content returns 404 for nonexistent document', async () => {
+      const plateValue = [{ type: 'p', children: [{ text: 'Hello' }] }];
+      const res = await app.request(`${BASE}/documents/nope/content`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: plateValue }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('PATCH /documents/:id/content returns 409 when doc is not ready', async () => {
+      await db.insert(kbDocuments).values({
+        id: 'doc-patch-pending',
+        title: 'Pending Doc',
+        sourceType: 'upload',
+        mimeType: 'text/plain',
+        status: 'pending',
+      });
+      const plateValue = [{ type: 'p', children: [{ text: 'Hello' }] }];
+      const res = await app.request(
+        `${BASE}/documents/doc-patch-pending/content`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: plateValue }),
+        },
+      );
+      expect(res.status).toBe(409);
+    });
+
+    it('PATCH /documents/:id/content returns 0 rechunked for identical content', async () => {
+      const plateValue = [{ type: 'p', children: [{ text: 'Hello world' }] }];
+      await db.insert(kbDocuments).values({
+        id: 'doc-patch-same',
+        title: 'Same Content',
+        sourceType: 'upload',
+        mimeType: 'text/plain',
+        status: 'ready',
+        content: plateValue as unknown,
+        rawContent: plateValue as unknown,
+      });
+
+      const res = await app.request(
+        `${BASE}/documents/doc-patch-same/content`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: plateValue }),
+        },
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.rechunkedCount).toBe(0);
+      expect(body.reembeddedCount).toBe(0);
     });
 
     it('DELETE /documents/:id removes document', async () => {

@@ -34,9 +34,10 @@ import { Route as shellSettingsApiKeysRouteImport } from './shell/settings/api-k
 import { Route as shellSettingsAccountRouteImport } from './shell/settings/account'
 import { Route as SourcesRouteImport } from './../modules/knowledge-base/pages/sources'
 import { Route as SearchRouteImport } from './../modules/knowledge-base/pages/search'
-import { Route as DocumentsRouteImport } from './../modules/knowledge-base/pages/documents'
 import { Route as DotDotModulesAiPagesConversationsConversationIdRouteImport } from './../modules/ai/pages/conversations/$conversationId'
 import { Route as DotDotModulesAiPagesContactsContactIdRouteImport } from './../modules/ai/pages/contacts/$contactId'
+import { Route as DocumentsIndexRouteImport } from './../modules/knowledge-base/pages/documents/index'
+import { Route as DocumentsIdRouteImport } from './../modules/knowledge-base/pages/documents/$id'
 import { Route as DotDotModulesAiPagesAiMemoryRouteImport } from './../modules/ai/pages/ai/memory'
 import { Route as DotDotModulesAiPagesAiGuardrailsRouteImport } from './../modules/ai/pages/ai/guardrails'
 import { Route as DotDotModulesAiPagesAiEvalsRouteImport } from './../modules/ai/pages/ai/evals'
@@ -173,11 +174,6 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => DotDotModulesKnowledgeBasePagesLayoutRoute,
 } as any)
-const DocumentsRoute = DocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => DotDotModulesKnowledgeBasePagesLayoutRoute,
-} as any)
 const DotDotModulesAiPagesConversationsConversationIdRoute =
   DotDotModulesAiPagesConversationsConversationIdRouteImport.update({
     id: '/$conversationId',
@@ -190,6 +186,16 @@ const DotDotModulesAiPagesContactsContactIdRoute =
     path: '/contacts/$contactId',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
+const DocumentsIndexRoute = DocumentsIndexRouteImport.update({
+  id: '/documents/',
+  path: '/documents/',
+  getParentRoute: () => DotDotModulesKnowledgeBasePagesLayoutRoute,
+} as any)
+const DocumentsIdRoute = DocumentsIdRouteImport.update({
+  id: '/documents/$id',
+  path: '/documents/$id',
+  getParentRoute: () => DotDotModulesKnowledgeBasePagesLayoutRoute,
+} as any)
 const DotDotModulesAiPagesAiMemoryRoute =
   DotDotModulesAiPagesAiMemoryRouteImport.update({
     id: '/ai/memory',
@@ -228,7 +234,6 @@ export interface FileRoutesByFullPath {
   '/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
   '/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
   '/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
-  '/knowledge-base/documents': typeof DocumentsRoute
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
   '/settings/account': typeof shellSettingsAccountRoute
@@ -245,6 +250,8 @@ export interface FileRoutesByFullPath {
   '/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
   '/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
   '/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
+  '/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/knowledge-base/documents/': typeof DocumentsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof homeRoute
@@ -259,7 +266,6 @@ export interface FileRoutesByTo {
   '/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
   '/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
   '/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
-  '/knowledge-base/documents': typeof DocumentsRoute
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
   '/settings/account': typeof shellSettingsAccountRoute
@@ -276,6 +282,8 @@ export interface FileRoutesByTo {
   '/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
   '/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
   '/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
+  '/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/knowledge-base/documents': typeof DocumentsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -294,7 +302,6 @@ export interface FileRoutesById {
   '/_app/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
   '/_app/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
   '/_app/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
-  '/_app/knowledge-base/documents': typeof DocumentsRoute
   '/_app/knowledge-base/search': typeof SearchRoute
   '/_app/knowledge-base/sources': typeof SourcesRoute
   '/_app/settings/account': typeof shellSettingsAccountRoute
@@ -311,6 +318,8 @@ export interface FileRoutesById {
   '/_app/_ai/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
   '/_app/_ai/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
   '/_app/_ai/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
+  '/_app/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/_app/knowledge-base/documents/': typeof DocumentsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -327,7 +336,6 @@ export interface FileRouteTypes {
     | '/conversations'
     | '/contacts/$contactId'
     | '/conversations/$conversationId'
-    | '/knowledge-base/documents'
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
     | '/settings/account'
@@ -344,6 +352,8 @@ export interface FileRouteTypes {
     | '/ai/evals'
     | '/ai/guardrails'
     | '/ai/memory'
+    | '/knowledge-base/documents/$id'
+    | '/knowledge-base/documents/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -358,7 +368,6 @@ export interface FileRouteTypes {
     | '/conversations'
     | '/contacts/$contactId'
     | '/conversations/$conversationId'
-    | '/knowledge-base/documents'
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
     | '/settings/account'
@@ -375,6 +384,8 @@ export interface FileRouteTypes {
     | '/ai/evals'
     | '/ai/guardrails'
     | '/ai/memory'
+    | '/knowledge-base/documents/$id'
+    | '/knowledge-base/documents'
   id:
     | '__root__'
     | '/_app'
@@ -392,7 +403,6 @@ export interface FileRouteTypes {
     | '/_app/conversations'
     | '/_app/contacts/$contactId'
     | '/_app/conversations/$conversationId'
-    | '/_app/knowledge-base/documents'
     | '/_app/knowledge-base/search'
     | '/_app/knowledge-base/sources'
     | '/_app/settings/account'
@@ -409,6 +419,8 @@ export interface FileRouteTypes {
     | '/_app/_ai/ai/evals'
     | '/_app/_ai/ai/guardrails'
     | '/_app/_ai/ai/memory'
+    | '/_app/knowledge-base/documents/$id'
+    | '/_app/knowledge-base/documents/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -594,13 +606,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
     }
-    '/_app/knowledge-base/documents': {
-      id: '/_app/knowledge-base/documents'
-      path: '/documents'
-      fullPath: '/knowledge-base/documents'
-      preLoaderRoute: typeof DocumentsRouteImport
-      parentRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
-    }
     '/_app/conversations/$conversationId': {
       id: '/_app/conversations/$conversationId'
       path: '/$conversationId'
@@ -614,6 +619,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/contacts/$contactId'
       preLoaderRoute: typeof DotDotModulesAiPagesContactsContactIdRouteImport
       parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_app/knowledge-base/documents/': {
+      id: '/_app/knowledge-base/documents/'
+      path: '/documents'
+      fullPath: '/knowledge-base/documents/'
+      preLoaderRoute: typeof DocumentsIndexRouteImport
+      parentRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
+    }
+    '/_app/knowledge-base/documents/$id': {
+      id: '/_app/knowledge-base/documents/$id'
+      path: '/documents/$id'
+      fullPath: '/knowledge-base/documents/$id'
+      preLoaderRoute: typeof DocumentsIdRouteImport
+      parentRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
     }
     '/_app/_ai/ai/memory': {
       id: '/_app/_ai/ai/memory'
@@ -668,16 +687,18 @@ const DotDotModulesAiPagesAiLayoutRouteWithChildren =
   )
 
 interface DotDotModulesKnowledgeBasePagesLayoutRouteChildren {
-  DocumentsRoute: typeof DocumentsRoute
   SearchRoute: typeof SearchRoute
   SourcesRoute: typeof SourcesRoute
+  DocumentsIdRoute: typeof DocumentsIdRoute
+  DocumentsIndexRoute: typeof DocumentsIndexRoute
 }
 
 const DotDotModulesKnowledgeBasePagesLayoutRouteChildren: DotDotModulesKnowledgeBasePagesLayoutRouteChildren =
   {
-    DocumentsRoute: DocumentsRoute,
     SearchRoute: SearchRoute,
     SourcesRoute: SourcesRoute,
+    DocumentsIdRoute: DocumentsIdRoute,
+    DocumentsIndexRoute: DocumentsIndexRoute,
   }
 
 const DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren =

@@ -5,6 +5,7 @@ import {
   customType,
   index,
   integer,
+  jsonb,
   pgSchema,
   text,
   timestamp,
@@ -61,6 +62,8 @@ export const kbDocuments = kbPgSchema.table(
     status: text('status').notNull().default('pending'), // pending | processing | ready | error | needs_ocr
     chunkCount: integer('chunk_count').notNull().default(0),
     metadata: text('metadata'), // JSON
+    content: jsonb('content'), // Plate Value (JSON AST)
+    rawContent: jsonb('raw_content'), // immutable original extraction
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
