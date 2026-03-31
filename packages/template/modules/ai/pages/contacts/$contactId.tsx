@@ -13,6 +13,8 @@ import {
   UserIcon,
 } from 'lucide-react';
 import { useState } from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -428,9 +430,9 @@ function MemoryTab({ contactId }: { contactId: string }) {
                   Agent's live context for this contact
                 </span>
               </div>
-              <pre className="text-xs text-foreground whitespace-pre-wrap leading-relaxed bg-muted/50 rounded-md p-2.5 overflow-auto max-h-64">
-                {workingMemory}
-              </pre>
+              <div className="text-xs text-foreground leading-relaxed bg-muted/50 rounded-md p-2.5 overflow-auto max-h-64 [&_h1]:text-xs [&_h1]:font-semibold [&_h1]:mt-2 [&_h1]:mb-1 [&_h2]:text-xs [&_h2]:font-semibold [&_h2]:mt-2 [&_h2]:mb-1 [&_h3]:text-xs [&_h3]:font-medium [&_h3]:mt-1.5 [&_h3]:mb-0.5 [&_p]:my-1 [&_ul]:my-1 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:my-1 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:my-0 [&_strong]:font-medium [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded">
+                <Markdown remarkPlugins={[remarkGfm]}>{workingMemory}</Markdown>
+              </div>
             </CardContent>
           </Card>
         </div>
