@@ -70,6 +70,7 @@ async function createTestDatabase() {
       "email_verified" BOOLEAN NOT NULL DEFAULT FALSE,
       "image" TEXT,
       "role" TEXT NOT NULL DEFAULT 'user',
+      "is_anonymous" BOOLEAN NOT NULL DEFAULT FALSE,
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
