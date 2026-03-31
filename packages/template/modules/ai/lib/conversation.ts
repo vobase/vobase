@@ -3,9 +3,11 @@ import { createNanoid, logger, notFound } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
 import { getMemory } from '../../../mastra';
+import { flushConversationMemory } from '../../../mastra/processors/memory/memory-processor';
 import { channelRoutings, conversations } from '../schema';
 import { computeTab, emitActivityEvent } from './activity-events';
 import { getChatState } from './chat-init';
+import { getModuleScheduler } from './deps';
 
 const generateId = createNanoid();
 
@@ -157,6 +159,7 @@ export async function completeConversation(
   const [prev] = await db
     .select({
       mode: conversations.mode,
+      contactId: conversations.contactId,
       hasPendingEscalation: conversations.hasPendingEscalation,
     })
     .from(conversations)
@@ -199,6 +202,24 @@ export async function completeConversation(
         prev?.hasPendingEscalation ?? false,
       ),
     });
+  }
+
+  // Flush unflushed messages into memory on conversation completion
+  if (prev?.contactId) {
+    try {
+      const scheduler = getModuleScheduler();
+      await flushConversationMemory({
+        db,
+        scheduler,
+        conversationId,
+        contactId: prev.contactId,
+      });
+    } catch (err) {
+      logger.warn('[conversations] Memory flush failed', {
+        conversationId,
+        error: err,
+      });
+    }
   }
 
   logger.info('[conversations] conversation_complete', {

@@ -115,11 +115,10 @@ export function createMemoryInputProcessor(
           ],
         };
       } catch (err) {
-        // Memory retrieval failure must never break chat
-        console.error(
-          `[memory] Retrieval failed for conversation ${conversationId}:`,
-          err,
-        );
+        logger.error('[memory] Retrieval failed', {
+          conversationId,
+          error: err,
+        });
         return { messages: args.messages, systemMessages: args.systemMessages };
       }
     },
@@ -139,20 +138,7 @@ export function createMemoryOutputProcessor(
 
     async processOutputResult(args: ProcessOutputResultArgs) {
       try {
-        // Find messages since the last MemCell boundary in this conversation
-        const lastCell = (
-          await db
-            .select({
-              id: aiMemCells.id,
-              endMessageId: aiMemCells.endMessageId,
-            })
-            .from(aiMemCells)
-            .where(eq(aiMemCells.threadId, conversationId))
-            .orderBy(desc(aiMemCells.createdAt))
-            .limit(1)
-        )[0];
-
-        // Get conversation messages from DB since the last boundary
+        const lastCell = await findLastCell(db, conversationId);
         const dbMessages = await getMessagesSinceLastCell(
           db,
           conversationId,
@@ -169,53 +155,45 @@ export function createMemoryOutputProcessor(
           return args.messages;
         }
 
-        // Run boundary detection
-        logger.info('[memory] Running boundary detection', {
-          conversationId,
-          messageCount: dbMessages.length,
-        });
-        const boundary = await detectBoundary({ messages: dbMessages });
+        // If this is the first cell for the conversation, create it eagerly
+        // at 4+ messages without requiring a topic boundary.
+        // Subsequent cells still require boundary detection or hard limits.
+        const isFirstCell = !lastCell;
 
-        logger.info('[memory] Boundary result', {
-          conversationId,
-          shouldSplit: boundary.shouldSplit,
-          reason: boundary.reason,
-        });
+        if (!isFirstCell) {
+          // Run boundary detection for subsequent cells
+          logger.info('[memory] Running boundary detection', {
+            conversationId,
+            messageCount: dbMessages.length,
+          });
+          const boundary = await detectBoundary({ messages: dbMessages });
 
-        if (!boundary.shouldSplit) {
-          return args.messages;
+          logger.info('[memory] Boundary result', {
+            conversationId,
+            shouldSplit: boundary.shouldSplit,
+            reason: boundary.reason,
+          });
+
+          if (!boundary.shouldSplit) {
+            return args.messages;
+          }
+        } else {
+          logger.info('[memory] First cell — creating eagerly', {
+            conversationId,
+            messageCount: dbMessages.length,
+          });
         }
 
-        // Create MemCell row
-        const firstMsg = dbMessages[0];
-        const lastMsg = dbMessages[dbMessages.length - 1];
-
-        // Store contactId as primary scope key for channel conversations.
-        // userId is only stored when there's no contactId (web chat).
-        // This ensures retrieval uses a single, unambiguous scope column.
-        const [cell] = await db
-          .insert(aiMemCells)
-          .values({
-            threadId: conversationId,
-            contactId: scope.contactId ?? null,
-            userId: scope.contactId ? null : scope.userId,
-            startMessageId: firstMsg.id,
-            endMessageId: lastMsg.id,
-            messageCount: dbMessages.length,
-            tokenCount: computeBufferTokens(dbMessages),
-            status: 'pending',
-          })
-          .returning({ id: aiMemCells.id });
+        const cellId = await createCellAndQueueFormation(db, scheduler, {
+          threadId: conversationId,
+          contactId: scope.contactId,
+          messages: dbMessages,
+        });
 
         logger.info('[memory] Cell created, queuing formation', {
           conversationId,
-          cellId: cell.id,
+          cellId,
           messageCount: dbMessages.length,
-        });
-
-        // Queue formation job
-        await scheduler.add('ai:memory-formation', {
-          cellId: cell.id,
         });
       } catch (err) {
         // Memory formation failures must never break chat
@@ -228,6 +206,92 @@ export function createMemoryOutputProcessor(
       return args.messages;
     },
   };
+}
+
+/** Find the most recent MemCell for a conversation. */
+async function findLastCell(db: VobaseDb, threadId: string) {
+  return (
+    await db
+      .select({
+        id: aiMemCells.id,
+        endMessageId: aiMemCells.endMessageId,
+      })
+      .from(aiMemCells)
+      .where(eq(aiMemCells.threadId, threadId))
+      .orderBy(desc(aiMemCells.createdAt))
+      .limit(1)
+  )[0];
+}
+
+/** Create a pending MemCell and queue the formation job. */
+async function createCellAndQueueFormation(
+  db: VobaseDb,
+  scheduler: { add: (name: string, data: unknown) => Promise<unknown> },
+  opts: {
+    threadId: string;
+    contactId: string;
+    messages: MemoryMessage[];
+  },
+): Promise<string> {
+  const first = opts.messages[0];
+  const last = opts.messages[opts.messages.length - 1];
+
+  const [cell] = await db
+    .insert(aiMemCells)
+    .values({
+      threadId: opts.threadId,
+      contactId: opts.contactId,
+      startMessageId: first.id,
+      endMessageId: last.id,
+      messageCount: opts.messages.length,
+      tokenCount: computeBufferTokens(opts.messages),
+      status: 'pending',
+    })
+    .returning({ id: aiMemCells.id });
+
+  await scheduler.add('ai:memory-formation', { cellId: cell.id });
+  return cell.id;
+}
+
+/**
+ * Flush unflushed messages into a MemCell on conversation completion.
+ * Ensures every conversation produces memory regardless of boundary detection.
+ */
+export async function flushConversationMemory(opts: {
+  db: VobaseDb;
+  scheduler: { add: (name: string, data: unknown) => Promise<unknown> };
+  conversationId: string;
+  contactId: string;
+}): Promise<void> {
+  const { db, scheduler, conversationId, contactId } = opts;
+
+  try {
+    const lastCell = await findLastCell(db, conversationId);
+    const messages = await getMessagesSinceLastCell(
+      db,
+      conversationId,
+      lastCell?.endMessageId,
+    );
+
+    if (messages.length < 2) return;
+
+    const cellId = await createCellAndQueueFormation(db, scheduler, {
+      threadId: conversationId,
+      contactId,
+      messages,
+    });
+
+    logger.info('[memory] Flushed conversation memory on completion', {
+      conversationId,
+      cellId,
+      messageCount: messages.length,
+    });
+  } catch (err) {
+    logger.error('[memory] Flush on completion failed', {
+      conversationId,
+      error: err,
+    });
+  }
 }
 
 /**

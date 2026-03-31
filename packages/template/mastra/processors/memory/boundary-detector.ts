@@ -1,6 +1,6 @@
 import { openai } from '@ai-sdk/openai';
 import { logger } from '@vobase/core';
-import { generateText, Output } from 'ai';
+import { generateObject } from 'ai';
 
 import { bareModelName, models } from '../../lib/models';
 import type { BoundaryResult, MemoryConfig, MemoryMessage } from './types';
@@ -82,18 +82,18 @@ export async function detectBoundary(
   try {
     const opts = {
       model: openai(bareModelName(models.gpt_mini)),
-      output: Output.object({ schema: boundaryResultSchema }),
+      schema: boundaryResultSchema,
       system: BOUNDARY_PROMPT,
       prompt: formatted,
-      maxOutputTokens: 100,
+      maxTokens: 256,
     } as const;
 
     if (generate) {
       const result = await generate(opts);
       return result.object;
     }
-    const result = await generateText(opts);
-    return result.output as BoundaryResult;
+    const result = await generateObject(opts);
+    return result.object;
   } catch (err) {
     // LLM failure is non-fatal — don't split on error
     logger.warn('[memory] Boundary detection LLM call failed', { error: err });
