@@ -134,9 +134,7 @@ export function MessageFeedback({
       <div className="flex items-center gap-0.5">
         <TooltipIconButton
           tooltip="Helpful"
-          className={cn(
-            hasPositive && 'text-green-600 dark:text-green-400',
-          )}
+          className={cn(hasPositive && 'text-green-600 dark:text-green-400')}
           onClick={() => handleReact('positive')}
         >
           <ThumbsUpIcon />
@@ -146,9 +144,7 @@ export function MessageFeedback({
       <div className="flex items-center gap-0.5">
         <TooltipIconButton
           tooltip="Not helpful"
-          className={cn(
-            hasNegative && 'text-red-600 dark:text-red-400',
-          )}
+          className={cn(hasNegative && 'text-red-600 dark:text-red-400')}
           onClick={() => handleReact('negative')}
         >
           <ThumbsDownIcon />

@@ -74,7 +74,9 @@ export function useRealtimeInvalidation() {
         }
         queryClient.invalidateQueries({ queryKey: ['conversations-counts'] });
         if (payload.id) {
-          queryClient.invalidateQueries({ queryKey: ['conversation-detail', payload.id] });
+          queryClient.invalidateQueries({
+            queryKey: ['conversation-detail', payload.id],
+          });
         }
         return;
       }
