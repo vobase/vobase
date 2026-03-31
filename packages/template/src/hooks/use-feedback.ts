@@ -11,8 +11,10 @@ import {
 } from '@/hooks/use-realtime';
 
 interface FeedbackApiRow {
+  id: string;
   messageId: string;
   rating: string;
+  reason: string | null;
   userId: string | null;
   userName: string | null;
   userImage: string | null;
@@ -28,9 +30,11 @@ function parseFeedbackRows(
     }
     const entry = map.get(r.messageId)!;
     const reactor: Reactor = {
+      id: r.id,
       userId: r.userId ?? '',
       userName: r.userName,
       userImage: r.userImage,
+      reason: r.reason,
     };
     if (r.rating === 'positive') entry.positive.push(reactor);
     else if (r.rating === 'negative') entry.negative.push(reactor);
@@ -78,20 +82,32 @@ export function useFeedback(conversationId: string) {
   }, [conversationId, queryClient]);
 
   const handleReact = useCallback(
-    (messageId: string, rating: 'positive' | 'negative') => {
+    (messageId: string, rating: 'positive' | 'negative', reason?: string) => {
       fetch(
         `/api/ai/conversations/${conversationId}/messages/${messageId}/feedback`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ rating }),
+          body: JSON.stringify({ rating, ...(reason && { reason }) }),
         },
       ).catch((err) => console.error('[feedback] reaction error:', err));
-      // SSE invalidation handles the refetch — no need to manually reload
     },
     [conversationId],
   );
 
-  return { feedbackMap, handleReact };
+  const handleDeleteFeedback = useCallback(
+    (messageId: string, feedbackId: string) => {
+      fetch(
+        `/api/ai/conversations/${conversationId}/messages/${messageId}/feedback/${feedbackId}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+        },
+      ).catch((err) => console.error('[feedback] delete error:', err));
+    },
+    [conversationId],
+  );
+
+  return { feedbackMap, handleReact, handleDeleteFeedback };
 }

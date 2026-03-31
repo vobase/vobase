@@ -633,7 +633,8 @@ function ConversationDetailPage() {
     enabled: !!conversation,
   });
 
-  const { feedbackMap, handleReact } = useFeedback(conversationId);
+  const { feedbackMap, handleReact, handleDeleteFeedback } =
+    useFeedback(conversationId);
 
   const { data: contact } = useQuery({
     queryKey: ['contacts', conversation?.contactId],
@@ -1086,6 +1087,7 @@ function ConversationDetailPage() {
               feedbackMap={feedbackMap}
               currentUserId={session?.user?.id}
               onReact={handleReact}
+              onDeleteFeedback={handleDeleteFeedback}
               contactLabel={contact?.name ?? 'Visitor'}
               conversationId={conversationId}
             >

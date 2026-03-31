@@ -12,7 +12,13 @@ interface VobaseThreadContextValue {
   /** Current user ID for highlighting own reactions */
   currentUserId?: string;
   /** Callback when user reacts to a message */
-  onReact?: (messageId: string, rating: 'positive' | 'negative') => void;
+  onReact?: (
+    messageId: string,
+    rating: 'positive' | 'negative',
+    reason?: string,
+  ) => void;
+  /** Callback to delete a specific feedback entry */
+  onDeleteFeedback?: (messageId: string, feedbackId: string) => void;
   /** Contact label for turn grouping */
   contactLabel?: string;
   /** Conversation ID for typing indicator */

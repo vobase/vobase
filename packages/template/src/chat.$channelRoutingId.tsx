@@ -101,7 +101,8 @@ function PublicChatView({
   useTypingListener(conversationId);
   const { signalTyping } = useTypingSender(conversationId);
   const { data: session } = authClient.useSession();
-  const { feedbackMap, handleReact } = useFeedback(conversationId);
+  const { feedbackMap, handleReact, handleDeleteFeedback } =
+    useFeedback(conversationId);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -111,6 +112,7 @@ function PublicChatView({
         feedbackMap={feedbackMap}
         currentUserId={session?.user?.id}
         onReact={handleReact}
+        onDeleteFeedback={handleDeleteFeedback}
         conversationId={conversationId}
         isAiThinking={status === 'submitted' || status === 'streaming'}
       >

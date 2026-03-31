@@ -403,12 +403,9 @@ export const messageFeedback = conversationsPgSchema.table(
   (table) => [
     index('message_feedback_conversation_idx').on(table.conversationId),
     index('message_feedback_message_idx').on(table.messageId),
-    uniqueIndex('message_feedback_unique_idx').on(
-      table.conversationId,
-      table.messageId,
-      table.userId,
-      table.contactId,
-    ),
+    uniqueIndex('message_feedback_reaction_unique_idx')
+      .on(table.conversationId, table.messageId, table.userId, table.contactId)
+      .where(sql`reason IS NULL`),
     check(
       'message_feedback_rating_check',
       sql`rating IN ('positive', 'negative')`,

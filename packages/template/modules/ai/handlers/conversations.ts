@@ -5,7 +5,7 @@ import {
   notFound,
   unauthorized,
 } from '@vobase/core';
-import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -943,7 +943,7 @@ export const conversationsDetailHandlers = new Hono()
     });
     return c.json({ ok: true });
   })
-  /** POST /conversations/:id/messages/:messageId/feedback — Toggle reaction. */
+  /** POST /conversations/:id/messages/:messageId/feedback — Toggle reaction or add feedback message. */
   .post('/conversations/:id/messages/:messageId/feedback', async (c) => {
     const { db, user } = getCtx(c);
     const conversationId = c.req.param('id');
@@ -951,51 +951,94 @@ export const conversationsDetailHandlers = new Hono()
     const body = z
       .object({
         rating: z.enum(['positive', 'negative']),
+        reason: z.string().max(1000).optional(),
       })
       .parse(await c.req.json());
 
     if (!user) throw unauthorized();
 
-    // Check if user already has this exact rating → toggle off
-    const [existing] = await db
-      .select({ id: messageFeedback.id, rating: messageFeedback.rating })
-      .from(messageFeedback)
-      .where(
-        and(
-          eq(messageFeedback.conversationId, conversationId),
-          eq(messageFeedback.messageId, messageId),
-          eq(messageFeedback.userId, user.id),
-        ),
-      );
-
     const { realtime } = getModuleDeps();
 
-    if (existing?.rating === body.rating) {
-      // Same reaction → remove it (toggle off)
-      await db
-        .delete(messageFeedback)
-        .where(eq(messageFeedback.id, existing.id));
+    if (body.reason) {
+      // Feedback message — always insert new entry
+      await db.insert(messageFeedback).values({
+        conversationId,
+        messageId,
+        rating: body.rating,
+        reason: body.reason,
+        userId: user.id,
+        contactId: null,
+      });
       realtime.notify({ table: 'conversations-feedback', id: conversationId });
-      return c.json({ ok: true, action: 'removed' });
+      return c.json({ ok: true, action: 'added' });
     }
 
-    // Different or no existing → delete old + insert new
-    if (existing) {
-      await db
-        .delete(messageFeedback)
-        .where(eq(messageFeedback.id, existing.id));
-    }
-    await db.insert(messageFeedback).values({
-      conversationId,
-      messageId,
-      rating: body.rating,
-      userId: user.id,
-      contactId: null,
+    // Reaction (no reason) — unique per user per message, toggle
+    const action = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: messageFeedback.id, rating: messageFeedback.rating })
+        .from(messageFeedback)
+        .where(
+          and(
+            eq(messageFeedback.conversationId, conversationId),
+            eq(messageFeedback.messageId, messageId),
+            eq(messageFeedback.userId, user.id),
+            isNull(messageFeedback.reason),
+          ),
+        );
+
+      if (existing?.rating === body.rating) {
+        // Same reaction → toggle off
+        await tx
+          .delete(messageFeedback)
+          .where(eq(messageFeedback.id, existing.id));
+        return 'removed' as const;
+      }
+
+      // Different or no existing reaction → replace
+      if (existing) {
+        await tx
+          .delete(messageFeedback)
+          .where(eq(messageFeedback.id, existing.id));
+      }
+      await tx.insert(messageFeedback).values({
+        conversationId,
+        messageId,
+        rating: body.rating,
+        reason: null,
+        userId: user.id,
+        contactId: null,
+      });
+      return 'added' as const;
     });
 
     realtime.notify({ table: 'conversations-feedback', id: conversationId });
-    return c.json({ ok: true, action: 'added' });
+    return c.json({ ok: true, action });
   })
+  /** DELETE /conversations/:id/messages/:messageId/feedback/:feedbackId — Remove a feedback entry. */
+  .delete(
+    '/conversations/:id/messages/:messageId/feedback/:feedbackId',
+    async (c) => {
+      const { db, user } = getCtx(c);
+      if (!user) throw unauthorized();
+      const conversationId = c.req.param('id');
+      const feedbackId = c.req.param('feedbackId');
+
+      await db
+        .delete(messageFeedback)
+        .where(
+          and(
+            eq(messageFeedback.id, feedbackId),
+            eq(messageFeedback.conversationId, conversationId),
+            eq(messageFeedback.userId, user.id),
+          ),
+        );
+
+      const { realtime } = getModuleDeps();
+      realtime.notify({ table: 'conversations-feedback', id: conversationId });
+      return c.json({ ok: true, action: 'removed' });
+    },
+  )
   /** GET /conversations/:id/feedback — List all reactions with user info. */
   .get('/conversations/:id/feedback', async (c) => {
     const { db, user } = getCtx(c);
@@ -1004,8 +1047,10 @@ export const conversationsDetailHandlers = new Hono()
 
     const rows = await db
       .select({
+        id: messageFeedback.id,
         messageId: messageFeedback.messageId,
         rating: messageFeedback.rating,
+        reason: messageFeedback.reason,
         userId: messageFeedback.userId,
         userName: authUser.name,
         userImage: authUser.image,

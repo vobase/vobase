@@ -398,15 +398,18 @@ const AssistantMessage: FC = () => {
           </AuiIf>
         </div>
 
-        <div className="mt-1 ml-2 flex min-h-6 items-center gap-2">
-          <MessageFeedback
-            messageId={messageId}
-            reactions={ctx?.feedbackMap?.get(messageId)}
-            currentUserId={ctx?.currentUserId}
-            onReact={ctx?.onReact}
-          />
-          <AssistantActionBar />
-        </div>
+        {!isStaffMessage && (
+          <div className="mt-1 ml-2 flex min-h-6 items-center gap-2">
+            <MessageFeedback
+              messageId={messageId}
+              reactions={ctx?.feedbackMap?.get(messageId)}
+              currentUserId={ctx?.currentUserId}
+              onReact={ctx?.onReact}
+              onDeleteFeedback={ctx?.onDeleteFeedback}
+            />
+            <AssistantActionBar />
+          </div>
+        )}
       </div>
     </MessagePrimitive.Root>
   );
