@@ -93,6 +93,8 @@ function signalPreview(signal: LastSignal | null): string | null {
         return `Used ${(data.toolName as string)?.replace(/_/g, ' ') ?? 'a tool'}`;
       case 'guardrail.block':
         return 'Message blocked by guardrail';
+      case 'message.delivery_failed':
+        return 'Message delivery failed';
       default:
         return signal.type.replace(/\./g, ' ');
     }
