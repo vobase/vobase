@@ -621,7 +621,7 @@ function ConversationDetailPage() {
     queryFn: () => fetchConversation(conversationId),
   });
 
-  const { data: messagesData, isLoading: messagesLoading } = useQuery({
+  const { data: messagesData } = useQuery({
     queryKey: ['conversations-messages', conversationId],
     queryFn: () => fetchMessages(conversationId),
     enabled: !!conversation,
