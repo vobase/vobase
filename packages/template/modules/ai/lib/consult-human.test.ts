@@ -158,7 +158,12 @@ describe('requestConsultation', () => {
     } as never;
 
     await requestConsultation(
-      { db, scheduler: {} as never, channels: mockChannels, realtime: mockRealtime },
+      {
+        db,
+        scheduler: {} as never,
+        channels: mockChannels,
+        realtime: mockRealtime,
+      },
       {
         conversationId: 'session-1',
         staffContactId: 'contact-staff',
@@ -232,7 +237,9 @@ describe('handleStaffReply — hasPendingEscalation', () => {
     await initChat({
       db,
       scheduler: mockScheduler,
-      channels: { whatsapp: { send: async () => ({ success: true }) } } as never,
+      channels: {
+        whatsapp: { send: async () => ({ success: true }) },
+      } as never,
     });
   });
 
@@ -265,7 +272,12 @@ describe('handleStaffReply — hasPendingEscalation', () => {
     } as never;
 
     const result = await handleStaffReply(
-      { db, scheduler: mockScheduler, channels: mockChannels, realtime: mockRealtime },
+      {
+        db,
+        scheduler: mockScheduler,
+        channels: mockChannels,
+        realtime: mockRealtime,
+      },
       pending,
       mockEvent,
     );
@@ -318,7 +330,12 @@ describe('handleStaffReply — hasPendingEscalation', () => {
     } as never;
 
     await handleStaffReply(
-      { db, scheduler: mockScheduler, channels: mockChannels, realtime: mockRealtime },
+      {
+        db,
+        scheduler: mockScheduler,
+        channels: mockChannels,
+        realtime: mockRealtime,
+      },
       first,
       mockEvent,
     );

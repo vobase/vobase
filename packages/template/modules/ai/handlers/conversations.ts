@@ -37,10 +37,10 @@ interface LastSignal {
 async function joinLastSignals<
   T extends { lastSignalKind: string | null; lastSignalId: string | null },
 >(
-  // biome-ignore lint/suspicious/noExplicitAny: Drizzle db instance type is not easily expressible
   db: Parameters<typeof import('drizzle-orm')['eq']> extends never[]
     ? never
-    : any,
+    : // biome-ignore lint/suspicious/noExplicitAny: Drizzle db instance type is not easily expressible
+      any,
   rows: T[],
 ): Promise<
   (Omit<T, 'lastSignalKind' | 'lastSignalId'> & {

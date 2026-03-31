@@ -33,9 +33,7 @@ For background help without changing the mode, use consult_human instead.`,
       ),
     reason: z
       .string()
-      .describe(
-        'Why the escalation is needed (visible to the human operator)',
-      ),
+      .describe('Why the escalation is needed (visible to the human operator)'),
     priority: z
       .enum(PRIORITIES)
       .describe(

@@ -530,7 +530,10 @@ export default async function seed(ctx: { db: VobaseDb }) {
     createdAt: Date;
   }> = [];
 
-  const allConversationsForOutbox = [...seedConversations, ...modeConversations];
+  const allConversationsForOutbox = [
+    ...seedConversations,
+    ...modeConversations,
+  ];
   for (const sess of allConversationsForOutbox) {
     const channelType =
       sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web';
@@ -918,7 +921,10 @@ export default async function seed(ctx: { db: VobaseDb }) {
     .insert(activityEvents)
     .values(seedActivityEvents)
     .onConflictDoNothing()
-    .returning({ id: activityEvents.id, conversationId: activityEvents.conversationId });
+    .returning({
+      id: activityEvents.id,
+      conversationId: activityEvents.conversationId,
+    });
 
   // ─── Update last-signal pointers ────────────────────────────────
   // For mode conversations: point to their most relevant activity event

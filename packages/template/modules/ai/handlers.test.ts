@@ -2,9 +2,8 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
 import { errorHandler } from '@vobase/core';
-import { Hono } from 'hono';
-
 import { eq } from 'drizzle-orm';
+import { Hono } from 'hono';
 
 import { createTestDb } from '../../lib/test-helpers';
 import { aiRoutes } from './handlers';

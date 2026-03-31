@@ -162,7 +162,9 @@ export const conversations = conversationsPgSchema.table(
     resolutionOutcome: text('resolution_outcome'),
     lastSignalKind: text('last_signal_kind'),
     lastSignalId: text('last_signal_id'),
-    hasPendingEscalation: boolean('has_pending_escalation').notNull().default(false),
+    hasPendingEscalation: boolean('has_pending_escalation')
+      .notNull()
+      .default(false),
     waitingSince: timestamp('waiting_since', { withTimezone: true }),
     unreadCount: integer('unread_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -182,7 +184,11 @@ export const conversations = conversationsPgSchema.table(
     index('conversations_active_stale_idx')
       .on(table.status, table.updatedAt)
       .where(sql`status = 'active'`),
-    index('conversations_assignee_status_idx').on(table.assignee, table.status, table.updatedAt),
+    index('conversations_assignee_status_idx').on(
+      table.assignee,
+      table.status,
+      table.updatedAt,
+    ),
     index('conversations_mode_queue_idx')
       .on(table.mode, table.status, table.priority)
       .where(sql`status = 'active'`),
