@@ -6,15 +6,14 @@ import type {
 } from '@vobase/core';
 import { logger } from '@vobase/core';
 import type { Chat } from 'chat';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { channelRoutings, consultations, conversations } from '../schema';
-import { computeTab, emitActivityEvent } from './activity-events';
 import { handleStaffReply } from './consult-human';
 import { createConversation } from './conversation';
-import { updateLastSignal } from './last-signal';
 import { enqueueMessage } from './outbox';
 import { findContactByAddress, findOrCreateContact } from './routing';
+import { transition } from './state-machine';
 
 interface HandlerDeps {
   db: VobaseDb;
@@ -219,36 +218,19 @@ async function routeByMode(
   const { db, scheduler, realtime } = deps;
   const mode = conversation.mode ?? 'ai';
 
-  // Increment unread count for conversations with a human reader
-  if (['human', 'supervised', 'held'].includes(mode)) {
-    await db
-      .update(conversations)
-      .set({ unreadCount: sql`unread_count + 1` })
-      .where(eq(conversations.id, conversation.id));
-  }
-
-  // Track every inbound message as the last signal so the conversation list
-  // always shows a preview — even before the AI has responded.
-  const inboundEventId = await emitActivityEvent(db, realtime, {
-    type: mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
-    source: 'system',
-    conversationId: conversation.id,
+  // Delegate all state mutations to the machine:
+  // - unreadCount increment (human/supervised/held only)
+  // - activity event emission (message.inbound or message.inbound_human_mode)
+  // - lastSignal update
+  // - realtime.notify with actual hasPendingEscalation (fixes hardcoded false bug)
+  await transition({ db, realtime }, conversation.id, {
+    type: 'INBOUND_MESSAGE',
     contactId,
-    data: { content: messageText?.slice(0, 200) },
-  });
-  if (inboundEventId) {
-    await updateLastSignal(db, conversation.id, 'activity', inboundEventId);
-  }
-
-  // Notify inbox so the conversation row refreshes with new preview/unread count
-  await realtime.notify({
-    table: 'conversations',
-    id: conversation.id,
-    tab: computeTab(mode, 'active', false),
+    content: messageText,
   });
 
   if (mode === 'human') {
-    // Human mode — activity event already emitted above, nothing else to do
+    // Human mode — state handled by machine above, nothing else to do
     return;
   }
 

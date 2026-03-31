@@ -10,10 +10,10 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { getMemory } from '../../../mastra';
-import { computeTab, emitActivityEvent } from '../lib/activity-events';
+import { emitActivityEvent } from '../lib/activity-events';
 import { getModuleDeps } from '../lib/deps';
-import { updateLastSignal } from '../lib/last-signal';
 import { enqueueMessage } from '../lib/outbox';
+import { transition } from '../lib/state-machine';
 import {
   activityEvents,
   channelInstances,
@@ -505,7 +505,9 @@ export const conversationsDetailHandlers = new Hono()
     if (!existingConversation) throw notFound('Conversation not found');
 
     const { realtime } = getModuleDeps();
+    const deps = { db, realtime };
 
+    // status → wrappers (completeConversation/failConversation will delegate to machine after Task #3)
     if (body.status === 'completed' || body.status === 'failed') {
       const { completeConversation, failConversation } = await import(
         '../lib/conversation'
@@ -522,41 +524,40 @@ export const conversationsDetailHandlers = new Hono()
       }
     }
 
-    if (body.mode) {
-      const previousMode = existingConversation.mode;
-      const isHumanMode = ['human', 'supervised', 'held'].includes(body.mode);
-      const wasHumanMode = ['human', 'supervised', 'held'].includes(
-        existingConversation.mode,
-      );
-      const waitingSinceUpdate: Date | null | undefined =
-        isHumanMode && !wasHumanMode
-          ? new Date()
-          : !isHumanMode
-            ? null
-            : undefined;
-      await db
-        .update(conversations)
-        .set({
-          mode: body.mode,
-          ...(waitingSinceUpdate !== undefined
-            ? { waitingSince: waitingSinceUpdate }
-            : {}),
-        })
-        .where(eq(conversations.id, conversationId));
-
-      const eventId = await emitActivityEvent(db, realtime, {
-        type: 'handler.changed',
+    // mode change → machine (only when assignee is not being set; ASSIGN handles mode atomically)
+    if (body.mode && body.assignee === undefined) {
+      const modeResult = await transition(deps, conversationId, {
+        type: 'SET_MODE',
+        mode: body.mode,
         userId: user.id,
-        source: 'staff',
-        conversationId,
-        data: { from: previousMode, to: body.mode, reason: 'Staff action' },
       });
-      if (eventId) {
-        await updateLastSignal(db, conversationId, 'activity', eventId);
+      if (!modeResult.ok) {
+        if (modeResult.code === 'CONCURRENCY_CONFLICT')
+          return c.json({ error: modeResult.error }, 409);
+        return c.json({ error: modeResult.error }, 400);
       }
     }
 
-    // Update priority if provided
+    // assignee change → machine (ASSIGN atomically sets mode=human; UNASSIGN clears)
+    if (body.assignee !== undefined) {
+      const assignResult = body.assignee
+        ? await transition(deps, conversationId, {
+            type: 'ASSIGN',
+            assignee: body.assignee,
+            userId: user.id,
+          })
+        : await transition(deps, conversationId, {
+            type: 'UNASSIGN',
+            userId: user.id,
+          });
+      if (!assignResult.ok) {
+        if (assignResult.code === 'CONCURRENCY_CONFLICT')
+          return c.json({ error: assignResult.error }, 409);
+        return c.json({ error: assignResult.error }, 400);
+      }
+    }
+
+    // priority is a direct write — not a state transition
     if (body.priority !== undefined) {
       await db
         .update(conversations)
@@ -564,57 +565,10 @@ export const conversationsDetailHandlers = new Hono()
         .where(eq(conversations.id, conversationId));
     }
 
-    // Update assignee if provided
-    if (body.assignee !== undefined) {
-      const isAssigning = !!body.assignee;
-      const currentMode = existingConversation.mode ?? 'ai';
-      // Assigning moves conversation to human mode so it appears in Attention tab
-      const shouldSwitchToHuman =
-        isAssigning && currentMode === 'ai' && !body.mode;
-      await db
-        .update(conversations)
-        .set({
-          assignee: body.assignee,
-          assignedAt: isAssigning ? new Date() : null,
-          ...(shouldSwitchToHuman
-            ? { mode: 'human', waitingSince: new Date() }
-            : {}),
-        })
-        .where(eq(conversations.id, conversationId));
-
-      if (shouldSwitchToHuman) {
-        const eventId = await emitActivityEvent(db, realtime, {
-          type: 'handler.changed',
-          userId: user.id,
-          source: 'staff',
-          conversationId,
-          data: { from: currentMode, to: 'human', reason: 'Assigned to staff' },
-        });
-        if (eventId) {
-          await updateLastSignal(db, conversationId, 'activity', eventId);
-        }
-      }
-    }
-
     const [updated] = await db
       .select()
       .from(conversations)
       .where(eq(conversations.id, conversationId));
-
-    await realtime.notify({
-      table: 'conversations',
-      id: conversationId,
-      tab: computeTab(
-        updated.mode,
-        updated.status,
-        updated.hasPendingEscalation,
-      ),
-      prevTab: computeTab(
-        existingConversation.mode,
-        existingConversation.status,
-        existingConversation.hasPendingEscalation,
-      ),
-    });
 
     return c.json(updated);
   })
@@ -751,53 +705,16 @@ export const conversationsDetailHandlers = new Hono()
     const conversationId = c.req.param('id');
     const { realtime } = getModuleDeps();
 
-    const [conversation] = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
-
-    if (!conversation) throw notFound('Conversation not found');
-    if (
-      conversation.mode !== 'human' &&
-      conversation.mode !== 'supervised' &&
-      conversation.mode !== 'held'
-    ) {
-      return c.json(
-        { error: 'Conversation is not in human, supervised, or held mode' },
-        400,
-      );
-    }
-
-    await db
-      .update(conversations)
-      .set({
-        mode: 'ai',
-        assignee: null,
-        assignedAt: null,
-        priority: null,
-        waitingSince: null,
-        hasPendingEscalation: false,
-      })
-      .where(eq(conversations.id, conversationId));
-
-    await emitActivityEvent(db, realtime, {
-      type: 'handler.changed',
+    const result = await transition({ db, realtime }, conversationId, {
+      type: 'HANDBACK',
       userId: user.id,
-      source: 'staff',
-      conversationId,
-      data: { from: conversation.mode, to: 'ai', reason: 'Staff handback' },
     });
 
-    await realtime.notify({
-      table: 'conversations',
-      id: conversationId,
-      prevTab: computeTab(
-        conversation.mode,
-        conversation.status,
-        conversation.hasPendingEscalation,
-      ),
-      tab: 'ai',
-    });
+    if (!result.ok) {
+      if (result.code === 'CONCURRENCY_CONFLICT')
+        return c.json({ error: result.error }, 409);
+      return c.json({ error: result.error }, 400);
+    }
 
     return c.json({ success: true, mode: 'ai' });
   })
@@ -809,58 +726,22 @@ export const conversationsDetailHandlers = new Hono()
     const conversationId = c.req.param('id');
     const { realtime } = getModuleDeps();
 
-    // Optimistic locking: only claim if assignee is still NULL
-    const updated = await db
-      .update(conversations)
-      .set({ assignee: user.id, assignedAt: new Date() })
-      .where(
-        and(
-          eq(conversations.id, conversationId),
-          eq(conversations.status, 'active'),
-        ),
-      )
-      .returning({ id: conversations.id, assignee: conversations.assignee });
+    const result = await transition({ db, realtime }, conversationId, {
+      type: 'CLAIM',
+      userId: user.id,
+    });
 
-    // Filter: only succeed if assignee was previously null
-    // (Drizzle doesn't support IS NULL in .where for updates easily, so check result)
-    if (updated.length === 0) {
+    if (!result.ok) {
+      if (
+        result.code === 'CONCURRENCY_CONFLICT' ||
+        result.code === 'GUARD_FAILED'
+      ) {
+        throw conflict('Conversation already claimed or not available');
+      }
       throw notFound('Conversation not found or not active');
     }
 
-    // Verify the conversation was actually unassigned and in correct mode
-    const [conversation] = await db
-      .select({
-        id: conversations.id,
-        mode: conversations.mode,
-        assignee: conversations.assignee,
-      })
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
-
-    if (
-      conversation &&
-      conversation.assignee === user.id &&
-      (conversation.mode === 'human' || conversation.mode === 'supervised')
-    ) {
-      await emitActivityEvent(db, realtime, {
-        type: 'conversation.claimed',
-        userId: user.id,
-        source: 'staff',
-        conversationId,
-        data: { assignee: user.id },
-      });
-
-      await realtime.notify({
-        table: 'conversations',
-        id: conversationId,
-        tab: 'attention',
-      });
-
-      return c.json({ success: true, assignee: user.id });
-    }
-
-    // If mode is wrong (ai/held) or was already assigned, revert
-    throw conflict('Conversation already claimed or not in escalated mode');
+    return c.json({ success: true, assignee: user.id });
   })
   /** POST /sessions/:id/approve-draft — Approve a supervised AI draft for sending. */
   .post('/conversations/:id/approve-draft', async (c) => {

@@ -5,9 +5,10 @@ import { eq } from 'drizzle-orm';
 import { getMemory } from '../../../mastra';
 import { flushConversationMemory } from '../../../mastra/processors/memory/memory-processor';
 import { channelRoutings, conversations } from '../schema';
-import { computeTab, emitActivityEvent } from './activity-events';
+import { emitActivityEvent } from './activity-events';
 import { getChatState } from './chat-init';
-import { getModuleScheduler } from './deps';
+import { getModuleDeps, getModuleScheduler } from './deps';
+import { transition } from './state-machine';
 
 const generateId = createNanoid();
 
@@ -155,64 +156,35 @@ export async function completeConversation(
     | 'failed',
 ): Promise<void> {
   const start = Date.now();
+  const rt = realtime ?? getModuleDeps().realtime;
 
-  const [prev] = await db
-    .select({
-      mode: conversations.mode,
-      contactId: conversations.contactId,
-      hasPendingEscalation: conversations.hasPendingEscalation,
-    })
-    .from(conversations)
-    .where(eq(conversations.id, conversationId));
+  const result = await transition({ db, realtime: rt }, conversationId, {
+    type: 'COMPLETE',
+    resolutionOutcome,
+  });
 
-  await db
-    .update(conversations)
-    .set({
-      status: 'completed',
-      endedAt: new Date(),
-      waitingSince: null,
-      ...(resolutionOutcome ? { resolutionOutcome } : {}),
-    })
-    .where(eq(conversations.id, conversationId));
+  if (!result.ok) {
+    logger.info('[conversations] conversation_complete', {
+      conversationId,
+      durationMs: Date.now() - start,
+      outcome: 'skipped',
+    });
+    return;
+  }
 
   const state = getChatState();
   await state.unsubscribe(conversationId);
 
-  // Emit conversation.completed activity event (fire-and-forget)
-  if (realtime) {
-    await emitActivityEvent(db, realtime, {
-      type: 'conversation.completed',
-      source: 'system',
-      conversationId,
-      data: { resolutionOutcome: resolutionOutcome ?? 'resolved' },
-    });
-    // Notify dashboard + metrics for real-time invalidation
-    await realtime.notify({
-      table: 'conversations-dashboard',
-      action: 'update',
-    });
-    await realtime.notify({ table: 'conversations-metrics', action: 'update' });
-    await realtime.notify({
-      table: 'conversations',
-      id: conversationId,
-      tab: 'done',
-      prevTab: computeTab(
-        prev?.mode ?? null,
-        'active',
-        prev?.hasPendingEscalation ?? false,
-      ),
-    });
-  }
-
   // Flush unflushed messages into memory on conversation completion
-  if (prev?.contactId) {
+  const contactId = result.conversation.contactId;
+  if (contactId) {
     try {
       const scheduler = getModuleScheduler();
       await flushConversationMemory({
         db,
         scheduler,
         conversationId,
-        contactId: prev.contactId,
+        contactId,
       });
     } catch (err) {
       logger.warn('[conversations] Memory flush failed', {
@@ -236,63 +208,36 @@ export async function failConversation(
   realtime?: RealtimeService,
 ): Promise<void> {
   const start = Date.now();
+  const rt = realtime ?? getModuleDeps().realtime;
 
-  const [existing] = await db
-    .select({
-      metadata: conversations.metadata,
-      mode: conversations.mode,
-      hasPendingEscalation: conversations.hasPendingEscalation,
-    })
-    .from(conversations)
-    .where(eq(conversations.id, conversationId));
+  const result = await transition({ db, realtime: rt }, conversationId, {
+    type: 'FAIL',
+    reason,
+  });
 
-  const metadata =
-    existing?.metadata && typeof existing.metadata === 'object'
-      ? {
-          ...(existing.metadata as Record<string, unknown>),
-          failReason: reason,
-        }
-      : { failReason: reason };
+  if (!result.ok) {
+    logger.info('[conversations] conversation_fail', {
+      conversationId,
+      reason,
+      durationMs: Date.now() - start,
+      outcome: 'skipped',
+    });
+    return;
+  }
 
+  // Merge failReason into metadata — uses result.conversation to avoid an extra read
+  const existingMeta =
+    result.conversation.metadata &&
+    typeof result.conversation.metadata === 'object'
+      ? (result.conversation.metadata as Record<string, unknown>)
+      : {};
   await db
     .update(conversations)
-    .set({
-      status: 'failed',
-      endedAt: new Date(),
-      waitingSince: null,
-      resolutionOutcome: 'failed',
-      metadata,
-    })
+    .set({ metadata: { ...existingMeta, failReason: reason } })
     .where(eq(conversations.id, conversationId));
 
   const state = getChatState();
   await state.unsubscribe(conversationId);
-
-  // Emit conversation.failed activity event (fire-and-forget)
-  if (realtime) {
-    await emitActivityEvent(db, realtime, {
-      type: 'conversation.failed',
-      source: 'system',
-      conversationId,
-      data: { reason },
-    });
-    // Notify dashboard + metrics for real-time invalidation
-    await realtime.notify({
-      table: 'conversations-dashboard',
-      action: 'update',
-    });
-    await realtime.notify({ table: 'conversations-metrics', action: 'update' });
-    await realtime.notify({
-      table: 'conversations',
-      id: conversationId,
-      tab: 'done',
-      prevTab: computeTab(
-        existing?.mode ?? null,
-        'active',
-        existing?.hasPendingEscalation ?? false,
-      ),
-    });
-  }
 
   logger.info('[conversations] conversation_fail', {
     conversationId,

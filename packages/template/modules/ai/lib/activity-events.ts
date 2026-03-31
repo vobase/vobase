@@ -14,7 +14,7 @@ export function computeTab(
   status: string,
   hasPendingEscalation: boolean,
 ): 'attention' | 'ai' | 'done' {
-  if (status === 'completed' || status === 'resolved') return 'done';
+  if (status === 'completed') return 'done';
   if (status === 'failed') return 'attention';
   if (hasPendingEscalation) return 'attention';
   if (mode === 'human' || mode === 'supervised' || mode === 'held')
@@ -77,10 +77,12 @@ export async function emitActivityEvent(
       .insert(activityEvents)
       .values(input)
       .returning({ id: activityEvents.id });
-    await realtime.notify({
-      table: 'conversations-activity',
-      action: 'insert',
-    });
+    // When inside a transaction (tx provided), use tx for notify to avoid
+    // PGlite deadlock (single-connection can't run db.execute inside db.transaction)
+    await realtime.notify(
+      { table: 'conversations-activity', action: 'insert' },
+      tx,
+    );
     return row.id;
   } catch (err) {
     logger.warn('[activity-events] Failed to emit event (fire-and-forget)', {

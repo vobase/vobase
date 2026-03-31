@@ -6,12 +6,13 @@ import type {
   VobaseDb,
 } from '@vobase/core';
 import { logger } from '@vobase/core';
-import { and, eq, lt, ne, sql } from 'drizzle-orm';
+import { and, eq, lt, sql } from 'drizzle-orm';
 
 import { consultations, contacts, conversations } from '../schema';
-import { computeTab, emitActivityEvent } from './activity-events';
+import { emitActivityEvent } from './activity-events';
 import { getChatState } from './chat-init';
 import { updateLastSignal } from './last-signal';
+import { transition } from './state-machine';
 
 interface ConsultDeps {
   db: VobaseDb;
@@ -77,11 +78,6 @@ export async function requestConsultation(
       })
       .returning();
 
-    await tx
-      .update(conversations)
-      .set({ hasPendingEscalation: true })
-      .where(eq(conversations.id, input.conversationId));
-
     escalationEventId = await emitActivityEvent(
       deps.db,
       deps.realtime,
@@ -112,12 +108,10 @@ export async function requestConsultation(
     );
   }
 
-  // Notify inbox — conversation moved to attention tab (now has pending escalation)
-  await deps.realtime.notify({
-    table: 'conversations',
-    id: input.conversationId,
-    tab: 'attention',
-    prevTab: computeTab(conversation?.mode ?? null, 'active', false),
+  // Update conversation state via machine (derives hasPendingEscalation + notifies realtime)
+  await transition(deps, input.conversationId, {
+    type: 'ESCALATE',
+    consultationId: consultation.id,
   });
 
   // Look up staff contact for delivery address
@@ -228,31 +222,11 @@ export async function handleStaffReply(
     60 * 60 * 1000,
   );
 
-  // Clear hasPendingEscalation if no other pending consultations remain
-  const [remaining] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(consultations)
-    .where(
-      and(
-        eq(consultations.conversationId, consultation.conversationId),
-        eq(consultations.status, 'pending'),
-        ne(consultations.id, consultation.id),
-      ),
-    );
-  if ((remaining?.count ?? 0) === 0) {
-    await db
-      .update(conversations)
-      .set({ hasPendingEscalation: false })
-      .where(eq(conversations.id, consultation.conversationId));
-
-    // Escalation cleared — conversation may move from attention back to ai
-    await deps.realtime.notify({
-      table: 'conversations',
-      id: consultation.conversationId,
-      prevTab: 'attention',
-      tab: 'ai',
-    });
-  }
+  // Update conversation state via machine (re-derives hasPendingEscalation + notifies realtime)
+  await transition(deps, consultation.conversationId, {
+    type: 'RESOLVE_ESCALATION',
+    consultationId: consultation.id,
+  });
 
   // Queue channel-reply so the agent processes the consultation response
   await scheduler.add('ai:channel-reply', {
@@ -310,29 +284,11 @@ export async function checkConsultationTimeouts(
       60 * 60 * 1000,
     );
 
-    // Clear hasPendingEscalation if no other pending consultations remain
-    const [remaining] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(consultations)
-      .where(
-        and(
-          eq(consultations.conversationId, c.conversationId),
-          eq(consultations.status, 'pending'),
-        ),
-      );
-    if ((remaining?.count ?? 0) === 0) {
-      await db
-        .update(conversations)
-        .set({ hasPendingEscalation: false })
-        .where(eq(conversations.id, c.conversationId));
-
-      await deps.realtime.notify({
-        table: 'conversations',
-        id: c.conversationId,
-        prevTab: 'attention',
-        tab: 'ai',
-      });
-    }
+    // Update conversation state via machine (re-derives hasPendingEscalation + notifies realtime)
+    await transition(deps, c.conversationId, {
+      type: 'RESOLVE_ESCALATION',
+      consultationId: c.id,
+    });
   }
 
   logger.info('[conversations] Timed out consultations', {
