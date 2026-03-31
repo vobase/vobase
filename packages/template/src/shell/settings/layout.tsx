@@ -30,7 +30,7 @@ function SettingsLayout() {
   return (
     <div className="flex min-h-0 flex-1 gap-8 p-6">
       <nav className="w-[200px] shrink-0">
-        <p className="mb-2 px-2 text-[10px] font-medium tracking-widest text-muted-foreground uppercase">
+        <p className="mb-2 px-2 text-xs font-medium tracking-widest text-muted-foreground uppercase">
           Settings
         </p>
         <ul className="flex flex-col gap-0.5">

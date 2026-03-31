@@ -4,7 +4,7 @@ function AuthLayout() {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-background p-4">
       <div className="mb-8">
-        <p className="text-[10px] font-bold tracking-[0.25em] text-muted-foreground uppercase">
+        <p className="text-xs font-bold tracking-[0.25em] text-muted-foreground uppercase">
           Vobase
         </p>
       </div>

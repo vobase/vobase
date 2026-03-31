@@ -186,7 +186,7 @@ function EpisodeItem({ episode, scope }: { episode: Episode; scope: string }) {
                     {fact.subject && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] shrink-0 mt-0.5"
+                        className="text-xs shrink-0 mt-0.5"
                       >
                         {fact.subject}
                       </Badge>

@@ -128,7 +128,7 @@ export function MemoryScopeSelector({
                       {contact.channel && (
                         <Badge
                           variant="outline"
-                          className="ml-auto text-[10px] capitalize shrink-0"
+                          className="ml-auto text-xs capitalize shrink-0"
                         >
                           {contact.channel}
                         </Badge>

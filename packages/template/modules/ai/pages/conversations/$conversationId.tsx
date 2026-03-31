@@ -416,7 +416,7 @@ function PropertySelector({
         <button
           type="button"
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
+            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors',
             'hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
             'disabled:pointer-events-none disabled:opacity-50',
             colorClass,
@@ -432,7 +432,7 @@ function PropertySelector({
           <DropdownMenuItem
             key={opt.value}
             onClick={() => onSelect(opt.value)}
-            className="gap-2 text-xs"
+            className="gap-2 text-sm"
           >
             {opt.icon}
             {opt.label}
@@ -522,8 +522,8 @@ function HumanReplyInput({
       </div>
       <div className="mt-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-muted-foreground">
-            <kbd className="rounded border bg-muted px-1 py-0.5 text-[9px] font-mono">
+          <span className="text-xs text-muted-foreground">
+            <kbd className="rounded border bg-muted px-1 py-0.5 text-xs font-mono">
               {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter
             </kbd>{' '}
             to send
@@ -532,7 +532,7 @@ function HumanReplyInput({
             type="button"
             onClick={() => setIsInternal(!isInternal)}
             className={cn(
-              'text-[10px] font-medium transition-colors',
+              'text-sm font-medium transition-colors',
               isInternal
                 ? 'text-violet-600 dark:text-violet-400'
                 : 'text-muted-foreground hover:text-foreground',
@@ -542,7 +542,7 @@ function HumanReplyInput({
           </button>
         </div>
         {replyMutation.isError && (
-          <p className="text-[10px] text-destructive">Failed to send</p>
+          <p className="text-sm text-destructive">Failed to send</p>
         )}
       </div>
     </div>
@@ -557,22 +557,22 @@ function ConsultationCard({ consultation }: { consultation: Consultation }) {
       <div className="flex items-center gap-2 mb-1.5">
         <Badge
           variant={consultationStatusVariant(consultation.status)}
-          className="text-[10px] capitalize h-4 px-1.5"
+          className="text-xs capitalize h-4 px-1.5"
         >
           {consultation.status}
         </Badge>
-        <span className="text-[10px] text-muted-foreground capitalize">
+        <span className="text-xs text-muted-foreground capitalize">
           {consultation.channelType}
         </span>
-        <span className="ml-auto text-[10px] text-muted-foreground">
+        <span className="ml-auto text-xs text-muted-foreground">
           {formatRelativeTime(consultation.requestedAt)}
         </span>
       </div>
-      <p className="text-xs text-foreground leading-relaxed">
+      <p className="text-sm text-foreground leading-relaxed">
         {consultation.reason}
       </p>
       {consultation.summary && (
-        <p className="mt-1.5 text-xs text-muted-foreground italic leading-relaxed">
+        <p className="mt-1.5 text-sm text-muted-foreground italic leading-relaxed">
           {consultation.summary}
         </p>
       )}
@@ -591,8 +591,8 @@ function SidebarRow({
 }) {
   return (
     <div className="grid grid-cols-[80px_1fr] items-baseline gap-2 py-1">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-xs text-foreground truncate text-right">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm text-foreground truncate text-right">
         {children}
       </span>
     </div>
@@ -869,13 +869,13 @@ function ConversationDetailPage() {
           {/* Row 1: Navigation + contact + actions */}
           <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-1.5">
             <div className="flex items-center gap-2.5 min-w-0">
-              <h1 className="text-sm font-semibold truncate">
+              <h1 className="text-base font-semibold truncate">
                 {contact?.name ?? conversation.contactId ?? 'Unknown'}
               </h1>
               {channelInstance && (
                 <Badge
                   variant="outline"
-                  className="text-[10px] font-normal shrink-0 h-5 border-dashed"
+                  className="text-xs font-normal shrink-0 h-5 border-dashed"
                 >
                   {channelLabel(channelInstance.type)}
                 </Badge>
@@ -890,7 +890,7 @@ function ConversationDetailPage() {
               {messagesData?.source === 'outbox' &&
                 (messagesData?.messages?.length ?? 0) > 0 &&
                 conversation.mode === 'ai' && (
-                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                     AI responses only
                   </span>
                 )}
@@ -899,7 +899,7 @@ function ConversationDetailPage() {
                 <Button
                   size="sm"
                   variant="default"
-                  className="h-7 gap-1.5 text-xs"
+                  className="h-7 gap-1.5 text-sm"
                   disabled={approveDraftMutation.isPending}
                   onClick={() => approveDraftMutation.mutate()}
                 >
@@ -908,7 +908,7 @@ function ConversationDetailPage() {
                 </Button>
               )}
               {approveDraftError && (
-                <span className="text-[10px] text-destructive">
+                <span className="text-sm text-destructive">
                   {approveDraftError}
                 </span>
               )}
@@ -926,7 +926,7 @@ function ConversationDetailPage() {
                       onClick={() =>
                         updateMutation.mutate({ status: 'completed' })
                       }
-                      className="gap-2 text-xs"
+                      className="gap-2 text-sm"
                     >
                       <CheckIcon className="h-3.5 w-3.5" />
                       Mark resolved
@@ -939,7 +939,7 @@ function ConversationDetailPage() {
                         <DropdownMenuItem
                           disabled={handbackMutation.isPending}
                           onClick={() => handbackMutation.mutate()}
-                          className="gap-2 text-xs"
+                          className="gap-2 text-sm"
                         >
                           <BotIcon className="h-3.5 w-3.5 text-violet-500" />
                           Hand back to AI
@@ -968,7 +968,7 @@ function ConversationDetailPage() {
             {/* Status badge */}
             <Badge
               variant={statusVariant(conversation.status)}
-              className="text-[10px] capitalize h-5 px-1.5 mr-1"
+              className="text-xs capitalize h-5 px-1.5 mr-1"
             >
               {conversation.status}
             </Badge>
@@ -1037,7 +1037,7 @@ function ConversationDetailPage() {
                 {conversation.assignee ? (
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted"
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted"
                     onClick={() => updateMutation.mutate({ assignee: null })}
                     title="Click to unassign"
                   >
@@ -1052,7 +1052,7 @@ function ConversationDetailPage() {
                 ) : (
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     onClick={() =>
                       updateMutation.mutate({
                         assignee: session?.user?.id ?? null,
@@ -1148,7 +1148,7 @@ function ConversationDetailPage() {
               <div className="px-4 pb-4 space-y-4">
                 {/* Contact */}
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
                     Contact
                   </p>
                   {contact ? (
@@ -1164,7 +1164,7 @@ function ConversationDetailPage() {
                         <p className="text-sm font-medium truncate">
                           {contact.name ?? contact.id}
                         </p>
-                        <p className="text-[11px] text-muted-foreground truncate">
+                        <p className="text-sm text-muted-foreground truncate">
                           {contact.phone ?? contact.email ?? contact.role}
                         </p>
                       </div>
@@ -1182,12 +1182,12 @@ function ConversationDetailPage() {
 
                 {/* Details — 2-column grid */}
                 <div>
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
                     Details
                   </p>
                   <div className="space-y-0.5">
                     <SidebarRow label="Agent">
-                      <span className="font-mono text-[11px]">
+                      <span className="font-mono text-sm">
                         {conversation.agentId ?? '—'}
                       </span>
                     </SidebarRow>
@@ -1215,7 +1215,7 @@ function ConversationDetailPage() {
                       </SidebarRow>
                     )}
                     <SidebarRow label="ID">
-                      <span className="font-mono text-[10px] text-muted-foreground">
+                      <span className="font-mono text-xs text-muted-foreground">
                         {conversation.id}
                       </span>
                     </SidebarRow>
@@ -1228,7 +1228,7 @@ function ConversationDetailPage() {
                     <Separator />
                     <Collapsible defaultOpen>
                       <CollapsibleTrigger className="flex w-full items-center justify-between group">
-                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Escalations ({consultations.length})
                         </p>
                         <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
@@ -1252,13 +1252,13 @@ function ConversationDetailPage() {
                       <Separator />
                       <Collapsible defaultOpen>
                         <CollapsibleTrigger className="flex w-full items-center justify-between group">
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                             Memory
                           </p>
                           <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
                         </CollapsibleTrigger>
                         <CollapsibleContent className="mt-2 space-y-2">
-                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
                             <span>
                               <span className="font-medium text-foreground">
                                 {memoryStats.facts}
@@ -1283,7 +1283,7 @@ function ConversationDetailPage() {
                               {memoryFacts.map((fact) => (
                                 <div
                                   key={fact.id}
-                                  className="flex items-start gap-1.5 text-[11px]"
+                                  className="flex items-start gap-1.5 text-sm"
                                 >
                                   <BrainIcon className="h-3 w-3 text-primary/40 mt-0.5 shrink-0" />
                                   <span className="text-muted-foreground line-clamp-2 leading-relaxed">
@@ -1296,7 +1296,7 @@ function ConversationDetailPage() {
                           <Link
                             to="/contacts/$contactId"
                             params={{ contactId: conversation.contactId }}
-                            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                           >
                             View all memory &rarr;
                           </Link>

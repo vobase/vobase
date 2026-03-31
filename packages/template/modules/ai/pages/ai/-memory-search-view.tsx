@@ -73,7 +73,7 @@ function ExpandableEpisode({ episode }: { episode: SearchEpisode }) {
         <span className="text-sm font-medium flex-1 truncate">
           {episode.title}
         </span>
-        <Badge variant="secondary" className="text-[10px] shrink-0">
+        <Badge variant="secondary" className="text-xs shrink-0">
           {Math.round(episode.score * 100)}% match
         </Badge>
       </button>
@@ -101,11 +101,11 @@ function FactResult({
     <div className="flex items-start gap-2 group rounded-md px-3 py-2 hover:bg-muted/50">
       <span className="text-sm flex-1">{fact.fact}</span>
       {fact.subject && (
-        <Badge variant="outline" className="text-[10px] shrink-0 mt-0.5">
+        <Badge variant="outline" className="text-xs shrink-0 mt-0.5">
           {fact.subject}
         </Badge>
       )}
-      <Badge variant="secondary" className="text-[10px] shrink-0 mt-0.5">
+      <Badge variant="secondary" className="text-xs shrink-0 mt-0.5">
         {Math.round(fact.score * 100)}%
       </Badge>
       <Button

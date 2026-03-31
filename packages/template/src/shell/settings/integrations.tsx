@@ -362,7 +362,7 @@ function IntegrationsPage() {
 
       {/* ─── Channels ───────────────────────────────────────────────── */}
       <section className="mb-6">
-        <p className="mb-2 px-1 text-[10px] font-medium tracking-widest text-muted-foreground uppercase">
+        <p className="mb-2 px-1 text-xs font-medium tracking-widest text-muted-foreground uppercase">
           Channels
         </p>
         <div className="flex flex-col gap-2">
@@ -386,7 +386,7 @@ function IntegrationsPage() {
 
       {/* ─── Services ───────────────────────────────────────────────── */}
       <section>
-        <p className="mb-2 px-1 text-[10px] font-medium tracking-widest text-muted-foreground uppercase">
+        <p className="mb-2 px-1 text-xs font-medium tracking-widest text-muted-foreground uppercase">
           Services
         </p>
         <div className="flex flex-col gap-2">

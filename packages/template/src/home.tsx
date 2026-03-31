@@ -380,7 +380,7 @@ function HomePage() {
       >
         {/* Left: Activity Feed */}
         <div>
-          <h2 className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             <RealtimeDot status={realtimeStatus} />
             Activity
           </h2>
@@ -444,7 +444,7 @@ function HomePage() {
                     type="button"
                     onClick={() => activityQuery.fetchNextPage()}
                     disabled={activityQuery.isFetchingNextPage}
-                    className="mt-2 px-2 text-left text-xs text-muted-foreground hover:text-foreground"
+                    className="mt-2 px-2 text-left text-sm text-muted-foreground hover:text-foreground"
                   >
                     {activityQuery.isFetchingNextPage
                       ? 'Loading...'
@@ -460,10 +460,10 @@ function HomePage() {
         {hasAttention && (
           <div className="rounded-xl bg-muted/30 p-5">
             <div className="mb-4 flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Attention
               </span>
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium text-destructive-foreground">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
                 {attentionCount}
               </span>
             </div>
@@ -494,25 +494,25 @@ function HomePage() {
                           <span className="text-sm font-medium">
                             {contactName}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-xs text-muted-foreground">
                             Waiting {waitingMinutes(item.createdAt)}
                           </span>
                         </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
+                        <p className="mt-0.5 text-sm text-muted-foreground">
                           {item.channelType ?? 'web'} &middot;{' '}
                           {(item.agentId && agentNames.get(item.agentId)) ??
                             item.agentId ??
                             'Unknown agent'}
                         </p>
                         {itemData.reason && (
-                          <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
+                          <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
                             {String(itemData.reason)}
                           </p>
                         )}
                         <div className="mt-3 flex gap-2">
                           <Button
                             size="sm"
-                            className="h-7 text-xs"
+                            className="h-7 text-sm"
                             disabled={isPending}
                             onClick={() => reviewMutation.mutate(item.id)}
                           >
@@ -521,7 +521,7 @@ function HomePage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs"
+                            className="h-7 text-sm"
                             disabled={isPending}
                             onClick={() => dismissMutation.mutate(item.id)}
                           >
@@ -539,7 +539,7 @@ function HomePage() {
       {/* ── Agent Row ───────────────────────────────────────────── */}
       {(metricsQuery.isPending || agents.length > 0) && (
         <div>
-          <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Agents
           </h2>
           {metricsQuery.isPending ? (
@@ -563,7 +563,7 @@ function HomePage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium">{agent.name}</p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {agent.activeCount} active &middot;{' '}
                       <span
                         className={successScoreColor(

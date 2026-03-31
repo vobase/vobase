@@ -195,7 +195,7 @@ function EvalsPage() {
                         {statusIcon(run.status)}
                         <Badge
                           variant={statusVariant(run.status)}
-                          className="text-[10px] capitalize"
+                          className="text-xs capitalize"
                         >
                           {run.status}
                         </Badge>

@@ -89,7 +89,7 @@ function ReactorAvatars({
             ))}
           </span>
           {reactors.length > 3 && (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               +{reactors.length - 3}
             </span>
           )}

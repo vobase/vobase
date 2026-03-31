@@ -248,7 +248,7 @@ export function Citation(props: CitationProps) {
           </h3>
 
           {snippet && (
-            <p className="text-muted-foreground text-[13px] leading-relaxed text-pretty">
+            <p className="text-muted-foreground text-sm leading-relaxed text-pretty">
               <span className="line-clamp-3">{snippet}</span>
             </p>
           )}

@@ -164,7 +164,7 @@ function ChannelBadge({ channelType }: { channelType: string | null }) {
     );
 
   return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/70">
+    <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground/70">
       {icon}
     </span>
   );
@@ -209,25 +209,25 @@ function InboxRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <ChannelBadge channelType={row.channelType} />
-          <span className="text-[13px] font-medium text-foreground truncate">
+          <span className="text-sm font-medium text-foreground truncate">
             {contactDisplay}
           </span>
           {row.hasPendingEscalation && (
             <span className="inline-flex h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
           )}
           {row.unreadCount > 0 && (
-            <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground px-1">
+            <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground px-1">
               {row.unreadCount > 9 ? '9+' : row.unreadCount}
             </span>
           )}
         </div>
         {preview && (
-          <p className="text-xs text-muted-foreground truncate mt-0.5 leading-relaxed">
+          <p className="text-sm text-muted-foreground truncate mt-0.5 leading-relaxed">
             {preview}
           </p>
         )}
         {showMode && row.mode && (
-          <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
             {row.mode === 'supervised'
               ? 'Supervised'
               : row.mode === 'held'
@@ -238,7 +238,7 @@ function InboxRow({
       </div>
 
       {/* Time */}
-      <span className="text-[11px] text-muted-foreground tabular-nums shrink-0 mt-0.5">
+      <span className="text-xs text-muted-foreground tabular-nums shrink-0 mt-0.5">
         {formatRelativeTimeShort(timeRef)}
       </span>
     </Link>
@@ -297,7 +297,7 @@ function ConversationList({
           {emptyIcon}
         </div>
         <p className="text-sm font-medium text-foreground">{emptyTitle}</p>
-        <p className="text-xs text-muted-foreground mt-1">{emptySubtitle}</p>
+        <p className="text-sm text-muted-foreground mt-1">{emptySubtitle}</p>
       </div>
     );
   }
@@ -327,7 +327,7 @@ function NoConversationSelected() {
       <p className="text-sm font-medium text-foreground">
         No conversation selected
       </p>
-      <p className="text-xs text-muted-foreground mt-1">
+      <p className="text-sm text-muted-foreground mt-1">
         Select a conversation from the list to view it
       </p>
     </div>
@@ -509,7 +509,7 @@ function ConversationsLayout() {
                 setFocusedIndex(-1);
               }}
               placeholder="Search conversations…"
-              className="w-full rounded-md border border-input bg-transparent py-1.5 pl-8 pr-7 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full rounded-md border border-input bg-transparent py-1.5 pl-8 pr-7 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {search && (
               <button
@@ -533,29 +533,29 @@ function ConversationsLayout() {
         >
           <div className="px-3 pt-2 shrink-0">
             <TabsList className="w-full">
-              <TabsTrigger value="attention" className="flex-1 text-xs gap-1.5">
+              <TabsTrigger value="attention" className="flex-1 text-sm gap-1.5">
                 Attention
                 {counts?.attention ? (
                   <Badge
                     variant="destructive"
-                    className="h-4 min-w-4 px-1 text-[10px] font-bold"
+                    className="h-4 min-w-4 px-1 text-xs font-bold"
                   >
                     {counts.attention > 99 ? '99+' : counts.attention}
                   </Badge>
                 ) : null}
               </TabsTrigger>
-              <TabsTrigger value="ai" className="flex-1 text-xs gap-1.5">
+              <TabsTrigger value="ai" className="flex-1 text-sm gap-1.5">
                 AI
                 {counts?.ai ? (
                   <Badge
                     variant="secondary"
-                    className="h-4 min-w-4 px-1 text-[10px] font-bold"
+                    className="h-4 min-w-4 px-1 text-xs font-bold"
                   >
                     {counts.ai > 99 ? '99+' : counts.ai}
                   </Badge>
                 ) : null}
               </TabsTrigger>
-              <TabsTrigger value="done" className="flex-1 text-xs">
+              <TabsTrigger value="done" className="flex-1 text-sm">
                 Done
               </TabsTrigger>
             </TabsList>

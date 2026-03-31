@@ -45,7 +45,7 @@ export function ShellHeader({ onMobileMenuOpen }: Readonly<ShellHeaderProps>) {
             aria-label="Open command palette"
           >
             <span>Search</span>
-            <kbd className="pointer-events-none rounded bg-background px-1 py-0.5 font-mono text-[10px] font-medium shadow-sm ring-1 ring-border">
+            <kbd className="pointer-events-none rounded bg-background px-1 py-0.5 font-mono text-xs font-medium shadow-sm ring-1 ring-border">
               ⌘K
             </kbd>
           </button>

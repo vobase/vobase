@@ -165,7 +165,7 @@ const ActivityEventMessage: FC = () => {
       className="mx-auto w-full max-w-(--thread-max-width) flex justify-center py-1"
       data-role="system"
     >
-      <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 text-[11px] text-muted-foreground">
+      <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 text-xs text-muted-foreground">
         {activityIcon(activityType)}
         <span>{text}</span>
         {createdAt && (
@@ -353,7 +353,7 @@ const AssistantMessage: FC = () => {
         {deliveryStatus && (
           <span
             className={cn(
-              'text-[10px] px-2 mb-0.5 block',
+              'text-xs px-2 mb-0.5 block',
               deliveryStatus === 'delivered' || deliveryStatus === 'read'
                 ? 'text-green-600 dark:text-green-400'
                 : deliveryStatus === 'failed'

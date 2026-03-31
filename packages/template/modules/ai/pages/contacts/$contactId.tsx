@@ -230,7 +230,7 @@ function OverviewTab({ contact }: { contact: Contact }) {
             <>
               <Separator />
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
                   Metadata
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -239,7 +239,7 @@ function OverviewTab({ contact }: { contact: Contact }) {
                       key={key}
                       className="rounded-md bg-muted/50 px-2.5 py-1.5"
                     >
-                      <p className="text-[10px] text-muted-foreground">{key}</p>
+                      <p className="text-xs text-muted-foreground">{key}</p>
                       <p className="text-xs font-medium truncate">
                         {String(value)}
                       </p>
@@ -310,7 +310,7 @@ function ConversationsTab({ contactId }: { contactId: string }) {
               <td className="px-3 py-2.5">
                 <Badge
                   variant={statusVariant(conversation.status)}
-                  className="capitalize text-[10px]"
+                  className="capitalize text-xs"
                 >
                   {conversation.status}
                 </Badge>
@@ -393,7 +393,7 @@ function MemoryTab({ contactId }: { contactId: string }) {
                     {card.value}
                   </p>
                 )}
-                <p className="text-[10px] text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {card.label}
                 </p>
               </div>
@@ -424,7 +424,7 @@ function MemoryTab({ contactId }: { contactId: string }) {
             <CardContent className="py-3">
               <div className="flex items-center gap-2 mb-2">
                 <BrainIcon className="h-3.5 w-3.5 text-primary/60" />
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   Agent's live context for this contact
                 </span>
               </div>
@@ -451,7 +451,7 @@ function MemoryTab({ contactId }: { contactId: string }) {
                 <BrainIcon className="h-3.5 w-3.5 text-primary/60 mt-0.5 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm leading-relaxed">{fact.content}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {formatDateTime(fact.createdAt)}
                   </p>
                 </div>
@@ -476,7 +476,7 @@ function MemoryTab({ contactId }: { contactId: string }) {
                 <ClockIcon className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm leading-relaxed">{episode.content}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {formatDateTime(episode.createdAt)}
                   </p>
                 </div>
