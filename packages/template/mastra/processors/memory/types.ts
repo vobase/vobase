@@ -2,10 +2,8 @@ import { z } from 'zod';
 
 // --- Memory Scope ---
 
-/** Memory is scoped by contactId (channel) or userId (web chat fallback). */
-export type MemoryScope =
-  | { contactId: string; userId?: string }
-  | { userId: string; contactId?: undefined };
+/** Memory is always scoped by contactId. All conversation participants have a contact record. */
+export type MemoryScope = { contactId: string };
 
 // --- Memory Config ---
 

@@ -15,27 +15,17 @@ interface RetrieveOptions {
   limit?: number;
 }
 
-/**
- * Build a scope WHERE condition. MemoryScope guarantees at least one of
- * contactId or userId is set, but TypeScript can't narrow the union across
- * the ternary — so we cast the userId branch (safe per resolveScope contract).
- */
+/** Build a scope WHERE condition — always scoped by contactId. */
 function episodeScopeCond(scope: MemoryScope) {
-  return scope.contactId
-    ? eq(aiMemEpisodes.contactId, scope.contactId)
-    : eq(aiMemEpisodes.userId, scope.userId as string);
+  return eq(aiMemEpisodes.contactId, scope.contactId);
 }
 
 function factScopeCond(scope: MemoryScope) {
-  return scope.contactId
-    ? eq(aiMemEventLogs.contactId, scope.contactId)
-    : eq(aiMemEventLogs.userId, scope.userId as string);
+  return eq(aiMemEventLogs.contactId, scope.contactId);
 }
 
 function cellScopeCond(scope: MemoryScope) {
-  return scope.contactId
-    ? eq(aiMemCells.contactId, scope.contactId)
-    : eq(aiMemCells.userId, scope.userId as string);
+  return eq(aiMemCells.contactId, scope.contactId);
 }
 
 /**

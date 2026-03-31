@@ -76,11 +76,20 @@ export const memoryHandlers = new Hono()
     if (!parsed.success) throw validation({ scope: parsed.error.message });
 
     const scope = parseScope(rawScope);
+    if (!('contactId' in scope) || !scope.contactId) {
+      throw validation({
+        scope: 'Memory search requires contact:ID scope',
+      });
+    }
 
     const { retrieveMemory } = await import(
       '../../../mastra/processors/memory/retriever'
     );
-    const result = await retrieveMemory(db, scope, query);
+    const result = await retrieveMemory(
+      db,
+      { contactId: scope.contactId },
+      query,
+    );
     return c.json(result);
   })
   /** GET /memory/episodes?scope=contact:ID|user:ID&cursor=&limit= */

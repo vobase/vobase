@@ -84,7 +84,6 @@ export async function processMemCell(
       await tx.insert(aiMemEpisodes).values({
         cellId,
         contactId: cell.contactId,
-        userId: cell.userId,
         title: episode.title,
         content: episode.content,
         embedding: episodeEmbedding,
@@ -96,7 +95,6 @@ export async function processMemCell(
           eventLogs.map((entry, i) => ({
             cellId,
             contactId: cell.contactId,
-            userId: cell.userId,
             fact: entry.fact,
             subject: entry.subject ?? null,
             occurredAt: entry.occurredAt ? new Date(entry.occurredAt) : null,

@@ -29,30 +29,35 @@ const chatSchema = z.object({
 });
 
 /**
- * Upsert a visitor contact by their auth user ID. Returns the contact ID.
- * Uses the identifier field to store the user ID for lookup.
+ * Atomic contact upsert keyed by `user:{userId}` identifier.
+ * Uses ON CONFLICT so concurrent requests for the same user are safe.
+ * Email is intentionally omitted from the insert to avoid unique-constraint
+ * collisions when a channel contact already owns that email address.
  */
-async function upsertVisitorContact(
+async function upsertContact(
   db: VobaseDb,
-  userId: string,
+  opts: {
+    userId: string;
+    role?: 'customer' | 'staff';
+    name?: string | null;
+  },
 ): Promise<string> {
-  const [existing] = await db
-    .select({ id: contacts.id })
-    .from(contacts)
-    .where(eq(contacts.identifier, `user:${userId}`));
+  const identifier = `user:${opts.userId}`;
 
-  if (existing) return existing.id;
-
-  const [created] = await db
+  const [row] = await db
     .insert(contacts)
     .values({
-      identifier: `user:${userId}`,
-      name: 'Visitor',
-      role: 'customer',
+      identifier,
+      name: opts.name ?? (opts.role === 'staff' ? null : 'Visitor'),
+      role: opts.role ?? 'customer',
+    })
+    .onConflictDoUpdate({
+      target: contacts.identifier,
+      set: { updatedAt: new Date() },
     })
     .returning({ id: contacts.id });
 
-  return created.id;
+  return row.id;
 }
 
 export const chatHandlers = new Hono()
@@ -69,9 +74,16 @@ export const chatHandlers = new Hono()
 
     // Resolve or create conversation
     let conversationId = body.conversationId;
+    let contactId: string;
+
     if (!conversationId) {
-      // Find or create a web channel routing for this agent
-      // First, find the web channel_instance
+      // New conversation — create contact for authenticated user
+      contactId = await upsertContact(db, {
+        userId: user.id,
+        role: 'staff',
+        name: user.name,
+      });
+
       const [webInstance] = await db
         .select()
         .from(channelInstances)
@@ -112,25 +124,25 @@ export const chatHandlers = new Hono()
         { db, scheduler, realtime },
         {
           channelRoutingId: channelRouting.id,
-          contactId: user.id,
+          contactId,
           agentId: body.agentId,
           channelInstanceId: webInstance.id,
         },
       );
       conversationId = conversation.id;
-    }
-
-    // Check handler mode for web chat
-    if (conversationId) {
-      const [conversationCheck] = await db
-        .select({ mode: conversations.mode })
+    } else {
+      // Existing conversation — read contactId + mode in one query
+      const [conv] = await db
+        .select({
+          contactId: conversations.contactId,
+          mode: conversations.mode,
+        })
         .from(conversations)
         .where(eq(conversations.id, conversationId));
 
-      if (
-        conversationCheck?.mode === 'human' ||
-        conversationCheck?.mode === 'held'
-      ) {
+      if (!conv) throw notFound('Conversation not found');
+
+      if (conv.mode === 'human' || conv.mode === 'held') {
         return c.json(
           {
             error:
@@ -139,6 +151,9 @@ export const chatHandlers = new Hono()
           403,
         );
       }
+
+      if (!conv.contactId) throw notFound('Conversation has no contact');
+      contactId = conv.contactId;
     }
 
     // Extract last user message for streaming
@@ -150,7 +165,8 @@ export const chatHandlers = new Hono()
       conversationId: conversationId,
       message: lastUserMessage,
       agentId: body.agentId,
-      resourceId: `user:${user.id}`,
+      resourceId: `contact:${contactId}`,
+      contactId,
     });
 
     // Bridge Mastra stream to AI SDK SSE format
@@ -198,7 +214,7 @@ export const chatHandlers = new Hono()
     if (!instance) throw notFound('Channel instance not found');
 
     // Upsert visitor contact from session user
-    const contactId = await upsertVisitorContact(db, user.id);
+    const contactId = await upsertContact(db, { userId: user.id });
 
     // Check for existing active conversation for this visitor + channel routing
     const [existingConversation] = await db
@@ -382,7 +398,7 @@ export const chatHandlers = new Hono()
     if (!channelRouting) throw notFound('Channel routing not found');
 
     // Resolve visitor contact from session
-    const contactId = await upsertVisitorContact(db, user.id);
+    const contactId = await upsertContact(db, { userId: user.id });
 
     // Complete any active conversation for this visitor + channel routing
     const [activeConversation] = await db
@@ -485,6 +501,7 @@ export const chatHandlers = new Hono()
       message: lastUserMsg,
       agentId: conversation.agentId,
       resourceId: `contact:${contact.id}`,
+      contactId: contact.id,
     });
 
     // Bridge to AI SDK v6 UIMessageStream format

@@ -39,7 +39,7 @@ export const contacts = conversationsPgSchema.table(
     phone: text('phone').unique(),
     email: text('email').unique(),
     name: text('name'),
-    identifier: text('identifier'),
+    identifier: text('identifier').unique(),
     role: text('role').notNull().default('customer'),
     metadata: jsonb('metadata').default({}),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -536,6 +536,30 @@ export const aiMemEventLogs = aiPgSchema.table(
       sql`contact_id IS NOT NULL OR user_id IS NOT NULL`,
     ),
   ],
+);
+
+/**
+ * Scorers — user-defined evaluation criteria stored in DB.
+ * Each row becomes an LLM judge scorer at eval time via createScorer().
+ */
+export const aiScorers = aiPgSchema.table(
+  'scorers',
+  {
+    id: nanoidPrimaryKey(),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    criteria: text('criteria').notNull(),
+    model: text('model').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: text('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('scorers_enabled_idx').on(table.enabled)],
 );
 
 /**

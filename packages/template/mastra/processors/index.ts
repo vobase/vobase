@@ -26,7 +26,6 @@ import { createModerationLogger } from './moderation-logger';
 export interface AgentRequestContext {
   conversationId: string;
   contactId?: string | null;
-  userId?: string | null;
   channel?: string;
   agentId?: string;
 }
@@ -44,9 +43,10 @@ export function resolveInputProcessors({
   const rc = (
     requestContext?.get?.('conversationId')
       ? Object.fromEntries(
-          ['conversationId', 'contactId', 'userId', 'channel', 'agentId'].map(
-            (k) => [k, requestContext.get(k)],
-          ),
+          ['conversationId', 'contactId', 'channel', 'agentId'].map((k) => [
+            k,
+            requestContext.get(k),
+          ]),
         )
       : undefined
   ) as AgentRequestContext | undefined;
@@ -57,16 +57,13 @@ export function resolveInputProcessors({
   const scope = resolveScope({
     conversationId: rc.conversationId,
     contactId: rc.contactId,
-    userId: rc.userId,
   });
-
   const processors: InputProcessorOrWorkflow[] = [
     createModerationProcessor(
       undefined,
       createModerationLogger(db, {
         agentId: rc.agentId ?? 'unknown',
         channel: rc.channel ?? 'web',
-        userId: rc.userId ?? undefined,
         contactId: rc.contactId ?? undefined,
         conversationId: rc.conversationId,
       }),
@@ -99,9 +96,10 @@ export function resolveOutputProcessors({
   const rc = (
     requestContext?.get?.('conversationId')
       ? Object.fromEntries(
-          ['conversationId', 'contactId', 'userId', 'channel', 'agentId'].map(
-            (k) => [k, requestContext.get(k)],
-          ),
+          ['conversationId', 'contactId', 'channel', 'agentId'].map((k) => [
+            k,
+            requestContext.get(k),
+          ]),
         )
       : undefined
   ) as AgentRequestContext | undefined;
@@ -119,7 +117,6 @@ export function resolveOutputProcessors({
   const scope = resolveScope({
     conversationId: rc.conversationId,
     contactId: rc.contactId,
-    userId: rc.userId,
   });
 
   if (!scope) return [];
