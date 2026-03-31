@@ -481,7 +481,7 @@ function HomePage() {
                     const contactName =
                       (item.contactId && contactNames.get(item.contactId)) ??
                       item.contactId ??
-                      'Visitor';
+                      'Anonymous';
                     const isPending =
                       reviewMutation.isPending || dismissMutation.isPending;
 

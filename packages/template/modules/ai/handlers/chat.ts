@@ -1,7 +1,9 @@
+import { TZDate } from '@date-fns/tz';
 import { toAISdkStream } from '@mastra/ai-sdk';
 import type { VobaseDb } from '@vobase/core';
-import { getCtx, notFound, unauthorized } from '@vobase/core';
+import { getCtx, nextSequence, notFound, unauthorized } from '@vobase/core';
 import { createUIMessageStream, createUIMessageStreamResponse } from 'ai';
+import { format, getDay } from 'date-fns';
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -28,6 +30,31 @@ const chatSchema = z.object({
   ),
 });
 
+/** Mon=A, Tue=B, … Sun=G. Daily-resetting visitor names like "Visitor A001". */
+const DAY_LETTERS = ['G', 'A', 'B', 'C', 'D', 'E', 'F'] as const;
+const DEFAULT_TZ = process.env.TZ || 'Asia/Singapore';
+
+/** Build a timezone-consistent date key + day letter. */
+export function visitorDayInfo(
+  now = new Date(),
+  tz = DEFAULT_TZ,
+) {
+  const local = new TZDate(now, tz);
+  const dateKey = format(local, 'yyyyMMdd');
+  const letter = DAY_LETTERS[getDay(local)];
+  return { dateKey, letter };
+}
+
+async function generateVisitorName(db: VobaseDb): Promise<string> {
+  const { dateKey, letter } = visitorDayInfo();
+  const seq = await nextSequence(db, `VIS-${letter}-${dateKey}`, {
+    padLength: 3,
+  });
+  // seq = "VIS-A-20260331-001" → extract trailing number
+  const num = seq.split('-').pop()!;
+  return `Visitor ${letter}${num}`;
+}
+
 /**
  * Atomic contact upsert keyed by `user:{userId}` identifier.
  * Uses ON CONFLICT so concurrent requests for the same user are safe.
@@ -44,13 +71,30 @@ async function upsertContact(
 ): Promise<string> {
   const identifier = `user:${opts.userId}`;
 
+  // Fast path: existing contact — just touch updatedAt, no sequence wasted
+  const existing = await db
+    .select({ id: contacts.id })
+    .from(contacts)
+    .where(eq(contacts.identifier, identifier))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(contacts)
+      .set({ updatedAt: new Date() })
+      .where(eq(contacts.identifier, identifier));
+    return existing[0].id;
+  }
+
+  // Slow path: new contact — generate visitor name then insert with
+  // onConflictDoUpdate as a safety net against concurrent first-chat races
+  const name =
+    opts.name ??
+    (opts.role === 'staff' ? null : await generateVisitorName(db));
+
   const [row] = await db
     .insert(contacts)
-    .values({
-      identifier,
-      name: opts.name ?? (opts.role === 'staff' ? null : 'Visitor'),
-      role: opts.role ?? 'customer',
-    })
+    .values({ identifier, name, role: opts.role ?? 'customer' })
     .onConflictDoUpdate({
       target: contacts.identifier,
       set: { updatedAt: new Date() },
