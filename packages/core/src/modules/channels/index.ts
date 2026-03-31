@@ -39,6 +39,7 @@ export interface WhatsAppChannelConfig {
   accessToken: string;
   appSecret: string;
   apiVersion?: string;
+  webhookVerifyToken?: string;
 }
 
 export interface EmailChannelConfig {

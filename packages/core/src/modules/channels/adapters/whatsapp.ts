@@ -71,6 +71,8 @@ interface InboundMessage {
     list_reply?: { id: string; title: string; description?: string };
   };
   button?: { text: string; payload: string };
+  context?: { id: string; forwarded?: boolean; frequently_forwarded?: boolean };
+  errors?: Array<{ code: number; title: string; details?: string }>;
 }
 
 interface MediaInfo {
@@ -82,7 +84,14 @@ interface MediaInfo {
 
 interface InboundStatus {
   id: string;
-  status: 'sent' | 'delivered' | 'read' | 'failed' | 'deleted' | 'warning';
+  status:
+    | 'sent'
+    | 'delivered'
+    | 'read'
+    | 'failed'
+    | 'deleted'
+    | 'warning'
+    | 'pending';
   timestamp: string;
   recipient_id: string;
   errors?: Array<{
@@ -121,21 +130,36 @@ export class WhatsAppApiError extends Error {
 
 const MAX_TEXT_LENGTH = 4096;
 const EVICTION_TTL_MS = 60_000;
-const MAX_MEDIA_SIZE = 25 * 1024 * 1024; // 25MB
+const MEDIA_SIZE_LIMITS: Record<string, number> = {
+  image: 5 * 1024 * 1024,       // 5MB
+  video: 16 * 1024 * 1024,      // 16MB
+  audio: 16 * 1024 * 1024,      // 16MB
+  document: 100 * 1024 * 1024,  // 100MB
+  sticker: 500 * 1024,          // 500KB (animated max)
+};
+const DEFAULT_MEDIA_SIZE_LIMIT = 25 * 1024 * 1024; // 25MB fallback
 
 // ─── Error Code Map ──────────────────────────────────────────────────
 
 const ERROR_CODE_MAP: Record<number, { code: string; retryable: boolean }> = {
+  190: { code: 'invalid_token', retryable: false },
   130429: { code: 'rate_limited', retryable: true },
-  131056: { code: 'pair_rate_limited', retryable: true },
+  130472: { code: 'experiment_blocked', retryable: false },
+  131026: { code: 'message_undeliverable', retryable: false },
   131030: { code: 'invalid_recipient', retryable: false },
+  131042: { code: 'business_eligibility_payment', retryable: false },
   131047: { code: 'window_expired', retryable: false },
+  131048: { code: 'spam_rate_limited', retryable: true },
+  131049: { code: 'meta_chose_not_to_deliver', retryable: false },
   131050: { code: 'opted_out', retryable: false },
   131051: { code: 'unsupported_type', retryable: false },
+  131056: { code: 'pair_rate_limited', retryable: true },
   132000: { code: 'template_param_mismatch', retryable: false },
+  132001: { code: 'template_not_exist', retryable: false },
+  132005: { code: 'template_hydrated_too_long', retryable: false },
   132012: { code: 'template_not_found', retryable: false },
   132015: { code: 'template_paused', retryable: false },
-  190: { code: 'invalid_token', retryable: false },
+  132068: { code: 'flow_blocked', retryable: false },
   133010: { code: 'not_registered', retryable: false },
 };
 
@@ -306,6 +330,7 @@ export function createWhatsAppAdapter(
 
   async function downloadMedia(
     mediaId: string,
+    mediaType?: string,
   ): Promise<{ data: Buffer; mimeType: string } | null> {
     try {
       const meta = await graphFetch(`/${mediaId}`);
@@ -319,14 +344,16 @@ export function createWhatsAppAdapter(
       });
       if (!binRes.ok) return null;
 
+      const maxSize: number = (mediaType ? MEDIA_SIZE_LIMITS[mediaType] : undefined) ?? DEFAULT_MEDIA_SIZE_LIMIT;
+
       // Check content-length before downloading to enforce size limit
       const contentLength = binRes.headers.get('content-length');
       if (contentLength !== null) {
         const size = Number.parseInt(contentLength, 10);
-        if (!Number.isNaN(size) && size > MAX_MEDIA_SIZE) {
+        if (!Number.isNaN(size) && size > maxSize) {
           console.warn(
-            `[WhatsApp] downloadMedia skipped: content-length ${size} exceeds MAX_MEDIA_SIZE ${MAX_MEDIA_SIZE}`,
-            { mediaId },
+            `[WhatsApp] downloadMedia skipped: content-length ${size} exceeds limit ${maxSize}`,
+            { mediaId, mediaType },
           );
           return null;
         }
@@ -335,10 +362,10 @@ export function createWhatsAppAdapter(
       const arrayBuf = await binRes.arrayBuffer();
 
       // Guard against oversized downloads when content-length was absent
-      if (arrayBuf.byteLength > MAX_MEDIA_SIZE) {
+      if (arrayBuf.byteLength > maxSize) {
         console.warn(
-          `[WhatsApp] downloadMedia skipped: downloaded ${arrayBuf.byteLength} bytes exceeds MAX_MEDIA_SIZE ${MAX_MEDIA_SIZE}`,
-          { mediaId },
+          `[WhatsApp] downloadMedia skipped: downloaded ${arrayBuf.byteLength} bytes exceeds limit ${maxSize}`,
+          { mediaId, mediaType },
         );
         return null;
       }
@@ -355,7 +382,12 @@ export function createWhatsAppAdapter(
     }
   }
 
-  // Dedup state
+  /**
+   * In-memory dedup: tracks recently sent message IDs for 60s to filter
+   * outbound echoes from inbound webhooks. This state is lost on server
+   * restart — the outbox table's status column prevents duplicate sends
+   * at the DB level, so this is a secondary performance optimization only.
+   */
   const recentlySentIds = new Set<string>();
   const sentTimestamps = new Map<string, number>();
 
@@ -398,12 +430,14 @@ export function createWhatsAppAdapter(
       .digest('hex');
     const expected = `sha256=${expectedSig}`;
 
-    if (expected.length !== signature.length) return false;
-
-    return crypto.timingSafeEqual(
-      Buffer.from(expected),
-      Buffer.from(signature),
-    );
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(expected),
+        Buffer.from(signature),
+      );
+    } catch {
+      return false; // length mismatch throws
+    }
   }
 
   // ─── Webhook challenge (Meta GET verification) ─────────────────
@@ -414,8 +448,9 @@ export function createWhatsAppAdapter(
     const token = url.searchParams.get('hub.verify_token');
     const challenge = url.searchParams.get('hub.challenge');
 
-    // Verify the token matches what we configured in Meta dashboard
-    const expectedToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+    // Verify the token matches what we configured (config first, env fallback)
+    const expectedToken =
+      config.webhookVerifyToken ?? process.env.META_WEBHOOK_VERIFY_TOKEN;
 
     if (mode === 'subscribe' && challenge) {
       // If a verify token is configured, validate it. Otherwise accept any (dev mode).
@@ -441,6 +476,8 @@ export function createWhatsAppAdapter(
       return [];
     }
 
+    if (payload.object !== 'whatsapp_business_account') return [];
+
     const events: ChannelEvent[] = [];
 
     if (!payload.entry?.length) return events;
@@ -449,10 +486,27 @@ export function createWhatsAppAdapter(
       for (const change of entry.changes) {
         const value = change.value;
 
-        // Build contact name map
+        // Build contact maps: name lookup (keyed by wa_id) and from→wa_id resolver.
+        // In 99% of cases msg.from === wa_id, but they can diverge (e.g. Brazilian 9th digit).
+        // We key contactMap by wa_id AND populate fromToWaId after seeing messages below.
         const contactMap = new Map<string, string>();
-        for (const c of value.contacts ?? []) {
+        const contacts = value.contacts ?? [];
+        for (const c of contacts) {
           contactMap.set(c.wa_id, c.profile.name);
+        }
+        // Build from→wa_id map: contacts[i] corresponds to the message sender.
+        // When from !== wa_id, this lets us resolve the canonical wa_id.
+        const fromToWaId = new Map<string, string>();
+        for (const c of contacts) {
+          fromToWaId.set(c.wa_id, c.wa_id);
+        }
+        // Also key contactMap by msg.from for profile name lookup when from !== wa_id
+        for (const msg of value.messages ?? []) {
+          const contact = contacts.find((c) => c.wa_id === msg.from) ?? contacts[0];
+          if (contact && contact.wa_id !== msg.from) {
+            contactMap.set(msg.from, contact.profile.name);
+            fromToWaId.set(msg.from, contact.wa_id);
+          }
         }
 
         // Parse messages
@@ -461,7 +515,7 @@ export function createWhatsAppAdapter(
             // Skip recently sent (dedup outbound echoes)
             if (isRecentlySent(msg.id)) continue;
 
-            const event = await parseInboundMessage(msg, contactMap);
+            const event = await parseInboundMessage(msg, contactMap, fromToWaId);
             if (event) events.push(event);
           }
         }
@@ -482,14 +536,22 @@ export function createWhatsAppAdapter(
   async function parseInboundMessage(
     msg: InboundMessage,
     contactMap: Map<string, string>,
+    fromToWaId: Map<string, string>,
   ): Promise<ChannelEvent | null> {
+    const resolvedWaId = fromToWaId.get(msg.from) ?? msg.from;
     const base = {
       channel: 'whatsapp',
       from: msg.from,
-      profileName: contactMap.get(msg.from) ?? '',
+      profileName: contactMap.get(msg.from) || contactMap.get(resolvedWaId) || '',
       messageId: msg.id,
       timestamp: Number.parseInt(msg.timestamp, 10) * 1000,
     };
+
+    // Base metadata: always include waId, conditionally include reply context
+    const baseMetadata: Record<string, unknown> = { waId: resolvedWaId };
+    if (msg.context?.id) {
+      baseMetadata.replyToMessageId = msg.context.id;
+    }
 
     switch (msg.type) {
       case 'text': {
@@ -498,6 +560,7 @@ export function createWhatsAppAdapter(
           ...base,
           content: msg.text?.body ?? '',
           messageType: 'text',
+          metadata: { ...baseMetadata },
         } satisfies MessageReceivedEvent;
       }
 
@@ -510,7 +573,7 @@ export function createWhatsAppAdapter(
         let media: ChannelMedia[] | undefined;
 
         if (mediaInfo?.id) {
-          const downloaded = await downloadMedia(mediaInfo.id);
+          const downloaded = await downloadMedia(mediaInfo.id, msg.type);
           if (downloaded) {
             media = [
               {
@@ -529,6 +592,7 @@ export function createWhatsAppAdapter(
           content: mediaInfo?.caption ?? '',
           messageType: msg.type as MessageReceivedEvent['messageType'],
           media,
+          metadata: { ...baseMetadata },
         } satisfies MessageReceivedEvent;
       }
 
@@ -537,7 +601,7 @@ export function createWhatsAppAdapter(
         let media: ChannelMedia[] | undefined;
 
         if (stickerInfo?.id) {
-          const downloaded = await downloadMedia(stickerInfo.id);
+          const downloaded = await downloadMedia(stickerInfo.id, 'sticker');
           if (downloaded) {
             media = [
               {
@@ -555,7 +619,7 @@ export function createWhatsAppAdapter(
           content: '',
           messageType: 'image',
           media,
-          metadata: { sticker: true },
+          metadata: { ...baseMetadata, sticker: true },
         } satisfies MessageReceivedEvent;
       }
 
@@ -571,16 +635,19 @@ export function createWhatsAppAdapter(
           ...base,
           content: parts.join(' — ') || '',
           messageType: 'unsupported',
-          metadata: loc
-            ? {
-                location: {
-                  latitude: loc.latitude,
-                  longitude: loc.longitude,
-                  name: loc.name,
-                  address: loc.address,
-                },
-              }
-            : undefined,
+          metadata: {
+            ...baseMetadata,
+            ...(loc
+              ? {
+                  location: {
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                    name: loc.name,
+                    address: loc.address,
+                  },
+                }
+              : {}),
+          },
         } satisfies MessageReceivedEvent;
       }
 
@@ -594,7 +661,7 @@ export function createWhatsAppAdapter(
           ...base,
           content,
           messageType: 'unsupported',
-          metadata: contacts ? { contacts } : undefined,
+          metadata: { ...baseMetadata, ...(contacts ? { contacts } : {}) },
         } satisfies MessageReceivedEvent;
       }
 
@@ -606,6 +673,7 @@ export function createWhatsAppAdapter(
           from: msg.from,
           messageId: msg.reaction.message_id,
           emoji: msg.reaction.emoji,
+          action: msg.reaction.emoji === '' ? 'remove' : 'add',
           timestamp: base.timestamp,
         } satisfies ReactionEvent;
       }
@@ -617,7 +685,7 @@ export function createWhatsAppAdapter(
             ...base,
             content: msg.interactive.button_reply.title,
             messageType: 'button_reply',
-            metadata: { buttonId: msg.interactive.button_reply.id },
+            metadata: { ...baseMetadata, buttonId: msg.interactive.button_reply.id },
           } satisfies MessageReceivedEvent;
         }
         if (msg.interactive?.list_reply) {
@@ -627,6 +695,7 @@ export function createWhatsAppAdapter(
             content: msg.interactive.list_reply.title,
             messageType: 'list_reply',
             metadata: {
+              ...baseMetadata,
               listId: msg.interactive.list_reply.id,
               description: msg.interactive.list_reply.description,
             },
@@ -637,6 +706,7 @@ export function createWhatsAppAdapter(
           ...base,
           content: '',
           messageType: 'unsupported',
+          metadata: { ...baseMetadata },
         } satisfies MessageReceivedEvent;
       }
 
@@ -646,7 +716,17 @@ export function createWhatsAppAdapter(
           ...base,
           content: msg.button?.text ?? '',
           messageType: 'button_reply',
-          metadata: { buttonPayload: msg.button?.payload },
+          metadata: { ...baseMetadata, buttonPayload: msg.button?.payload },
+        } satisfies MessageReceivedEvent;
+      }
+
+      case 'errors': {
+        return {
+          type: 'message_received',
+          ...base,
+          content: '',
+          messageType: 'unsupported',
+          metadata: { ...baseMetadata, errors: msg.errors },
         } satisfies MessageReceivedEvent;
       }
 
@@ -656,24 +736,42 @@ export function createWhatsAppAdapter(
           ...base,
           content: '',
           messageType: 'unsupported',
+          metadata: { ...baseMetadata },
         } satisfies MessageReceivedEvent;
     }
   }
 
   function parseStatus(status: InboundStatus): StatusUpdateEvent {
+    // Map provider-specific statuses to contract statuses:
+    // - deleted: message was delivered then user deleted it → 'delivered'
+    // - warning: non-fatal advisory → 'failed' (contract has no 'warning')
+    // - pending: equivalent to 'sent'
+    let mappedStatus: StatusUpdateEvent['status'];
+    switch (status.status) {
+      case 'deleted':
+        mappedStatus = 'delivered';
+        break;
+      case 'warning':
+        mappedStatus = 'failed';
+        break;
+      case 'pending':
+        mappedStatus = 'sent';
+        break;
+      default:
+        mappedStatus = status.status;
+    }
+
     return {
       type: 'status_update',
       channel: 'whatsapp',
       messageId: status.id,
-      status:
-        status.status === 'deleted' || status.status === 'warning'
-          ? 'failed'
-          : status.status,
+      status: mappedStatus,
       timestamp: Number.parseInt(status.timestamp, 10) * 1000,
       metadata: {
         ...(status.errors?.length ? { errors: status.errors } : {}),
         ...(status.status === 'deleted' ? { deleted: true } : {}),
         ...(status.status === 'warning' ? { warning: true } : {}),
+        ...(status.status === 'pending' ? { pending: true } : {}),
       },
     };
   }
@@ -724,7 +822,7 @@ export function createWhatsAppAdapter(
         messaging_product: 'whatsapp',
         to: message.to,
         type: 'text',
-        text: { body: chunk },
+        text: { body: chunk, preview_url: /https?:\/\//.test(chunk) },
       };
 
       if (message.metadata?.replyToMessageId) {
@@ -745,14 +843,17 @@ export function createWhatsAppAdapter(
 
   async function sendTemplate(message: OutboundMessage): Promise<SendResult> {
     const tmpl = message.template ?? { name: '', language: 'en' };
-    const components = tmpl.parameters?.length
-      ? [
-          {
-            type: 'body',
-            parameters: tmpl.parameters.map((p) => ({ type: 'text', text: p })),
-          },
-        ]
-      : undefined;
+    // Prefer structured components over legacy text parameters
+    const components = tmpl.components?.length
+      ? tmpl.components
+      : tmpl.parameters?.length
+        ? [
+            {
+              type: 'body',
+              parameters: tmpl.parameters.map((p) => ({ type: 'text', text: p })),
+            },
+          ]
+        : undefined;
 
     const payload = {
       messaging_product: 'whatsapp',
@@ -796,85 +897,98 @@ export function createWhatsAppAdapter(
   }
 
   async function sendMedia(message: OutboundMessage): Promise<SendResult> {
-    const item = message.media?.[0];
-    if (!item) {
+    if (!message.media?.length) {
       return {
         success: false,
         error: 'No media item provided',
         retryable: false,
       };
     }
-    const mediaType = item.type;
 
-    const mediaPayload: Record<string, unknown> = {};
+    let lastMessageId: string | undefined;
 
-    if (item.url) {
-      mediaPayload.link = item.url;
-    } else if (item.data) {
-      // Upload via Media API first
-      const form = new FormData();
-      form.append('messaging_product', 'whatsapp');
-      form.append('type', item.mimeType ?? 'application/octet-stream');
-      form.append(
-        'file',
-        new Blob([new Uint8Array(item.data)], {
-          type: item.mimeType ?? 'application/octet-stream',
-        }),
-        item.filename ?? 'file',
-      );
+    for (const item of message.media) {
+      const mediaType = item.type;
+      const mediaPayload: Record<string, unknown> = {};
 
-      const uploadRes = await fetch(
-        graphUrl(apiVersion, `/${phoneNumberId}/media`),
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: form,
-        },
-      );
-      if (!uploadRes.ok) {
-        const body = await uploadRes.text();
-        throw new WhatsAppApiError(
-          `Media upload failed: ${body}`,
-          uploadRes.status,
-          0,
+      if (item.url) {
+        mediaPayload.link = item.url;
+      } else if (item.data) {
+        const maxSize =
+          MEDIA_SIZE_LIMITS[mediaType] ?? DEFAULT_MEDIA_SIZE_LIMIT;
+        if (item.data.length > maxSize) {
+          return {
+            success: false,
+            error: `Media size ${item.data.length} exceeds ${mediaType} limit of ${maxSize} bytes`,
+            retryable: false,
+          };
+        }
+        // Upload via Media API first
+        const form = new FormData();
+        form.append('messaging_product', 'whatsapp');
+        form.append('type', item.mimeType ?? 'application/octet-stream');
+        form.append(
+          'file',
+          new Blob([new Uint8Array(item.data)], {
+            type: item.mimeType ?? 'application/octet-stream',
+          }),
+          item.filename ?? 'file',
         );
+
+        const uploadRes = await fetch(
+          graphUrl(apiVersion, `/${phoneNumberId}/media`),
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}` },
+            body: form,
+          },
+        );
+        if (!uploadRes.ok) {
+          const body = await uploadRes.text();
+          throw new WhatsAppApiError(
+            `Media upload failed: ${body}`,
+            uploadRes.status,
+            0,
+          );
+        }
+        const uploadData = (await uploadRes.json()) as { id: string };
+        mediaPayload.id = uploadData.id;
+      } else {
+        return {
+          success: false,
+          error: 'Media item has neither url nor data',
+          retryable: false,
+        };
       }
-      const uploadData = (await uploadRes.json()) as { id: string };
-      mediaPayload.id = uploadData.id;
-    } else {
-      return {
-        success: false,
-        error: 'Media item has neither url nor data',
-        retryable: false,
+
+      if (item.caption) {
+        mediaPayload.caption = item.caption;
+      }
+      if (item.filename) {
+        mediaPayload.filename = item.filename;
+      }
+
+      const payload: Record<string, unknown> = {
+        messaging_product: 'whatsapp',
+        to: message.to,
+        type: mediaType,
+        [mediaType]: mediaPayload,
       };
+
+      if (message.metadata?.replyToMessageId) {
+        payload.context = { message_id: message.metadata.replyToMessageId };
+      }
+
+      const data = await graphFetch(`/${phoneNumberId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      lastMessageId = data.messages?.[0]?.id;
+      if (lastMessageId) addRecentlySent(lastMessageId);
     }
 
-    if (item.caption) {
-      mediaPayload.caption = item.caption;
-    }
-    if (item.filename) {
-      mediaPayload.filename = item.filename;
-    }
-
-    const payload: Record<string, unknown> = {
-      messaging_product: 'whatsapp',
-      to: message.to,
-      type: mediaType,
-      [mediaType]: mediaPayload,
-    };
-
-    if (message.metadata?.replyToMessageId) {
-      payload.context = { message_id: message.metadata.replyToMessageId };
-    }
-
-    const data = await graphFetch(`/${phoneNumberId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-
-    const messageId = data.messages?.[0]?.id;
-    if (messageId) addRecentlySent(messageId);
-    return { success: true, messageId };
+    return { success: true, messageId: lastMessageId };
   }
 
   // ─── Mark as read ──────────────────────────────────────────────
@@ -895,7 +1009,7 @@ export function createWhatsAppAdapter(
   async function syncTemplates(): Promise<WhatsAppTemplate[]> {
     // wabaId is the entry.id from webhooks, but for template sync
     // we derive it from phoneNumberId by querying the phone number
-    const phoneData = await graphFetch(`/${phoneNumberId}?fields=wabaId:owner`);
+    const phoneData = await graphFetch(`/${phoneNumberId}?fields=owner`);
     const wabaId = phoneData.owner;
 
     if (!wabaId) {
@@ -979,6 +1093,14 @@ export function createWhatsAppAdapter(
     send,
     markAsRead,
     syncTemplates,
+    extractInstanceIdentifier(payload: unknown): string | null {
+      try {
+        const p = payload as WebhookPayload;
+        return p?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? null;
+      } catch {
+        return null;
+      }
+    },
   };
 }
 

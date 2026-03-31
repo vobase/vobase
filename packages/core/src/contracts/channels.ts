@@ -109,6 +109,7 @@ export interface ReactionEvent {
   from: string;
   messageId: string;
   emoji: string;
+  action?: 'add' | 'remove';
   timestamp: number;
 }
 
@@ -122,7 +123,22 @@ export interface OutboundMessage {
   template?: {
     name: string;
     language: string;
+    /** Legacy: body text parameters only */
     parameters?: string[];
+    /** Full component parameters (header, body, button). Takes precedence over parameters. */
+    components?: Array<{
+      type: 'header' | 'body' | 'button';
+      sub_type?: 'quick_reply' | 'url';
+      index?: number;
+      parameters: Array<
+        | { type: 'text'; text: string }
+        | { type: 'currency'; currency: { fallback_value: string; code: string; amount_1000: number } }
+        | { type: 'date_time'; date_time: { fallback_value: string } }
+        | { type: 'image'; image: { link?: string; id?: string } }
+        | { type: 'document'; document: { link?: string; id?: string; filename?: string } }
+        | { type: 'video'; video: { link?: string; id?: string } }
+      >;
+    }>;
   };
   /** Media attachments */
   media?: OutboundMedia[];

@@ -2,6 +2,7 @@ import type {
   ChannelsService,
   RealtimeService,
   Scheduler,
+  SendResult,
   VobaseDb,
 } from '@vobase/core';
 import { logger } from '@vobase/core';
@@ -9,6 +10,7 @@ import { eq } from 'drizzle-orm';
 
 import { contacts, conversations, deadLetters, outbox } from '../schema';
 import { emitActivityEvent } from './activity-events';
+import { getModuleRealtimeOrNull } from './deps';
 import { updateLastSignal } from './last-signal';
 
 /** @lintignore */
@@ -174,7 +176,7 @@ export async function processOutboxMessage(
       return;
     }
 
-    let result: { success: boolean; messageId?: string; error?: string };
+    let result: SendResult;
 
     if (record.channelType === 'whatsapp' && contact.phone) {
       const payload = record.payload as {
@@ -241,14 +243,23 @@ export async function processOutboxMessage(
         outcome: 'sent',
       });
     } else {
-      recordCircuitFailure(record.channelType);
-      // Channel returned failure — retry or dead-letter
-      await retryOrDeadLetter(
-        db,
-        scheduler,
-        record,
-        result.error ?? 'Send failed',
-      );
+      // Non-retryable errors go directly to dead letters
+      if (result.retryable === false) {
+        await moveToDeadLetters(
+          db,
+          record,
+          result.error ?? 'Non-retryable error',
+        );
+      } else {
+        recordCircuitFailure(record.channelType);
+        // Channel returned failure — retry or dead-letter
+        await retryOrDeadLetter(
+          db,
+          scheduler,
+          record,
+          result.error ?? 'Send failed',
+        );
+      }
 
       logger.info('[conversations] outbox_send', {
         outboxId,
@@ -342,4 +353,30 @@ async function moveToDeadLetters(
     error,
     retryCount: record.retryCount,
   });
+
+  // Emit message.delivery_failed so dead letters appear in the attention queue
+  const realtime = getModuleRealtimeOrNull();
+  if (realtime) {
+    const eventId = await emitActivityEvent(db, realtime, {
+      type: 'message.delivery_failed',
+      source: 'system',
+      conversationId: record.conversationId,
+      channelType: record.channelType,
+      data: { outboxId: record.id, error },
+      resolutionStatus: 'pending',
+    });
+
+    // Fix dangling lastSignal pointer: if this outbox message was the last signal,
+    // update the pointer to the new delivery_failed event
+    if (eventId) {
+      const [conv] = await db
+        .select({ lastSignalId: conversations.lastSignalId, lastSignalKind: conversations.lastSignalKind })
+        .from(conversations)
+        .where(eq(conversations.id, record.conversationId));
+
+      if (conv?.lastSignalKind === 'message' && conv?.lastSignalId === record.id) {
+        await updateLastSignal(db, record.conversationId, 'activity', eventId);
+      }
+    }
+  }
 }

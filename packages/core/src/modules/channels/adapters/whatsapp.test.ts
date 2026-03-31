@@ -8,6 +8,7 @@ import type {
 } from '../../../contracts/channels';
 import {
   _chunkText,
+  _ERROR_CODE_MAP,
   createWhatsAppAdapter,
   WhatsAppApiError,
 } from './whatsapp';
@@ -214,6 +215,36 @@ describe('WhatsApp Adapter', () => {
       });
       expect(adapter.handleWebhookChallenge?.(req)).toBeNull();
     });
+
+    it('returns 403 when config webhookVerifyToken does not match', () => {
+      const adapter = createWhatsAppAdapter({
+        ...TEST_CONFIG,
+        webhookVerifyToken: 'correct-token',
+      });
+      const req = makeChallengeRequest({
+        'hub.mode': 'subscribe',
+        'hub.verify_token': 'wrong-token',
+        'hub.challenge': 'challenge_123',
+      });
+      const res = adapter.handleWebhookChallenge?.(req);
+      expect(res).not.toBeNull();
+      expect(res?.status).toBe(403);
+    });
+
+    it('accepts challenge when config webhookVerifyToken matches', () => {
+      const adapter = createWhatsAppAdapter({
+        ...TEST_CONFIG,
+        webhookVerifyToken: 'correct-token',
+      });
+      const req = makeChallengeRequest({
+        'hub.mode': 'subscribe',
+        'hub.verify_token': 'correct-token',
+        'hub.challenge': 'challenge_456',
+      });
+      const res = adapter.handleWebhookChallenge?.(req);
+      expect(res).not.toBeNull();
+      expect(res?.status).toBe(200);
+    });
   });
 
   describe('parseWebhook', () => {
@@ -411,9 +442,10 @@ describe('WhatsApp Adapter', () => {
       const r = events[0] as ReactionEvent;
       expect(r.emoji).toBe('\u{1F44D}');
       expect(r.messageId).toBe('wamid.ORIGINAL');
+      expect(r.action).toBe('add');
     });
 
-    it('parses reaction removal (empty emoji)', async () => {
+    it('parses reaction removal (empty emoji) with action:remove', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = makeMessagePayload({
         type: 'reaction',
@@ -423,7 +455,9 @@ describe('WhatsApp Adapter', () => {
       const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       expect(events[0].type).toBe('reaction');
-      expect((events[0] as ReactionEvent).emoji).toBe('');
+      const r = events[0] as ReactionEvent;
+      expect(r.emoji).toBe('');
+      expect(r.action).toBe('remove');
     });
 
     it('parses button reply (interactive)', async () => {
@@ -587,9 +621,66 @@ describe('WhatsApp Adapter', () => {
       const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(1);
       const evt = events[0] as StatusUpdateEvent;
-      // 'deleted' is mapped to 'failed' since our contract only has sent/delivered/read/failed
-      expect(evt.status).toBe('failed');
+      // 'deleted' maps to 'delivered' (message was delivered, then user deleted it)
+      expect(evt.status).toBe('delivered');
       expect(evt.metadata?.deleted).toBe(true);
+    });
+
+    it('parses pending status as sent', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const payload = wrapPayload({
+        statuses: [
+          {
+            id: 'wamid.PEND',
+            status: 'pending',
+            timestamp: '1638420000',
+            recipient_id: '16315551234',
+          },
+        ],
+      });
+      const req = makeSignedWebhookRequest(payload);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
+      expect(events).toHaveLength(1);
+      const evt = events[0] as StatusUpdateEvent;
+      expect(evt.status).toBe('sent');
+      expect(evt.metadata?.pending).toBe(true);
+    });
+
+    it('parses warning status as failed with warning flag', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const payload = wrapPayload({
+        statuses: [
+          {
+            id: 'wamid.WARN',
+            status: 'warning',
+            timestamp: '1638420000',
+            recipient_id: '16315551234',
+            errors: [{ code: 131031, title: 'Account locked' }],
+          },
+        ],
+      });
+      const req = makeSignedWebhookRequest(payload);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
+      expect(events).toHaveLength(1);
+      const evt = events[0] as StatusUpdateEvent;
+      expect(evt.status).toBe('failed');
+      expect(evt.metadata?.warning).toBe(true);
+      expect(evt.metadata?.errors).toBeDefined();
+    });
+
+    it('parses errors-type inbound message with error details', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const payload = makeMessagePayload({
+        type: 'errors',
+        errors: [{ code: 131051, title: 'Unsupported message type', details: 'Not supported' }],
+      });
+      const req = makeSignedWebhookRequest(payload);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
+      expect(events).toHaveLength(1);
+      const evt = events[0] as MessageReceivedEvent;
+      expect(evt.messageType).toBe('unsupported');
+      expect(evt.metadata?.errors).toBeDefined();
+      expect((evt.metadata?.errors as Array<{ code: number }>)[0].code).toBe(131051);
     });
 
     it('handles empty entry array', async () => {
@@ -644,6 +735,20 @@ describe('WhatsApp Adapter', () => {
       const req = makeSignedWebhookRequest(payload);
       const events = (await adapter.parseWebhook?.(req)) ?? [];
       expect(events).toHaveLength(0);
+    });
+
+    it('returns empty events for non-WhatsApp webhook payloads', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const request = new Request('https://example.com/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          object: 'instagram',
+          entry: [{ changes: [{ value: { messages: [{ id: 'msg1', from: '123', timestamp: '1234567890', type: 'text', text: { body: 'hi' } }] }, field: 'messages' }] }]
+        }),
+      });
+      const events = await adapter.parseWebhook!(request);
+      expect(events).toEqual([]);
     });
   });
 
@@ -832,6 +937,32 @@ describe('WhatsApp Adapter', () => {
         message_id: 'wamid.ORIGINAL',
       });
     });
+
+    it('sends multiple media items', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      let callCount = 0;
+      globalThis.fetch = (async () => {
+        callCount++;
+        return new Response(
+          JSON.stringify({
+            messaging_product: 'whatsapp',
+            messages: [{ id: `wamid.MULTI${callCount}` }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+
+      const result = await adapter.send({
+        to: '16315555555',
+        media: [
+          { type: 'image', url: 'https://example.com/img1.jpg' },
+          { type: 'document', url: 'https://example.com/doc.pdf', filename: 'doc.pdf' },
+        ],
+      });
+      expect(result.success).toBe(true);
+      expect(callCount).toBe(2);
+      expect(result.messageId).toBe('wamid.MULTI2');
+    });
   });
 
   describe('errorToSendResult', () => {
@@ -931,6 +1062,26 @@ describe('WhatsApp Adapter', () => {
       expect(result.code).toBe('unknown');
       expect(result.retryable).toBe(true);
     });
+
+    it('maps all known non-retryable error codes', () => {
+      const nonRetryable = Object.entries(_ERROR_CODE_MAP)
+        .filter(([_, v]) => !v.retryable)
+        .map(([k]) => Number(k));
+
+      for (const code of [131026, 131030, 131042, 131047, 131049, 131050, 131051, 132000, 132001, 132005, 132012, 132015, 132068, 190, 133010, 130472]) {
+        expect(nonRetryable).toContain(code);
+      }
+    });
+
+    it('maps all known retryable error codes', () => {
+      const retryable = Object.entries(_ERROR_CODE_MAP)
+        .filter(([_, v]) => v.retryable)
+        .map(([k]) => Number(k));
+
+      for (const code of [130429, 131048, 131056]) {
+        expect(retryable).toContain(code);
+      }
+    });
   });
 
   describe('chunkText', () => {
@@ -990,6 +1141,130 @@ describe('WhatsApp Adapter', () => {
     });
   });
 
+  describe('extractInstanceIdentifier', () => {
+    const config = TEST_CONFIG;
+
+    it('extracts phone_number_id from valid webhook payload', () => {
+      const adapter = createWhatsAppAdapter(config);
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          id: 'WABA_ID',
+          changes: [{
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: { display_phone_number: '15551234567', phone_number_id: 'PHONE_123' },
+              messages: [],
+            },
+            field: 'messages',
+          }],
+        }],
+      };
+      expect(adapter.extractInstanceIdentifier!(payload)).toBe('PHONE_123');
+    });
+
+    it('returns null for malformed payload', () => {
+      const adapter = createWhatsAppAdapter(config);
+      expect(adapter.extractInstanceIdentifier!({})).toBeNull();
+      expect(adapter.extractInstanceIdentifier!(null)).toBeNull();
+      expect(adapter.extractInstanceIdentifier!({ entry: [] })).toBeNull();
+    });
+  });
+
+  describe('inbound metadata (reply context, waId)', () => {
+    it('captures reply context in metadata', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const payload = makeMessagePayload({
+        type: 'text',
+        text: { body: 'Replying to you' },
+        context: { id: 'wamid.ORIGINAL' },
+      });
+      const req = makeSignedWebhookRequest(payload);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
+      expect(events).toHaveLength(1);
+      const evt = events[0] as MessageReceivedEvent;
+      expect(evt.metadata?.replyToMessageId).toBe('wamid.ORIGINAL');
+    });
+
+    it('includes waId in metadata', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const payload = makeMessagePayload({
+        type: 'text',
+        text: { body: 'Hello' },
+      });
+      const req = makeSignedWebhookRequest(payload);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
+      expect(events).toHaveLength(1);
+      const evt = events[0] as MessageReceivedEvent;
+      expect(evt.metadata?.waId).toBe('16315555555');
+    });
+
+    it('resolves waId from contacts when wa_id differs from from', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      // Brazilian number: from has 9th digit, wa_id doesn't
+      const payload = wrapPayload({
+        contacts: [{ profile: { name: 'Maria' }, wa_id: '5511987654321' }],
+        messages: [
+          {
+            from: '5511987654321',
+            id: 'wamid.BR1',
+            timestamp: '1683229471',
+            type: 'text',
+            text: { body: 'Ola' },
+          },
+        ],
+      });
+      const req = makeSignedWebhookRequest(payload);
+      const events = (await adapter.parseWebhook?.(req)) ?? [];
+      expect(events).toHaveLength(1);
+      const evt = events[0] as MessageReceivedEvent;
+      expect(evt.metadata?.waId).toBe('5511987654321');
+      expect(evt.profileName).toBe('Maria');
+    });
+  });
+
+  describe('preview_url in text messages', () => {
+    it('includes preview_url: true in outbound text payload', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      let capturedBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+        if (init?.body && typeof init.body === 'string') {
+          capturedBody = JSON.parse(init.body);
+        }
+        return new Response(
+          JSON.stringify({
+            messaging_product: 'whatsapp',
+            messages: [{ id: 'wamid.PREV1' }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+
+      await adapter.send({ to: '16315555555', text: 'Check https://example.com' });
+      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(true);
+    });
+
+    it('sets preview_url: false when text has no URL', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      let capturedBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+        if (init?.body && typeof init.body === 'string') {
+          capturedBody = JSON.parse(init.body);
+        }
+        return new Response(
+          JSON.stringify({
+            messaging_product: 'whatsapp',
+            messages: [{ id: 'wamid.NURL1' }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+
+      await adapter.send({ to: '16315555555', text: 'Hello, no links here' });
+      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(false);
+    });
+  });
+
   describe('markAsRead', () => {
     it('sends read status to Graph API', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
@@ -1029,6 +1304,162 @@ describe('WhatsApp Adapter', () => {
       expect(err.errorSubcode).toBe(2494075);
       expect(err.fbtraceId).toBe('trace123');
       expect(err.httpStatus).toBe(400);
+    });
+  });
+
+  describe('per-type media size limits', () => {
+    it('rejects image data exceeding 5MB with retryable false', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const oversizedData = Buffer.alloc(5 * 1024 * 1024 + 1);
+      const result = await adapter.send({
+        to: '16315555555',
+        media: [
+          {
+            type: 'image',
+            data: oversizedData,
+            mimeType: 'image/jpeg',
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      expect(result.retryable).toBe(false);
+      expect(result.error).toContain('image');
+    });
+
+    it('accepts image data at exactly the 5MB limit', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      mockFetchSequence([
+        { body: { id: 'uploaded_media_ok' } },
+        {
+          body: {
+            messaging_product: 'whatsapp',
+            messages: [{ id: 'wamid.OK' }],
+          },
+        },
+      ]);
+      const exactData = Buffer.alloc(5 * 1024 * 1024);
+      const result = await adapter.send({
+        to: '16315555555',
+        media: [
+          {
+            type: 'image',
+            data: exactData,
+            mimeType: 'image/jpeg',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('verifyWebhook signature length mismatch', () => {
+    it('returns false (not throws) when signature has wrong length', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const payload = { object: 'whatsapp_business_account' };
+      // Use a truncated signature — different length than expected sha256= hex
+      const req = makeWebhookRequest(payload, 'sha256=short');
+      let result: boolean | undefined;
+      let threw = false;
+      try {
+        result = await adapter.verifyWebhook?.(req);
+      } catch {
+        threw = true;
+      }
+      expect(threw).toBe(false);
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('sendTemplate with components', () => {
+    it('sends structured components when template.components is provided', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      let capturedBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<
+          string,
+          unknown
+        >;
+        return new Response(
+          JSON.stringify({
+            messaging_product: 'whatsapp',
+            messages: [{ id: 'wamid.COMP1' }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+
+      const result = await adapter.send({
+        to: '16315555555',
+        template: {
+          name: 'order_confirmation',
+          language: 'en_US',
+          components: [
+            {
+              type: 'header',
+              parameters: [{ type: 'image', image: { link: 'https://example.com/img.jpg' } }],
+            },
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: 'John' },
+                { type: 'text', text: 'ORD-001' },
+              ],
+            },
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: 0,
+              parameters: [{ type: 'text', text: 'track123' }],
+            },
+          ],
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.messageId).toBe('wamid.COMP1');
+
+      const tmplPayload = capturedBody?.template as Record<string, unknown>;
+      expect(tmplPayload?.name).toBe('order_confirmation');
+      const sentComponents = tmplPayload?.components as Array<Record<string, unknown>>;
+      expect(sentComponents).toHaveLength(3);
+      expect(sentComponents[0].type).toBe('header');
+      expect(sentComponents[1].type).toBe('body');
+      expect(sentComponents[2].type).toBe('button');
+    });
+
+    it('falls back to legacy parameters when components is absent', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      let capturedBody: Record<string, unknown> | undefined;
+      globalThis.fetch = (async (_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string) as Record<
+          string,
+          unknown
+        >;
+        return new Response(
+          JSON.stringify({
+            messaging_product: 'whatsapp',
+            messages: [{ id: 'wamid.LEGACY1' }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+
+      const result = await adapter.send({
+        to: '16315555555',
+        template: {
+          name: 'hello_world',
+          language: 'en_US',
+          parameters: ['Alice'],
+        },
+      });
+
+      expect(result.success).toBe(true);
+      const tmplPayload = capturedBody?.template as Record<string, unknown>;
+      const sentComponents = tmplPayload?.components as Array<Record<string, unknown>>;
+      expect(sentComponents).toHaveLength(1);
+      expect(sentComponents[0].type).toBe('body');
+      const bodyParams = sentComponents[0].parameters as Array<Record<string, unknown>>;
+      expect(bodyParams[0]).toEqual({ type: 'text', text: 'Alice' });
     });
   });
 });

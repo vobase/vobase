@@ -228,6 +228,94 @@ describe('processOutboxMessage', () => {
     expect(dead.error).toBe('Contact not found');
   });
 
+  it('moves non-retryable failures directly to dead letters', async () => {
+    const [record] = await db
+      .insert(outbox)
+      .values({
+        id: 'outbox-nonretryable',
+        conversationId: 'session-1',
+        content: 'Window expired message',
+        channelType: 'whatsapp',
+        channelInstanceId: 'ci-wa-1',
+        status: 'queued',
+      })
+      .returning();
+
+    const mockChannels = {
+      whatsapp: {
+        send: async () => ({
+          success: false,
+          error: 'Window expired',
+          retryable: false,
+          code: 'window_expired',
+        }),
+      },
+    } as never;
+
+    await processOutboxMessage(db, mockChannels, mockScheduler, record.id);
+
+    // Outbox record should be deleted (moved to dead letters)
+    const [remaining] = await db
+      .select()
+      .from(outbox)
+      .where(eq(outbox.id, record.id));
+    expect(remaining).toBeUndefined();
+
+    // Dead letter should exist with the error message
+    const [dead] = await db
+      .select()
+      .from(deadLetters)
+      .where(eq(deadLetters.originalOutboxId, record.id));
+    expect(dead).toBeDefined();
+    expect(dead.error).toBe('Window expired');
+
+    // No retries happened — retryCount on dead letter should be 0
+    expect(dead.retryCount).toBe(0);
+  });
+
+  it('retries retryable failures normally', async () => {
+    const [record] = await db
+      .insert(outbox)
+      .values({
+        id: 'outbox-ratelimited',
+        conversationId: 'session-1',
+        content: 'Rate limited message',
+        channelType: 'whatsapp',
+        channelInstanceId: 'ci-wa-1',
+        status: 'queued',
+      })
+      .returning();
+
+    const mockChannels = {
+      whatsapp: {
+        send: async () => ({
+          success: false,
+          error: 'Rate limited',
+          retryable: true,
+          code: 'rate_limited',
+        }),
+      },
+    } as never;
+
+    await processOutboxMessage(db, mockChannels, mockScheduler, record.id);
+
+    // Outbox record should still exist with status queued and incremented retryCount
+    const [updated] = await db
+      .select()
+      .from(outbox)
+      .where(eq(outbox.id, record.id));
+    expect(updated).toBeDefined();
+    expect(updated.status).toBe('queued');
+    expect(updated.retryCount).toBe(1);
+
+    // No dead letter should be created
+    const [dead] = await db
+      .select()
+      .from(deadLetters)
+      .where(eq(deadLetters.originalOutboxId, record.id));
+    expect(dead).toBeUndefined();
+  });
+
   it('moves to dead_letters when MAX_RETRIES exceeded', async () => {
     const [record] = await db
       .insert(outbox)
