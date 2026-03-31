@@ -1,17 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import {
-  CableIcon,
-  ExternalLinkIcon,
+  BotIcon,
+  CheckIcon,
+  CopyIcon,
+  EllipsisVerticalIcon,
+  GlobeIcon,
   MailIcon,
-  MessageSquareIcon,
-  PhoneIcon,
+  MessageCircleIcon,
+  MicIcon,
+  PauseIcon,
+  PlayIcon,
   PlusIcon,
-  RadioIcon,
   TrashIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,8 +36,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -33,9 +53,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard';
 import { aiClient } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -65,17 +86,85 @@ interface Agent {
   name: string;
 }
 
+interface ChannelStatus {
+  id: string;
+  type: string;
+  label: string;
+  status: string;
+  activeSessionCount: number;
+}
+
+// ─── Channel type definitions ────────────────────────────────────────
+
+const CHANNEL_TYPES = [
+  {
+    type: 'whatsapp',
+    name: 'WhatsApp',
+    description: 'Let customers message you on WhatsApp',
+    placeholder: 'e.g. Main WhatsApp Line',
+    icon: MessageCircleIcon,
+    color: 'text-green-600 dark:text-green-400',
+    bgColor: 'bg-green-50 dark:bg-green-950/30',
+    borderColor: 'border-l-green-500',
+  },
+  {
+    type: 'web',
+    name: 'Website Chat',
+    description: 'Add an AI chat widget to your website',
+    placeholder: 'e.g. Website Chat',
+    icon: GlobeIcon,
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+    borderColor: 'border-l-blue-500',
+  },
+  {
+    type: 'email',
+    name: 'Email',
+    description: 'Handle customer emails with AI',
+    placeholder: 'e.g. Support Email',
+    icon: MailIcon,
+    color: 'text-gray-600 dark:text-gray-400',
+    bgColor: 'bg-gray-50 dark:bg-gray-900/30',
+    borderColor: 'border-l-gray-500',
+  },
+  {
+    type: 'voice',
+    name: 'Voice',
+    description: 'Answer calls with an AI voice assistant',
+    placeholder: 'e.g. Phone Line',
+    icon: MicIcon,
+    color: 'text-purple-600 dark:text-purple-400',
+    bgColor: 'bg-purple-50 dark:bg-purple-950/30',
+    borderColor: 'border-l-purple-500',
+  },
+] as const;
+
+function getChannelMeta(type: string) {
+  return (
+    CHANNEL_TYPES.find((ct) => ct.type === type) ?? {
+      type,
+      name: type.charAt(0).toUpperCase() + type.slice(1),
+      description: '',
+      placeholder: 'e.g. My Channel',
+      icon: GlobeIcon,
+      color: 'text-muted-foreground',
+      bgColor: 'bg-muted/30',
+      borderColor: 'border-l-muted-foreground',
+    }
+  );
+}
+
 // ─── Data fetchers ───────────────────────────────────────────────────
 
 async function fetchInstances(): Promise<ChannelInstance[]> {
   const res = await aiClient.instances.$get();
-  if (!res.ok) throw new Error('Failed to fetch instances');
+  if (!res.ok) throw new Error('Failed to fetch channels');
   return res.json() as unknown as Promise<ChannelInstance[]>;
 }
 
 async function fetchChannelRoutings(): Promise<ChannelRouting[]> {
   const res = await aiClient['channel-routings'].$get();
-  if (!res.ok) throw new Error('Failed to fetch channel routings');
+  if (!res.ok) throw new Error('Failed to fetch channels');
   return res.json();
 }
 
@@ -85,242 +174,104 @@ async function fetchAgents(): Promise<Agent[]> {
   return res.json();
 }
 
-interface ChannelStatus {
-  id: string;
-  type: string;
-  label: string;
-  status: string;
-  activeSessionCount: number;
-}
-
 async function fetchChannelStatus(): Promise<{ channels: ChannelStatus[] }> {
   const res = await aiClient.channels.status.$get();
   if (!res.ok) return { channels: [] };
   return res.json();
 }
 
-async function createInstance(
-  data: Pick<ChannelInstance, 'type' | 'label' | 'source'>,
-): Promise<ChannelInstance> {
-  const res = await aiClient.instances.$post({ json: data });
-  if (!res.ok) throw new Error('Failed to create instance');
-  return res.json() as unknown as Promise<ChannelInstance>;
-}
+// ─── Connect Channel Dialog ─────────────────────────────────────────
 
-async function deleteInstance(id: string): Promise<void> {
-  const res = await aiClient.instances[':id'].$delete({
-    param: { id },
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(
-      (data as { message?: string }).message ?? 'Failed to delete instance',
-    );
-  }
-}
-
-async function createChannelRouting(data: {
-  name: string;
-  channelInstanceId: string;
-  agentId: string;
-  assignmentPattern: string;
-}): Promise<ChannelRouting> {
-  const res = await aiClient['channel-routings'].$post({
-    json: data,
-  });
-  if (!res.ok) throw new Error('Failed to create channel routing');
-  return res.json();
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-
-const CHANNEL_ICONS: Record<string, typeof PhoneIcon> = {
-  whatsapp: PhoneIcon,
-  web: MessageSquareIcon,
-  email: MailIcon,
-  voice: RadioIcon,
-};
-
-function channelIcon(type: string) {
-  return CHANNEL_ICONS[type] ?? CableIcon;
-}
-
-function sourceVariant(source: string): 'default' | 'secondary' | 'outline' {
-  if (source === 'env') return 'secondary';
-  if (source === 'platform') return 'default';
-  return 'outline';
-}
-
-function statusDot(status: string): string {
-  if (status === 'active') return 'bg-green-500';
-  if (status === 'error') return 'bg-red-500';
-  return 'bg-gray-400';
-}
-
-// ─── Create Instance Dialog ──────────────────────────────────────────
-
-function CreateInstanceDialog({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [type, setType] = useState('whatsapp');
-  const [label, setLabel] = useState('');
-  const [source, setSource] = useState('env');
-
-  const mutation = useMutation({
-    mutationFn: () => createInstance({ type, label, source }),
-    onSuccess: () => {
-      setOpen(false);
-      setLabel('');
-      onCreated();
-    },
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="gap-1.5">
-          <PlusIcon className="h-3.5 w-3.5" />
-          Add Channel
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add Channel Instance</DialogTitle>
-          <DialogDescription>
-            Create a new channel instance for messaging.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label>Channel Type</Label>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                <SelectItem value="web">Web</SelectItem>
-                <SelectItem value="email">Email</SelectItem>
-                <SelectItem value="voice">Voice</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Label</Label>
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Main WhatsApp +65 1234"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Credential Source</Label>
-            <Select value={source} onValueChange={setSource}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="env">Environment</SelectItem>
-                <SelectItem value="self">Self-managed</SelectItem>
-                <SelectItem value="platform">Platform</SelectItem>
-                <SelectItem value="sandbox">Sandbox</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            onClick={() => mutation.mutate()}
-            disabled={!label.trim() || mutation.isPending}
-          >
-            {mutation.isPending ? 'Creating...' : 'Create'}
-          </Button>
-        </DialogFooter>
-        {mutation.isError && (
-          <p className="text-xs text-destructive">{mutation.error.message}</p>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Create Channel Routing Dialog ───────────────────────────────────
-
-function CreateChannelRoutingDialog({
-  instances,
+function ConnectChannelDialog({
+  channelType,
   agents,
+  open,
+  onOpenChange,
   onCreated,
 }: {
-  instances: ChannelInstance[];
+  channelType: string;
   agents: Agent[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onCreated: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const meta = getChannelMeta(channelType);
+  const Icon = meta.icon;
+
   const [name, setName] = useState('');
-  const [instanceId, setInstanceId] = useState('');
   const [agentId, setAgentId] = useState('');
-  const [pattern, setPattern] = useState('direct');
 
   const mutation = useMutation({
-    mutationFn: () =>
-      createChannelRouting({
-        name,
-        channelInstanceId: instanceId,
-        agentId,
-        assignmentPattern: pattern,
-      }),
+    mutationFn: async () => {
+      const instanceRes = await aiClient.instances.$post({
+        json: {
+          type: channelType,
+          label: name,
+          source: 'env' as const,
+        },
+      });
+      if (!instanceRes.ok) throw new Error('Failed to create channel');
+      const instance = (await instanceRes.json()) as unknown as ChannelInstance;
+
+      try {
+        const routingRes = await aiClient['channel-routings'].$post({
+          json: {
+            name,
+            channelInstanceId: instance.id,
+            agentId,
+            assignmentPattern: 'direct',
+          },
+        });
+        if (!routingRes.ok)
+          throw new Error('Failed to connect channel to agent');
+        return routingRes.json();
+      } catch (err) {
+        // Clean up orphaned instance if routing creation fails
+        await aiClient.instances[':id']
+          .$delete({ param: { id: instance.id } })
+          .catch(() => {});
+        throw err;
+      }
+    },
     onSuccess: () => {
-      setOpen(false);
+      onOpenChange(false);
       setName('');
-      setInstanceId('');
       setAgentId('');
       onCreated();
     },
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <PlusIcon className="h-3.5 w-3.5" />
-          Add Channel Routing
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Channel Routing</DialogTitle>
-          <DialogDescription>
-            Connect a channel to an AI agent.
-          </DialogDescription>
+          <div className="flex items-center gap-3">
+            <div className={cn('rounded-lg p-2', meta.bgColor)}>
+              <Icon className={cn('h-5 w-5', meta.color)} />
+            </div>
+            <div>
+              <DialogTitle>Connect {meta.name}</DialogTitle>
+              <DialogDescription>{meta.description}</DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Name</Label>
+            <Label>Channel Name</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Booking Agent — WhatsApp"
+              placeholder={meta.placeholder}
             />
+            <p className="text-xs text-muted-foreground">
+              A friendly name to help you identify this channel
+            </p>
           </div>
           <div className="space-y-2">
-            <Label>Channel Instance</Label>
-            <Select value={instanceId} onValueChange={setInstanceId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select channel..." />
-              </SelectTrigger>
-              <SelectContent>
-                {instances.map((inst) => (
-                  <SelectItem key={inst.id} value={inst.id}>
-                    {inst.label} ({inst.type})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>AI Agent</Label>
+            <Label>AI Assistant</Label>
             <Select value={agentId} onValueChange={setAgentId}>
               <SelectTrigger>
-                <SelectValue placeholder="Select AI agent..." />
+                <SelectValue placeholder="Choose which AI handles this channel..." />
               </SelectTrigger>
               <SelectContent>
                 {agents.map((agent) => (
@@ -330,29 +281,24 @@ function CreateChannelRoutingDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Assignment Pattern</Label>
-            <Select value={pattern} onValueChange={setPattern}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="direct">Direct</SelectItem>
-                <SelectItem value="router">Router</SelectItem>
-                <SelectItem value="workflow">Workflow</SelectItem>
-              </SelectContent>
-            </Select>
+            <p className="text-xs text-muted-foreground">
+              The AI assistant that will respond to customers on this channel
+            </p>
           </div>
         </div>
         <DialogFooter>
           <Button
-            onClick={() => mutation.mutate()}
-            disabled={
-              !name.trim() || !instanceId || !agentId || mutation.isPending
-            }
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={mutation.isPending}
           >
-            {mutation.isPending ? 'Creating...' : 'Create'}
+            Cancel
+          </Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!name.trim() || !agentId || mutation.isPending}
+          >
+            {mutation.isPending ? 'Connecting...' : 'Connect Channel'}
           </Button>
         </DialogFooter>
         {mutation.isError && (
@@ -363,25 +309,240 @@ function CreateChannelRoutingDialog({
   );
 }
 
+// ─── Connected Channel Card ─────────────────────────────────────────
+
+function ChannelCard({
+  routing,
+  instance,
+  agentName,
+  activeConversations,
+  onToggle,
+  onDelete,
+  isToggling,
+}: {
+  routing: ChannelRouting;
+  instance: ChannelInstance | undefined;
+  agentName: string;
+  activeConversations: number;
+  onToggle: () => void;
+  onDelete: () => void;
+  isToggling: boolean;
+}) {
+  const type = instance?.type ?? 'web';
+  const meta = getChannelMeta(type);
+  const Icon = meta.icon;
+  const { copy, isCopied } = useCopyToClipboard();
+
+  const chatLink =
+    type === 'web' ? `${window.location.origin}/chat/${routing.id}` : null;
+
+  function handleCopyLink() {
+    if (chatLink) copy(chatLink, { timeout: 2000 });
+  }
+
+  return (
+    <Card
+      className={cn(
+        'border-l-4 transition-colors',
+        meta.borderColor,
+        !routing.enabled && 'opacity-60',
+      )}
+    >
+      <CardContent className="flex items-start gap-4 py-4">
+        <div className={cn('rounded-lg p-2.5 shrink-0', meta.bgColor)}>
+          <Icon className={cn('h-5 w-5', meta.color)} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-sm font-medium truncate">{routing.name}</h3>
+            <Badge
+              variant={routing.enabled ? 'success' : 'secondary'}
+              className="text-xs shrink-0"
+            >
+              {routing.enabled ? 'Connected' : 'Paused'}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <BotIcon className="h-3 w-3" />
+              {agentName}
+            </span>
+            {activeConversations > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                {activeConversations} active{' '}
+                {activeConversations === 1 ? 'conversation' : 'conversations'}
+              </span>
+            )}
+          </div>
+
+          {chatLink && routing.enabled && (
+            <div className="mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={handleCopyLink}
+              >
+                {isCopied ? (
+                  <>
+                    <CheckIcon className="h-3 w-3" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <CopyIcon className="h-3 w-3" />
+                    Copy chat link
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
+              <EllipsisVerticalIcon className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onToggle} disabled={isToggling}>
+              {routing.enabled ? (
+                <>
+                  <PauseIcon className="h-4 w-4 mr-2" />
+                  Pause Channel
+                </>
+              ) : (
+                <>
+                  <PlayIcon className="h-4 w-4 mr-2" />
+                  Resume Channel
+                </>
+              )}
+            </DropdownMenuItem>
+            {chatLink && (
+              <DropdownMenuItem onClick={handleCopyLink}>
+                <CopyIcon className="h-4 w-4 mr-2" />
+                Copy Chat Link
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="text-destructive focus:text-destructive"
+            >
+              <TrashIcon className="h-4 w-4 mr-2" />
+              Remove Channel
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Add Channel Card ───────────────────────────────────────────────
+
+function AddChannelCard({
+  type,
+  existingCount,
+  onClick,
+}: {
+  type: (typeof CHANNEL_TYPES)[number];
+  existingCount: number;
+  onClick: () => void;
+}) {
+  const Icon = type.icon;
+
+  return (
+    <Card className="group hover:border-foreground/20 transition-colors">
+      <CardContent className="flex items-center gap-4 py-4">
+        <div className={cn('rounded-lg p-2.5 shrink-0', type.bgColor)}>
+          <Icon className={cn('h-5 w-5', type.color)} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-medium">{type.name}</h3>
+          <p className="text-xs text-muted-foreground">{type.description}</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1.5"
+          onClick={onClick}
+        >
+          <PlusIcon className="h-3.5 w-3.5" />
+          {existingCount > 0 ? 'Add Another' : 'Connect'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Delete Confirmation ────────────────────────────────────────────
+
+function DeleteChannelDialog({
+  channelName,
+  open,
+  onOpenChange,
+  onConfirm,
+  isPending,
+}: {
+  channelName: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove channel?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will disconnect <strong>{channelName}</strong> and remove all
+            its conversation history. Customers will no longer be able to reach
+            you through this channel.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isPending}>
+            Keep Channel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={onConfirm}
+            disabled={isPending}
+            className="bg-destructive text-white hover:bg-destructive/90"
+          >
+            {isPending ? 'Removing...' : 'Remove Channel'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function ChannelsPage() {
   const queryClient = useQueryClient();
 
-  const {
-    data: instances = [],
-    isLoading: instancesLoading,
-    isError: instancesError,
-  } = useQuery({
+  const [connectType, setConnectType] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    instanceId: string;
+    name: string;
+  } | null>(null);
+
+  const { data: instances = [], isLoading: instancesLoading } = useQuery({
     queryKey: ['channel-instances'],
     queryFn: fetchInstances,
   });
 
-  const { data: channelRoutings = [], isLoading: channelRoutingsLoading } =
-    useQuery({
-      queryKey: ['channel-routings'],
-      queryFn: fetchChannelRoutings,
-    });
+  const { data: routings = [], isLoading: routingsLoading } = useQuery({
+    queryKey: ['channel-routings'],
+    queryFn: fetchChannelRoutings,
+  });
 
   const { data: agents = [] } = useQuery({
     queryKey: ['conversations-agents'],
@@ -393,243 +554,204 @@ function ChannelsPage() {
     queryFn: fetchChannelStatus,
   });
 
-  const sessionCountMap = new Map(
-    (channelStatusData?.channels ?? []).map((ch) => [
-      ch.id,
-      ch.activeSessionCount,
-    ]),
+  const isLoading = instancesLoading || routingsLoading;
+
+  const sessionCountMap = useMemo(
+    () =>
+      new Map(
+        (channelStatusData?.channels ?? []).map((ch) => [
+          ch.id,
+          ch.activeSessionCount,
+        ]),
+      ),
+    [channelStatusData],
   );
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteInstance,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['channel-instances'] });
-      queryClient.invalidateQueries({ queryKey: ['channel-routings'] });
-    },
-  });
+  const instanceMap = useMemo(
+    () => new Map(instances.map((i) => [i.id, i])),
+    [instances],
+  );
+  const agentMap = useMemo(
+    () => new Map(agents.map((a) => [a.id, a.name])),
+    [agents],
+  );
+
+  const typeCountMap = useMemo(
+    () =>
+      instances.reduce<Record<string, number>>((acc, inst) => {
+        acc[inst.type] = (acc[inst.type] ?? 0) + 1;
+        return acc;
+      }, {}),
+    [instances],
+  );
 
   function invalidateAll() {
     queryClient.invalidateQueries({ queryKey: ['channel-instances'] });
     queryClient.invalidateQueries({ queryKey: ['channel-routings'] });
+    queryClient.invalidateQueries({
+      queryKey: ['conversations-channel-status'],
+    });
   }
 
-  // Group instances by type
-  const grouped = instances.reduce<Record<string, ChannelInstance[]>>(
-    (acc, inst) => {
-      const list = acc[inst.type] ?? [];
-      list.push(inst);
-      acc[inst.type] = list;
-      return acc;
+  const toggleMutation = useMutation({
+    mutationFn: async ({
+      routingId,
+      enabled,
+    }: {
+      routingId: string;
+      enabled: boolean;
+    }) => {
+      // biome-ignore lint/style/noRestrictedGlobals: PATCH body not typed in RPC client
+      const res = await fetch(`/api/ai/channel-routings/${routingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error('Failed to update channel');
+      return res.json();
     },
-    {},
+    onSuccess: invalidateAll,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (instanceId: string) => {
+      const res = await aiClient.instances[':id'].$delete({
+        param: { id: instanceId },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          (data as { message?: string }).message ?? 'Failed to remove channel',
+        );
+      }
+    },
+    onSuccess: () => {
+      setDeleteTarget(null);
+      invalidateAll();
+    },
+  });
+
+  const connectedChannels = useMemo(
+    () =>
+      routings.map((r) => ({
+        routing: r,
+        instance: instanceMap.get(r.channelInstanceId),
+        agentName: agentMap.get(r.agentId) ?? 'Unknown Agent',
+        activeConversations: sessionCountMap.get(r.channelInstanceId) ?? 0,
+      })),
+    [routings, instanceMap, agentMap, sessionCountMap],
   );
 
-  const agentMap = new Map(agents.map((a) => [a.id, a.name]));
-  const instanceMap = new Map(instances.map((i) => [i.id, i]));
-  const endpointCount = (id: string) =>
-    channelRoutings.filter((cr) => cr.channelInstanceId === id).length;
-
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-end gap-2">
-        <CreateChannelRoutingDialog
-          instances={instances}
-          agents={agents}
-          onCreated={invalidateAll}
-        />
-        <CreateInstanceDialog onCreated={invalidateAll} />
+    <div className="flex flex-col gap-8 p-6 max-w-3xl">
+      {/* Header */}
+      <div>
+        <h1 className="text-lg font-semibold">Channels</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage where your customers can reach your AI assistant
+        </p>
       </div>
 
-      {/* Channel Instances */}
-      <div>
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Channel Instances
+      {/* Connected Channels */}
+      <section>
+        <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">
+          Your Channels
         </h2>
 
-        {instancesLoading && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Skeleton className="h-24 rounded-lg" />
-            <Skeleton className="h-24 rounded-lg" />
-            <Skeleton className="h-24 rounded-lg" />
+        {isLoading && (
+          <div className="space-y-3">
+            <Skeleton className="h-[88px] rounded-lg" />
+            <Skeleton className="h-[88px] rounded-lg" />
           </div>
         )}
 
-        {instancesError && (
-          <p className="text-sm text-destructive">
-            Failed to load channel instances.
-          </p>
+        {!isLoading && connectedChannels.length === 0 && (
+          <Card className="border-dashed">
+            <CardContent className="py-10 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <MessageCircleIcon className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 className="text-sm font-medium mb-1">
+                No channels connected yet
+              </h3>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Connect a channel below so your customers can start chatting
+                with your AI assistant on WhatsApp, your website, or email.
+              </p>
+            </CardContent>
+          </Card>
         )}
 
-        {!instancesLoading && instances.length === 0 && (
-          <div className="rounded-lg border bg-muted/20 py-8 text-center">
-            <CableIcon className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
-            <p className="text-sm text-muted-foreground">
-              No channel instances configured.
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Add a channel to start receiving messages.
-            </p>
+        {!isLoading && connectedChannels.length > 0 && (
+          <div className="space-y-3">
+            {connectedChannels.map(
+              ({ routing, instance, agentName, activeConversations }) => (
+                <ChannelCard
+                  key={routing.id}
+                  routing={routing}
+                  instance={instance}
+                  agentName={agentName}
+                  activeConversations={activeConversations}
+                  isToggling={toggleMutation.isPending}
+                  onToggle={() =>
+                    toggleMutation.mutate({
+                      routingId: routing.id,
+                      enabled: !routing.enabled,
+                    })
+                  }
+                  onDelete={() =>
+                    setDeleteTarget({
+                      instanceId: routing.channelInstanceId,
+                      name: routing.name,
+                    })
+                  }
+                />
+              ),
+            )}
           </div>
         )}
+      </section>
 
-        {Object.entries(grouped).map(([type, list]) => {
-          const Icon = channelIcon(type);
-
-          return (
-            <div key={type} className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-medium capitalize">{type}</h3>
-                <Badge variant="secondary" className="text-xs">
-                  {list.length}
-                </Badge>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {list.map((inst) => (
-                  <Card key={inst.id} size="sm">
-                    <CardContent>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div
-                              className={`h-2 w-2 rounded-full ${statusDot(inst.status)}`}
-                            />
-                            <p className="text-sm font-medium truncate">
-                              {inst.label}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge
-                              variant={sourceVariant(inst.source)}
-                              className="text-xs"
-                            >
-                              {inst.source}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {endpointCount(inst.id)} routing
-                              {endpointCount(inst.id) !== 1 ? 's' : ''}
-                            </span>
-                            {(sessionCountMap.get(inst.id) ?? 0) > 0 && (
-                              <span className="text-xs font-medium text-foreground">
-                                {sessionCountMap.get(inst.id)} active
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => deleteMutation.mutate(inst.id)}
-                        >
-                          <TrashIcon className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <Separator />
-
-      {/* Channel Routings */}
-      <div>
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Channel Routings
+      {/* Add a Channel */}
+      <section>
+        <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">
+          Add a Channel
         </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {CHANNEL_TYPES.map((type) => (
+            <AddChannelCard
+              key={type.type}
+              type={type}
+              existingCount={typeCountMap[type.type] ?? 0}
+              onClick={() => setConnectType(type.type)}
+            />
+          ))}
+        </div>
+      </section>
 
-        {channelRoutingsLoading && <Skeleton className="h-32 w-full" />}
+      <ConnectChannelDialog
+        channelType={connectType ?? ''}
+        agents={agents}
+        open={!!connectType}
+        onOpenChange={(open) => !open && setConnectType(null)}
+        onCreated={invalidateAll}
+      />
 
-        {!channelRoutingsLoading && channelRoutings.length === 0 && (
-          <div className="rounded-lg border bg-muted/20 py-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              No channel routings configured. Create one to connect a channel to
-              an AI agent.
-            </p>
-          </div>
-        )}
+      <DeleteChannelDialog
+        channelName={deleteTarget?.name ?? ''}
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        onConfirm={() =>
+          deleteTarget && deleteMutation.mutate(deleteTarget.instanceId)
+        }
+        isPending={deleteMutation.isPending}
+      />
 
-        {channelRoutings.length > 0 && (
-          <div className="overflow-hidden rounded-md border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Name
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Channel
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    AI Agent
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Pattern
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Link
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {channelRoutings.map((cr) => {
-                  const inst = instanceMap.get(cr.channelInstanceId);
-                  return (
-                    <tr
-                      key={cr.id}
-                      className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                    >
-                      <td className="px-3 py-2.5 font-medium">{cr.name}</td>
-                      <td className="px-3 py-2.5 text-muted-foreground">
-                        {inst
-                          ? `${inst.label} (${inst.type})`
-                          : cr.channelInstanceId}
-                      </td>
-                      <td className="px-3 py-2.5 text-muted-foreground">
-                        {agentMap.get(cr.agentId) ?? cr.agentId}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {cr.assignmentPattern}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Badge
-                          variant={cr.enabled ? 'success' : 'secondary'}
-                          className="text-xs"
-                        >
-                          {cr.enabled ? 'Active' : 'Disabled'}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {inst?.type === 'web' && (
-                          <a
-                            href={`/chat/${cr.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <ExternalLinkIcon className="h-3 w-3" />
-                            Open
-                          </a>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {deleteMutation.isError && (
+        <p className="text-xs text-destructive">
+          {deleteMutation.error.message}
+        </p>
+      )}
     </div>
   );
 }
