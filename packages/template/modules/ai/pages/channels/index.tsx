@@ -480,7 +480,7 @@ function ChannelsPage() {
               <div className="flex items-center gap-2 mb-2">
                 <Icon className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium capitalize">{type}</h3>
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-xs">
                   {list.length}
                 </Badge>
               </div>
@@ -501,16 +501,16 @@ function ChannelsPage() {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <Badge
                               variant={sourceVariant(inst.source)}
-                              className="text-[10px]"
+                              className="text-xs"
                             >
                               {inst.source}
                             </Badge>
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-xs text-muted-foreground">
                               {endpointCount(inst.id)} routing
                               {endpointCount(inst.id) !== 1 ? 's' : ''}
                             </span>
                             {(sessionCountMap.get(inst.id) ?? 0) > 0 && (
-                              <span className="text-[10px] font-medium text-foreground">
+                              <span className="text-xs font-medium text-foreground">
                                 {sessionCountMap.get(inst.id)} active
                               </span>
                             )}
@@ -597,17 +597,14 @@ function ChannelsPage() {
                         {agentMap.get(cr.agentId) ?? cr.agentId}
                       </td>
                       <td className="px-3 py-2.5">
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] capitalize"
-                        >
+                        <Badge variant="outline" className="text-xs capitalize">
                           {cr.assignmentPattern}
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5">
                         <Badge
                           variant={cr.enabled ? 'success' : 'secondary'}
-                          className="text-[10px]"
+                          className="text-xs"
                         >
                           {cr.enabled ? 'Active' : 'Disabled'}
                         </Badge>
