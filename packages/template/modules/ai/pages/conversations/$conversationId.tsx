@@ -10,10 +10,8 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CircleAlertIcon,
-  CircleIcon,
   EllipsisIcon,
   PanelRightIcon,
-  PauseCircleIcon,
   SendIcon,
   UserIcon,
   XCircleIcon,
@@ -28,6 +26,13 @@ import {
 import { createStaffAdapter } from '@/components/chat/staff-runtime-adapter';
 import { VobaseThreadProvider } from '@/components/chat/vobase-thread-context';
 import { VobaseToolUIs } from '@/components/chat/vobase-tool-uis';
+import {
+  AssigneeBadge,
+  ChannelBadge,
+  ModeBadge,
+  PriorityBadge,
+  StatusBadge,
+} from '@/components/conversation-badges';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -274,15 +279,6 @@ async function sendReply(
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function statusVariant(
-  status: string,
-): 'default' | 'secondary' | 'outline' | 'success' | 'destructive' {
-  if (status === 'active') return 'default';
-  if (status === 'completed') return 'success';
-  if (status === 'failed') return 'destructive';
-  return 'secondary';
-}
-
 function consultationStatusVariant(
   status: string,
 ): 'default' | 'secondary' | 'outline' | 'success' | 'destructive' {
@@ -290,34 +286,6 @@ function consultationStatusVariant(
   if (status === 'replied') return 'success';
   if (status === 'timeout') return 'destructive';
   return 'secondary';
-}
-
-function modeLabel(mode: string): string {
-  if (mode === 'ai') return 'AI';
-  if (mode === 'supervised') return 'Supervised';
-  if (mode === 'human') return 'Human';
-  if (mode === 'held') return 'On Hold';
-  return mode;
-}
-
-function modeColor(mode: string): string {
-  if (mode === 'ai') return 'text-violet-600 dark:text-violet-400';
-  if (mode === 'human') return 'text-blue-600 dark:text-blue-400';
-  if (mode === 'supervised') return 'text-amber-600 dark:text-amber-400';
-  if (mode === 'held') return 'text-muted-foreground';
-  return 'text-foreground';
-}
-
-function priorityLabel(priority: string | null): string {
-  if (!priority) return 'No priority';
-  return priority.charAt(0).toUpperCase() + priority.slice(1);
-}
-
-function channelLabel(type: string): string {
-  if (type === 'whatsapp') return 'WhatsApp';
-  if (type === 'web') return 'Web Chat';
-  if (type === 'email') return 'Email';
-  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 // ─── Staff Message List (turn-grouped) ──────────────────────────────
@@ -359,91 +327,6 @@ function normalizeMessages(
   });
 
   return normalized;
-}
-
-// ─── Priority Badge (Chatwoot-style) ────────────────────────────────
-
-function PriorityBadge({ priority }: { priority: string | null }) {
-  if (!priority) {
-    return (
-      <span className="text-[8px] font-black text-muted-foreground/40">—</span>
-    );
-  }
-  const marks =
-    priority === 'urgent'
-      ? '!!!'
-      : priority === 'high'
-        ? '!!!'
-        : priority === 'normal'
-          ? '!!'
-          : '!';
-  const isUrgent = priority === 'urgent';
-
-  return (
-    <span
-      className={cn(
-        'text-[8px] font-black',
-        isUrgent ? 'text-red-500' : 'text-muted-foreground',
-      )}
-    >
-      {marks}
-    </span>
-  );
-}
-
-// ─── Inline Property Selector ───────────────────────────────────────
-
-function PropertySelector({
-  label,
-  icon,
-  colorClass,
-  options,
-  value,
-  onSelect,
-  disabled,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  colorClass?: string;
-  options: { value: string; label: string; icon?: React.ReactNode }[];
-  value: string;
-  onSelect: (value: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={disabled}>
-        <button
-          type="button"
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors',
-            'hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-            'disabled:pointer-events-none disabled:opacity-50',
-            colorClass,
-          )}
-        >
-          {icon}
-          <span className="font-medium">{label}</span>
-          <ChevronDownIcon className="h-3 w-3 opacity-40" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[140px]">
-        {options.map((opt) => (
-          <DropdownMenuItem
-            key={opt.value}
-            onClick={() => onSelect(opt.value)}
-            className="gap-2 text-sm"
-          >
-            {opt.icon}
-            {opt.label}
-            {opt.value === value && (
-              <CheckIcon className="ml-auto h-3.5 w-3.5 text-foreground" />
-            )}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 }
 
 // ─── Human Reply Input ───────────────────────────────────────────────
@@ -746,7 +629,7 @@ function ConversationDetailPage() {
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-4 w-16 rounded-full" />
             </div>
-            <div className="mt-2.5 flex items-center gap-2 pl-7">
+            <div className="mt-2.5 flex items-center gap-2">
               <Skeleton className="h-5 w-14 rounded-full" />
               <Skeleton className="h-5 w-20 rounded" />
               <Skeleton className="h-5 w-16 rounded" />
@@ -788,79 +671,6 @@ function ConversationDetailPage() {
   const currentMode = conversation.mode ?? 'ai';
   const isAssignedToMe = conversation.assignee === session?.user?.id;
 
-  const modeOptions = [
-    {
-      value: 'ai',
-      label: 'AI',
-      icon: <BotIcon className="h-3.5 w-3.5 text-violet-500" />,
-    },
-    {
-      value: 'supervised',
-      label: 'Supervised',
-      icon: (
-        <CircleIcon className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-      ),
-    },
-    {
-      value: 'human',
-      label: 'Human',
-      icon: <UserIcon className="h-3.5 w-3.5 text-blue-500" />,
-    },
-    {
-      value: 'held',
-      label: 'On Hold',
-      icon: <PauseCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />,
-    },
-  ];
-
-  const priorityOptions = [
-    {
-      value: '_none',
-      label: 'No priority',
-      icon: (
-        <span className="text-[8px] font-black text-muted-foreground/40 w-3 text-center">
-          —
-        </span>
-      ),
-    },
-    {
-      value: 'low',
-      label: 'Low',
-      icon: (
-        <span className="text-[8px] font-black text-muted-foreground w-3 text-center">
-          !
-        </span>
-      ),
-    },
-    {
-      value: 'normal',
-      label: 'Normal',
-      icon: (
-        <span className="text-[8px] font-black text-muted-foreground w-3 text-center">
-          !!
-        </span>
-      ),
-    },
-    {
-      value: 'high',
-      label: 'High',
-      icon: (
-        <span className="text-[8px] font-black text-muted-foreground w-3 text-center">
-          !!!
-        </span>
-      ),
-    },
-    {
-      value: 'urgent',
-      label: 'Urgent',
-      icon: (
-        <span className="text-[8px] font-black text-red-500 w-3 text-center">
-          !!!
-        </span>
-      ),
-    },
-  ];
-
   return (
     <div className="flex h-full overflow-hidden">
       {/* ─── Main panel ─── */}
@@ -874,12 +684,11 @@ function ConversationDetailPage() {
                 {contact?.name ?? conversation.contactId ?? 'Unknown'}
               </h1>
               {channelInstance && (
-                <Badge
-                  variant="outline"
-                  className="text-xs font-normal shrink-0 h-5 border-dashed"
-                >
-                  {channelLabel(channelInstance.type)}
-                </Badge>
+                <ChannelBadge
+                  type={channelInstance.type}
+                  variant="badge"
+                  className="shrink-0"
+                />
               )}
               <span className="text-xs text-muted-foreground shrink-0">
                 {formatRelativeTime(conversation.startedAt)}
@@ -965,116 +774,47 @@ function ConversationDetailPage() {
           </div>
 
           {/* Row 2: Property bar — Linear-style inline selectors */}
-          <div className="flex items-center gap-1 px-4 pb-2.5 pl-[42px]">
-            {/* Status badge */}
-            <Badge
-              variant={statusVariant(conversation.status)}
-              className="text-xs capitalize h-5 px-1.5 mr-1"
-            >
-              {conversation.status}
-            </Badge>
+          <div className="flex items-center gap-1 px-4 pb-2.5">
+            <StatusBadge status={conversation.status} className="mr-1" />
 
             <Separator orientation="vertical" className="h-4 mx-1" />
 
-            {/* Mode selector */}
-            {!isTerminal ? (
-              <PropertySelector
-                label={modeLabel(currentMode)}
-                icon={
-                  currentMode === 'ai' ? (
-                    <BotIcon className="h-3.5 w-3.5 text-violet-500" />
-                  ) : currentMode === 'human' ? (
-                    <UserIcon className="h-3.5 w-3.5 text-blue-500" />
-                  ) : currentMode === 'supervised' ? (
-                    <CircleIcon className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                  ) : (
-                    <PauseCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                  )
-                }
-                colorClass={modeColor(currentMode)}
-                options={modeOptions}
-                value={currentMode}
-                onSelect={(v) =>
-                  updateMutation.mutate({
-                    mode: v as 'ai' | 'supervised' | 'human' | 'held',
-                  })
-                }
-                disabled={updateMutation.isPending}
-              />
-            ) : (
-              <span className="text-xs text-muted-foreground px-2">
-                {modeLabel(currentMode)}
-              </span>
-            )}
+            <ModeBadge
+              mode={currentMode}
+              variant={isTerminal ? 'badge' : 'field'}
+              onSelect={(v) =>
+                updateMutation.mutate({
+                  mode: v as 'ai' | 'supervised' | 'human' | 'held',
+                })
+              }
+              disabled={updateMutation.isPending}
+            />
 
-            {/* Priority selector */}
-            {!isTerminal ? (
-              <PropertySelector
-                label={priorityLabel(conversation.priority)}
-                icon={<PriorityBadge priority={conversation.priority} />}
-                options={priorityOptions}
-                value={conversation.priority ?? '_none'}
-                onSelect={(v) =>
-                  updateMutation.mutate({
-                    priority:
-                      v === '_none'
-                        ? null
-                        : (v as 'low' | 'normal' | 'high' | 'urgent'),
-                  })
-                }
-                disabled={updateMutation.isPending}
-              />
-            ) : conversation.priority ? (
-              <span className="text-xs text-muted-foreground px-2">
-                {priorityLabel(conversation.priority)}
-              </span>
-            ) : null}
+            <PriorityBadge
+              priority={conversation.priority}
+              variant={isTerminal ? 'badge' : 'field'}
+              onSelect={(v) =>
+                updateMutation.mutate({
+                  priority: v as 'low' | 'normal' | 'high' | 'urgent' | null,
+                })
+              }
+              disabled={updateMutation.isPending}
+            />
 
             <Separator orientation="vertical" className="h-4 mx-1" />
 
-            {/* Assignee */}
-            {!isTerminal && (
-              <div>
-                {conversation.assignee ? (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted"
-                    onClick={() => updateMutation.mutate({ assignee: null })}
-                    title="Click to unassign"
-                  >
-                    <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                      <UserIcon className="h-2.5 w-2.5" />
-                    </div>
-                    <span className="font-medium">
-                      {isAssignedToMe ? 'You' : 'Staff'}
-                    </span>
-                    <XCircleIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    onClick={() =>
-                      updateMutation.mutate({
-                        assignee: session?.user?.id ?? null,
-                      })
-                    }
-                  >
-                    <div className="flex h-4 w-4 items-center justify-center rounded-full border border-dashed border-muted-foreground/50">
-                      <UserIcon className="h-2.5 w-2.5" />
-                    </div>
-                    Assign to me
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Terminal state */}
-            {isTerminal && conversation.resolutionOutcome && (
-              <span className="text-xs text-muted-foreground capitalize">
-                {conversation.resolutionOutcome.replace('_', ' ')}
-              </span>
-            )}
+            <AssigneeBadge
+              assignee={conversation.assignee}
+              isMe={isAssignedToMe}
+              variant={isTerminal ? 'badge' : 'field'}
+              onAssign={() =>
+                updateMutation.mutate({
+                  assignee: session?.user?.id ?? null,
+                })
+              }
+              onUnassign={() => updateMutation.mutate({ assignee: null })}
+              disabled={updateMutation.isPending}
+            />
           </div>
         </div>
 
@@ -1088,7 +828,7 @@ function ConversationDetailPage() {
               currentUserId={session?.user?.id}
               onReact={handleReact}
               onDeleteFeedback={handleDeleteFeedback}
-              contactLabel={contact?.name ?? 'Visitor'}
+              contactLabel={contact?.name ?? 'Anonymous'}
               conversationId={conversationId}
             >
               <VobaseToolUIs />
@@ -1189,13 +929,11 @@ function ConversationDetailPage() {
                   </p>
                   <div className="space-y-0.5">
                     <SidebarRow label="Agent">
-                      <span className="font-mono text-sm">
-                        {conversation.agentId ?? '—'}
-                      </span>
+                      {conversation.agentId ?? '—'}
                     </SidebarRow>
                     <SidebarRow label="Channel">
                       {channelInstance
-                        ? channelLabel(channelInstance.type)
+                        ? channelInstance.label || channelInstance.type
                         : '—'}
                     </SidebarRow>
                     <SidebarRow label="Started">
@@ -1212,7 +950,7 @@ function ConversationDetailPage() {
                     {conversation.resolutionOutcome && (
                       <SidebarRow label="Resolution">
                         <span className="capitalize">
-                          {conversation.resolutionOutcome.replace('_', ' ')}
+                          {conversation.resolutionOutcome.replaceAll('_', ' ')}
                         </span>
                       </SidebarRow>
                     )}

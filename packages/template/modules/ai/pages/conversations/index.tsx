@@ -9,16 +9,19 @@ import {
 import {
   BotIcon,
   CheckCircleIcon,
-  GlobeIcon,
   InboxIcon,
-  MailIcon,
-  MessageSquareIcon,
   SearchIcon,
   SparklesIcon,
   XIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  ChannelBadge,
+  ContactBadge,
+  ModeBadge,
+  PriorityIcon,
+} from '@/components/conversation-badges';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -128,48 +131,6 @@ async function fetchCounts(): Promise<TabCounts> {
   return res.json() as Promise<TabCounts>;
 }
 
-// ─── Priority Indicator ───────────────────────────────────────────────
-
-function PriorityIndicator({ priority }: { priority: string | null }) {
-  if (!priority || priority === 'low') {
-    return <div className="h-1.5 w-1.5 shrink-0" />;
-  }
-
-  return (
-    <div
-      className={cn(
-        'h-1.5 w-1.5 shrink-0 rounded-full',
-        priority === 'urgent'
-          ? 'bg-red-500'
-          : priority === 'high'
-            ? 'bg-orange-400'
-            : 'bg-yellow-400',
-      )}
-    />
-  );
-}
-
-// ─── Channel Badge ────────────────────────────────────────────────────
-
-function ChannelBadge({ channelType }: { channelType: string | null }) {
-  if (!channelType) return null;
-
-  const icon =
-    channelType === 'email' ? (
-      <MailIcon className="h-2.5 w-2.5" />
-    ) : channelType === 'whatsapp' ? (
-      <MessageSquareIcon className="h-2.5 w-2.5" />
-    ) : (
-      <GlobeIcon className="h-2.5 w-2.5" />
-    );
-
-  return (
-    <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground/70">
-      {icon}
-    </span>
-  );
-}
-
 // ─── Conversation Row ────────────────────────────────────────────────
 
 function InboxRow({
@@ -183,7 +144,6 @@ function InboxRow({
 }) {
   const { conversationId: selectedId } = useParams({ strict: false });
   const isSelected = row.id === selectedId;
-  const contactDisplay = row.contactName ?? row.contactId ?? 'Unknown';
   const preview = signalPreview(row.lastSignal);
   const timeRef = row.waitingSince ?? row.updatedAt;
 
@@ -200,18 +160,12 @@ function InboxRow({
             : 'hover:bg-muted/40 border-transparent',
       )}
     >
-      {/* Priority dot */}
-      <div className="mt-1.5">
-        <PriorityIndicator priority={row.priority} />
-      </div>
-
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <ChannelBadge channelType={row.channelType} />
-          <span className="text-sm font-medium text-foreground truncate">
-            {contactDisplay}
-          </span>
+          <PriorityIcon priority={row.priority} />
+          <ChannelBadge type={row.channelType} variant="icon" />
+          <ContactBadge name={row.contactName} contactId={row.contactId} />
           {row.hasPendingEscalation && (
             <span className="inline-flex h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
           )}
@@ -227,13 +181,7 @@ function InboxRow({
           </p>
         )}
         {showMode && row.mode && (
-          <p className="text-xs text-muted-foreground/60 mt-0.5">
-            {row.mode === 'supervised'
-              ? 'Supervised'
-              : row.mode === 'held'
-                ? 'On Hold'
-                : row.mode}
-          </p>
+          <ModeBadge mode={row.mode} variant="muted" className="mt-0.5" />
         )}
       </div>
 
@@ -250,7 +198,6 @@ function InboxRow({
 function InboxRowSkeleton() {
   return (
     <div className="flex items-start gap-2.5 px-3 py-2.5">
-      <Skeleton className="mt-1.5 h-1.5 w-1.5 rounded-full" />
       <div className="flex-1 space-y-1.5">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-3 w-56" />
