@@ -1,9 +1,8 @@
 import { dirname, join } from 'node:path';
 import { defineConfig } from 'drizzle-kit';
 
-const url = process.env.DATABASE_URL || './data/pgdata';
-const isPostgres =
-  url.startsWith('postgres://') || url.startsWith('postgresql://');
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error('DATABASE_URL is required');
 
 // Resolve core schema paths dynamically — works in both monorepo and standalone
 const coreSrc = dirname(require.resolve('@vobase/core'));
@@ -17,17 +16,5 @@ export default defineConfig({
   ],
   out: './drizzle',
   dialect: 'postgresql',
-  ...(isPostgres
-    ? { dbCredentials: { url } }
-    : {
-        driver: 'pglite' as const,
-        dbCredentials: {
-          url,
-          extensions: {
-            vector: (await import('@electric-sql/pglite/vector')).vector,
-            pgcrypto: (await import('@electric-sql/pglite/contrib/pgcrypto'))
-              .pgcrypto,
-          },
-        } as Record<string, unknown>,
-      }),
+  dbCredentials: { url },
 });

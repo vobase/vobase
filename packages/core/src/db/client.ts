@@ -5,11 +5,11 @@ import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 
 export type VobaseDb = ReturnType<typeof drizzlePglite>;
 
-// Cache instances by path so multiple createDatabase calls reuse the same PGlite
+// Cache PGlite instances for test usage (memory://)
 const pgliteCache = new Map<string, PGlite>();
 const dbCache = new Map<string, VobaseDb>();
 
-/** Returns the cached PGlite instance for a local db path, or undefined for postgres URLs. */
+/** Returns the cached PGlite instance (test usage only). */
 export function getPgliteClient(dbPath: string): PGlite | undefined {
   return pgliteCache.get(dbPath);
 }
@@ -23,6 +23,7 @@ export function createDatabase(dbPath: string): VobaseDb {
     return drizzleBunSql({ client }) as unknown as VobaseDb;
   }
 
+  // PGlite — only for tests (memory://)
   const cached = dbCache.get(dbPath);
   if (cached) return cached;
 

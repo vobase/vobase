@@ -30,7 +30,7 @@ import { safeJsonParse } from './_shared';
 /**
  * Read-only Drizzle reference to Mastra's internal scorers table.
  * Defined locally (not in schema.ts) to avoid drizzle-kit push/migrate
- * trying to manage the `mastra` schema which is owned by PGliteStore.
+ * trying to manage the `mastra` schema which is owned by PostgresStore.
  */
 const mastraPgSchema = pgSchema('mastra');
 const mastraScorers = mastraPgSchema.table('mastra_scorers', {

@@ -13,7 +13,7 @@ export interface JobOptions {
 }
 
 export interface SchedulerOptions {
-  /** Postgres connection string, PGlite instance, or local path for embedded PGlite */
+  /** Postgres connection string or PGlite instance (for tests) */
   connection?: PGlite | string;
   /** @deprecated Use connection */
   dbPath?: string;
@@ -32,22 +32,6 @@ export interface Scheduler {
   stop(): Promise<void>;
 }
 
-// Cache PGlite instances by path so scheduler and worker share state within a process
-const pgliteCache = new Map<string, PGlite>();
-
-export async function getOrCreatePglite(path: string): Promise<PGlite> {
-  if (!pgliteCache.has(path)) {
-    const { PGlite } = await import('@electric-sql/pglite');
-    const { vector } = await import('@electric-sql/pglite/vector');
-    const { pgcrypto } = await import('@electric-sql/pglite/contrib/pgcrypto');
-    pgliteCache.set(
-      path,
-      new PGlite(path, { extensions: { vector, pgcrypto } }),
-    );
-  }
-  return pgliteCache.get(path) as PGlite;
-}
-
 export function buildPgliteAdapter(pglite: PGlite) {
   return {
     async executeSql(
@@ -55,7 +39,6 @@ export function buildPgliteAdapter(pglite: PGlite) {
       values?: unknown[],
     ): Promise<{ rows: unknown[] }> {
       if (values && values.length > 0) {
-        // Extended protocol — single statement with params
         const result = await pglite.query(text, values as unknown[]);
         return { rows: result.rows };
       }
@@ -69,17 +52,11 @@ export function buildPgliteAdapter(pglite: PGlite) {
 
 async function buildBoss(connection: PGlite | string): Promise<PgBoss> {
   if (typeof connection !== 'string') {
+    // PGlite instance (tests)
     return new PgBoss({ db: buildPgliteAdapter(connection) });
   }
-  if (
-    connection.startsWith('postgres://') ||
-    connection.startsWith('postgresql://')
-  ) {
-    return new PgBoss(connection);
-  }
-  // Local path — use cached PGlite so scheduler and worker in the same process share state
-  const pglite = await getOrCreatePglite(connection);
-  return new PgBoss({ db: buildPgliteAdapter(pglite) });
+  // Postgres connection string
+  return new PgBoss(connection);
 }
 
 export async function createScheduler(

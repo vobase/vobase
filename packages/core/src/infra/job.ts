@@ -2,11 +2,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import { PgBoss } from 'pg-boss';
 
 import { validation } from './errors';
-import {
-  buildPgliteAdapter,
-  getOrCreatePglite,
-  type SchedulerOptions,
-} from './queue';
+import { buildPgliteAdapter, type SchedulerOptions } from './queue';
 
 export type JobHandler = (data: unknown) => Promise<void>;
 
@@ -61,15 +57,11 @@ export async function createWorker(
 
   let boss: PgBoss;
   if (typeof connection !== 'string') {
+    // PGlite instance (tests)
     boss = new PgBoss({ db: buildPgliteAdapter(connection as PGlite) });
-  } else if (
-    connection.startsWith('postgres://') ||
-    connection.startsWith('postgresql://')
-  ) {
-    boss = new PgBoss(connection);
   } else {
-    const pglite = await getOrCreatePglite(connection);
-    boss = new PgBoss({ db: buildPgliteAdapter(pglite) });
+    // Postgres connection string
+    boss = new PgBoss(connection);
   }
 
   boss.on('error', (err: Error) => {

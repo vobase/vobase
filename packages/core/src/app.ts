@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 
 import { contextMiddleware } from './ctx';
-import { createDatabase, getPgliteClient } from './db/client';
+import { createDatabase } from './db/client';
 import { errorHandler } from './infra/errors';
 import { createHttpClient, type HttpClientOptions } from './infra/http-client';
 import { createWorker } from './infra/job';
@@ -51,14 +51,8 @@ export interface CreateAppConfig {
 export async function createApp(config: CreateAppConfig) {
   const db = createDatabase(config.database);
 
-  // Share the same database connection for pg-boss (PGlite can't have two instances on the same directory)
-  const isPostgresUrl =
-    config.database.startsWith('postgres://') ||
-    config.database.startsWith('postgresql://');
   const scheduler = await createScheduler({
-    connection: isPostgresUrl
-      ? config.database
-      : getPgliteClient(config.database),
+    connection: config.database,
   });
 
   const http = createHttpClient(config.http);
@@ -303,9 +297,7 @@ export async function createApp(config: CreateAppConfig) {
   const allJobs = allModules.flatMap((module) => module.jobs ?? []);
   if (allJobs.length > 0) {
     await createWorker(allJobs, {
-      connection: isPostgresUrl
-        ? config.database
-        : getPgliteClient(config.database),
+      connection: config.database,
     });
   }
 

@@ -11,7 +11,6 @@ const app = await createApp({ ...config, modules });
 
 // Initialize Mastra after createApp (init hook sets deps synchronously, but Mastra init is async)
 try {
-  // db.$client gives us the PGlite instance from the Drizzle connection
   const { getModuleDb } = await import('./modules/ai/lib/deps');
   const db = getModuleDb();
   await initMastra(db as unknown as { $client: unknown });
@@ -64,27 +63,3 @@ export default {
 // Re-export the generated AppType which preserves Hono's literal route types
 // for use with hc<AppType>() in the frontend
 export type { AppType } from './src/api-types.generated';
-
-// ─── Graceful shutdown ──────────────────────────────────────────────
-// PGlite uses WAL and corrupts if killed without flushing.
-// Handle SIGTERM (docker stop, pkill) and SIGINT (Ctrl-C) to close cleanly.
-async function shutdown(signal: string) {
-  console.log(`[server] ${signal} received, shutting down...`);
-  try {
-    const { getModuleDb } = await import('./modules/ai/lib/deps');
-    const db = getModuleDb();
-    const client = (
-      db as unknown as { $client: { close?: () => Promise<void> } }
-    ).$client;
-    if (client?.close) {
-      await client.close();
-      console.log('[server] PGlite closed cleanly');
-    }
-  } catch {
-    // deps may not be initialized yet
-  }
-  process.exit(0);
-}
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));

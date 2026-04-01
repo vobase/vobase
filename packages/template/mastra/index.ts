@@ -3,11 +3,7 @@
  *
  * Initialized lazily via initMastra() called from the AI module init hook,
  * after setAiModuleDeps() has wired the db and scheduler.
- *
- * In PGlite mode, uses the custom PGliteStore adapter.
- * In Postgres mode, uses PostgresStore from @mastra/pg.
  */
-import type { PGlite } from '@electric-sql/pglite';
 import { Mastra } from '@mastra/core';
 import { Memory } from '@mastra/memory';
 import { PostgresStore } from '@mastra/pg';
@@ -32,24 +28,14 @@ let memoryInstance: Memory | undefined;
  * Initialize the Mastra singleton with storage from the vobase db connection.
  * Called from the AI module init hook after setAiModuleDeps().
  */
-export async function initMastra(db: { $client: unknown }): Promise<void> {
-  const dbUrl = process.env.DATABASE_URL || './data/pgdata';
-  const isPostgres =
-    dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://');
+export async function initMastra(_db: { $client: unknown }): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error('DATABASE_URL is required');
 
-  let store: PostgresStore;
-  if (isPostgres) {
-    store = new PostgresStore({
-      id: 'vobase-pg',
-      connectionString: dbUrl,
-    });
-  } else {
-    // PGlite mode — extract PGlite instance from Drizzle db.$client
-    const { PGliteStore } = await import('./lib/storage/pglite-store');
-    const pglite = db.$client as PGlite;
-    // PGliteStore extends MastraCompositeStore, same base as PostgresStore
-    store = new PGliteStore(pglite) as unknown as PostgresStore;
-  }
+  const store = new PostgresStore({
+    id: 'vobase-pg',
+    connectionString: dbUrl,
+  });
 
   await store.init();
 

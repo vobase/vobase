@@ -1,7 +1,10 @@
 import type { CreateAppConfig } from '@vobase/core';
 
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('DATABASE_URL is required');
+
 const config: Omit<CreateAppConfig, 'modules'> = {
-  database: process.env.DATABASE_URL || './data/pgdata',
+  database: databaseUrl,
   storage: {
     provider: { type: 'local', basePath: './data/files' },
     buckets: {

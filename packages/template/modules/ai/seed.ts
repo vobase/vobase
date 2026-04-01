@@ -591,7 +591,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     }
   }
 
-  // Insert in batches to avoid hitting PGlite limits
+  // Insert in batches to avoid large single-statement inserts
   const BATCH_SIZE = 50;
   for (let i = 0; i < seedOutbox.length; i += BATCH_SIZE) {
     await db

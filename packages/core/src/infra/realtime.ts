@@ -1,8 +1,6 @@
-import type { PGlite } from '@electric-sql/pglite';
 import { type SQL, sql } from 'drizzle-orm';
 
 import type { VobaseDb } from '../db/client';
-import { getPgliteClient } from '../db/client';
 import { logger } from './logger';
 
 const CHANNEL = 'vobase_events';
@@ -33,8 +31,6 @@ type Subscriber = (payload: string) => void;
 
 /**
  * Create a RealtimeService backed by PostgreSQL LISTEN/NOTIFY.
- * PGlite: uses native pg.listen()
- * PostgreSQL: uses a dedicated `postgres` connection for LISTEN
  */
 export async function createRealtimeService(
   databaseConfig: string,
@@ -52,20 +48,8 @@ export async function createRealtimeService(
     }
   };
 
-  const isPostgres =
-    databaseConfig.startsWith('postgres://') ||
-    databaseConfig.startsWith('postgresql://');
-
   try {
-    if (isPostgres) {
-      return await createPostgresRealtime(
-        databaseConfig,
-        db,
-        subscribers,
-        dispatch,
-      );
-    }
-    return await createPgliteRealtime(
+    return await createPostgresRealtime(
       databaseConfig,
       db,
       subscribers,
@@ -78,46 +62,6 @@ export async function createRealtimeService(
     );
     return createNoopRealtime();
   }
-}
-
-async function createPgliteRealtime(
-  databaseConfig: string,
-  db: VobaseDb,
-  subscribers: Set<Subscriber>,
-  dispatch: (payload: string) => void,
-): Promise<RealtimeService> {
-  const pglite = getPgliteClient(databaseConfig);
-  if (!pglite) {
-    throw new Error(`PGlite client not found for path: ${databaseConfig}`);
-  }
-
-  const unsub = await (pglite as PGlite).listen(CHANNEL, (payload) => {
-    dispatch(payload);
-  });
-
-  return {
-    subscribe(fn) {
-      subscribers.add(fn);
-      return () => {
-        subscribers.delete(fn);
-      };
-    },
-
-    async notify(payload, tx) {
-      const json = JSON.stringify(payload);
-      const notifyQuery = sql`SELECT pg_notify(${CHANNEL}, ${json})`;
-      if (tx) {
-        await tx.execute(notifyQuery);
-      } else {
-        await db.execute(notifyQuery);
-      }
-    },
-
-    async shutdown() {
-      await unsub();
-      subscribers.clear();
-    },
-  };
 }
 
 async function createPostgresRealtime(

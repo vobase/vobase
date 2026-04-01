@@ -15,7 +15,6 @@ import { eq } from 'drizzle-orm';
 
 import { channelInstances } from '../schema';
 import { createChannelBridge } from './chat-bridge';
-import { createPGlitePoolAdapter, type PoolLike } from './pglite-pool-adapter';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -84,28 +83,8 @@ function createChatLogger(): ChatLogger {
 
 /** Initialize Chat instance with bridge adapters and state-pg. Call from module init. */
 export async function initChat(deps: ChatInitDeps): Promise<Chat> {
-  // Resolve pool — PGlite needs wrapping, real Postgres passes through
-  const dbClient = (deps.db as unknown as { $client: unknown }).$client;
-  let pool: PoolLike;
-
-  if (
-    dbClient &&
-    typeof dbClient === 'object' &&
-    'query' in dbClient &&
-    !('connect' in dbClient && 'totalCount' in dbClient)
-  ) {
-    // PGlite — wrap as pg.Pool-shaped object
-    const { PGlite } = await import('@electric-sql/pglite');
-    pool = createPGlitePoolAdapter(dbClient as InstanceType<typeof PGlite>);
-  } else {
-    // Real Postgres pool — already pg.Pool compatible
-    pool = dbClient as PoolLike;
-  }
-
-  // Create state adapter
-  // Cast to satisfy state-pg's pg.Pool type — our PoolLike implements the subset it uses
+  // state-pg reads DATABASE_URL automatically and creates its own pg.Pool
   const state = createPostgresState({
-    client: pool as never,
     keyPrefix: 'vobase',
     logger: createChatLogger(),
   });
