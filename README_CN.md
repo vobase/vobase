@@ -46,7 +46,7 @@
 
 ---
 
-一个全栈 TypeScript 框架，在单进程中提供认证、数据库、存储和后台任务。本地开发使用 PGlite（嵌入式 Postgres），生产环境使用托管 Postgres。像自托管的 Supabase —— 但每行代码都是你的。像 Pocketbase —— 但它是你能阅读和修改的 TypeScript。
+一个全栈 TypeScript 框架，在单进程中提供认证、数据库、存储和后台任务。本地开发使用 Docker Compose Postgres，生产环境使用托管 Postgres。像自托管的 Supabase —— 但每行代码都是你的。像 Pocketbase —— 但它是你能阅读和修改的 TypeScript。
 
 AI 编程智能体（Claude Code、Cursor、Codex）天然理解 vobase。严格的约定和 Agent Skills 确保生成的代码一次就能跑通 —— 不用反复调试。
 
@@ -61,7 +61,7 @@ AI 编程智能体（Claude Code、Cursor、Codex）天然理解 vobase。严格
 | 能力 | 说明 |
 |---|---|
 | **运行时** | **Bun** —— 原生 TypeScript，~50ms 启动，内置测试框架。一个进程，一个容器。 |
-| **数据库** | **PostgreSQL** + **Drizzle**。本地开发零配置（PGlite），生产环境使用托管 Postgres。完整 SQL、ACID 事务、pgvector 向量检索。 |
+| **数据库** | **PostgreSQL** + **Drizzle**。本地开发 Docker Compose Postgres（pgvector/pg17），生产环境使用托管 Postgres。完整 SQL、ACID 事务、pgvector 向量检索。 |
 | **认证** | **better-auth**。会话管理、密码认证、CSRF 防护。RBAC 角色守卫、API Key、可选的组织/团队支持。SSO/2FA 以插件形式扩展。 |
 | **API** | **Hono** —— ~14KB，类型化路由，Bun 优先。所有 AI 编程工具都已熟知 Hono。 |
 | **审计** | 内置审计日志、记录变更追踪和认证事件钩子。每个变更都可追溯。 |
@@ -77,7 +77,7 @@ AI 编程智能体（Claude Code、Cursor、Codex）天然理解 vobase。严格
 | **MCP** | 模块感知工具，通过 API Key 认证（**@modelcontextprotocol/sdk**）。AI 工具可以在写代码之前查看你的 Schema、模块列表和日志。同进程，共享端口。 |
 | **部署** | 内含 Dockerfile + railway.toml。一条 `railway up` 或 `docker build` 即可上线。 |
 
-在本地，所有服务都运行在一个 Bun 进程中（使用 PGlite）—— 无需 Docker，无需外部服务。`bun run dev` 即可开始构建。生产环境只需将 `DATABASE_URL` 指向任意 Postgres 实例。
+在本地，`docker compose up -d` 启动 pgvector/pg17 Postgres 实例。`bun run dev` 即可开始构建。生产环境只需将 `DATABASE_URL` 指向任意托管 Postgres 实例。
 
 ---
 
@@ -89,7 +89,7 @@ cd my-app
 bun run dev
 ```
 
-后端运行在 `:3000`，前端运行在 `:5173`。开箱即带仪表盘和审计日志查看器。
+先用 `docker compose up -d` 启动 Postgres，后端运行在 `:3000`，前端运行在 `:5173`。开箱即带仪表盘和审计日志查看器。
 
 ---
 
@@ -298,7 +298,7 @@ Job 的依赖通过闭包/工厂函数传入（或在 `defineJob(...)` 中直接
 ```typescript
 // vobase.config.ts
 export default defineConfig({
-  database: process.env.DATABASE_URL || './data/pgdata',
+  database: process.env.DATABASE_URL,
   integrations: { enabled: true },      // 可选：加密凭证存储、提供商配置
   storage: {                            // 可选：文件存储
     provider: { type: 'local', basePath: './data/files' },
@@ -335,7 +335,7 @@ export default defineConfig({
 |---|---|---|---|---|
 | 你得到什么 | 全栈脚手架（后端 + 前端 + Skills） | 后端即服务（数据库 + 认证 + 存储 + 函数） | 后端二进制（数据库 + 认证 + 存储 + API） | 全栈框架 |
 | 语言 | 端到端 TypeScript | TypeScript（客户端）+ PostgreSQL | Go（闭源二进制） | Ruby / PHP |
-| 数据库 | PostgreSQL（本地 PGlite，生产托管） | PostgreSQL（托管） | SQLite（嵌入式） | PostgreSQL / MySQL |
+| 数据库 | PostgreSQL（本地 Docker Compose，生产托管） | PostgreSQL（托管） | SQLite（嵌入式） | PostgreSQL / MySQL |
 | 自托管 | 单进程，单容器 | [10+ Docker 容器](https://supabase.com/docs/guides/self-hosting/docker) | 单二进制 | 多进程 |
 | 代码归属 | 是 —— 所有源码在你的项目中 | 否 —— 托管服务 | 否 —— 编译后的二进制 | 是 —— 但没有 AI 约定 |
 | AI 集成 | Agent Skills + MCP + 严格约定 | 无 | 无 | 无 |
@@ -367,7 +367,7 @@ Docker 容器 (--restart=always)
         │     ├── /mcp          → MCP 服务器（同进程，共享端口）
         │     ├── /webhooks/*   → 入站事件接收器（签名验证、去重）
         │     └── /*            → 前端（静态文件，来自 dist/）
-        ├── Drizzle（本地 PGlite / 生产 bun:sql）
+        ├── Drizzle（bun:sql → PostgreSQL）
         ├── 内置模块
         │     ├── _auth         → better-auth + AuthAdapter 契约
         │     ├── _audit        → 审计日志、记录追踪、认证钩子
@@ -441,13 +441,13 @@ volumes:
 
 | 命令 | 说明 |
 |---|---|
+| `docker compose up -d` | 启动本地 Postgres（pgvector/pg17，端口 5432）。 |
 | `bun run dev` | 以 `--watch` 启动 Bun 后端和 Vite 前端。修改后自动重启。 |
-| `bun run db:current` | 将 SQL 基础设施（nanoid 函数、扩展）应用到数据库。 |
-| `bun run db:push` | 推送 Schema 到数据库（开发环境）。无需迁移文件。 |
+| `bun run db:push` | 应用 fixtures 后推送 Schema 到数据库（开发环境）。 |
 | `bun run db:generate` | 为生产环境生成迁移文件。 |
 | `bun run db:migrate` | 对数据库执行迁移。 |
 | `bun run db:seed` | 填充默认管理员用户和示例数据。 |
-| `bun run db:reset` | 删除数据库，重新应用基础设施，推送 Schema，填充种子数据。 |
+| `bun run db:reset` | 删除并重建数据库，推送 Schema，填充种子数据。 |
 | `bun run db:studio` | 打开 Drizzle Studio 可视化浏览数据库。 |
 
 ---
@@ -459,8 +459,9 @@ my-app/
   .env
   .env.example
   package.json            ← 依赖 @vobase/core
+  docker-compose.yml      ← 本地 Postgres（pgvector/pg17）
   drizzle.config.ts
-  vobase.config.ts        ← 数据库路径、认证、连接、Webhook
+  vobase.config.ts        ← 数据库 URL、认证、连接、Webhook
   vite.config.ts          ← Vite + TanStack Router + 路径别名
   index.html
   server.ts               ← createApp() 入口 + Mastra 初始化 + Studio 挂载
@@ -472,43 +473,23 @@ my-app/
   mastra/                 ← Mastra 原语（遵循 Mastra 项目约定）
     index.ts              ← Mastra 单例：initMastra()、getMastra()、getMemory()
     studio.ts             ← 仅开发环境的 Studio SPA 中间件
-    agents/
-      index.ts            ← 智能体注册表
-      assistant.ts        ← Vobase 助手（Claude Sonnet，知识库搜索）
-      quick-helper.ts     ← 线索资质评估（Gemini Pro，升级处理）
-    tools/
-      search-kb.ts        ← RAG 工具：知识库混合搜索
-      escalate.ts         ← 将对话转交人工
-    workflows/
-      escalation.ts       ← 人机协作升级流程
-      follow-up.ts        ← 延迟跟进调度
-    processors/
-      index.ts            ← 动态输入/输出处理器工厂
-      moderation.ts       ← 内容审核输入处理器
-      memory/             ← EverMemOS：MemCells → Episodes → Facts
-        memory-processor.ts  ← 检索（输入）+ 边界检测（输出）
-        retriever.ts      ← 混合搜索（BM25 + 向量）+ RRF
-        formation.ts      ← 提取 Episodes + Facts，嵌入，存储
-        boundary-detector.ts
-        extractors.ts
+    agents/               ← 智能体定义（Mastra Agent 实例）
+    tools/                ← RAG 工具、升级处理等
+    workflows/            ← 人机协作流程
+    processors/           ← 输入/输出处理器 + EverMemOS 记忆管道
     evals/                ← 评估框架（评分器、运行器）
     mcp/                  ← AI 模块 MCP 服务器
-    lib/
-      deps.ts             ← 模块级依赖注入（db、scheduler）
-      models.ts           ← 模型别名
-      observability.ts    ← 追踪配置
-      storage/
-        pglite-store.ts   ← Mastra 存储的 PGlite 适配器
+    lib/                  ← 依赖注入、模型别名、可观测性
   modules/
-    ai/                   ← AI 仪表盘模块（Schema、路由、任务、页面）
+    ai/                   ← AI 对话、智能体、记忆、评估、通道
       index.ts            ← defineModule() —— 从 ../../mastra/ 导入
-      schema.ts           ← EverMemOS 表（mem_cells、episodes、facts 等）
-      handlers.ts         ← 记忆 API、评估、护栏、工作流路由
-      jobs.ts             ← 记忆形成、评估运行、跟进恢复
-      pages/              ← 智能体配置、记忆浏览器、评估、工作流、护栏
-    system/               ← 管理仪表盘（脚手架生成）
+      schema.ts           ← 对话、mem_cells、episodes、facts 等
+      handlers/           ← 聊天、对话、通道、联系人、评估、记忆等
+      jobs.ts             ← 记忆形成、评估运行、发件箱投递
+      lib/                ← 状态机、聊天桥接、通道回复、发件箱
+      pages/              ← 对话、联系人、通道、AI 配置、评估
+    system/               ← 运维仪表盘
       index.ts            ← defineModule()
-      schema.ts
       handlers.ts         ← 健康检查、审计日志、序列号、记录审计
       pages/
     knowledge-base/       ← 文档摄入 + 混合搜索
@@ -516,23 +497,12 @@ my-app/
       schema.ts
       handlers.ts
       jobs.ts             ← 队列异步文档处理
-      lib/
-        extract.ts        ← PDF、DOCX、XLSX、PPTX、HTML、图片提取
-        chunker.ts        ← 递归文本分块
-        embeddings.ts     ← AI SDK 向量嵌入
-        pipeline.ts       ← 分块 → 嵌入 → 存储管道
-        search.ts         ← RRF 混合搜索（快速/深度模式）
+      lib/                ← 提取、分块、嵌入、搜索管道
       pages/
-    messaging/            ← AI 聊天 + 多通道回复
+    integrations/         ← 外部服务凭证管理
       index.ts
-      schema.ts
-      handlers.ts         ← 会话 CRUD、流式聊天、通道 Webhook
-      jobs.ts             ← 发件箱投递、通道轮询
-      lib/
-        chat.ts           ← 通过 agent.stream() 流式聊天
-        channel-reply.ts  ← 通过 agent.generate() 非流式回复
-        memory-bridge.ts  ← 桥接到 Mastra Memory API
-      pages/
+      handlers.ts
+      jobs.ts
     index.ts              ← 模块注册表
     your-module/          ← 你添加的模块
       index.ts            ← defineModule()
@@ -544,24 +514,25 @@ my-app/
     main.tsx
     home.tsx
     root.tsx
-    routes.ts             ← 生成的路由定义
     routeTree.gen.ts      ← 生成的 TanStack 路由树
     lib/
-      api-client.ts
-      auth-client.ts
-      utils.ts
     components/
       ui/                 ← shadcn/ui（归你所有）
+      ai-elements/        ← AI 聊天 UI 组件（归你所有）
+      assistant-ui/       ← assistant-ui 线程组件
+      chat/               ← 聊天专用组件
+      data-table/         ← DiceUI 数据表格组件
     shell/
-      layout.tsx
-      sidebar.tsx
-      auth/
-        login.tsx
-        signup.tsx
+      app-layout.tsx      ← 主应用外壳（带侧边栏）
+      shell-header.tsx
+      command-palette.tsx
+      auth/               ← 登录、注册
+      settings/           ← 用户、组织、API Key、集成设置
+    hooks/
     styles/
-      app.css
+    stores/
+    types/
   data/
-    pgdata/               ← PGlite 数据库（本地开发）
     files/                ← 可选，首次上传时创建
 ```
 

@@ -46,7 +46,7 @@
 
 ---
 
-A full-stack TypeScript framework that gives you auth, database, storage, and jobs in a single process. PGlite (embedded Postgres) for local dev, managed Postgres in production. Like a self-hosted Supabase — but you own every line of code. Like Pocketbase — but it's TypeScript you can read and modify.
+A full-stack TypeScript framework that gives you auth, database, storage, and jobs in a single process. Docker Compose Postgres for local dev, managed Postgres in production. Like a self-hosted Supabase — but you own every line of code. Like Pocketbase — but it's TypeScript you can read and modify.
 
 AI coding agents (Claude Code, Cursor, Codex) understand vobase out of the box. Strict conventions and agent skills mean generated code works on the first try — not the third.
 
@@ -61,7 +61,7 @@ One `bun create vobase` and you have a working full-stack app:
 | Primitive | What it does |
 |---|---|
 | **Runtime** | **Bun** — native TypeScript, ~50ms startup, built-in test runner. One process, one container. |
-| **Database** | **PostgreSQL** via **Drizzle**. PGlite for zero-config local dev, managed Postgres in production. Full SQL, ACID transactions, pgvector for embeddings. |
+| **Database** | **PostgreSQL** via **Drizzle**. Docker Compose Postgres (pgvector/pg17) for local dev, managed Postgres in production. Full SQL, ACID transactions, pgvector for embeddings. |
 | **Auth** | **better-auth**. Sessions, passwords, CSRF. RBAC with role guards, API keys, and optional organization/team support. Org/SSO/2FA as plugins. |
 | **API** | **Hono** — ~14KB, typed routing, Bun-first. Every AI coding tool already knows Hono. |
 | **Audit** | Built-in audit log, record change tracking, and auth event hooks. Every mutation is traceable. |
@@ -71,13 +71,13 @@ One `bun create vobase` and you have a working full-stack app:
 | **Integrations** | Encrypted credential vault for external services (OAuth providers, APIs). AES-256-GCM at rest. Platform-aware: opt-in multi-tenant OAuth handoff via HMAC-signed JWT. |
 | **Jobs** | Background tasks with retries, cron, and job chains. **pg-boss** backed — Postgres only, no Redis. |
 | **Knowledge Base** | Upload PDF, DOCX, XLSX, PPTX, images, HTML. Auto-extract to Markdown, chunk, embed, and search. Hybrid search with RRF + HyDE. Gemini OCR for scanned docs. |
-| **AI Agents** | Declarative agents via [Mastra](https://mastra.ai) in a top-level `mastra/` directory. Multi-provider (OpenAI, Anthropic, Google). Tools, workflows, memory processors, eval scorers. Embedded **Mastra Studio** at `/studio` for dev. Frontend stays on AI SDK `useChat`. |
+| **AI Agents** | Declarative agents via [Mastra](https://mastra.ai) in a top-level `mastra/` directory. Multi-provider (OpenAI, Anthropic, Google). Tools, workflows, memory processors, eval scorers, conversation state machine. Embedded **Mastra Studio** at `/studio` for dev. Frontend stays on AI SDK `useChat`. |
 | **Frontend** | **React + TanStack Router + shadcn/ui + Tailwind v4**. Type-safe routing with codegen, code-splitting. You own the component source — no tailwind.config.js needed. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
 | **MCP** | Module-aware tools with API key auth via **@modelcontextprotocol/sdk**. AI tools can read your schema, list modules, and view logs before generating code. Same process, shared port. |
 | **Deploy** | Dockerfile + railway.toml included. One `railway up` or `docker build` and you're live. |
 
-Locally, everything runs in one Bun process with PGlite — no Docker, no external services. `bun run dev` and you're building. In production, point `DATABASE_URL` at any Postgres instance.
+Locally, `docker compose up -d` starts a pgvector/pg17 Postgres instance. `bun run dev` and you're building. In production, point `DATABASE_URL` at any managed Postgres instance.
 
 ---
 
@@ -89,7 +89,7 @@ cd my-app
 bun run dev
 ```
 
-Backend on `:3000`, frontend on `:5173`. Ships with a dashboard and audit log viewer out of the box.
+Start Postgres with `docker compose up -d`, then backend on `:3000`, frontend on `:5173`. Ships with a dashboard and audit log viewer out of the box.
 
 ---
 
@@ -106,7 +106,7 @@ Every module is a self-contained directory: schema, handlers, jobs, pages. No pl
 | **Billing & Invoicing** | Invoices, line items, payments, aging reports. Integer money ensures exact arithmetic. Gap-free numbering via transactions. |
 | **Your Vertical** | Property management, fleet tracking, field services — whatever the business needs. Describe it to your AI tool. It generates the module. |
 
-Module starters ship as skills: `vobase add skill <name>`. Like `npx shadcn add button` — files get copied, you own the code.
+AI coding agents generate modules from your conventions. Like `npx shadcn add button` — files get copied, you own the code.
 
 ---
 
@@ -298,7 +298,7 @@ Beyond local capabilities (database, user, scheduler, storage), `ctx` provides o
 ```typescript
 // vobase.config.ts
 export default defineConfig({
-  database: process.env.DATABASE_URL || './data/pgdata',
+  database: process.env.DATABASE_URL,
   integrations: { enabled: true },      // opt-in: encrypted credential store, provider configs
   storage: {                            // opt-in: file storage
     provider: { type: 'local', basePath: './data/files' },
@@ -335,7 +335,7 @@ Credentials stay in `.env`. Config declares the shape.
 |---|---|---|---|---|
 | What you get | Full-stack scaffold (backend + frontend + skills) | Backend-as-a-service (db + auth + storage + functions) | Backend binary (db + auth + storage + API) | Full-stack framework |
 | Language | TypeScript end-to-end | TypeScript (client) + PostgreSQL | Go (closed binary) | Ruby / PHP |
-| Database | PostgreSQL (PGlite local, managed prod) | PostgreSQL (managed) | SQLite (embedded) | PostgreSQL / MySQL |
+| Database | PostgreSQL (Docker Compose local, managed prod) | PostgreSQL (managed) | SQLite (embedded) | PostgreSQL / MySQL |
 | Self-hosted | One process, one container | [10+ Docker containers](https://supabase.com/docs/guides/self-hosting/docker) | One binary | Multi-process |
 | You own the code | Yes — all source in your project | No — managed service | No — compiled binary | Yes — but no AI conventions |
 | AI integration | Agent skills + MCP + strict conventions | None | None | None |
@@ -367,7 +367,7 @@ Docker container (--restart=always)
         │     ├── /mcp          → MCP server (same process, shared port)
         │     ├── /webhooks/*   → inbound event receiver (signature verified, dedup)
         │     └── /*            → frontend (static, from dist/)
-        ├── Drizzle (PGlite local / bun:sql production)
+        ├── Drizzle (bun:sql → PostgreSQL)
         ├── Built-in modules
         │     ├── _auth         → better-auth behind AuthAdapter contract
         │     ├── _audit        → audit log, record tracking, auth hooks
@@ -442,12 +442,12 @@ After scaffolding, your project uses standard tools directly — no wrapper CLI:
 | Command | What it does |
 |---|---|
 | `bun run dev` | Start Bun backend with `--watch` and Vite frontend. Auto-restarts on changes. |
-| `bun run db:current` | Apply SQL fixtures (nanoid function, extensions) to the database. |
-| `bun run db:push` | Push schema to database (dev). No migrations needed. |
+| `docker compose up -d` | Start local Postgres (pgvector/pg17, port 5432). |
+| `bun run db:push` | Apply fixtures then push schema to database (dev). |
 | `bun run db:generate` | Generate migration files for production. |
 | `bun run db:migrate` | Run migrations against the database. |
 | `bun run db:seed` | Seed default admin user and sample data. |
-| `bun run db:reset` | Delete database, re-apply fixtures, push schema, and seed. |
+| `bun run db:reset` | Drop and recreate database, push schema, and seed. |
 | `bun run db:studio` | Open Drizzle Studio for visual database browsing. |
 
 ---
@@ -459,8 +459,9 @@ my-app/
   .env
   .env.example
   package.json            ← depends on @vobase/core
+  docker-compose.yml      ← local Postgres (pgvector/pg17)
   drizzle.config.ts
-  vobase.config.ts        ← database path, auth, connections, webhooks
+  vobase.config.ts        ← database URL, auth, connections, webhooks
   vite.config.ts          ← Vite + TanStack Router + path aliases
   index.html
   server.ts               ← createApp() entry + Mastra init + Studio mount
@@ -472,43 +473,23 @@ my-app/
   mastra/                 ← Mastra primitives (follows Mastra project conventions)
     index.ts              ← Mastra singleton: initMastra(), getMastra(), getMemory()
     studio.ts             ← dev-only Studio SPA middleware
-    agents/
-      index.ts            ← agent registry
-      assistant.ts        ← Vobase Assistant (Claude Sonnet, KB search)
-      quick-helper.ts     ← Lead Qualifier (Gemini Pro, escalation)
-    tools/
-      search-kb.ts        ← RAG tool: hybrid search over knowledge base
-      escalate.ts         ← hand off conversation to human staff
-    workflows/
-      escalation.ts       ← human-in-the-loop escalation flow
-      follow-up.ts        ← delayed follow-up scheduling
-    processors/
-      index.ts            ← dynamic input/output processor factories
-      moderation.ts       ← content moderation input processor
-      memory/             ← EverMemOS: MemCells → Episodes → Facts
-        memory-processor.ts  ← retrieval (input) + boundary detection (output)
-        retriever.ts      ← hybrid search (BM25 + vector) with RRF
-        formation.ts      ← extract episodes + facts, embed, store
-        boundary-detector.ts
-        extractors.ts
+    agents/               ← agent definitions (Mastra Agent instances)
+    tools/                ← RAG tools, escalation, etc.
+    workflows/            ← human-in-the-loop flows
+    processors/           ← input/output processors + EverMemOS memory pipeline
     evals/                ← eval framework (scorers, runner)
     mcp/                  ← AI module MCP server
-    lib/
-      deps.ts             ← module-level DI (db, scheduler)
-      models.ts           ← model aliases
-      observability.ts    ← tracing config
-      storage/
-        pglite-store.ts   ← PGlite adapter for Mastra storage
+    lib/                  ← DI, model aliases, observability
   modules/
-    ai/                   ← AI dashboard module (schema, routes, jobs, pages)
+    ai/                   ← AI conversations, agents, memory, evals, channels
       index.ts            ← defineModule() — imports from ../../mastra/
-      schema.ts           ← EverMemOS tables (mem_cells, episodes, facts, etc.)
-      handlers.ts         ← memory API, evals, guardrails, workflow routes
-      jobs.ts             ← memory formation, eval runs, follow-up resume
-      pages/              ← agent config, memory explorer, evals, workflows, guardrails
-    system/               ← admin dashboard (scaffolded)
+      schema.ts           ← conversations, mem_cells, episodes, facts, etc.
+      handlers/           ← chat, conversations, channels, contacts, evals, memory, etc.
+      jobs.ts             ← memory formation, eval runs, outbox delivery
+      lib/                ← state machine, chat bridge, channel reply, outbox
+      pages/              ← conversations, contacts, channels, AI config, evals
+    system/               ← ops dashboard
       index.ts            ← defineModule()
-      schema.ts
       handlers.ts         ← health, audit log, sequences, record audits
       pages/
     knowledge-base/       ← document ingestion + hybrid search
@@ -516,23 +497,12 @@ my-app/
       schema.ts
       handlers.ts
       jobs.ts             ← async document processing via queue
-      lib/
-        extract.ts        ← PDF, DOCX, XLSX, PPTX, HTML, image extraction
-        chunker.ts        ← recursive text chunking
-        embeddings.ts     ← vector embeddings via AI SDK
-        pipeline.ts       ← chunk → embed → store pipeline
-        search.ts         ← RRF hybrid search with fast/deep modes
+      lib/                ← extract, chunk, embed, search pipeline
       pages/
-    messaging/            ← AI chat + multi-channel replies
+    integrations/         ← external service credential management
       index.ts
-      schema.ts
-      handlers.ts         ← thread CRUD, streaming chat, channel webhooks
-      jobs.ts             ← outbox delivery, channel polling
-      lib/
-        chat.ts           ← streaming chat via agent.stream()
-        channel-reply.ts  ← non-streaming replies via agent.generate()
-        memory-bridge.ts  ← bridge to Mastra Memory API
-      pages/
+      handlers.ts
+      jobs.ts
     index.ts              ← module registry
     your-module/          ← modules you add
       index.ts            ← defineModule()
@@ -544,24 +514,25 @@ my-app/
     main.tsx
     home.tsx
     root.tsx
-    routes.ts             ← generated route definitions
     routeTree.gen.ts      ← generated TanStack route tree
     lib/
-      api-client.ts
-      auth-client.ts
-      utils.ts
     components/
       ui/                 ← shadcn/ui (owned by you)
+      ai-elements/        ← AI chat UI components (owned by you)
+      assistant-ui/       ← assistant-ui thread components
+      chat/               ← chat-specific components
+      data-table/         ← DiceUI data-table components
     shell/
-      layout.tsx
-      sidebar.tsx
-      auth/
-        login.tsx
-        signup.tsx
+      app-layout.tsx      ← main app shell with sidebar
+      shell-header.tsx
+      command-palette.tsx
+      auth/               ← login, signup
+      settings/           ← user, org, API keys, integrations settings
+    hooks/
     styles/
-      app.css
+    stores/
+    types/
   data/
-    pgdata/               ← PGlite database (local dev)
     files/                ← optional, created on first upload
 ```
 

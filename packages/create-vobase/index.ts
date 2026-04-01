@@ -66,6 +66,11 @@ if (monorepoRoot) {
   console.log(`${green('✓')} Downloaded template`);
 }
 
+// --- CLAUDE.md → AGENTS.md symlink ---
+const claudeMd = resolve(dest, 'CLAUDE.md');
+if (existsSync(claudeMd)) rmSync(claudeMd);
+symlinkSync('AGENTS.md', claudeMd);
+
 // --- Agent skills ---
 const agentsDir = resolve(dest, '.agents', 'skills');
 const claudeSkillsDir = resolve(dest, '.claude', 'skills');

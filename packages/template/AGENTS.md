@@ -99,7 +99,7 @@ Helpers: `nanoidPrimaryKey()`, `nextSequence(tx, prefix)`, `trackChanges(tx, tab
 Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `validation(details)`, `dbBusy()`.
 Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
 Auth tables: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`. Auth table map: `authTableMap` (object passed to better-auth's drizzle adapter — renamed from `authSchema`).
-PostgreSQL schemas: `authPgSchema`, `auditPgSchema`, `infraPgSchema` — pgSchema objects for core modules. Template modules define their own: `messagingPgSchema`, `aiPgSchema`, `kbPgSchema`. Mastra uses `schemaName: 'mastra'` via PGliteStore config.
+PostgreSQL schemas: `authPgSchema`, `auditPgSchema`, `infraPgSchema` — pgSchema objects for core modules. Template modules define their own: `conversationsPgSchema`, `aiPgSchema`, `kbPgSchema`.
 Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAuth callback (JWT verification, user upsert, account linking, session creation). Opt-in via `PLATFORM_HMAC_SECRET` env var.
 
 ### Config Shape
@@ -108,16 +108,17 @@ Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAu
 
 ### Schema Management
 
-`drizzle.config.ts` points at core schemas via relative paths + your module schemas. Uses PGlite for local dev and Postgres in production. Dev: `bun run db:push`. Prod: `bun run db:generate` + `bun run db:migrate`.
+`drizzle.config.ts` points at core schemas via relative paths + your module schemas. Uses Docker Compose Postgres for local dev (same as production). Dev: `bun run db:push`. Prod: `bun run db:generate` + `bun run db:migrate`.
 
 ## Commands
 
+`docker compose up -d` — start local Postgres (pgvector/pg17, port 5432)
 `bun run dev` — backend :3000 + frontend :5173
 `bun run db:push` — apply fixtures then `drizzle-kit push` (dev workflow)
 `bun run db:generate` — `drizzle-kit generate` migration, prepend fixtures, reset `current.sql`
 `bun run db:migrate` — `drizzle-kit migrate` (apply migrations)
-`bun run db:nuke` — delete `data/pgdata` (local PGlite data)
-`bun run db:reset` — nuke + push + seed (full local reset)
+`bun run db:nuke` — drop the Postgres database
+`bun run db:reset` — drop + recreate database + push + seed (full local reset)
 `bun run db:studio` — open Drizzle Studio
 `bun run db:seed` — seed data
 `bun test` — run tests
