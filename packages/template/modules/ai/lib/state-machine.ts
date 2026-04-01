@@ -594,8 +594,7 @@ export async function transition(
     }
 
     const eventId = await emitActivityEvent(db, realtime, {
-      type:
-        mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
+      type: mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
       source: 'system',
       contactId,
       conversationId,

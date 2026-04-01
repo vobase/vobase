@@ -120,13 +120,7 @@ export function ModeBadge({
               onClick={() => onSelect(value)}
               className="gap-2 text-sm"
             >
-              <c.Icon
-                className={cn(
-                  'h-3 w-3',
-                  c.iconColor,
-                  c.iconFill,
-                )}
-              />
+              <c.Icon className={cn('h-3 w-3', c.iconColor, c.iconFill)} />
               {c.label}
               {value === mode && (
                 <CheckIcon className="ml-auto h-3.5 w-3.5 text-foreground" />
@@ -146,7 +140,9 @@ export function ModeBadge({
           className,
         )}
       >
-        <cfg.Icon className={cn(cfg.iconSize ?? 'h-3 w-3', 'text-muted-foreground/60')} />
+        <cfg.Icon
+          className={cn(cfg.iconSize ?? 'h-3 w-3', 'text-muted-foreground/60')}
+        />
         {cfg.label}
       </span>
     );

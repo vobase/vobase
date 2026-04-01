@@ -423,7 +423,6 @@ export const messageFeedback = conversationsPgSchema.table(
 
 export const aiPgSchema = pgSchema('ai');
 
-
 /**
  * MemCells — conversation segments detected by boundary detection.
  * Each cell spans a contiguous range of messages in a thread.

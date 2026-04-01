@@ -7,23 +7,40 @@ const TZ = 'Asia/Singapore';
 describe('visitorDayInfo', () => {
   it('returns correct letter for each day of the week', () => {
     // Mon 2026-03-30 → A
-    expect(visitorDayInfo(new Date('2026-03-30T10:00:00+08:00'), TZ).letter).toBe('A');
+    expect(
+      visitorDayInfo(new Date('2026-03-30T10:00:00+08:00'), TZ).letter,
+    ).toBe('A');
     // Tue 2026-03-31 → B
-    expect(visitorDayInfo(new Date('2026-03-31T10:00:00+08:00'), TZ).letter).toBe('B');
+    expect(
+      visitorDayInfo(new Date('2026-03-31T10:00:00+08:00'), TZ).letter,
+    ).toBe('B');
     // Wed 2026-04-01 → C
-    expect(visitorDayInfo(new Date('2026-04-01T10:00:00+08:00'), TZ).letter).toBe('C');
+    expect(
+      visitorDayInfo(new Date('2026-04-01T10:00:00+08:00'), TZ).letter,
+    ).toBe('C');
     // Thu 2026-04-02 → D
-    expect(visitorDayInfo(new Date('2026-04-02T10:00:00+08:00'), TZ).letter).toBe('D');
+    expect(
+      visitorDayInfo(new Date('2026-04-02T10:00:00+08:00'), TZ).letter,
+    ).toBe('D');
     // Fri 2026-04-03 → E
-    expect(visitorDayInfo(new Date('2026-04-03T10:00:00+08:00'), TZ).letter).toBe('E');
+    expect(
+      visitorDayInfo(new Date('2026-04-03T10:00:00+08:00'), TZ).letter,
+    ).toBe('E');
     // Sat 2026-04-04 → F
-    expect(visitorDayInfo(new Date('2026-04-04T10:00:00+08:00'), TZ).letter).toBe('F');
+    expect(
+      visitorDayInfo(new Date('2026-04-04T10:00:00+08:00'), TZ).letter,
+    ).toBe('F');
     // Sun 2026-04-05 → G
-    expect(visitorDayInfo(new Date('2026-04-05T10:00:00+08:00'), TZ).letter).toBe('G');
+    expect(
+      visitorDayInfo(new Date('2026-04-05T10:00:00+08:00'), TZ).letter,
+    ).toBe('G');
   });
 
   it('returns YYYYMMDD date key', () => {
-    const { dateKey } = visitorDayInfo(new Date('2026-03-31T10:00:00+08:00'), TZ);
+    const { dateKey } = visitorDayInfo(
+      new Date('2026-03-31T10:00:00+08:00'),
+      TZ,
+    );
     expect(dateKey).toBe('20260331');
   });
 

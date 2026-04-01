@@ -234,6 +234,7 @@ function NegativeFeedbackPopover({
         <p className="font-medium text-sm">What went wrong?</p>
         <div className="space-y-2">
           {NEGATIVE_FEEDBACK_OPTIONS.map((option) => (
+            // biome-ignore lint/a11y/noLabelWithoutControl: Checkbox is inside label
             <label
               key={option}
               className="flex items-center gap-2 text-sm cursor-pointer"

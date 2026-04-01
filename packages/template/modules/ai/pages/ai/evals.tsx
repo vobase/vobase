@@ -389,7 +389,9 @@ function QualityDashboard() {
                         {conv.scoreCount}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                        {conv.lastScored ? formatDateTime(conv.lastScored) : '—'}
+                        {conv.lastScored
+                          ? formatDateTime(conv.lastScored)
+                          : '—'}
                       </td>
                     </tr>
                   );

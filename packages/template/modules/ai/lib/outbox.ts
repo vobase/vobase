@@ -370,11 +370,17 @@ async function moveToDeadLetters(
     // update the pointer to the new delivery_failed event
     if (eventId) {
       const [conv] = await db
-        .select({ lastSignalId: conversations.lastSignalId, lastSignalKind: conversations.lastSignalKind })
+        .select({
+          lastSignalId: conversations.lastSignalId,
+          lastSignalKind: conversations.lastSignalKind,
+        })
         .from(conversations)
         .where(eq(conversations.id, record.conversationId));
 
-      if (conv?.lastSignalKind === 'message' && conv?.lastSignalId === record.id) {
+      if (
+        conv?.lastSignalKind === 'message' &&
+        conv?.lastSignalId === record.id
+      ) {
         await updateLastSignal(db, record.conversationId, 'activity', eventId);
       }
     }

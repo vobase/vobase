@@ -35,10 +35,7 @@ const DAY_LETTERS = ['G', 'A', 'B', 'C', 'D', 'E', 'F'] as const;
 const DEFAULT_TZ = process.env.TZ || 'Asia/Singapore';
 
 /** Build a timezone-consistent date key + day letter. */
-export function visitorDayInfo(
-  now = new Date(),
-  tz = DEFAULT_TZ,
-) {
+export function visitorDayInfo(now = new Date(), tz = DEFAULT_TZ) {
   const local = new TZDate(now, tz);
   const dateKey = format(local, 'yyyyMMdd');
   const letter = DAY_LETTERS[getDay(local)];
@@ -89,8 +86,7 @@ async function upsertContact(
   // Slow path: new contact — generate visitor name then insert with
   // onConflictDoUpdate as a safety net against concurrent first-chat races
   const name =
-    opts.name ??
-    (opts.role === 'staff' ? null : await generateVisitorName(db));
+    opts.name ?? (opts.role === 'staff' ? null : await generateVisitorName(db));
 
   const [row] = await db
     .insert(contacts)

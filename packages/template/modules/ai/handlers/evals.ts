@@ -12,9 +12,6 @@ import {
   max,
   sql,
 } from 'drizzle-orm';
-import { Hono } from 'hono';
-import { z } from 'zod';
-
 import {
   doublePrecision,
   jsonb,
@@ -22,6 +19,8 @@ import {
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
+import { Hono } from 'hono';
+import { z } from 'zod';
 
 import { getScorerMeta } from '../../../mastra/evals/scorers';
 import { customScorerId } from '../../../mastra/evals/types';
@@ -317,14 +316,12 @@ export const evalsHandlers = new Hono()
     // Human feedback stats
     const [feedbackStats] = await db
       .select({
-        positive:
-          count(
-            sql`CASE WHEN ${messageFeedback.rating} = 'positive' THEN 1 END`,
-          ),
-        negative:
-          count(
-            sql`CASE WHEN ${messageFeedback.rating} = 'negative' THEN 1 END`,
-          ),
+        positive: count(
+          sql`CASE WHEN ${messageFeedback.rating} = 'positive' THEN 1 END`,
+        ),
+        negative: count(
+          sql`CASE WHEN ${messageFeedback.rating} = 'negative' THEN 1 END`,
+        ),
       })
       .from(messageFeedback)
       .where(gte(messageFeedback.createdAt, cutoff));
