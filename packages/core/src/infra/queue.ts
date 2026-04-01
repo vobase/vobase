@@ -1,6 +1,8 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { PgBoss, type SendOptions } from 'pg-boss';
 
+import { getPgliteClient } from '../db/client';
+
 export interface JobOptions {
   singletonKey?: string;
   retryBackoff?: boolean;
@@ -54,6 +56,14 @@ async function buildBoss(connection: PGlite | string): Promise<PgBoss> {
   if (typeof connection !== 'string') {
     // PGlite instance (tests)
     return new PgBoss({ db: buildPgliteAdapter(connection) });
+  }
+  // Non-Postgres string (e.g. 'memory://') — resolve to cached PGlite instance
+  if (
+    !connection.startsWith('postgres://') &&
+    !connection.startsWith('postgresql://')
+  ) {
+    const pglite = getPgliteClient(connection);
+    if (pglite) return new PgBoss({ db: buildPgliteAdapter(pglite) });
   }
   // Postgres connection string
   return new PgBoss(connection);

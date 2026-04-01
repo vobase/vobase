@@ -1,6 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { PgBoss } from 'pg-boss';
 
+import { getPgliteClient } from '../db/client';
 import { validation } from './errors';
 import { buildPgliteAdapter, type SchedulerOptions } from './queue';
 
@@ -59,6 +60,17 @@ export async function createWorker(
   if (typeof connection !== 'string') {
     // PGlite instance (tests)
     boss = new PgBoss({ db: buildPgliteAdapter(connection as PGlite) });
+  } else if (
+    !connection.startsWith('postgres://') &&
+    !connection.startsWith('postgresql://')
+  ) {
+    // Non-Postgres string (e.g. 'memory://') — resolve to cached PGlite instance
+    const pglite = getPgliteClient(connection);
+    if (pglite) {
+      boss = new PgBoss({ db: buildPgliteAdapter(pglite) });
+    } else {
+      boss = new PgBoss(connection);
+    }
   } else {
     // Postgres connection string
     boss = new PgBoss(connection);
