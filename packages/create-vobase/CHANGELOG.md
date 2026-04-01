@@ -1,5 +1,11 @@
 # create-vobase
 
+## 0.6.1
+
+### Patch Changes
+
+- [`2428946`](https://github.com/vobase/vobase/commit/24289469613dbac3a82b1927a55a0096839fbbfc) Thanks [@mdluo](https://github.com/mdluo)! - Fix PGlite vector extension support in scaffolded projects. The drizzle-kit patch that enables `extensions` passthrough was being stripped during scaffolding, causing `db:push` to fail with `"$libdir/vector": No such file or directory` on any schema using `vector()` columns (e.g. AI module embeddings).
+
 ## 0.6.0
 
 ### Minor Changes
