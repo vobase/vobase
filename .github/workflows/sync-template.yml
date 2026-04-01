@@ -20,8 +20,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: vobase
+          POSTGRES_PASSWORD: vobase
+          POSTGRES_DB: vobase
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vobase"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     env:
       COMMIT_SHA: ${{ github.sha }}
+      DATABASE_URL: postgres://vobase:vobase@localhost:5432/vobase
     steps:
       - uses: actions/checkout@v4
 
