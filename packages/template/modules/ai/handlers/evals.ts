@@ -75,6 +75,35 @@ const updateScorerSchema = z.object({
 /** COALESCE(threadId, requestContext->>'conversationId') — resolves conversation ID from Mastra scorer data */
 const convId = sql<string>`COALESCE(${mastraScorers.threadId}, ${mastraScorers.requestContext}->>'conversationId')`;
 
+/**
+ * Safely execute a query against mastra_scorers.
+ * Returns fallback if the table doesn't exist yet (42P01).
+ * Mastra's PostgresStore creates this table at runtime — it won't exist until first Mastra init.
+ */
+async function safeScorersQuery<T>(
+  fn: () => Promise<T>,
+  fallback: T,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: unknown) {
+    if (isUndefinedTable(err)) return fallback;
+    throw err;
+  }
+}
+
+/** Check for 42P01 (undefined_table) on the error or its Drizzle-wrapped cause. */
+function isUndefinedTable(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as Record<string, unknown>;
+  if (e.errno === '42P01' || e.code === '42P01') return true;
+  if (e.cause && typeof e.cause === 'object') {
+    const c = e.cause as Record<string, unknown>;
+    if (c.errno === '42P01' || c.code === '42P01') return true;
+  }
+  return false;
+}
+
 export const evalsHandlers = new Hono()
   /** GET /evals/scorers — list all scorers (code + custom) */
   .get('/evals/scorers', async (c) => {
@@ -207,20 +236,24 @@ export const evalsHandlers = new Hono()
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
-    const rows = await db
-      .select({
-        id: mastraScorers.id,
-        scorerId: mastraScorers.scorerId,
-        score: mastraScorers.score,
-        reason: mastraScorers.reason,
-        createdAt: mastraScorers.createdAt,
-        agentId: mastraScorers.entityId,
-        conversationId: convId,
-      })
-      .from(mastraScorers)
-      .where(eq(mastraScorers.source, 'LIVE'))
-      .orderBy(desc(mastraScorers.createdAt))
-      .limit(100);
+    const rows = await safeScorersQuery(
+      () =>
+        db
+          .select({
+            id: mastraScorers.id,
+            scorerId: mastraScorers.scorerId,
+            score: mastraScorers.score,
+            reason: mastraScorers.reason,
+            createdAt: mastraScorers.createdAt,
+            agentId: mastraScorers.entityId,
+            conversationId: convId,
+          })
+          .from(mastraScorers)
+          .where(eq(mastraScorers.source, 'LIVE'))
+          .orderBy(desc(mastraScorers.createdAt))
+          .limit(100),
+      [],
+    );
 
     return c.json(rows);
   })
@@ -235,15 +268,19 @@ export const evalsHandlers = new Hono()
     const ids = idsParam.split(',').filter(Boolean).slice(0, 100);
     if (ids.length === 0) return c.json({});
 
-    const rows = await db
-      .select({
-        convId,
-        avgScore: avg(mastraScorers.score).mapWith(Number),
-        scoreCount: count(),
-      })
-      .from(mastraScorers)
-      .where(and(eq(mastraScorers.source, 'LIVE'), inArray(convId, ids)))
-      .groupBy(convId);
+    const rows = await safeScorersQuery(
+      () =>
+        db
+          .select({
+            convId,
+            avgScore: avg(mastraScorers.score).mapWith(Number),
+            scoreCount: count(),
+          })
+          .from(mastraScorers)
+          .where(and(eq(mastraScorers.source, 'LIVE'), inArray(convId, ids)))
+          .groupBy(convId),
+      [],
+    );
 
     const result: Record<string, { avgScore: number; count: number }> = {};
     for (const row of rows) {
@@ -263,18 +300,24 @@ export const evalsHandlers = new Hono()
 
     const conversationId = c.req.param('conversationId');
 
-    const rows = await db
-      .select({
-        id: mastraScorers.id,
-        scorerId: mastraScorers.scorerId,
-        score: mastraScorers.score,
-        reason: mastraScorers.reason,
-        runId: mastraScorers.runId,
-        createdAt: mastraScorers.createdAt,
-      })
-      .from(mastraScorers)
-      .where(and(eq(mastraScorers.source, 'LIVE'), eq(convId, conversationId)))
-      .orderBy(desc(mastraScorers.createdAt));
+    const rows = await safeScorersQuery(
+      () =>
+        db
+          .select({
+            id: mastraScorers.id,
+            scorerId: mastraScorers.scorerId,
+            score: mastraScorers.score,
+            reason: mastraScorers.reason,
+            runId: mastraScorers.runId,
+            createdAt: mastraScorers.createdAt,
+          })
+          .from(mastraScorers)
+          .where(
+            and(eq(mastraScorers.source, 'LIVE'), eq(convId, conversationId)),
+          )
+          .orderBy(desc(mastraScorers.createdAt)),
+      [],
+    );
 
     return c.json(rows);
   })
@@ -292,26 +335,40 @@ export const evalsHandlers = new Hono()
     );
 
     // Aggregate live scores
-    const [scoreStats] = await db
-      .select({
-        avgScore: avg(mastraScorers.score).mapWith(Number),
-        totalScores: count(),
-        conversationsScored: countDistinct(convId),
-      })
-      .from(mastraScorers)
-      .where(liveAfterCutoff);
+    const [scoreStats] = await safeScorersQuery(
+      () =>
+        db
+          .select({
+            avgScore: avg(mastraScorers.score).mapWith(Number),
+            totalScores: count(),
+            conversationsScored: countDistinct(convId),
+          })
+          .from(mastraScorers)
+          .where(liveAfterCutoff),
+      [
+        {
+          avgScore: null as unknown as number,
+          totalScores: 0,
+          conversationsScored: 0,
+        },
+      ],
+    );
 
     // Per-scorer averages
-    const scorerBreakdown = await db
-      .select({
-        scorerId: mastraScorers.scorerId,
-        avgScore: avg(mastraScorers.score).mapWith(Number),
-        count: count(),
-      })
-      .from(mastraScorers)
-      .where(liveAfterCutoff)
-      .groupBy(mastraScorers.scorerId)
-      .orderBy(avg(mastraScorers.score));
+    const scorerBreakdown = await safeScorersQuery(
+      () =>
+        db
+          .select({
+            scorerId: mastraScorers.scorerId,
+            avgScore: avg(mastraScorers.score).mapWith(Number),
+            count: count(),
+          })
+          .from(mastraScorers)
+          .where(liveAfterCutoff)
+          .groupBy(mastraScorers.scorerId)
+          .orderBy(avg(mastraScorers.score)),
+      [],
+    );
 
     // Human feedback stats
     const [feedbackStats] = await db
@@ -327,18 +384,22 @@ export const evalsHandlers = new Hono()
       .where(gte(messageFeedback.createdAt, cutoff));
 
     // Worst conversations (lowest avg score)
-    const worstConversations = await db
-      .select({
-        conversationId: convId,
-        avgScore: avg(mastraScorers.score).mapWith(Number),
-        scoreCount: count(),
-        lastScored: max(mastraScorers.createdAt),
-      })
-      .from(mastraScorers)
-      .where(and(liveAfterCutoff, isNotNull(convId)))
-      .groupBy(convId)
-      .orderBy(avg(mastraScorers.score))
-      .limit(20);
+    const worstConversations = await safeScorersQuery(
+      () =>
+        db
+          .select({
+            conversationId: convId,
+            avgScore: avg(mastraScorers.score).mapWith(Number),
+            scoreCount: count(),
+            lastScored: max(mastraScorers.createdAt),
+          })
+          .from(mastraScorers)
+          .where(and(liveAfterCutoff, isNotNull(convId)))
+          .groupBy(convId)
+          .orderBy(avg(mastraScorers.score))
+          .limit(20),
+      [],
+    );
 
     return c.json({
       avgScore: scoreStats?.avgScore ?? null,

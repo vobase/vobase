@@ -1,6 +1,7 @@
 import { type SQL, sql } from 'drizzle-orm';
 
 import type { VobaseDb } from '../db/client';
+import { getPgliteClient } from '../db/client';
 import { logger } from './logger';
 
 const CHANNEL = 'vobase_events';
@@ -47,6 +48,18 @@ export async function createRealtimeService(
       }
     }
   };
+
+  // Non-Postgres string (e.g. 'memory://') — use PGlite LISTEN/NOTIFY
+  if (
+    !databaseConfig.startsWith('postgres://') &&
+    !databaseConfig.startsWith('postgresql://')
+  ) {
+    const pglite = getPgliteClient(databaseConfig);
+    if (pglite) {
+      return createPgliteRealtime(pglite, db, subscribers, dispatch);
+    }
+    return createNoopRealtime();
+  }
 
   try {
     return await createPostgresRealtime(
@@ -101,6 +114,41 @@ async function createPostgresRealtime(
 
     async shutdown() {
       await listenConn.end();
+      subscribers.clear();
+    },
+  };
+}
+
+async function createPgliteRealtime(
+  pglite: import('@electric-sql/pglite').PGlite,
+  db: VobaseDb,
+  subscribers: Set<Subscriber>,
+  dispatch: (payload: string) => void,
+): Promise<RealtimeService> {
+  const unsub = await pglite.listen(CHANNEL, (payload) => {
+    dispatch(payload);
+  });
+
+  return {
+    subscribe(fn) {
+      subscribers.add(fn);
+      return () => {
+        subscribers.delete(fn);
+      };
+    },
+
+    async notify(payload, tx) {
+      const json = JSON.stringify(payload);
+      const notifyQuery = sql`SELECT pg_notify(${CHANNEL}, ${json})`;
+      if (tx) {
+        await tx.execute(notifyQuery);
+      } else {
+        await db.execute(notifyQuery);
+      }
+    },
+
+    async shutdown() {
+      unsub();
       subscribers.clear();
     },
   };
