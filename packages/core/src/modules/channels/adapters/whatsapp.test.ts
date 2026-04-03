@@ -747,7 +747,7 @@ describe('WhatsApp Adapter', () => {
           entry: [{ changes: [{ value: { messages: [{ id: 'msg1', from: '123', timestamp: '1234567890', type: 'text', text: { body: 'hi' } }] }, field: 'messages' }] }]
         }),
       });
-      const events = await adapter.parseWebhook!(request);
+      const events = await adapter.parseWebhook?.(request);
       expect(events).toEqual([]);
     });
   });
@@ -1160,14 +1160,14 @@ describe('WhatsApp Adapter', () => {
           }],
         }],
       };
-      expect(adapter.extractInstanceIdentifier!(payload)).toBe('PHONE_123');
+      expect(adapter.extractInstanceIdentifier?.(payload)).toBe('PHONE_123');
     });
 
     it('returns null for malformed payload', () => {
       const adapter = createWhatsAppAdapter(config);
-      expect(adapter.extractInstanceIdentifier!({})).toBeNull();
-      expect(adapter.extractInstanceIdentifier!(null)).toBeNull();
-      expect(adapter.extractInstanceIdentifier!({ entry: [] })).toBeNull();
+      expect(adapter.extractInstanceIdentifier?.({})).toBeNull();
+      expect(adapter.extractInstanceIdentifier?.(null)).toBeNull();
+      expect(adapter.extractInstanceIdentifier?.({ entry: [] })).toBeNull();
     });
   });
 

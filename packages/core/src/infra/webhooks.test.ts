@@ -114,7 +114,7 @@ describe('webhook deduplication', () => {
   beforeEach(async () => {
     const { getPgliteClient } = await import('../db/client');
     const pg = getPgliteClient('memory://');
-    await pg!.query('DELETE FROM "infra"."webhook_dedup"');
+    await pg?.query('DELETE FROM "infra"."webhook_dedup"');
   });
 
   test('first webhook ID is not a duplicate', async () => {
@@ -167,7 +167,7 @@ describe('createWebhookRoutes', () => {
   beforeEach(async () => {
     const { getPgliteClient } = await import('../db/client');
     const pg = getPgliteClient('memory://');
-    await pg!.query('DELETE FROM "infra"."webhook_dedup"');
+    await pg?.query('DELETE FROM "infra"."webhook_dedup"');
   });
 
   function createWebhookTestApp(

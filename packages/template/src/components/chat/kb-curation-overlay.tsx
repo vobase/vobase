@@ -65,6 +65,7 @@ export function KbCurationBar() {
     setIsPending(true);
     try {
       // Batch submit to KB API
+      // biome-ignore lint/style/noRestrictedGlobals: KB batch submit not in RPC client
       const res = await fetch('/api/knowledge-base/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

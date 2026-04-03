@@ -28,6 +28,7 @@ export async function getSharedPGlite(): Promise<PGlite> {
   if (!shared) {
     const { createDatabase, getPgliteClient } = await import('./db/client');
     createDatabase('memory://');
+    // biome-ignore lint/style/noNonNullAssertion: guaranteed to exist after createDatabase
     shared = getPgliteClient('memory://')!;
     await shared.waitReady;
   }

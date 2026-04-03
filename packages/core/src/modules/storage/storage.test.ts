@@ -1,7 +1,6 @@
 import { mkdirSync, rmSync } from 'node:fs';
 import {
   afterAll,
-  afterEach,
   beforeAll,
   beforeEach,
   describe,

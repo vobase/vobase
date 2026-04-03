@@ -48,7 +48,7 @@ async function generateVisitorName(db: VobaseDb): Promise<string> {
     padLength: 3,
   });
   // seq = "VIS-A-20260331-001" → extract trailing number
-  const num = seq.split('-').pop()!;
+  const num = seq.split('-').pop() ?? '';
   return `Visitor ${letter}${num}`;
 }
 
