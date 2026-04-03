@@ -3,6 +3,7 @@ import { desc } from 'drizzle-orm';
 import { z } from 'zod';
 
 import type { AuthUser } from '../contracts/auth';
+import type { VerifyApiKey } from '../contracts/auth';
 import type { VobaseDb } from '../db';
 import type { VobaseModule } from '../module';
 import { auditLog } from '../modules/audit/schema';
@@ -15,9 +16,7 @@ export interface McpDeps {
   db: VobaseDb;
   modules: VobaseModule[];
   /** Validate an API key. Returns user ID if valid, null if invalid. */
-  verifyApiKey?: (key: string) => Promise<{ userId: string } | null>;
-  /** Whether the organization plugin is enabled (affects CRUD authorization). */
-  organizationEnabled?: boolean;
+  verifyApiKey?: VerifyApiKey;
 }
 
 function toToolResult(payload: Record<string, unknown>) {
@@ -160,7 +159,6 @@ export function createMcpHandler(
         {
           db: deps.db,
           user: authenticatedUser,
-          organizationEnabled: deps.organizationEnabled ?? false,
         },
         excludeMap,
       );

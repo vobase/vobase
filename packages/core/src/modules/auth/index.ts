@@ -1,34 +1,38 @@
 import type { ApiKey } from '@better-auth/api-key';
-import { apiKey } from '@better-auth/api-key';
-import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { anonymous, organization } from 'better-auth/plugins';
+import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 
-import type { AuthAdapter, AuthSession } from '../../contracts/auth';
+import type {
+  AuthAdapter,
+  AuthSession,
+  CreateApiKey,
+  RevokeApiKey,
+  VerifyApiKey,
+} from '../../contracts/auth';
+import { logger } from '../../infra/logger';
 import type { VobaseDb } from '../../db/client';
 import type { VobaseModule } from '../../module';
 import { defineBuiltinModule } from '../../module';
 import { createAuthAuditHooks } from './audit-hooks';
-import { setOrganizationEnabled } from './permissions';
-import { platformAuth } from './platform-plugin';
-import { apikeyTableMap, authTableMap, organizationTableMap } from './schema';
-
-export interface AuthModuleConfig {
-  baseURL?: string;
-  trustedOrigins?: string[];
-  socialProviders?: SocialProviders;
-  /** Enable the organization plugin for multi-tenant support. Default: false */
-  organization?: boolean;
-}
+import {
+  type AuthModuleConfig,
+  authUserFields,
+  getAuthPlugins,
+} from './config';
+import {
+  apikeyTableMap,
+  authApikey,
+  authTableMap,
+  organizationTableMap,
+} from './schema';
 
 export type AuthModule = VobaseModule & {
   adapter: AuthAdapter;
-  /** Validate an API key and return the owning user. Returns null if invalid. */
-  verifyApiKey: (key: string) => Promise<{ userId: string } | null>;
-  /** Whether the organization plugin is enabled */
-  organizationEnabled: boolean;
+  verifyApiKey: VerifyApiKey;
+  createApiKey: CreateApiKey;
+  revokeApiKey: RevokeApiKey;
 };
 
 export function createAuthModule(
@@ -36,36 +40,12 @@ export function createAuthModule(
   config?: AuthModuleConfig,
 ): AuthModule {
   const baseURL = config?.baseURL ?? process.env.BETTER_AUTH_URL;
-  const orgEnabled = config?.organization ?? false;
 
-  // Tell the permission middleware whether org is enabled
-  setOrganizationEnabled(orgEnabled);
-
-  // Build plugin list. The concrete return types of apiKey() and organization() are
-  // structurally compatible with BetterAuthPlugin but TypeScript's deep conditional
-  // type resolution makes the union assignment fail. Casting here is safe — both
-  // plugins implement the BetterAuthPlugin interface at runtime.
-  const plugins: BetterAuthPlugin[] = [
-    apiKey() as BetterAuthPlugin,
-    anonymous({
-      emailDomainName: 'visitor.vobase.local',
-    }) as BetterAuthPlugin,
-  ];
-  if (orgEnabled) {
-    plugins.push(organization() as BetterAuthPlugin);
-  }
-  const platformSecret = process.env.PLATFORM_HMAC_SECRET;
-  if (platformSecret) {
-    plugins.push(
-      platformAuth({ hmacSecret: platformSecret }) as BetterAuthPlugin,
-    );
-  }
-
-  // Build schema for the adapter — always includes apikey, conditionally includes org
+  // All plugins installed statically — single source of truth in config.ts
   const adapterSchema = {
     ...authTableMap,
     ...apikeyTableMap,
-    ...(orgEnabled ? organizationTableMap : {}),
+    ...organizationTableMap,
   };
 
   const auth = betterAuth({
@@ -76,15 +56,9 @@ export function createAuthModule(
     },
     ...(config?.socialProviders && { socialProviders: config.socialProviders }),
     user: {
-      additionalFields: {
-        role: {
-          type: 'string',
-          defaultValue: 'user',
-          input: false,
-        },
-      },
+      additionalFields: authUserFields,
     },
-    plugins,
+    plugins: getAuthPlugins(),
     hooks: createAuthAuditHooks(db),
     ...(config?.trustedOrigins && { trustedOrigins: config.trustedOrigins }),
     advanced: {
@@ -134,9 +108,61 @@ export function createAuthModule(
     routes: new Hono(),
   });
 
-  return { ...mod, adapter, verifyApiKey, organizationEnabled: orgEnabled };
+  type AuthApiWithCreateApiKey = typeof auth.api & {
+    createApiKey: (opts: {
+      body: { name?: string; expiresIn?: number };
+      headers: Headers | Record<string, string>;
+    }) => Promise<ApiKey | null>;
+  };
+
+  const createApiKey = async (opts: {
+    headers: Headers | Record<string, string>;
+    name?: string;
+    expiresIn?: number;
+  }): Promise<{ key: string; id: string } | null> => {
+    try {
+      const result = await (auth.api as AuthApiWithCreateApiKey).createApiKey({
+        body: {
+          name: opts.name ?? 'automation',
+          expiresIn: opts.expiresIn,
+        },
+        headers: opts.headers,
+      });
+      if (result?.key && result?.id) {
+        return { key: result.key, id: result.id };
+      }
+      logger.error('[auth] createApiKey returned unexpected result:', result);
+      return null;
+    } catch (err) {
+      logger.error('[auth] createApiKey failed:', err);
+      return null;
+    }
+  };
+
+  const revokeApiKey = async (keyId: string): Promise<boolean> => {
+    try {
+      const [updated] = await db
+        .update(authApikey)
+        .set({ enabled: false })
+        .where(eq(authApikey.id, keyId))
+        .returning({ id: authApikey.id });
+      return !!updated;
+    } catch (err) {
+      logger.error('[auth] revokeApiKey failed:', err);
+      return false;
+    }
+  };
+
+  return {
+    ...mod,
+    adapter,
+    verifyApiKey,
+    createApiKey,
+    revokeApiKey,
+  };
 }
 
 export { createAuthAuditHooks } from './audit-hooks';
+export type { AuthModuleConfig } from './config';
 export { optionalSessionMiddleware, sessionMiddleware } from './middleware';
 export { authTableMap } from './schema';

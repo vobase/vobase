@@ -1,3 +1,5 @@
+import type { CreateApiKey, RevokeApiKey, VerifyApiKey } from './auth';
+
 import type { VobaseDb } from '../db/client';
 import type { HttpClient } from '../infra/http-client';
 import type { Scheduler } from '../infra/queue';
@@ -18,4 +20,9 @@ export interface ModuleInitContext {
   channels: ChannelsService;
   integrations: IntegrationsService;
   realtime: RealtimeService;
+  auth: {
+    verifyApiKey: VerifyApiKey;
+    createApiKey: CreateApiKey;
+    revokeApiKey: RevokeApiKey;
+  };
 }

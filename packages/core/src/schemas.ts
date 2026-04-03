@@ -5,6 +5,7 @@ import {
   authTableMap,
   organizationTableMap,
 } from './modules/auth/schema';
+
 import { channelsLog, channelsTemplates } from './modules/channels/schema';
 import { integrationsTable } from './modules/integrations/schema';
 import { sequences } from './modules/sequences/schema';
@@ -17,8 +18,6 @@ export interface SchemaConfig {
   storage?: boolean;
   /** Include channels tables (log + templates). Default: false */
   channels?: boolean;
-  /** Include organization tables (better-auth organization plugin). Default: false */
-  organization?: boolean;
 }
 
 /**
@@ -36,6 +35,8 @@ export function getActiveSchemas(
     ...authTableMap,
     // API key table (always active — needed for MCP auth)
     ...apikeyTableMap,
+    // Organization tables (always active)
+    ...organizationTableMap,
     // Audit tables (always active)
     auditLog,
     recordAudits,
@@ -44,11 +45,6 @@ export function getActiveSchemas(
     // Webhook dedup table (always active)
     webhookDedup,
   };
-
-  // Organization (optional — better-auth organization plugin)
-  if (config?.organization) {
-    Object.assign(schema, organizationTableMap);
-  }
 
   // Integrations (default: included)
   if (config?.integrations !== false) {

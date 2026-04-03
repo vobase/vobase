@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
 
 import type { AuthUser } from '../contracts/auth';
@@ -6,12 +6,10 @@ import {
   requireOrg,
   requirePermission,
   requireRole,
-  setOrganizationEnabled,
 } from '../modules/auth/permissions';
 
 function createTestApp() {
   const app = new Hono();
-  // Simulate the context variable map user field
   return app;
 }
 
@@ -66,25 +64,12 @@ describe('requireRole', () => {
 });
 
 describe('requirePermission', () => {
-  beforeEach(() => {
-    setOrganizationEnabled(false);
-  });
-
-  it('throws descriptive error at call time when org is NOT enabled', () => {
-    setOrganizationEnabled(false);
-    expect(() => requirePermission('invoices:write')).toThrow(
-      'Organization plugin required for permission-based auth. Use requireRole() instead or enable organization in config.',
-    );
-  });
-
-  it('returns middleware when org IS enabled', () => {
-    setOrganizationEnabled(true);
+  it('returns middleware', () => {
     const middleware = requirePermission('invoices:write');
     expect(typeof middleware).toBe('function');
   });
 
-  it('middleware rejects unauthenticated request when org is enabled', async () => {
-    setOrganizationEnabled(true);
+  it('rejects unauthenticated request', async () => {
     const app = createTestApp();
     withUser(app, null);
     app.get('/test', requirePermission('invoices:write'), (c) =>
@@ -96,8 +81,7 @@ describe('requirePermission', () => {
     expect(res.status).toBe(403);
   });
 
-  it('middleware allows authenticated user when org is enabled', async () => {
-    setOrganizationEnabled(true);
+  it('allows authenticated user', async () => {
     const app = createTestApp();
     withUser(app, { id: '1', email: 'a@b.com', name: 'Test', role: 'admin' });
     app.get('/test', requirePermission('invoices:write'), (c) =>
@@ -110,19 +94,7 @@ describe('requirePermission', () => {
 });
 
 describe('requireOrg', () => {
-  beforeEach(() => {
-    setOrganizationEnabled(false);
-  });
-
-  it('throws descriptive error at call time when org is NOT enabled', () => {
-    setOrganizationEnabled(false);
-    expect(() => requireOrg()).toThrow(
-      'Organization plugin required. Enable organization in config.',
-    );
-  });
-
-  it('rejects user without active organization with 403 when org is enabled', async () => {
-    setOrganizationEnabled(true);
+  it('rejects user without active organization with 403', async () => {
     const app = createTestApp();
     withUser(app, { id: '1', email: 'a@b.com', name: 'Test', role: 'user' });
     app.get('/test', requireOrg(), (c) => c.json({ ok: true }));
@@ -132,8 +104,7 @@ describe('requireOrg', () => {
     expect(res.status).toBe(403);
   });
 
-  it('allows user with active organization when org is enabled', async () => {
-    setOrganizationEnabled(true);
+  it('allows user with active organization', async () => {
     const app = createTestApp();
     withUser(app, {
       id: '1',
@@ -156,17 +127,9 @@ describe('getActiveSchemas', () => {
     expect(schemas.apikey).toBeDefined();
   });
 
-  it('excludes org schema by default', async () => {
+  it('always includes org schema', async () => {
     const { getActiveSchemas } = await import('../schemas');
     const schemas = getActiveSchemas();
-    expect(schemas.organization).toBeUndefined();
-    expect(schemas.member).toBeUndefined();
-    expect(schemas.invitation).toBeUndefined();
-  });
-
-  it('includes org schema when organization is true', async () => {
-    const { getActiveSchemas } = await import('../schemas');
-    const schemas = getActiveSchemas({ organization: true });
     expect(schemas.organization).toBeDefined();
     expect(schemas.member).toBeDefined();
     expect(schemas.invitation).toBeDefined();

@@ -50,7 +50,6 @@ describe('registerCrudTools', () => {
       {
         db,
         user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'admin' },
-        organizationEnabled: false,
       },
       new Map(),
     );
@@ -82,7 +81,6 @@ describe('registerCrudTools', () => {
       {
         db,
         user: null,
-        organizationEnabled: false,
       },
       new Map(),
     );
@@ -113,7 +111,6 @@ describe('registerCrudTools', () => {
       {
         db,
         user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'admin' },
-        organizationEnabled: false,
       },
       excludeMap,
     );
@@ -125,7 +122,7 @@ describe('registerCrudTools', () => {
     );
   });
 
-  it('write tools check admin role when org is disabled', () => {
+  it('write tools are registered for authenticated users', () => {
     const server = new McpServer({ name: 'test', version: '0.1.0' });
 
     const modules: VobaseModule[] = [
@@ -142,7 +139,6 @@ describe('registerCrudTools', () => {
       {
         db,
         user: { id: 'u1', email: 'a@b.com', name: 'Test', role: 'user' },
-        organizationEnabled: false,
       },
       new Map(),
     );

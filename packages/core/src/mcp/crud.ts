@@ -16,18 +16,10 @@ import type { VobaseModule } from '../module';
 interface CrudContext {
   db: VobaseDb;
   user: AuthUser | null;
-  organizationEnabled: boolean;
 }
 
 function checkWritePermission(ctx: CrudContext): string | null {
   if (!ctx.user) return 'Authentication required';
-  if (ctx.organizationEnabled) {
-    // When org is enabled, any authenticated user can write
-    return null;
-  }
-  // Without org, require admin role for writes
-  if (ctx.user.role !== 'admin')
-    return 'Forbidden: admin role required for write operations';
   return null;
 }
 

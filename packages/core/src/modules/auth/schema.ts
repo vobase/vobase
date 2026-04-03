@@ -44,6 +44,7 @@ export const authSession = authPgSchema.table(
     userId: text('user_id')
       .notNull()
       .references(() => authUser.id, { onDelete: 'cascade' }),
+    activeOrganizationId: text('active_organization_id'),
   },
   (table) => [
     index('session_user_id_idx').on(table.userId),
@@ -101,24 +102,24 @@ export const authVerification = authPgSchema.table(
 );
 
 // API Key table (better-auth apiKey plugin)
+// Note: better-auth uses `referenceId` (not `userId`) to link keys to users.
 export const authApikey = authPgSchema.table(
   'apikey',
   {
     id: text('id').primaryKey(),
+    configId: text('config_id').notNull().default('default'),
     name: text('name'),
     start: text('start'),
+    referenceId: text('reference_id').notNull(),
     prefix: text('prefix'),
     key: text('key').notNull(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => authUser.id, { onDelete: 'cascade' }),
     refillInterval: text('refill_interval'),
     refillAmount: integer('refill_amount'),
     lastRefillAt: timestamp('last_refill_at', { withTimezone: true }),
     enabled: boolean('enabled').notNull().default(true),
     rateLimitEnabled: boolean('rate_limit_enabled').notNull().default(false),
-    rateLimitTimeWindow: integer('rate_limit_time_window'),
-    rateLimitMax: integer('rate_limit_max'),
+    rateLimitTimeWindow: integer('rate_limit_time_window').default(86400000),
+    rateLimitMax: integer('rate_limit_max').default(10),
     requestCount: integer('request_count').notNull().default(0),
     remaining: integer('remaining'),
     lastRequest: timestamp('last_request', { withTimezone: true }),
@@ -133,7 +134,11 @@ export const authApikey = authPgSchema.table(
     permissions: text('permissions'),
     metadata: text('metadata'),
   },
-  (table) => [index('apikey_user_id_idx').on(table.userId)],
+  (table) => [
+    index('apikey_reference_id_idx').on(table.referenceId),
+    index('apikey_key_idx').on(table.key),
+    index('apikey_config_id_idx').on(table.configId),
+  ],
 );
 
 // Organization tables (better-auth organization plugin)

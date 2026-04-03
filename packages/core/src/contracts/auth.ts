@@ -35,3 +35,16 @@ export interface AuthUser {
   /** Set when the user has an active organization (better-auth organization plugin) */
   activeOrganizationId?: string;
 }
+
+/** Validate an API key and return the owning user. Returns null if invalid. */
+export type VerifyApiKey = (key: string) => Promise<{ userId: string } | null>;
+
+/** Create a scoped API key for the authenticated user. */
+export type CreateApiKey = (opts: {
+  headers: Headers | Record<string, string>;
+  name?: string;
+  expiresIn?: number;
+}) => Promise<{ key: string; id: string } | null>;
+
+/** Revoke (disable) an API key by its ID. Returns true if the key was found and revoked. */
+export type RevokeApiKey = (keyId: string) => Promise<boolean>;

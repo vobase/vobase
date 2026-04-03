@@ -174,6 +174,11 @@ export async function createApp(config: CreateAppConfig) {
     channels: channelsService,
     integrations: integrationsService,
     realtime,
+    auth: {
+      verifyApiKey: authMod.verifyApiKey,
+      createApiKey: authMod.createApiKey,
+      revokeApiKey: authMod.revokeApiKey,
+    },
   };
 
   const auditMod = createAuditModule();
@@ -286,7 +291,6 @@ export async function createApp(config: CreateAppConfig) {
       db,
       modules: allModules,
       verifyApiKey: authMod.verifyApiKey,
-      organizationEnabled: authMod.organizationEnabled,
     });
     (app as Hono).all('/mcp', async (c) => {
       const response = await mcpHandler(c.req.raw);

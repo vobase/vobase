@@ -47,6 +47,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "email_verified" BOOLEAN NOT NULL DEFAULT FALSE,
       "image" TEXT,
       "role" TEXT NOT NULL DEFAULT 'user',
+      "is_anonymous" BOOLEAN NOT NULL DEFAULT FALSE,
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -58,7 +59,8 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "ip_address" TEXT,
       "user_agent" TEXT,
-      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE
+      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE,
+      "active_organization_id" TEXT
     );
     CREATE TABLE IF NOT EXISTS "auth"."account" (
       "id" TEXT PRIMARY KEY NOT NULL,
@@ -85,18 +87,19 @@ async function bootstrapDatabase(dir: string): Promise<void> {
     );
     CREATE TABLE IF NOT EXISTS "auth"."apikey" (
       "id" TEXT PRIMARY KEY NOT NULL,
+      "config_id" TEXT NOT NULL DEFAULT 'default',
       "name" TEXT,
       "start" TEXT,
+      "reference_id" TEXT NOT NULL,
       "prefix" TEXT,
       "key" TEXT NOT NULL,
-      "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE,
       "refill_interval" TEXT,
       "refill_amount" INTEGER,
       "last_refill_at" TIMESTAMPTZ,
       "enabled" BOOLEAN NOT NULL DEFAULT TRUE,
       "rate_limit_enabled" BOOLEAN NOT NULL DEFAULT FALSE,
-      "rate_limit_time_window" INTEGER,
-      "rate_limit_max" INTEGER,
+      "rate_limit_time_window" INTEGER DEFAULT 86400000,
+      "rate_limit_max" INTEGER DEFAULT 10,
       "request_count" INTEGER NOT NULL DEFAULT 0,
       "remaining" INTEGER,
       "last_request" TIMESTAMPTZ,
