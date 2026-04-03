@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 
 import type {
@@ -9,6 +9,7 @@ import {
   type RealtimePayload,
   subscribeToPayloads,
 } from '@/hooks/use-realtime';
+import { aiClient } from '@/lib/api-client';
 
 interface FeedbackApiRow {
   id: string;
@@ -28,6 +29,7 @@ function parseFeedbackRows(
     if (!map.has(r.messageId)) {
       map.set(r.messageId, { positive: [], negative: [] });
     }
+    // biome-ignore lint/style/noNonNullAssertion: set on previous line
     const entry = map.get(r.messageId)!;
     const reactor: Reactor = {
       id: r.id,
@@ -45,11 +47,11 @@ function parseFeedbackRows(
 async function fetchFeedback(
   conversationId: string,
 ): Promise<Map<string, MessageReactions>> {
-  const res = await fetch(`/api/ai/conversations/${conversationId}/feedback`, {
-    credentials: 'include',
+  const res = await aiClient.conversations[':id'].feedback.$get({
+    param: { id: conversationId },
   });
   if (!res.ok) return new Map();
-  const rows: FeedbackApiRow[] = await res.json();
+  const rows = (await res.json()) as FeedbackApiRow[];
   return parseFeedbackRows(rows);
 }
 
@@ -81,32 +83,64 @@ export function useFeedback(conversationId: string) {
     return unsubscribe;
   }, [conversationId, queryClient]);
 
+  const reactMutation = useMutation({
+    mutationFn: async ({
+      messageId,
+      rating,
+      reason,
+    }: {
+      messageId: string;
+      rating: 'positive' | 'negative';
+      reason?: string;
+    }) => {
+      const res = await aiClient.conversations[':id'].messages[
+        ':messageId'
+      ].feedback.$post(
+        { param: { id: conversationId, messageId } },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          init: {
+            body: JSON.stringify({ rating, ...(reason && { reason }) }),
+          },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to add feedback');
+      return res.json();
+    },
+    onError: (err) => console.error('[feedback] reaction error:', err),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({
+      messageId,
+      feedbackId,
+    }: {
+      messageId: string;
+      feedbackId: string;
+    }) => {
+      const res = await aiClient.conversations[':id'].messages[
+        ':messageId'
+      ].feedback[':feedbackId'].$delete({
+        param: { id: conversationId, messageId, feedbackId },
+      });
+      if (!res.ok) throw new Error('Failed to delete feedback');
+      return res.json();
+    },
+    onError: (err) => console.error('[feedback] delete error:', err),
+  });
+
   const handleReact = useCallback(
     (messageId: string, rating: 'positive' | 'negative', reason?: string) => {
-      fetch(
-        `/api/ai/conversations/${conversationId}/messages/${messageId}/feedback`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ rating, ...(reason && { reason }) }),
-        },
-      ).catch((err) => console.error('[feedback] reaction error:', err));
+      reactMutation.mutate({ messageId, rating, reason });
     },
-    [conversationId],
+    [reactMutation],
   );
 
   const handleDeleteFeedback = useCallback(
     (messageId: string, feedbackId: string) => {
-      fetch(
-        `/api/ai/conversations/${conversationId}/messages/${messageId}/feedback/${feedbackId}`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-        },
-      ).catch((err) => console.error('[feedback] delete error:', err));
+      deleteMutation.mutate({ messageId, feedbackId });
     },
-    [conversationId],
+    [deleteMutation],
   );
 
   return { feedbackMap, handleReact, handleDeleteFeedback };

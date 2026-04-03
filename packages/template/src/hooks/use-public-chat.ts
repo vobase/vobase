@@ -1,6 +1,7 @@
 import type { UIMessage } from 'ai';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
 import { hasStaffPrefix } from '@/lib/normalize-message';
 
@@ -122,12 +123,16 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       // Try to resume existing conversation
       if (storedConvId) {
         try {
-          const res = await fetch(
-            `/api/ai/chat/${channelRoutingId}/conversations/${storedConvId}`,
-            { credentials: 'include' },
-          );
+          const res = await aiClient.chat[':channelRoutingId'].conversations[
+            ':conversationId'
+          ].$get({
+            param: {
+              channelRoutingId,
+              conversationId: storedConvId,
+            },
+          });
           if (res.ok) {
-            const data: ConversationMessages = await res.json();
+            const data = (await res.json()) as ConversationMessages;
             const uiMessages = preparePublicMessages(data.messages);
             setConversationId(data.id);
             setInitialMessages(uiMessages);
@@ -140,11 +145,8 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       }
 
       // Start new conversation
-      const startRes = await fetch(`/api/ai/chat/${channelRoutingId}/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({}),
+      const startRes = await aiClient.chat[':channelRoutingId'].start.$post({
+        param: { channelRoutingId },
       });
 
       if (!startRes.ok) {
@@ -162,7 +164,7 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
         return;
       }
 
-      const startData: StartResponse = await startRes.json();
+      const startData = (await startRes.json()) as StartResponse;
       storeConversationId(channelRoutingId, startData.conversationId);
       setConversationId(startData.conversationId);
       setLoading(false);
@@ -184,11 +186,8 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/ai/chat/${channelRoutingId}/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({}),
+      const res = await aiClient.chat[':channelRoutingId'].reset.$post({
+        param: { channelRoutingId },
       });
 
       if (!res.ok) {
@@ -198,7 +197,7 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
         return;
       }
 
-      const data: StartResponse = await res.json();
+      const data = (await res.json()) as StartResponse;
       storeConversationId(channelRoutingId, data.conversationId);
       setConversationId(data.conversationId);
       setInitialMessages([]);

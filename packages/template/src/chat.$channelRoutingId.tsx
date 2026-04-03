@@ -23,6 +23,7 @@ import {
   useTypingListener,
   useTypingSender,
 } from '@/hooks/use-typing-indicator';
+import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
 import { normalizeUIMessage } from '@/lib/normalize-message';
 
@@ -80,10 +81,10 @@ function PublicChatView({
         payload.id === conversationId &&
         statusRef.current === 'ready'
       ) {
-        fetch(
-          `/api/ai/chat/${channelRoutingId}/conversations/${conversationId}`,
-          { credentials: 'include' },
-        )
+        aiClient.chat[':channelRoutingId'].conversations[':conversationId']
+          .$get({
+            param: { channelRoutingId, conversationId },
+          })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (!data?.messages) return;

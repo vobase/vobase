@@ -4,6 +4,7 @@ import {
   type RealtimePayload,
   subscribeToPayloads,
 } from '@/hooks/use-realtime';
+import { aiClient } from '@/lib/api-client';
 import { useStaffChatStore } from '@/stores/staff-chat-store';
 
 /**
@@ -66,10 +67,9 @@ export function useTypingSender(conversationId: string): {
     if (now - lastSentRef.current < 1500) return;
     lastSentRef.current = now;
 
-    fetch(`/api/ai/conversations/${conversationId}/typing`, {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => {});
+    aiClient.conversations[':id'].typing
+      .$post({ param: { id: conversationId } })
+      .catch(() => {});
   }, [conversationId]);
 
   return { signalTyping };
