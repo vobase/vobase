@@ -5,6 +5,7 @@ export interface HttpClientOptions {
   timeout?: number;
   retries?: number;
   retryDelay?: number;
+  retryAllMethods?: boolean;
   circuitBreaker?: CircuitBreakerOptions;
 }
 
@@ -86,8 +87,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isRetryableMethod(method: string): boolean {
-  return method === 'GET';
+function isRetryableStatus(status: number): boolean {
+  return status >= 500;
 }
 
 export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
@@ -95,6 +96,7 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
   const defaultTimeout = defaults?.timeout ?? DEFAULT_TIMEOUT;
   const defaultRetries = defaults?.retries ?? DEFAULT_RETRIES;
   const defaultRetryDelay = defaults?.retryDelay ?? DEFAULT_RETRY_DELAY;
+  const retryAllMethods = defaults?.retryAllMethods ?? false;
   const breaker = defaults?.circuitBreaker
     ? new CircuitBreaker(defaults.circuitBreaker)
     : undefined;
@@ -118,7 +120,6 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
       | FormData
       | ArrayBuffer
       | URLSearchParams
-      | ReadableStream
       | undefined;
 
     if (options?.body !== undefined) {
@@ -127,10 +128,12 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
         options.body instanceof Blob ||
         options.body instanceof FormData ||
         options.body instanceof ArrayBuffer ||
-        options.body instanceof URLSearchParams ||
-        options.body instanceof ReadableStream
+        options.body instanceof URLSearchParams
       ) {
         body = options.body;
+      } else if (options.body instanceof ReadableStream) {
+        // Buffer ReadableStream so it can be replayed on retries
+        body = await new Response(options.body).arrayBuffer();
       } else {
         headers['content-type'] = headers['content-type'] ?? 'application/json';
         body = JSON.stringify(options.body);
@@ -163,17 +166,17 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
           raw: response,
         };
 
-        // Retry on 5xx only for GET requests
+        // Retry on 5xx (GET always, other methods only with retryAllMethods)
         if (
-          response.status >= 500 &&
-          isRetryableMethod(method) &&
+          isRetryableStatus(response.status) &&
+          (method === 'GET' || retryAllMethods) &&
           attempt < maxRetries
         ) {
           breaker?.recordFailure();
           continue;
         }
 
-        if (response.status >= 500) {
+        if (isRetryableStatus(response.status)) {
           breaker?.recordFailure();
         } else {
           breaker?.recordSuccess();

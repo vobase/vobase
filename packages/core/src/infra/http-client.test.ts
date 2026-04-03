@@ -330,11 +330,16 @@ describe('retry logic', () => {
     await expect(client.post('/test', { data: 1 })).rejects.toThrow();
   });
 
-  test('does NOT retry POST on 5xx (returns immediately)', async () => {
+  test('retries POST on 5xx with body replay', async () => {
     let attempts = 0;
-    const ts = createTestServer(() => {
+    let lastBody: unknown;
+    const ts = createTestServer(async (req) => {
       attempts++;
-      return Response.json({ error: 'server error' }, { status: 500 });
+      lastBody = await req.json();
+      if (attempts < 3) {
+        return Response.json({ error: 'server error' }, { status: 500 });
+      }
+      return Response.json({ ok: true });
     });
 
     try {
@@ -342,11 +347,12 @@ describe('retry logic', () => {
         baseUrl: ts.baseUrl,
         retries: 3,
         retryDelay: 10,
+        retryAllMethods: true,
       });
       const res = await client.post('/test', { data: 1 });
-      expect(res.ok).toBe(false);
-      expect(res.status).toBe(500);
-      expect(attempts).toBe(1); // No retries
+      expect(res.ok).toBe(true);
+      expect(attempts).toBe(3);
+      expect(lastBody).toEqual({ data: 1 }); // Body replayed correctly
     } finally {
       ts.stop();
     }
