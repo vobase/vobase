@@ -27,14 +27,9 @@
       ],
       "ignore": [
         "src/components/ai-elements/**",
-        "src/components/data-table/**",
         "src/components/ui/**",
-        "src/lib/store/**",
-        "src/lib/table-schema/**",
         "src/lib/compose-refs.ts",
-        "**/*.test.ts",
-        "**/*.test.tsx",
-        "modules/conversations/lib/chat-cards.ts"
+        "**/*.test.ts"
       ],
       "ignoreDependencies": [
         "shadcn",
@@ -43,7 +38,11 @@
         "tailwindcss",
         "tw-animate-css",
         "googleapis",
-        "@azure/msal-node"
+        "@azure/msal-node",
+        "embla-carousel-react",
+        "shiki",
+        "streamdown",
+        "vaul"
       ]
     },
     "packages/create-vobase": {
