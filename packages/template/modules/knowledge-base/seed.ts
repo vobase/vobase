@@ -1,7 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { VobaseDb } from '@vobase/core';
-import { eq, or, sql } from 'drizzle-orm';
 
 import type { SeedContext } from '../seed-types';
 import { kbDocuments } from './schema';
@@ -44,8 +43,7 @@ const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
 
 /**
  * Seed KB documents by uploading fixture files via the app's API.
- * The app's createApp() starts a worker that processes jobs automatically.
- * We wait for all documents to finish processing before returning.
+ * Documents are uploaded and embedding is processed in the background by the job worker.
  */
 export default async function seed({
   app,
@@ -96,35 +94,6 @@ export async function seedKnowledgeBase(
         yellow(`  Failed to upload ${fixture.name}: ${res.status} ${err}`),
       );
     }
-  }
-
-  if (uploaded === 0) return 0;
-
-  // Wait for the job worker to process all documents (max 60s)
-  console.log(dim(`  Waiting for ${uploaded} documents to process...`));
-  const maxWait = 60_000;
-  const start = Date.now();
-
-  while (Date.now() - start < maxWait) {
-    const [{ cnt }] = await db
-      .select({ cnt: sql<number>`count(*)::int` })
-      .from(kbDocuments)
-      .where(
-        or(
-          eq(kbDocuments.status, 'pending'),
-          eq(kbDocuments.status, 'processing'),
-        ),
-      );
-    if ((cnt ?? 0) === 0) break;
-    await new Promise((r) => setTimeout(r, 500));
-  }
-
-  // Report results
-  const docs = await db.select().from(kbDocuments);
-  for (const doc of docs) {
-    const status =
-      doc.status === 'ready' ? `${doc.chunkCount} chunks` : doc.status;
-    console.log(dim(`  ${doc.title}: ${status}`));
   }
 
   return uploaded;

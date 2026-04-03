@@ -3,6 +3,7 @@ export { cancelBookingTool } from './cancel-booking';
 export { checkAvailabilityTool } from './check-availability';
 export { completeConversationTool } from './complete-conversation';
 export { consultHumanTool } from './consult-human';
+export { createBrowserTaskTool } from './create-browser-task';
 export { escalateTool } from './escalate';
 export { rescheduleBookingTool } from './reschedule-booking';
 export { searchKnowledgeBaseTool } from './search-knowledge-base';

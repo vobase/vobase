@@ -12,6 +12,7 @@ import {
   Home,
   KeyIcon,
   type LucideIcon,
+  MonitorSmartphoneIcon,
   PaletteIcon,
   RadioIcon,
   ScrollText,
@@ -127,6 +128,29 @@ export const navGroups: NavGroup[] = [
         url: '/knowledge-base/sources',
         icon: Globe,
         keywords: ['connectors', 'google drive', 'sharepoint', 'crawl', 'sync'],
+      },
+    ],
+  },
+  {
+    title: 'Automation',
+    items: [
+      {
+        title: 'Tasks',
+        url: '/automation/tasks',
+        icon: MonitorSmartphoneIcon,
+        keywords: [
+          'automation',
+          'browser',
+          'whatsapp',
+          'tampermonkey',
+          'tasks',
+        ],
+      },
+      {
+        title: 'Pairing',
+        url: '/automation/pairing',
+        icon: CableIcon,
+        keywords: ['pair', 'connect', 'browser', 'session', 'tampermonkey'],
       },
     ],
   },

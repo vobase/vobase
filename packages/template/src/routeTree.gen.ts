@@ -20,8 +20,10 @@ import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as DotDotModulesSystemPagesLayoutRouteImport } from './../modules/system/pages/layout'
 import { Route as shellSettingsLayoutRouteImport } from './shell/settings/layout'
 import { Route as DotDotModulesKnowledgeBasePagesLayoutRouteImport } from './../modules/knowledge-base/pages/layout'
+import { Route as DotDotModulesAutomationPagesLayoutRouteImport } from './../modules/automation/pages/layout'
 import { Route as DotDotModulesAiPagesAiLayoutRouteImport } from './../modules/ai/pages/ai/layout'
 import { Route as homeRouteImport } from './home'
+import { Route as IndexRouteImport } from './../modules/automation/pages/index'
 import { Route as LogsRouteImport } from './../modules/system/pages/logs'
 import { Route as ListRouteImport } from './../modules/system/pages/list'
 import { Route as shellSettingsProfileRouteImport } from './shell/settings/profile'
@@ -36,6 +38,8 @@ import { Route as SourcesRouteImport } from './../modules/knowledge-base/pages/s
 import { Route as SearchRouteImport } from './../modules/knowledge-base/pages/search'
 import { Route as DotDotModulesAiPagesConversationsConversationIdRouteImport } from './../modules/ai/pages/conversations/$conversationId'
 import { Route as DotDotModulesAiPagesContactsContactIdRouteImport } from './../modules/ai/pages/contacts/$contactId'
+import { Route as TasksRouteImport } from './../modules/automation/pages/tasks'
+import { Route as PairingRouteImport } from './../modules/automation/pages/pairing'
 import { Route as DocumentsIndexRouteImport } from './../modules/knowledge-base/pages/documents/index'
 import { Route as DocumentsIdRouteImport } from './../modules/knowledge-base/pages/documents/$id'
 import { Route as DotDotModulesAiPagesAiMemoryRouteImport } from './../modules/ai/pages/ai/memory'
@@ -101,6 +105,12 @@ const DotDotModulesKnowledgeBasePagesLayoutRoute =
     path: '/knowledge-base',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
+const DotDotModulesAutomationPagesLayoutRoute =
+  DotDotModulesAutomationPagesLayoutRouteImport.update({
+    id: '/automation',
+    path: '/automation',
+    getParentRoute: () => shellAppLayoutRoute,
+  } as any)
 const DotDotModulesAiPagesAiLayoutRoute =
   DotDotModulesAiPagesAiLayoutRouteImport.update({
     id: '/_ai',
@@ -110,6 +120,11 @@ const homeRoute = homeRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => shellAppLayoutRoute,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DotDotModulesAutomationPagesLayoutRoute,
 } as any)
 const LogsRoute = LogsRouteImport.update({
   id: '/logs',
@@ -186,6 +201,16 @@ const DotDotModulesAiPagesContactsContactIdRoute =
     path: '/contacts/$contactId',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
+const TasksRoute = TasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => DotDotModulesAutomationPagesLayoutRoute,
+} as any)
+const PairingRoute = PairingRouteImport.update({
+  id: '/pairing',
+  path: '/pairing',
+  getParentRoute: () => DotDotModulesAutomationPagesLayoutRoute,
+} as any)
 const DocumentsIndexRoute = DocumentsIndexRouteImport.update({
   id: '/documents/',
   path: '/documents/',
@@ -223,6 +248,7 @@ const DotDotModulesAiPagesAiAgentsRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof homeRoute
+  '/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
@@ -232,6 +258,8 @@ export interface FileRoutesByFullPath {
   '/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
   '/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
+  '/automation/pairing': typeof PairingRoute
+  '/automation/tasks': typeof TasksRoute
   '/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
   '/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
   '/knowledge-base/search': typeof SearchRoute
@@ -246,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
+  '/automation/': typeof IndexRoute
   '/ai/agents': typeof DotDotModulesAiPagesAiAgentsRoute
   '/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
   '/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
@@ -264,6 +293,8 @@ export interface FileRoutesByTo {
   '/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
   '/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
+  '/automation/pairing': typeof PairingRoute
+  '/automation/tasks': typeof TasksRoute
   '/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
   '/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
   '/knowledge-base/search': typeof SearchRoute
@@ -278,6 +309,7 @@ export interface FileRoutesByTo {
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
+  '/automation': typeof IndexRoute
   '/ai/agents': typeof DotDotModulesAiPagesAiAgentsRoute
   '/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
   '/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
@@ -291,6 +323,7 @@ export interface FileRoutesById {
   '/_auth': typeof shellAuthLayoutRouteWithChildren
   '/_app/': typeof homeRoute
   '/_app/_ai': typeof DotDotModulesAiPagesAiLayoutRouteWithChildren
+  '/_app/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   '/_app/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
   '/_app/settings': typeof shellSettingsLayoutRouteWithChildren
   '/_app/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
@@ -300,6 +333,8 @@ export interface FileRoutesById {
   '/_app/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/_app/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
   '/_app/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
+  '/_app/automation/pairing': typeof PairingRoute
+  '/_app/automation/tasks': typeof TasksRoute
   '/_app/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
   '/_app/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
   '/_app/knowledge-base/search': typeof SearchRoute
@@ -314,6 +349,7 @@ export interface FileRoutesById {
   '/_app/settings/profile': typeof shellSettingsProfileRoute
   '/_app/system/list': typeof ListRoute
   '/_app/system/logs': typeof LogsRoute
+  '/_app/automation/': typeof IndexRoute
   '/_app/_ai/ai/agents': typeof DotDotModulesAiPagesAiAgentsRoute
   '/_app/_ai/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
   '/_app/_ai/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
@@ -325,6 +361,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/automation'
     | '/knowledge-base'
     | '/settings'
     | '/system'
@@ -334,6 +371,8 @@ export interface FileRouteTypes {
     | '/channels'
     | '/contacts'
     | '/conversations'
+    | '/automation/pairing'
+    | '/automation/tasks'
     | '/contacts/$contactId'
     | '/conversations/$conversationId'
     | '/knowledge-base/search'
@@ -348,6 +387,7 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
+    | '/automation/'
     | '/ai/agents'
     | '/ai/evals'
     | '/ai/guardrails'
@@ -366,6 +406,8 @@ export interface FileRouteTypes {
     | '/channels'
     | '/contacts'
     | '/conversations'
+    | '/automation/pairing'
+    | '/automation/tasks'
     | '/contacts/$contactId'
     | '/conversations/$conversationId'
     | '/knowledge-base/search'
@@ -380,6 +422,7 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
+    | '/automation'
     | '/ai/agents'
     | '/ai/evals'
     | '/ai/guardrails'
@@ -392,6 +435,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_app/'
     | '/_app/_ai'
+    | '/_app/automation'
     | '/_app/knowledge-base'
     | '/_app/settings'
     | '/_app/system'
@@ -401,6 +445,8 @@ export interface FileRouteTypes {
     | '/_app/channels'
     | '/_app/contacts'
     | '/_app/conversations'
+    | '/_app/automation/pairing'
+    | '/_app/automation/tasks'
     | '/_app/contacts/$contactId'
     | '/_app/conversations/$conversationId'
     | '/_app/knowledge-base/search'
@@ -415,6 +461,7 @@ export interface FileRouteTypes {
     | '/_app/settings/profile'
     | '/_app/system/list'
     | '/_app/system/logs'
+    | '/_app/automation/'
     | '/_app/_ai/ai/agents'
     | '/_app/_ai/ai/evals'
     | '/_app/_ai/ai/guardrails'
@@ -508,6 +555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
+    '/_app/automation': {
+      id: '/_app/automation'
+      path: '/automation'
+      fullPath: '/automation'
+      preLoaderRoute: typeof DotDotModulesAutomationPagesLayoutRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
     '/_app/_ai': {
       id: '/_app/_ai'
       path: ''
@@ -521,6 +575,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof homeRouteImport
       parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_app/automation/': {
+      id: '/_app/automation/'
+      path: '/'
+      fullPath: '/automation/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof DotDotModulesAutomationPagesLayoutRoute
     }
     '/_app/system/logs': {
       id: '/_app/system/logs'
@@ -620,6 +681,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotDotModulesAiPagesContactsContactIdRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
+    '/_app/automation/tasks': {
+      id: '/_app/automation/tasks'
+      path: '/tasks'
+      fullPath: '/automation/tasks'
+      preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof DotDotModulesAutomationPagesLayoutRoute
+    }
+    '/_app/automation/pairing': {
+      id: '/_app/automation/pairing'
+      path: '/pairing'
+      fullPath: '/automation/pairing'
+      preLoaderRoute: typeof PairingRouteImport
+      parentRoute: typeof DotDotModulesAutomationPagesLayoutRoute
+    }
     '/_app/knowledge-base/documents/': {
       id: '/_app/knowledge-base/documents/'
       path: '/documents'
@@ -684,6 +759,24 @@ const DotDotModulesAiPagesAiLayoutRouteChildren: DotDotModulesAiPagesAiLayoutRou
 const DotDotModulesAiPagesAiLayoutRouteWithChildren =
   DotDotModulesAiPagesAiLayoutRoute._addFileChildren(
     DotDotModulesAiPagesAiLayoutRouteChildren,
+  )
+
+interface DotDotModulesAutomationPagesLayoutRouteChildren {
+  PairingRoute: typeof PairingRoute
+  TasksRoute: typeof TasksRoute
+  IndexRoute: typeof IndexRoute
+}
+
+const DotDotModulesAutomationPagesLayoutRouteChildren: DotDotModulesAutomationPagesLayoutRouteChildren =
+  {
+    PairingRoute: PairingRoute,
+    TasksRoute: TasksRoute,
+    IndexRoute: IndexRoute,
+  }
+
+const DotDotModulesAutomationPagesLayoutRouteWithChildren =
+  DotDotModulesAutomationPagesLayoutRoute._addFileChildren(
+    DotDotModulesAutomationPagesLayoutRouteChildren,
   )
 
 interface DotDotModulesKnowledgeBasePagesLayoutRouteChildren {
@@ -765,6 +858,7 @@ const DotDotModulesAiPagesConversationsIndexRouteWithChildren =
 interface shellAppLayoutRouteChildren {
   homeRoute: typeof homeRoute
   DotDotModulesAiPagesAiLayoutRoute: typeof DotDotModulesAiPagesAiLayoutRouteWithChildren
+  DotDotModulesAutomationPagesLayoutRoute: typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   DotDotModulesKnowledgeBasePagesLayoutRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
   shellSettingsLayoutRoute: typeof shellSettingsLayoutRouteWithChildren
   DotDotModulesSystemPagesLayoutRoute: typeof DotDotModulesSystemPagesLayoutRouteWithChildren
@@ -778,6 +872,8 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   homeRoute: homeRoute,
   DotDotModulesAiPagesAiLayoutRoute:
     DotDotModulesAiPagesAiLayoutRouteWithChildren,
+  DotDotModulesAutomationPagesLayoutRoute:
+    DotDotModulesAutomationPagesLayoutRouteWithChildren,
   DotDotModulesKnowledgeBasePagesLayoutRoute:
     DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren,
   shellSettingsLayoutRoute: shellSettingsLayoutRouteWithChildren,

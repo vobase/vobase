@@ -24,7 +24,6 @@
 -- use-cases requiring small, unpredictable IDs (e.g., URL shorteners, generated file names, etc.).
 -- While it comes with a default configuration, the function is designed to be flexible,
 -- allowing for customization to meet specific needs.
-DROP FUNCTION IF EXISTS nanoid(int, text, float);
 CREATE OR REPLACE FUNCTION nanoid(
     size int DEFAULT 21, -- The number of symbols in the NanoId String. Must be greater than 0.
     alphabet text DEFAULT '0123456789abcdefghijklmnopqrstuvwxyz', -- The symbols used in the NanoId String. Must contain between 1 and 255 symbols.
@@ -72,7 +71,6 @@ $$;
 -- Generates an optimized random string of a specified size using the given alphabet, mask, and step.
 -- This optimized version is designed for higher performance and lower memory overhead.
 -- No checks are performed! Use it only if you really know what you are doing.
-DROP FUNCTION IF EXISTS nanoid_optimized(int, text, int, int);
 CREATE OR REPLACE FUNCTION nanoid_optimized(
     size int, -- The desired length of the generated string.
     alphabet text, -- The set of characters to choose from for generating the string.
