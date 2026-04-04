@@ -146,9 +146,13 @@ export async function createScheduler(
       data?: unknown,
       opts?: ScheduleOptions,
     ): Promise<void> {
-      await ensureQueue(name);
-      const queueName = toQueueName(name);
-      await boss.schedule(queueName, cron, data as object, opts);
+      try {
+        await ensureQueue(name);
+        const queueName = toQueueName(name);
+        await boss.schedule(queueName, cron, data as object, opts);
+      } catch (err) {
+        console.error(`[pg-boss] Failed to register schedule "${name}":`, err);
+      }
     },
     async unschedule(name: string, key?: string): Promise<void> {
       const queueName = toQueueName(name);

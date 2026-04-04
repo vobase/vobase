@@ -25,7 +25,9 @@ export function createIntegrationsModule(db: VobaseDb) {
     routes: new Hono(),
     jobs: [refreshTokensJob],
     init(ctx) {
-      ctx.scheduler.schedule('integrations:refresh-tokens', '*/5 * * * *', {});
+      ctx.scheduler
+        .schedule('integrations:refresh-tokens', '*/5 * * * *', {})
+        .catch(() => {});
     },
   });
 
