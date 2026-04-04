@@ -85,6 +85,26 @@ async function buildBoss(connection: PGlite | string): Promise<PgBoss> {
   return new PgBoss(connection);
 }
 
+/** No-op scheduler returned when pg-boss fails to start. */
+function createNoopScheduler(): Scheduler {
+  const warn = (method: string) =>
+    console.warn(`[pg-boss] Scheduler not available, skipping ${method}()`);
+  return {
+    async add(name) {
+      warn(`add(${name})`);
+    },
+    async send() {
+      warn('send');
+      return null;
+    },
+    async schedule(name) {
+      warn(`schedule(${name})`);
+    },
+    async unschedule() {},
+    async stop() {},
+  };
+}
+
 export async function createScheduler(
   options?: SchedulerOptions,
 ): Promise<Scheduler> {
@@ -95,7 +115,12 @@ export async function createScheduler(
     console.error('[pg-boss]', err);
   });
 
-  await boss.start();
+  try {
+    await boss.start();
+  } catch (err) {
+    console.error('[pg-boss] Failed to start — jobs will be disabled:', err);
+    return createNoopScheduler();
+  }
 
   const createdQueues = new Set<string>();
 
