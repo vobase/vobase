@@ -48,7 +48,7 @@ export const StatSparklineSchema = z.object({
   color: z.string().optional(),
 });
 
-export type StatSparkline = z.infer<typeof StatSparklineSchema>;
+type StatSparkline = z.infer<typeof StatSparklineSchema>;
 
 export const StatItemSchema = z.object({
   key: z.string().min(1),

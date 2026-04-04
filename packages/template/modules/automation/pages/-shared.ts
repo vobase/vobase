@@ -15,7 +15,7 @@ export type Task = {
   updatedAt: string;
 };
 
-export type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
 export const STATUS_VARIANT: Record<string, StatusVariant> = {
   pending: 'outline',

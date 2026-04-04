@@ -5,7 +5,7 @@ import { kbChunks, kbDocuments } from '../schema';
 import { processDocument } from './pipeline';
 import { markdownToPlate } from './plate-deserialize';
 
-export interface MigrateOptions {
+interface MigrateOptions {
   /**
    * Re-chunk and re-embed migrated documents using the new blockChunk() pipeline.
    * Defaults to false to avoid unnecessary embedding API costs — when false, only

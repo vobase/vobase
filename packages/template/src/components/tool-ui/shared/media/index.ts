@@ -1,9 +1,7 @@
 export {
-  type AspectRatio,
   AspectRatioSchema,
   getFitClass,
   getRatioClass,
-  type MediaFit,
   MediaFitSchema,
   RATIO_CLASS_MAP,
 } from './aspect-ratio';

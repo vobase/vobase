@@ -7,7 +7,7 @@ import { updateLastSignal } from './last-signal';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
-export type TransitionEvent =
+type TransitionEvent =
   | {
       type: 'SET_MODE';
       mode: 'ai' | 'human' | 'supervised' | 'held';
@@ -37,7 +37,7 @@ type PreviousState = {
   assignee: string | null;
 };
 
-export type TransitionResult =
+type TransitionResult =
   | { ok: true; conversation: ConversationRow; previousState: PreviousState }
   | {
       ok: false;

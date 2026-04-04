@@ -46,7 +46,7 @@ export const ToolUIReceiptOutcomeSchema = z.enum([
   'cancelled',
 ]);
 
-export type ToolUIReceiptOutcome = z.infer<typeof ToolUIReceiptOutcomeSchema>;
+type ToolUIReceiptOutcome = z.infer<typeof ToolUIReceiptOutcomeSchema>;
 
 /**
  * Optional receipt metadata: a durable summary of an outcome.
@@ -69,7 +69,7 @@ export const ToolUISurfaceSchema = z.object({
   receipt: ToolUIReceiptSchema.optional(),
 });
 
-export type ToolUISurface = z.infer<typeof ToolUISurfaceSchema>;
+type ToolUISurface = z.infer<typeof ToolUISurfaceSchema>;
 
 export const ActionSchema = z.object({
   id: z.string().min(1),
@@ -91,8 +91,8 @@ export const ActionSchema = z.object({
 });
 
 export type Action = z.infer<typeof ActionSchema>;
-export type LocalAction = Action;
-export type DecisionAction = Action;
+type LocalAction = Action;
+type DecisionAction = Action;
 
 export const DecisionResultSchema = z.object({
   kind: z.literal('decision'),
@@ -104,7 +104,7 @@ export const DecisionResultSchema = z.object({
   payload: z.record(z.string(), z.unknown()).optional(),
 });
 
-export type DecisionResult<
+type DecisionResult<
   TPayload extends Record<string, unknown> = Record<string, unknown>,
 > = Omit<z.infer<typeof DecisionResultSchema>, 'payload'> & {
   payload?: TPayload;
@@ -140,7 +140,7 @@ export const SerializableActionsSchema = ActionButtonsPropsSchema.extend({
   actions: z.array(SerializableActionSchema),
 }).omit({ className: true });
 
-export interface ActionsConfig {
+interface ActionsConfig {
   items: Action[];
   align?: 'left' | 'center' | 'right';
   confirmTimeout?: number;
@@ -152,8 +152,8 @@ export const SerializableActionsConfigSchema = z.object({
   confirmTimeout: z.number().positive().optional(),
 });
 
-export type SerializableActionsConfig = z.infer<
+type SerializableActionsConfig = z.infer<
   typeof SerializableActionsConfigSchema
 >;
 
-export type SerializableAction = z.infer<typeof SerializableActionSchema>;
+type SerializableAction = z.infer<typeof SerializableActionSchema>;

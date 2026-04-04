@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Action } from './schema';
 
-export type UseActionButtonsOptions = {
+type UseActionButtonsOptions = {
   actions: Action[];
   onAction: (actionId: string) => void | Promise<void>;
   onBeforeAction?: (actionId: string) => boolean | Promise<boolean>;
   confirmTimeout?: number;
 };
 
-export type UseActionButtonsResult = {
+type UseActionButtonsResult = {
   actions: Array<
     Action & {
       currentLabel: string;

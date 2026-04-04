@@ -18,10 +18,6 @@ export function formatRelativeTimeShort(date: Date | string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-export function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat('en-US', { notation: 'compact' }).format(value);
-}
-
 export function formatDate(
   date: Date | string | number | undefined,
   opts: Intl.DateTimeFormatOptions = {},

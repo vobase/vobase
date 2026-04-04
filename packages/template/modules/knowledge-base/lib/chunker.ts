@@ -19,11 +19,11 @@ import { NodeType } from './plate-types';
 // Public interfaces
 // ---------------------------------------------------------------------------
 
-export interface ChunkOptions {
+interface ChunkOptions {
   maxTokens?: number; // Default: 512
 }
 
-export interface BlockChunk {
+interface BlockChunk {
   /** The Plate nodes in this chunk */
   blocks: PlateElement[];
   /** Markdown serialization (for embedding + FTS) */

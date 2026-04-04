@@ -215,17 +215,6 @@ export const navGroups: NavGroup[] = [
   },
 ];
 
-/** All nav items flattened — used by command palette and breadcrumbs */
-export const allNavItems = navGroups.flatMap((g) =>
-  g.items.flatMap((item) =>
-    item.items
-      ? [item, ...item.items].filter(
-          (i): i is BaseNavItem & { url: string } => 'url' in i && !!i.url,
-        )
-      : [item as BaseNavItem & { url: string }],
-  ),
-);
-
 /** Sidebar navigation — excludes Settings (settings has its own layout) */
 export const sidebarNavGroups: NavGroup[] = navGroups.filter(
   (g) => g.title !== 'Settings',

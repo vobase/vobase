@@ -4,11 +4,11 @@ export const AspectRatioSchema = z
   .enum(['auto', '1:1', '4:3', '16:9', '9:16'])
   .default('auto');
 
-export type AspectRatio = z.infer<typeof AspectRatioSchema>;
+type AspectRatio = z.infer<typeof AspectRatioSchema>;
 
 export const MediaFitSchema = z.enum(['cover', 'contain']).default('cover');
 
-export type MediaFit = z.infer<typeof MediaFitSchema>;
+type MediaFit = z.infer<typeof MediaFitSchema>;
 
 export const RATIO_CLASS_MAP: Record<AspectRatio, string> = {
   auto: '',

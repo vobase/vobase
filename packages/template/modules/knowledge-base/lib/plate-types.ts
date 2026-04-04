@@ -58,7 +58,7 @@ export const NodeType = {
   TH: 'th',
 } as const;
 
-export type NodeTypeKey = (typeof NodeType)[keyof typeof NodeType];
+type NodeTypeKey = (typeof NodeType)[keyof typeof NodeType];
 
 // ---------------------------------------------------------------------------
 // Factory helpers

@@ -27,8 +27,11 @@
       ],
       "ignore": [
         "src/components/ai-elements/**",
+        "src/components/assistant-ui/**",
+        "src/components/tool-ui/**",
         "src/components/ui/**",
         "src/lib/compose-refs.ts",
+        "modules/automation/browser/**",
         "**/*.test.ts"
       ],
       "ignoreDependencies": [

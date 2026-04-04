@@ -54,7 +54,7 @@ export function getModuleChannels(): ChannelsService {
   return moduleDeps.channels;
 }
 
-export function getModuleChannelsOrNull(): ChannelsService | undefined {
+function getModuleChannelsOrNull(): ChannelsService | undefined {
   return moduleDeps?.channels;
 }
 

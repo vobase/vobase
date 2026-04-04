@@ -5,7 +5,7 @@ import { useId } from 'react';
 
 import { cn } from './_adapter';
 
-export interface SparklineProps {
+interface SparklineProps {
   data: number[];
   color?: string;
   width?: number;

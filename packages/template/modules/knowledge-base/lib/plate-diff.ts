@@ -15,14 +15,14 @@ import isEqual from 'lodash.isequal';
 import { plateToMarkdown } from './plate-serialize';
 import type { PlateValue } from './plate-types';
 
-export interface BlockRange {
+interface BlockRange {
   /** Inclusive start index in the PlateValue array */
   start: number;
   /** Inclusive end index in the PlateValue array */
   end: number;
 }
 
-export interface PlateValueDiff {
+interface PlateValueDiff {
   changed: BlockRange[];
   added: BlockRange[];
   removed: BlockRange[];

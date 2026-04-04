@@ -12,10 +12,10 @@ export const TASK_STATUSES = [
   'cancelled',
 ] as const;
 
-export type TaskStatus = (typeof TASK_STATUSES)[number];
+type TaskStatus = (typeof TASK_STATUSES)[number];
 
-export const REQUESTED_BY = ['ai', 'staff', 'system'] as const;
-export type RequestedBy = (typeof REQUESTED_BY)[number];
+const REQUESTED_BY = ['ai', 'staff', 'system'] as const;
+type RequestedBy = (typeof REQUESTED_BY)[number];
 
 /** Return orphaned tasks (assigned/executing) back to pending for a given session. */
 export async function unassignOrphanedTasks(sessionId: string): Promise<void> {
