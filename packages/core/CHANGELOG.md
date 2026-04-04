@@ -1,5 +1,19 @@
 # @vobase/core
 
+## 0.24.0
+
+### Minor Changes
+
+- [`2c87528`](https://github.com/vobase/vobase/commit/2c87528e9b09afe5f1b80cc8a7fa6677bb6e66cd) Thanks [@mdluo](https://github.com/mdluo)! - Add createApiKey/revokeApiKey to auth contract and ModuleInitContext
+
+  - New `CreateApiKey` and `RevokeApiKey` types in auth contract for programmatic API key management
+  - `revokeApiKey(keyId)` disables an API key by ID (used by automation module on session disconnect)
+  - `createApiKey` accepts `expiresIn` for time-bounded keys
+  - Organization tables now always included in schema (no longer conditional)
+  - Removed `organizationEnabled` from MCP CRUD context and permission guards
+  - API key schema updated: `referenceId`/`configId` columns replace `userId`, proper rate limit defaults
+  - Added `activeOrganizationId` to session table
+
 ## 0.23.1
 
 ### Patch Changes
