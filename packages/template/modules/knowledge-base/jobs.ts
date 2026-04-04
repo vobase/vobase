@@ -6,6 +6,8 @@ import { defineJob } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
 import { KB_STORAGE_BUCKET } from './constants';
+import { extractDocument } from './lib/extract';
+import { processDocument } from './lib/pipeline';
 import { kbDocuments } from './schema';
 
 let moduleDb: VobaseDb;
@@ -47,7 +49,6 @@ export const processDocumentJob = defineJob(
 
     try {
       // 1. Extract text from the temp file
-      const { extractDocument } = await import('./lib/extract');
       const result = await extractDocument(tmpPath, mimeType);
 
       // 2. Handle needs_ocr status
@@ -63,7 +64,6 @@ export const processDocumentJob = defineJob(
       }
 
       // 3. Process document (chunk + embed + store)
-      const { processDocument } = await import('./lib/pipeline');
       await processDocument(
         moduleDb,
         documentId,

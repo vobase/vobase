@@ -11,11 +11,30 @@ import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { createCrawlConnector } from './connectors/crawl';
+import {
+  createGoogleDriveConnector,
+  exchangeGoogleCode,
+  getGoogleAuthUrl,
+} from './connectors/google-drive';
+import {
+  createSharePointConnector,
+  exchangeSharePointCode,
+  getSharePointAuthUrl,
+} from './connectors/sharepoint';
 import type { DocumentSource } from './connectors/types';
 import { KB_STORAGE_BUCKET } from './constants';
+import { blockChunk } from './lib/chunker';
+import { embedChunks } from './lib/embeddings';
+import { migrateExistingDocuments } from './lib/migrate-content';
+import { processDocument } from './lib/pipeline';
+import { markdownToPlate } from './lib/plate-deserialize';
+import { diffPlateValue, isBlockRangeAffected } from './lib/plate-diff';
 import type { PlateValue } from './lib/plate-types';
 import { plateValueSchema } from './lib/plate-types';
+import { hybridSearch } from './lib/search';
 import { kbChunks, kbDocuments, kbSources, kbSyncLogs } from './schema';
+import { extractIntent } from './search-config';
 
 async function syncSource(
   db: VobaseDb,
@@ -36,12 +55,8 @@ async function syncSource(
     const config = source.config ? JSON.parse(source.config) : {};
 
     if (source.type === 'crawl') {
-      const { createCrawlConnector } = await import('./connectors/crawl');
       connector = createCrawlConnector(config);
     } else if (source.type === 'google-drive') {
-      const { createGoogleDriveConnector } = await import(
-        './connectors/google-drive'
-      );
       if (!config.integrationId)
         throw new Error('Google Drive source missing integrationId');
       connector = createGoogleDriveConnector(
@@ -50,9 +65,6 @@ async function syncSource(
         config.integrationId,
       );
     } else if (source.type === 'sharepoint') {
-      const { createSharePointConnector } = await import(
-        './connectors/sharepoint'
-      );
       if (!config.integrationId)
         throw new Error('SharePoint source missing integrationId');
       connector = createSharePointConnector(
@@ -65,7 +77,6 @@ async function syncSource(
     }
 
     let processed = 0;
-    const { processDocument } = await import('./lib/pipeline');
 
     for await (const doc of connector.listDocuments()) {
       const [docRecord] = await db
@@ -80,7 +91,6 @@ async function syncSource(
         .returning();
 
       const content = await connector.fetchDocument(doc.externalId);
-      const { markdownToPlate } = await import('./lib/plate-deserialize');
       const value: PlateValue = content.value ?? markdownToPlate(content.text);
       await processDocument(db, docRecord.id, value);
       processed++;
@@ -204,7 +214,6 @@ export const knowledgeBaseRoutes = new Hono()
     // Return Plate Value content; fall back to reconstructing from chunk text
     let content = doc.content as PlateValue | null;
     if (!content && chunks.length > 0) {
-      const { markdownToPlate } = await import('./lib/plate-deserialize');
       content = markdownToPlate(chunks.map((ch) => ch.content).join('\n\n'));
     }
 
@@ -230,13 +239,6 @@ export const knowledgeBaseRoutes = new Hono()
     if (!doc) throw notFound('Document not found');
     if (doc.status !== 'ready')
       throw conflict('Document is not ready for editing');
-
-    const { markdownToPlate } = await import('./lib/plate-deserialize');
-    const { blockChunk } = await import('./lib/chunker');
-    const { embedChunks } = await import('./lib/embeddings');
-    const { diffPlateValue, isBlockRangeAffected } = await import(
-      './lib/plate-diff'
-    );
 
     // 3. Determine old value
     const existingContent = doc.content;
@@ -353,9 +355,6 @@ export const knowledgeBaseRoutes = new Hono()
     const parsed = searchSchema.safeParse(await c.req.json());
     if (!parsed.success) throw validation(parsed.error.flatten().fieldErrors);
     const body = parsed.data;
-
-    const { extractIntent } = await import('./search-config');
-    const { hybridSearch } = await import('./lib/search');
 
     const { cleanQuery, sortHint } = extractIntent(body.query);
 
@@ -487,7 +486,6 @@ export const knowledgeBaseRoutes = new Hono()
     const source = (
       await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
     )[0];
-    const { exchangeGoogleCode } = await import('./connectors/google-drive');
     const integrationId = await exchangeGoogleCode(
       ctx.integrations,
       sourceId,
@@ -515,7 +513,6 @@ export const knowledgeBaseRoutes = new Hono()
     const source = (
       await ctx.db.select().from(kbSources).where(eq(kbSources.id, sourceId))
     )[0];
-    const { exchangeSharePointCode } = await import('./connectors/sharepoint');
     const integrationId = await exchangeSharePointCode(
       ctx.integrations,
       sourceId,
@@ -544,12 +541,10 @@ export const knowledgeBaseRoutes = new Hono()
     if (!source) throw notFound('Source not found');
 
     if (source.type === 'google-drive') {
-      const { getGoogleAuthUrl } = await import('./connectors/google-drive');
       const url = await getGoogleAuthUrl(sourceId);
       return c.json({ url });
     }
     if (source.type === 'sharepoint') {
-      const { getSharePointAuthUrl } = await import('./connectors/sharepoint');
       const url = getSharePointAuthUrl(sourceId);
       return c.json({ url });
     }
@@ -558,8 +553,6 @@ export const knowledgeBaseRoutes = new Hono()
   // Reindex: backfill Plate Value content for existing documents, then re-chunk/re-embed all
   .post('/reindex', async (c) => {
     const ctx = getCtx(c);
-    const { migrateExistingDocuments } = await import('./lib/migrate-content');
-
     // Fire-and-forget: migration can be slow for large document sets
     migrateExistingDocuments(ctx.db, { reembed: true }).catch((err) =>
       logger.error('[kb] reindex_error', {

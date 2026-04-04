@@ -6,10 +6,16 @@ import { getModuleDb, getModuleDeps } from './lib/deps';
 
 export { setModuleDeps } from './lib/deps';
 
+import { getMemory } from '../../mastra';
 import { runAgentEvals } from '../../mastra/evals/runner';
 import { getActiveCustomScorers } from '../../mastra/evals/scorers';
 import { processMemCell } from '../../mastra/processors/memory/formation';
-import { aiEvalRuns } from './schema';
+import { generateChannelReply } from './lib/channel-reply';
+import { getChat } from './lib/chat-init';
+import { checkConsultationTimeouts } from './lib/consult-human';
+import { completeConversation } from './lib/conversation';
+import { processOutboxMessage } from './lib/outbox';
+import { aiEvalRuns, channelInstances, conversations } from './schema';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AI Memory & Eval jobs
@@ -129,7 +135,6 @@ export const sendJob = defineJob('ai:send', async (data) => {
   const { outboxId } = sendDataSchema.parse(data);
   const deps = getModuleDeps();
 
-  const { processOutboxMessage } = await import('./lib/outbox');
   await processOutboxMessage(deps.db, deps.channels, deps.scheduler, outboxId);
 });
 
@@ -141,7 +146,6 @@ export const channelReplyJob = defineJob('ai:channel-reply', async (data) => {
   const { conversationId, inboundContent } = channelReplyDataSchema.parse(data);
   const deps = getModuleDeps();
 
-  const { generateChannelReply } = await import('./lib/channel-reply');
   await generateChannelReply(deps, conversationId, inboundContent);
 });
 
@@ -154,7 +158,6 @@ export const consultationTimeoutJob = defineJob(
   async () => {
     const deps = getModuleDeps();
 
-    const { checkConsultationTimeouts } = await import('./lib/consult-human');
     const count = await checkConsultationTimeouts(deps);
     if (count > 0) {
       logger.info('[ai] Processed consultation timeouts', {
@@ -177,8 +180,6 @@ export const conversationCleanupJob = defineJob(
   'ai:conversation-cleanup',
   async () => {
     const deps = getModuleDeps();
-    const { conversations, channelInstances } = await import('./schema');
-    const { completeConversation } = await import('./lib/conversation');
 
     // Per-channel inactivity timeouts (minutes)
     const timeouts: Record<string, number> = {
@@ -238,7 +239,6 @@ export const processInboundJob = defineJob(
   async (data) => {
     const { event, adapterName } = processInboundDataSchema.parse(data);
 
-    const { getChat } = await import('./lib/chat-init');
     const chat = getChat();
 
     const adapter = (chat as unknown as { adapters: Record<string, unknown> })
@@ -273,7 +273,6 @@ export const retryMemoryThreadJob = defineJob(
     const deps = getModuleDeps();
 
     try {
-      const { getMemory } = await import('../../mastra');
       const memory = getMemory();
       const now = new Date();
 
@@ -293,7 +292,6 @@ export const retryMemoryThreadJob = defineJob(
       });
 
       // Clear degraded flag on success
-      const { conversations } = await import('./schema');
       await deps.db
         .update(conversations)
         .set({ metadata: {} })

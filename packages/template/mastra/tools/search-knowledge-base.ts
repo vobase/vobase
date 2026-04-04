@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
 import { getModuleDbOrNull } from '../../modules/ai/lib/deps';
+import { hybridSearch } from '../../modules/knowledge-base/lib/search';
 
 /**
  * RAG tool: search the knowledge base and return relevant chunks with citations.
@@ -39,9 +40,6 @@ export const searchKnowledgeBaseTool = createTool({
       };
     }
 
-    const { hybridSearch } = await import(
-      '../../modules/knowledge-base/lib/search'
-    );
     const results = await hybridSearch(db, input.query, {
       limit: 5,
       mode: 'deep',

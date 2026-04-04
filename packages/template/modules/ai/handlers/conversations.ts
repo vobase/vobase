@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 import { getMemory } from '../../../mastra';
 import { emitActivityEvent } from '../lib/activity-events';
+import { completeConversation, failConversation } from '../lib/conversation';
 import { getModuleDeps } from '../lib/deps';
 import { enqueueMessage } from '../lib/outbox';
 import { transition } from '../lib/state-machine';
@@ -509,9 +510,6 @@ export const conversationsDetailHandlers = new Hono()
 
     // status → terminal state: complete or fail, then return immediately
     if (body.status === 'completed' || body.status === 'failed') {
-      const { completeConversation, failConversation } = await import(
-        '../lib/conversation'
-      );
       if (body.status === 'completed') {
         await completeConversation(db, conversationId, realtime);
       } else {
@@ -793,7 +791,6 @@ export const conversationsDetailHandlers = new Hono()
     const draftContent = (draftData?.draftContent as string) ?? '';
 
     if (draftContent) {
-      const { enqueueMessage } = await import('../lib/outbox');
       const [conversation] = await db
         .select({ channelInstanceId: conversations.channelInstanceId })
         .from(conversations)

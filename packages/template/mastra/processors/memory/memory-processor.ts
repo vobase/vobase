@@ -11,6 +11,7 @@ import { desc, eq } from 'drizzle-orm';
 
 import { aiMemCells } from '../../../modules/ai/schema';
 import { computeBufferTokens, detectBoundary } from './boundary-detector';
+import { loadMessagesForConversation } from './message-source';
 import { retrieveMemory } from './retriever';
 import type { MemoryMessage, MemoryScope } from './types';
 
@@ -303,7 +304,6 @@ async function getMessagesSinceLastCell(
   conversationId: string,
   lastEndMessageId?: string,
 ): Promise<MemoryMessage[]> {
-  const { loadMessagesForConversation } = await import('./message-source');
   const allMessages = await loadMessagesForConversation(_db, conversationId);
 
   if (!lastEndMessageId) return allMessages.slice(-100);

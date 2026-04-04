@@ -1,5 +1,6 @@
 import {
   createNanoid,
+  createWhatsAppAdapter,
   getCtx,
   isPlatformEnabled,
   logger,
@@ -191,7 +192,6 @@ export const integrationsRoutes = new Hono()
     });
 
     // Step 5: Hot-reload WhatsApp adapter so webhooks work immediately (no restart needed)
-    const { createWhatsAppAdapter } = await import('@vobase/core');
     ctx.channels.registerAdapter(
       'whatsapp',
       createWhatsAppAdapter({

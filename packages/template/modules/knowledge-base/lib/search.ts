@@ -2,6 +2,7 @@ import type { VobaseDb } from '@vobase/core';
 import { eq, sql } from 'drizzle-orm';
 import { cosineDistance } from 'drizzle-orm/sql/functions/vector';
 
+import { isAIConfigured } from '../../../lib/ai';
 import { buildRankMap, computeRRFScores } from '../../../lib/search-utils';
 import { kbChunks, kbDocuments } from '../schema';
 import { embedQuery } from './embeddings';
@@ -152,7 +153,6 @@ export async function hybridSearch(
 // --- HyDE: Hypothetical Document Embedding ---
 
 async function generateHyDE(query: string): Promise<number[] | null> {
-  const { isAIConfigured } = await import('../../../lib/ai');
   if (!isAIConfigured()) return null;
 
   const { generateText } = await import('ai');

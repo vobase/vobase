@@ -2,6 +2,8 @@ import { getCtx, notFound, unauthorized, validation } from '@vobase/core';
 import { and, count, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
+import { getMemory } from '../../../mastra/index';
+import { retrieveMemory } from '../../../mastra/processors/memory/retriever';
 import { aiMemCells, aiMemEpisodes, aiMemEventLogs } from '../schema';
 import {
   buildCursor,
@@ -82,9 +84,6 @@ export const memoryHandlers = new Hono()
       });
     }
 
-    const { retrieveMemory } = await import(
-      '../../../mastra/processors/memory/retriever'
-    );
     const result = await retrieveMemory(
       db,
       { contactId: scope.contactId },
@@ -306,7 +305,6 @@ export const memoryHandlers = new Hono()
     const resourceId = rawScope; // e.g. "contact:abc123"
 
     try {
-      const { getMemory } = await import('../../../mastra/index');
       const memory = getMemory();
 
       // Working memory is stored per resource (e.g. "contact:abc123")

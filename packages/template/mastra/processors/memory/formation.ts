@@ -8,6 +8,7 @@ import {
   aiMemEventLogs,
 } from '../../../modules/ai/schema';
 import { extractEpisode, extractEventLogs } from './extractors';
+import { loadMessagesInRange } from './message-source';
 import type { MemoryMessage } from './types';
 
 /**
@@ -129,7 +130,6 @@ async function loadCellMessages(
   db: VobaseDb,
   cell: typeof aiMemCells.$inferSelect,
 ): Promise<MemoryMessage[]> {
-  const { loadMessagesInRange } = await import('./message-source');
   return loadMessagesInRange(
     db,
     cell.threadId,

@@ -5,13 +5,13 @@ import { serveStatic } from 'hono/bun';
 
 import { getMastra, initMastra } from './mastra';
 import { modules } from './modules';
+import { getModuleDb } from './modules/ai/lib/deps';
 import config from './vobase.config';
 
 const app = await createApp({ ...config, modules });
 
 // Initialize Mastra after createApp (init hook sets deps synchronously, but Mastra init is async)
 try {
-  const { getModuleDb } = await import('./modules/ai/lib/deps');
   const db = getModuleDb();
   await initMastra(db as unknown as { $client: unknown });
 

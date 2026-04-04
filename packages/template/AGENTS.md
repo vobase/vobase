@@ -11,6 +11,7 @@ Every change must be clean, type-safe, tested, and maintainable.
 - Every handler validates input with Zod schemas. Return errors via `notFound()`, `unauthorized()`, `validation()`, `forbidden()`, `conflict()`.
 - Tests for every feature, colocated as `*.test.ts`. Run `bun test` before done.
 - Biome formatting + linting. Run `bun run lint`.
+- Dynamic `import()` only for: heavy optional deps (MCP SDK, AI SDK, googleapis, mammoth, etc.), config-gated features, test mocking after `vi.mock()`. Local module imports must be static.
 - Frontend: use `<Link>` and `navigate()` from TanStack Router — never `<a href>` for internal routes
 - Frontend components: prefer shadcn/ui → ai-elements → DiceUI → custom, in that order. See root CLAUDE.md "Component Libraries" for install commands. Each library has an agent skill (`shadcn`, `ai-elements`, `diceui`) with full component catalogs — check before building custom.
 - Data tables: use DiceUI data-table (skill: `data-table`) for any non-trivial table with filtering/sorting/pagination. Supports server-side and client-side modes. Only use plain shadcn Table for simple static tables.

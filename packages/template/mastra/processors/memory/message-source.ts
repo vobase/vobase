@@ -5,6 +5,7 @@
  */
 import type { VobaseDb } from '@vobase/core';
 
+import { getMemory } from '../../index';
 import type { MemoryMessage } from './types';
 
 interface RecalledMessage {
@@ -35,7 +36,6 @@ export async function loadMessagesForConversation(
   threadId: string,
 ): Promise<MemoryMessage[]> {
   try {
-    const { getMemory } = await import('../../index');
     const memory = getMemory();
     const result = await memory.recall({ threadId });
     return (result.messages ?? []).map((m) =>
@@ -56,7 +56,6 @@ export async function loadMessagesInRange(
   endMessageId: string,
 ): Promise<MemoryMessage[]> {
   try {
-    const { getMemory } = await import('../../index');
     const memory = getMemory();
     const result = await memory.recall({ threadId });
     const messages = result.messages ?? [];

@@ -5,11 +5,16 @@ import type { CardElement } from 'chat';
 import { eq } from 'drizzle-orm';
 
 import { getAgent } from '../../../mastra/agents';
-import { channelInstances, conversations } from '../schema';
+import {
+  channelInstances,
+  consultations as consultationsTable,
+  conversations,
+} from '../schema';
 import { emitActivityEvent } from './activity-events';
 import { formatConstraintsForPrompt } from './channel-constraints';
 import { serializeCard } from './chat-bridge';
 import { getChatState } from './chat-init';
+import { completeConversation } from './conversation';
 import { getModuleDeps } from './deps';
 import { enqueueMessage } from './outbox';
 
@@ -284,12 +289,7 @@ export async function generateChannelReply(
     ) as Record<string, unknown>;
 
     if (updatedMeta.completing) {
-      const { completeConversation: doComplete } = await import(
-        './conversation'
-      );
-
       // Check if conversation had any consultations
-      const { consultations: consultationsTable } = await import('../schema');
       const [hasConsultation] = await db
         .select({ id: consultationsTable.id })
         .from(consultationsTable)
@@ -297,7 +297,7 @@ export async function generateChannelReply(
         .limit(1);
 
       const outcome = hasConsultation ? 'escalated_resolved' : 'resolved';
-      await doComplete(db, conversationId, realtime, outcome);
+      await completeConversation(db, conversationId, realtime, outcome);
     }
 
     return responseText || null;

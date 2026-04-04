@@ -9,6 +9,7 @@ import {
   aiMemEpisodes,
   aiMemEventLogs,
 } from '../../../modules/ai/schema';
+import { loadMessagesInRange } from './message-source';
 import type { MemoryRetrievalResult, MemoryScope } from './types';
 
 interface RetrieveOptions {
@@ -274,7 +275,6 @@ async function fetchOriginalMessages(
   if (cells.length === 0) return [];
 
   // Load messages from Mastra Memory for each cell's range
-  const { loadMessagesInRange } = await import('./message-source');
   const allMessages: { content: string; role: string; createdAt: Date }[] = [];
 
   for (const cell of cells) {

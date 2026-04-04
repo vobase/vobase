@@ -2,6 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { getModuleDeps } from '../../modules/ai/lib/deps';
 import { conversations } from '../../modules/ai/schema';
 
 export const completeConversationTool = createTool({
@@ -16,7 +17,6 @@ export const completeConversationTool = createTool({
     message: z.string(),
   }),
   execute: async (input, context) => {
-    const { getModuleDeps } = await import('../../modules/ai/lib/deps');
     const deps = getModuleDeps();
 
     const conversationId =
