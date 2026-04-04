@@ -16,12 +16,15 @@ const drizzleDir = join(import.meta.dir, '..', 'drizzle');
 const before = new Set(readdirSync(drizzleDir));
 
 // 1. Run drizzle-kit generate with full TTY passthrough (stdio: inherit)
-const proc = Bun.spawnSync(['bunx', 'drizzle-kit', 'generate', '--name', name], {
-  stdin: 'inherit',
-  stdout: 'inherit',
-  stderr: 'inherit',
-  cwd: join(import.meta.dir, '..'),
-});
+const proc = Bun.spawnSync(
+  ['bunx', 'drizzle-kit', 'generate', '--name', name],
+  {
+    stdin: 'inherit',
+    stdout: 'inherit',
+    stderr: 'inherit',
+    cwd: join(import.meta.dir, '..'),
+  },
+);
 
 if (proc.exitCode !== 0) {
   process.exit(proc.exitCode);
@@ -32,7 +35,9 @@ const after = readdirSync(drizzleDir);
 const newFolder = after.find((f) => !before.has(f) && !f.startsWith('.'));
 
 if (!newFolder) {
-  console.error('[db:generate] No new migration folder found — schema may already be in sync');
+  console.error(
+    '[db:generate] No new migration folder found — schema may already be in sync',
+  );
   process.exit(0);
 }
 
