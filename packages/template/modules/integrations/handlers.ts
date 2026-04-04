@@ -2,14 +2,11 @@ import {
   createNanoid,
   createWhatsAppAdapter,
   getCtx,
-  isPlatformEnabled,
   logger,
   unauthorized,
-  verifyPlatformSignature,
 } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { z } from 'zod';
 
 import { reinitChat } from '../ai/lib/chat-init';
 import { channelInstances } from '../ai/schema';
@@ -295,68 +292,6 @@ export const integrationsRoutes = new Hono()
       logger.error('WhatsApp test: send error', { error: message });
       return c.json({ success: false, error: message }, 500);
     }
-  })
-
-  // ─── Platform channel instance provisioning (HMAC-signed) ────────
-  // Called by vobase-platform after OAuth completion to create a channel_instance
-  // on the tenant. Not session-authenticated — uses X-Platform-Signature instead.
-  .post('/provision-channel', async (c) => {
-    if (!isPlatformEnabled()) {
-      return c.text('Not found', 404);
-    }
-
-    const signature = c.req.header('x-platform-signature');
-    if (!signature) {
-      return c.json({ error: 'Missing signature' }, 401);
-    }
-
-    const rawBody = await c.req.text();
-    if (!verifyPlatformSignature(rawBody, signature)) {
-      return c.json({ error: 'Invalid signature' }, 401);
-    }
-
-    const provisionSchema = z.object({
-      type: z.string().min(1),
-      label: z.string().min(1),
-      source: z.enum(['platform', 'sandbox']),
-      integrationId: z.string().optional(),
-      config: z.record(z.string(), z.unknown()).optional(),
-    });
-
-    let body: z.infer<typeof provisionSchema>;
-    try {
-      body = provisionSchema.parse(JSON.parse(rawBody));
-    } catch {
-      return c.json({ error: 'Invalid request body' }, 400);
-    }
-
-    const ctx = getCtx(c);
-    const instanceId = generateId();
-
-    await ctx.db.insert(channelInstances).values({
-      id: instanceId,
-      type: body.type,
-      label: body.label,
-      source: body.source,
-      integrationId: body.integrationId ?? null,
-      config: body.config ?? {},
-      status: 'active',
-    });
-
-    // Hot-reload chat to pick up the new instance
-    await reinitChat({
-      db: ctx.db,
-      scheduler: ctx.scheduler,
-      channels: ctx.channels,
-    });
-
-    logger.info('Platform provision-channel: instance created', {
-      instanceId,
-      type: body.type,
-      source: body.source,
-    });
-
-    return c.json({ success: true, instanceId });
   })
 
   // ─── Future providers (stubs) ─────────────────────────────────────

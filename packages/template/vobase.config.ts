@@ -1,10 +1,34 @@
-import type { CreateAppConfig } from '@vobase/core';
+import { type CreateAppConfig, createNanoid } from '@vobase/core';
+
+import { reinitChat } from './modules/ai/lib/chat-init';
+import { channelInstances } from './modules/ai/schema';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
 
+const generateId = createNanoid();
+
 const config: Omit<CreateAppConfig, 'modules'> = {
   database: databaseUrl,
+
+  onProvisionChannel: async (data, ctx) => {
+    const instanceId = generateId();
+    await ctx.db.insert(channelInstances).values({
+      id: instanceId,
+      type: data.type,
+      label: data.label,
+      source: data.source,
+      integrationId: data.integrationId ?? null,
+      config: data.config ?? {},
+      status: 'active',
+    });
+    await reinitChat({
+      db: ctx.db,
+      scheduler: ctx.scheduler,
+      channels: ctx.channels,
+    });
+    return { instanceId };
+  },
   storage: {
     provider: { type: 'local', basePath: './data/files' },
     buckets: {
