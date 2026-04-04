@@ -80,7 +80,12 @@ export async function createWorker(
     console.error('[pg-boss worker]', err);
   });
 
-  await boss.start();
+  try {
+    await boss.start();
+  } catch (err) {
+    console.error('[pg-boss worker] Failed to start — job workers will be disabled:', err);
+    return { close: async () => {} };
+  }
 
   for (const job of jobs) {
     const queueName = toQueueName(job.name);
