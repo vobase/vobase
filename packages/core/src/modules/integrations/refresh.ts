@@ -157,6 +157,9 @@ export async function refreshViaPlat(
     headers: {
       'Content-Type': 'application/json',
       'X-Platform-Signature': signature,
+      'X-Tenant-Slug': process.env.PLATFORM_TENANT_SLUG || (() => {
+        throw new Error('PLATFORM_TENANT_SLUG env var is required for platform token refresh');
+      })(),
     },
     body,
   });
