@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.27.1
+
+### Patch Changes
+
+- [`93ff614`](https://github.com/vobase/vobase/commit/93ff6147a73791dd4e40939912bbb3ee0851a749) Thanks [@mdluo](https://github.com/mdluo)! - Graceful fallback when pg-boss fails to start (e.g. stale schema). Returns a no-op scheduler that logs warnings instead of crashing the app. Also catches errors inside `schedule()` to prevent unhandled rejections from synchronous `init()` hooks.
+
 ## 0.27.0
 
 ### Minor Changes
