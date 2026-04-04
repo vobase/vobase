@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.27.2
+
+### Patch Changes
+
+- [`e41d659`](https://github.com/vobase/vobase/commit/e41d6597afe631060f6b0978276e71e324b44e5b) Thanks [@mdluo](https://github.com/mdluo)! - Graceful fallback for job worker when pg-boss fails to start. Returns a no-op worker so the app boots without job processing instead of crashing.
+
 ## 0.27.1
 
 ### Patch Changes
