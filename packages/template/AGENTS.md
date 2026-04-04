@@ -68,11 +68,11 @@ Adapters (WhatsApp, Resend, SMTP) registered at boot via config. Outbound: `ctx.
 
 ### Storage
 
-Virtual buckets via config. `ctx.storage.bucket('name').upload(key, data, opts)`, `.download(key)`, `.delete(key)`, `.exists(key)`, `.presign(key, opts)`, `.list(prefix, opts)`. Local or S3 adapters. Metadata in `storageObjects` table.
+Virtual buckets via config. `ctx.storage.bucket('name').upload(key, data, opts)`, `.download(key)`, `.delete(key)`, `.exists(key)`, `.presign(key, opts)`, `.list(prefix, opts)`. Local or S3 adapters. Metadata in `storageObjects` table. When `storage.integrationProvider` is set and the static provider is `local`, core checks the integrations vault at boot for S3-compatible credentials (e.g. Cloudflare R2 pushed by the platform) and overrides automatically.
 
 ### Integrations
 
-Encrypted credential vault for external services. `ctx.integrations.getActive(provider)` returns decrypted config or null. `connect(provider, config, opts)`, `disconnect(id)`. AES-256-GCM, key from `BETTER_AUTH_SECRET`.
+Encrypted credential vault for external services. `ctx.integrations.getActive(provider)` returns decrypted config or null (ordered by `updatedAt` desc for deterministic results). `connect(provider, config, opts)`, `disconnect(id)`, `updateConfig(id, config, opts)`. Platform configure endpoint upserts: re-calling for the same provider updates instead of duplicating. AES-256-GCM, key from `BETTER_AUTH_SECRET`.
 
 ### Module Init Hook
 
@@ -105,7 +105,7 @@ Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAu
 
 ### Config Shape
 
-`vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled).
+`vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets + optional `integrationProvider` for vault-backed S3 override), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled), `onProvisionChannel?` (platform channel provisioning callback).
 
 ### Schema Management
 

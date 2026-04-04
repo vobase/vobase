@@ -98,7 +98,7 @@ These decisions were made deliberately. Do not revisit without discussion.
 - What goes in core vs template: core owns infrastructure primitives that every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. If an AI agent would need to modify it per-app, it belongs in template. If it's foundational plumbing, it belongs in core.
 - Template CLAUDE.md documents core's full public API so agents never need to read node_modules. Keep it accurate when core changes.
 - Platform auth lives inside better-auth as a plugin (`platformAuth()`), not as separate route middleware. This eliminates route ordering concerns (no need to mount before the catch-all) and uses `internalAdapter.createSession()` for native cookie signing.
-- The platform configure contract is frozen V1: `POST /api/integrations/:provider/configure` with pass-through body `{ config, label?, scopes?, expiresInSeconds? }`. Core never inspects provider-specific fields — the platform (sole HMAC-signed consumer) is the trust boundary.
+- The platform configure contract is frozen V1: `POST /api/integrations/:provider/configure` with pass-through body `{ config, label?, scopes?, expiresInSeconds? }`. Core never inspects provider-specific fields — the platform (sole HMAC-signed consumer) is the trust boundary. Configure upserts: re-calling for the same provider updates the existing platform-managed integration instead of creating duplicates. Configure upserts: re-calling for the same provider updates the existing platform-managed integration instead of creating duplicates.
 
 ## Agent Defaults
 
