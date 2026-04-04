@@ -164,9 +164,8 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
     await config.integrationsService.updateConfig(
       integration.id,
       updatedConfig,
-      { expiresAt },
+      { expiresAt, markRefreshed: true },
     );
-    await config.integrationsService.markRefreshed(integration.id);
 
     logger.info('[platform] Token updated via platform push', {
       provider: body.provider,
@@ -250,20 +249,33 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
       return c.json({ error: 'Invalid request body' }, 400);
     }
 
-    const opts: ConnectOptions = {
-      authType: 'platform',
-      label: body.label ?? `${provider} (via platform)`,
-      ...(body.scopes && { scopes: body.scopes }),
-      ...(body.expiresInSeconds && {
-        expiresAt: new Date(Date.now() + body.expiresInSeconds * 1000),
-      }),
-    };
+    const expiresAt = body.expiresInSeconds
+      ? new Date(Date.now() + body.expiresInSeconds * 1000)
+      : undefined;
 
-    await config.integrationsService.connect(provider, body.config, opts);
-
-    logger.info(`[platform] ${provider} configured via platform`, {
-      provider,
-    });
+    // Upsert: update existing platform-managed integration instead of creating duplicates
+    const existing = await config.integrationsService.getActive(provider);
+    if (existing && existing.authType === 'platform') {
+      await config.integrationsService.updateConfig(existing.id, body.config, {
+        expiresAt,
+        markRefreshed: true,
+      });
+      logger.info(`[platform] ${provider} credentials updated via platform`, {
+        provider,
+        integrationId: existing.id,
+      });
+    } else {
+      const opts: ConnectOptions = {
+        authType: 'platform',
+        label: body.label ?? `${provider} (via platform)`,
+        ...(body.scopes && { scopes: body.scopes }),
+        ...(expiresAt && { expiresAt }),
+      };
+      await config.integrationsService.connect(provider, body.config, opts);
+      logger.info(`[platform] ${provider} configured via platform`, {
+        provider,
+      });
+    }
 
     return c.json({ success: true });
   });

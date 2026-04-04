@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
 import type { VobaseDb } from '../../db/client';
 import { logger } from '../../infra/logger';
@@ -42,7 +42,7 @@ export interface IntegrationsService {
   updateConfig(
     id: string,
     config: Record<string, unknown>,
-    opts?: { expiresAt?: Date },
+    opts?: { expiresAt?: Date; markRefreshed?: boolean },
   ): Promise<void>;
   markError(id: string, error: string): Promise<void>;
   markRefreshed(id: string): Promise<void>;
@@ -90,6 +90,7 @@ export function createIntegrationsService(db: VobaseDb): IntegrationsService {
               eq(integrationsTable.status, 'active'),
             ),
           )
+          .orderBy(desc(integrationsTable.updatedAt))
           .limit(1);
         return rows[0] ? rowToIntegration(rows[0]) : null;
       } catch {
@@ -154,17 +155,20 @@ export function createIntegrationsService(db: VobaseDb): IntegrationsService {
     async updateConfig(
       id: string,
       config: Record<string, unknown>,
-      opts?: { expiresAt?: Date },
+      opts?: { expiresAt?: Date; markRefreshed?: boolean },
     ): Promise<void> {
       const encrypted = encrypt(JSON.stringify(config));
       await db
         .update(integrationsTable)
         .set({
           config: encrypted,
-          configExpiresAt: opts?.expiresAt ?? null,
+          ...(opts?.expiresAt !== undefined && {
+            configExpiresAt: opts.expiresAt,
+          }),
           status: 'active',
           authFailedAt: null,
           updatedAt: new Date(),
+          ...(opts?.markRefreshed && { lastRefreshAt: new Date() }),
         })
         .where(eq(integrationsTable.id, id));
     },
