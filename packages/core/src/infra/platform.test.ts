@@ -344,3 +344,303 @@ describe('platform /:provider/configure', () => {
     }
   });
 });
+
+describe('platform /provision-channel', () => {
+  let originalEnv: string | undefined;
+
+  beforeAll(() => {
+    originalEnv = process.env.PLATFORM_HMAC_SECRET;
+    process.env.PLATFORM_HMAC_SECRET = HMAC_SECRET;
+  });
+
+  afterAll(() => {
+    if (originalEnv === undefined) {
+      delete process.env.PLATFORM_HMAC_SECRET;
+    } else {
+      process.env.PLATFORM_HMAC_SECRET = originalEnv;
+    }
+  });
+
+  test('route not registered when onProvisionChannel is not provided', async () => {
+    const svc = createMockService();
+    const routes = createPlatformIntegrationsRoutes({
+      db: {} as unknown as VobaseDb,
+      integrationsService: svc,
+    });
+
+    const body = JSON.stringify({
+      type: 'whatsapp',
+      label: 'WhatsApp (via platform)',
+      source: 'platform',
+    });
+
+    const res = await routes.request('/provision-channel', {
+      method: 'POST',
+      headers: {
+        'x-platform-signature': sign(body),
+        'content-type': 'application/json',
+      },
+      body,
+    });
+
+    // Without callback, no route is registered — Hono returns 404
+    expect(res.status).toBe(404);
+  });
+
+  test('provisions channel instance on valid request', async () => {
+    const onProvision = mock(() =>
+      Promise.resolve({ instanceId: 'inst_abc123' }),
+    );
+    const svc = createMockService();
+    const routes = createPlatformIntegrationsRoutes({
+      db: {} as unknown as VobaseDb,
+      integrationsService: svc,
+      onProvisionChannel: onProvision,
+    });
+
+    const body = JSON.stringify({
+      type: 'whatsapp',
+      label: 'WhatsApp (via platform)',
+      source: 'platform',
+      integrationId: 'int_1',
+      config: { extra: 'data' },
+    });
+
+    const res = await routes.request('/provision-channel', {
+      method: 'POST',
+      headers: {
+        'x-platform-signature': sign(body),
+        'content-type': 'application/json',
+      },
+      body,
+    });
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; instanceId: string };
+    expect(json.success).toBe(true);
+    expect(json.instanceId).toBe('inst_abc123');
+    expect(onProvision).toHaveBeenCalledWith({
+      type: 'whatsapp',
+      label: 'WhatsApp (via platform)',
+      source: 'platform',
+      integrationId: 'int_1',
+      config: { extra: 'data' },
+    });
+  });
+
+  test('provisions with minimal body (no optional fields)', async () => {
+    const onProvision = mock(() =>
+      Promise.resolve({ instanceId: 'inst_min' }),
+    );
+    const routes = createPlatformIntegrationsRoutes({
+      db: {} as unknown as VobaseDb,
+      integrationsService: createMockService(),
+      onProvisionChannel: onProvision,
+    });
+
+    const body = JSON.stringify({
+      type: 'messenger',
+      label: 'Messenger (via platform)',
+      source: 'sandbox',
+    });
+
+    const res = await routes.request('/provision-channel', {
+      method: 'POST',
+      headers: {
+        'x-platform-signature': sign(body),
+        'content-type': 'application/json',
+      },
+      body,
+    });
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; instanceId: string };
+    expect(json.instanceId).toBe('inst_min');
+    expect(onProvision).toHaveBeenCalledWith({
+      type: 'messenger',
+      label: 'Messenger (via platform)',
+      source: 'sandbox',
+    });
+  });
+
+  test('rejects missing HMAC signature with 401', async () => {
+    const onProvision = mock(() =>
+      Promise.resolve({ instanceId: 'x' }),
+    );
+    const routes = createPlatformIntegrationsRoutes({
+      db: {} as unknown as VobaseDb,
+      integrationsService: createMockService(),
+      onProvisionChannel: onProvision,
+    });
+
+    const body = JSON.stringify({
+      type: 'whatsapp',
+      label: 'WA',
+      source: 'platform',
+    });
+
+    const res = await routes.request('/provision-channel', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    });
+
+    expect(res.status).toBe(401);
+    expect(onProvision).not.toHaveBeenCalled();
+  });
+
+  test('rejects invalid HMAC signature with 401', async () => {
+    const onProvision = mock(() =>
+      Promise.resolve({ instanceId: 'x' }),
+    );
+    const routes = createPlatformIntegrationsRoutes({
+      db: {} as unknown as VobaseDb,
+      integrationsService: createMockService(),
+      onProvisionChannel: onProvision,
+    });
+
+    const body = JSON.stringify({
+      type: 'whatsapp',
+      label: 'WA',
+      source: 'platform',
+    });
+
+    const res = await routes.request('/provision-channel', {
+      method: 'POST',
+      headers: {
+        'x-platform-signature': 'deadbeef'.repeat(8),
+        'content-type': 'application/json',
+      },
+      body,
+    });
+
+    expect(res.status).toBe(401);
+    expect(onProvision).not.toHaveBeenCalled();
+  });
+
+  test('rejects invalid body (missing type) with 400', async () => {
+    const onProvision = mock(() =>
+      Promise.resolve({ instanceId: 'x' }),
+    );
+    const routes = createPlatformIntegrationsRoutes({
+      db: {} as unknown as VobaseDb,
+      integrationsService: createMockService(),
+      onProvisionChannel: onProvision,
+    });
+
+    const body = JSON.stringify({
+      label: 'WA',
+      source: 'platform',
+    });
+
+    const res = await routes.request('/provision-channel', {
+      method: 'POST',
+      headers: {
+        'x-platform-signature': sign(body),
+        'content-type': 'application/json',
+      },
+      body,
+    });
+
+    expect(res.status).toBe(400);
+    expect(onProvision).not.toHaveBeenCalled();
+  });
+
+  test('rejects invalid source enum with 400', async () => {
+    const onProvision = mock(() =>
+      Promise.resolve({ instanceId: 'x' }),
+    );
+    const routes = createPlatformIntegrationsRoutes({
+      db: {} as unknown as VobaseDb,
+      integrationsService: createMockService(),
+      onProvisionChannel: onProvision,
+    });
+
+    const body = JSON.stringify({
+      type: 'whatsapp',
+      label: 'WA',
+      source: 'invalid-source',
+    });
+
+    const res = await routes.request('/provision-channel', {
+      method: 'POST',
+      headers: {
+        'x-platform-signature': sign(body),
+        'content-type': 'application/json',
+      },
+      body,
+    });
+
+    expect(res.status).toBe(400);
+    expect(onProvision).not.toHaveBeenCalled();
+  });
+
+  test('returns 502 with sanitized error when callback throws', async () => {
+    const onProvision = mock(() =>
+      Promise.reject(new Error('Database connection lost: ECONNREFUSED')),
+    );
+    const routes = createPlatformIntegrationsRoutes({
+      db: {} as unknown as VobaseDb,
+      integrationsService: createMockService(),
+      onProvisionChannel: onProvision,
+    });
+
+    const body = JSON.stringify({
+      type: 'whatsapp',
+      label: 'WhatsApp (via platform)',
+      source: 'platform',
+    });
+
+    const res = await routes.request('/provision-channel', {
+      method: 'POST',
+      headers: {
+        'x-platform-signature': sign(body),
+        'content-type': 'application/json',
+      },
+      body,
+    });
+
+    expect(res.status).toBe(502);
+    const json = (await res.json()) as { error: string };
+    // Error must be sanitized — must NOT contain internal details
+    expect(json.error).toBe('Provisioning failed');
+    expect(json.error).not.toContain('ECONNREFUSED');
+    expect(json.error).not.toContain('Database');
+  });
+
+  test('returns 404 when PLATFORM_HMAC_SECRET not set', async () => {
+    const saved = process.env.PLATFORM_HMAC_SECRET;
+    delete process.env.PLATFORM_HMAC_SECRET;
+
+    try {
+      const onProvision = mock(() =>
+        Promise.resolve({ instanceId: 'x' }),
+      );
+      const routes = createPlatformIntegrationsRoutes({
+        db: {} as unknown as VobaseDb,
+        integrationsService: createMockService(),
+        onProvisionChannel: onProvision,
+      });
+
+      const body = JSON.stringify({
+        type: 'whatsapp',
+        label: 'WA',
+        source: 'platform',
+      });
+
+      const res = await routes.request('/provision-channel', {
+        method: 'POST',
+        headers: {
+          'x-platform-signature': sign(body),
+          'content-type': 'application/json',
+        },
+        body,
+      });
+
+      expect(res.status).toBe(404);
+      expect(onProvision).not.toHaveBeenCalled();
+    } finally {
+      process.env.PLATFORM_HMAC_SECRET = saved;
+    }
+  });
+});

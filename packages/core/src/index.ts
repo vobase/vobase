@@ -74,6 +74,9 @@ export { logger } from './infra/logger';
 // Platform Integration
 export {
   isPlatformEnabled,
+  type PlatformRoutesConfig,
+  type ProvisionChannelCtx,
+  type ProvisionChannelData,
   verifyPlatformSignature,
 } from './infra/platform';
 // Queue

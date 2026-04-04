@@ -1,13 +1,16 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 import * as z from 'zod';
 
 import type { VobaseDb } from '../db/client';
+import type { ChannelsService } from '../modules/channels/service';
 import type {
   ConnectOptions,
   IntegrationsService,
 } from '../modules/integrations/service';
 import { logger } from './logger';
+import type { Scheduler } from './queue';
 
 /**
  * Platform integration routes — stable contract for vobase-platform.
@@ -23,6 +26,13 @@ import { logger } from './logger';
  * POST /api/integrations/token/update
  *   Body: { provider: string, accessToken: string, expiresInSeconds?: number }
  *   Updates access token for an existing platform-managed integration.
+ *
+ * POST /api/integrations/provision-channel
+ *   Body: { type: string, label: string, source: 'platform' | 'sandbox', integrationId?: string, config?: Record<string, unknown> }
+ *   Requires: onProvisionChannel callback in PlatformRoutesConfig.
+ *   Success: { success: true, instanceId: string } (200)
+ *   Callback error: { error: string } (502) — real error logged server-side.
+ *   Not registered if callback not provided.
  *
  * GET /api/auth/platform-callback?token=JWT
  *   Handled by platformAuth better-auth plugin (not in this file).
@@ -60,32 +70,61 @@ export function isPlatformEnabled(): boolean {
   return !!getPlatformSecret();
 }
 
+/** Data passed to the onProvisionChannel callback after HMAC + Zod validation. */
+export interface ProvisionChannelData {
+  type: string;
+  label: string;
+  source: 'platform' | 'sandbox';
+  integrationId?: string;
+  config?: Record<string, unknown>;
+}
+
+/** Runtime context injected into the onProvisionChannel callback by createApp. */
+export interface ProvisionChannelCtx {
+  db: VobaseDb;
+  scheduler: Scheduler;
+  channels: ChannelsService;
+}
+
+/** Config for platform integration routes. */
 export interface PlatformRoutesConfig {
   db: VobaseDb;
   integrationsService: IntegrationsService;
+  /** Optional callback for channel instance provisioning. Route only registered when provided. */
+  onProvisionChannel?: (
+    data: ProvisionChannelData,
+  ) => Promise<{ instanceId: string }>;
+}
+
+/**
+ * Verify HMAC signature on a platform request. Returns the raw body on success,
+ * or a Response to short-circuit with on failure.
+ */
+async function verifyPlatformRequest(
+  c: Context,
+): Promise<{ rawBody: string } | Response> {
+  const secret = getPlatformSecret();
+  if (!secret) return c.text('Not found', 404);
+
+  const signature = c.req.header('x-platform-signature');
+  if (!signature) return c.json({ error: 'Missing signature' }, 401);
+
+  const rawBody = await c.req.text();
+  if (!verifyPlatformSignature(rawBody, signature)) {
+    return c.json({ error: 'Invalid signature' }, 401);
+  }
+
+  return { rawBody };
 }
 
 /** Platform integrations routes — see FROZEN CONTRACT block above for shape details. */
 export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
   const routes = new Hono();
 
-  /**
-   * POST /api/integrations/token/update
-   * Platform pushes refreshed access tokens to tenants.
-   * Body: { provider, accessToken, expiresInSeconds? }
-   * Signed with X-Platform-Signature.
-   */
   routes.post('/token/update', async (c) => {
-    const secret = getPlatformSecret();
-    if (!secret) return c.text('Not found', 404);
-
-    const signature = c.req.header('x-platform-signature');
-    if (!signature) return c.json({ error: 'Missing signature' }, 401);
-
-    const rawBody = await c.req.text();
-    if (!verifyPlatformSignature(rawBody, signature)) {
-      return c.json({ error: 'Invalid signature' }, 401);
-    }
+    const verified = await verifyPlatformRequest(c);
+    if (verified instanceof Response) return verified;
+    const { rawBody } = verified;
 
     const body = JSON.parse(rawBody) as {
       provider: string;
@@ -138,8 +177,51 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
     return c.json({ success: true });
   });
 
-  // NOTE: /token/update MUST be registered before /:provider/configure
-  // to avoid route shadowing (Hono's trie router resolves literals before params).
+  // NOTE: /token/update and /provision-channel MUST be registered before
+  // /:provider/configure to avoid route shadowing (Hono's trie router
+  // resolves literals before params).
+
+  // Conditionally register /provision-channel only when callback is provided.
+  // This avoids route collisions if the consumer still defines its own handler.
+  if (config.onProvisionChannel) {
+    const provisionBodySchema = z.object({
+      type: z.string().min(1),
+      label: z.string().min(1),
+      source: z.enum(['platform', 'sandbox']),
+      integrationId: z.string().optional(),
+      config: z.record(z.string(), z.unknown()).optional(),
+    });
+
+    const onProvision = config.onProvisionChannel;
+
+    routes.post('/provision-channel', async (c) => {
+      const verified = await verifyPlatformRequest(c);
+      if (verified instanceof Response) return verified;
+      const { rawBody } = verified;
+
+      let body: z.infer<typeof provisionBodySchema>;
+      try {
+        body = provisionBodySchema.parse(JSON.parse(rawBody));
+      } catch {
+        return c.json({ error: 'Invalid request body' }, 400);
+      }
+
+      try {
+        const result = await onProvision(body);
+        logger.info('[platform] Channel provisioned via platform', {
+          type: body.type,
+          instanceId: result.instanceId,
+        });
+        return c.json({ success: true, instanceId: result.instanceId });
+      } catch (err) {
+        logger.error('[platform] provision-channel callback failed', {
+          type: body.type,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return c.json({ error: 'Provisioning failed' }, 502);
+      }
+    });
+  }
 
   const configureBodySchema = z.object({
     config: z.record(z.string(), z.unknown()),
@@ -150,16 +232,9 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
   const providerParamSchema = z.string().regex(/^[a-z0-9-]+$/);
 
   routes.post('/:provider/configure', async (c) => {
-    const secret = getPlatformSecret();
-    if (!secret) return c.text('Not found', 404);
-
-    const signature = c.req.header('x-platform-signature');
-    if (!signature) return c.json({ error: 'Missing signature' }, 401);
-
-    const rawBody = await c.req.text();
-    if (!verifyPlatformSignature(rawBody, signature)) {
-      return c.json({ error: 'Invalid signature' }, 401);
-    }
+    const verified = await verifyPlatformRequest(c);
+    if (verified instanceof Response) return verified;
+    const { rawBody } = verified;
 
     let provider: string;
     try {
