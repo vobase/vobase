@@ -21,6 +21,8 @@ const scheduler: Scheduler = {
   async send() {
     return null;
   },
+  async schedule() {},
+  async unschedule() {},
   async stop() {},
 };
 const storage: StorageService = {

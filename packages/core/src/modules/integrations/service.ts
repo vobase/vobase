@@ -42,7 +42,12 @@ export interface IntegrationsService {
   updateConfig(
     id: string,
     config: Record<string, unknown>,
-    opts?: { expiresAt?: Date; markRefreshed?: boolean },
+    opts?: {
+      expiresAt?: Date;
+      markRefreshed?: boolean;
+      label?: string;
+      scopes?: string[];
+    },
   ): Promise<void>;
   markError(id: string, error: string): Promise<void>;
   markRefreshed(id: string): Promise<void>;
@@ -51,9 +56,9 @@ export interface IntegrationsService {
 function decryptConfig(encrypted: string): Record<string, unknown> {
   try {
     return JSON.parse(decrypt(encrypted));
-  } catch {
-    logger.error('Failed to decrypt integration config');
-    return {};
+  } catch (err) {
+    logger.error('Failed to decrypt integration config', { error: err });
+    throw new Error('Cannot decrypt integration config');
   }
 }
 
@@ -92,10 +97,29 @@ export function createIntegrationsService(db: VobaseDb): IntegrationsService {
           )
           .orderBy(desc(integrationsTable.updatedAt))
           .limit(1);
-        return rows[0] ? rowToIntegration(rows[0]) : null;
-      } catch {
-        // Table may not exist yet (e.g., in-memory test DB before db:push)
-        return null;
+        if (!rows[0]) return null;
+        try {
+          return rowToIntegration(rows[0]);
+        } catch (decryptErr) {
+          logger.warn('getActive: failed to decrypt integration config, skipping', {
+            provider,
+            id: rows[0].id,
+            error: decryptErr instanceof Error ? decryptErr.message : String(decryptErr),
+          });
+          return null;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '';
+        const cause = err instanceof Error ? err.cause : undefined;
+        const causeMsg =
+          cause != null && typeof (cause as { message?: unknown }).message === 'string'
+            ? (cause as { message: string }).message
+            : '';
+        const fullMsg = `${msg} ${causeMsg}`;
+        if (fullMsg.includes('relation') && fullMsg.includes('does not exist')) {
+          return null;
+        }
+        throw err;
       }
     },
 
@@ -155,7 +179,12 @@ export function createIntegrationsService(db: VobaseDb): IntegrationsService {
     async updateConfig(
       id: string,
       config: Record<string, unknown>,
-      opts?: { expiresAt?: Date; markRefreshed?: boolean },
+      opts?: {
+        expiresAt?: Date;
+        markRefreshed?: boolean;
+        label?: string;
+        scopes?: string[];
+      },
     ): Promise<void> {
       const encrypted = encrypt(JSON.stringify(config));
       await db
@@ -164,6 +193,10 @@ export function createIntegrationsService(db: VobaseDb): IntegrationsService {
           config: encrypted,
           ...(opts?.expiresAt !== undefined && {
             configExpiresAt: opts.expiresAt,
+          }),
+          ...(opts?.label !== undefined && { label: opts.label }),
+          ...(opts?.scopes !== undefined && {
+            scopes: JSON.stringify(opts.scopes),
           }),
           status: 'active',
           authFailedAt: null,

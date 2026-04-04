@@ -25,14 +25,7 @@ export function createIntegrationsModule(db: VobaseDb) {
     routes: new Hono(),
     jobs: [refreshTokensJob],
     init(ctx) {
-      // Check for expiring tokens every 5 minutes
-      // TODO: Migrate to pg-boss schedule() when exposed
-      setInterval(
-        () => {
-          ctx.scheduler.add('integrations:refresh-tokens', {});
-        },
-        5 * 60 * 1000,
-      );
+      ctx.scheduler.schedule('integrations:refresh-tokens', '*/5 * * * *', {});
     },
   });
 

@@ -2,7 +2,6 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import * as z from 'zod';
-
 import type { VobaseDb } from '../db/client';
 import type { ChannelsService } from '../modules/channels/service';
 import type {
@@ -121,19 +120,22 @@ async function verifyPlatformRequest(
 export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
   const routes = new Hono();
 
+  const tokenUpdateSchema = z.object({
+    provider: z.string().min(1),
+    accessToken: z.string().min(1),
+    expiresInSeconds: z.number().optional(),
+  });
+
   routes.post('/token/update', async (c) => {
     const verified = await verifyPlatformRequest(c);
     if (verified instanceof Response) return verified;
     const { rawBody } = verified;
 
-    const body = JSON.parse(rawBody) as {
-      provider: string;
-      accessToken: string;
-      expiresInSeconds?: number;
-    };
-
-    if (!body.provider || !body.accessToken) {
-      return c.json({ error: 'Missing provider or accessToken' }, 400);
+    let body: z.infer<typeof tokenUpdateSchema>;
+    try {
+      body = tokenUpdateSchema.parse(JSON.parse(rawBody));
+    } catch {
+      return c.json({ error: 'Invalid request body' }, 400);
     }
 
     // Find the active integration for this provider
@@ -259,6 +261,8 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
       await config.integrationsService.updateConfig(existing.id, body.config, {
         expiresAt,
         markRefreshed: true,
+        label: body.label,
+        scopes: body.scopes,
       });
       logger.info(`[platform] ${provider} credentials updated via platform`, {
         provider,

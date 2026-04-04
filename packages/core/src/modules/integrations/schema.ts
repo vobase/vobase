@@ -25,7 +25,7 @@ export const integrationsTable = infraPgSchema.table(
     index('integrations_status_idx').on(table.status),
     check(
       'integrations_status_check',
-      sql`status IN ('active', 'inactive', 'error')`,
+      sql`status IN ('active', 'inactive', 'disconnected', 'error')`,
     ),
     uniqueIndex('integrations_active_platform_provider_idx')
       .on(table.provider)

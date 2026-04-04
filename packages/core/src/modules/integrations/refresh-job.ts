@@ -99,8 +99,8 @@ export async function refreshExpiringTokens(
 
         await integrationsService.updateConfig(integration.id, updatedConfig, {
           expiresAt,
+          markRefreshed: true,
         });
-        await integrationsService.markRefreshed(integration.id);
 
         logger.info('[integrations:refresh] Token refreshed locally', {
           id: integration.id,
@@ -128,8 +128,8 @@ export async function refreshExpiringTokens(
 
         await integrationsService.updateConfig(integration.id, updatedConfig, {
           expiresAt,
+          markRefreshed: true,
         });
-        await integrationsService.markRefreshed(integration.id);
 
         logger.info('[integrations:refresh] Token refreshed via platform', {
           id: integration.id,

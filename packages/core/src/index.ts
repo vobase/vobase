@@ -83,6 +83,7 @@ export {
 export {
   createScheduler,
   type JobOptions,
+  type ScheduleOptions,
   type Scheduler,
 } from './infra/queue';
 // Realtime (SSE + LISTEN/NOTIFY)

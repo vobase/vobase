@@ -14,6 +14,13 @@ export interface JobOptions {
   priority?: number;
 }
 
+export interface ScheduleOptions extends JobOptions {
+  /** Timezone for cron expression (default: UTC) */
+  tz?: string;
+  /** Unique key when multiple schedules exist on the same queue */
+  key?: string;
+}
+
 export interface SchedulerOptions {
   /** Postgres connection string or PGlite instance (for tests) */
   connection?: PGlite | string;
@@ -30,6 +37,15 @@ export interface Scheduler {
     data: unknown,
     options?: JobOptions,
   ): Promise<string | null>;
+  /** Register a recurring cron schedule. Idempotent — safe to call on every boot. */
+  schedule(
+    name: string,
+    cron: string,
+    data?: unknown,
+    options?: ScheduleOptions,
+  ): Promise<void>;
+  /** Remove a cron schedule. */
+  unschedule(name: string, key?: string): Promise<void>;
   /** Stop the scheduler (pg-boss maintenance loop). Call during graceful shutdown. */
   stop(): Promise<void>;
 }
@@ -124,6 +140,20 @@ export async function createScheduler(
       await send(name, data, opts);
     },
     send,
+    async schedule(
+      name: string,
+      cron: string,
+      data?: unknown,
+      opts?: ScheduleOptions,
+    ): Promise<void> {
+      await ensureQueue(name);
+      const queueName = toQueueName(name);
+      await boss.schedule(queueName, cron, data as object, opts);
+    },
+    async unschedule(name: string, key?: string): Promise<void> {
+      const queueName = toQueueName(name);
+      await boss.unschedule(queueName, key);
+    },
     async stop() {
       await boss.stop();
     },

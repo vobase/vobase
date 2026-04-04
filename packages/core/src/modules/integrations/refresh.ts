@@ -152,14 +152,17 @@ export async function refreshViaPlat(
     .update(body)
     .digest('hex');
 
+  const tenantSlug = process.env.PLATFORM_TENANT_SLUG;
+  if (!tenantSlug) {
+    throw new Error('PLATFORM_TENANT_SLUG env var is required for platform token refresh');
+  }
+
   const res = await fetch(`${platformUrl}/api/oauth-proxy/token/refresh`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Platform-Signature': signature,
-      'X-Tenant-Slug': process.env.PLATFORM_TENANT_SLUG || (() => {
-        throw new Error('PLATFORM_TENANT_SLUG env var is required for platform token refresh');
-      })(),
+      'X-Tenant-Slug': tenantSlug,
     },
     body,
   });
