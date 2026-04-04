@@ -4,13 +4,16 @@
  *
  * Usage: bun run db:generate [migration-name]
  */
-import { readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { processSqlFile } from './utils/process-sql-file';
 
 const name = process.argv[2] || `migration_${Date.now()}`;
 const drizzleDir = join(import.meta.dir, '..', 'drizzle');
+
+// Ensure drizzle dir exists (first run on freshly scaffolded project)
+if (!existsSync(drizzleDir)) mkdirSync(drizzleDir, { recursive: true });
 
 // Snapshot existing migration folders before generating
 const before = new Set(readdirSync(drizzleDir));
