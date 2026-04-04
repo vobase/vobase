@@ -88,7 +88,6 @@ jobs:
           # Install all deps (including devDeps for Vite build)
           FROM base AS build
           COPY package.json bun.lock* ./
-          COPY patches/ ./patches/
           RUN bun install --frozen-lockfile
           COPY . .
           RUN bun run build
@@ -96,7 +95,6 @@ jobs:
           # Production deps only
           FROM base AS prod-deps
           COPY package.json bun.lock* ./
-          COPY patches/ ./patches/
           RUN bun install --frozen-lockfile --production
 
           # Final image

@@ -15,16 +15,27 @@ const drizzleDir = join(import.meta.dir, '..', 'drizzle');
 // Snapshot existing migration folders before generating
 const before = new Set(readdirSync(drizzleDir));
 
-// 1. Run drizzle-kit generate with full TTY passthrough (stdio: inherit)
-const proc = Bun.spawnSync(
-  ['bunx', 'drizzle-kit', 'generate', '--name', name],
-  {
-    stdin: 'inherit',
-    stdout: 'inherit',
-    stderr: 'inherit',
-    cwd: join(import.meta.dir, '..'),
-  },
-);
+// 1. Run drizzle-kit generate
+// Use `script` to allocate a pseudo-TTY (drizzle-kit requires isTTY even with --name)
+const isLinux = process.platform === 'linux';
+const cmd = isLinux
+  ? ['script', '-qc', `bunx drizzle-kit generate --name ${name}`, '/dev/null']
+  : [
+      'script',
+      '-q',
+      '/dev/null',
+      'bunx',
+      'drizzle-kit',
+      'generate',
+      '--name',
+      name,
+    ];
+const proc = Bun.spawnSync(cmd, {
+  stdin: 'inherit',
+  stdout: 'inherit',
+  stderr: 'inherit',
+  cwd: join(import.meta.dir, '..'),
+});
 
 if (proc.exitCode !== 0) {
   process.exit(proc.exitCode);
