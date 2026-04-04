@@ -4,6 +4,7 @@ import { streamSSE } from 'hono/streaming';
 import { contextMiddleware } from './ctx';
 import { createDatabase } from './db/client';
 import { errorHandler } from './infra/errors';
+import { logger } from './infra/logger';
 import { createHttpClient, type HttpClientOptions } from './infra/http-client';
 import { createWorker } from './infra/job';
 import {
@@ -42,7 +43,10 @@ import type { StorageService } from './modules/storage/service';
 export interface CreateAppConfig {
   modules: VobaseModule[];
   database: string;
-  storage?: StorageModuleConfig;
+  storage?: StorageModuleConfig & {
+    /** Vault provider key for S3-compatible storage override (e.g. 'cloudflare-r2'). */
+    integrationProvider?: string;
+  };
   channels?: ChannelsModuleConfig;
   http?: HttpClientOptions;
   webhooks?: Record<string, WebhookConfig>;
@@ -75,19 +79,48 @@ export async function createApp(config: CreateAppConfig) {
   });
   const authAdapter = authMod.adapter;
 
-  // === Storage Module (config-driven) ===
+  // === Integrations Module (always active — credential vault) ===
+  const integrationsMod = createIntegrationsModule(db);
+  const integrationsService = integrationsMod.service;
+
+  // === Storage Module (config-driven, vault override for cloud storage) ===
   let storageMod: ReturnType<typeof createStorageModule> | undefined;
   let storageService: StorageService;
   if (config.storage) {
-    storageMod = createStorageModule(db, config.storage);
+    let storageConfig: StorageModuleConfig = config.storage;
+
+    // Vault-first: if integrationProvider is set and static config is local,
+    // check vault for S3-compatible credentials (e.g. Cloudflare R2)
+    if (
+      config.storage.integrationProvider &&
+      config.storage.provider.type === 'local'
+    ) {
+      const vaultIntegration = await integrationsService.getActive(
+        config.storage.integrationProvider,
+      );
+      if (vaultIntegration) {
+        storageConfig = {
+          provider: {
+            type: 's3',
+            bucket: vaultIntegration.config.bucket as string,
+            endpoint: vaultIntegration.config.endpoint as string,
+            accessKeyId: vaultIntegration.config.accessKeyId as string,
+            secretAccessKey: vaultIntegration.config
+              .secretAccessKey as string,
+          },
+          buckets: config.storage.buckets,
+        };
+        logger.info('[storage] Using cloud storage from integrations vault', {
+          provider: config.storage.integrationProvider,
+        });
+      }
+    }
+
+    storageMod = createStorageModule(db, storageConfig);
     storageService = storageMod.service;
   } else {
     storageService = createThrowProxy<StorageService>('storage');
   }
-
-  // === Integrations Module (always active — credential vault) ===
-  const integrationsMod = createIntegrationsModule(db);
-  const integrationsService = integrationsMod.service;
 
   // === Channels Module (always created — adapters registered lazily) ===
   const channelsMod = createChannelsModule(db, config.channels ?? {});
