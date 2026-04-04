@@ -36,6 +36,9 @@ const config: Omit<CreateAppConfig, 'modules'> = {
       'kb-documents': { access: 'private' },
       'chat-attachments': { access: 'private' },
     },
+    ...(process.env.PLATFORM_HMAC_SECRET && {
+      integrationProvider: 'cloudflare-r2',
+    }),
   },
   mcp: { enabled: true },
   trustedOrigins: ['http://localhost:5173', 'http://localhost:5174'],

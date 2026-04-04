@@ -1,3 +1,4 @@
+import type { IntegrationsService } from '@vobase/core';
 import { createHttpClient } from '@vobase/core';
 
 import type {
@@ -11,20 +12,52 @@ const http = createHttpClient();
 
 interface CrawlConfig extends ConnectorConfig {
   url: string;
-  maxPages?: number;
-  maxDepth?: number;
+  limit?: number;
+  depth?: number;
 }
 
 /**
  * Cloudflare Browser Rendering connector.
  * Uses the /crawl REST API: POST to start crawl, GET to poll for results.
+ * Credentials: reads from integrations vault ('cloudflare'), falls back to env vars.
  */
-export function createCrawlConnector(config: CrawlConfig): DocumentSource {
-  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/browser-rendering`;
+export function createCrawlConnector(
+  config: CrawlConfig,
+  integrations?: IntegrationsService,
+): DocumentSource {
+  // Resolve credentials lazily on first use (vault lookup is async)
+  let resolvedCredentials: { apiToken: string; accountId: string } | null =
+    null;
+
+  async function getCredentials(): Promise<{
+    apiToken: string;
+    accountId: string;
+  }> {
+    if (resolvedCredentials) return resolvedCredentials;
+
+    // Vault-first, env var fallback
+    const cfIntegration = await integrations?.getActive('cloudflare');
+    const apiToken =
+      (cfIntegration?.config.apiToken as string) ??
+      process.env.CLOUDFLARE_API_TOKEN;
+    const accountId =
+      (cfIntegration?.config.accountId as string) ??
+      process.env.CLOUDFLARE_ACCOUNT_ID;
+
+    if (!apiToken || !accountId) {
+      throw new Error(
+        'Cloudflare credentials not found. Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID env vars, or configure a "cloudflare" integration via the platform.',
+      );
+    }
+
+    resolvedCredentials = { apiToken, accountId };
+    return resolvedCredentials;
+  }
 
   async function startCrawl(): Promise<string> {
+    const { apiToken, accountId } = await getCredentials();
+    const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/browser-rendering`;
+
     const res = await http.fetch(`${baseUrl}/crawl`, {
       method: 'POST',
       headers: {
@@ -33,42 +66,49 @@ export function createCrawlConnector(config: CrawlConfig): DocumentSource {
       },
       body: {
         url: config.url,
-        maxPages: config.maxPages ?? 10,
-        maxDepth: config.maxDepth ?? 2,
-        scrapeOptions: { formats: ['markdown'] },
+        limit: config.limit ?? 10,
+        depth: config.depth ?? 2,
+        formats: ['markdown'],
       },
     });
     if (!res.ok)
       throw new Error(
         `Crawl start failed: ${res.status} ${await res.raw.text()}`,
       );
-    const data = res.data as { result: { crawlId: string } };
-    return data.result.crawlId;
+    // POST returns { success: true, result: "<job-id>" }
+    const data = res.data as { result: string };
+    return data.result;
   }
 
   async function pollCrawl(
-    crawlId: string,
+    jobId: string,
   ): Promise<Array<{ url: string; markdown: string }>> {
-    const maxAttempts = 30;
+    const { apiToken, accountId } = await getCredentials();
+    const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/browser-rendering`;
+    const pollUrl = `${baseUrl}/crawl/${jobId}`;
+
+    const maxAttempts = 60;
     for (let i = 0; i < maxAttempts; i++) {
-      const res = await http.fetch(`${baseUrl}/crawl/${crawlId}`, {
+      const res = await http.fetch(pollUrl, {
         headers: { Authorization: `Bearer ${apiToken}` },
       });
       if (!res.ok) throw new Error(`Crawl poll failed: ${res.status}`);
       const data = res.data as {
         result: {
           status: string;
-          data?: Array<{ url: string; markdown: string }>;
+          records?: Array<{ url: string; status: string; markdown?: string }>;
         };
       };
-      if (data.result.status === 'complete') {
-        return data.result.data ?? [];
+      if (data.result.status === 'completed') {
+        return (data.result.records ?? [])
+          .filter((r) => r.status === 'completed' && r.markdown)
+          .map((r) => ({ url: r.url, markdown: r.markdown! }));
       }
-      if (data.result.status === 'error') {
+      if (data.result.status === 'errored') {
         throw new Error('Crawl failed');
       }
-      // Wait before polling again
-      await new Promise((r) => setTimeout(r, 2000));
+      // Wait before polling again (5s between polls as per Cloudflare guidance)
+      await new Promise((r) => setTimeout(r, 5000));
     }
     throw new Error('Crawl timed out');
   }
@@ -81,8 +121,8 @@ export function createCrawlConnector(config: CrawlConfig): DocumentSource {
     type: 'crawl',
 
     async *listDocuments(): AsyncGenerator<ExternalDocument> {
-      const crawlId = await startCrawl();
-      crawlResults = await pollCrawl(crawlId);
+      const jobId = await startCrawl();
+      crawlResults = await pollCrawl(jobId);
       for (const page of crawlResults) {
         yield {
           externalId: page.url,

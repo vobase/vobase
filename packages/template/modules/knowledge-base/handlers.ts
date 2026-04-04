@@ -55,7 +55,7 @@ async function syncSource(
     const config = source.config ? JSON.parse(source.config) : {};
 
     if (source.type === 'crawl') {
-      connector = createCrawlConnector(config);
+      connector = createCrawlConnector(config, integrations);
     } else if (source.type === 'google-drive') {
       if (!config.integrationId)
         throw new Error('Google Drive source missing integrationId');
