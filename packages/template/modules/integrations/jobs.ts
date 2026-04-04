@@ -129,7 +129,7 @@ export const whatsappSetupJob = defineJob(
         },
         body: {
           messaging_product: 'whatsapp',
-          pin: '000000',
+          pin: process.env.WHATSAPP_REGISTRATION_PIN ?? '000000',
         },
       },
     );

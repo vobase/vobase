@@ -25,16 +25,10 @@ export function createCrawlConnector(
   config: CrawlConfig,
   integrations?: IntegrationsService,
 ): DocumentSource {
-  // Resolve credentials lazily on first use (vault lookup is async)
-  let resolvedCredentials: { apiToken: string; accountId: string } | null =
-    null;
-
   async function getCredentials(): Promise<{
     apiToken: string;
     accountId: string;
   }> {
-    if (resolvedCredentials) return resolvedCredentials;
-
     // Vault-first, env var fallback
     const cfIntegration = await integrations?.getActive('cloudflare');
     const apiToken =
@@ -50,8 +44,7 @@ export function createCrawlConnector(
       );
     }
 
-    resolvedCredentials = { apiToken, accountId };
-    return resolvedCredentials;
+    return { apiToken, accountId };
   }
 
   async function startCrawl(): Promise<string> {
