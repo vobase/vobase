@@ -241,8 +241,9 @@ export const processInboundJob = defineJob(
 
     const chat = getChat();
 
-    const adapter = (chat as unknown as { adapters: Record<string, unknown> })
-      .adapters[adapterName];
+    const adapter = (
+      chat as unknown as { adapters: Map<string, unknown> }
+    ).adapters.get(adapterName);
 
     if (!adapter) {
       logger.error('[ai] Retry: no adapter for channel', {

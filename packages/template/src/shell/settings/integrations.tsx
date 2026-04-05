@@ -302,7 +302,9 @@ function IntegrationsPage() {
 
     // Platform-managed: redirect to platform OAuth proxy for Meta Embedded Signup
     if (metaChannels.includes(type) && !config?.metaAppId && platformUrl) {
-      const slug = window.location.hostname.split('.')[0];
+      const slug =
+        import.meta.env.VITE_PLATFORM_TENANT_SLUG ||
+        window.location.hostname.split('.')[0];
       window.location.href = `${platformUrl}/api/oauth-proxy/${type}/connect?tenant=${slug}`;
       return;
     }

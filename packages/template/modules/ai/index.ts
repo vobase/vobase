@@ -87,10 +87,9 @@ export const aiModule = defineModule({
         .select({ id: channelInstances.id })
         .from(channelInstances)
         .where(eq(channelInstances.status, 'active'));
-      const chatAdapterCount = Object.keys(
-        (chat as unknown as { adapters: Record<string, unknown> }).adapters ??
-          {},
-      ).length;
+      const chatAdapterCount = (
+        chat as unknown as { adapters: Map<string, unknown> }
+      ).adapters.size;
       logger.info('[ai] Init complete', {
         channelInstances: allInstances.length,
         chatAdapters: chatAdapterCount,
@@ -111,16 +110,18 @@ export const aiModule = defineModule({
       ctx.channels.on('message_received', (event: MessageReceivedEvent) => {
         const adapterName = event.channelInstanceId ?? event.channel;
         const currentChat = getChat();
+        const chatAdapters = (
+          currentChat as unknown as { adapters: Map<string, unknown> }
+        ).adapters;
 
         try {
-          const adapter = (
-            currentChat as unknown as { adapters: Record<string, unknown> }
-          ).adapters[adapterName];
+          const adapter = chatAdapters.get(adapterName);
 
           if (!adapter) {
             logger.warn('[ai] No bridge adapter for channel', {
               adapterName,
               channelInstanceId: event.channelInstanceId,
+              availableAdapters: Array.from(chatAdapters.keys()),
             });
             return;
           }
