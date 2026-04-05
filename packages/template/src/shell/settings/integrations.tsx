@@ -156,7 +156,9 @@ function InstanceRow({
   disconnecting: boolean;
 }) {
   const canDisconnect =
-    instance.source === 'self' || instance.source === 'sandbox';
+    instance.source === 'self' ||
+    instance.source === 'sandbox' ||
+    instance.source === 'platform';
   const label = instance.label ?? instance.id;
 
   return (
