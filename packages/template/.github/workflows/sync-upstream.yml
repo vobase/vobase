@@ -27,11 +27,14 @@ jobs:
       - name: Check for changes
         id: diff
         run: |
-          if git diff --quiet HEAD...upstream/main; then
+          # Use two-dot diff (works even with unrelated histories)
+          CHANGES=$(git diff HEAD upstream/main --stat)
+          if [ -z "$CHANGES" ]; then
             echo "changes=false" >> "$GITHUB_OUTPUT"
             echo "No upstream changes to sync."
           else
             echo "changes=true" >> "$GITHUB_OUTPUT"
+            echo "$CHANGES"
           fi
 
       - name: Create sync branch and PR
@@ -41,7 +44,7 @@ jobs:
         run: |
           BRANCH="sync/upstream-$(date +%Y%m%d-%H%M%S)"
           git checkout -b "$BRANCH"
-          git merge upstream/main --no-edit || true
+          git merge upstream/main --allow-unrelated-histories --no-edit || true
 
           # Check for conflicts
           if git diff --name-only --diff-filter=U | grep -q .; then
@@ -53,6 +56,7 @@ jobs:
           git push origin "$BRANCH"
 
           gh pr create \
+            --head "$BRANCH" \
             --title "sync: update from upstream template" \
             --body "$(cat <<'EOF'
           ## Upstream Template Sync
