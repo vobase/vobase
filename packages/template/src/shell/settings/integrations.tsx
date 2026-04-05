@@ -295,15 +295,17 @@ function IntegrationsPage() {
   );
 
   const handleConnect = async (type: string) => {
-    if (type !== 'whatsapp') return; // other types: stub / future
-
-    // Platform-managed: redirect to platform OAuth proxy for WhatsApp Embedded Signup
     const platformUrl = import.meta.env.VITE_PLATFORM_URL;
-    if (!config?.metaAppId && platformUrl) {
+    const metaChannels = ['whatsapp', 'messenger', 'instagram'];
+
+    // Platform-managed: redirect to platform OAuth proxy for Meta Embedded Signup
+    if (metaChannels.includes(type) && !config?.metaAppId && platformUrl) {
       const slug = window.location.hostname.split('.')[0];
-      window.location.href = `${platformUrl}/api/oauth-proxy/whatsapp/connect?tenant=${slug}`;
+      window.location.href = `${platformUrl}/api/oauth-proxy/${type}/connect?tenant=${slug}`;
       return;
     }
+
+    if (type !== 'whatsapp') return; // other types: stub / future
 
     if (!config?.metaAppId || !config?.metaConfigId) {
       setConnectError(
