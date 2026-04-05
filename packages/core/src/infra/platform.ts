@@ -83,6 +83,7 @@ export interface ProvisionChannelCtx {
   db: VobaseDb;
   scheduler: Scheduler;
   channels: ChannelsService;
+  integrations: IntegrationsService;
 }
 
 /** Config for platform integration routes. */

@@ -277,7 +277,7 @@ export async function createApp(config: CreateAppConfig) {
       db,
       integrationsService,
       onProvisionChannel: userProvisionCb
-        ? (data) => userProvisionCb(data, { db, scheduler, channels: channelsService })
+        ? (data) => userProvisionCb(data, { db, scheduler, channels: channelsService, integrations: integrationsService })
         : undefined,
     };
     base.route(

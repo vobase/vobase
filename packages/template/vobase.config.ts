@@ -1,4 +1,8 @@
-import { type CreateAppConfig, createNanoid } from '@vobase/core';
+import {
+  type CreateAppConfig,
+  createNanoid,
+  createWhatsAppAdapter,
+} from '@vobase/core';
 
 import { reinitChat } from './modules/ai/lib/chat-init';
 import { channelInstances } from './modules/ai/schema';
@@ -22,6 +26,24 @@ const config: Omit<CreateAppConfig, 'modules'> = {
       config: data.config ?? {},
       status: 'active',
     });
+
+    // Hot-register the channel adapter from platform-stored credentials
+    if (data.type === 'whatsapp') {
+      const integration = await ctx.integrations.getActive('whatsapp');
+      if (integration) {
+        const { phoneNumberId, accessToken, appSecret } =
+          integration.config as {
+            phoneNumberId: string;
+            accessToken: string;
+            appSecret: string;
+          };
+        ctx.channels.registerAdapter(
+          'whatsapp',
+          createWhatsAppAdapter({ phoneNumberId, accessToken, appSecret }),
+        );
+      }
+    }
+
     await reinitChat({
       db: ctx.db,
       scheduler: ctx.scheduler,
