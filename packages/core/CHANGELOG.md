@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.27.3
+
+### Patch Changes
+
+- Add integrations service to ProvisionChannelCtx, enabling onProvisionChannel callbacks to read stored credentials from the vault for hot-registering channel adapters during platform provisioning.
+
 ## 0.27.2
 
 ### Patch Changes
