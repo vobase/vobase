@@ -23,7 +23,8 @@ export const integrationsRoutes = new Hono()
   .get('/config', (c) => {
     const metaAppId = process.env.META_APP_ID ?? null;
     const metaConfigId = process.env.META_CONFIG_ID ?? null;
-    return c.json({ metaAppId, metaConfigId });
+    const platformUrl = process.env.PLATFORM_URL ?? null;
+    return c.json({ metaAppId, metaConfigId, platformUrl });
   })
 
   // ─── List all channel instances ───────────────────────────────────

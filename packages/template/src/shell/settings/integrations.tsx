@@ -297,6 +297,14 @@ function IntegrationsPage() {
   const handleConnect = async (type: string) => {
     if (type !== 'whatsapp') return; // other types: stub / future
 
+    // Platform-managed: redirect to platform OAuth proxy for WhatsApp Embedded Signup
+    const platformUrl = import.meta.env.VITE_PLATFORM_URL;
+    if (!config?.metaAppId && platformUrl) {
+      const slug = window.location.hostname.split('.')[0];
+      window.location.href = `${platformUrl}/api/oauth-proxy/whatsapp/connect?tenant=${slug}`;
+      return;
+    }
+
     if (!config?.metaAppId || !config?.metaConfigId) {
       setConnectError(
         'META_APP_ID and META_CONFIG_ID must be set in your environment before connecting WhatsApp.',
