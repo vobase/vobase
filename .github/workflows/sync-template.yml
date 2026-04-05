@@ -80,6 +80,12 @@ jobs:
           OUT="${RUNNER_TEMP}/template-out"
           rm -rf "$OUT/data/" "$OUT/.env" "$OUT/node_modules/" "$OUT/.tanstack/"
 
+      # Verify the Docker image builds before pushing — catches missing deps, bad COPY paths, etc.
+      - name: Verify Docker build
+        run: |
+          OUT="${RUNNER_TEMP}/template-out"
+          docker build -t vobase-template-verify "$OUT"
+
       # Push to vobase/template repo using GitHub App token
       - name: Push to vobase/template
         env:
