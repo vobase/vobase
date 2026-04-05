@@ -75,62 +75,9 @@ jobs:
           bun run db:push
           bun run db:generate
 
-      - name: Add deployment files
+      - name: Clean up dev-only artifacts
         run: |
-          set -euo pipefail
           OUT="${RUNNER_TEMP}/template-out"
-
-          # Dockerfile for Railway
-          cat > "$OUT/Dockerfile" << 'EOF'
-          FROM oven/bun:1.3.10-slim AS base
-          WORKDIR /app
-
-          # Install all deps (including devDeps for Vite build)
-          FROM base AS build
-          COPY package.json bun.lock* ./
-          RUN bun install --frozen-lockfile
-          COPY . .
-          RUN bun run build
-
-          # Production deps only
-          FROM base AS prod-deps
-          COPY package.json bun.lock* ./
-          RUN bun install --frozen-lockfile --production
-
-          # Final image
-          FROM base
-          COPY --from=prod-deps /app/node_modules ./node_modules
-          COPY --from=build /app/dist ./dist
-          COPY . .
-          EXPOSE 3000
-          CMD ["bun", "run", "server.ts"]
-          EOF
-
-          # railway.json for deploy config
-          cat > "$OUT/railway.json" << 'EOF'
-          {
-            "$schema": "https://railway.com/railway.schema.json",
-            "build": {
-              "dockerfilePath": "Dockerfile"
-            },
-            "deploy": {
-              "startCommand": "bun run server.ts",
-              "restartPolicyType": "ON_FAILURE",
-              "restartPolicyMaxRetries": 10
-            }
-          }
-          EOF
-
-          # Append platform env vars to .env.example
-          cat >> "$OUT/.env.example" << 'EOF'
-
-          # --- Platform Integration (set by provisioning) ---
-          # PLATFORM_HMAC_SECRET=
-          # PLATFORM_URL=
-          # BIFROST_API_KEY=
-          EOF
-
-          # Clean up dev-only artifacts
           rm -rf "$OUT/data/" "$OUT/.env" "$OUT/node_modules/" "$OUT/.tanstack/"
 
       # Push to vobase/template repo using GitHub App token
