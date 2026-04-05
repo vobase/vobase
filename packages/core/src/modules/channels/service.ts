@@ -68,7 +68,7 @@ function createChannelSend(
 
       if (!adapter) {
         throw new Error(
-          `${channelName} channel is not configured. Connect it via /settings/integrations or add ${channelName} configuration to your createApp() config.`,
+          `${channelName} channel is not configured. Connect it via /channels or add ${channelName} configuration to your createApp() config.`,
         );
       }
 

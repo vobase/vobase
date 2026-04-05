@@ -61,7 +61,7 @@ export const whatsappSetupJob = defineJob(
       },
     );
     if (!subRes.ok) {
-      const body = await subRes.raw.text();
+      const body = JSON.stringify(subRes.data);
       logger.error('WhatsApp setup job: subscribe to WABA failed', {
         status: subRes.status,
         body,
@@ -87,24 +87,24 @@ export const whatsappSetupJob = defineJob(
       });
       const verifyToken =
         process.env.META_WEBHOOK_VERIFY_TOKEN ?? 'vobase-webhook-verify';
+      const cbBody = new URLSearchParams({
+        object: 'whatsapp_business_account',
+        callback_url: webhookUrl,
+        verify_token: verifyToken,
+        fields: 'messages',
+      });
       const cbRes = await http.fetch(
         `${META_GRAPH_API}/${metaAppId}/subscriptions`,
         {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${metaAppId}|${metaAppSecret}`,
-            'Content-Type': 'application/json',
           },
-          body: {
-            object: 'whatsapp_business_account',
-            callback_url: webhookUrl,
-            verify_token: verifyToken,
-            fields: ['messages'],
-          },
+          body: cbBody,
         },
       );
       if (!cbRes.ok) {
-        const body = await cbRes.raw.text();
+        const body = JSON.stringify(cbRes.data);
         logger.error('WhatsApp setup job: set webhook URL failed', {
           status: cbRes.status,
           body,
@@ -119,23 +119,21 @@ export const whatsappSetupJob = defineJob(
     logger.info('WhatsApp setup job: registering phone number', {
       phoneNumberId,
     });
+    const regBody = new URLSearchParams({
+      messaging_product: 'whatsapp',
+      pin: process.env.WHATSAPP_REGISTRATION_PIN ?? '000000',
+    });
     const regRes = await http.fetch(
       `${META_GRAPH_API}/${phoneNumberId}/register`,
       {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: {
-          messaging_product: 'whatsapp',
-          pin: process.env.WHATSAPP_REGISTRATION_PIN ?? '000000',
-        },
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: regBody,
       },
     );
     // 200 = success, 4xx with "already registered" is also fine for coexistence
     if (!regRes.ok) {
-      const body = await regRes.raw.text();
+      const body = JSON.stringify(regRes.data);
       // Don't retry if already registered
       const isAlreadyRegistered =
         body.includes('already registered') ||

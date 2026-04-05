@@ -28,6 +28,12 @@ interface ChatInitDeps {
 
 let chatInstance: Chat | null = null;
 let stateInstance: StateAdapter | null = null;
+let onChatInitCallback: ((chat: Chat) => void) | null = null;
+
+/** Register a callback that runs after every Chat init/reinit (for handler registration). */
+export function onChatInit(cb: (chat: Chat) => void): void {
+  onChatInitCallback = cb;
+}
 
 /** Get the Chat instance. Throws if not initialized. */
 export function getChat(): Chat {
@@ -139,6 +145,11 @@ export async function initChat(deps: ChatInitDeps): Promise<Chat> {
     state,
     logger: createChatLogger(),
   });
+
+  // Re-register handlers after reinit
+  if (onChatInitCallback) {
+    onChatInitCallback(chatInstance);
+  }
 
   return chatInstance;
 }

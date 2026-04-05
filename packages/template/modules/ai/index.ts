@@ -16,7 +16,7 @@ import {
   setModuleDeps,
 } from './jobs';
 import { registerHandlers } from './lib/chat-handlers';
-import { getChat, initChat } from './lib/chat-init';
+import { getChat, initChat, onChatInit } from './lib/chat-init';
 import * as schema from './schema';
 import { channelInstances } from './schema';
 
@@ -78,8 +78,9 @@ export const aiModule = defineModule({
       return;
     }
 
-    // Register chat-sdk handlers
+    // Register chat-sdk handlers (and re-register on every reinit)
     registerHandlers(chat, deps);
+    onChatInit((newChat) => registerHandlers(newChat, deps));
 
     // Log init complete with active channel instance count
     try {
