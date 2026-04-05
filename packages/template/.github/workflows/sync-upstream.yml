@@ -69,6 +69,7 @@ jobs:
 
           git push origin "$BRANCH"
 
+          # Create PR (may fail if repo doesn't allow Actions to create PRs — branch is still pushed)
           gh pr create \
             --head "$BRANCH" \
             --title "sync: update from upstream template" \
@@ -81,4 +82,4 @@ jobs:
 
           If there are merge conflicts, resolve them before merging.
           EOF
-          )"
+          )" || echo "::warning::Could not create PR automatically. Create one manually from branch: $BRANCH"
