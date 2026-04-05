@@ -29,7 +29,6 @@ import { Route as ListRouteImport } from './../modules/system/pages/list'
 import { Route as shellSettingsProfileRouteImport } from './shell/settings/profile'
 import { Route as shellSettingsOrganizationRouteImport } from './shell/settings/organization'
 import { Route as shellSettingsNotificationsRouteImport } from './shell/settings/notifications'
-import { Route as shellSettingsIntegrationsRouteImport } from './shell/settings/integrations'
 import { Route as shellSettingsDisplayRouteImport } from './shell/settings/display'
 import { Route as shellSettingsAppearanceRouteImport } from './shell/settings/appearance'
 import { Route as shellSettingsApiKeysRouteImport } from './shell/settings/api-keys'
@@ -153,12 +152,6 @@ const shellSettingsNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => shellSettingsLayoutRoute,
   } as any)
-const shellSettingsIntegrationsRoute =
-  shellSettingsIntegrationsRouteImport.update({
-    id: '/integrations',
-    path: '/integrations',
-    getParentRoute: () => shellSettingsLayoutRoute,
-  } as any)
 const shellSettingsDisplayRoute = shellSettingsDisplayRouteImport.update({
   id: '/display',
   path: '/display',
@@ -268,7 +261,6 @@ export interface FileRoutesByFullPath {
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/settings/appearance': typeof shellSettingsAppearanceRoute
   '/settings/display': typeof shellSettingsDisplayRoute
-  '/settings/integrations': typeof shellSettingsIntegrationsRoute
   '/settings/notifications': typeof shellSettingsNotificationsRoute
   '/settings/organization': typeof shellSettingsOrganizationRoute
   '/settings/profile': typeof shellSettingsProfileRoute
@@ -303,7 +295,6 @@ export interface FileRoutesByTo {
   '/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/settings/appearance': typeof shellSettingsAppearanceRoute
   '/settings/display': typeof shellSettingsDisplayRoute
-  '/settings/integrations': typeof shellSettingsIntegrationsRoute
   '/settings/notifications': typeof shellSettingsNotificationsRoute
   '/settings/organization': typeof shellSettingsOrganizationRoute
   '/settings/profile': typeof shellSettingsProfileRoute
@@ -343,7 +334,6 @@ export interface FileRoutesById {
   '/_app/settings/api-keys': typeof shellSettingsApiKeysRoute
   '/_app/settings/appearance': typeof shellSettingsAppearanceRoute
   '/_app/settings/display': typeof shellSettingsDisplayRoute
-  '/_app/settings/integrations': typeof shellSettingsIntegrationsRoute
   '/_app/settings/notifications': typeof shellSettingsNotificationsRoute
   '/_app/settings/organization': typeof shellSettingsOrganizationRoute
   '/_app/settings/profile': typeof shellSettingsProfileRoute
@@ -381,7 +371,6 @@ export interface FileRouteTypes {
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/display'
-    | '/settings/integrations'
     | '/settings/notifications'
     | '/settings/organization'
     | '/settings/profile'
@@ -416,7 +405,6 @@ export interface FileRouteTypes {
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/display'
-    | '/settings/integrations'
     | '/settings/notifications'
     | '/settings/organization'
     | '/settings/profile'
@@ -455,7 +443,6 @@ export interface FileRouteTypes {
     | '/_app/settings/api-keys'
     | '/_app/settings/appearance'
     | '/_app/settings/display'
-    | '/_app/settings/integrations'
     | '/_app/settings/notifications'
     | '/_app/settings/organization'
     | '/_app/settings/profile'
@@ -616,13 +603,6 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/settings/notifications'
       preLoaderRoute: typeof shellSettingsNotificationsRouteImport
-      parentRoute: typeof shellSettingsLayoutRoute
-    }
-    '/_app/settings/integrations': {
-      id: '/_app/settings/integrations'
-      path: '/integrations'
-      fullPath: '/settings/integrations'
-      preLoaderRoute: typeof shellSettingsIntegrationsRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/display': {
@@ -804,7 +784,6 @@ interface shellSettingsLayoutRouteChildren {
   shellSettingsApiKeysRoute: typeof shellSettingsApiKeysRoute
   shellSettingsAppearanceRoute: typeof shellSettingsAppearanceRoute
   shellSettingsDisplayRoute: typeof shellSettingsDisplayRoute
-  shellSettingsIntegrationsRoute: typeof shellSettingsIntegrationsRoute
   shellSettingsNotificationsRoute: typeof shellSettingsNotificationsRoute
   shellSettingsOrganizationRoute: typeof shellSettingsOrganizationRoute
   shellSettingsProfileRoute: typeof shellSettingsProfileRoute
@@ -815,7 +794,6 @@ const shellSettingsLayoutRouteChildren: shellSettingsLayoutRouteChildren = {
   shellSettingsApiKeysRoute: shellSettingsApiKeysRoute,
   shellSettingsAppearanceRoute: shellSettingsAppearanceRoute,
   shellSettingsDisplayRoute: shellSettingsDisplayRoute,
-  shellSettingsIntegrationsRoute: shellSettingsIntegrationsRoute,
   shellSettingsNotificationsRoute: shellSettingsNotificationsRoute,
   shellSettingsOrganizationRoute: shellSettingsOrganizationRoute,
   shellSettingsProfileRoute: shellSettingsProfileRoute,

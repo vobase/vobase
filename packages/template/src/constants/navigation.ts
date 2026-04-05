@@ -193,19 +193,6 @@ export const navGroups: NavGroup[] = [
         keywords: ['tokens', 'access', 'mcp', 'authentication'],
       },
       {
-        title: 'Integrations',
-        url: '/settings/integrations',
-        icon: CableIcon,
-        keywords: [
-          'whatsapp',
-          'email',
-          'connect',
-          'channels',
-          'resend',
-          'smtp',
-        ],
-      },
-      {
         title: 'Organization',
         url: '/settings/organization',
         icon: BuildingIcon,

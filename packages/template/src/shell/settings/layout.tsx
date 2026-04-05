@@ -7,7 +7,6 @@ import {
 import {
   BellIcon,
   BuildingIcon,
-  CableIcon,
   KeyIcon,
   MonitorIcon,
   PaletteIcon,
@@ -22,7 +21,6 @@ const settingsNav = [
   { label: 'Notifications', to: '/settings/notifications', icon: BellIcon },
   { label: 'Display', to: '/settings/display', icon: MonitorIcon },
   { label: 'API Keys', to: '/settings/api-keys', icon: KeyIcon },
-  { label: 'Integrations', to: '/settings/integrations', icon: CableIcon },
   { label: 'Organization', to: '/settings/organization', icon: BuildingIcon },
 ] as const;
 
