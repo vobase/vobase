@@ -1,5 +1,11 @@
 # @vobase/core
 
+## 0.27.4
+
+### Patch Changes
+
+- Add detailed logging to inbound webhook handler: log on receipt, signature verification, event parsing, and event emission for debugging webhook delivery issues.
+
 ## 0.27.3
 
 ### Patch Changes

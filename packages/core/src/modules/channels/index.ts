@@ -81,6 +81,12 @@ export function createChannelsModule(
     const instanceId = c.req.param('instanceId');
     const adapter = adapters.get(channelType);
 
+    logger.info('Webhook received', {
+      channel: channelType,
+      instanceId: instanceId ?? 'none',
+      hasAdapter: !!adapter,
+    });
+
     // M6: Rate limiting per IP
     const ip =
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ??
@@ -91,6 +97,7 @@ export function createChannelsModule(
     }
 
     if (!adapter) {
+      logger.warn('Webhook rejected: no adapter', { channel: channelType });
       return c.json({ error: `Unknown channel: ${channelType}` }, 404);
     }
 
@@ -158,6 +165,11 @@ export function createChannelsModule(
       return c.json({ error: 'Invalid signature' }, 401);
     }
 
+    logger.info('Webhook signature verified', {
+      channel: channelType,
+      viaPlatform,
+    });
+
     // Resolve channel instance ID: URL param takes precedence, then adapter extraction
     const channelInstanceId =
       instanceId ??
@@ -180,12 +192,21 @@ export function createChannelsModule(
           });
           return;
         }
+        logger.info('Webhook events parsed', {
+          channel: channelType,
+          eventCount: events.length,
+          instanceId: channelInstanceId ?? 'none',
+        });
         for (const event of events) {
           try {
             if (channelInstanceId && 'channelInstanceId' in event === false) {
               (event as { channelInstanceId?: string }).channelInstanceId =
                 channelInstanceId;
             }
+            logger.info('Webhook event emitted', {
+              channel: channelType,
+              eventType: event.type,
+            });
             emitter.emit(event);
           } catch (error) {
             // M12: Classify as event_processing_error
