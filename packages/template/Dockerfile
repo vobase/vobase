@@ -31,6 +31,7 @@ COPY --from=build /app/modules ./modules
 COPY --from=build /app/mastra ./mastra
 COPY --from=build /app/lib ./lib
 COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/src ./src
 COPY --from=build /app/dist ./dist
 
 RUN mkdir -p /app/data
