@@ -7,17 +7,23 @@ concurrency:
   group: sync-upstream
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   sync:
     name: Pull upstream changes
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Fetch upstream template
         run: |
@@ -27,7 +33,6 @@ jobs:
       - name: Check for changes
         id: diff
         run: |
-          # Use two-dot diff (works even with unrelated histories)
           CHANGES=$(git diff HEAD upstream/main --stat)
           if [ -z "$CHANGES" ]; then
             echo "changes=false" >> "$GITHUB_OUTPUT"
