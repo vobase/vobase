@@ -16,7 +16,7 @@ import {
   setModuleDeps,
 } from './jobs';
 import { registerHandlers } from './lib/chat-handlers';
-import { initChat } from './lib/chat-init';
+import { getChat, initChat } from './lib/chat-init';
 import * as schema from './schema';
 import { channelInstances } from './schema';
 
@@ -110,10 +110,11 @@ export const aiModule = defineModule({
     if (hasChannels) {
       ctx.channels.on('message_received', (event: MessageReceivedEvent) => {
         const adapterName = event.channelInstanceId ?? event.channel;
+        const currentChat = getChat();
 
         try {
           const adapter = (
-            chat as unknown as { adapters: Record<string, unknown> }
+            currentChat as unknown as { adapters: Record<string, unknown> }
           ).adapters[adapterName];
 
           if (!adapter) {
@@ -130,7 +131,11 @@ export const aiModule = defineModule({
           const message = bridgeAdapter.parseMessage(event);
 
           Promise.resolve(
-            chat.processMessage(adapter as never, event.from, message as never),
+            currentChat.processMessage(
+              adapter as never,
+              event.from,
+              message as never,
+            ),
           ).catch((err) => {
             logger.error('[ai] processMessage failed — scheduling retry job', {
               adapterName,
