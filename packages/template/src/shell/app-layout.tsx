@@ -1,5 +1,6 @@
 import {
   createFileRoute,
+  isRedirect,
   Outlet,
   redirect,
   useLocation,
@@ -51,9 +52,26 @@ function AppLayout() {
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async () => {
-    const { data } = await authClient.getSession();
-    if (!data?.session) {
-      throw redirect({ to: '/login' });
+    try {
+      const { data, error } = await authClient.getSession();
+      if (error) {
+        // Network/server errors (e.g. backend restarting) — only allow through
+        // if a session cookie exists (user was previously authenticated)
+        const hasSessionCookie = document.cookie.includes(
+          'better-auth.session_token',
+        );
+        if (!hasSessionCookie) {
+          throw redirect({ to: '/login' });
+        }
+        console.warn('[auth] Session check failed, using cached session');
+        return;
+      }
+      if (!data?.session) {
+        throw redirect({ to: '/login' });
+      }
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      console.warn('[auth] Session check failed:', e);
     }
   },
   component: AppLayout,

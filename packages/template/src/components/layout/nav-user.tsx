@@ -41,8 +41,9 @@ export function NavUser() {
   const [showSignOut, setShowSignOut] = useState(false);
   const user = session?.user;
 
-  const initials = getInitials(user?.name, user?.email);
-  const displayName = user?.name ?? user?.email ?? 'Account';
+  const name = user?.name || null;
+  const initials = getInitials(name, user?.email);
+  const displayName = name ?? user?.email ?? 'Account';
 
   return (
     <SidebarMenu>
@@ -60,7 +61,7 @@ export function NavUser() {
               </Avatar>
               <div className="grid flex-1 text-start text-sm leading-tight">
                 <span className="truncate font-semibold">{displayName}</span>
-                {user?.email && user.name && (
+                {user?.email && name && (
                   <span className="truncate text-xs">{user.email}</span>
                 )}
               </div>

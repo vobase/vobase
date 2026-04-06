@@ -95,7 +95,7 @@ export function createCrawlConnector(
       if (data.result.status === 'completed') {
         return (data.result.records ?? [])
           .filter((r) => r.status === 'completed' && r.markdown)
-          .map((r) => ({ url: r.url, markdown: r.markdown! }));
+          .map((r) => ({ url: r.url, markdown: r.markdown as string }));
       }
       if (data.result.status === 'errored') {
         throw new Error('Crawl failed');

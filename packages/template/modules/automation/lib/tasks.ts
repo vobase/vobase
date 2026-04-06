@@ -12,8 +12,6 @@ export const TASK_STATUSES = [
   'cancelled',
 ] as const;
 
-type TaskStatus = (typeof TASK_STATUSES)[number];
-
 const REQUESTED_BY = ['ai', 'staff', 'system'] as const;
 type RequestedBy = (typeof REQUESTED_BY)[number];
 

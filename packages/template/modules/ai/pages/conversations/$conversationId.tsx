@@ -54,7 +54,6 @@ import {
 import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
 import { formatRelativeTime } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import { LabelsManager } from './_components/labels-manager';
 import { MessageTimeline } from './_components/message-timeline';
 import { StaffComposer } from './_components/staff-composer';

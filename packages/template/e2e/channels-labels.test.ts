@@ -386,8 +386,6 @@ describe('Message timeline activity filtering', () => {
 // ─── Real AI Agent Chat ──────────────────────────────────────────────
 
 describe('Real AI agent chat (web streaming)', () => {
-  let conversationId = '';
-
   test('start a new chat conversation', async () => {
     const { status, json } = await api(
       'POST',
@@ -397,7 +395,6 @@ describe('Real AI agent chat (web streaming)', () => {
     const data = json as { conversationId: string; agentId: string };
     expect(data.conversationId).toBeTruthy();
     expect(data.agentId).toBe('booking');
-    conversationId = data.conversationId;
   });
 
   test('stream AI response with real LLM', async () => {

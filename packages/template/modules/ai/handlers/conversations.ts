@@ -15,7 +15,7 @@ import { completeConversation, failConversation } from '../lib/conversation';
 import { enqueueDelivery } from '../lib/delivery';
 import { getModuleDeps } from '../lib/deps';
 import { withdrawMessageSchema } from '../lib/message-types';
-import { createActivityMessage, insertMessage } from '../lib/messages';
+import { insertMessage } from '../lib/messages';
 import { transition } from '../lib/state-machine';
 import {
   channelInstances,
