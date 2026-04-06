@@ -9,6 +9,8 @@ import { logger } from '../../infra/logger';
 
 export interface PlatformAuthConfig {
   hmacSecret: string;
+  /** Restrict platform sign-in to specific email domains. */
+  allowedEmailDomains?: string[];
 }
 
 export const platformAuth = (config: PlatformAuthConfig) => {
@@ -77,6 +79,19 @@ export const platformAuth = (config: PlatformAuthConfig) => {
               { includeAccounts: true },
             );
             let user: NonNullable<typeof existing>['user'];
+
+            // Check domain allowlist only for new users (admin-invited users can sign in freely)
+            if (!existing && config.allowedEmailDomains?.length) {
+              const allowed = new Set(
+                config.allowedEmailDomains.map((d) => d.toLowerCase()),
+              );
+              const domain = profile.email.split('@')[1]?.toLowerCase();
+              if (!domain || !allowed.has(domain)) {
+                throw new APIError('FORBIDDEN', {
+                  message: 'Sign-up is restricted to approved email domains',
+                });
+              }
+            }
 
             if (existing) {
               user = existing.user;

@@ -54,6 +54,11 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   // --- Auth ---
   auth: {
     appName: productName,
+    ...(process.env.ALLOWED_EMAIL_DOMAINS && {
+      allowedEmailDomains: process.env.ALLOWED_EMAIL_DOMAINS.split(',').map(
+        (d) => d.trim(),
+      ),
+    }),
     ...(process.env.NODE_ENV !== 'production' && {
       extraPlugins: [devAuth()],
     }),

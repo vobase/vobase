@@ -13,6 +13,7 @@ import type {
   VerifyApiKey,
 } from '../../contracts/auth';
 import { logger } from '../../infra/logger';
+import { authUser } from './schema';
 import type { VobaseDb } from '../../db/client';
 import type { VobaseModule } from '../../module';
 import { defineBuiltinModule } from '../../module';
@@ -56,9 +57,17 @@ function buildAuthHooks(db: VobaseDb, config?: AuthModuleConfig) {
       ) {
         const domain = ctx.body.email.split('@')[1]?.toLowerCase();
         if (!domain || !allowed.has(domain)) {
-          throw new APIError('FORBIDDEN', {
-            message: 'Sign-up is restricted to approved email domains',
-          });
+          // Allow existing users (e.g. admin-invited) to sign in regardless of domain
+          const [existing] = await db
+            .select({ id: authUser.id })
+            .from(authUser)
+            .where(eq(authUser.email, ctx.body.email))
+            .limit(1);
+          if (!existing) {
+            throw new APIError('FORBIDDEN', {
+              message: 'Sign-up is restricted to approved email domains',
+            });
+          }
         }
       }
       // Run audit before hook

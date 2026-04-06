@@ -59,7 +59,10 @@ export function getAuthPlugins(config?: AuthModuleConfig): BetterAuthPlugin[] {
   const platformSecret = process.env.PLATFORM_HMAC_SECRET;
   if (platformSecret) {
     plugins.push(
-      platformAuth({ hmacSecret: platformSecret }) as BetterAuthPlugin,
+      platformAuth({
+        hmacSecret: platformSecret,
+        allowedEmailDomains: config?.allowedEmailDomains,
+      }) as BetterAuthPlugin,
     );
   }
 
