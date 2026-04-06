@@ -15,6 +15,7 @@ import { Route as DotDotModulesAiPagesConversationsIndexRouteImport } from './..
 import { Route as DotDotModulesAiPagesContactsIndexRouteImport } from './../modules/ai/pages/contacts/index'
 import { Route as DotDotModulesAiPagesChannelsIndexRouteImport } from './../modules/ai/pages/channels/index'
 import { Route as chatDotchannelRoutingIdRouteImport } from './chat.$channelRoutingId'
+import { Route as shellAuthPendingRouteImport } from './shell/auth/pending'
 import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as DotDotModulesSystemPagesLayoutRouteImport } from './../modules/system/pages/layout'
 import { Route as shellSettingsLayoutRouteImport } from './shell/settings/layout'
@@ -27,7 +28,6 @@ import { Route as IndexRouteImport } from './../modules/automation/pages/index'
 import { Route as LogsRouteImport } from './../modules/system/pages/logs'
 import { Route as ListRouteImport } from './../modules/system/pages/list'
 import { Route as shellSettingsProfileRouteImport } from './shell/settings/profile'
-import { Route as shellSettingsOrganizationRouteImport } from './shell/settings/organization'
 import { Route as shellSettingsNotificationsRouteImport } from './shell/settings/notifications'
 import { Route as shellSettingsDisplayRouteImport } from './shell/settings/display'
 import { Route as shellSettingsAppearanceRouteImport } from './shell/settings/appearance'
@@ -39,6 +39,7 @@ import { Route as DotDotModulesAiPagesConversationsConversationIdRouteImport } f
 import { Route as DotDotModulesAiPagesContactsContactIdRouteImport } from './../modules/ai/pages/contacts/$contactId'
 import { Route as TasksRouteImport } from './../modules/automation/pages/tasks'
 import { Route as PairingRouteImport } from './../modules/automation/pages/pairing'
+import { Route as OrganizationsIndexRouteImport } from './../modules/system/pages/organizations/index'
 import { Route as DocumentsIndexRouteImport } from './../modules/knowledge-base/pages/documents/index'
 import { Route as DocumentsIdRouteImport } from './../modules/knowledge-base/pages/documents/$id'
 import { Route as DotDotModulesAiPagesAiMemoryRouteImport } from './../modules/ai/pages/ai/memory'
@@ -76,6 +77,11 @@ const chatDotchannelRoutingIdRoute = chatDotchannelRoutingIdRouteImport.update({
   id: '/chat/$channelRoutingId',
   path: '/chat/$channelRoutingId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const shellAuthPendingRoute = shellAuthPendingRouteImport.update({
+  id: '/pending',
+  path: '/pending',
+  getParentRoute: () => shellAuthLayoutRoute,
 } as any)
 const shellAuthLoginRoute = shellAuthLoginRouteImport.update({
   id: '/login',
@@ -141,12 +147,6 @@ const shellSettingsProfileRoute = shellSettingsProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const shellSettingsOrganizationRoute =
-  shellSettingsOrganizationRouteImport.update({
-    id: '/organization',
-    path: '/organization',
-    getParentRoute: () => shellSettingsLayoutRoute,
-  } as any)
 const shellSettingsNotificationsRoute =
   shellSettingsNotificationsRouteImport.update({
     id: '/notifications',
@@ -205,6 +205,11 @@ const PairingRoute = PairingRouteImport.update({
   path: '/pairing',
   getParentRoute: () => DotDotModulesAutomationPagesLayoutRoute,
 } as any)
+const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
+  id: '/organizations/',
+  path: '/organizations/',
+  getParentRoute: () => DotDotModulesSystemPagesLayoutRoute,
+} as any)
 const DocumentsIndexRoute = DocumentsIndexRouteImport.update({
   id: '/documents/',
   path: '/documents/',
@@ -248,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
+  '/pending': typeof shellAuthPendingRoute
   '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
   '/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
@@ -263,7 +269,6 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof shellSettingsAppearanceRoute
   '/settings/display': typeof shellSettingsDisplayRoute
   '/settings/notifications': typeof shellSettingsNotificationsRoute
-  '/settings/organization': typeof shellSettingsOrganizationRoute
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
@@ -274,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
   '/knowledge-base/documents/$id': typeof DocumentsIdRoute
   '/knowledge-base/documents/': typeof DocumentsIndexRoute
+  '/system/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof homeRoute
@@ -282,6 +288,7 @@ export interface FileRoutesByTo {
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
+  '/pending': typeof shellAuthPendingRoute
   '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
   '/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
@@ -297,7 +304,6 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof shellSettingsAppearanceRoute
   '/settings/display': typeof shellSettingsDisplayRoute
   '/settings/notifications': typeof shellSettingsNotificationsRoute
-  '/settings/organization': typeof shellSettingsOrganizationRoute
   '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
@@ -308,6 +314,7 @@ export interface FileRoutesByTo {
   '/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
   '/knowledge-base/documents/$id': typeof DocumentsIdRoute
   '/knowledge-base/documents': typeof DocumentsIndexRoute
+  '/system/organizations': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -321,6 +328,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof shellSettingsLayoutRouteWithChildren
   '/_app/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/_auth/login': typeof shellAuthLoginRoute
+  '/_auth/pending': typeof shellAuthPendingRoute
   '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
   '/_app/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/_app/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
@@ -336,7 +344,6 @@ export interface FileRoutesById {
   '/_app/settings/appearance': typeof shellSettingsAppearanceRoute
   '/_app/settings/display': typeof shellSettingsDisplayRoute
   '/_app/settings/notifications': typeof shellSettingsNotificationsRoute
-  '/_app/settings/organization': typeof shellSettingsOrganizationRoute
   '/_app/settings/profile': typeof shellSettingsProfileRoute
   '/_app/system/list': typeof ListRoute
   '/_app/system/logs': typeof LogsRoute
@@ -347,6 +354,7 @@ export interface FileRoutesById {
   '/_app/_ai/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
   '/_app/knowledge-base/documents/$id': typeof DocumentsIdRoute
   '/_app/knowledge-base/documents/': typeof DocumentsIndexRoute
+  '/_app/system/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -358,6 +366,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/system'
     | '/login'
+    | '/pending'
     | '/chat/$channelRoutingId'
     | '/channels'
     | '/contacts'
@@ -373,7 +382,6 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
-    | '/settings/organization'
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
@@ -384,6 +392,7 @@ export interface FileRouteTypes {
     | '/ai/memory'
     | '/knowledge-base/documents/$id'
     | '/knowledge-base/documents/'
+    | '/system/organizations/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -392,6 +401,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/system'
     | '/login'
+    | '/pending'
     | '/chat/$channelRoutingId'
     | '/channels'
     | '/contacts'
@@ -407,7 +417,6 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
-    | '/settings/organization'
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
@@ -418,6 +427,7 @@ export interface FileRouteTypes {
     | '/ai/memory'
     | '/knowledge-base/documents/$id'
     | '/knowledge-base/documents'
+    | '/system/organizations'
   id:
     | '__root__'
     | '/_app'
@@ -430,6 +440,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/system'
     | '/_auth/login'
+    | '/_auth/pending'
     | '/chat/$channelRoutingId'
     | '/_app/channels'
     | '/_app/contacts'
@@ -445,7 +456,6 @@ export interface FileRouteTypes {
     | '/_app/settings/appearance'
     | '/_app/settings/display'
     | '/_app/settings/notifications'
-    | '/_app/settings/organization'
     | '/_app/settings/profile'
     | '/_app/system/list'
     | '/_app/system/logs'
@@ -456,6 +466,7 @@ export interface FileRouteTypes {
     | '/_app/_ai/ai/memory'
     | '/_app/knowledge-base/documents/$id'
     | '/_app/knowledge-base/documents/'
+    | '/_app/system/organizations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -507,6 +518,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/chat/$channelRoutingId'
       preLoaderRoute: typeof chatDotchannelRoutingIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_auth/pending': {
+      id: '/_auth/pending'
+      path: '/pending'
+      fullPath: '/pending'
+      preLoaderRoute: typeof shellAuthPendingRouteImport
+      parentRoute: typeof shellAuthLayoutRoute
     }
     '/_auth/login': {
       id: '/_auth/login'
@@ -592,13 +610,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof shellSettingsProfileRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
-    '/_app/settings/organization': {
-      id: '/_app/settings/organization'
-      path: '/organization'
-      fullPath: '/settings/organization'
-      preLoaderRoute: typeof shellSettingsOrganizationRouteImport
-      parentRoute: typeof shellSettingsLayoutRoute
-    }
     '/_app/settings/notifications': {
       id: '/_app/settings/notifications'
       path: '/notifications'
@@ -675,6 +686,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/automation/pairing'
       preLoaderRoute: typeof PairingRouteImport
       parentRoute: typeof DotDotModulesAutomationPagesLayoutRoute
+    }
+    '/_app/system/organizations/': {
+      id: '/_app/system/organizations/'
+      path: '/organizations'
+      fullPath: '/system/organizations/'
+      preLoaderRoute: typeof OrganizationsIndexRouteImport
+      parentRoute: typeof DotDotModulesSystemPagesLayoutRoute
     }
     '/_app/knowledge-base/documents/': {
       id: '/_app/knowledge-base/documents/'
@@ -786,7 +804,6 @@ interface shellSettingsLayoutRouteChildren {
   shellSettingsAppearanceRoute: typeof shellSettingsAppearanceRoute
   shellSettingsDisplayRoute: typeof shellSettingsDisplayRoute
   shellSettingsNotificationsRoute: typeof shellSettingsNotificationsRoute
-  shellSettingsOrganizationRoute: typeof shellSettingsOrganizationRoute
   shellSettingsProfileRoute: typeof shellSettingsProfileRoute
 }
 
@@ -796,7 +813,6 @@ const shellSettingsLayoutRouteChildren: shellSettingsLayoutRouteChildren = {
   shellSettingsAppearanceRoute: shellSettingsAppearanceRoute,
   shellSettingsDisplayRoute: shellSettingsDisplayRoute,
   shellSettingsNotificationsRoute: shellSettingsNotificationsRoute,
-  shellSettingsOrganizationRoute: shellSettingsOrganizationRoute,
   shellSettingsProfileRoute: shellSettingsProfileRoute,
 }
 
@@ -806,12 +822,14 @@ const shellSettingsLayoutRouteWithChildren =
 interface DotDotModulesSystemPagesLayoutRouteChildren {
   ListRoute: typeof ListRoute
   LogsRoute: typeof LogsRoute
+  OrganizationsIndexRoute: typeof OrganizationsIndexRoute
 }
 
 const DotDotModulesSystemPagesLayoutRouteChildren: DotDotModulesSystemPagesLayoutRouteChildren =
   {
     ListRoute: ListRoute,
     LogsRoute: LogsRoute,
+    OrganizationsIndexRoute: OrganizationsIndexRoute,
   }
 
 const DotDotModulesSystemPagesLayoutRouteWithChildren =
@@ -876,10 +894,12 @@ const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(
 
 interface shellAuthLayoutRouteChildren {
   shellAuthLoginRoute: typeof shellAuthLoginRoute
+  shellAuthPendingRoute: typeof shellAuthPendingRoute
 }
 
 const shellAuthLayoutRouteChildren: shellAuthLayoutRouteChildren = {
   shellAuthLoginRoute: shellAuthLoginRoute,
+  shellAuthPendingRoute: shellAuthPendingRoute,
 }
 
 const shellAuthLayoutRouteWithChildren = shellAuthLayoutRoute._addFileChildren(

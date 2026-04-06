@@ -47,7 +47,6 @@ export const routes = rootRoute('root.tsx', [
       route('/notifications', 'shell/settings/notifications.tsx'),
       route('/display', 'shell/settings/display.tsx'),
       route('/api-keys', 'shell/settings/api-keys.tsx'),
-      route('/organization', 'shell/settings/organization.tsx'),
     ]),
   ]),
 ]);

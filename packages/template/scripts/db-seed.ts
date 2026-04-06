@@ -15,7 +15,7 @@
  */
 import { join } from 'node:path';
 import { authUser, createApp, createDatabase } from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { modules } from '../modules';
 import config from '../vobase.config';
@@ -54,6 +54,53 @@ if (authRes.ok) {
       .where(eq(authUser.id, userId));
   }
   console.log(`${green('✓')} Created admin user: ${ADMIN_EMAIL}`);
+
+  // Create default organization via direct DB insert (bypasses allowUserToCreateOrganization setting)
+  const seedDb = createDatabase(dbUrl);
+  const orgName = process.env.VITE_PRODUCT_NAME || 'Vobase';
+  const orgSlug =
+    orgName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'default';
+  const orgId = crypto.randomUUID();
+
+  try {
+    // Insert org (idempotent via ON CONFLICT)
+    await seedDb.execute(sql`
+      INSERT INTO "auth"."organization" (id, name, slug)
+      VALUES (${orgId}, ${orgName}, ${orgSlug})
+      ON CONFLICT (slug) DO NOTHING
+    `);
+    if (userId) {
+      // Add admin as owner (idempotent)
+      const memberId = crypto.randomUUID();
+      await seedDb.execute(sql`
+        INSERT INTO "auth"."member" (id, user_id, organization_id, role)
+        SELECT ${memberId}, ${userId}, id, 'owner'
+        FROM "auth"."organization" WHERE slug = ${orgSlug}
+        ON CONFLICT DO NOTHING
+      `);
+      // Set active org on the seed session
+      const sessionToken = sessionCookie.match(
+        /better-auth\.session_token=([^;]+)/,
+      )?.[1];
+      if (sessionToken) {
+        await seedDb.execute(sql`
+          UPDATE "auth"."session"
+          SET active_organization_id = (
+            SELECT id FROM "auth"."organization" WHERE slug = ${orgSlug}
+          )
+          WHERE token = ${sessionToken}
+        `);
+      }
+    }
+    console.log(
+      `${green('✓')} Created default organization: ${orgName} (${orgSlug})`,
+    );
+  } catch (err) {
+    console.warn(`⚠ Failed to create organization: ${err}`);
+  }
 } else {
   const body = await authRes.text().catch(() => '');
   console.error(`Failed to create user (${authRes.status}): ${body}`);

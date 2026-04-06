@@ -1,7 +1,7 @@
 import { type CreateAppConfig, createSmtpAdapter } from '@vobase/core';
 
 import { devAuth } from './modules/system/dev-auth-plugin';
-import { renderOtpEmail } from './modules/system/emails';
+import { renderInvitationEmail, renderOtpEmail } from './modules/system/emails';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
@@ -54,10 +54,11 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   // --- Auth ---
   auth: {
     appName: productName,
-    ...(process.env.ALLOWED_EMAIL_DOMAINS && {
-      allowedEmailDomains: process.env.ALLOWED_EMAIL_DOMAINS.split(',').map(
-        (d) => d.trim(),
-      ),
+    multiOrg: process.env.MULTI_ORG === 'true',
+    ...(process.env.VITE_ALLOWED_EMAIL_DOMAINS && {
+      allowedEmailDomains: process.env.VITE_ALLOWED_EMAIL_DOMAINS.split(
+        ',',
+      ).map((d) => d.trim()),
     }),
     ...(process.env.NODE_ENV !== 'production' && {
       extraPlugins: [devAuth()],
@@ -68,6 +69,25 @@ const config: Omit<CreateAppConfig, 'modules'> = {
         await smtpAdapter.send({
           to: email,
           subject: `[${productName}] Your sign-in verification code`,
+          html,
+        });
+      },
+      sendInvitationEmail: async ({
+        email,
+        inviterName,
+        organizationName,
+        invitationId,
+      }) => {
+        const baseUrl = process.env.BETTER_AUTH_URL || 'http://localhost:5173';
+        const signInUrl = `${baseUrl}/login?invitationId=${invitationId}`;
+        const html = await renderInvitationEmail({
+          inviterName,
+          organizationName,
+          signInUrl,
+        });
+        await smtpAdapter.send({
+          to: email,
+          subject: `[${productName}] You've been invited to ${organizationName}`,
           html,
         });
       },

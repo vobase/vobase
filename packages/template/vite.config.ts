@@ -1,10 +1,8 @@
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
-import { tanstackRouter } from '@tanstack/router-vite-plugin';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
-
-import { routes } from './src/routes';
 
 /**
  * Skip HMR for backend-only module files (handlers, jobs, libs, seeds, tests).
@@ -29,7 +27,8 @@ export default defineConfig({
     tailwindcss(),
     ignoreBackendHmr(),
     tanstackRouter({
-      virtualRouteConfig: routes,
+      target: 'react',
+      virtualRouteConfig: './src/routes.ts',
       routesDirectory: './src',
       generatedRouteTree: './src/routeTree.gen.ts',
       routeFileIgnorePattern: '(layout|.test|.spec)',
