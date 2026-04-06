@@ -535,12 +535,20 @@ export const conversationsDetailHandlers = new Hono()
       if (instance) channelType = instance.type;
     }
 
+    // Prefix staff name so the agent (and customer on non-email channels) can
+    // identify who is speaking. Email channel handles sender identity natively.
+    const staffName = user.name ?? user.email;
+    const content =
+      !body.isInternal && channelType !== 'email'
+        ? `[Staff: ${staffName}] ${body.content}`
+        : body.content;
+
     const msg = await insertMessage(db, realtime, {
       conversationId,
       messageType: 'outgoing',
       contentType: 'text',
-      content: body.content,
-      status: 'queued',
+      content,
+      status: body.isInternal ? null : 'queued',
       senderId: user.id,
       senderType: 'user',
       channelType: channelType ?? null,
