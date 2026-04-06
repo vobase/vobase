@@ -11,8 +11,6 @@ import {
   createPlatformIntegrationsRoutes,
   isPlatformEnabled,
   type PlatformRoutesConfig,
-  type ProvisionChannelCtx,
-  type ProvisionChannelData,
 } from './infra/platform';
 import { createScheduler } from './infra/queue';
 import { createRealtimeService } from './infra/realtime';
@@ -53,11 +51,6 @@ export interface CreateAppConfig {
   mcp?: { enabled?: boolean };
   trustedOrigins?: string[];
   auth?: Omit<AuthModuleConfig, 'trustedOrigins'>;
-  /** Platform channel provisioning callback. Receives validated data + runtime context. */
-  onProvisionChannel?: (
-    data: ProvisionChannelData,
-    ctx: ProvisionChannelCtx,
-  ) => Promise<{ instanceId: string }>;
 }
 
 export async function createApp(config: CreateAppConfig) {
@@ -272,13 +265,10 @@ export async function createApp(config: CreateAppConfig) {
 
   // === Platform integration routes (token refresh, WhatsApp configure) ===
   if (isPlatformEnabled()) {
-    const userProvisionCb = config.onProvisionChannel;
     const platformConfig: PlatformRoutesConfig = {
       db,
       integrationsService,
-      onProvisionChannel: userProvisionCb
-        ? (data) => userProvisionCb(data, { db, scheduler, channels: channelsService, integrations: integrationsService })
-        : undefined,
+      channels: channelsService,
     };
     base.route(
       '/api/integrations',

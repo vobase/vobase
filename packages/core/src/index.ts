@@ -75,7 +75,6 @@ export { logger } from './infra/logger';
 export {
   isPlatformEnabled,
   type PlatformRoutesConfig,
-  type ProvisionChannelCtx,
   type ProvisionChannelData,
   verifyPlatformSignature,
 } from './infra/platform';
@@ -115,6 +114,7 @@ export { trackChanges } from './modules/audit/track-changes';
 export {
   type AuthModule,
   type AuthModuleConfig,
+  type SendVerificationOTP,
   createAuthModule,
 } from './modules/auth';
 // Auth Audit Hooks (re-exported from auth module)

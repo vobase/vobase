@@ -27,7 +27,7 @@
     "@types/node": "^25.5.2",
     "knip": "^6.3.0",
     "npm-check-updates": "^20.0.0",
-    "turbo": "^2.9.3",
+    "turbo": "^2.9.4",
     "typescript": "^6.0.2"
   },
   "dependencies": {

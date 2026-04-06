@@ -13,9 +13,6 @@ const nanoidSql = readFileSync(
   'utf-8',
 );
 
-const email = `e2e-${Date.now()}@test.com`;
-const password = 'Test1234!';
-
 let app: Awaited<ReturnType<typeof createApp>>;
 let sessionCookie = '';
 let previousAuthSecret: string | undefined;
@@ -195,25 +192,13 @@ async function bootstrapDatabase(dir: string): Promise<void> {
     expect(typeof healthBody.uptime).toBe('number');
   });
 
-  it('auth signup and signin work', async () => {
-    const signup = await app.request(
-      'http://localhost/api/auth/sign-up/email',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password, name: 'E2E Test' }),
-      },
-    );
-    const signupBody = (await signup.json()) as { user?: { email?: string } };
-    expect(signup.status).toBe(200);
-    expect(signupBody.user?.email).toBe(email);
-
+  it('auth anonymous sign-in works', async () => {
     const signin = await app.request(
-      'http://localhost/api/auth/sign-in/email',
+      'http://localhost/api/auth/sign-in/anonymous',
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({}),
       },
     );
     expect(signin.status).toBe(200);

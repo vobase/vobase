@@ -1,5 +1,6 @@
 import type { ApiKey } from '@better-auth/api-key';
 import { betterAuth } from 'better-auth';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -35,6 +36,38 @@ export type AuthModule = VobaseModule & {
   revokeApiKey: RevokeApiKey;
 };
 
+const SIGNUP_PATHS = [
+  '/sign-up/email',
+  '/sign-in/email-otp',
+  '/email-otp/send-verification-otp',
+];
+
+function buildAuthHooks(db: VobaseDb, config?: AuthModuleConfig) {
+  const auditHooks = createAuthAuditHooks(db);
+  const domains = config?.allowedEmailDomains;
+  if (!domains?.length) return auditHooks;
+
+  const allowed = new Set(domains.map((d) => d.toLowerCase()));
+  return {
+    before: createAuthMiddleware(async (ctx) => {
+      if (
+        SIGNUP_PATHS.some((p) => ctx.path.startsWith(p)) &&
+        ctx.body?.email
+      ) {
+        const domain = ctx.body.email.split('@')[1]?.toLowerCase();
+        if (!domain || !allowed.has(domain)) {
+          throw new APIError('FORBIDDEN', {
+            message: 'Sign-up is restricted to approved email domains',
+          });
+        }
+      }
+      // Run audit before hook
+      return auditHooks.before(ctx);
+    }),
+    after: auditHooks.after,
+  };
+}
+
 export function createAuthModule(
   db: VobaseDb,
   config?: AuthModuleConfig,
@@ -49,17 +82,16 @@ export function createAuthModule(
   };
 
   const auth = betterAuth({
+    appName: config?.appName ?? 'Vobase',
     database: drizzleAdapter(db, { provider: 'pg', schema: adapterSchema }),
     ...(baseURL && { baseURL }),
-    emailAndPassword: {
-      enabled: true,
-    },
+    emailAndPassword: { enabled: false },
     ...(config?.socialProviders && { socialProviders: config.socialProviders }),
     user: {
       additionalFields: authUserFields,
     },
-    plugins: getAuthPlugins(),
-    hooks: createAuthAuditHooks(db),
+    plugins: getAuthPlugins(config),
+    hooks: buildAuthHooks(db, config),
     ...(config?.trustedOrigins && { trustedOrigins: config.trustedOrigins }),
     advanced: {
       // Only use Secure cookies in production. In dev, the server runs on
@@ -163,6 +195,6 @@ export function createAuthModule(
 }
 
 export { createAuthAuditHooks } from './audit-hooks';
-export type { AuthModuleConfig } from './config';
+export type { AuthModuleConfig, SendVerificationOTP } from './config';
 export { optionalSessionMiddleware, sessionMiddleware } from './middleware';
 export { authTableMap } from './schema';

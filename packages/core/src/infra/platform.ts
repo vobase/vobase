@@ -9,7 +9,6 @@ import type {
   IntegrationsService,
 } from '../modules/integrations/service';
 import { logger } from './logger';
-import type { Scheduler } from './queue';
 
 /**
  * Platform integration routes — stable contract for vobase-platform.
@@ -78,22 +77,12 @@ export interface ProvisionChannelData {
   config?: Record<string, unknown>;
 }
 
-/** Runtime context injected into the onProvisionChannel callback by createApp. */
-export interface ProvisionChannelCtx {
-  db: VobaseDb;
-  scheduler: Scheduler;
-  channels: ChannelsService;
-  integrations: IntegrationsService;
-}
-
 /** Config for platform integration routes. */
 export interface PlatformRoutesConfig {
   db: VobaseDb;
   integrationsService: IntegrationsService;
-  /** Optional callback for channel instance provisioning. Route only registered when provided. */
-  onProvisionChannel?: (
-    data: ProvisionChannelData,
-  ) => Promise<{ instanceId: string }>;
+  /** Channels service — provision route delegates to channels.provision(). */
+  channels: ChannelsService;
 }
 
 /**
@@ -183,47 +172,41 @@ export function createPlatformIntegrationsRoutes(config: PlatformRoutesConfig) {
   // /:provider/configure to avoid route shadowing (Hono's trie router
   // resolves literals before params).
 
-  // Conditionally register /provision-channel only when callback is provided.
-  // This avoids route collisions if the consumer still defines its own handler.
-  if (config.onProvisionChannel) {
-    const provisionBodySchema = z.object({
-      type: z.string().min(1),
-      label: z.string().min(1),
-      source: z.enum(['platform', 'sandbox']),
-      integrationId: z.string().optional(),
-      config: z.record(z.string(), z.unknown()).optional(),
-    });
+  const provisionBodySchema = z.object({
+    type: z.string().min(1),
+    label: z.string().min(1),
+    source: z.enum(['platform', 'sandbox']),
+    integrationId: z.string().optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
+  });
 
-    const onProvision = config.onProvisionChannel;
+  routes.post('/provision-channel', async (c) => {
+    const verified = await verifyPlatformRequest(c);
+    if (verified instanceof Response) return verified;
+    const { rawBody } = verified;
 
-    routes.post('/provision-channel', async (c) => {
-      const verified = await verifyPlatformRequest(c);
-      if (verified instanceof Response) return verified;
-      const { rawBody } = verified;
+    let body: z.infer<typeof provisionBodySchema>;
+    try {
+      body = provisionBodySchema.parse(JSON.parse(rawBody));
+    } catch {
+      return c.json({ error: 'Invalid request body' }, 400);
+    }
 
-      let body: z.infer<typeof provisionBodySchema>;
-      try {
-        body = provisionBodySchema.parse(JSON.parse(rawBody));
-      } catch {
-        return c.json({ error: 'Invalid request body' }, 400);
-      }
-
-      try {
-        const result = await onProvision(body);
-        logger.info('[platform] Channel provisioned via platform', {
-          type: body.type,
-          instanceId: result.instanceId,
-        });
-        return c.json({ success: true, instanceId: result.instanceId });
-      } catch (err) {
-        logger.error('[platform] provision-channel callback failed', {
-          type: body.type,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return c.json({ error: 'Provisioning failed' }, 502);
-      }
-    });
-  }
+    try {
+      const result = await config.channels.provision(body);
+      logger.info('[platform] Channel provisioned via platform', {
+        type: body.type,
+        instanceId: result.instanceId,
+      });
+      return c.json({ success: true, instanceId: result.instanceId });
+    } catch (err) {
+      logger.error('[platform] provision-channel callback failed', {
+        type: body.type,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return c.json({ error: 'Provisioning failed' }, 502);
+    }
+  });
 
   const configureBodySchema = z.object({
     config: z.record(z.string(), z.unknown()),

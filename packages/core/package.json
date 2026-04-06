@@ -47,7 +47,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "jose": "^6.2.2",
     "nanoid": "^5.1.7",
-    "postgres": "^3.4.8",
+    "postgres": "^3.4.9",
     "zod": "^4.3.6"
   },
   "devDependencies": {

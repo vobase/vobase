@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 
 import type { VobaseDb } from '../db/client';
+import type { ChannelsService } from '../modules/channels/service';
 import { createPlatformIntegrationsRoutes } from './platform';
 
 const HMAC_SECRET = 'test-hmac-secret';
@@ -42,6 +43,24 @@ function createMockService() {
   };
 }
 
+function createMockChannels(
+  provisionFn?: () => Promise<{ instanceId: string }>,
+): ChannelsService {
+  const handler = provisionFn ?? null;
+  return {
+    email: { send: mock(() => Promise.resolve({ success: true })) },
+    whatsapp: { send: mock(() => Promise.resolve({ success: true })) },
+    on: mock(() => {}),
+    registerAdapter: mock(() => {}),
+    onProvision: mock(() => {}),
+    provision: handler
+      ? mock(handler)
+      : mock(() => {
+          throw new Error('No channel provision handler registered.');
+        }),
+  } as unknown as ChannelsService;
+}
+
 describe('platform /:provider/configure', () => {
   let originalEnv: string | undefined;
 
@@ -63,6 +82,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({
@@ -105,6 +125,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({
@@ -137,6 +158,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({
@@ -176,6 +198,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({ config: { token: 'x' } });
@@ -195,6 +218,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({ config: { token: 'x' } });
@@ -217,6 +241,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({ label: 'no config' });
@@ -239,6 +264,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({ config: 'not-an-object' });
@@ -261,6 +287,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({ config: { token: 'x' } });
@@ -289,6 +316,7 @@ describe('platform /:provider/configure', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({
@@ -324,6 +352,7 @@ describe('platform /:provider/configure', () => {
       const routes = createPlatformIntegrationsRoutes({
         db: {} as unknown as VobaseDb,
         integrationsService: svc,
+        channels: createMockChannels(),
       });
 
       const body = JSON.stringify({ config: { token: 'x' } });
@@ -361,11 +390,11 @@ describe('platform /provision-channel', () => {
     }
   });
 
-  test('route not registered when onProvisionChannel is not provided', async () => {
-    const svc = createMockService();
+  test('returns 502 when no provision handler registered', async () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
-      integrationsService: svc,
+      integrationsService: createMockService(),
+      channels: createMockChannels(),
     });
 
     const body = JSON.stringify({
@@ -383,8 +412,7 @@ describe('platform /provision-channel', () => {
       body,
     });
 
-    // Without callback, no route is registered — Hono returns 404
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(502);
   });
 
   test('provisions channel instance on valid request', async () => {
@@ -395,7 +423,7 @@ describe('platform /provision-channel', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: svc,
-      onProvisionChannel: onProvision,
+      channels: createMockChannels(onProvision),
     });
 
     const body = JSON.stringify({
@@ -435,7 +463,7 @@ describe('platform /provision-channel', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
-      onProvisionChannel: onProvision,
+      channels: createMockChannels(onProvision),
     });
 
     const body = JSON.stringify({
@@ -470,7 +498,7 @@ describe('platform /provision-channel', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
-      onProvisionChannel: onProvision,
+      channels: createMockChannels(onProvision),
     });
 
     const body = JSON.stringify({
@@ -496,7 +524,7 @@ describe('platform /provision-channel', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
-      onProvisionChannel: onProvision,
+      channels: createMockChannels(onProvision),
     });
 
     const body = JSON.stringify({
@@ -525,7 +553,7 @@ describe('platform /provision-channel', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
-      onProvisionChannel: onProvision,
+      channels: createMockChannels(onProvision),
     });
 
     const body = JSON.stringify({
@@ -553,7 +581,7 @@ describe('platform /provision-channel', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
-      onProvisionChannel: onProvision,
+      channels: createMockChannels(onProvision),
     });
 
     const body = JSON.stringify({
@@ -582,7 +610,7 @@ describe('platform /provision-channel', () => {
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
-      onProvisionChannel: onProvision,
+      channels: createMockChannels(onProvision),
     });
 
     const body = JSON.stringify({
@@ -619,7 +647,7 @@ describe('platform /provision-channel', () => {
       const routes = createPlatformIntegrationsRoutes({
         db: {} as unknown as VobaseDb,
         integrationsService: createMockService(),
-        onProvisionChannel: onProvision,
+        channels: createMockChannels(onProvision),
       });
 
       const body = JSON.stringify({

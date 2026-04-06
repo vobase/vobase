@@ -4,6 +4,7 @@ import type {
   SendResult,
 } from '../../contracts/channels';
 import type { VobaseDb } from '../../db/client';
+import type { ProvisionChannelData } from '../../infra/platform';
 import { logger } from '../../infra/logger';
 import type { ChannelEventEmitter } from './events';
 import { channelsLog } from './schema';
@@ -12,12 +13,21 @@ export interface ChannelSend {
   send(message: OutboundMessage): Promise<SendResult>;
 }
 
+/** Handler registered by modules to provision channel instances. */
+export type ProvisionHandler = (
+  data: ProvisionChannelData,
+) => Promise<{ instanceId: string }>;
+
 export interface ChannelsService {
   email: ChannelSend;
   whatsapp: ChannelSend;
   on: ChannelEventEmitter['on'];
   /** Register a channel adapter at runtime (hot-reload). */
   registerAdapter(name: string, adapter: ChannelAdapter): void;
+  /** Register a handler for channel provisioning (called from module init). */
+  onProvision(handler: ProvisionHandler): void;
+  /** Invoke the registered provision handler. Throws if none registered. */
+  provision(data: ProvisionChannelData): Promise<{ instanceId: string }>;
 }
 
 interface ChannelsServiceDeps {
@@ -102,6 +112,7 @@ export function createChannelsService(
   deps: ChannelsServiceDeps,
 ): ChannelsService {
   const { db, adapters, emitter } = deps;
+  let provisionHandler: ProvisionHandler | null = null;
 
   return {
     // Lazy lookup: email tries 'email', then 'resend', then 'smtp'
@@ -116,6 +127,17 @@ export function createChannelsService(
     registerAdapter(name: string, adapter: ChannelAdapter) {
       adapters.set(name, adapter);
       logger.info(`Channel adapter registered (hot-reload): ${name}`);
+    },
+    onProvision(handler: ProvisionHandler) {
+      provisionHandler = handler;
+    },
+    async provision(data: ProvisionChannelData) {
+      if (!provisionHandler) {
+        throw new Error(
+          'No channel provision handler registered. Call channels.onProvision() in a module init hook.',
+        );
+      }
+      return provisionHandler(data);
     },
   };
 }

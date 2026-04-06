@@ -35,6 +35,10 @@ const channels: ChannelsService = {
   whatsapp: { send: async () => ({ success: true }) },
   on() {},
   registerAdapter() {},
+  onProvision() {},
+  async provision() {
+    throw new Error('not implemented');
+  },
 };
 const integrations = {} as IntegrationsService;
 const mockResponse = {
