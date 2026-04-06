@@ -24,7 +24,7 @@
     },
     "packages/core": {
       "name": "@vobase/core",
-      "version": "0.27.4",
+      "version": "0.28.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
         "jose": "^6.2.2",
@@ -166,6 +166,9 @@
         "vite": "^8.0.4",
       },
     },
+  },
+  "overrides": {
+    "@assistant-ui/core": "0.1.12",
   },
   "packages": {
     "@a2a-js/sdk": ["@a2a-js/sdk@0.2.5", "", { "dependencies": { "@types/cors": "^2.8.17", "@types/express": "^4.17.23", "body-parser": "^2.2.0", "cors": "^2.8.5", "express": "^4.21.2", "uuid": "^11.1.0" } }, "sha512-VTDuRS5V0ATbJ/LkaQlisMnTAeYKXAK6scMguVBstf+KIBQ7HIuKhiXLv+G/hvejkV+THoXzoNifInAkU81P1g=="],
@@ -3114,8 +3117,6 @@
 
     "@antfu/install-pkg/package-manager-detector": ["package-manager-detector@1.6.0", "", {}, "sha512-61A5ThoTiDG/C8s8UMZwSorAGwMJ0ERVGj2OjoW5pAalsNOg15+iQiPzrLJ4jhZ1HJzmC2PIHT2oEiH3R5fzNA=="],
 
-    "@assistant-ui/react-ai-sdk/@assistant-ui/core": ["@assistant-ui/core@0.1.10", "", { "dependencies": { "assistant-stream": "^0.3.9", "nanoid": "^5.1.7" }, "peerDependencies": { "@assistant-ui/store": "^0.2.6", "@assistant-ui/tap": "^0.5.6", "@types/react": "*", "assistant-cloud": "^0.1.24", "react": "^18 || ^19", "zustand": "^5.0.11" }, "optionalPeers": ["@types/react", "assistant-cloud", "react", "zustand"] }, "sha512-sTesRZGMh4S5NtAY0sGqkPrpZek3zllBDIDL+457J4uQiZcncXlZf5tUveobAsFAuoRmH/eywW3Xj7vg3isQgQ=="],
-
     "@azure/identity/open": ["open@10.2.0", "", { "dependencies": { "default-browser": "^5.2.1", "define-lazy-prop": "^3.0.0", "is-inside-container": "^1.0.0", "wsl-utils": "^0.1.0" } }, "sha512-YgBpdJHPyQ2UE5x+hlSXcnejzAvD0b22U2OuAP+8OnlJT+PjWPxtgmGqKKc+RgTM63U9gN0YzrYc71R2WT/hTA=="],
 
     "@azure/msal-node/uuid": ["uuid@8.3.2", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg=="],
@@ -3581,8 +3582,6 @@
     "@ai-sdk/ui-utils-v5/@ai-sdk/provider-utils/nanoid": ["nanoid@3.3.11", "", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w=="],
 
     "@ai-sdk/ui-utils-v5/@ai-sdk/provider-utils/secure-json-parse": ["secure-json-parse@2.7.0", "", {}, "sha512-6aU+Rwsezw7VR8/nyvKTx8QpWH9FrcYiXXlqC4z5d5XQBDRqtbfsRjnwGyqbi3gddNtWHuEk9OANUotL26qKUw=="],
-
-    "@assistant-ui/react-ai-sdk/@assistant-ui/core/assistant-stream": ["assistant-stream@0.3.9", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "nanoid": "^5.1.7", "secure-json-parse": "^4.1.0" } }, "sha512-lemXFg+VFwKiAjqj3sIXF67d5Gy42ghVLYqJOFjhrT5+nPMrBMluFtoZSe/M7ZxZm5jNklIGRbkk6UU3T32iEg=="],
 
     "@azure/identity/open/wsl-utils": ["wsl-utils@0.1.0", "", { "dependencies": { "is-wsl": "^3.1.0" } }, "sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw=="],
 
