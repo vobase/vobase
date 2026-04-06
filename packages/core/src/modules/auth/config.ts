@@ -18,6 +18,14 @@ export type SendVerificationOTP = (data: {
   type: 'sign-in' | 'email-verification' | 'forget-password' | 'change-email';
 }) => Promise<void>;
 
+/** Data passed to the invitation email callback. */
+export type SendInvitationEmail = (data: {
+  email: string;
+  inviterName: string;
+  organizationName: string;
+  invitationId: string;
+}) => Promise<void>;
+
 export interface AuthModuleConfig {
   baseURL?: string;
   trustedOrigins?: string[];
@@ -26,8 +34,12 @@ export interface AuthModuleConfig {
   appName?: string;
   /** Callback to deliver OTP codes. Required for email OTP sign-in to work. */
   sendVerificationOTP?: SendVerificationOTP;
-  /** Restrict sign-up to specific email domains (e.g. ['voltade.com']). */
+  /** Callback to deliver organization invitation emails. */
+  sendInvitationEmail?: SendInvitationEmail;
+  /** Restrict sign-up to specific email domains (e.g. ['vobase.dev']). */
   allowedEmailDomains?: string[];
+  /** Enable multi-org mode. Default: false (single org, soft-locked). */
+  multiOrg?: boolean;
   /** Additional better-auth plugins (e.g. dev-only plugins). No tables — routes only. */
   extraPlugins?: BetterAuthPlugin[];
 }
@@ -43,7 +55,19 @@ export function getAuthPlugins(config?: AuthModuleConfig): BetterAuthPlugin[] {
     anonymous({
       emailDomainName: 'visitor.vobase.local',
     }) as BetterAuthPlugin,
-    organization() as BetterAuthPlugin,
+    organization({
+      allowUserToCreateOrganization: config?.multiOrg ?? false,
+      ...(config?.sendInvitationEmail && {
+        sendInvitationEmail: async (data) => {
+          await config.sendInvitationEmail?.({
+            email: data.email,
+            inviterName: data.inviter.user.name,
+            organizationName: data.organization.name,
+            invitationId: data.id,
+          });
+        },
+      }),
+    }) as BetterAuthPlugin,
     emailOTP({
       sendVerificationOTP:
         config?.sendVerificationOTP ??
