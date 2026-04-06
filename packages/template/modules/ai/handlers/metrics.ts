@@ -1,9 +1,9 @@
 import { getCtx, unauthorized } from '@vobase/core';
-import { count, eq, sql } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { listAgents } from '../../../mastra/agents';
-import { conversations, outbox } from '../schema';
+import { conversations, messages } from '../schema';
 
 export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
   const { db, user } = getCtx(c);
@@ -21,15 +21,17 @@ export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
     .where(eq(conversations.status, 'active'))
     .groupBy(conversations.agentId);
 
-  // Queued outbox per agent (via conversation join)
+  // Queued outgoing messages per agent (via conversation join)
   const queuedCounts = await db
     .select({
       agentId: conversations.agentId,
       queuedCount: count(),
     })
-    .from(outbox)
-    .innerJoin(conversations, eq(outbox.conversationId, conversations.id))
-    .where(eq(outbox.status, 'queued'))
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(
+      and(eq(messages.messageType, 'outgoing'), eq(messages.status, 'queued')),
+    )
     .groupBy(conversations.agentId);
 
   // Weighted success score per agent

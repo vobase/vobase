@@ -1,8 +1,8 @@
 import { getCtx, unauthorized } from '@vobase/core';
-import { and, count, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, gte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
-import { activityEvents, conversations } from '../schema';
+import { conversations, messages } from '../schema';
 
 export const dashboardHandlers = new Hono().get('/dashboard', async (c) => {
   const { db, user } = getCtx(c);
@@ -14,17 +14,15 @@ export const dashboardHandlers = new Hono().get('/dashboard', async (c) => {
   // All queries in parallel
   const [attentionResult, activeResult, resolvedResult, avgResponseResult] =
     await Promise.all([
-      // Needs attention count (must match attention queue definition)
+      // Needs attention count: pending activity messages with escalation/guardrail event types
       db
         .select({ count: count() })
-        .from(activityEvents)
+        .from(messages)
         .where(
           and(
-            inArray(activityEvents.type, [
-              'escalation.created',
-              'guardrail.block',
-            ]),
-            eq(activityEvents.resolutionStatus, 'pending'),
+            eq(messages.messageType, 'activity'),
+            eq(messages.resolutionStatus, 'pending'),
+            sql`${messages.contentData}->>'eventType' IN ('escalation.created', 'guardrail.block')`,
           ),
         ),
 
@@ -45,12 +43,12 @@ export const dashboardHandlers = new Hono().get('/dashboard', async (c) => {
           ),
         ),
 
-      // Average response time (first outbox message - conversation start)
+      // Average response time (first outgoing message - conversation start)
       db
         .select({
           avgMs: sql<number>`
               AVG(EXTRACT(EPOCH FROM (
-                (SELECT MIN(o.created_at) FROM conversations.outbox o WHERE o.conversation_id = ${conversations.id})
+                (SELECT MIN(m.created_at) FROM conversations.messages m WHERE m.conversation_id = ${conversations.id} AND m.message_type = 'outgoing')
                 - ${conversations.startedAt}
               )) * 1000)
             `.as('avg_ms'),

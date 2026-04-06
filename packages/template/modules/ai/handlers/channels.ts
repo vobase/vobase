@@ -14,12 +14,12 @@ import { z } from 'zod';
 
 import { getAgent } from '../../../mastra/agents';
 import { reinitChat } from '../lib/chat-init';
+import { getModuleDeps } from '../lib/deps';
 import {
   channelInstances,
   channelRoutings,
   consultations,
   conversations,
-  outbox,
 } from '../schema';
 
 const META_GRAPH_API = 'https://graph.facebook.com/v22.0';
@@ -289,6 +289,7 @@ export const channelsHandlers = new Hono()
         db: ctx.db,
         scheduler: ctx.scheduler,
         channels: ctx.channels,
+        realtime: getModuleDeps().realtime,
       });
       logger.info('WhatsApp connect: chat reinitialized');
     } catch (err) {
@@ -509,7 +510,12 @@ export const channelsHandlers = new Hono()
 
     // Reinitialize chat to drop the removed instance (non-fatal)
     try {
-      await reinitChat({ db, scheduler, channels });
+      await reinitChat({
+        db,
+        scheduler,
+        channels,
+        realtime: getModuleDeps().realtime,
+      });
       logger.info('Instance delete: chat reinitialized', { instanceId });
     } catch (err) {
       logger.error('Instance delete: reinitChat failed (non-fatal)', {
@@ -663,37 +669,4 @@ export const channelsHandlers = new Hono()
     }));
 
     return c.json({ channels });
-  })
-  /** POST /outbox/:id/retry — Retry a failed outbox message. */
-  .post('/outbox/:id/retry', async (c) => {
-    const { db, user, scheduler } = getCtx(c);
-    if (!user) throw unauthorized();
-
-    const outboxId = c.req.param('id');
-
-    const [record] = await db
-      .select()
-      .from(outbox)
-      .where(eq(outbox.id, outboxId));
-
-    if (!record) throw notFound('Outbox message not found');
-
-    if (record.status !== 'failed') {
-      throw validation({ status: 'Only failed messages can be retried' });
-    }
-
-    // Reset to queued and re-enqueue
-    await db
-      .update(outbox)
-      .set({ status: 'queued' })
-      .where(eq(outbox.id, outboxId));
-
-    await scheduler.add('ai:send', { outboxId });
-
-    const [updated] = await db
-      .select()
-      .from(outbox)
-      .where(eq(outbox.id, outboxId));
-
-    return c.json(updated);
   });

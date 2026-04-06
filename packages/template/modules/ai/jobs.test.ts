@@ -15,7 +15,7 @@ import { createTestDb } from '../../lib/test-helpers';
 
 // ─── Schema definitions (mirrors jobs.ts schemas for direct testing) ──────────
 
-const sendDataSchema = z.object({ outboxId: z.string().min(1) });
+const deliverDataSchema = z.object({ messageId: z.string().min(1) });
 const channelReplyDataSchema = z.object({
   conversationId: z.string().min(1),
   inboundContent: z.string().optional(),
@@ -33,28 +33,22 @@ const processInboundDataSchema = z.object({
     .passthrough(),
   adapterName: z.string(),
 });
-const retryMemoryDataSchema = z.object({
-  conversationId: z.string().min(1),
-  contactId: z.string().min(1),
-  agentId: z.string().min(1),
-  channelInstanceId: z.string().min(1),
-  channelRoutingId: z.string().min(1),
-  attempt: z.number().int().min(1),
-});
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe('sendJob schema (ai:send)', () => {
-  it('accepts valid outboxId', () => {
-    expect(() => sendDataSchema.parse({ outboxId: 'abc123' })).not.toThrow();
+describe('deliverMessageJob schema (ai:deliver-message)', () => {
+  it('accepts valid messageId', () => {
+    expect(() =>
+      deliverDataSchema.parse({ messageId: 'abc123' }),
+    ).not.toThrow();
   });
 
-  it('rejects missing outboxId', () => {
-    expect(() => sendDataSchema.parse({})).toThrow();
+  it('rejects missing messageId', () => {
+    expect(() => deliverDataSchema.parse({})).toThrow();
   });
 
-  it('rejects empty outboxId', () => {
-    expect(() => sendDataSchema.parse({ outboxId: '' })).toThrow();
+  it('rejects empty messageId', () => {
+    expect(() => deliverDataSchema.parse({ messageId: '' })).toThrow();
   });
 });
 
@@ -100,32 +94,6 @@ describe('processInboundJob schema (ai:process-inbound)', () => {
     expect(() =>
       processInboundDataSchema.parse({ adapterName: 'x' }),
     ).toThrow();
-  });
-});
-
-describe('retryMemoryThreadJob schema (ai:retry-memory-thread)', () => {
-  const validInput = {
-    conversationId: 'sess-1',
-    contactId: 'contact-1',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-1',
-    channelRoutingId: 'ep-1',
-    attempt: 1,
-  };
-
-  it('accepts valid input', () => {
-    expect(() => retryMemoryDataSchema.parse(validInput)).not.toThrow();
-  });
-
-  it('rejects attempt < 1', () => {
-    expect(() =>
-      retryMemoryDataSchema.parse({ ...validInput, attempt: 0 }),
-    ).toThrow();
-  });
-
-  it('rejects missing contactId', () => {
-    const { contactId: _, ...rest } = validInput;
-    expect(() => retryMemoryDataSchema.parse(rest)).toThrow();
   });
 });
 

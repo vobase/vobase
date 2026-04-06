@@ -6,7 +6,6 @@ import { getModuleDb, getModuleDeps } from './lib/deps';
 
 export { setModuleDeps } from './lib/deps';
 
-import { getMemory } from '../../mastra';
 import { runAgentEvals } from '../../mastra/evals/runner';
 import { getActiveCustomScorers } from '../../mastra/evals/scorers';
 import { processMemCell } from '../../mastra/processors/memory/formation';
@@ -14,7 +13,7 @@ import { generateChannelReply } from './lib/channel-reply';
 import { getChat } from './lib/chat-init';
 import { checkConsultationTimeouts } from './lib/consult-human';
 import { completeConversation } from './lib/conversation';
-import { processOutboxMessage } from './lib/outbox';
+import { processDelivery } from './lib/delivery';
 import { aiEvalRuns, channelInstances, conversations } from './schema';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -100,7 +99,7 @@ export const evalRunJob = defineJob('ai:eval-run', async (data) => {
 // Conversations & Channel jobs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const sendDataSchema = z.object({ outboxId: z.string().min(1) });
+const deliverDataSchema = z.object({ messageId: z.string().min(1) });
 const channelReplyDataSchema = z.object({
   conversationId: z.string().min(1),
   inboundContent: z.string().optional(),
@@ -118,25 +117,19 @@ const processInboundDataSchema = z.object({
     .passthrough(),
   adapterName: z.string(),
 });
-const retryMemoryDataSchema = z.object({
-  conversationId: z.string().min(1),
-  contactId: z.string().min(1),
-  agentId: z.string().min(1),
-  channelInstanceId: z.string().min(1),
-  channelRoutingId: z.string().min(1),
-  attempt: z.number().int().min(1),
-});
 
 /**
- * ai:send — Process a queued outbox message.
- * Loads the outbox record, sends via channels, updates status.
+ * ai:deliver-message — Process a queued message delivery.
+ * Loads the message record, sends via channels, updates status.
  */
-export const sendJob = defineJob('ai:send', async (data) => {
-  const { outboxId } = sendDataSchema.parse(data);
-  const deps = getModuleDeps();
-
-  await processOutboxMessage(deps.db, deps.channels, deps.scheduler, outboxId);
-});
+export const deliverMessageJob = defineJob(
+  'ai:deliver-message',
+  async (data) => {
+    const { messageId } = deliverDataSchema.parse(data);
+    const deps = getModuleDeps();
+    await processDelivery(deps.db, deps.channels, deps.scheduler, messageId);
+  },
+);
 
 /**
  * ai:channel-reply — Generate AI reply for a channel conversation.
@@ -258,70 +251,5 @@ export const processInboundJob = defineJob(
     const message = bridgeAdapter.parseMessage(event);
 
     chat.processMessage(adapter as never, event.from, message as never);
-  },
-);
-
-const MEMORY_RETRY_MAX = 3;
-
-/**
- * ai:retry-memory-thread — Retry memory thread creation for degraded conversations (C4).
- * Scheduled when initial memory.saveThread fails during conversation creation.
- */
-export const retryMemoryThreadJob = defineJob(
-  'ai:retry-memory-thread',
-  async (data) => {
-    const input = retryMemoryDataSchema.parse(data);
-    const deps = getModuleDeps();
-
-    try {
-      const memory = getMemory();
-      const now = new Date();
-
-      await memory.saveThread({
-        thread: {
-          id: input.conversationId,
-          title: 'New conversation',
-          resourceId: `contact:${input.contactId}`,
-          createdAt: now,
-          updatedAt: now,
-          metadata: {
-            agentId: input.agentId,
-            channelInstanceId: input.channelInstanceId,
-            channelRoutingId: input.channelRoutingId,
-          },
-        },
-      });
-
-      // Clear degraded flag on success
-      await deps.db
-        .update(conversations)
-        .set({ metadata: {} })
-        .where(eq(conversations.id, input.conversationId));
-
-      logger.info('[ai] Memory thread retry succeeded', {
-        conversationId: input.conversationId,
-        attempt: input.attempt,
-      });
-    } catch (err) {
-      if (input.attempt < MEMORY_RETRY_MAX) {
-        const backoffMs = 2 ** input.attempt * 2000;
-        await deps.scheduler.add(
-          'ai:retry-memory-thread',
-          { ...input, attempt: input.attempt + 1 },
-          { startAfter: new Date(Date.now() + backoffMs).toISOString() },
-        );
-        logger.warn('[ai] Memory thread retry failed, rescheduling', {
-          conversationId: input.conversationId,
-          attempt: input.attempt,
-          error: err,
-        });
-      } else {
-        logger.error('[ai] Memory thread permanently failed', {
-          conversationId: input.conversationId,
-          attempts: input.attempt,
-          error: err,
-        });
-      }
-    }
   },
 );

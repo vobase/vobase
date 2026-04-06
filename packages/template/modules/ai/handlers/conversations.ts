@@ -4,123 +4,61 @@ import {
   getCtx,
   notFound,
   unauthorized,
+  type VobaseDb,
 } from '@vobase/core';
-import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { validator } from 'hono/validator';
 import { z } from 'zod';
 
-import { getMemory } from '../../../mastra';
-import { emitActivityEvent } from '../lib/activity-events';
 import { completeConversation, failConversation } from '../lib/conversation';
+import { enqueueDelivery } from '../lib/delivery';
 import { getModuleDeps } from '../lib/deps';
-import { enqueueMessage } from '../lib/outbox';
+import { withdrawMessageSchema } from '../lib/message-types';
+import { createActivityMessage, insertMessage } from '../lib/messages';
 import { transition } from '../lib/state-machine';
 import {
-  activityEvents,
   channelInstances,
   consultations,
   contacts,
+  conversationLabels,
   conversations,
+  labels,
   messageFeedback,
-  outbox,
+  messages,
 } from '../schema';
 
-// ─── Signal join helper ──────────────────────────────────────────────
-
-interface LastSignal {
-  kind: 'message' | 'activity';
-  content: string | null;
-  type: string | null;
-  data: Record<string, unknown> | null;
-  createdAt: string | null;
-}
-
-async function joinLastSignals<
-  T extends { lastSignalKind: string | null; lastSignalId: string | null },
->(
-  db: Parameters<typeof import('drizzle-orm')['eq']> extends never[]
-    ? never
-    : // biome-ignore lint/suspicious/noExplicitAny: Drizzle db instance type is not easily expressible
-      any,
+/** Batch-load labels for a set of conversation rows and merge them in. */
+async function withLabels<T extends { id: string }>(
+  db: VobaseDb,
   rows: T[],
 ): Promise<
-  (Omit<T, 'lastSignalKind' | 'lastSignalId'> & {
-    lastSignal: LastSignal | null;
-  })[]
+  (T & { labels: { id: string; title: string; color: string | null }[] })[]
 > {
-  const messageIds: string[] = [];
-  const activityIds: string[] = [];
+  if (rows.length === 0) return [];
+  const convIds = rows.map((r) => r.id);
+  const labelRows = await db
+    .select({
+      conversationId: conversationLabels.conversationId,
+      labelId: labels.id,
+      title: labels.title,
+      color: labels.color,
+    })
+    .from(conversationLabels)
+    .innerJoin(labels, eq(conversationLabels.labelId, labels.id))
+    .where(inArray(conversationLabels.conversationId, convIds));
 
-  for (const row of rows) {
-    if (!row.lastSignalId || !row.lastSignalKind) continue;
-    if (row.lastSignalKind === 'message') messageIds.push(row.lastSignalId);
-    else if (row.lastSignalKind === 'activity')
-      activityIds.push(row.lastSignalId);
-  }
-
-  const messageMap = new Map<string, { content: string; createdAt: Date }>();
-  const activityMap = new Map<
+  const labelMap = new Map<
     string,
-    { type: string; data: unknown; createdAt: Date }
+    { id: string; title: string; color: string | null }[]
   >();
-
-  if (messageIds.length > 0) {
-    const msgs = await db
-      .select({
-        id: outbox.id,
-        content: outbox.content,
-        createdAt: outbox.createdAt,
-      })
-      .from(outbox)
-      .where(inArray(outbox.id, messageIds));
-    for (const m of msgs) messageMap.set(m.id, m);
+  for (const row of labelRows) {
+    const arr = labelMap.get(row.conversationId) ?? [];
+    arr.push({ id: row.labelId, title: row.title, color: row.color });
+    labelMap.set(row.conversationId, arr);
   }
 
-  if (activityIds.length > 0) {
-    const events = await db
-      .select({
-        id: activityEvents.id,
-        type: activityEvents.type,
-        data: activityEvents.data,
-        createdAt: activityEvents.createdAt,
-      })
-      .from(activityEvents)
-      .where(inArray(activityEvents.id, activityIds));
-    for (const e of events) activityMap.set(e.id, e);
-  }
-
-  return rows.map(({ lastSignalKind, lastSignalId, ...rest }) => {
-    let lastSignal: LastSignal | null = null;
-
-    if (lastSignalKind === 'message' && lastSignalId) {
-      const msg = messageMap.get(lastSignalId);
-      if (msg) {
-        lastSignal = {
-          kind: 'message',
-          content: msg.content,
-          type: null,
-          data: null,
-          createdAt: msg.createdAt.toISOString(),
-        };
-      }
-    } else if (lastSignalKind === 'activity' && lastSignalId) {
-      const evt = activityMap.get(lastSignalId);
-      if (evt) {
-        lastSignal = {
-          kind: 'activity',
-          content: null,
-          type: evt.type,
-          data: evt.data as Record<string, unknown> | null,
-          createdAt: evt.createdAt.toISOString(),
-        };
-      }
-    }
-
-    return { ...rest, lastSignal } as Omit<
-      T,
-      'lastSignalKind' | 'lastSignalId'
-    > & { lastSignal: LastSignal | null };
-  });
+  return rows.map((r) => ({ ...r, labels: labelMap.get(r.id) ?? [] }));
 }
 
 const updateConversationSchema = z.object({
@@ -173,6 +111,7 @@ export const conversationsDetailHandlers = new Hono()
 
     return c.json(rows);
   })
+
   /** GET /conversations/mine — Conversations assigned to the current user. */
   .get('/conversations/mine', async (c) => {
     const { db, user } = getCtx(c);
@@ -197,8 +136,9 @@ export const conversationsDetailHandlers = new Hono()
         channelInstanceId: conversations.channelInstanceId,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
-        lastSignalKind: conversations.lastSignalKind,
-        lastSignalId: conversations.lastSignalId,
+        lastMessageContent: conversations.lastMessageContent,
+        lastMessageAt: conversations.lastMessageAt,
+        lastMessageType: conversations.lastMessageType,
       })
       .from(conversations)
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
@@ -215,8 +155,7 @@ export const conversationsDetailHandlers = new Hono()
       .limit(limit)
       .offset(offset);
 
-    const withSignals = await joinLastSignals(db, rows);
-    return c.json(withSignals);
+    return c.json(rows);
   })
   /** GET /conversations/queue — Unassigned escalated conversations waiting to be claimed. */
   .get('/conversations/queue', async (c) => {
@@ -240,8 +179,9 @@ export const conversationsDetailHandlers = new Hono()
         channelInstanceId: conversations.channelInstanceId,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
-        lastSignalKind: conversations.lastSignalKind,
-        lastSignalId: conversations.lastSignalId,
+        lastMessageContent: conversations.lastMessageContent,
+        lastMessageAt: conversations.lastMessageAt,
+        lastMessageType: conversations.lastMessageType,
       })
       .from(conversations)
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
@@ -259,8 +199,7 @@ export const conversationsDetailHandlers = new Hono()
       .limit(limit)
       .offset(offset);
 
-    const withSignals = await joinLastSignals(db, rows);
-    return c.json(withSignals);
+    return c.json(rows);
   })
   /** GET /conversations/attention — Attention tab: human/supervised/held or pending escalation. */
   .get('/conversations/attention', async (c) => {
@@ -284,8 +223,9 @@ export const conversationsDetailHandlers = new Hono()
         channelType: channelInstances.type,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
-        lastSignalKind: conversations.lastSignalKind,
-        lastSignalId: conversations.lastSignalId,
+        lastMessageContent: conversations.lastMessageContent,
+        lastMessageAt: conversations.lastMessageAt,
+        lastMessageType: conversations.lastMessageType,
         hasPendingEscalation: conversations.hasPendingEscalation,
         waitingSince: conversations.waitingSince,
         unreadCount: conversations.unreadCount,
@@ -309,8 +249,7 @@ export const conversationsDetailHandlers = new Hono()
       .limit(limit)
       .offset(offset);
 
-    const withSignals = await joinLastSignals(db, rows);
-    return c.json(withSignals);
+    return c.json(await withLabels(db, rows));
   })
   /** GET /conversations/ai-active — AI Handling tab: active AI conversations. */
   .get('/conversations/ai-active', async (c) => {
@@ -334,8 +273,9 @@ export const conversationsDetailHandlers = new Hono()
         channelType: channelInstances.type,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
-        lastSignalKind: conversations.lastSignalKind,
-        lastSignalId: conversations.lastSignalId,
+        lastMessageContent: conversations.lastMessageContent,
+        lastMessageAt: conversations.lastMessageAt,
+        lastMessageType: conversations.lastMessageType,
         hasPendingEscalation: conversations.hasPendingEscalation,
         waitingSince: conversations.waitingSince,
         unreadCount: conversations.unreadCount,
@@ -353,8 +293,7 @@ export const conversationsDetailHandlers = new Hono()
       .limit(limit)
       .offset(offset);
 
-    const withSignals = await joinLastSignals(db, rows);
-    return c.json(withSignals);
+    return c.json(await withLabels(db, rows));
   })
   /** GET /conversations/resolved — Done tab: completed and failed conversations. */
   .get('/conversations/resolved', async (c) => {
@@ -378,8 +317,9 @@ export const conversationsDetailHandlers = new Hono()
         channelType: channelInstances.type,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
-        lastSignalKind: conversations.lastSignalKind,
-        lastSignalId: conversations.lastSignalId,
+        lastMessageContent: conversations.lastMessageContent,
+        lastMessageAt: conversations.lastMessageAt,
+        lastMessageType: conversations.lastMessageType,
         hasPendingEscalation: conversations.hasPendingEscalation,
         waitingSince: conversations.waitingSince,
         unreadCount: conversations.unreadCount,
@@ -395,8 +335,7 @@ export const conversationsDetailHandlers = new Hono()
       .limit(limit)
       .offset(offset);
 
-    const withSignals = await joinLastSignals(db, rows);
-    return c.json(withSignals);
+    return c.json(await withLabels(db, rows));
   })
   /** GET /conversations/counts — Badge counts for all three tabs. */
   .get('/conversations/counts', async (c) => {
@@ -427,69 +366,57 @@ export const conversationsDetailHandlers = new Hono()
 
     return c.json(conversation);
   })
-  /** GET /sessions/:id/messages — Load messages from Mastra Memory, fall back to outbox. */
-  .get('/conversations/:id/messages', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+  /** GET /conversations/:id/messages — Load messages from the messages table with cursor pagination. */
+  .get(
+    '/conversations/:id/messages',
+    validator('query', (value) => {
+      return z
+        .object({
+          limit: z.coerce.number().int().min(1).max(100).default(50),
+          before: z.string().optional(),
+        })
+        .parse(value);
+    }),
+    async (c) => {
+      const { db, user } = getCtx(c);
+      if (!user) throw unauthorized();
 
-    const conversationId = c.req.param('id');
+      const conversationId = c.req.param('id');
+      const { limit, before } = c.req.valid('query');
 
-    const [conversation] = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
+      const [conversation] = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.id, conversationId));
 
-    if (!conversation) throw notFound('Conversation not found');
+      if (!conversation) throw notFound('Conversation not found');
 
-    // Try Mastra Memory first (has full user+assistant transcript)
-    try {
-      const memory = getMemory();
-      const result = await memory.recall({ threadId: conversationId });
-      if (result?.messages && result.messages.length > 0) {
-        // Also fetch outbox records so the frontend can show delivery status
-        const outboxRecords = await db
-          .select({
-            id: outbox.id,
-            content: outbox.content,
-            status: outbox.status,
-            createdAt: outbox.createdAt,
-          })
-          .from(outbox)
-          .where(eq(outbox.conversationId, conversationId))
-          .orderBy(asc(outbox.createdAt));
-
-        return c.json({
-          messages: result.messages,
-          outboxRecords,
-          source: 'memory',
-        });
+      const conditions = [eq(messages.conversationId, conversationId)];
+      if (before) {
+        conditions.push(lt(messages.createdAt, new Date(before)));
       }
-    } catch {
-      // Memory unavailable — fall through to outbox
-    }
 
-    // Fall back to outbox messages (agent responses only, no user messages)
-    const outboxMessages = await db
-      .select({
-        id: outbox.id,
-        content: outbox.content,
-        status: outbox.status,
-        createdAt: outbox.createdAt,
-      })
-      .from(outbox)
-      .where(eq(outbox.conversationId, conversationId))
-      .orderBy(asc(outbox.createdAt));
+      const rows = await db
+        .select()
+        .from(messages)
+        .where(and(...conditions))
+        .orderBy(desc(messages.createdAt))
+        .limit(limit + 1);
 
-    const messages = outboxMessages.map((msg) => ({
-      id: msg.id,
-      role: 'assistant' as const,
-      content: msg.content,
-      createdAt: msg.createdAt,
-      deliveryStatus: msg.status,
-    }));
+      const hasMore = rows.length > limit;
+      const page = hasMore ? rows.slice(0, limit) : rows;
+      const nextCursor =
+        hasMore && page.length > 0
+          ? page[page.length - 1].createdAt.toISOString()
+          : null;
 
-    return c.json({ messages, source: 'outbox' });
-  })
+      return c.json({
+        messages: page.reverse(),
+        hasMore,
+        nextCursor,
+      });
+    },
+  )
   /** PATCH /sessions/:id — Update conversation status. */
   .patch('/conversations/:id', async (c) => {
     const { db, user } = getCtx(c);
@@ -575,7 +502,7 @@ export const conversationsDetailHandlers = new Hono()
 
     return c.json(updated);
   })
-  /** POST /sessions/:id/reply — Human agent reply: save to memory + deliver via channel. */
+  /** POST /conversations/:id/reply — Human agent reply: insert message + enqueue delivery. */
   .post('/conversations/:id/reply', async (c) => {
     const { db, user, scheduler, realtime } = getCtx(c);
     if (!user) throw unauthorized();
@@ -608,63 +535,23 @@ export const conversationsDetailHandlers = new Hono()
       if (instance) channelType = instance.type;
     }
 
-    // Save to Mastra Memory so it appears in the conversation transcript
-    const staffLabel = user.name ?? user.email;
-    const replyText = body.content;
-    const isInternal = body.isInternal;
-    try {
-      const memory = getMemory();
-      const displayText = isInternal
-        ? replyText
-        : `[Staff: ${staffLabel}] ${replyText}`;
-      const metadata: Record<string, unknown> = {
-        isStaffReply: true,
-        staffName: staffLabel,
-        ...(isInternal ? { visibility: 'internal' } : {}),
-      };
-      await memory.saveMessages({
-        messages: [
-          {
-            id: `staff-${Date.now()}`,
-            threadId: conversationId,
-            resourceId: `contact:${conversation.contactId}`,
-            role: 'assistant' as const,
-            createdAt: new Date(),
-            content: {
-              format: 2,
-              parts: [{ type: 'text', text: displayText }],
-              content: displayText,
-              metadata,
-            },
-          } as unknown as Parameters<
-            typeof memory.saveMessages
-          >[0]['messages'][number],
-        ],
-      });
-    } catch (err) {
-      console.error(
-        '[conversations] Failed to save staff reply to memory:',
-        err,
-      );
-    }
-
-    // For non-web channels, also enqueue for outbound delivery to the contact
-    if (channelType !== 'web') {
-      await enqueueMessage(db, scheduler, {
-        conversationId: conversationId,
-        content: replyText,
-        channelType,
-        channelInstanceId: conversation.channelInstanceId ?? undefined,
-      });
-    }
-
-    // Notify all connected clients that messages have been updated
-    realtime.notify({
-      table: 'conversations-messages',
-      id: conversationId,
+    const msg = await insertMessage(db, realtime, {
+      conversationId,
+      messageType: 'outgoing',
+      contentType: 'text',
+      content: body.content,
+      status: 'queued',
+      senderId: user.id,
+      senderType: 'user',
+      channelType: channelType ?? null,
+      private: body.isInternal ?? false,
     });
 
-    return c.json({ success: true, channelType }, 201);
+    if (!body.isInternal) {
+      await enqueueDelivery(scheduler, msg.id);
+    }
+
+    return c.json({ success: true, channelType, messageId: msg.id }, 201);
   })
   /** GET /sessions/:id/consultations — List consultations for a conversation. */
   .get('/conversations/:id/consultations', async (c) => {
@@ -754,30 +641,31 @@ export const conversationsDetailHandlers = new Hono()
     const conversationId = c.req.param('id');
     const { realtime, scheduler } = getModuleDeps();
 
-    // Find pending draft
+    // Find pending draft activity message
     const [draft] = await db
       .select()
-      .from(activityEvents)
+      .from(messages)
       .where(
         and(
-          eq(activityEvents.type, 'agent.draft_generated'),
-          eq(activityEvents.conversationId, conversationId),
-          eq(activityEvents.resolutionStatus, 'pending'),
+          eq(messages.conversationId, conversationId),
+          eq(messages.messageType, 'activity'),
+          eq(messages.resolutionStatus, 'pending'),
+          sql`${messages.contentData}->>'eventType' = 'agent.draft_generated'`,
         ),
       )
-      .orderBy(desc(activityEvents.createdAt))
+      .orderBy(desc(messages.createdAt))
       .limit(1);
 
     if (!draft) throw notFound('No pending draft found');
 
     // Optimistic locking
     const updated = await db
-      .update(activityEvents)
+      .update(messages)
       .set({ resolutionStatus: 'reviewed' })
       .where(
         and(
-          eq(activityEvents.id, draft.id),
-          eq(activityEvents.resolutionStatus, 'pending'),
+          eq(messages.id, draft.id),
+          eq(messages.resolutionStatus, 'pending'),
         ),
       )
       .returning();
@@ -786,27 +674,23 @@ export const conversationsDetailHandlers = new Hono()
       throw conflict('Draft already reviewed or dismissed');
     }
 
-    // Enqueue the draft content through outbox
-    const draftData = draft.data as Record<string, unknown> | null;
-    const draftContent = (draftData?.draftContent as string) ?? '';
+    // Enqueue the draft content as a new outgoing message
+    const draftData = (draft.contentData ?? {}) as Record<string, unknown>;
+    const draftContent = (draftData.draftContent as string) ?? '';
 
     if (draftContent) {
-      const [conversation] = await db
-        .select({ channelInstanceId: conversations.channelInstanceId })
-        .from(conversations)
-        .where(eq(conversations.id, conversationId));
-
-      await enqueueMessage(
-        db,
-        scheduler,
-        {
-          conversationId: conversationId,
-          content: draftContent,
-          channelType: draft.channelType ?? 'web',
-          channelInstanceId: conversation?.channelInstanceId ?? undefined,
-        },
-        realtime,
-      );
+      const msg = await insertMessage(db, realtime, {
+        conversationId,
+        messageType: 'outgoing',
+        contentType: 'text',
+        content: draftContent,
+        status: 'queued',
+        senderId: 'agent',
+        senderType: 'agent',
+        channelType: draft.channelType ?? null,
+        private: false,
+      });
+      await enqueueDelivery(scheduler, msg.id);
     }
 
     return c.json({ success: true, draftId: draft.id });
@@ -829,22 +713,17 @@ export const conversationsDetailHandlers = new Hono()
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
     const conversationId = c.req.param('id');
-    const body = z
-      .object({ lastReadMessageId: z.string() })
-      .parse(await c.req.json());
 
     const { realtime } = getModuleDeps();
     await db
       .update(conversations)
-      .set({ unreadCount: 0 })
+      .set({ unreadCount: 0, agentLastSeenAt: new Date() })
       .where(eq(conversations.id, conversationId));
-    await emitActivityEvent(db, realtime, {
-      type: 'message.read',
-      conversationId,
-      source: 'staff',
-      userId: user.id,
-      data: { lastReadMessageId: body.lastReadMessageId },
-    });
+    // Notify conversation update only — no activity message for reads
+    // (creating an activity message would trigger SSE → re-render → re-read loop)
+    await realtime
+      .notify({ table: 'conversations', id: conversationId, action: 'update' })
+      .catch(() => {});
     return c.json({ ok: true });
   })
   /** POST /conversations/:id/messages/:messageId/feedback — Toggle reaction or add feedback message. */
@@ -965,4 +844,67 @@ export const conversationsDetailHandlers = new Hono()
       .orderBy(asc(messageFeedback.createdAt));
 
     return c.json(rows);
+  })
+  /** POST /conversations/:id/messages/:mid/retry — Retry delivery of a failed message. */
+  .post('/conversations/:id/messages/:mid/retry', async (c) => {
+    const { db, user, scheduler } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const messageId = c.req.param('mid');
+    const [message] = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.id, messageId),
+          eq(messages.conversationId, c.req.param('id')),
+        ),
+      );
+
+    if (!message) throw notFound('Message not found');
+    if (message.status !== 'failed') {
+      return c.json({ error: 'Only failed messages can be retried' }, 400);
+    }
+
+    await db
+      .update(messages)
+      .set({ status: 'queued', failureReason: null })
+      .where(eq(messages.id, messageId));
+
+    await enqueueDelivery(scheduler, messageId);
+
+    return c.json({ ok: true });
+  })
+  /** PATCH /conversations/:id/messages/:mid — Withdraw a message. */
+  .patch('/conversations/:id/messages/:mid', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const body = withdrawMessageSchema.parse(await c.req.json());
+    const messageId = c.req.param('mid');
+
+    const [message] = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.id, messageId),
+          eq(messages.conversationId, c.req.param('id')),
+        ),
+      );
+
+    if (!message) throw notFound('Message not found');
+
+    // Only sender or admin can withdraw
+    if (message.senderId !== user.id && user.role !== 'admin') {
+      return c.json({ error: 'Not authorized to withdraw this message' }, 403);
+    }
+
+    const [updated] = await db
+      .update(messages)
+      .set({ withdrawn: body.withdrawn })
+      .where(eq(messages.id, messageId))
+      .returning();
+
+    return c.json(updated);
   });

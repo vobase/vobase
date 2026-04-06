@@ -8,11 +8,10 @@ import {
   channelReplyJob,
   consultationTimeoutJob,
   conversationCleanupJob,
+  deliverMessageJob,
   evalRunJob,
   memoryFormationJob,
   processInboundJob,
-  retryMemoryThreadJob,
-  sendJob,
   setModuleDeps,
 } from './jobs';
 import { registerHandlers } from './lib/chat-handlers';
@@ -27,12 +26,11 @@ export const aiModule = defineModule({
   jobs: [
     memoryFormationJob,
     evalRunJob,
-    sendJob,
+    deliverMessageJob,
     channelReplyJob,
     consultationTimeoutJob,
     conversationCleanupJob,
     processInboundJob,
-    retryMemoryThreadJob,
   ],
 
   async init(ctx) {
