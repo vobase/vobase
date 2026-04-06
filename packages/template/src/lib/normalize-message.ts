@@ -140,6 +140,12 @@ export function hasStaffPrefix(text: string): boolean {
   return STAFF_REGEX.test(text);
 }
 
+/** Extract staff name from [Staff: Name] prefix, or null if not present. */
+export function extractStaffName(text: string): string | null {
+  const match = text.match(STAFF_REGEX);
+  return match ? match[1] : null;
+}
+
 /** Extract metadata from message content's metadata field (format v2). */
 function extractContentMetadata(
   content: MemoryMessageContent,

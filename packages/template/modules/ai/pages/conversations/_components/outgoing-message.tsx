@@ -6,21 +6,28 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DeliveryStatus } from './delivery-status';
 import { PrivateNoteWrapper } from './private-note-wrapper';
-import type { MessageRow } from './types';
+import type { MessageRow, SenderInfo } from './types';
 
 interface OutgoingMessageProps {
   message: MessageRow;
+  sender?: SenderInfo;
   onRetry?: (messageId: string) => void;
   className?: string;
 }
 
 export const OutgoingMessage = memo(function OutgoingMessage({
   message,
+  sender,
   onRetry,
   className,
 }: OutgoingMessageProps) {
@@ -31,13 +38,14 @@ export const OutgoingMessage = memo(function OutgoingMessage({
   const isPrivate = message.private;
   const isDraft = message.resolutionStatus === 'pending';
 
-  const senderLabel = isAgent
+  const defaultLabel = isAgent
     ? 'Agent'
     : isStaff
       ? 'Staff'
       : isSystem
         ? 'System'
         : 'Unknown';
+  const senderLabel = sender?.name ?? defaultLabel;
 
   const SenderIcon = isAgent ? BotIcon : isStaff ? UserIcon : ShieldCheckIcon;
 
@@ -84,9 +92,12 @@ export const OutgoingMessage = memo(function OutgoingMessage({
   return (
     <Message from="assistant" className={className}>
       <div className="flex items-end gap-2">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <SenderIcon className="size-3.5 text-primary" />
-        </div>
+        <Avatar className="size-7">
+          <AvatarImage src={sender?.image ?? undefined} alt={senderLabel} />
+          <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
+            {sender?.name && !isAgent ? sender.name.charAt(0).toUpperCase() : <SenderIcon className="size-3.5" />}
+          </AvatarFallback>
+        </Avatar>
         <div className="flex flex-col gap-1 min-w-0">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span

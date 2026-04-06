@@ -57,7 +57,8 @@ import { formatRelativeTime } from '@/lib/format';
 import { LabelsManager } from './_components/labels-manager';
 import { MessageTimeline } from './_components/message-timeline';
 import { StaffComposer } from './_components/staff-composer';
-import type { MessageRow } from './_components/types';
+import { extractStaffName } from '@/lib/normalize-message';
+import type { MessageRow, SenderInfo } from './_components/types';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -207,6 +208,17 @@ async function fetchContactFacts(contactId: string): Promise<MemoryFact[]> {
   return (data.facts ?? [])
     .slice(0, 5)
     .map((f) => ({ id: f.id, content: f.fact, createdAt: f.createdAt }));
+}
+
+interface AgentInfo {
+  id: string;
+  name: string;
+}
+
+async function fetchAgents(): Promise<AgentInfo[]> {
+  const res = await aiClient.agents.$get();
+  if (!res.ok) return [];
+  return res.json() as unknown as Promise<AgentInfo[]>;
 }
 
 async function updateConversation(
@@ -391,6 +403,49 @@ function ConversationDetailPage() {
     queryFn: () => fetchContactFacts(conversation?.contactId ?? ''),
     enabled: !!conversation?.contactId && (memoryStats?.facts ?? 0) > 0,
   });
+
+  const { data: agents = [] } = useQuery({
+    queryKey: ['agents'],
+    queryFn: fetchAgents,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  // Build sender map: senderId → { name, image? }
+  const senderMap = useMemo(() => {
+    const map = new Map<string, SenderInfo>();
+
+    // Current user
+    if (session?.user) {
+      map.set(session.user.id, {
+        name: session.user.name ?? session.user.email,
+        image: session.user.image,
+      });
+    }
+
+    // Contact
+    if (contact && conversation?.contactId) {
+      map.set(conversation.contactId, {
+        name: contact.name ?? 'Customer',
+      });
+    }
+
+    // Agents
+    for (const agent of agents) {
+      map.set(agent.id, { name: agent.name });
+    }
+
+    // Parse [Staff: Name] from message content for staff not in session
+    for (const msg of allMessageRows) {
+      if (msg.senderType === 'user' && !map.has(msg.senderId)) {
+        const name = extractStaffName(msg.content);
+        if (name) {
+          map.set(msg.senderId, { name });
+        }
+      }
+    }
+
+    return map;
+  }, [session, contact, conversation?.contactId, agents, allMessageRows]);
 
   const invalidateConversationQueries = useCallback(() => {
     queryClient.invalidateQueries({
@@ -669,7 +724,7 @@ function ConversationDetailPage() {
         <div className="flex-1 overflow-hidden">
           <MessageTimeline
             messages={allMessageRows}
-            contactName={contact?.name ?? undefined}
+            senderMap={senderMap}
             hasMore={!!hasNextPage}
             isFetchingMore={isFetchingNextPage}
             onLoadMore={() => fetchNextPage()}

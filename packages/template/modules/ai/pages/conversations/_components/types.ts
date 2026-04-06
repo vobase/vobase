@@ -15,3 +15,8 @@ export interface MessageRow {
   resolutionStatus: string | null;
   createdAt: string;
 }
+
+export interface SenderInfo {
+  name: string;
+  image?: string | null;
+}

@@ -13,7 +13,7 @@ import { formatDate } from '@/lib/format';
 import { ActivityMessage } from './activity-message';
 import { IncomingMessage } from './incoming-message';
 import { OutgoingMessage } from './outgoing-message';
-import type { MessageRow } from './types';
+import type { MessageRow, SenderInfo } from './types';
 
 // ─── Date separator ──────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ function DateSeparator({ date }: { date: string }) {
 
 interface MessageTimelineProps {
   messages: MessageRow[];
-  contactName?: string;
+  senderMap?: Map<string, SenderInfo>;
   hasMore: boolean;
   isFetchingMore: boolean;
   onLoadMore: () => void;
@@ -44,7 +44,7 @@ interface MessageTimelineProps {
 
 export const MessageTimeline = memo(function MessageTimeline({
   messages,
-  contactName,
+  senderMap,
   hasMore,
   isFetchingMore,
   onLoadMore,
@@ -134,7 +134,7 @@ export const MessageTimeline = memo(function MessageTimeline({
               {showDate && <DateSeparator date={msg.createdAt} />}
               <MessageItem
                 message={msg}
-                contactName={contactName}
+                senderMap={senderMap}
                 onRetry={onRetryMessage}
               />
             </div>
@@ -150,21 +150,23 @@ export const MessageTimeline = memo(function MessageTimeline({
 
 const MessageItem = memo(function MessageItem({
   message,
-  contactName,
+  senderMap,
   onRetry,
 }: {
   message: MessageRow;
-  contactName?: string;
+  senderMap?: Map<string, SenderInfo>;
   onRetry?: (messageId: string) => void;
 }) {
+  const sender = senderMap?.get(message.senderId);
+
   if (message.messageType === 'activity') {
     return <ActivityMessage message={message} />;
   }
 
   if (message.messageType === 'incoming') {
-    return <IncomingMessage message={message} contactName={contactName} />;
+    return <IncomingMessage message={message} sender={sender} />;
   }
 
   // outgoing — agent, staff, or system
-  return <OutgoingMessage message={message} onRetry={onRetry} />;
+  return <OutgoingMessage message={message} sender={sender} onRetry={onRetry} />;
 });
