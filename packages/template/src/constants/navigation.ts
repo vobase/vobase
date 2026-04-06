@@ -18,6 +18,7 @@ import {
   ScrollText,
   Search,
   ShieldCheckIcon,
+  TagIcon,
   UserIcon,
 } from 'lucide-react';
 
@@ -76,6 +77,12 @@ export const navGroups: NavGroup[] = [
           'instances',
           'endpoints',
         ],
+      },
+      {
+        title: 'Labels',
+        url: '/labels',
+        icon: TagIcon,
+        keywords: ['tags', 'categories', 'organization', 'labels'],
       },
     ],
   },

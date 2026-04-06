@@ -5,6 +5,7 @@ import {
 } from '@vobase/core';
 
 import { reinitChat } from './modules/ai/lib/chat-init';
+import { getModuleDeps } from './modules/ai/lib/deps';
 import { channelInstances } from './modules/ai/schema';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -48,6 +49,7 @@ const config: Omit<CreateAppConfig, 'modules'> = {
       db: ctx.db,
       scheduler: ctx.scheduler,
       channels: ctx.channels,
+      realtime: getModuleDeps().realtime,
     });
     return { instanceId };
   },

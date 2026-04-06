@@ -5,9 +5,8 @@
  * - ~50 contacts (customers, leads, staff)
  * - 3 channel instances + 3 channel routings
  * - ~80 conversations across all lifecycle states, spread over 30 days
- * - ~3 outbox messages per conversation (agent responses for transcript fallback)
+ * - ~3 messages per conversation (agent responses for transcript)
  * - ~12 consultations across all states
- * - ~5 dead letters showing the DLQ terminal store
  * - ~6 eval runs across all statuses (complete, running, pending, error)
  */
 
@@ -16,16 +15,16 @@ import type { VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
 import {
-  activityEvents,
   aiEvalRuns,
   aiScorers,
   channelInstances,
   channelRoutings,
   consultations,
   contacts,
+  conversationLabels,
   conversations,
-  deadLetters,
-  outbox,
+  labels,
+  messages,
 } from './schema';
 
 // Deterministic seed so `bun run db:seed` always produces the same data
@@ -125,6 +124,109 @@ function generateContacts(count: number) {
 
   return items;
 }
+
+// Conversation turn pairs: [customer message, agent response]
+const CONVERSATION_TURNS: Array<[string, string]> = [
+  // Greeting exchanges
+  [
+    'Hi, I would like to book an appointment please.',
+    'Hi! I am your booking assistant. How can I help you today? I can help you book, reschedule, or cancel appointments.',
+  ],
+  [
+    'Hello, do you have any slots available this week?',
+    'Welcome! Let me check availability for you. We have openings on Monday, Wednesday, and Friday.',
+  ],
+  [
+    'Hey, I need to see a doctor soon.',
+    'Hello! I can help you with that. What type of consultation are you looking for — general checkup, specialist, or follow-up?',
+  ],
+  [
+    'Good morning, I want to schedule something.',
+    'Good morning! Ready to help you with your booking. Would you prefer a morning or afternoon appointment?',
+  ],
+  // Availability discussion
+  [
+    'What times do you have on Wednesday?',
+    'Here are the available slots for Wednesday:\n- 10:00 AM\n- 11:30 AM\n- 2:00 PM\n- 3:30 PM\nWhich one works best for you?',
+  ],
+  [
+    'Afternoon would be better for me.',
+    'We have good afternoon availability this week. I can see 2:00 PM and 3:30 PM on Wednesday, and 1:00 PM on Thursday. Any preference?',
+  ],
+  [
+    'Do you have anything earlier in the day?',
+    'For mornings, I have 9:00 AM on Tuesday and 10:30 AM on Thursday. Shall I book one of those?',
+  ],
+  [
+    'What about next week?',
+    'Next week looks wide open. I can see slots every day from Monday through Friday. Any preferred day?',
+  ],
+  // Booking details
+  [
+    'Let me go with Wednesday at 2 PM.',
+    'Your appointment is confirmed! Here are the details:\n- Date: {date}\n- Time: 2:00 PM\n- Service: General Consultation\n- Reference: {ref}',
+  ],
+  [
+    'I will take the 10:30 AM slot on Thursday.',
+    'All set! Your booking reference is {ref}. See you on {date} at 10:30 AM. You will receive a reminder 24 hours before.',
+  ],
+  [
+    'The 3:30 PM works for me.',
+    'Booking confirmed for 3:30 PM. Reference: {ref}. Is there anything else I can help with?',
+  ],
+  // Rescheduling
+  [
+    'I need to reschedule my appointment from last week.',
+    'Let me pull up your existing booking. I can see your appointment for {date}. When would you like to reschedule to?',
+  ],
+  [
+    'Can I move it to Friday instead?',
+    'Friday works. I have 10:00 AM and 2:30 PM available. Which do you prefer?',
+  ],
+  [
+    'Actually something came up, I need to push it back a week.',
+    'No problem, I will reschedule that for you. Same time next week — does that work?',
+  ],
+  // Follow-up / misc
+  [
+    'Thanks, that is all I need.',
+    'You are welcome! Have a great day. Do not hesitate to reach out if you need anything else.',
+  ],
+  [
+    'Do I need to bring anything?',
+    'Please bring a valid ID and any relevant medical records. If this is your first visit, arrive 15 minutes early to complete the intake form.',
+  ],
+  [
+    'How long will the appointment take?',
+    'A general consultation typically takes 30-45 minutes. If additional tests are needed, it may take up to an hour.',
+  ],
+  [
+    'What is your cancellation policy?',
+    'You can cancel or reschedule up to 24 hours before your appointment at no charge. Late cancellations may incur a fee.',
+  ],
+  // Problem scenarios
+  [
+    'I have been waiting for a confirmation but never got one.',
+    'I apologize for the inconvenience. Let me check the status of your booking right away.',
+  ],
+  [
+    'This is not working, can I speak to someone?',
+    'I understand your frustration. Let me connect you with a staff member who can assist you directly.',
+  ],
+  [
+    'I already tried booking online but got an error.',
+    'Something went wrong on our end. I will create the booking manually for you. What date and time did you want?',
+  ],
+];
+
+// Staff private notes
+const STAFF_NOTES = [
+  'Customer seems frustrated — previous booking was lost. Handle with care.',
+  'VIP customer, priority handling required.',
+  'Referred by Dr. Tan, give complimentary first consultation.',
+  'Follow up in 2 days if no response.',
+  'Insurance details need to be verified before appointment.',
+];
 
 const AGENT_MESSAGES = {
   greeting: [
@@ -519,92 +621,179 @@ export default async function seed(ctx: { db: VobaseDb }) {
     .values(modeConversations)
     .onConflictDoNothing();
 
-  // ─── Outbox ──────────────────────────────────────────────────────
-  // 2-4 messages per conversation → gives transcript content
-  const seedOutbox: Array<{
+  // ─── Messages (realistic back-and-forth conversations) ──────────
+  // Each conversation gets 2-5 turn pairs (customer + agent) plus occasional staff notes
+  type SeedMessage = {
     id: string;
     conversationId: string;
+    messageType: 'incoming' | 'outgoing';
+    contentType: 'text';
     content: string;
     channelType: string;
-    channelInstanceId: string;
     externalMessageId?: string;
-    status: string;
-    retryCount: number;
+    status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
+    failureReason?: string;
+    senderId: string;
+    senderType: 'contact' | 'agent' | 'user';
+    private?: boolean;
     createdAt: Date;
-  }> = [];
+  };
 
-  const allConversationsForOutbox = [
+  const seedMessages: SeedMessage[] = [];
+
+  const allConversationsForMessages = [
     ...seedConversations,
     ...modeConversations,
   ];
-  for (const sess of allConversationsForOutbox) {
+  for (const sess of allConversationsForMessages) {
     const channelType =
       sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web';
-    const msgCount = faker.number.int({ min: 2, max: 5 });
+    const turnCount = faker.number.int({ min: 2, max: 5 });
 
-    // First message is always a greeting
-    const categories: Array<keyof typeof AGENT_MESSAGES> = ['greeting'];
-    for (let m = 1; m < msgCount; m++) {
-      if (m === 1) {
-        categories.push('availability');
-      } else if (m === msgCount - 1 && sess.status === 'completed') {
-        categories.push('confirmation');
-      } else if (m === msgCount - 1 && sess.status === 'failed') {
-        categories.push('fallback');
-      } else {
-        categories.push(randomItem(['availability', 'reschedule', 'followup']));
-      }
-    }
+    // Pick random conversation turns for this session
+    const shuffledTurns = [...CONVERSATION_TURNS]
+      .sort(() => faker.number.float() - 0.5)
+      .slice(0, turnCount);
 
-    for (let m = 0; m < categories.length; m++) {
-      const msgHoursAgo =
-        (sess.startedAt.getTime() - Date.now()) / (-1000 * 60 * 60) - m * 0.1;
-      const createdAt = hoursAgo(Math.max(0, msgHoursAgo));
+    for (let t = 0; t < shuffledTurns.length; t++) {
+      const [customerMsg, agentMsg] = shuffledTurns[t];
+      const baseHoursAgo =
+        (sess.startedAt.getTime() - Date.now()) / (-1000 * 60 * 60);
+      // Each turn pair is ~6 minutes apart, messages within a turn ~1-2 min apart
+      const customerTime = hoursAgo(Math.max(0, baseHoursAgo - t * 0.1));
+      const agentTime = hoursAgo(Math.max(0, baseHoursAgo - t * 0.1 - 0.03));
 
-      let msgStatus: string;
+      const isLastTurn = t === shuffledTurns.length - 1;
+      let agentStatus: SeedMessage['status'];
       if (sess.status === 'completed') {
-        msgStatus = randomItem(['delivered', 'read']);
-      } else if (sess.status === 'failed' && m === categories.length - 1) {
-        msgStatus = 'failed';
-      } else if (sess.status === 'active' && m === categories.length - 1) {
-        msgStatus = randomItem(['queued', 'sent']);
+        agentStatus = randomItem(['delivered', 'read'] as const);
+      } else if (sess.status === 'failed' && isLastTurn) {
+        agentStatus = 'failed';
+      } else if (sess.status === 'active' && isLastTurn) {
+        agentStatus = randomItem(['queued', 'sent'] as const);
       } else {
-        msgStatus = 'delivered';
+        agentStatus = 'delivered';
       }
 
-      const hasExternalId = msgStatus !== 'queued' && msgStatus !== 'failed';
+      const hasExternalId =
+        agentStatus !== 'queued' && agentStatus !== 'failed';
 
-      seedOutbox.push({
-        id: `ob-${faker.string.alphanumeric(10)}`,
+      // Customer message (incoming)
+      seedMessages.push({
+        id: `msg-${faker.string.alphanumeric(10)}`,
         conversationId: sess.id,
-        content: randomMessage(categories[m]),
+        messageType: 'incoming',
+        contentType: 'text',
+        content: customerMsg,
         channelType,
-        channelInstanceId: sess.channelInstanceId,
-        ...(hasExternalId && {
-          externalMessageId: `${channelType === 'whatsapp' ? 'wamid' : 'web'}.${faker.string.alphanumeric(12)}`,
-        }),
-        status: msgStatus,
-        retryCount:
-          msgStatus === 'failed' ? faker.number.int({ min: 1, max: 5 }) : 0,
-        createdAt,
+        externalMessageId: `${channelType === 'whatsapp' ? 'wamid' : 'web'}.in.${faker.string.alphanumeric(12)}`,
+        status: null,
+        senderId: sess.contactId,
+        senderType: 'contact',
+        createdAt: customerTime,
       });
+
+      // Agent response (outgoing)
+      const agentContent = agentMsg
+        .replace('{date}', faker.date.soon({ days: 14 }).toLocaleDateString())
+        .replace(
+          '{time}',
+          randomItem(['10:00 AM', '11:30 AM', '2:00 PM', '3:30 PM', '4:00 PM']),
+        )
+        .replace('{ref}', `BK-${faker.string.numeric(4)}`);
+
+      seedMessages.push({
+        id: `msg-${faker.string.alphanumeric(10)}`,
+        conversationId: sess.id,
+        messageType: 'outgoing',
+        contentType: 'text',
+        content: agentContent,
+        channelType,
+        ...(hasExternalId && {
+          externalMessageId: `${channelType === 'whatsapp' ? 'wamid' : 'web'}.out.${faker.string.alphanumeric(12)}`,
+        }),
+        status: agentStatus,
+        ...(agentStatus === 'failed' && {
+          failureReason: 'Max retries exceeded',
+        }),
+        senderId: 'agent-booking',
+        senderType: 'agent',
+        createdAt: agentTime,
+      });
+
+      // Occasionally add a staff private note (10% chance per turn)
+      if (faker.number.float() < 0.1) {
+        seedMessages.push({
+          id: `msg-${faker.string.alphanumeric(10)}`,
+          conversationId: sess.id,
+          messageType: 'outgoing',
+          contentType: 'text',
+          content: randomItem(STAFF_NOTES),
+          channelType,
+          status: null,
+          senderId: 'staff-admin',
+          senderType: 'user',
+          private: true,
+          createdAt: new Date(agentTime.getTime() + 30_000), // 30s after agent
+        });
+      }
     }
   }
 
-  // Insert in batches to avoid large single-statement inserts
+  // ─── Messages (dead letters → failed outgoing) ───────────────────
+  const completedSessions = seedConversations.filter(
+    (s) => s.status === 'completed',
+  );
+
+  const DL_ERRORS = [
+    'WhatsApp Cloud API error 131026: recipient phone number not on WhatsApp',
+    'WhatsApp Cloud API error 130429: rate limit exceeded, retry after 3600s',
+    'WhatsApp Cloud API error 131047: 24-hour message window expired',
+    'SMTP: mailbox unavailable — user unknown',
+    'Connection timeout after 30000ms',
+  ];
+
+  const seedDeadLetterMessages: Array<{
+    id: string;
+    conversationId: string;
+    messageType: 'outgoing';
+    contentType: 'text';
+    content: string;
+    channelType: string;
+    status: 'failed';
+    failureReason: string;
+    senderId: string;
+    senderType: 'agent';
+    createdAt: Date;
+  }> = DL_ERRORS.map((error, i) => {
+    const sess = completedSessions[i] ?? seedConversations[i];
+    return {
+      id: `msg-dl-${faker.string.alphanumeric(8)}`,
+      conversationId: sess.id,
+      messageType: 'outgoing',
+      contentType: 'text',
+      content: randomMessage(i < 3 ? 'confirmation' : 'followup'),
+      channelType: i < 3 ? 'whatsapp' : 'web',
+      status: 'failed',
+      failureReason: error,
+      senderId: 'agent-booking',
+      senderType: 'agent',
+      createdAt: hoursAgo(faker.number.int({ min: 24, max: 500 })),
+    };
+  });
+
+  // Insert outgoing messages in batches
+  const allOutgoingMessages = [...seedMessages, ...seedDeadLetterMessages];
   const BATCH_SIZE = 50;
-  for (let i = 0; i < seedOutbox.length; i += BATCH_SIZE) {
+  for (let i = 0; i < allOutgoingMessages.length; i += BATCH_SIZE) {
     await db
-      .insert(outbox)
-      .values(seedOutbox.slice(i, i + BATCH_SIZE))
+      .insert(messages)
+      .values(allOutgoingMessages.slice(i, i + BATCH_SIZE))
       .onConflictDoNothing();
   }
 
   // ─── Consultations ───────────────────────────────────────────────
   // Pick ~12 conversations that had human escalation
-  const completedSessions = seedConversations.filter(
-    (s) => s.status === 'completed',
-  );
   const activeSessions = seedConversations.filter((s) => s.status === 'active');
   const failedSessions = seedConversations.filter((s) => s.status === 'failed');
 
@@ -717,36 +906,22 @@ export default async function seed(ctx: { db: VobaseDb }) {
       .onConflictDoNothing();
   }
 
-  // ─── Dead Letters ────────────────────────────────────────────────
-  const DL_ERRORS = [
-    'WhatsApp Cloud API error 131026: recipient phone number not on WhatsApp',
-    'WhatsApp Cloud API error 130429: rate limit exceeded, retry after 3600s',
-    'WhatsApp Cloud API error 131047: 24-hour message window expired',
-    'SMTP: mailbox unavailable — user unknown',
-    'Connection timeout after 30000ms',
-  ];
+  // ─── Activity Events → messages (messageType='activity') ─────────
+  type ActivityEventInput = {
+    type: string;
+    agentId?: string;
+    userId?: string;
+    source: 'agent' | 'staff' | 'system';
+    contactId?: string;
+    conversationId: string;
+    channelRoutingId?: string;
+    channelType?: string;
+    data: Record<string, unknown>;
+    resolutionStatus?: 'pending' | 'reviewed' | 'dismissed';
+    createdAt: Date;
+  };
 
-  const seedDeadLetters = DL_ERRORS.map((error, i) => {
-    const sess = completedSessions[i] ?? seedConversations[i];
-    return {
-      id: `dl-${faker.string.alphanumeric(8)}`,
-      originalOutboxId: `ob-expired-${faker.string.alphanumeric(6)}`,
-      conversationId: sess.id,
-      channelType: i < 3 ? 'whatsapp' : 'web',
-      channelInstanceId: i < 3 ? 'ci-wa-main' : 'ci-web',
-      recipientAddress: randomItem(customerContacts).phone,
-      content: randomMessage(i < 3 ? 'confirmation' : 'followup'),
-      error,
-      retryCount: 5,
-      status: 'dead' as const,
-      failedAt: hoursAgo(faker.number.int({ min: 24, max: 500 })),
-    };
-  });
-
-  await db.insert(deadLetters).values(seedDeadLetters).onConflictDoNothing();
-
-  // ─── Activity Events (control plane) ──────────────────────────────
-  const seedActivityEvents = [
+  const seedActivityEvents: ActivityEventInput[] = [
     // Escalation events (attention queue)
     {
       type: 'escalation.created',
@@ -920,44 +1095,113 @@ export default async function seed(ctx: { db: VobaseDb }) {
     },
   ];
 
-  const insertedEvents = await db
-    .insert(activityEvents)
-    .values(seedActivityEvents)
-    .onConflictDoNothing()
-    .returning({
-      id: activityEvents.id,
-      conversationId: activityEvents.conversationId,
-    });
-
-  // ─── Update last-signal pointers ────────────────────────────────
-  // For mode conversations: point to their most relevant activity event
-  for (const evt of insertedEvents) {
-    if (evt.conversationId) {
-      await db
-        .update(conversations)
-        .set({ lastSignalKind: 'activity', lastSignalId: evt.id })
-        .where(eq(conversations.id, evt.conversationId));
+  function eventToContent(evt: ActivityEventInput): string {
+    switch (evt.type) {
+      case 'escalation.created':
+        return `Escalation created: ${(evt.data.reason as string) ?? 'No reason provided'}`;
+      case 'guardrail.block':
+        return `Guardrail blocked: ${(evt.data.reason as string) ?? 'Policy violation'}`;
+      case 'guardrail.warn':
+        return `Guardrail warning: ${(evt.data.reason as string) ?? 'Policy warning'}`;
+      case 'conversation.created':
+        return 'Conversation started';
+      case 'conversation.completed':
+        return `Conversation completed${evt.data.resolutionOutcome ? `: ${evt.data.resolutionOutcome}` : ''}`;
+      case 'conversation.failed':
+        return `Conversation failed: ${(evt.data.reason as string) ?? 'Unknown error'}`;
+      case 'agent.tool_executed':
+        return `Tool executed: ${(evt.data.toolName as string) ?? 'unknown'}`;
+      case 'handler.changed':
+        return `Handler changed from ${evt.data.from} to ${evt.data.to}`;
+      case 'message.outbound_queued':
+        return 'Outbound message queued';
+      case 'agent.draft_generated':
+        return 'Agent draft generated for review';
+      default:
+        return evt.type;
     }
   }
-  // For all conversations without an activity signal: point to their last outbox message
-  const conversationsWithActivitySignal = new Set(
-    insertedEvents.filter((e) => e.conversationId).map((e) => e.conversationId),
-  );
-  for (const sess of allConversationsForOutbox) {
-    if (conversationsWithActivitySignal.has(sess.id)) continue;
-    const lastMsg = seedOutbox
-      .filter((o) => o.conversationId === sess.id)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-    if (lastMsg) {
+
+  function eventSenderType(
+    source: 'agent' | 'staff' | 'system',
+  ): 'agent' | 'user' | 'system' {
+    if (source === 'agent') return 'agent';
+    if (source === 'staff') return 'user';
+    return 'system';
+  }
+
+  const seedActivityMessages = seedActivityEvents.map((evt, i) => ({
+    id: `msg-evt-${faker.string.alphanumeric(8)}-${i}`,
+    conversationId: evt.conversationId,
+    messageType: 'activity' as const,
+    contentType: 'system' as const,
+    content: eventToContent(evt),
+    contentData: { ...evt.data, eventType: evt.type },
+    senderId: evt.agentId ?? evt.userId ?? 'system',
+    senderType: eventSenderType(evt.source),
+    channelType: evt.channelType ?? null,
+    resolutionStatus: evt.resolutionStatus ?? null,
+    createdAt: evt.createdAt,
+  }));
+
+  if (seedActivityMessages.length > 0) {
+    for (let i = 0; i < seedActivityMessages.length; i += BATCH_SIZE) {
       await db
-        .update(conversations)
-        .set({ lastSignalKind: 'message', lastSignalId: lastMsg.id })
-        .where(eq(conversations.id, sess.id));
+        .insert(messages)
+        .values(seedActivityMessages.slice(i, i + BATCH_SIZE))
+        .onConflictDoNothing();
     }
+  }
+
+  // ─── Update last-message denormalized columns ────────────────────
+  const allSeedMessages = [...allOutgoingMessages, ...seedActivityMessages];
+
+  // Build maps: conversationId → last real message + last activity
+  const lastRealMsgByConv = new Map<string, (typeof allSeedMessages)[number]>();
+  const lastActivityByConv = new Map<
+    string,
+    (typeof allSeedMessages)[number]
+  >();
+
+  for (const msg of allSeedMessages) {
+    if (msg.messageType === 'activity') {
+      const existing = lastActivityByConv.get(msg.conversationId);
+      if (!existing || msg.createdAt > existing.createdAt) {
+        lastActivityByConv.set(msg.conversationId, msg);
+      }
+    } else if (!msg.private) {
+      const existing = lastRealMsgByConv.get(msg.conversationId);
+      if (!existing || msg.createdAt > existing.createdAt) {
+        lastRealMsgByConv.set(msg.conversationId, msg);
+      }
+    }
+  }
+
+  // Use latest real message for preview, fall back to activity if no real messages
+  const allConvIds = new Set([
+    ...lastRealMsgByConv.keys(),
+    ...lastActivityByConv.keys(),
+  ]);
+
+  for (const convId of allConvIds) {
+    const lastReal = lastRealMsgByConv.get(convId);
+    const lastActivity = lastActivityByConv.get(convId);
+    const displayMsg = lastReal ?? lastActivity;
+    if (!displayMsg) continue;
+
+    await db
+      .update(conversations)
+      .set({
+        lastMessageContent: displayMsg.content.slice(0, 100),
+        lastMessageAt: displayMsg.createdAt,
+        lastMessageType: displayMsg.messageType,
+        lastActivityAt: lastActivity?.createdAt ?? displayMsg.createdAt,
+      })
+      .where(eq(conversations.id, convId));
   }
 
   console.log(
-    `${green('✓')} Seeded ${modeConversations.length} mode conversations, ${seedActivityEvents.length} activity events`,
+    `${green('✓')} Seeded ${modeConversations.length} mode conversations, ${seedActivityMessages.length} activity messages`,
   );
 
   // ─── Eval runs ──────────────────────────────────────────────────
@@ -1168,11 +1412,68 @@ export default async function seed(ctx: { db: VobaseDb }) {
     `${green('✓')} Seeded ${seedCustomScorers.length} custom scorers`,
   );
 
+  // ─── Labels ──────────────────────────────────────────────────────
+  const seedLabels = [
+    {
+      id: 'lbl-vip',
+      title: 'VIP',
+      color: '#8b5cf6',
+      description: 'High-value customers',
+    },
+    {
+      id: 'lbl-bug',
+      title: 'Bug',
+      color: '#ef4444',
+      description: 'Bug reports from customers',
+    },
+    {
+      id: 'lbl-feedback',
+      title: 'Feedback',
+      color: '#22c55e',
+      description: 'Customer feedback',
+    },
+    {
+      id: 'lbl-urgent',
+      title: 'Urgent',
+      color: '#f97316',
+      description: 'Requires immediate attention',
+    },
+    {
+      id: 'lbl-followup',
+      title: 'Follow-up',
+      color: '#3b82f6',
+      description: 'Needs follow-up action',
+    },
+  ];
+
+  await db.insert(labels).values(seedLabels).onConflictDoNothing();
+
+  // Assign labels to some conversations
+  const labelAssignments = seedConversations.slice(0, 15).flatMap((conv, i) => {
+    const assigned = [seedLabels[i % seedLabels.length]];
+    if (i % 3 === 0 && seedLabels[(i + 2) % seedLabels.length]) {
+      assigned.push(seedLabels[(i + 2) % seedLabels.length]);
+    }
+    return assigned.map((lbl) => ({
+      conversationId: conv.id,
+      labelId: lbl.id,
+    }));
+  });
+
+  await db
+    .insert(conversationLabels)
+    .values(labelAssignments)
+    .onConflictDoNothing();
+
+  console.log(
+    `${green('✓')} Seeded ${seedLabels.length} labels, ${labelAssignments.length} conversation-label assignments`,
+  );
+
   // ─── Summary ─────────────────────────────────────────────────────
   console.log(
     `${green('✓')} Seeded ${seedInstances.length} channel instances, ${seedChannelRoutings.length} channel routings, ${seedConversations.length} conversations`,
   );
   console.log(
-    `${green('✓')} Seeded ${seedOutbox.length} outbox, ${seedConsultations.length} consultations, ${seedDeadLetters.length} dead letters`,
+    `${green('✓')} Seeded ${allOutgoingMessages.length + seedActivityMessages.length} messages, ${seedConsultations.length} consultations`,
   );
 }

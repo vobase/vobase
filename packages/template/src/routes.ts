@@ -25,6 +25,7 @@ export const routes = rootRoute('root.tsx', [
       '../modules/ai/pages/contacts/$contactId.tsx',
     ),
     route('/channels', '../modules/ai/pages/channels/index.tsx'),
+    route('/labels', '../modules/ai/pages/ai/labels.tsx'),
     layout('ai', '../modules/ai/pages/ai/layout.tsx', [
       route('/ai/agents', '../modules/ai/pages/ai/agents.tsx'),
       route('/ai/evals', '../modules/ai/pages/ai/evals.tsx'),
@@ -47,7 +48,6 @@ export const routes = rootRoute('root.tsx', [
       route('/notifications', 'shell/settings/notifications.tsx'),
       route('/display', 'shell/settings/display.tsx'),
       route('/api-keys', 'shell/settings/api-keys.tsx'),
-      route('/integrations', 'shell/settings/integrations.tsx'),
       route('/organization', 'shell/settings/organization.tsx'),
     ]),
   ]),

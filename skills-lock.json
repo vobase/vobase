@@ -9,7 +9,7 @@
     "ai-elements": {
       "source": "vercel/ai-elements",
       "sourceType": "github",
-      "computedHash": "84f3a2a57fa71ae5061786280987575d673792d6dda9a63941efb2795b83543a"
+      "computedHash": "7e81acdd3028bb68aa4387b2bd083c5812a50e2be1bea08c76994dcfb8f6a3d3"
     },
     "assistant-ui": {
       "source": "assistant-ui/skills",

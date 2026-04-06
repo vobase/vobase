@@ -19,6 +19,7 @@ import { Route as shellAuthSignupRouteImport } from './shell/auth/signup'
 import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as DotDotModulesSystemPagesLayoutRouteImport } from './../modules/system/pages/layout'
 import { Route as shellSettingsLayoutRouteImport } from './shell/settings/layout'
+import { Route as DotDotModulesAiPagesAiLabelsRouteImport } from './../modules/ai/pages/ai/labels'
 import { Route as DotDotModulesKnowledgeBasePagesLayoutRouteImport } from './../modules/knowledge-base/pages/layout'
 import { Route as DotDotModulesAutomationPagesLayoutRouteImport } from './../modules/automation/pages/layout'
 import { Route as DotDotModulesAiPagesAiLayoutRouteImport } from './../modules/ai/pages/ai/layout'
@@ -98,6 +99,12 @@ const shellSettingsLayoutRoute = shellSettingsLayoutRouteImport.update({
   path: '/settings',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
+const DotDotModulesAiPagesAiLabelsRoute =
+  DotDotModulesAiPagesAiLabelsRouteImport.update({
+    id: '/labels',
+    path: '/labels',
+    getParentRoute: () => shellAppLayoutRoute,
+  } as any)
 const DotDotModulesKnowledgeBasePagesLayoutRoute =
   DotDotModulesKnowledgeBasePagesLayoutRouteImport.update({
     id: '/knowledge-base',
@@ -243,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/': typeof homeRoute
   '/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
+  '/labels': typeof DotDotModulesAiPagesAiLabelsRoute
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
@@ -277,6 +285,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof homeRoute
   '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
+  '/labels': typeof DotDotModulesAiPagesAiLabelsRoute
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
@@ -316,6 +325,7 @@ export interface FileRoutesById {
   '/_app/_ai': typeof DotDotModulesAiPagesAiLayoutRouteWithChildren
   '/_app/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   '/_app/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
+  '/_app/labels': typeof DotDotModulesAiPagesAiLabelsRoute
   '/_app/settings': typeof shellSettingsLayoutRouteWithChildren
   '/_app/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/_auth/login': typeof shellAuthLoginRoute
@@ -353,6 +363,7 @@ export interface FileRouteTypes {
     | '/'
     | '/automation'
     | '/knowledge-base'
+    | '/labels'
     | '/settings'
     | '/system'
     | '/login'
@@ -387,6 +398,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/knowledge-base'
+    | '/labels'
     | '/settings'
     | '/system'
     | '/login'
@@ -425,6 +437,7 @@ export interface FileRouteTypes {
     | '/_app/_ai'
     | '/_app/automation'
     | '/_app/knowledge-base'
+    | '/_app/labels'
     | '/_app/settings'
     | '/_app/system'
     | '/_auth/login'
@@ -533,6 +546,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof shellSettingsLayoutRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_app/labels': {
+      id: '/_app/labels'
+      path: '/labels'
+      fullPath: '/labels'
+      preLoaderRoute: typeof DotDotModulesAiPagesAiLabelsRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
     '/_app/knowledge-base': {
@@ -838,6 +858,7 @@ interface shellAppLayoutRouteChildren {
   DotDotModulesAiPagesAiLayoutRoute: typeof DotDotModulesAiPagesAiLayoutRouteWithChildren
   DotDotModulesAutomationPagesLayoutRoute: typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   DotDotModulesKnowledgeBasePagesLayoutRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
+  DotDotModulesAiPagesAiLabelsRoute: typeof DotDotModulesAiPagesAiLabelsRoute
   shellSettingsLayoutRoute: typeof shellSettingsLayoutRouteWithChildren
   DotDotModulesSystemPagesLayoutRoute: typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   DotDotModulesAiPagesChannelsIndexRoute: typeof DotDotModulesAiPagesChannelsIndexRoute
@@ -854,6 +875,7 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
     DotDotModulesAutomationPagesLayoutRouteWithChildren,
   DotDotModulesKnowledgeBasePagesLayoutRoute:
     DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren,
+  DotDotModulesAiPagesAiLabelsRoute: DotDotModulesAiPagesAiLabelsRoute,
   shellSettingsLayoutRoute: shellSettingsLayoutRouteWithChildren,
   DotDotModulesSystemPagesLayoutRoute:
     DotDotModulesSystemPagesLayoutRouteWithChildren,

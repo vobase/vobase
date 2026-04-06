@@ -400,8 +400,14 @@ function HomePage() {
             ) : (
               <>
                 {allEvents.map((event) => {
-                  const Icon = eventIcon(event.type);
-                  const eventData = (event.data ?? {}) as ActivityEventData;
+                  const eventType = event.content;
+                  const eventData = (event.contentData ??
+                    {}) as ActivityEventData;
+                  const eventAgentId =
+                    (eventData.agentId as string | null) ?? null;
+                  const eventContactId =
+                    (eventData.contactId as string | null) ?? null;
+                  const Icon = eventIcon(eventType);
                   return (
                     <div
                       key={event.id}
@@ -410,9 +416,9 @@ function HomePage() {
                       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate text-sm">
                         {eventDescription(
-                          event.type,
-                          event.agentId,
-                          event.contactId,
+                          eventType,
+                          eventAgentId,
+                          eventContactId,
                           eventData,
                           agentNames,
                           contactNames,
@@ -473,14 +479,19 @@ function HomePage() {
                     <Skeleton key={k} className="h-28 rounded-xl" />
                   ))
                 : attentionItems.map((item) => {
-                    const isEscalation = item.type === 'escalation.created';
-                    const itemData = (item.data ?? {}) as ActivityEventData;
+                    const itemData = (item.contentData ??
+                      {}) as ActivityEventData;
+                    const itemContactId =
+                      (itemData.contactId as string | null) ?? null;
+                    const itemAgentId =
+                      (itemData.agentId as string | null) ?? null;
+                    const isEscalation = item.content === 'escalation.created';
                     const borderColor = isEscalation
                       ? 'border-l-blue-500'
                       : 'border-l-destructive';
                     const contactName =
-                      (item.contactId && contactNames.get(item.contactId)) ??
-                      item.contactId ??
+                      (itemContactId && contactNames.get(itemContactId)) ??
+                      itemContactId ??
                       'Anonymous';
                     const isPending =
                       reviewMutation.isPending || dismissMutation.isPending;
@@ -500,8 +511,8 @@ function HomePage() {
                         </div>
                         <p className="mt-0.5 text-sm text-muted-foreground">
                           {item.channelType ?? 'web'} &middot;{' '}
-                          {(item.agentId && agentNames.get(item.agentId)) ??
-                            item.agentId ??
+                          {(itemAgentId && agentNames.get(itemAgentId)) ??
+                            itemAgentId ??
                             'Unknown agent'}
                         </p>
                         {itemData.reason && (
