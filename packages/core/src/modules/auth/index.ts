@@ -2,7 +2,7 @@ import type { ApiKey } from '@better-auth/api-key';
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import type {
@@ -13,7 +13,13 @@ import type {
   VerifyApiKey,
 } from '../../contracts/auth';
 import { logger } from '../../infra/logger';
-import { authUser } from './schema';
+import {
+  authInvitation,
+  authMember,
+  authOrganization,
+  authSession,
+  authUser,
+} from './schema';
 import type { VobaseDb } from '../../db/client';
 import type { VobaseModule } from '../../module';
 import { defineBuiltinModule } from '../../module';
@@ -43,15 +49,101 @@ const SIGNUP_PATHS = [
   '/email-otp/send-verification-otp',
 ];
 
+/**
+ * After sign-in, auto-add user to an organization and set it active on the session.
+ *
+ * 1. Pending invitation for this email → accept it (any mode)
+ * 2. Domain matches allowedEmailDomains → join the sole org (single-org mode only)
+ *
+ * Returns the joined org ID so the caller can set activeOrganizationId.
+ * @internal Exported for testing only.
+ */
+export async function autoJoinOrganization(
+  db: VobaseDb,
+  userId: string,
+  email: string,
+  config?: AuthModuleConfig,
+): Promise<string | null> {
+  // Skip if user already belongs to an org
+  const [existingMembership] = await db
+    .select({ id: authMember.id, organizationId: authMember.organizationId })
+    .from(authMember)
+    .where(eq(authMember.userId, userId))
+    .limit(1);
+  if (existingMembership) return existingMembership.organizationId;
+
+  // 1. Check for pending invitations (works in both single-org and multi-org)
+  const [pendingInvitation] = await db
+    .select({
+      id: authInvitation.id,
+      organizationId: authInvitation.organizationId,
+      role: authInvitation.role,
+    })
+    .from(authInvitation)
+    .where(
+      and(
+        eq(authInvitation.email, email),
+        eq(authInvitation.status, 'pending'),
+      ),
+    )
+    .limit(1);
+
+  if (pendingInvitation) {
+    await db.transaction(async (tx) => {
+      await tx.insert(authMember).values({
+        id: crypto.randomUUID(),
+        userId,
+        organizationId: pendingInvitation.organizationId,
+        role: pendingInvitation.role,
+      });
+      await tx
+        .update(authInvitation)
+        .set({ status: 'accepted' })
+        .where(eq(authInvitation.id, pendingInvitation.id));
+    });
+    logger.info(`[auth] Auto-accepted invitation for ${email}`);
+    return pendingInvitation.organizationId;
+  }
+
+  // 2. Domain-based auto-join — single-org mode only
+  //    In multi-org, users must be explicitly invited to specific orgs.
+  if (!config?.multiOrg && config?.allowedEmailDomains?.length) {
+    const domain = email.split('@')[1]?.toLowerCase();
+    const allowed = new Set(
+      config.allowedEmailDomains.map((d) => d.toLowerCase()),
+    );
+    if (domain && allowed.has(domain)) {
+      const [soleOrg] = await db
+        .select({ id: authOrganization.id })
+        .from(authOrganization)
+        .limit(1);
+      if (soleOrg) {
+        await db.insert(authMember).values({
+          id: crypto.randomUUID(),
+          userId,
+          organizationId: soleOrg.id,
+          role: 'member',
+        });
+        logger.info(`[auth] Auto-joined ${email} to org via domain match`);
+        return soleOrg.id;
+      }
+    }
+  }
+
+  return null;
+}
+
 function buildAuthHooks(db: VobaseDb, config?: AuthModuleConfig) {
   const auditHooks = createAuthAuditHooks(db);
   const domains = config?.allowedEmailDomains;
-  if (!domains?.length) return auditHooks;
+  const allowed = domains?.length
+    ? new Set(domains.map((d) => d.toLowerCase()))
+    : null;
 
-  const allowed = new Set(domains.map((d) => d.toLowerCase()));
   return {
     before: createAuthMiddleware(async (ctx) => {
       if (
+        allowed &&
         SIGNUP_PATHS.some((p) => ctx.path.startsWith(p)) &&
         ctx.body?.email
       ) {
@@ -73,7 +165,35 @@ function buildAuthHooks(db: VobaseDb, config?: AuthModuleConfig) {
       // Run audit before hook
       return auditHooks.before(ctx);
     }),
-    after: auditHooks.after,
+    after: createAuthMiddleware(async (ctx) => {
+      // Run audit after hook first
+      await auditHooks.after(ctx);
+
+      // Auto-join org after any sign-in that creates a new session
+      const session = ctx.context.newSession;
+      if (session) {
+        const user = session.user;
+        if (user?.id && user?.email) {
+          try {
+            const orgId = await autoJoinOrganization(
+              db,
+              user.id,
+              user.email,
+              config,
+            );
+            // Auto-set active org on the session so requireOrg() works immediately
+            if (orgId && session?.session?.id && !session.session.activeOrganizationId) {
+              await db
+                .update(authSession)
+                .set({ activeOrganizationId: orgId })
+                .where(eq(authSession.id, session.session.id));
+            }
+          } catch (err) {
+            logger.error('[auth] Auto-join org failed:', err);
+          }
+        }
+      }
+    }),
   };
 }
 
@@ -204,6 +324,10 @@ export function createAuthModule(
 }
 
 export { createAuthAuditHooks } from './audit-hooks';
-export type { AuthModuleConfig, SendVerificationOTP } from './config';
+export type {
+  AuthModuleConfig,
+  SendInvitationEmail,
+  SendVerificationOTP,
+} from './config';
 export { optionalSessionMiddleware, sessionMiddleware } from './middleware';
 export { authTableMap } from './schema';
