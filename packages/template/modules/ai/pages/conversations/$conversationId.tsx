@@ -1,8 +1,10 @@
 import {
-  AssistantRuntimeProvider,
-  useExternalStoreRuntime,
-} from '@assistant-ui/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   BotIcon,
@@ -12,21 +14,15 @@ import {
   CircleAlertIcon,
   EllipsisIcon,
   PanelRightIcon,
-  SendIcon,
   UserIcon,
   XCircleIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ThreadMessages } from '@/components/assistant-ui/thread';
 import {
   KbCurationBar,
   KbCurationToggle,
 } from '@/components/chat/kb-curation-overlay';
-import type { MessageScoreGroup } from '@/components/chat/message-quality';
-import { createStaffAdapter } from '@/components/chat/staff-runtime-adapter';
-import { VobaseThreadProvider } from '@/components/chat/vobase-thread-context';
-import { VobaseToolUIs } from '@/components/chat/vobase-tool-uis';
 import {
   AssigneeBadge,
   ChannelBadge,
@@ -51,27 +47,18 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
-import { useFeedback } from '@/hooks/use-feedback';
-import {
-  type RealtimePayload,
-  subscribeToPayloads,
-} from '@/hooks/use-realtime';
 import {
   useTypingListener,
   useTypingSender,
 } from '@/hooks/use-typing-indicator';
-import { activityDescription } from '@/lib/activity-helpers';
 import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
 import { formatRelativeTime } from '@/lib/format';
-import {
-  extractText,
-  type MemoryMessage as MemoryMessageType,
-  type NormalizedMessage,
-  normalizeMemoryMessage,
-} from '@/lib/normalize-message';
 import { cn } from '@/lib/utils';
+import { LabelsManager } from './_components/labels-manager';
+import { MessageTimeline } from './_components/message-timeline';
+import { StaffComposer } from './_components/staff-composer';
+import type { MessageRow } from './_components/types';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -94,34 +81,16 @@ interface ConversationDetail {
   resolutionOutcome: string | null;
 }
 
-interface MemoryMessage {
-  id: string;
-  role: string;
-  content:
-    | string
-    | { type: string; text?: string; [key: string]: unknown }[]
-    | { format: number; parts: { type: string; [key: string]: unknown }[] };
-  createdAt?: string;
-  deliveryStatus?: string;
-}
-
-interface OutboxRecord {
-  id: string;
-  content: string;
-  status: string;
-  createdAt: string;
+interface MessagesPage {
+  messages: MessageRow[];
+  hasMore: boolean;
+  nextCursor?: string;
 }
 
 interface ChannelInstance {
   id: string;
   type: string;
   label: string;
-}
-
-interface MessagesResponse {
-  messages: MemoryMessage[];
-  outboxRecords?: OutboxRecord[];
-  source?: 'memory' | 'outbox';
 }
 
 interface Consultation {
@@ -155,12 +124,31 @@ async function fetchConversation(id: string): Promise<ConversationDetail> {
   return res.json() as unknown as Promise<ConversationDetail>;
 }
 
-async function fetchMessages(id: string): Promise<MessagesResponse> {
+async function fetchMessagesPage(
+  id: string,
+  before?: string,
+): Promise<MessagesPage> {
+  const query: { limit: string; before?: string } = { limit: '50' };
+  if (before) query.before = before;
   const res = await aiClient.conversations[':id'].messages.$get({
     param: { id },
+    query,
   });
-  if (!res.ok) return { messages: [] };
-  return res.json() as unknown as Promise<MessagesResponse>;
+  if (!res.ok) return { messages: [], hasMore: false };
+  const data = (await res.json()) as {
+    messages: MessageRow[];
+    hasMore: boolean;
+    nextCursor?: string;
+  };
+  return {
+    messages: data.messages ?? [],
+    hasMore: data.hasMore,
+    nextCursor: data.nextCursor,
+  };
+}
+
+async function markConversationRead(id: string): Promise<void> {
+  await aiClient.conversations[':id'].read.$post({ param: { id } });
 }
 
 async function fetchConsultations(id: string): Promise<Consultation[]> {
@@ -222,45 +210,6 @@ async function fetchContactFacts(contactId: string): Promise<MemoryFact[]> {
     .map((f) => ({ id: f.id, content: f.fact, createdAt: f.createdAt }));
 }
 
-interface ActivityEvent {
-  id: string;
-  type: string;
-  agentId: string | null;
-  contactId: string | null;
-  data: Record<string, unknown> | null;
-  createdAt: string;
-}
-
-async function fetchConversationActivity(
-  conversationId: string,
-): Promise<ActivityEvent[]> {
-  const res = await aiClient.activity.$get({
-    query: { conversationId, limit: '20' },
-  });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data as { events: ActivityEvent[] }).events ?? [];
-}
-
-interface ConversationScore {
-  id: string;
-  scorerId: string;
-  score: number;
-  reason: string | null;
-  runId: string | null;
-  createdAt: string | null;
-}
-
-async function fetchConversationScores(
-  conversationId: string,
-): Promise<ConversationScore[]> {
-  const res = await aiClient.evals.conversation[':conversationId'].scores.$get({
-    param: { conversationId },
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
-
 async function updateConversation(
   id: string,
   body: {
@@ -310,150 +259,6 @@ function consultationStatusVariant(
   if (status === 'replied') return 'success';
   if (status === 'timeout') return 'destructive';
   return 'secondary';
-}
-
-// ─── Staff Message List (turn-grouped) ──────────────────────────────
-
-function normalizeMessages(
-  messages: MemoryMessage[],
-  outboxByContent: Map<string, string>,
-  activityEvents: ActivityEvent[] = [],
-): NormalizedMessage[] {
-  const normalized: NormalizedMessage[] = messages.map((msg) => {
-    const norm = normalizeMemoryMessage(msg as MemoryMessageType);
-    if (norm.role === 'assistant' && !norm.metadata.deliveryStatus) {
-      const text = extractText(msg.content);
-      const outboxStatus = outboxByContent.get(text);
-      if (outboxStatus) norm.metadata.deliveryStatus = outboxStatus;
-    }
-    return norm;
-  });
-
-  // Merge activity events as system messages
-  for (const event of activityEvents) {
-    normalized.push({
-      id: `activity-${event.id}`,
-      role: 'system',
-      parts: [{ type: 'text', text: activityDescription(event) }],
-      createdAt: event.createdAt,
-      metadata: {
-        activityType: event.type,
-        activityData: event.data ?? undefined,
-      },
-    });
-  }
-
-  // Sort by createdAt so activities appear in chronological order
-  normalized.sort((a, b) => {
-    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return ta - tb;
-  });
-
-  return normalized;
-}
-
-// ─── Human Reply Input ───────────────────────────────────────────────
-
-function HumanReplyInput({
-  conversationId,
-  onSent,
-}: {
-  conversationId: string;
-  onSent: () => void;
-}) {
-  const [content, setContent] = useState('');
-  const [isInternal, setIsInternal] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { signalTyping } = useTypingSender(conversationId);
-
-  const replyMutation = useMutation({
-    mutationFn: (params: { text: string; internal: boolean }) =>
-      sendReply(conversationId, params.text, params.internal),
-    onSuccess: () => {
-      setContent('');
-      onSent();
-    },
-    onError: (err) => {
-      console.error('[conversation-reply] Failed:', err);
-    },
-  });
-
-  function handleSubmit() {
-    const trimmed = content.trim();
-    if (!trimmed || replyMutation.isPending) return;
-    replyMutation.mutate({ text: trimmed, internal: isInternal });
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }
-
-  return (
-    <div className="border-t bg-background px-4 py-3">
-      <div className="flex items-end gap-2">
-        <div className="relative flex-1">
-          <Textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value);
-              if (e.target.value.trim() && !isInternal) signalTyping();
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isInternal ? 'Write an internal note...' : 'Reply as staff...'
-            }
-            className={cn(
-              'min-h-[56px] max-h-[120px] resize-none pr-20 text-sm',
-              isInternal &&
-                'border-violet-300 bg-violet-50/30 dark:border-violet-800 dark:bg-violet-950/20',
-            )}
-            rows={2}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Button
-            size="sm"
-            className="h-8 gap-1.5 px-3"
-            disabled={!content.trim() || replyMutation.isPending}
-            onClick={handleSubmit}
-          >
-            <SendIcon className="h-3.5 w-3.5" />
-            {isInternal ? 'Note' : 'Send'}
-          </Button>
-        </div>
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">
-            <kbd className="rounded border bg-muted px-1 py-0.5 text-xs font-mono">
-              {navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter
-            </kbd>{' '}
-            to send
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsInternal(!isInternal)}
-            className={cn(
-              'text-sm font-medium transition-colors',
-              isInternal
-                ? 'text-violet-600 dark:text-violet-400'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {isInternal ? 'Switch to reply' : 'Internal note'}
-          </button>
-        </div>
-        {replyMutation.isError && (
-          <p className="text-sm text-destructive">Failed to send</p>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ─── Consultation Card ───────────────────────────────────────────────
@@ -528,59 +333,41 @@ function ConversationDetailPage() {
     queryFn: () => fetchConversation(conversationId),
   });
 
-  const { data: messagesData } = useQuery({
+  const {
+    data: messagesInfiniteData,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['conversations-messages', conversationId],
-    queryFn: () => fetchMessages(conversationId),
+    queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+      fetchMessagesPage(conversationId, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (firstPage) => firstPage.nextCursor,
     enabled: !!conversation,
+    placeholderData: keepPreviousData,
   });
+
+  // Flatten all pages into a single list (pages are loaded oldest-first via cursor)
+  const allMessageRows = useMemo(
+    () => messagesInfiniteData?.pages.flatMap((p) => p.messages) ?? [],
+    [messagesInfiniteData],
+  );
+
+  // Mark conversation as read when opened or when new messages arrive
+  const lastMsgId = allMessageRows[allMessageRows.length - 1]?.id;
+  const hasMarkedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lastMsgId || hasMarkedRef.current === lastMsgId) return;
+    hasMarkedRef.current = lastMsgId;
+    markConversationRead(conversationId).catch(() => {});
+  }, [conversationId, lastMsgId]);
 
   const { data: consultations = [] } = useQuery({
     queryKey: ['conversations-consultations', conversationId],
     queryFn: () => fetchConsultations(conversationId),
     enabled: !!conversation,
   });
-
-  const { feedbackMap, handleReact, handleDeleteFeedback } =
-    useFeedback(conversationId);
-
-  const { data: rawScores = [] } = useQuery({
-    queryKey: ['conversation-scores', conversationId],
-    queryFn: () => fetchConversationScores(conversationId),
-    enabled: !!conversation,
-    refetchInterval: 10_000,
-    refetchIntervalInBackground: false,
-  });
-
-  // Re-fetch scores when new messages arrive (scores are written async after generation)
-  useEffect(() => {
-    const unsubscribe = subscribeToPayloads((payload: RealtimePayload) => {
-      if (
-        payload.table === 'conversations-messages' &&
-        payload.id === conversationId
-      ) {
-        // Delay to allow async LLM judge scoring to complete
-        const t1 = setTimeout(
-          () =>
-            queryClient.invalidateQueries({
-              queryKey: ['conversation-scores', conversationId],
-            }),
-          5_000,
-        );
-        const t2 = setTimeout(
-          () =>
-            queryClient.invalidateQueries({
-              queryKey: ['conversation-scores', conversationId],
-            }),
-          15_000,
-        );
-        return () => {
-          clearTimeout(t1);
-          clearTimeout(t2);
-        };
-      }
-    });
-    return unsubscribe;
-  }, [conversationId, queryClient]);
 
   const { data: contact } = useQuery({
     queryKey: ['contacts', conversation?.contactId],
@@ -604,12 +391,6 @@ function ConversationDetailPage() {
     queryKey: ['memory-facts', `contact:${conversation?.contactId}`],
     queryFn: () => fetchContactFacts(conversation?.contactId ?? ''),
     enabled: !!conversation?.contactId && (memoryStats?.facts ?? 0) > 0,
-  });
-
-  const { data: activityEvents = [] } = useQuery({
-    queryKey: ['conversations-activity', conversationId],
-    queryFn: () => fetchConversationActivity(conversationId),
-    enabled: !!conversation,
   });
 
   const invalidateConversationQueries = useCallback(() => {
@@ -661,81 +442,36 @@ function ConversationDetailPage() {
     },
   });
 
-  function invalidateMessages() {
+  const invalidateMessages = useCallback(() => {
     queryClient.invalidateQueries({
       queryKey: ['conversations-messages', conversationId],
     });
-  }
+  }, [queryClient, conversationId]);
 
-  const normalizedMessages = useMemo(() => {
-    const msgs = messagesData?.messages ?? [];
-    const outbox = new Map<string, string>(
-      (messagesData?.outboxRecords ?? []).map((r) => [r.content, r.status]),
-    );
-    return normalizeMessages(msgs, outbox, activityEvents);
-  }, [messagesData, activityEvents]);
+  const { signalTyping } = useTypingSender(conversationId);
 
-  // Correlate quality scores to assistant messages.
-  // Strategy: group scores by runId, then assign each group to the
-  // assistant message with the closest timestamp (absolute delta, handles
-  // timezone mismatches between Mastra memory and scorer storage).
-  const qualityScores = useMemo(() => {
-    if (rawScores.length === 0) return undefined;
+  const replyMutation = useMutation({
+    mutationFn: (params: { text: string; internal: boolean }) =>
+      sendReply(conversationId, params.text, params.internal),
+    onSuccess: invalidateMessages,
+  });
 
-    // Group scores by runId (all scores from one generation)
-    const byRun = new Map<string, ConversationScore[]>();
-    for (const s of rawScores) {
-      const key = s.runId ?? s.id;
-      const group = byRun.get(key) ?? [];
-      group.push(s);
-      byRun.set(key, group);
-    }
-
-    const assistantMsgs = normalizedMessages
-      .filter((m) => m.role === 'assistant' && m.createdAt)
-      .map((m) => ({ id: m.id, time: new Date(m.createdAt ?? 0).getTime() }))
-      .sort((a, b) => a.time - b.time);
-
-    if (assistantMsgs.length === 0) return undefined;
-
-    const result = new Map<string, MessageScoreGroup>();
-
-    // Assign each score group to the nth assistant message (by order).
-    // Score groups are sorted by earliest createdAt — group 0 → msg 0, etc.
-    const sortedGroups = [...byRun.entries()].sort((a, b) => {
-      const aTime = Math.min(
-        ...a[1].map((s) => new Date(s.createdAt ?? 0).getTime()),
-      );
-      const bTime = Math.min(
-        ...b[1].map((s) => new Date(s.createdAt ?? 0).getTime()),
-      );
-      return aTime - bTime;
-    });
-
-    for (let i = 0; i < sortedGroups.length; i++) {
-      const [, scores] = sortedGroups[i];
-      // Map to assistant message by index (generation order matches message order)
-      const targetMsg = assistantMsgs[Math.min(i, assistantMsgs.length - 1)];
-
-      const existing = result.get(targetMsg.id) ?? { scores: [] };
-      for (const s of scores) {
-        existing.scores.push({
-          scorerId: s.scorerId,
-          score: s.score,
-          reason: s.reason,
-        });
-      }
-      result.set(targetMsg.id, existing);
-    }
-
-    return result.size > 0 ? result : undefined;
-  }, [rawScores, normalizedMessages]);
-
-  const staffAdapter = useMemo(
-    () => createStaffAdapter(normalizedMessages),
-    [normalizedMessages],
+  const handleSendReply = useCallback(
+    (content: string, isInternal: boolean) => {
+      replyMutation.mutate({ text: content, internal: isInternal });
+    },
+    [replyMutation],
   );
-  const staffRuntime = useExternalStoreRuntime(staffAdapter);
+
+  const handleRetryMessage = useCallback(
+    async (messageId: string) => {
+      await aiClient.conversations[':id'].messages[':mid'].retry.$post({
+        param: { id: conversationId, mid: messageId },
+      });
+      invalidateMessages();
+    },
+    [conversationId, invalidateMessages],
+  );
 
   // ── Loading ──
   if (conversationLoading) {
@@ -816,13 +552,6 @@ function ConversationDetailPage() {
 
             <div className="flex items-center gap-1.5 shrink-0">
               <KbCurationToggle />
-              {messagesData?.source === 'outbox' &&
-                (messagesData?.messages?.length ?? 0) > 0 &&
-                conversation.mode === 'ai' && (
-                  <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                    AI responses only
-                  </span>
-                )}
               {/* Supervised: approve draft */}
               {!isTerminal && conversation.mode === 'supervised' && (
                 <Button
@@ -937,33 +666,27 @@ function ConversationDetailPage() {
           </div>
         </div>
 
-        {/* Transcript */}
+        {/* Message Timeline */}
         <div className="flex-1 overflow-hidden">
-          <AssistantRuntimeProvider runtime={staffRuntime}>
-            <VobaseThreadProvider
-              viewMode="staff"
-              messages={normalizedMessages}
-              feedbackMap={feedbackMap}
-              qualityScores={qualityScores}
-              currentUserId={session?.user?.id}
-              onReact={handleReact}
-              onDeleteFeedback={handleDeleteFeedback}
-              contactLabel={contact?.name ?? 'Anonymous'}
-              conversationId={conversationId}
-            >
-              <VobaseToolUIs />
-              <ThreadMessages />
-            </VobaseThreadProvider>
-          </AssistantRuntimeProvider>
+          <MessageTimeline
+            messages={allMessageRows}
+            contactName={contact?.name ?? undefined}
+            hasMore={!!hasNextPage}
+            isFetchingMore={isFetchingNextPage}
+            onLoadMore={() => fetchNextPage()}
+            onRetryMessage={handleRetryMessage}
+          />
         </div>
 
         <KbCurationBar />
 
         {/* Reply input */}
         {canReply && (
-          <HumanReplyInput
-            conversationId={conversationId}
-            onSent={invalidateMessages}
+          <StaffComposer
+            onSend={handleSendReply}
+            isPending={replyMutation.isPending}
+            error={replyMutation.isError ? 'Failed to send' : null}
+            onTyping={signalTyping}
           />
         )}
 
@@ -1042,6 +765,11 @@ function ConversationDetailPage() {
 
                 <Separator />
 
+                {/* Labels */}
+                <LabelsManager conversationId={conversationId} />
+
+                <Separator />
+
                 {/* Details — 2-column grid */}
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
@@ -1065,7 +793,8 @@ function ConversationDetailPage() {
                       </SidebarRow>
                     )}
                     <SidebarRow label="Messages">
-                      {String(messagesData?.messages?.length ?? 0)}
+                      {String(allMessageRows.length)}
+                      {hasNextPage ? '+' : ''}
                     </SidebarRow>
                     {conversation.resolutionOutcome && (
                       <SidebarRow label="Resolution">

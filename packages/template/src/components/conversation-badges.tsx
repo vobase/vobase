@@ -477,7 +477,7 @@ export function ContactBadge({
 
 // ─── Resolution outcome ──────────────────────────────────────────────
 
-function ResolutionBadge({ outcome }: { outcome: string | null }) {
+function _ResolutionBadge({ outcome }: { outcome: string | null }) {
   if (!outcome) return null;
   return (
     <span className="text-xs text-muted-foreground capitalize">

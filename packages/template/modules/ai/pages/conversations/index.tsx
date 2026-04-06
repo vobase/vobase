@@ -33,14 +33,6 @@ import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
-interface LastSignal {
-  kind: 'message' | 'activity';
-  content: string | null;
-  type: string | null;
-  data: Record<string, unknown> | null;
-  createdAt: string | null;
-}
-
 interface ConversationRow {
   id: string;
   status: string;
@@ -56,7 +48,10 @@ interface ConversationRow {
   hasPendingEscalation: boolean;
   waitingSince: string | null;
   unreadCount: number;
-  lastSignal: LastSignal | null;
+  lastMessageContent: string | null;
+  lastMessageAt: string | null;
+  lastMessageType: string | null;
+  labels: { id: string; title: string; color: string | null }[];
 }
 
 interface TabCounts {
@@ -67,37 +62,34 @@ interface TabCounts {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function signalPreview(signal: LastSignal | null): string | null {
-  if (!signal) return null;
+function signalPreview(row: ConversationRow): string | null {
+  const { lastMessageContent, lastMessageType } = row;
+  if (!lastMessageContent && !lastMessageType) return null;
 
-  if (signal.kind === 'message' && signal.content) {
-    const text = signal.content;
-    return text.length > 80 ? `${text.slice(0, 77)}...` : text;
-  }
-
-  if (signal.kind === 'activity' && signal.type) {
-    const data = signal.data ?? {};
-    switch (signal.type) {
+  if (lastMessageType === 'activity') {
+    switch (lastMessageContent) {
       case 'escalation.created':
-        return `Escalated — ${(data.reason as string) ?? 'needs attention'}`;
+        return 'Escalated — needs attention';
       case 'handler.changed':
-        return `Mode changed to ${(data.to as string) ?? 'unknown'}`;
-      case 'message.inbound':
-      case 'message.inbound_human_mode':
-        return (data.content as string) ?? 'New message from visitor';
+        return 'Mode changed';
       case 'session.completed':
         return 'Conversation resolved';
       case 'session.failed':
         return 'Conversation failed';
-      case 'agent.tool_executed':
-        return `Used ${(data.toolName as string)?.replace(/_/g, ' ') ?? 'a tool'}`;
       case 'guardrail.block':
         return 'Message blocked by guardrail';
       case 'message.delivery_failed':
         return 'Message delivery failed';
       default:
-        return signal.type.replace(/\./g, ' ');
+        return lastMessageContent
+          ? lastMessageContent.replace(/\./g, ' ')
+          : null;
     }
+  }
+
+  if (lastMessageContent) {
+    const text = lastMessageContent;
+    return text.length > 80 ? `${text.slice(0, 77)}...` : text;
   }
 
   return null;
@@ -150,7 +142,7 @@ function InboxRow({
 }) {
   const { conversationId: selectedId } = useParams({ strict: false });
   const isSelected = row.id === selectedId;
-  const preview = signalPreview(row.lastSignal);
+  const preview = signalPreview(row);
   const timeRef = row.waitingSince ?? row.updatedAt;
 
   return (
@@ -188,6 +180,27 @@ function InboxRow({
           <p className="text-sm text-muted-foreground truncate mt-0.5 leading-relaxed">
             {preview}
           </p>
+        )}
+        {row.labels?.length > 0 && (
+          <div className="flex items-center gap-1 mt-0.5">
+            {row.labels.slice(0, 2).map((label) => (
+              <span
+                key={label.id}
+                className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0 text-[10px] text-muted-foreground"
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: label.color ?? '#6b7280' }}
+                />
+                {label.title}
+              </span>
+            ))}
+            {row.labels.length > 2 && (
+              <span className="text-[10px] text-muted-foreground">
+                +{row.labels.length - 2}
+              </span>
+            )}
+          </div>
         )}
         {showMode && row.mode && (
           <ModeBadge mode={row.mode} variant="muted" className="mt-0.5" />
@@ -329,6 +342,26 @@ function ConversationsLayout() {
   const listPanelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // When navigating directly to a conversation, auto-select the correct tab
+  const tabInitRef = useRef(false);
+  useEffect(() => {
+    if (!conversationId || tabInitRef.current) return;
+    tabInitRef.current = true;
+    aiClient.conversations[':id']
+      .$get({ param: { id: conversationId } })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const conv = (await res.json()) as { status: string; mode: string | null };
+        if (conv.status === 'completed' || conv.status === 'failed') {
+          setTab('done');
+        } else if (conv.mode === 'ai') {
+          setTab('ai');
+        }
+        // else default 'attention' is correct for human/supervised/held
+      })
+      .catch(() => {});
+  }, [conversationId]);
+
   // Reset search + focus when tab changes
   const handleTabChange = useCallback((v: string) => {
     setTab(v as typeof tab);
@@ -384,7 +417,7 @@ function ConversationsLayout() {
       (row) =>
         (row.contactName ?? '').toLowerCase().includes(q) ||
         (row.contactId ?? '').toLowerCase().includes(q) ||
-        (signalPreview(row.lastSignal) ?? '').toLowerCase().includes(q),
+        (signalPreview(row) ?? '').toLowerCase().includes(q),
     );
   }, [rawRows, search]);
 
