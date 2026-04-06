@@ -69,6 +69,19 @@ export const Route = createFileRoute('/_app')({
       if (!data?.session) {
         throw redirect({ to: '/login' });
       }
+      // Require org membership — users without an org see a pending access page
+      if (!data.session.activeOrganizationId) {
+        // Check if user belongs to any org and just needs activation
+        const orgs = await authClient.organization.list();
+        const firstOrg = orgs.data?.[0];
+        if (firstOrg) {
+          await authClient.organization.setActive({
+            organizationId: firstOrg.id,
+          });
+        } else {
+          throw redirect({ to: '/pending' });
+        }
+      }
     } catch (e) {
       if (isRedirect(e)) throw e;
       console.warn('[auth] Session check failed:', e);

@@ -2,6 +2,7 @@ import {
   createFileRoute,
   useNavigate,
   useRouter,
+  useSearch,
 } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -24,9 +25,14 @@ const emailSchema = z.string().email('Please enter a valid email address');
 const platformUrl = import.meta.env.VITE_PLATFORM_URL;
 const tenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG;
 
+const loginSearchSchema = z.object({
+  invitationId: z.string().optional(),
+});
+
 function LoginPage() {
   const router = useRouter();
   const navigate = useNavigate();
+  const { invitationId } = useSearch({ from: '/_auth/login' });
 
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -73,6 +79,14 @@ function LoginPage() {
       return;
     }
 
+    // Server-side hook auto-accepts pending invitations on sign-in.
+    // Client-side fallback for edge cases (existing user, invitation not yet matched).
+    if (invitationId) {
+      await authClient.organization
+        .acceptInvitation({ invitationId })
+        .catch(() => {});
+    }
+
     await router.invalidate();
     navigate({ to: '/' });
   }
@@ -82,9 +96,11 @@ function LoginPage() {
       <CardHeader>
         <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
         <p className="text-sm text-muted-foreground">
-          {step === 'otp'
-            ? `Enter the 6-digit code sent to ${email}.`
-            : 'Sign in to your account to continue.'}
+          {invitationId
+            ? 'Sign in to accept your invitation.'
+            : step === 'otp'
+              ? `Enter the 6-digit code sent to ${email}.`
+              : 'Sign in to your account to continue.'}
         </p>
       </CardHeader>
 
@@ -203,4 +219,5 @@ function LoginPage() {
 
 export const Route = createFileRoute('/_auth/login')({
   component: LoginPage,
+  validateSearch: loginSearchSchema,
 });
