@@ -16,12 +16,18 @@ function toMemoryMessage(row: typeof messages.$inferSelect): MemoryMessage {
       : row.senderType === 'agent'
         ? 'assistant'
         : row.senderType === 'user'
-          ? 'user'
+          ? 'assistant' // staff messages are on the business side
           : 'system';
+
+  // Prefix staff messages so the LLM distinguishes them from AI agent replies
+  const content =
+    row.senderType === 'user'
+      ? `[Staff reply]: ${row.content}`
+      : row.content;
 
   return {
     id: row.id,
-    content: row.content,
+    content,
     aiRole,
     createdAt: row.createdAt,
   };
