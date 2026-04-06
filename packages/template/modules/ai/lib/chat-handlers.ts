@@ -8,7 +8,7 @@ import { logger } from '@vobase/core';
 import type { Chat } from 'chat';
 import { and, eq } from 'drizzle-orm';
 
-import { channelRoutings, consultations, conversations } from '../schema';
+import { channelInstances, channelRoutings, consultations, conversations } from '../schema';
 import { handleStaffReply } from './consult-human';
 import { createConversation } from './conversation';
 import { enqueueDelivery } from './delivery';
@@ -84,6 +84,18 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
         );
 
       if (existingConversation) {
+        // Store inbound message in the messages table
+        if (message.text) {
+          await insertMessage(db, realtime, {
+            conversationId: existingConversation.id,
+            messageType: 'incoming',
+            contentType: 'text',
+            content: message.text,
+            senderId: contact.id,
+            senderType: 'contact',
+            channelType: syntheticEvent.channel ?? 'web',
+          });
+        }
         await routeByMode(
           { db, scheduler, realtime },
           existingConversation,
@@ -126,6 +138,19 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
         },
       );
 
+      // Store inbound message in the messages table
+      if (message.text) {
+        await insertMessage(db, realtime, {
+          conversationId: conversation.id,
+          messageType: 'incoming',
+          contentType: 'text',
+          content: message.text,
+          senderId: contact.id,
+          senderType: 'contact',
+          channelType: syntheticEvent.channel ?? 'web',
+        });
+      }
+
       // Route by handler mode (new conversations default to 'ai')
       await routeByMode(
         { db, scheduler, realtime },
@@ -164,6 +189,25 @@ export function registerHandlers(chat: Chat, deps: HandlerDeps): void {
           },
         );
         return;
+      }
+
+      // Store inbound message
+      if (message.text) {
+        const [instance] = conversation.channelInstanceId
+          ? await db
+              .select({ type: channelInstances.type })
+              .from(channelInstances)
+              .where(eq(channelInstances.id, conversation.channelInstanceId))
+          : [];
+        await insertMessage(db, realtime, {
+          conversationId: conversation.id,
+          messageType: 'incoming',
+          contentType: 'text',
+          content: message.text,
+          senderId: conversation.contactId,
+          senderType: 'contact',
+          channelType: instance?.type ?? 'web',
+        });
       }
 
       await routeByMode(

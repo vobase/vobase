@@ -764,6 +764,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     failureReason: string;
     senderId: string;
     senderType: 'agent';
+    private: boolean;
     createdAt: Date;
   }> = DL_ERRORS.map((error, i) => {
     const sess = completedSessions[i] ?? seedConversations[i];
@@ -778,6 +779,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       failureReason: error,
       senderId: 'agent-booking',
       senderType: 'agent',
+      private: false,
       createdAt: hoursAgo(faker.number.int({ min: 24, max: 500 })),
     };
   });

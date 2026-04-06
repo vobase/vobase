@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, type LinkProps } from '@tanstack/react-router';
 import { Menu } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,7 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
             {links.map(({ title, href, isActive, disabled }) => (
               <DropdownMenuItem key={`${title}-${href}`} asChild>
                 <Link
-                  to={href}
+                  to={href as LinkProps['to']}
                   className={!isActive ? 'text-muted-foreground' : ''}
                   disabled={disabled}
                 >
@@ -56,7 +56,7 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
         {links.map(({ title, href, isActive, disabled }) => (
           <Link
             key={`${title}-${href}`}
-            to={href}
+            to={href as LinkProps['to']}
             disabled={disabled}
             className={cn(
               'text-sm font-medium transition-colors hover:text-primary',
