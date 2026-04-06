@@ -1,5 +1,16 @@
 # @vobase/core
 
+## 0.29.0
+
+### Minor Changes
+
+- [`a4749b4`](https://github.com/vobase/vobase/commit/a4749b40142a0d65f1c4b981c1c93f2e0566a76f) Thanks [@mdluo](https://github.com/mdluo)! - Add organization auto-join on sign-in and multi-org support
+
+  - Configure better-auth organization plugin with `multiOrg` flag (default `false` for single-org soft-lock) and `sendInvitationEmail` callback
+  - Auto-join organization after sign-in: pending invitation acceptance (any mode) or domain-based join (single-org only)
+  - Auto-set `activeOrganizationId` on session so `requireOrg()` works immediately
+  - Export `SendInvitationEmail` type from core
+
 ## 0.28.0
 
 ### Minor Changes
