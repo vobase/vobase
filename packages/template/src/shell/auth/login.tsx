@@ -1,82 +1,71 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   createFileRoute,
-  Link,
   useNavigate,
   useRouter,
 } from '@tanstack/react-router';
-import { useForm } from 'react-hook-form';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from '@/components/ui/card';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { PasswordInput } from '@/components/ui/password-input';
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+} from '@/components/ui/input-otp';
 import { authClient } from '@/lib/auth-client';
 
-const isDev = import.meta.env.DEV;
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1, 'Password is required'),
-});
-
-type LoginValues = z.infer<typeof loginSchema>;
+const emailSchema = z.string().email('Please enter a valid email address');
 
 function LoginPage() {
   const router = useRouter();
   const navigate = useNavigate();
 
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: isDev ? 'admin@example.com' : '',
-      password: isDev ? 'Admin@vobase1' : '',
-    },
-  });
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<'email' | 'otp'>('email');
+  const [loading, setLoading] = useState(false);
 
-  const isSubmitting = form.formState.isSubmitting;
-
-  async function handleGoogleLogin() {
-    const platformUrl = import.meta.env.VITE_PLATFORM_URL;
-    if (platformUrl) {
-      const slug = window.location.hostname.split('.')[0];
-      window.location.href = `${platformUrl}/api/oauth-proxy/oauth/google/initiate?tenant=${slug}`;
+  async function handleSendOtp(e: React.FormEvent) {
+    e.preventDefault();
+    const result = emailSchema.safeParse(email);
+    if (!result.success) {
+      toast.error(result.error.issues[0].message);
       return;
     }
 
-    const result = await authClient.signIn.social({
-      provider: 'google',
-      callbackURL: `${window.location.origin}/`,
+    setLoading(true);
+    const { error } = await authClient.emailOtp.sendVerificationOtp({
+      email,
+      type: 'sign-in',
     });
+    setLoading(false);
 
-    if (result.error) {
-      toast.error(result.error.message ?? 'Unable to sign in.');
+    if (error) {
+      toast.error(error.message ?? 'Failed to send code.');
+      return;
     }
+
+    setStep('otp');
+    toast.success('Check your email for a verification code.');
   }
 
-  async function onSubmit(values: LoginValues) {
-    const result = await authClient.signIn.email({
-      email: values.email,
-      password: values.password,
-    });
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      toast.error('Please enter the 6-digit code.');
+      return;
+    }
 
-    if (result.error) {
-      toast.error(result.error.message ?? 'Unable to sign in.');
+    setLoading(true);
+    const { error } = await authClient.signIn.emailOtp({ email, otp });
+    setLoading(false);
+
+    if (error) {
+      toast.error(error.message ?? 'Invalid or expired code.');
       return;
     }
 
@@ -89,75 +78,60 @@ function LoginPage() {
       <CardHeader>
         <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
         <p className="text-sm text-muted-foreground">
-          {isDev
-            ? 'Sign in with your dev account or Google.'
-            : 'Sign in with your Google account to continue.'}
+          {step === 'email'
+            ? 'Enter your email to receive a sign-in code.'
+            : `Enter the 6-digit code sent to ${email}.`}
         </p>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
-        {isDev ? (
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="flex flex-col gap-4"
+        {step === 'email' ? (
+          <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
+            <Input
+              type="email"
+              placeholder="name@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+            />
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Sending...' : 'Continue'}
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
+            <div className="flex justify-center">
+              <InputOTP maxLength={6} value={otp} onChange={setOtp} autoFocus>
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                </InputOTPGroup>
+                <InputOTPSeparator />
+                <InputOTPGroup>
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Verifying...' : 'Sign in'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setStep('email');
+                setOtp('');
+              }}
             >
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <PasswordInput {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? 'Signing in...' : 'Sign in'}
-              </Button>
-            </form>
-          </Form>
-        ) : null}
-
-        {!isDev ? (
-          <Button
-            className="w-full"
-            variant="outline"
-            disabled={isSubmitting}
-            onClick={handleGoogleLogin}
-          >
-            {isSubmitting ? 'Redirecting...' : 'Sign in with Google'}
-          </Button>
-        ) : null}
+              Use a different email
+            </Button>
+          </form>
+        )}
       </CardContent>
-
-      <CardFooter className="justify-center">
-        <p className="text-xs text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link
-            to="/signup"
-            className="font-medium text-foreground hover:underline"
-          >
-            Sign up
-          </Link>
-        </p>
-      </CardFooter>
     </Card>
   );
 }

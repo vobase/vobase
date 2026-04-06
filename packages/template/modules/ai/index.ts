@@ -1,5 +1,10 @@
-import type { MessageReceivedEvent } from '@vobase/core';
-import { defineModule, logger } from '@vobase/core';
+import type { MessageReceivedEvent, ProvisionChannelData } from '@vobase/core';
+import {
+  createNanoid,
+  createWhatsAppAdapter,
+  defineModule,
+  logger,
+} from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
 import { configureTracing } from '../../mastra/lib/observability';
@@ -15,7 +20,7 @@ import {
   setModuleDeps,
 } from './jobs';
 import { registerHandlers } from './lib/chat-handlers';
-import { getChat, initChat, onChatInit } from './lib/chat-init';
+import { getChat, initChat, onChatInit, reinitChat } from './lib/chat-init';
 import * as schema from './schema';
 import { channelInstances } from './schema';
 
@@ -43,6 +48,45 @@ export const aiModule = defineModule({
 
     setModuleDeps(deps);
     configureTracing();
+
+    // Register channel provisioning handler (called by platform routes)
+    const generateId = createNanoid();
+    ctx.channels.onProvision(async (data: ProvisionChannelData) => {
+      const instanceId = generateId();
+      await ctx.db.insert(channelInstances).values({
+        id: instanceId,
+        type: data.type,
+        label: data.label,
+        source: data.source,
+        integrationId: data.integrationId ?? null,
+        config: data.config ?? {},
+        status: 'active',
+      });
+
+      // Hot-register the channel adapter from platform-stored credentials
+      if (data.type === 'whatsapp') {
+        const integration = await ctx.integrations.getActive('whatsapp');
+        if (integration) {
+          const cfg = integration.config as Record<string, unknown>;
+          const phoneNumberId = cfg.phoneNumberId as string | undefined;
+          const accessToken = cfg.accessToken as string | undefined;
+          const appSecret = cfg.appSecret as string | undefined;
+          if (!phoneNumberId || !accessToken || !appSecret) {
+            logger.warn(
+              '[ai] WhatsApp integration missing required config fields',
+            );
+          } else {
+            ctx.channels.registerAdapter(
+              'whatsapp',
+              createWhatsAppAdapter({ phoneNumberId, accessToken, appSecret }),
+            );
+          }
+        }
+      }
+
+      await reinitChat({ ...deps, realtime: ctx.realtime });
+      return { instanceId };
+    });
 
     // Auto-create default web channel_instance if none exists
     try {

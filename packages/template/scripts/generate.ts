@@ -60,6 +60,7 @@ function buildAiRoutes(): string[] {
     "      '../modules/ai/pages/contacts/$contactId.tsx',",
     '    ),',
     "    route('/channels', '../modules/ai/pages/channels/index.tsx'),",
+    "    route('/labels', '../modules/ai/pages/ai/labels.tsx'),",
     "    layout('ai', '../modules/ai/pages/ai/layout.tsx', [",
     "      route('/ai/agents', '../modules/ai/pages/ai/agents.tsx'),",
     "      route('/ai/evals', '../modules/ai/pages/ai/evals.tsx'),",
@@ -81,7 +82,6 @@ function buildRoutesSource(moduleNames: string[]): string {
     "      route('/notifications', 'shell/settings/notifications.tsx'),",
     "      route('/display', 'shell/settings/display.tsx'),",
     "      route('/api-keys', 'shell/settings/api-keys.tsx'),",
-    "      route('/integrations', 'shell/settings/integrations.tsx'),",
     "      route('/organization', 'shell/settings/organization.tsx'),",
     '    ]),',
   ];
@@ -109,7 +109,6 @@ function buildRoutesSource(moduleNames: string[]): string {
     "  route('/chat/$channelRoutingId', 'chat.$channelRoutingId.tsx'),",
     "  layout('auth', 'shell/auth/layout.tsx', [",
     "    route('/login', 'shell/auth/login.tsx'),",
-    "    route('/signup', 'shell/auth/signup.tsx'),",
     '  ]),',
     "  layout('app', 'shell/app-layout.tsx', [",
     ...appChildren,

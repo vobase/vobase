@@ -16,3 +16,4 @@ test-results
 .omc
 .stitch
 drizzle/
+schema.generated.ts

@@ -1,58 +1,42 @@
-import {
-  type CreateAppConfig,
-  createNanoid,
-  createWhatsAppAdapter,
-} from '@vobase/core';
+import { type CreateAppConfig, createSmtpAdapter } from '@vobase/core';
 
-import { reinitChat } from './modules/ai/lib/chat-init';
-import { getModuleDeps } from './modules/ai/lib/deps';
-import { channelInstances } from './modules/ai/schema';
+import { devAuth } from './modules/system/dev-auth-plugin';
+import { renderOtpEmail } from './modules/system/emails';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
 
-const generateId = createNanoid();
+const smtpHost = process.env.SMTP_HOST;
+const smtpPort = Number(process.env.SMTP_PORT || 1025);
+const smtpFrom = process.env.SMTP_FROM || 'noreply@vobase.local';
+
+if (!smtpHost) {
+  console.warn(
+    '⚠ SMTP_HOST is not set — email OTP sign-in will not work. Set SMTP_HOST in .env (use MailDev for local dev).',
+  );
+}
+
+const smtpAdapter = smtpHost
+  ? createSmtpAdapter({
+      host: smtpHost,
+      port: smtpPort,
+      from: smtpFrom,
+      ...(process.env.SMTP_USER && {
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS || '',
+        },
+      }),
+    })
+  : null;
+
+/** Server-side branding. See also: src/lib/branding.ts (client-side equivalent). */
+export const productName = process.env.VITE_PRODUCT_NAME || 'Vobase';
+export const companyName = process.env.VITE_COMPANY_NAME || 'Vobase';
 
 const config: Omit<CreateAppConfig, 'modules'> = {
   database: databaseUrl,
 
-  onProvisionChannel: async (data, ctx) => {
-    const instanceId = generateId();
-    await ctx.db.insert(channelInstances).values({
-      id: instanceId,
-      type: data.type,
-      label: data.label,
-      source: data.source,
-      integrationId: data.integrationId ?? null,
-      config: data.config ?? {},
-      status: 'active',
-    });
-
-    // Hot-register the channel adapter from platform-stored credentials
-    if (data.type === 'whatsapp') {
-      const integration = await ctx.integrations.getActive('whatsapp');
-      if (integration) {
-        const { phoneNumberId, accessToken, appSecret } =
-          integration.config as {
-            phoneNumberId: string;
-            accessToken: string;
-            appSecret: string;
-          };
-        ctx.channels.registerAdapter(
-          'whatsapp',
-          createWhatsAppAdapter({ phoneNumberId, accessToken, appSecret }),
-        );
-      }
-    }
-
-    await reinitChat({
-      db: ctx.db,
-      scheduler: ctx.scheduler,
-      channels: ctx.channels,
-      realtime: getModuleDeps().realtime,
-    });
-    return { instanceId };
-  },
   storage: {
     provider: { type: 'local', basePath: './data/files' },
     buckets: {
@@ -67,10 +51,37 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   mcp: { enabled: true },
   trustedOrigins: ['http://localhost:5173', 'http://localhost:5174'],
 
-  // --- Auth plugins ---
-  // auth: {
-  //   organization: true,  // Enable multi-tenant org/member/role support
-  // },
+  // --- Auth ---
+  auth: {
+    appName: productName,
+    ...(process.env.NODE_ENV !== 'production' && {
+      extraPlugins: [devAuth()],
+    }),
+    ...(smtpAdapter && {
+      sendVerificationOTP: async ({ email, otp, type }) => {
+        const html = await renderOtpEmail({ otp, type });
+        await smtpAdapter.send({
+          to: email,
+          subject: `[${productName}] Your sign-in verification code`,
+          html,
+        });
+      },
+    }),
+  },
+
+  // --- Channels ---
+  channels: {
+    ...(smtpAdapter && {
+      email: {
+        provider: 'smtp' as const,
+        from: smtpFrom,
+        smtp: {
+          host: smtpHost as string,
+          port: smtpPort,
+        },
+      },
+    }),
+  },
 
   // --- Outbound HTTP client (ctx.http) ---
   // http: {

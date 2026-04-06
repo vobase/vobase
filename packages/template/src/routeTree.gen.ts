@@ -15,7 +15,6 @@ import { Route as DotDotModulesAiPagesConversationsIndexRouteImport } from './..
 import { Route as DotDotModulesAiPagesContactsIndexRouteImport } from './../modules/ai/pages/contacts/index'
 import { Route as DotDotModulesAiPagesChannelsIndexRouteImport } from './../modules/ai/pages/channels/index'
 import { Route as chatDotchannelRoutingIdRouteImport } from './chat.$channelRoutingId'
-import { Route as shellAuthSignupRouteImport } from './shell/auth/signup'
 import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as DotDotModulesSystemPagesLayoutRouteImport } from './../modules/system/pages/layout'
 import { Route as shellSettingsLayoutRouteImport } from './shell/settings/layout'
@@ -77,11 +76,6 @@ const chatDotchannelRoutingIdRoute = chatDotchannelRoutingIdRouteImport.update({
   id: '/chat/$channelRoutingId',
   path: '/chat/$channelRoutingId',
   getParentRoute: () => rootRouteImport,
-} as any)
-const shellAuthSignupRoute = shellAuthSignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => shellAuthLayoutRoute,
 } as any)
 const shellAuthLoginRoute = shellAuthLoginRouteImport.update({
   id: '/login',
@@ -254,7 +248,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
-  '/signup': typeof shellAuthSignupRoute
   '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
   '/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
@@ -289,7 +282,6 @@ export interface FileRoutesByTo {
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
-  '/signup': typeof shellAuthSignupRoute
   '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
   '/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
@@ -329,7 +321,6 @@ export interface FileRoutesById {
   '/_app/settings': typeof shellSettingsLayoutRouteWithChildren
   '/_app/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/_auth/login': typeof shellAuthLoginRoute
-  '/_auth/signup': typeof shellAuthSignupRoute
   '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
   '/_app/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
   '/_app/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
@@ -367,7 +358,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/system'
     | '/login'
-    | '/signup'
     | '/chat/$channelRoutingId'
     | '/channels'
     | '/contacts'
@@ -402,7 +392,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/system'
     | '/login'
-    | '/signup'
     | '/chat/$channelRoutingId'
     | '/channels'
     | '/contacts'
@@ -441,7 +430,6 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/system'
     | '/_auth/login'
-    | '/_auth/signup'
     | '/chat/$channelRoutingId'
     | '/_app/channels'
     | '/_app/contacts'
@@ -519,13 +507,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/chat/$channelRoutingId'
       preLoaderRoute: typeof chatDotchannelRoutingIdRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_auth/signup': {
-      id: '/_auth/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof shellAuthSignupRouteImport
-      parentRoute: typeof shellAuthLayoutRoute
     }
     '/_auth/login': {
       id: '/_auth/login'
@@ -895,12 +876,10 @@ const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(
 
 interface shellAuthLayoutRouteChildren {
   shellAuthLoginRoute: typeof shellAuthLoginRoute
-  shellAuthSignupRoute: typeof shellAuthSignupRoute
 }
 
 const shellAuthLayoutRouteChildren: shellAuthLayoutRouteChildren = {
   shellAuthLoginRoute: shellAuthLoginRoute,
-  shellAuthSignupRoute: shellAuthSignupRoute,
 }
 
 const shellAuthLayoutRouteWithChildren = shellAuthLayoutRoute._addFileChildren(
