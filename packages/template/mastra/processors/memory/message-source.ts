@@ -1,78 +1,88 @@
 /**
  * Message source abstraction for EverMemOS.
- * Loads messages from Mastra Memory instead of the removed msgMessages table.
+ * Loads messages directly from the `messages` table (conversations pgSchema).
  * Used by formation.ts, retriever.ts, and memory-processor.ts.
  */
 import type { VobaseDb } from '@vobase/core';
+import { and, asc, eq, gte, lte, ne } from 'drizzle-orm';
 
-import { getMemory } from '../../index';
+import { messages } from '../../../modules/ai/schema';
 import type { MemoryMessage } from './types';
 
-interface RecalledMessage {
-  id?: string;
-  content: { parts?: Array<{ text?: string }> } | string;
-  role?: string;
-  createdAt?: Date | string;
-}
+function toMemoryMessage(row: typeof messages.$inferSelect): MemoryMessage {
+  const aiRole =
+    row.senderType === 'contact'
+      ? 'user'
+      : row.senderType === 'agent'
+        ? 'assistant'
+        : row.senderType === 'user'
+          ? 'user'
+          : 'system';
 
-function toMemoryMessage(m: RecalledMessage): MemoryMessage {
   return {
-    id: m.id ?? '',
-    content:
-      typeof m.content === 'string'
-        ? m.content
-        : (m.content?.parts?.map((p) => p.text ?? '').join('') ?? ''),
-    aiRole: m.role ?? 'user',
-    createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+    id: row.id,
+    content: row.content,
+    aiRole,
+    createdAt: row.createdAt,
   };
 }
 
 /**
- * Load messages for a conversation from Mastra Memory.
- * Falls back to empty array if Memory is not initialized.
+ * Load all non-withdrawn, non-activity messages for a conversation, oldest first.
  */
 export async function loadMessagesForConversation(
-  _db: VobaseDb,
+  db: VobaseDb,
   threadId: string,
 ): Promise<MemoryMessage[]> {
-  try {
-    const memory = getMemory();
-    const result = await memory.recall({ threadId });
-    return (result.messages ?? []).map((m) =>
-      toMemoryMessage(m as unknown as RecalledMessage),
-    );
-  } catch {
-    return [];
-  }
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, threadId),
+        eq(messages.withdrawn, false),
+        ne(messages.messageType, 'activity'),
+      ),
+    )
+    .orderBy(asc(messages.createdAt));
+
+  return rows.map(toMemoryMessage);
 }
 
 /**
  * Load messages in a time range (for MemCell formation).
+ * Resolves timestamps from start/end message IDs, then queries the range.
  */
 export async function loadMessagesInRange(
-  _db: VobaseDb,
+  db: VobaseDb,
   threadId: string,
   startMessageId: string,
   endMessageId: string,
 ): Promise<MemoryMessage[]> {
-  try {
-    const memory = getMemory();
-    const result = await memory.recall({ threadId });
-    const messages = result.messages ?? [];
+  const [startMsg] = await db
+    .select({ createdAt: messages.createdAt })
+    .from(messages)
+    .where(eq(messages.id, startMessageId));
+  const [endMsg] = await db
+    .select({ createdAt: messages.createdAt })
+    .from(messages)
+    .where(eq(messages.id, endMessageId));
 
-    // Find start/end indices by message ID
-    const startIdx = messages.findIndex((m) => m.id === startMessageId);
-    const endIdx = messages.findIndex((m) => m.id === endMessageId);
+  if (!startMsg || !endMsg) return [];
 
-    if (startIdx === -1 || endIdx === -1) return [];
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, threadId),
+        eq(messages.withdrawn, false),
+        ne(messages.messageType, 'activity'),
+        gte(messages.createdAt, startMsg.createdAt),
+        lte(messages.createdAt, endMsg.createdAt),
+      ),
+    )
+    .orderBy(asc(messages.createdAt));
 
-    const slice = messages.slice(
-      Math.min(startIdx, endIdx),
-      Math.max(startIdx, endIdx) + 1,
-    );
-
-    return slice.map((m) => toMemoryMessage(m as unknown as RecalledMessage));
-  } catch {
-    return [];
-  }
+  return rows.map(toMemoryMessage);
 }

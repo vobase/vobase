@@ -21,13 +21,15 @@ import type {
 } from 'chat';
 import { Message as ChatMessage, isCardElement, stringifyMarkdown } from 'chat';
 
-import { enqueueMessage } from './outbox';
+import { enqueueDelivery } from './delivery';
+import { insertMessage } from './messages';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
 interface BridgeDeps {
   db: VobaseDb;
   scheduler: Scheduler;
+  realtime: import('@vobase/core').RealtimeService;
 }
 
 // ─── Factory ─────────────────────────────────────────────────────────
@@ -64,15 +66,20 @@ export function createChannelBridge(
     ): Promise<RawMessage<Record<string, unknown>>> {
       const { content, payload } = serializeForChannel(message);
 
-      const record = await enqueueMessage(deps.db, deps.scheduler, {
+      const msg = await insertMessage(deps.db, deps.realtime, {
         conversationId: threadId,
+        messageType: 'outgoing',
+        contentType: payload?.interactive ? 'interactive' : 'text',
         content,
+        contentData: payload ?? {},
+        status: 'queued',
+        senderId: 'agent',
+        senderType: 'agent',
         channelType,
-        channelInstanceId: instanceId,
-        payload,
       });
+      await enqueueDelivery(deps.scheduler, msg.id);
 
-      return { id: record.id, threadId, raw: {} };
+      return { id: msg.id, threadId, raw: {} };
     },
 
     // ─── Message parsing ───────────────────────────────────────────

@@ -9,9 +9,8 @@ import { logger } from '@vobase/core';
 import { and, eq, lt, sql } from 'drizzle-orm';
 
 import { consultations, contacts, conversations } from '../schema';
-import { emitActivityEvent } from './activity-events';
 import { getChatState } from './chat-init';
-import { updateLastSignal } from './last-signal';
+import { createActivityMessage } from './messages';
 import { transition } from './state-machine';
 
 interface ConsultDeps {
@@ -63,8 +62,7 @@ export async function requestConsultation(
     .from(conversations)
     .where(eq(conversations.id, input.conversationId));
 
-  // Insert consultation + emit escalation.created transactionally
-  let escalationEventId: string | null = null;
+  // Insert consultation record
   const consultation = await db.transaction(async (tx) => {
     const [record] = await tx
       .insert(consultations)
@@ -78,35 +76,18 @@ export async function requestConsultation(
       })
       .returning();
 
-    escalationEventId = await emitActivityEvent(
-      deps.db,
-      deps.realtime,
-      {
-        type: 'escalation.created',
-        agentId: conversation?.agentId,
-        source: 'agent',
-        contactId: conversation?.contactId,
-        conversationId: input.conversationId,
-        channelRoutingId: conversation?.channelRoutingId,
-        channelType: input.channelType,
-        data: { reason: input.reason, staffContactId: input.staffContactId },
-        resolutionStatus: 'pending',
-      },
-      tx as unknown as VobaseDb,
-    );
-
     return record;
   });
 
-  // Update last-signal pointer for escalation
-  if (escalationEventId) {
-    await updateLastSignal(
-      db,
-      input.conversationId,
-      'activity',
-      escalationEventId,
-    );
-  }
+  // Emit activity after transaction
+  await createActivityMessage(db, deps.realtime, {
+    conversationId: input.conversationId,
+    eventType: 'escalation.created',
+    actor: conversation?.agentId,
+    actorType: 'agent',
+    data: { reason: input.reason, staffContactId: input.staffContactId },
+    resolutionStatus: 'pending',
+  });
 
   // Update conversation state via machine (derives hasPendingEscalation + notifies realtime)
   await transition(deps, input.conversationId, { type: 'ESCALATE' });

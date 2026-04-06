@@ -160,13 +160,26 @@ export const conversations = conversationsPgSchema.table(
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
     priority: text('priority'),
     resolutionOutcome: text('resolution_outcome'),
-    lastSignalKind: text('last_signal_kind'),
-    lastSignalId: text('last_signal_id'),
     hasPendingEscalation: boolean('has_pending_escalation')
       .notNull()
       .default(false),
     waitingSince: timestamp('waiting_since', { withTimezone: true }),
     unreadCount: integer('unread_count').notNull().default(0),
+    customAttributes: jsonb('custom_attributes').default({}),
+    firstResponseDue: timestamp('first_response_due', { withTimezone: true }),
+    resolutionDue: timestamp('resolution_due', { withTimezone: true }),
+    firstRepliedAt: timestamp('first_replied_at', { withTimezone: true }),
+    slaBreachedAt: timestamp('sla_breached_at', { withTimezone: true }),
+    lastActivityAt: timestamp('last_activity_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    contactLastSeenAt: timestamp('contact_last_seen_at', {
+      withTimezone: true,
+    }),
+    agentLastSeenAt: timestamp('agent_last_seen_at', { withTimezone: true }),
+    lastMessageContent: text('last_message_content'),
+    lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
+    lastMessageType: text('last_message_type'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -194,6 +207,13 @@ export const conversations = conversationsPgSchema.table(
       .where(sql`status = 'active'`),
     index('idx_conv_attention').on(table.status, table.mode, table.updatedAt),
     index('idx_conv_resolved').on(table.status, table.updatedAt),
+    index('idx_conv_last_activity').on(table.lastActivityAt),
+    index('idx_conv_sla_breach')
+      .on(table.slaBreachedAt)
+      .where(sql`sla_breached_at IS NOT NULL`),
+    index('idx_conv_first_response_due')
+      .on(table.firstResponseDue)
+      .where(sql`first_replied_at IS NULL`),
     check(
       'conversations_status_check',
       sql`status IN ('active', 'completed', 'failed')`,
@@ -260,121 +280,137 @@ export const consultations = conversationsPgSchema.table(
   ],
 );
 
-// ─── Activity Events ──────────────────────────────────────────────
-// AVO (Actor-Verb-Object) pattern event stream for the control plane.
+// ─── Messages ──────────────────────────────────────────────────────
+// Single source of truth for all conversation content and activity.
 
-export const activityEvents = conversationsPgSchema.table(
-  'activity_events',
-  {
-    id: nanoidPrimaryKey(),
-    type: text('type').notNull(), // dot-notation: conversation.created, agent.tool_executed, etc.
-    agentId: text('agent_id'),
-    userId: text('user_id'), // staff user who triggered (null for system/agent)
-    source: text('source').notNull(), // agent | staff | system
-    contactId: text('contact_id'),
-    conversationId: text('conversation_id'), // references conversations.id
-    channelRoutingId: text('channel_routing_id'), // denormalized for dashboard queries
-    channelType: text('channel_type'), // whatsapp | web | email
-    data: jsonb('data').default({}), // event-specific payload
-    resolutionStatus: text('resolution_status'), // pending | reviewed | dismissed (null for non-attention events)
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    index('activity_events_agent_created_idx').on(
-      table.agentId,
-      table.createdAt,
-    ),
-    index('activity_events_resolution_created_idx').on(
-      table.resolutionStatus,
-      table.createdAt,
-    ),
-    index('activity_events_conversation_idx').on(table.conversationId),
-    index('activity_events_type_created_idx').on(table.type, table.createdAt),
-    check(
-      'activity_events_source_check',
-      sql`source IN ('agent', 'staff', 'system')`,
-    ),
-    check(
-      'activity_events_resolution_check',
-      sql`resolution_status IS NULL OR resolution_status IN ('pending', 'reviewed', 'dismissed')`,
-    ),
-  ],
-);
-
-// ─── Outbox ─────────────────────────────────────────────────────────
-// Outbound message delivery tracking.
-
-export const outbox = conversationsPgSchema.table(
-  'outbox',
+export const messages = conversationsPgSchema.table(
+  'messages',
   {
     id: nanoidPrimaryKey(),
     conversationId: text('conversation_id')
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),
+    messageType: text('message_type').notNull(),
+    contentType: text('content_type').notNull(),
     content: text('content').notNull(),
-    channelType: text('channel_type').notNull(),
-    channelInstanceId: text('channel_instance_id').references(
-      () => channelInstances.id,
-    ),
-    payload: jsonb('payload'),
-    externalMessageId: text('external_message_id'),
-    status: text('status').notNull().default('queued'),
+    contentData: jsonb('content_data').default({}),
+    status: text('status'),
+    failureReason: text('failure_reason'),
+    senderId: text('sender_id').notNull(),
+    senderType: text('sender_type').notNull(),
     retryCount: integer('retry_count').notNull().default(0),
+    externalMessageId: text('external_message_id'),
+    channelType: text('channel_type'),
+    private: boolean('private').notNull().default(false),
+    withdrawn: boolean('withdrawn').notNull().default(false),
+    resolutionStatus: text('resolution_status'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
   },
   (table) => [
-    index('outbox_conversation_id_idx').on(table.conversationId),
-    index('outbox_external_id_idx').on(table.externalMessageId),
-    index('outbox_status_created_idx').on(table.status, table.createdAt),
-    uniqueIndex('outbox_external_id_unique_idx')
+    index('idx_messages_conversation_created').on(
+      table.conversationId,
+      table.createdAt,
+    ),
+    uniqueIndex('idx_messages_external_id_unique')
       .on(table.externalMessageId)
       .where(sql`external_message_id IS NOT NULL`),
+    index('idx_messages_pending_delivery')
+      .on(table.conversationId, table.status)
+      .where(sql`status = 'queued'`),
+    index('idx_messages_type_created').on(table.messageType, table.createdAt),
+    index('idx_messages_sender').on(table.senderId),
+    index('idx_messages_pending_attention')
+      .on(table.resolutionStatus)
+      .where(sql`resolution_status = 'pending'`),
     check(
-      'outbox_status_check',
-      sql`status IN ('queued', 'sent', 'delivered', 'read', 'failed')`,
+      'messages_type_check',
+      sql`message_type IN ('incoming', 'outgoing', 'activity')`,
+    ),
+    check(
+      'messages_content_type_check',
+      sql`content_type IN ('text', 'image', 'document', 'audio', 'video', 'template', 'interactive', 'sticker', 'email', 'system')`,
+    ),
+    check(
+      'messages_sender_type_check',
+      sql`sender_type IN ('contact', 'user', 'agent', 'system')`,
+    ),
+    check(
+      'messages_status_check',
+      sql`status IS NULL OR status IN ('queued', 'sent', 'delivered', 'read', 'failed')`,
+    ),
+    check(
+      'messages_resolution_status_check',
+      sql`resolution_status IS NULL OR resolution_status IN ('pending', 'reviewed', 'dismissed')`,
     ),
   ],
 );
 
-// ─── Dead Letters ──────────────────────────────────────────────────
-// Terminal store for outbox messages that exceeded max retries.
+// ─── Labels ────────────────────────────────────────────────────────
 
-export const deadLetters = conversationsPgSchema.table(
-  'dead_letters',
+export const labels = conversationsPgSchema.table('labels', {
+  id: nanoidPrimaryKey(),
+  title: text('title').notNull().unique(),
+  color: text('color'),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── Conversation Labels (join table) ──────────────────────────────
+
+export const conversationLabels = conversationsPgSchema.table(
+  'conversation_labels',
   {
     id: nanoidPrimaryKey(),
-    originalOutboxId: text('original_outbox_id').notNull(),
-    conversationId: text('conversation_id').notNull(),
-    channelType: text('channel_type').notNull(),
-    channelInstanceId: text('channel_instance_id'),
-    recipientAddress: text('recipient_address'),
-    content: text('content').notNull(),
-    payload: jsonb('payload'),
-    error: text('error'),
-    retryCount: integer('retry_count').notNull(),
-    status: text('status').notNull().default('dead'),
-    failedAt: timestamp('failed_at', { withTimezone: true })
+    conversationId: text('conversation_id')
       .notNull()
-      .defaultNow(),
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    labelId: text('label_id')
+      .notNull()
+      .references(() => labels.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    index('dead_letters_channel_failed_idx').on(
-      table.channelType,
-      table.failedAt,
+    uniqueIndex('conversation_labels_unique_idx').on(
+      table.conversationId,
+      table.labelId,
     ),
-    index('dead_letters_conversation_idx').on(table.conversationId),
-    check('dead_letters_status_check', sql`status IN ('dead', 'retried')`),
+  ],
+);
+
+// ─── Reactions ─────────────────────────────────────────────────────
+
+export const reactions = conversationsPgSchema.table(
+  'reactions',
+  {
+    id: nanoidPrimaryKey(),
+    messageId: text('message_id').notNull(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    userId: text('user_id'),
+    contactId: text('contact_id'),
+    emoji: text('emoji').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('reactions_unique_idx').on(
+      table.messageId,
+      table.userId,
+      table.contactId,
+      table.emoji,
+    ),
+    check(
+      'reactions_actor_check',
+      sql`user_id IS NOT NULL OR contact_id IS NOT NULL`,
+    ),
   ],
 );
 

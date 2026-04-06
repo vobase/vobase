@@ -14,7 +14,7 @@ const mockScheduler = {
 describe('chat-bridge serialization', () => {
   const bridge = createChannelBridge(
     { id: 'ci-wa-1', type: 'whatsapp', label: 'WhatsApp Main' },
-    { db: mockDb, scheduler: mockScheduler },
+    { db: mockDb, scheduler: mockScheduler, realtime: {} as never },
   );
 
   test('parseMessage converts MessageReceivedEvent to Message', () => {
@@ -111,7 +111,11 @@ describe('chat-bridge fallback serialization (M7)', () => {
     const { db, getContent } = makeCaptureDb();
     const b = createChannelBridge(
       { id: 'ci-web-1', type: 'web', label: 'Web Chat' },
-      { db, scheduler: { add: async () => ({ id: 'j' }) } as never },
+      {
+        db,
+        scheduler: { add: async () => ({ id: 'j' }) } as never,
+        realtime: { notify: async () => {} } as never,
+      },
     );
     await b.postMessage('session-1', null as never);
     // null ?? '' = '', JSON.stringify('') = '""'
@@ -122,7 +126,11 @@ describe('chat-bridge fallback serialization (M7)', () => {
     const { db, getContent } = makeCaptureDb();
     const b = createChannelBridge(
       { id: 'ci-web-1', type: 'web', label: 'Web Chat' },
-      { db, scheduler: { add: async () => ({ id: 'j' }) } as never },
+      {
+        db,
+        scheduler: { add: async () => ({ id: 'j' }) } as never,
+        realtime: { notify: async () => {} } as never,
+      },
     );
     await b.postMessage('session-1', undefined as never);
     expect(getContent()).toBe('""');
@@ -132,7 +140,11 @@ describe('chat-bridge fallback serialization (M7)', () => {
     const { db, getContent } = makeCaptureDb();
     const b = createChannelBridge(
       { id: 'ci-web-1', type: 'web', label: 'Web Chat' },
-      { db, scheduler: { add: async () => ({ id: 'j' }) } as never },
+      {
+        db,
+        scheduler: { add: async () => ({ id: 'j' }) } as never,
+        realtime: { notify: async () => {} } as never,
+      },
     );
     await b.postMessage('session-1', 'hello world' as never);
     expect(getContent()).toBe('hello world');

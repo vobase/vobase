@@ -2,12 +2,11 @@ import type { RealtimeService, Scheduler, VobaseDb } from '@vobase/core';
 import { createNanoid, logger, notFound } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
-import { getMemory } from '../../../mastra';
 import { flushConversationMemory } from '../../../mastra/processors/memory/memory-processor';
 import { channelRoutings, conversations } from '../schema';
-import { emitActivityEvent } from './activity-events';
 import { getChatState } from './chat-init';
 import { getModuleDeps, getModuleScheduler } from './deps';
+import { createActivityMessage } from './messages';
 import { transition } from './state-machine';
 
 const generateId = createNanoid();
@@ -29,7 +28,7 @@ export async function createConversation(
   deps: CreateConversationDeps,
   input: CreateConversationInput,
 ): Promise<typeof conversations.$inferSelect> {
-  const { db, scheduler } = deps;
+  const { db } = deps;
   const id = generateId();
   const start = Date.now();
 
@@ -53,14 +52,16 @@ export async function createConversation(
     })
     .returning();
 
-  // Emit conversation.created activity event (fire-and-forget)
-  await emitActivityEvent(db, deps.realtime, {
-    type: 'conversation.created',
-    agentId: input.agentId,
-    source: 'system',
-    contactId: input.contactId,
+  // Emit conversation.created activity event
+  await createActivityMessage(db, deps.realtime, {
     conversationId: id,
-    channelRoutingId: input.channelRoutingId,
+    eventType: 'conversation.created',
+    actor: input.agentId,
+    actorType: 'agent',
+    data: {
+      contactId: input.contactId,
+      channelRoutingId: input.channelRoutingId,
+    },
   });
   // Notify dashboard + metrics
   await deps.realtime.notify({
@@ -76,71 +77,13 @@ export async function createConversation(
   const state = getChatState();
   await state.subscribe(id);
 
-  // Create Mastra Memory thread with the same ID (AD-2)
-  try {
-    const memory = getMemory();
-    const now = new Date();
-    await memory.saveThread({
-      thread: {
-        id,
-        title: 'New conversation',
-        resourceId: `contact:${input.contactId}`,
-        createdAt: now,
-        updatedAt: now,
-        metadata: {
-          agentId: input.agentId,
-          channelInstanceId: input.channelInstanceId,
-          channelRoutingId: input.channelRoutingId,
-        },
-      },
-    });
-
-    logger.info('[conversations] conversation_create', {
-      conversationId: id,
-      channelRoutingId: input.channelRoutingId,
-      agentId: input.agentId,
-      durationMs: Date.now() - start,
-      outcome: 'created',
-    });
-  } catch (err) {
-    logger.error(
-      '[conversations] Failed to create memory thread — conversation degraded',
-      {
-        conversationId: id,
-        error: err,
-      },
-    );
-
-    // Mark conversation as memory-degraded so agent knows context is limited
-    await db
-      .update(conversations)
-      .set({
-        metadata: { memoryDegraded: true },
-      })
-      .where(eq(conversations.id, id));
-
-    logger.info('[conversations] conversation_create', {
-      conversationId: id,
-      channelRoutingId: input.channelRoutingId,
-      agentId: input.agentId,
-      durationMs: Date.now() - start,
-      outcome: 'degraded',
-    });
-
-    // Schedule retry job to attempt memory thread creation later
-    await scheduler
-      .add('ai:retry-memory-thread', {
-        conversationId: id,
-        contactId: input.contactId,
-        agentId: input.agentId,
-        channelInstanceId: input.channelInstanceId,
-        channelRoutingId: input.channelRoutingId,
-        attempt: 1,
-      })
-      .catch(() => {
-        // Best-effort retry scheduling
-      });
-  }
+  logger.info('[conversations] conversation_create', {
+    conversationId: id,
+    channelRoutingId: input.channelRoutingId,
+    agentId: input.agentId,
+    durationMs: Date.now() - start,
+    outcome: 'created',
+  });
 
   return conversation;
 }

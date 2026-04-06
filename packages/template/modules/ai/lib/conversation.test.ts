@@ -16,6 +16,7 @@ import {
   createConversation,
   failConversation,
 } from './conversation';
+import { setModuleDeps } from './deps';
 
 let _pglite: PGlite;
 let db: VobaseDb;
@@ -35,8 +36,19 @@ beforeEach(async () => {
   _pglite = result.pglite as unknown as PGlite;
   db = result.db;
 
-  // Initialize chat state so getChatState() works in conversation functions
-  await initChat({ db, scheduler: mockScheduler, channels: mockChannels });
+  // Initialize module deps + chat state
+  setModuleDeps({
+    db,
+    scheduler: mockScheduler,
+    channels: mockChannels,
+    realtime: mockRealtime,
+  });
+  await initChat({
+    db,
+    scheduler: mockScheduler,
+    channels: mockChannels,
+    realtime: mockRealtime,
+  });
 
   await db.insert(contacts).values({
     id: 'contact-sess',

@@ -297,7 +297,7 @@ export async function flushConversationMemory(opts: {
 
 /**
  * Get messages in a conversation since the last MemCell's end message.
- * Loads from Mastra Memory instead of the removed msgMessages table.
+ * Reads directly from the messages table (conversations pgSchema).
  */
 async function getMessagesSinceLastCell(
   _db: VobaseDb,

@@ -10,13 +10,13 @@ import {
   consultations as consultationsTable,
   conversations,
 } from '../schema';
-import { emitActivityEvent } from './activity-events';
 import { formatConstraintsForPrompt } from './channel-constraints';
 import { serializeCard } from './chat-bridge';
 import { getChatState } from './chat-init';
 import { completeConversation } from './conversation';
+import { enqueueDelivery } from './delivery';
 import { getModuleDeps } from './deps';
-import { enqueueMessage } from './outbox';
+import { createActivityMessage, insertMessage } from './messages';
 
 /** Tools that emit activity events on execution (side-effect tools). */
 const EMIT_EVENT_TOOLS = new Set([
@@ -211,14 +211,11 @@ export async function generateChannelReply(
             >;
             const toolName = payload.toolName as string | undefined;
             if (toolName && EMIT_EVENT_TOOLS.has(toolName)) {
-              await emitActivityEvent(db, realtime, {
-                type: 'agent.tool_executed',
-                agentId: conversation.agentId,
-                source: 'agent',
-                contactId: conversation.contactId,
+              await createActivityMessage(db, realtime, {
                 conversationId,
-                channelRoutingId: conversation.channelRoutingId,
-                channelType,
+                eventType: 'agent.tool_executed',
+                actor: conversation.agentId,
+                actorType: 'agent',
                 data: {
                   toolName,
                   isError: (payload.isError as boolean) ?? false,
@@ -240,38 +237,38 @@ export async function generateChannelReply(
 
     for (const cardElement of cardElements) {
       const serialized = serializeCard(cardElement);
-      await enqueueMessage(
-        db,
-        scheduler,
-        {
-          conversationId,
-          content: serialized.content,
-          channelType,
-          channelInstanceId: conversation.channelInstanceId,
-          payload: serialized.payload,
-        },
-        realtime,
-      );
+      const cardMsg = await insertMessage(db, realtime, {
+        conversationId,
+        messageType: 'outgoing',
+        contentType: 'interactive',
+        content: serialized.content,
+        contentData: serialized.payload ?? {},
+        status: 'queued',
+        senderId: conversation.agentId,
+        senderType: 'agent',
+        channelType,
+      });
+      await enqueueDelivery(scheduler, cardMsg.id);
     }
 
-    // Also enqueue any text response (agent may combine text + cards)
+    // Also enqueue any text response — but skip if cards already cover the content
     const responseText =
       typeof response.text === 'string'
         ? response.text
         : String(response.text ?? '');
 
-    if (responseText) {
-      await enqueueMessage(
-        db,
-        scheduler,
-        {
-          conversationId,
-          content: responseText,
-          channelType,
-          channelInstanceId: conversation.channelInstanceId,
-        },
-        realtime,
-      );
+    if (responseText && cardElements.length === 0) {
+      const textMsg = await insertMessage(db, realtime, {
+        conversationId,
+        messageType: 'outgoing',
+        contentType: 'text',
+        content: responseText,
+        status: 'queued',
+        senderId: conversation.agentId,
+        senderType: 'agent',
+        channelType,
+      });
+      await enqueueDelivery(scheduler, textMsg.id);
     }
 
     // Post-generation: check if agent called complete_conversation
@@ -309,13 +306,18 @@ export async function generateChannelReply(
     });
 
     // Enqueue a fallback message so the customer is not left without a response
-    await enqueueMessage(db, scheduler, {
+    const fallbackMsg = await insertMessage(db, realtime, {
       conversationId,
+      messageType: 'outgoing',
+      contentType: 'text',
       content:
         "We're experiencing a temporary issue. Please try again shortly.",
+      status: 'queued',
+      senderId: conversation.agentId,
+      senderType: 'agent',
       channelType,
-      channelInstanceId: conversation.channelInstanceId,
     });
+    await enqueueDelivery(scheduler, fallbackMsg.id);
 
     return null;
   }

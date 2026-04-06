@@ -22,6 +22,7 @@ interface ChatInitDeps {
   db: VobaseDb;
   scheduler: Scheduler;
   channels: ChannelsService;
+  realtime: import('@vobase/core').RealtimeService;
 }
 
 // ─── Singleton ───────────────────────────────────────────────────────
@@ -124,6 +125,7 @@ export async function initChat(deps: ChatInitDeps): Promise<Chat> {
       adapters[instance.id] = createChannelBridge(instance, {
         db: deps.db,
         scheduler: deps.scheduler,
+        realtime: deps.realtime,
       });
       logger.info('[conversations] Bridge adapter registered', {
         instanceId: instance.id,

@@ -1,10 +1,9 @@
 import { createTool } from '@mastra/core/tools';
-import type { VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { emitActivityEvent } from '../../modules/ai/lib/activity-events';
 import { getModuleDeps } from '../../modules/ai/lib/deps';
+import { createActivityMessage } from '../../modules/ai/lib/messages';
 import { conversations } from '../../modules/ai/schema';
 
 const ESCALATION_MODES = ['supervised', 'human'] as const;
@@ -84,44 +83,35 @@ For background help without changing the mode, use consult_human instead.`,
       };
     }
 
-    // Update mode + priority + emit escalation event in same transaction
-    await db.transaction(async (tx) => {
-      await (tx as unknown as VobaseDb)
-        .update(conversations)
-        .set({ mode: input.mode, priority: input.priority })
-        .where(eq(conversations.id, conversationId));
+    // Update mode + priority
+    await db
+      .update(conversations)
+      .set({ mode: input.mode, priority: input.priority })
+      .where(eq(conversations.id, conversationId));
 
-      // Emit escalation.created for attention queue (pending review)
-      await emitActivityEvent(
-        db,
-        realtime,
-        {
-          type: 'escalation.created',
-          agentId: conversation.agentId,
-          source: 'agent',
-          contactId: conversation.contactId,
-          conversationId,
-          channelRoutingId: conversation.channelRoutingId,
-          data: {
-            reason: input.reason,
-            mode: input.mode,
-            priority: input.priority,
-            previousMode: currentMode,
-          },
-          resolutionStatus: 'pending',
-        },
-        tx as unknown as VobaseDb,
-      );
+    // Emit escalation.created for attention queue (pending review)
+    await createActivityMessage(db, realtime, {
+      conversationId,
+      eventType: 'escalation.created',
+      actor: conversation.agentId,
+      actorType: 'agent',
+      data: {
+        reason: input.reason,
+        mode: input.mode,
+        priority: input.priority,
+        previousMode: currentMode,
+        contactId: conversation.contactId,
+        channelRoutingId: conversation.channelRoutingId,
+      },
+      resolutionStatus: 'pending',
     });
 
     // Emit handler.changed event (fire-and-forget, for activity feed)
-    // Keep event type as 'handler.changed' for backwards compat with existing data
-    await emitActivityEvent(db, realtime, {
-      type: 'handler.changed',
-      agentId: conversation.agentId,
-      source: 'agent',
+    await createActivityMessage(db, realtime, {
       conversationId,
-      contactId: conversation.contactId,
+      eventType: 'handler.changed',
+      actor: conversation.agentId,
+      actorType: 'agent',
       data: {
         from: currentMode,
         to: input.mode,

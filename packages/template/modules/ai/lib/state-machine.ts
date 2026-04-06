@@ -1,9 +1,9 @@
 import type { RealtimeService, VobaseDb } from '@vobase/core';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 import { consultations, conversations } from '../schema';
-import { computeTab, emitActivityEvent } from './activity-events';
-import { updateLastSignal } from './last-signal';
+import { computeTab } from './activity-events';
+import { createActivityMessage } from './messages';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -89,21 +89,16 @@ async function hasPendingConsultations(
   return rows.length > 0;
 }
 
-/** Post-transition epilogue: update lastSignal + notify realtime + return success */
+/** Post-transition epilogue: notify realtime + return success */
 async function commitTransition(
-  db: VobaseDb,
+  _db: VobaseDb,
   realtime: RealtimeService,
   conversationId: string,
   updated: ConversationRow,
   current: ConversationRow,
   previousState: PreviousState,
-  eventId: string | null,
   extraNotifications?: Array<{ table: string; action?: string }>,
 ): Promise<TransitionResult> {
-  if (eventId) {
-    await updateLastSignal(db, conversationId, 'activity', eventId);
-  }
-
   if (extraNotifications) {
     for (const n of extraNotifications) {
       await realtime.notify(n);
@@ -199,24 +194,17 @@ export async function transition(
         .returning();
 
       if (!updated) return null;
-
-      const eventId = await emitActivityEvent(
-        db,
-        realtime,
-        {
-          type: 'handler.changed',
-          userId,
-          source: 'staff',
-          conversationId,
-          data: { from: currentMode, to: mode, reason: 'Staff action' },
-        },
-        txDb(tx),
-      );
-
-      return { updated, eventId };
+      return { updated };
     });
 
     if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'handler.changed',
+      actor: userId,
+      actorType: 'user',
+      conversationId,
+      data: { from: currentMode, to: mode, reason: 'Staff action' },
+    });
     return commitTransition(
       db,
       realtime,
@@ -224,7 +212,6 @@ export async function transition(
       result.updated,
       current,
       previousState,
-      result.eventId,
     );
   }
 
@@ -253,24 +240,17 @@ export async function transition(
         .returning();
 
       if (!updated) return null;
-
-      const eventId = await emitActivityEvent(
-        db,
-        realtime,
-        {
-          type: 'handler.changed',
-          userId,
-          source: 'staff',
-          conversationId,
-          data: { from: 'ai', to: 'human', reason: 'Assigned to staff' },
-        },
-        txDb(tx),
-      );
-
-      return { updated, eventId };
+      return { updated };
     });
 
     if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'handler.changed',
+      actor: userId,
+      actorType: 'user',
+      conversationId,
+      data: { from: 'ai', to: 'human', reason: 'Assigned to staff' },
+    });
     return commitTransition(
       db,
       realtime,
@@ -278,7 +258,6 @@ export async function transition(
       result.updated,
       current,
       previousState,
-      result.eventId,
     );
   }
 
@@ -299,24 +278,17 @@ export async function transition(
         .returning();
 
       if (!updated) return null;
-
-      const eventId = await emitActivityEvent(
-        db,
-        realtime,
-        {
-          type: 'conversation.unassigned',
-          userId: event.userId,
-          source: 'staff',
-          conversationId,
-          data: { previousAssignee: current.assignee },
-        },
-        txDb(tx),
-      );
-
-      return { updated, eventId };
+      return { updated };
     });
 
     if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'conversation.unassigned',
+      actor: event.userId,
+      actorType: 'user',
+      conversationId,
+      data: { previousAssignee: current.assignee },
+    });
     return commitTransition(
       db,
       realtime,
@@ -324,7 +296,6 @@ export async function transition(
       result.updated,
       current,
       previousState,
-      result.eventId,
     );
   }
 
@@ -362,24 +333,17 @@ export async function transition(
         .returning();
 
       if (!updated) return null;
-
-      const eventId = await emitActivityEvent(
-        db,
-        realtime,
-        {
-          type: 'handler.changed',
-          userId,
-          source: 'staff',
-          conversationId,
-          data: { from: current.mode, to: 'ai', reason: 'Staff handback' },
-        },
-        txDb(tx),
-      );
-
-      return { updated, eventId };
+      return { updated };
     });
 
     if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'handler.changed',
+      actor: userId,
+      actorType: 'user',
+      conversationId,
+      data: { from: current.mode, to: 'ai', reason: 'Staff handback' },
+    });
     return commitTransition(
       db,
       realtime,
@@ -387,7 +351,6 @@ export async function transition(
       result.updated,
       current,
       previousState,
-      result.eventId,
     );
   }
 
@@ -414,23 +377,16 @@ export async function transition(
         .returning();
 
       if (!updated) return null;
-
-      await emitActivityEvent(
-        db,
-        realtime,
-        {
-          type: 'conversation.completed',
-          source: 'system',
-          conversationId,
-          data: { resolutionOutcome: resolutionOutcome ?? 'resolved' },
-        },
-        txDb(tx),
-      );
-
       return { updated };
     });
 
     if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'conversation.completed',
+      actorType: 'system',
+      conversationId,
+      data: { resolutionOutcome: resolutionOutcome ?? 'resolved' },
+    });
     return commitTransition(
       db,
       realtime,
@@ -438,7 +394,6 @@ export async function transition(
       result.updated,
       current,
       previousState,
-      null,
       [
         { table: 'conversations-dashboard', action: 'update' },
         { table: 'conversations-metrics', action: 'update' },
@@ -469,23 +424,16 @@ export async function transition(
         .returning();
 
       if (!updated) return null;
-
-      await emitActivityEvent(
-        db,
-        realtime,
-        {
-          type: 'conversation.failed',
-          source: 'system',
-          conversationId,
-          data: { reason },
-        },
-        txDb(tx),
-      );
-
       return { updated };
     });
 
     if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'conversation.failed',
+      actorType: 'system',
+      conversationId,
+      data: { reason },
+    });
     return commitTransition(
       db,
       realtime,
@@ -493,7 +441,6 @@ export async function transition(
       result.updated,
       current,
       previousState,
-      null,
       [
         { table: 'conversations-dashboard', action: 'update' },
         { table: 'conversations-metrics', action: 'update' },
@@ -525,7 +472,6 @@ export async function transition(
       updated,
       current,
       previousState,
-      null,
     );
   }
 
@@ -563,7 +509,6 @@ export async function transition(
       result.updated,
       current,
       previousState,
-      null,
     );
   }
 
@@ -572,38 +517,14 @@ export async function transition(
   if (event.type === 'INBOUND_MESSAGE') {
     const { contactId, content } = event;
     const mode = current.mode ?? 'ai';
-    const isHumanHandled = HUMAN_MODES.includes(
-      mode as (typeof HUMAN_MODES)[number],
-    );
 
-    // Optimistic concurrency: only increment if mode hasn't changed since read
-    let updated = current;
-    if (isHumanHandled) {
-      const [row] = await db
-        .update(conversations)
-        .set({ unreadCount: sql`unread_count + 1` })
-        .where(
-          and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
-            eq(conversations.mode, current.mode),
-          ),
-        )
-        .returning();
-      if (row) updated = row;
-    }
-
-    const eventId = await emitActivityEvent(db, realtime, {
-      type: mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
-      source: 'system',
-      contactId,
+    await createActivityMessage(db, realtime, {
+      eventType:
+        mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
+      actorType: 'system',
       conversationId,
-      data: { content: content?.slice(0, 200) },
+      data: { contactId, content: content?.slice(0, 200) },
     });
-
-    if (eventId) {
-      await updateLastSignal(db, conversationId, 'activity', eventId);
-    }
 
     await realtime.notify({
       table: 'conversations',
@@ -611,7 +532,7 @@ export async function transition(
       tab: computeTab(mode, current.status, current.hasPendingEscalation),
     });
 
-    return { ok: true, conversation: updated, previousState };
+    return { ok: true, conversation: current, previousState };
   }
 
   // ── CLAIM ─────────────────────────────────────────────────────────────────
@@ -633,23 +554,16 @@ export async function transition(
         .returning();
 
       if (!updated) return null;
-
-      const eventId = await emitActivityEvent(
-        db,
-        realtime,
-        {
-          type: 'conversation.claimed',
-          userId,
-          source: 'staff',
-          conversationId,
-        },
-        txDb(tx),
-      );
-
-      return { updated, eventId };
+      return { updated };
     });
 
     if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'conversation.claimed',
+      actor: userId,
+      actorType: 'user',
+      conversationId,
+    });
     return commitTransition(
       db,
       realtime,
@@ -657,7 +571,6 @@ export async function transition(
       result.updated,
       current,
       previousState,
-      result.eventId,
     );
   }
 

@@ -11,7 +11,8 @@ import { and, eq } from 'drizzle-orm';
 import { channelRoutings, consultations, conversations } from '../schema';
 import { handleStaffReply } from './consult-human';
 import { createConversation } from './conversation';
-import { enqueueMessage } from './outbox';
+import { enqueueDelivery } from './delivery';
+import { insertMessage } from './messages';
 import { findContactByAddress, findOrCreateContact } from './routing';
 import { transition } from './state-machine';
 
@@ -236,18 +237,18 @@ async function routeByMode(
 
   if (mode === 'held') {
     // Auto-acknowledge, do NOT generate AI response
-    await enqueueMessage(
-      db,
-      scheduler,
-      {
-        conversationId: conversation.id,
-        content:
-          'Your message has been received. We will get back to you shortly.',
-        channelType: 'web', // Best-effort default; processOutboxMessage resolves actual type at send time
-        channelInstanceId: conversation.channelInstanceId,
-      },
-      realtime,
-    );
+    const msg = await insertMessage(db, realtime, {
+      conversationId: conversation.id,
+      messageType: 'outgoing',
+      contentType: 'text',
+      content:
+        'Your message has been received. We will get back to you shortly.',
+      status: 'queued',
+      senderId: 'system',
+      senderType: 'system',
+      channelType: 'web',
+    });
+    await enqueueDelivery(scheduler, msg.id);
     return;
   }
 

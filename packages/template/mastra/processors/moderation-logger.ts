@@ -1,7 +1,7 @@
 import type { RealtimeService, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
 
-import { emitActivityEvent } from '../../modules/ai/lib/activity-events';
+import { createActivityMessage } from '../../modules/ai/lib/messages';
 import { aiModerationLogs } from '../../modules/ai/schema';
 import type { OnBlockCallback } from './moderation';
 
@@ -36,20 +36,20 @@ export function createModerationLogger(
         });
       });
 
-    if (realtime) {
-      emitActivityEvent(db, realtime, {
-        type: 'guardrail.block',
-        agentId: context.agentId,
-        source: 'system',
-        contactId: context.contactId ?? undefined,
-        conversationId: context.conversationId ?? undefined,
-        channelType: context.channel,
+    if (realtime && context.conversationId) {
+      createActivityMessage(db, realtime, {
+        conversationId: context.conversationId,
+        eventType: 'guardrail.block',
+        actor: context.agentId,
+        actorType: 'system',
         data: {
           reason: info.reason,
           matchedTerm: info.matchedTerm,
+          contactId: context.contactId,
+          channelType: context.channel,
         },
         resolutionStatus: 'pending',
-      }).catch((err) => {
+      }).catch((err: unknown) => {
         logger.error('[guardrails] Failed to emit guardrail.block event', {
           error: err,
         });

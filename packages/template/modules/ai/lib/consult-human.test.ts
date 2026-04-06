@@ -237,6 +237,7 @@ describe('handleStaffReply — hasPendingEscalation', () => {
     await initChat({
       db,
       scheduler: mockScheduler,
+      realtime: { notify: async () => {} } as never,
       channels: {
         whatsapp: { send: async () => ({ success: true }) },
       } as never,

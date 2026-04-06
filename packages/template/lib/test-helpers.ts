@@ -127,11 +127,20 @@ export async function createTestDb(options?: {
       assigned_at TIMESTAMPTZ,
       priority TEXT CHECK (priority IS NULL OR priority IN ('low', 'normal', 'high', 'urgent')),
       resolution_outcome TEXT CHECK (resolution_outcome IS NULL OR resolution_outcome IN ('resolved', 'escalated_resolved', 'abandoned', 'failed')),
-      last_signal_kind TEXT,
-      last_signal_id TEXT,
       has_pending_escalation BOOLEAN NOT NULL DEFAULT FALSE,
       waiting_since TIMESTAMPTZ,
       unread_count INTEGER NOT NULL DEFAULT 0,
+      custom_attributes JSONB DEFAULT '{}',
+      first_response_due TIMESTAMPTZ,
+      resolution_due TIMESTAMPTZ,
+      first_replied_at TIMESTAMPTZ,
+      sla_breached_at TIMESTAMPTZ,
+      last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      contact_last_seen_at TIMESTAMPTZ,
+      agent_last_seen_at TIMESTAMPTZ,
+      last_message_content TEXT,
+      last_message_at TIMESTAMPTZ,
+      last_message_type TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -151,51 +160,54 @@ export async function createTestDb(options?: {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "conversations"."activity_events" (
+    CREATE TABLE "conversations"."messages" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      type TEXT NOT NULL,
-      agent_id TEXT,
-      user_id TEXT,
-      source TEXT NOT NULL CHECK (source IN ('agent', 'staff', 'system')),
-      contact_id TEXT,
-      conversation_id TEXT,
-      channel_routing_id TEXT,
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id) ON DELETE CASCADE,
+      message_type TEXT NOT NULL CHECK (message_type IN ('incoming', 'outgoing', 'activity')),
+      content_type TEXT NOT NULL CHECK (content_type IN ('text', 'image', 'document', 'audio', 'video', 'template', 'interactive', 'sticker', 'email', 'system')),
+      content TEXT NOT NULL,
+      content_data JSONB DEFAULT '{}',
+      status TEXT CHECK (status IS NULL OR status IN ('queued', 'sent', 'delivered', 'read', 'failed')),
+      failure_reason TEXT,
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      sender_id TEXT NOT NULL,
+      sender_type TEXT NOT NULL CHECK (sender_type IN ('contact', 'user', 'agent', 'system')),
+      external_message_id TEXT,
       channel_type TEXT,
-      data JSONB DEFAULT '{}',
+      private BOOLEAN NOT NULL DEFAULT FALSE,
+      withdrawn BOOLEAN NOT NULL DEFAULT FALSE,
       resolution_status TEXT CHECK (resolution_status IS NULL OR resolution_status IN ('pending', 'reviewed', 'dismissed')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "conversations"."outbox" (
+    CREATE UNIQUE INDEX idx_messages_external_id_unique ON "conversations"."messages" (external_message_id) WHERE external_message_id IS NOT NULL;
+
+    CREATE TABLE "conversations"."labels" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id) ON DELETE CASCADE,
-      content TEXT NOT NULL,
-      channel_type TEXT NOT NULL,
-      channel_instance_id TEXT REFERENCES "conversations"."channel_instances" (id),
-      payload JSONB,
-      external_message_id TEXT,
-      status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent', 'delivered', 'read', 'failed')),
-      retry_count INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      title TEXT NOT NULL UNIQUE,
+      color TEXT,
+      description TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE UNIQUE INDEX outbox_external_id_unique_idx ON "conversations"."outbox" (external_message_id) WHERE external_message_id IS NOT NULL;
-
-    CREATE TABLE "conversations"."dead_letters" (
+    CREATE TABLE "conversations"."conversation_labels" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      original_outbox_id TEXT NOT NULL,
-      conversation_id TEXT NOT NULL,
-      channel_type TEXT NOT NULL,
-      channel_instance_id TEXT,
-      recipient_address TEXT,
-      content TEXT NOT NULL,
-      payload JSONB,
-      error TEXT,
-      retry_count INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'dead' CHECK (status IN ('dead', 'retried')),
-      failed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id) ON DELETE CASCADE,
+      label_id TEXT NOT NULL REFERENCES "conversations"."labels" (id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (conversation_id, label_id)
+    );
+
+    CREATE TABLE "conversations"."reactions" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      message_id TEXT NOT NULL,
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id) ON DELETE CASCADE,
+      user_id TEXT,
+      contact_id TEXT,
+      emoji TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CHECK (user_id IS NOT NULL OR contact_id IS NOT NULL),
+      UNIQUE (message_id, user_id, contact_id, emoji)
     );
   `);
 
