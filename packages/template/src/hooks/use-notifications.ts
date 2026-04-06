@@ -32,9 +32,6 @@ export function useEscalationNotifications() {
       prevCountRef.current = unreadCount;
       return;
     }
-    if (unreadCount > prevCountRef.current) {
-      playAlert();
-    }
     prevCountRef.current = unreadCount;
   }, [unreadCount]);
 
@@ -44,21 +41,4 @@ export function useEscalationNotifications() {
   };
 
   return { unreadCount, clearCount };
-}
-
-/** Play a short beep via Web Audio API. */
-function playAlert() {
-  try {
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 800;
-    gain.gain.value = 0.3;
-    osc.start();
-    osc.stop(ctx.currentTime + 0.15);
-  } catch {
-    // Audio not available — silent fallback
-  }
 }
