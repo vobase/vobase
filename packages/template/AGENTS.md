@@ -124,6 +124,10 @@ Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAu
 `bun run db:seed` — seed data
 `bun test` — run tests
 
+## Dev Auth
+
+Auth uses email OTP. Dev-only `POST /api/auth/dev-login` (`{ email, name? }`) bypasses OTP — creates/finds user and sets session cookie. Used by `bun run db:seed`, E2E tests, and agent-browser automation. Not available in production.
+
 ## Deploy
 
 Dockerfile + railway.toml included. Set `DATABASE_URL` for a managed Postgres connection in production.

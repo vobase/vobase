@@ -21,35 +21,30 @@ import { modules } from '../modules';
 import config from '../vobase.config';
 
 const ADMIN_EMAIL = 'admin@example.com';
-const ADMIN_PASSWORD = 'Admin@vobase1';
 const ADMIN_NAME = 'Admin';
 
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
-const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 
 const dbUrl = config.database;
 
 // createApp starts scheduler + worker — jobs enqueued here get processed automatically
 const app = await createApp({ ...config, modules });
 
-// --- 1. Admin user ---
+// --- 1. Admin user (via dev-login plugin) ---
 let userId: string | undefined;
 let sessionCookie = '';
 
-const authRes = await app.request('http://localhost/api/auth/sign-up/email', {
+const authRes = await app.request('http://localhost/api/auth/dev-login', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({
-    email: ADMIN_EMAIL,
-    password: ADMIN_PASSWORD,
-    name: ADMIN_NAME,
-  }),
+  body: JSON.stringify({ email: ADMIN_EMAIL, name: ADMIN_NAME }),
 });
 
-if (authRes.status === 200) {
+if (authRes.ok) {
   const data = (await authRes.json()) as { user?: { id: string } };
   userId = data.user?.id;
   sessionCookie = authRes.headers.get('set-cookie') ?? '';
+
   // Set admin role on the seed user
   if (userId) {
     const db = createDatabase(dbUrl);
@@ -58,37 +53,11 @@ if (authRes.status === 200) {
       .set({ role: 'admin' })
       .where(eq(authUser.id, userId));
   }
-  console.log(`${green('✓')} Created user: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
-  console.log(dim('  Pre-filled on the login page in dev mode'));
+  console.log(`${green('✓')} Created admin user: ${ADMIN_EMAIL}`);
 } else {
-  const body = (await authRes.json().catch(() => null)) as {
-    code?: string;
-  } | null;
-  if (body?.code?.startsWith('USER_ALREADY_EXISTS')) {
-    console.log(dim(`✓ User ${ADMIN_EMAIL} already exists. Skipping.`));
-  } else {
-    console.error(
-      `Failed to create user (${authRes.status}): ${JSON.stringify(body)}`,
-    );
-    process.exit(1);
-  }
-}
-
-// Sign in to get session cookie (needed for authenticated API calls)
-if (!sessionCookie) {
-  const loginRes = await app.request(
-    'http://localhost/api/auth/sign-in/email',
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
-    },
-  );
-  if (loginRes.ok) {
-    const data = (await loginRes.json()) as { user?: { id: string } };
-    userId = data.user?.id;
-    sessionCookie = loginRes.headers.get('set-cookie') ?? '';
-  }
+  const body = await authRes.text().catch(() => '');
+  console.error(`Failed to create user (${authRes.status}): ${body}`);
+  process.exit(1);
 }
 
 // --- 2. Module seeds ---
