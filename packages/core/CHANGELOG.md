@@ -1,5 +1,20 @@
 # @vobase/core
 
+## 0.28.0
+
+### Minor Changes
+
+- Email OTP auth, domain allowlist, and channel provisioning IoC
+
+  - Migrate auth from email+password to email OTP as the sole sign-in method
+  - Add `allowedEmailDomains` config to restrict self-signup to specific domains (existing users bypass the check)
+  - Add `extraPlugins` config for template-level better-auth plugins (e.g. dev-login)
+  - Add `appName` config for white-label branding in auth emails
+  - Enforce domain allowlist on platform OAuth callback
+  - Move channel provisioning from config callback (`onProvisionChannel`) to `ChannelsService.onProvision()` for module ownership
+  - Remove `ProvisionChannelCtx` export (replaced by `ProvisionChannelData`)
+  - Remove `EmailOTPOptions` export (replaced by `SendVerificationOTP`)
+
 ## 0.27.4
 
 ### Patch Changes
