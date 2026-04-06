@@ -6,7 +6,6 @@ import {
 } from '@tanstack/react-router';
 import {
   BellIcon,
-  BuildingIcon,
   KeyIcon,
   MonitorIcon,
   PaletteIcon,
@@ -21,7 +20,6 @@ const settingsNav = [
   { label: 'Notifications', to: '/settings/notifications', icon: BellIcon },
   { label: 'Display', to: '/settings/display', icon: MonitorIcon },
   { label: 'API Keys', to: '/settings/api-keys', icon: KeyIcon },
-  { label: 'Organization', to: '/settings/organization', icon: BuildingIcon },
 ] as const;
 
 function SettingsLayout() {

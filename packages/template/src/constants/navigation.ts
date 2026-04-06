@@ -9,9 +9,9 @@ import {
   Contact,
   FileText,
   Globe,
-  Home,
   KeyIcon,
   type LucideIcon,
+  MessageSquareTextIcon,
   MonitorSmartphoneIcon,
   PaletteIcon,
   RadioIcon,
@@ -54,10 +54,10 @@ export const navGroups: NavGroup[] = [
     title: 'Overview',
     items: [
       {
-        title: 'Home',
-        url: '/',
-        icon: Home,
-        keywords: ['home', 'overview', 'dashboard', 'status'],
+        title: 'Conversations',
+        url: '/conversations',
+        icon: MessageSquareTextIcon,
+        keywords: ['home', 'overview', 'dashboard', 'status', 'chat', 'inbox'],
       },
       {
         title: 'Contacts',
@@ -165,6 +165,12 @@ export const navGroups: NavGroup[] = [
     title: 'System',
     items: [
       {
+        title: 'Organization',
+        url: '/system/organizations',
+        icon: BuildingIcon,
+        keywords: ['team', 'members', 'roles', 'workspace', 'org'],
+      },
+      {
         title: 'Operations',
         url: '/system/list',
         icon: Activity,
@@ -198,12 +204,6 @@ export const navGroups: NavGroup[] = [
         url: '/settings/api-keys',
         icon: KeyIcon,
         keywords: ['tokens', 'access', 'mcp', 'authentication'],
-      },
-      {
-        title: 'Organization',
-        url: '/settings/organization',
-        icon: BuildingIcon,
-        keywords: ['team', 'members', 'roles', 'workspace'],
       },
     ],
   },
