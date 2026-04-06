@@ -19,13 +19,9 @@ function toMemoryMessage(row: typeof messages.$inferSelect): MemoryMessage {
           ? 'assistant' // staff messages are on the business side
           : 'system';
 
-  // Prefix staff messages so the LLM distinguishes them from AI agent replies
-  const content =
-    row.senderType === 'user' ? `[Staff reply]: ${row.content}` : row.content;
-
   return {
     id: row.id,
-    content,
+    content: row.content,
     aiRole,
     createdAt: row.createdAt,
   };
@@ -45,6 +41,7 @@ export async function loadMessagesForConversation(
       and(
         eq(messages.conversationId, threadId),
         eq(messages.withdrawn, false),
+        eq(messages.private, false),
         ne(messages.messageType, 'activity'),
       ),
     )
@@ -63,14 +60,16 @@ export async function loadMessagesInRange(
   startMessageId: string,
   endMessageId: string,
 ): Promise<MemoryMessage[]> {
-  const [startMsg] = await db
-    .select({ createdAt: messages.createdAt })
-    .from(messages)
-    .where(eq(messages.id, startMessageId));
-  const [endMsg] = await db
-    .select({ createdAt: messages.createdAt })
-    .from(messages)
-    .where(eq(messages.id, endMessageId));
+  const [[startMsg], [endMsg]] = await Promise.all([
+    db
+      .select({ createdAt: messages.createdAt })
+      .from(messages)
+      .where(eq(messages.id, startMessageId)),
+    db
+      .select({ createdAt: messages.createdAt })
+      .from(messages)
+      .where(eq(messages.id, endMessageId)),
+  ]);
 
   if (!startMsg || !endMsg) return [];
 
@@ -81,6 +80,7 @@ export async function loadMessagesInRange(
       and(
         eq(messages.conversationId, threadId),
         eq(messages.withdrawn, false),
+        eq(messages.private, false),
         ne(messages.messageType, 'activity'),
         gte(messages.createdAt, startMsg.createdAt),
         lte(messages.createdAt, endMsg.createdAt),
