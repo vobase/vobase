@@ -58,7 +58,11 @@ export async function insertMessage(
 
   // SSE notify
   await realtime
-    .notify({ table: 'conversations-messages', id: input.conversationId, action: 'insert' })
+    .notify({
+      table: 'conversations-messages',
+      id: input.conversationId,
+      action: 'insert',
+    })
     .catch(() => {});
   await realtime
     .notify({

@@ -351,7 +351,10 @@ function ConversationsLayout() {
       .$get({ param: { id: conversationId } })
       .then(async (res) => {
         if (!res.ok) return;
-        const conv = (await res.json()) as { status: string; mode: string | null };
+        const conv = (await res.json()) as {
+          status: string;
+          mode: string | null;
+        };
         if (conv.status === 'completed' || conv.status === 'failed') {
           setTab('done');
         } else if (conv.mode === 'ai') {

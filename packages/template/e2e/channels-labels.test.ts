@@ -292,9 +292,7 @@ describe('Staff reply and private notes', () => {
         }>;
       }
     ).messages;
-    const note = messages.find(
-      (m) => m.content === 'SECRET_PRIVATE_NOTE_E2E',
-    );
+    const note = messages.find((m) => m.content === 'SECRET_PRIVATE_NOTE_E2E');
     expect(note).toBeDefined();
     expect(note?.private).toBe(true);
 
@@ -403,26 +401,23 @@ describe('Real AI agent chat (web streaming)', () => {
   });
 
   test('stream AI response with real LLM', async () => {
-    const res = await fetch(
-      `${BASE}/api/ai/chat/ep-web-booking/stream`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          origin: ORIGIN,
-          cookie,
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'user',
-              content:
-                'Hello, I need to book a dental checkup appointment please.',
-            },
-          ],
-        }),
+    const res = await fetch(`${BASE}/api/ai/chat/ep-web-booking/stream`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: ORIGIN,
+        cookie,
       },
-    );
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'user',
+            content:
+              'Hello, I need to book a dental checkup appointment please.',
+          },
+        ],
+      }),
+    });
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
@@ -453,31 +448,28 @@ describe('Real AI agent chat (web streaming)', () => {
   });
 
   test('multi-turn conversation retains context', async () => {
-    const res = await fetch(
-      `${BASE}/api/ai/chat/ep-web-booking/stream`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          origin: ORIGIN,
-          cookie,
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'user',
-              content: 'Hello, I need to book a dental checkup.',
-            },
-            {
-              role: 'assistant',
-              content:
-                "I'd be happy to help you book a dental checkup! What date works best for you?",
-            },
-            { role: 'user', content: 'How about next Wednesday at 10am?' },
-          ],
-        }),
+    const res = await fetch(`${BASE}/api/ai/chat/ep-web-booking/stream`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: ORIGIN,
+        cookie,
       },
-    );
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'user',
+            content: 'Hello, I need to book a dental checkup.',
+          },
+          {
+            role: 'assistant',
+            content:
+              "I'd be happy to help you book a dental checkup! What date works best for you?",
+          },
+          { role: 'user', content: 'How about next Wednesday at 10am?' },
+        ],
+      }),
+    });
 
     expect(res.status).toBe(200);
     const text = await res.text();

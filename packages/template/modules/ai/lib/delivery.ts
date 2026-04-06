@@ -83,7 +83,12 @@ export async function processDelivery(
 
   const channelType = message.channelType;
   if (!channelType) {
-    await markFailed(db, messageId, 'No channel type on message', message.conversationId);
+    await markFailed(
+      db,
+      messageId,
+      'No channel type on message',
+      message.conversationId,
+    );
     return;
   }
 
@@ -106,7 +111,12 @@ export async function processDelivery(
     .where(eq(conversations.id, message.conversationId));
 
   if (!conversation) {
-    await markFailed(db, messageId, 'Conversation not found', message.conversationId);
+    await markFailed(
+      db,
+      messageId,
+      'Conversation not found',
+      message.conversationId,
+    );
     return;
   }
 
@@ -117,7 +127,12 @@ export async function processDelivery(
       .where(eq(contacts.id, conversation.contactId));
 
     if (!contact) {
-      await markFailed(db, messageId, 'Contact not found', message.conversationId);
+      await markFailed(
+        db,
+        messageId,
+        'Contact not found',
+        message.conversationId,
+      );
       return;
     }
 
@@ -188,7 +203,11 @@ export async function processDelivery(
 
       const { realtime } = getModuleDeps();
       await realtime
-        .notify({ table: 'conversations-messages', id: message.conversationId, action: 'update' })
+        .notify({
+          table: 'conversations-messages',
+          id: message.conversationId,
+          action: 'update',
+        })
         .catch(() => {});
 
       logger.info('[delivery] send', {
@@ -199,9 +218,8 @@ export async function processDelivery(
         outcome: 'sent',
       });
     } else {
-      const reason = [result.code, result.error]
-        .filter(Boolean)
-        .join(': ') || 'Send failed';
+      const reason =
+        [result.code, result.error].filter(Boolean).join(': ') || 'Send failed';
 
       if (result.retryable === false) {
         await markFailed(db, messageId, reason, message.conversationId);
@@ -260,9 +278,13 @@ async function retryOrFail(
     .where(eq(messages.id, message.id));
 
   try {
-    await scheduler.add('ai:deliver-message', { messageId: message.id }, {
-      startAfter: startAfter.toISOString(),
-    });
+    await scheduler.add(
+      'ai:deliver-message',
+      { messageId: message.id },
+      {
+        startAfter: startAfter.toISOString(),
+      },
+    );
   } catch {
     await markFailed(db, message.id, error, message.conversationId);
   }
@@ -282,7 +304,11 @@ async function markFailed(
   if (conversationId) {
     const { realtime } = getModuleDeps();
     await realtime
-      .notify({ table: 'conversations-messages', id: conversationId, action: 'update' })
+      .notify({
+        table: 'conversations-messages',
+        id: conversationId,
+        action: 'update',
+      })
       .catch(() => {});
   }
 

@@ -8,7 +8,12 @@ import { logger } from '@vobase/core';
 import type { Chat } from 'chat';
 import { and, eq } from 'drizzle-orm';
 
-import { channelInstances, channelRoutings, consultations, conversations } from '../schema';
+import {
+  channelInstances,
+  channelRoutings,
+  consultations,
+  conversations,
+} from '../schema';
 import { handleStaffReply } from './consult-human';
 import { createConversation } from './conversation';
 import { enqueueDelivery } from './delivery';

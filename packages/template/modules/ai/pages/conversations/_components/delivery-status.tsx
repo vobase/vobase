@@ -44,9 +44,7 @@ export function DeliveryStatus({
               />
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
-              <p className="text-xs">
-                {failureReason || 'Delivery failed'}
-              </p>
+              <p className="text-xs">{failureReason || 'Delivery failed'}</p>
             </TooltipContent>
           </Tooltip>
           {onRetry && (

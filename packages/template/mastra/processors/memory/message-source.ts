@@ -21,9 +21,7 @@ function toMemoryMessage(row: typeof messages.$inferSelect): MemoryMessage {
 
   // Prefix staff messages so the LLM distinguishes them from AI agent replies
   const content =
-    row.senderType === 'user'
-      ? `[Staff reply]: ${row.content}`
-      : row.content;
+    row.senderType === 'user' ? `[Staff reply]: ${row.content}` : row.content;
 
   return {
     id: row.id,
