@@ -15,6 +15,9 @@ export async function compileScript(baseUrl: string): Promise<string> {
     minify: !isDev,
     define: {
       __VOBASE_SERVER_URL__: JSON.stringify(baseUrl),
+      __PRODUCT_NAME__: JSON.stringify(
+        process.env.VITE_PRODUCT_NAME || 'Vobase',
+      ),
     },
   });
 
@@ -32,10 +35,10 @@ export async function compileScript(baseUrl: string): Promise<string> {
 
   const scriptUrl = `${baseUrl}/api/automation/script.user.js`;
   const header = `// ==UserScript==
-// @name         Vobase Automation
+// @name         ${process.env.VITE_PRODUCT_NAME || 'Vobase'} Automation
 // @namespace    vobase
 // @version      ${isDev ? `1.0.${Date.now()}` : '1.0'}
-// @description  Browser automation for Vobase
+// @description  Browser automation for ${process.env.VITE_PRODUCT_NAME || 'Vobase'}
 // @match        https://web.whatsapp.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue

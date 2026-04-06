@@ -4,10 +4,13 @@ import type { Adapter, TaskPayload, TaskReport } from './types';
 
 // ─── Configuration ──────────────────────────────────────────────────
 declare const __VOBASE_SERVER_URL__: string;
+declare const __PRODUCT_NAME__: string;
 const SERVER_URL =
   typeof __VOBASE_SERVER_URL__ !== 'undefined'
     ? __VOBASE_SERVER_URL__
     : window.location.origin;
+const PRODUCT_NAME =
+  typeof __PRODUCT_NAME__ !== 'undefined' ? __PRODUCT_NAME__ : 'Vobase';
 
 // ─── Adapter Registry ───────────────────────────────────────────────
 const adapters: Adapter[] = [whatsappAdapter];
@@ -69,8 +72,8 @@ let badgeEl: HTMLElement | null = null;
 function createStatusBadge(): void {
   const badge = document.createElement('div');
   badge.className = 'vobase-overlay vobase-badge vobase-badge--disconnected';
-  badge.innerHTML = '<span class="vobase-dot"></span> Vobase';
-  badge.title = 'Vobase Automation';
+  badge.textContent = PRODUCT_NAME;
+  badge.title = `${PRODUCT_NAME} Automation`;
 
   // Drag state
   let isDragging = false;
@@ -134,12 +137,12 @@ function updateBadge(status: string): void {
   if (!badgeEl) return;
   badgeEl.className = `vobase-overlay vobase-badge vobase-badge--${status}`;
   const labels: Record<string, string> = {
-    connected: 'Vobase',
+    connected: PRODUCT_NAME,
     executing: 'Executing\u2026',
     error: 'Error',
-    disconnected: 'Vobase (unpaired)',
+    disconnected: `${PRODUCT_NAME} (unpaired)`,
   };
-  badgeEl.innerHTML = `<span class="vobase-dot"></span> ${labels[status] ?? 'Vobase'}`;
+  badgeEl.textContent = labels[status] ?? PRODUCT_NAME;
 }
 
 // ─── Pairing UI ─────────────────────────────────────────────────────
@@ -152,7 +155,7 @@ function showPairingUI(): void {
   panel.className = 'vobase-overlay vobase-panel';
 
   const title = document.createElement('h2');
-  title.textContent = 'Vobase Automation';
+  title.textContent = `${PRODUCT_NAME} Automation`;
   title.style.cssText =
     'margin:0 0 16px;font-size:18px;color:#111;padding-right:24px;';
   panel.appendChild(title);
@@ -169,8 +172,7 @@ function showPairingUI(): void {
 
   const hint = document.createElement('p');
   hint.style.cssText = 'color:#6b7280;font-size:13px;margin:0 0 12px;';
-  hint.textContent =
-    'Enter the 8-character pairing code from your Vobase dashboard.';
+  hint.textContent = `Enter the 8-character pairing code from your ${PRODUCT_NAME} dashboard.`;
   panel.appendChild(hint);
 
   const input = document.createElement('input');

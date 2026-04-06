@@ -336,7 +336,7 @@ export const channelsHandlers = new Hono()
       logger.info('WhatsApp test: sending message', { to: body.to });
       const result = await ctx.channels.whatsapp.send({
         to: body.to,
-        text: 'Test message from Vobase',
+        text: `Test message from ${process.env.VITE_PRODUCT_NAME || 'Vobase'}`,
       });
       logger.info('WhatsApp test: send result', { result });
       return c.json(result);
