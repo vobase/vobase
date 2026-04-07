@@ -168,5 +168,7 @@ const MessageItem = memo(function MessageItem({
   }
 
   // outgoing — agent, staff, or system
-  return <OutgoingMessage message={message} sender={sender} onRetry={onRetry} />;
+  return (
+    <OutgoingMessage message={message} sender={sender} onRetry={onRetry} />
+  );
 });

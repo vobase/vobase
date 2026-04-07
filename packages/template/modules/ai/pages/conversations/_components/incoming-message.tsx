@@ -6,11 +6,7 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { MessageRow, SenderInfo } from './types';
@@ -50,7 +46,11 @@ export const IncomingMessage = memo(function IncomingMessage({
         <Avatar className="size-7">
           <AvatarImage src={sender?.image ?? undefined} alt={name} />
           <AvatarFallback className="bg-muted text-xs font-medium text-muted-foreground">
-            {sender?.name ? sender.name.charAt(0).toUpperCase() : <UserIcon className="size-3.5" />}
+            {sender?.name ? (
+              sender.name.charAt(0).toUpperCase()
+            ) : (
+              <UserIcon className="size-3.5" />
+            )}
           </AvatarFallback>
         </Avatar>
       </div>

@@ -6,11 +6,7 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -95,7 +91,11 @@ export const OutgoingMessage = memo(function OutgoingMessage({
         <Avatar className="size-7">
           <AvatarImage src={sender?.image ?? undefined} alt={senderLabel} />
           <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-            {sender?.name && !isAgent ? sender.name.charAt(0).toUpperCase() : <SenderIcon className="size-3.5" />}
+            {sender?.name && !isAgent ? (
+              sender.name.charAt(0).toUpperCase()
+            ) : (
+              <SenderIcon className="size-3.5" />
+            )}
           </AvatarFallback>
         </Avatar>
         <div className="flex flex-col gap-1 min-w-0">

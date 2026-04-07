@@ -54,10 +54,10 @@ import {
 import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
 import { formatRelativeTime } from '@/lib/format';
+import { extractStaffName } from '@/lib/normalize-message';
 import { LabelsManager } from './_components/labels-manager';
 import { MessageTimeline } from './_components/message-timeline';
 import { StaffComposer } from './_components/staff-composer';
-import { extractStaffName } from '@/lib/normalize-message';
 import type { MessageRow, SenderInfo } from './_components/types';
 
 // ─── Types ────────────────────────────────────────────────────────────
