@@ -1,5 +1,13 @@
 # @vobase/core
 
+## 0.29.1
+
+### Patch Changes
+
+- First domain-matched member auto-joins as org owner
+
+  When a user auto-joins an organization via email domain match, the first member to join becomes the `owner` instead of `member`. Subsequent domain-matched users continue to join as `member`. This ensures newly provisioned orgs with domain auto-join have an owner without manual role assignment.
+
 ## 0.29.0
 
 ### Minor Changes
