@@ -1,5 +1,13 @@
 # @vobase/core
 
+## 0.30.0
+
+### Minor Changes
+
+- Auto-create default organization on first boot
+
+  When the auth module initializes and no organization exists in the database, automatically create a default one using the `appName` config value. This ensures platform-provisioned projects have a working org without needing to run the seed script. Combined with the first-member-owner feature (first domain-matched user becomes org owner), new deployments are fully functional out of the box.
+
 ## 0.29.1
 
 ### Patch Changes
