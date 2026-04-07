@@ -274,6 +274,30 @@ export function createAuthModule(
     name: '_auth',
     schema: adapterSchema,
     routes: new Hono(),
+    init: async () => {
+      // Auto-create default org on first boot when none exists
+      const [existing] = await db
+        .select({ id: authOrganization.id })
+        .from(authOrganization)
+        .limit(1);
+      if (!existing) {
+        const orgName = config?.appName ?? 'Default';
+        const orgSlug =
+          orgName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '') || 'default';
+        await db
+          .insert(authOrganization)
+          .values({
+            id: crypto.randomUUID(),
+            name: orgName,
+            slug: orgSlug,
+          })
+          .onConflictDoNothing();
+        logger.info(`[auth] Created default organization: ${orgName} (${orgSlug})`);
+      }
+    },
   });
 
   type AuthApiWithCreateApiKey = typeof auth.api & {
