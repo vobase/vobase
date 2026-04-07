@@ -290,6 +290,30 @@ describe('autoJoinOrganization', () => {
 
 			const members = await getMembers('u6');
 			expect(members).toHaveLength(1);
+			expect(members[0].role).toBe('owner');
+		});
+
+		it('subsequent domain-matched members get member role', async () => {
+			await insertUser('u6a', 'first@acme.com', 'First');
+			await insertUser('u6b', 'second@acme.com', 'Second');
+			await insertOrg('org1', 'Acme', 'acme');
+
+			const config: AuthModuleConfig = {
+				allowedEmailDomains: ['acme.com'],
+			};
+			// First user becomes owner
+			await autoJoinOrganization(db, 'u6a', 'first@acme.com', config);
+			// Second user becomes member
+			const result = await autoJoinOrganization(
+				db,
+				'u6b',
+				'second@acme.com',
+				config,
+			);
+			expect(result).toBe('org1');
+
+			const members = await getMembers('u6b');
+			expect(members).toHaveLength(1);
 			expect(members[0].role).toBe('member');
 		});
 

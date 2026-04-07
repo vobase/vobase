@@ -118,13 +118,20 @@ export async function autoJoinOrganization(
         .from(authOrganization)
         .limit(1);
       if (soleOrg) {
+        // First domain-matched member becomes owner, subsequent ones become members
+        const [existingMember] = await db
+          .select({ id: authMember.id })
+          .from(authMember)
+          .where(eq(authMember.organizationId, soleOrg.id))
+          .limit(1);
+        const role = existingMember ? 'member' : 'owner';
         await db.insert(authMember).values({
           id: crypto.randomUUID(),
           userId,
           organizationId: soleOrg.id,
-          role: 'member',
+          role,
         });
-        logger.info(`[auth] Auto-joined ${email} to org via domain match`);
+        logger.info(`[auth] Auto-joined ${email} to org via domain match (${role})`);
         return soleOrg.id;
       }
     }
