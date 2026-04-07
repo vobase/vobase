@@ -442,10 +442,7 @@ function OrganizationPage() {
                             role,
                           })
                         }
-                        disabled={
-                          member.role === 'owner' ||
-                          member.user.id === currentUserId
-                        }
+                        disabled={member.user.id === currentUserId}
                       >
                         <SelectTrigger className="w-[110px]">
                           <SelectValue>
