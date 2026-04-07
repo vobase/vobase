@@ -275,13 +275,15 @@ export function createAuthModule(
     schema: adapterSchema,
     routes: new Hono(),
     init: async () => {
-      // Auto-create default org on first boot when none exists
+      // Auto-create default org on first boot for platform-provisioned tenants
+      const tenantName = process.env.VITE_PLATFORM_TENANT_NAME;
+      if (!tenantName) return;
       const [existing] = await db
         .select({ id: authOrganization.id })
         .from(authOrganization)
         .limit(1);
       if (!existing) {
-        const orgName = process.env.VITE_PLATFORM_TENANT_NAME ?? config?.appName ?? 'Default';
+        const orgName = tenantName;
         const orgSlug =
           orgName
             .toLowerCase()
