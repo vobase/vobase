@@ -1,5 +1,13 @@
 # @vobase/core
 
+## 0.30.3
+
+### Patch Changes
+
+- Gate auto-create org on VITE_PLATFORM_TENANT_NAME env var
+
+  Only auto-create the default organization when `VITE_PLATFORM_TENANT_NAME` is set, preventing the platform service and test environments from creating unwanted orgs.
+
 ## 0.30.2
 
 ### Patch Changes
