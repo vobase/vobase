@@ -1,8 +1,8 @@
-import { openai } from '@ai-sdk/openai';
 import { generateText, Output } from 'ai';
 import type { z } from 'zod';
 
-import { bareModelName, models } from '../../lib/models';
+import { models } from '../../lib/models';
+import { getChatModel } from '../../lib/provider';
 import type { Episode, EventLogEntry, MemoryMessage } from './types';
 import { episodeSchema, eventLogSchema } from './types';
 
@@ -40,14 +40,13 @@ export async function extractEpisode(
   options: ExtractOptions,
 ): Promise<Episode> {
   const { messages, generate } = options;
-  const modelName = bareModelName(models.gpt_mini);
 
   const formatted = messages
     .map((m) => `[${m.aiRole ?? 'user'}]: ${m.content ?? ''}`)
     .join('\n');
 
   const opts = {
-    model: openai(modelName),
+    model: getChatModel(models.gpt_mini),
     output: Output.object({ schema: episodeSchema }),
     system: EPISODE_PROMPT,
     prompt: formatted,
@@ -69,14 +68,13 @@ export async function extractEventLogs(
   options: ExtractOptions,
 ): Promise<EventLogEntry[]> {
   const { messages, generate } = options;
-  const modelName = bareModelName(models.gpt_mini);
 
   const formatted = messages
     .map((m) => `[${m.aiRole ?? 'user'}]: ${m.content ?? ''}`)
     .join('\n');
 
   const opts = {
-    model: openai(modelName),
+    model: getChatModel(models.gpt_mini),
     output: Output.object({ schema: eventLogSchema }),
     system: EVENT_LOG_PROMPT,
     prompt: formatted,

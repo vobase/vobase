@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 
 import { aiScorers } from '../../modules/ai/schema';
 import { models } from '../lib/models';
+import { agentModel } from '../lib/provider';
 import { buildCustomScorer } from './custom-scorer-factory';
 
 /**
@@ -17,11 +18,11 @@ import { buildCustomScorer } from './custom-scorer-factory';
  */
 
 const answerRelevancy = createAnswerRelevancyScorer({
-  model: models.gpt_mini,
+  model: agentModel(models.gpt_mini),
 });
 
 const faithfulness = createFaithfulnessScorer({
-  model: models.gpt_mini,
+  model: agentModel(models.gpt_mini),
 });
 
 export const scorers = [answerRelevancy, faithfulness] as const;

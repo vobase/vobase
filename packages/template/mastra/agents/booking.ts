@@ -4,6 +4,7 @@ import type { MastraScorers } from '@mastra/core/evals';
 import { scorers } from '../evals/scorers';
 import type { AgentMeta } from '../lib/agents/define';
 import { models } from '../lib/models';
+import { agentModel } from '../lib/provider';
 import { resolveInputProcessors, resolveOutputProcessors } from '../processors';
 import {
   bookSlotTool,
@@ -57,7 +58,7 @@ export const bookingAgent = new Agent({
   id: bookingMeta.id,
   name: bookingMeta.name,
   instructions: resolveInstructions(bookingMeta.mode),
-  model: bookingMeta.model,
+  model: agentModel(bookingMeta.model),
   tools: {
     search_knowledge_base: searchKnowledgeBaseTool,
     check_availability: checkAvailabilityTool,

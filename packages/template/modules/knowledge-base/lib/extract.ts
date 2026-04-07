@@ -2,7 +2,7 @@ import { PDFiumLibrary } from '@hyzyla/pdfium';
 import { logger } from '@vobase/core';
 import sharp from 'sharp';
 
-import { bareModelName, models } from '../../../mastra/lib/models';
+import { models } from '../../../mastra/lib/models';
 import { htmlToPlate, markdownToPlate } from './plate-deserialize';
 import {
   createHeading,
@@ -87,33 +87,30 @@ function getPdfium() {
   return pdfiumPromise;
 }
 
-type GeminiOcr = {
+type OcrProvider = {
   generateText: typeof import('ai').generateText;
-  model: ReturnType<
-    ReturnType<typeof import('@ai-sdk/google').createGoogleGenerativeAI>
-  >;
+  model: ReturnType<ReturnType<typeof import('@ai-sdk/openai').createOpenAI>>;
 };
 
 // Cache generateText import (stable). Provider created fresh to pick up key changes.
 let cachedGenText: typeof import('ai').generateText | null = null;
 
-async function getGeminiOcr(): Promise<GeminiOcr> {
+async function getOcrProvider(): Promise<OcrProvider> {
   if (!cachedGenText) {
     const { generateText } = await import('ai');
     cachedGenText = generateText;
   }
-  const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
-  const google = createGoogleGenerativeAI({
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-  });
+  const { getChatModel } = await import('../../../mastra/lib/provider');
   return {
     generateText: cachedGenText,
-    model: google(bareModelName(models.gemini_flash)),
+    model: getChatModel(models.gemini_flash),
   };
 }
 
-function hasGeminiKey(): boolean {
-  return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+function hasOcrProvider(): boolean {
+  return !!(
+    process.env.BIFROST_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -266,12 +263,13 @@ async function extractPdf(
   buffer: ArrayBuffer,
   sizeMB: string,
 ): Promise<ExtractionResult> {
-  if (!hasGeminiKey()) {
+  if (!hasOcrProvider()) {
     logger.warn('[kb] pdf_extract_skip', { reason: 'no API key', sizeMB });
     return {
       value: emptyPlate(),
       status: 'needs_ocr',
-      warning: 'PDF extraction requires GOOGLE_GENERATIVE_AI_API_KEY.',
+      warning:
+        'PDF extraction requires BIFROST_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.',
     };
   }
 
@@ -349,12 +347,13 @@ async function extractPdf(
 // ---------------------------------------------------------------------------
 
 async function extractImage(buffer: ArrayBuffer): Promise<ExtractionResult> {
-  if (!hasGeminiKey()) {
+  if (!hasOcrProvider()) {
     logger.warn('[kb] image_extract_skip', { reason: 'no API key' });
     return {
       value: emptyPlate(),
       status: 'needs_ocr',
-      warning: 'Image OCR requires GOOGLE_GENERATIVE_AI_API_KEY.',
+      warning:
+        'Image OCR requires BIFROST_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.',
     };
   }
 
@@ -429,7 +428,7 @@ async function extractPptx(buffer: ArrayBuffer): Promise<ExtractionResult> {
   const slides = splitPptxSlides(text);
   const avgCharsPerSlide = slides.length > 0 ? text.length / slides.length : 0;
 
-  if (hasGeminiKey() && avgCharsPerSlide < 50 && slides.length > 0) {
+  if (hasOcrProvider() && avgCharsPerSlide < 50 && slides.length > 0) {
     try {
       const ocrText = await ocrFile(
         buffer,
@@ -510,7 +509,7 @@ async function ocrBatch(
   pages: OcrImage[],
   batchContext: string,
 ): Promise<string> {
-  const { generateText, model } = await getGeminiOcr();
+  const { generateText, model } = await getOcrProvider();
 
   const imageParts = pages.map((p) => ({
     type: 'image' as const,
@@ -568,9 +567,9 @@ async function ocrBatch(
   return text;
 }
 
-/** Send a raw file buffer to Gemini (for PPTX where page rendering isn't available). */
+/** Send a raw file buffer to OCR provider (for PPTX where page rendering isn't available). */
 async function ocrFile(buffer: ArrayBuffer, mimeType: string): Promise<string> {
-  const { generateText, model } = await getGeminiOcr();
+  const { generateText, model } = await getOcrProvider();
   const base64 = Buffer.from(buffer).toString('base64');
 
   const { text } = await generateText({
@@ -589,29 +588,21 @@ async function ocrFile(buffer: ArrayBuffer, mimeType: string): Promise<string> {
   return text;
 }
 
-// Cache OpenAI import (stable). Provider created fresh to pick up key changes.
-let cachedCreateOpenAI: typeof import('@ai-sdk/openai').createOpenAI | null =
-  null;
-
-/** Fallback OCR via OpenAI when Gemini content-filters an image. */
+/** Fallback OCR via OpenAI/Bifrost when Gemini content-filters an image. */
 async function ocrWithFallback(
   page: OcrImage,
   genText: typeof import('ai').generateText,
 ): Promise<string> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.BIFROST_API_KEY && !process.env.OPENAI_API_KEY) {
     logger.warn('[kb] ocr_fallback_skip', {
       page: page.page,
-      reason: 'no OPENAI_API_KEY',
+      reason: 'no BIFROST_API_KEY or OPENAI_API_KEY',
     });
     return '';
   }
   try {
-    if (!cachedCreateOpenAI) {
-      const mod = await import('@ai-sdk/openai');
-      cachedCreateOpenAI = mod.createOpenAI;
-    }
-    const openai = cachedCreateOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const fallbackModel = openai(bareModelName(models.gpt_mini));
+    const { getChatModel } = await import('../../../mastra/lib/provider');
+    const fallbackModel = getChatModel(models.gpt_mini);
 
     const { text } = await genText({
       model: fallbackModel,

@@ -1,13 +1,7 @@
-import { openai } from '@ai-sdk/openai';
 import { embed, embedMany } from 'ai';
 
-import {
-  bareModelName,
-  EMBEDDING_DIMENSIONS,
-  models,
-} from '../mastra/lib/models';
-
-const embeddingModel = openai.embedding(bareModelName(models.gpt_embedding));
+import { EMBEDDING_DIMENSIONS, models } from '../mastra/lib/models';
+import { getEmbeddingModel } from '../mastra/lib/provider';
 
 /**
  * Embed multiple text chunks. Returns float arrays.
@@ -15,7 +9,7 @@ const embeddingModel = openai.embedding(bareModelName(models.gpt_embedding));
 export async function embedChunks(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
   const { embeddings } = await embedMany({
-    model: embeddingModel,
+    model: getEmbeddingModel(models.gpt_embedding),
     values: texts,
     providerOptions: { openai: { dimensions: EMBEDDING_DIMENSIONS } },
   });
@@ -27,7 +21,7 @@ export async function embedChunks(texts: string[]): Promise<number[][]> {
  */
 export async function embedQuery(query: string): Promise<number[]> {
   const { embedding } = await embed({
-    model: embeddingModel,
+    model: getEmbeddingModel(models.gpt_embedding),
     value: query,
     providerOptions: { openai: { dimensions: EMBEDDING_DIMENSIONS } },
   });

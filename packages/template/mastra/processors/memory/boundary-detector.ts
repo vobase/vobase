@@ -1,8 +1,8 @@
-import { openai } from '@ai-sdk/openai';
 import { logger } from '@vobase/core';
 import { generateText, Output } from 'ai';
 
-import { bareModelName, models } from '../../lib/models';
+import { models } from '../../lib/models';
+import { getChatModel } from '../../lib/provider';
 import type { BoundaryResult, MemoryConfig, MemoryMessage } from './types';
 import { boundaryResultSchema, defaultMemoryConfig } from './types';
 
@@ -81,7 +81,7 @@ export async function detectBoundary(
 
   try {
     const opts = {
-      model: openai(bareModelName(models.gpt_mini)),
+      model: getChatModel(models.gpt_mini),
       output: Output.object({ schema: boundaryResultSchema }),
       system: BOUNDARY_PROMPT,
       prompt: formatted,

@@ -156,10 +156,11 @@ async function generateHyDE(query: string): Promise<number[] | null> {
   if (!isAIConfigured()) return null;
 
   const { generateText } = await import('ai');
-  const { openai } = await import('@ai-sdk/openai');
+  const { getChatModel } = await import('../../../mastra/lib/provider');
+  const { models } = await import('../../../mastra/lib/models');
 
   const { text: hypothetical } = await generateText({
-    model: openai('gpt-4o-mini'),
+    model: getChatModel(models.gpt_mini),
     prompt: `Write a short passage (2-3 sentences) that directly answers this question. Do not include any preamble or meta-commentary, just the answer:\n\n${query}`,
     maxOutputTokens: 200,
   });
@@ -175,14 +176,15 @@ async function rerankWithLLM(
   topK: number,
 ): Promise<SearchResult[]> {
   const { generateText } = await import('ai');
-  const { openai } = await import('@ai-sdk/openai');
+  const { getChatModel } = await import('../../../mastra/lib/provider');
+  const { models } = await import('../../../mastra/lib/models');
 
   const passages = candidates
     .map((c, i) => `[${i}] ${c.content.slice(0, 300)}`)
     .join('\n\n');
 
   const { text } = await generateText({
-    model: openai('gpt-4o-mini'),
+    model: getChatModel(models.gpt_mini),
     prompt: `Given the query: "${query}"\n\nRank these passages by relevance. Return ONLY a JSON array of passage indices (numbers) in order of most relevant to least relevant. Example: [3, 0, 5, 1]\n\n${passages}`,
     maxOutputTokens: 200,
   });
