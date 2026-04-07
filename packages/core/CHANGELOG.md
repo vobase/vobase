@@ -1,5 +1,13 @@
 # @vobase/core
 
+## 0.30.1
+
+### Patch Changes
+
+- Use VITE_PLATFORM_TENANT_NAME for default org name
+
+  The auto-created default organization now reads its name from the `VITE_PLATFORM_TENANT_NAME` environment variable, falling back to `appName` config. This ensures platform-provisioned tenants get an org named after the tenant, not the product.
+
 ## 0.30.0
 
 ### Minor Changes
