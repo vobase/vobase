@@ -281,7 +281,7 @@ export function createAuthModule(
         .from(authOrganization)
         .limit(1);
       if (!existing) {
-        const orgName = config?.appName ?? 'Default';
+        const orgName = process.env.VITE_PLATFORM_TENANT_NAME ?? config?.appName ?? 'Default';
         const orgSlug =
           orgName
             .toLowerCase()
