@@ -215,6 +215,8 @@ export async function createApp(config: CreateAppConfig) {
     },
   };
 
+  authMod.init?.(initCtx);
+
   const auditMod = createAuditModule();
   auditMod.init?.(initCtx);
 
