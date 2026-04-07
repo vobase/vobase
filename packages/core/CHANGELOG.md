@@ -1,5 +1,13 @@
 # @vobase/core
 
+## 0.30.2
+
+### Patch Changes
+
+- Fix auth module init hook not being called on boot
+
+  The auth module's init hook (auto-creates default organization) was never invoked because `createApp` only called init on audit and sequences modules. Now correctly calls `authMod.init?.(initCtx)`.
+
 ## 0.30.1
 
 ### Patch Changes
