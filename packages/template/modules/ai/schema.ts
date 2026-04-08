@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
-  customType,
   index,
   integer,
   jsonb,
@@ -11,17 +10,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
-  vector,
 } from 'drizzle-orm/pg-core';
-
-const tsvector = customType<{ data: string }>({
-  dataType() {
-    return 'tsvector';
-  },
-});
-
-// Hardcoded to match KB schema — change requires a migration anyway
-const embeddingDimensions = 1536;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Conversations pgSchema — contacts, conversations, channels, messaging
@@ -42,6 +31,8 @@ export const contacts = conversationsPgSchema.table(
     identifier: text('identifier').unique(),
     role: text('role').notNull().default('customer'),
     metadata: jsonb('metadata').default({}),
+    workingMemory: text('working_memory'),
+    resourceMetadata: jsonb('resource_metadata'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -144,6 +135,7 @@ export const conversations = conversationsPgSchema.table(
     channelInstanceId: text('channel_instance_id')
       .notNull()
       .references(() => channelInstances.id),
+    title: text('title'),
     conversationType: text('conversation_type').notNull().default('message'),
     status: text('status').notNull().default('active'),
     startedAt: timestamp('started_at', { withTimezone: true })
@@ -216,7 +208,7 @@ export const conversations = conversationsPgSchema.table(
       .where(sql`first_replied_at IS NULL`),
     check(
       'conversations_status_check',
-      sql`status IN ('active', 'completed', 'failed')`,
+      sql`status IN ('active', 'completing', 'completed', 'failed')`,
     ),
     check(
       'conversations_type_check',
@@ -260,6 +252,7 @@ export const consultations = conversationsPgSchema.table(
     requestedAt: timestamp('requested_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    replyPayload: jsonb('reply_payload'),
     repliedAt: timestamp('replied_at', { withTimezone: true }),
     timeoutMinutes: integer('timeout_minutes').notNull().default(30),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -275,7 +268,7 @@ export const consultations = conversationsPgSchema.table(
       .where(sql`status = 'pending'`),
     check(
       'consultations_status_check',
-      sql`status IN ('pending', 'replied', 'timeout', 'cancelled', 'notification_failed')`,
+      sql`status IN ('pending', 'replied', 'timeout', 'notification_failed')`,
     ),
   ],
 );
@@ -294,6 +287,7 @@ export const messages = conversationsPgSchema.table(
     contentType: text('content_type').notNull(),
     content: text('content').notNull(),
     contentData: jsonb('content_data').default({}),
+    mastraContent: jsonb('mastra_content'),
     status: text('status'),
     failureReason: text('failure_reason'),
     senderId: text('sender_id').notNull(),
@@ -343,6 +337,51 @@ export const messages = conversationsPgSchema.table(
     check(
       'messages_resolution_status_check',
       sql`resolution_status IS NULL OR resolution_status IN ('pending', 'reviewed', 'dismissed')`,
+    ),
+  ],
+);
+
+// ─── Channel Sessions ──────────────────────────────────────────────
+// Tracks messaging window state per conversation + channel instance (e.g. WhatsApp 24h window).
+
+export const channelSessions = conversationsPgSchema.table(
+  'channel_sessions',
+  {
+    id: nanoidPrimaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id),
+    channelInstanceId: text('channel_instance_id')
+      .notNull()
+      .references(() => channelInstances.id),
+    channelType: text('channel_type').notNull(),
+    sessionState: text('session_state').notNull().default('window_open'),
+    windowOpensAt: timestamp('window_opens_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    windowExpiresAt: timestamp('window_expires_at', {
+      withTimezone: true,
+    }).notNull(),
+    metadata: jsonb('metadata').default({}),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex('channel_sessions_conv_instance_unique').on(
+      table.conversationId,
+      table.channelInstanceId,
+    ),
+    index('channel_sessions_expiry_idx')
+      .on(table.sessionState, table.windowExpiresAt)
+      .where(sql`session_state = 'window_open'`),
+    check(
+      'channel_sessions_state_check',
+      sql`session_state IN ('window_open', 'window_expired')`,
     ),
   ],
 );
@@ -458,121 +497,6 @@ export const messageFeedback = conversationsPgSchema.table(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export const aiPgSchema = pgSchema('ai');
-
-/**
- * MemCells — conversation segments detected by boundary detection.
- * Each cell spans a contiguous range of messages in a thread.
- */
-export const aiMemCells = aiPgSchema.table(
-  'mem_cells',
-  {
-    id: nanoidPrimaryKey(),
-    threadId: text('thread_id').notNull(),
-    contactId: text('contact_id'),
-    userId: text('user_id'),
-    startMessageId: text('start_message_id').notNull(),
-    endMessageId: text('end_message_id').notNull(),
-    messageCount: integer('message_count').notNull(),
-    tokenCount: integer('token_count').notNull(),
-    status: text('status').notNull().default('pending'), // pending | processing | ready | error
-    errorMessage: text('error_message'),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    index('mem_cells_thread_id_idx').on(table.threadId),
-    index('mem_cells_contact_status_idx').on(table.contactId, table.status),
-    index('mem_cells_user_status_idx').on(table.userId, table.status),
-    index('mem_cells_pending_idx')
-      .on(table.status)
-      .where(sql`status = 'pending'`),
-    check(
-      'cell_scope_check',
-      sql`contact_id IS NOT NULL OR user_id IS NOT NULL`,
-    ),
-  ],
-);
-
-/**
- * Episodes — third-person narrative summaries of conversation segments.
- * Each episode belongs to one MemCell.
- */
-export const aiMemEpisodes = aiPgSchema.table(
-  'mem_episodes',
-  {
-    id: nanoidPrimaryKey(),
-    cellId: text('cell_id')
-      .notNull()
-      .references(() => aiMemCells.id, { onDelete: 'cascade' }),
-    contactId: text('contact_id'),
-    userId: text('user_id'),
-    title: text('title').notNull(),
-    content: text('content').notNull(),
-    embedding: vector('embedding', { dimensions: embeddingDimensions }),
-    searchVector: tsvector('search_vector').generatedAlwaysAs(
-      sql`to_tsvector('english', title || ' ' || content)`,
-    ),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    index('mem_episodes_cell_id_idx').on(table.cellId),
-    index('mem_episodes_contact_id_idx').on(table.contactId),
-    index('mem_episodes_user_id_idx').on(table.userId),
-    index('mem_episodes_embedding_idx').using(
-      'hnsw',
-      table.embedding.op('vector_cosine_ops'),
-    ),
-    index('mem_episodes_search_vector_idx').using('gin', table.searchVector),
-    check(
-      'episode_scope_check',
-      sql`contact_id IS NOT NULL OR user_id IS NOT NULL`,
-    ),
-  ],
-);
-
-/**
- * EventLogs — atomic facts extracted from conversation segments.
- * Each fact is a single sentence with explicit attribution.
- */
-export const aiMemEventLogs = aiPgSchema.table(
-  'mem_event_logs',
-  {
-    id: nanoidPrimaryKey(),
-    cellId: text('cell_id')
-      .notNull()
-      .references(() => aiMemCells.id, { onDelete: 'cascade' }),
-    contactId: text('contact_id'),
-    userId: text('user_id'),
-    fact: text('fact').notNull(),
-    subject: text('subject'),
-    occurredAt: timestamp('occurred_at', { withTimezone: true }),
-    embedding: vector('embedding', { dimensions: embeddingDimensions }),
-    searchVector: tsvector('search_vector').generatedAlwaysAs(
-      sql`to_tsvector('english', fact)`,
-    ),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    index('mem_event_logs_cell_id_idx').on(table.cellId),
-    index('mem_event_logs_contact_id_idx').on(table.contactId),
-    index('mem_event_logs_user_id_idx').on(table.userId),
-    index('mem_event_logs_subject_idx').on(table.subject),
-    index('mem_event_logs_embedding_idx').using(
-      'hnsw',
-      table.embedding.op('vector_cosine_ops'),
-    ),
-    index('mem_event_logs_search_vector_idx').using('gin', table.searchVector),
-    check(
-      'event_log_scope_check',
-      sql`contact_id IS NOT NULL OR user_id IS NOT NULL`,
-    ),
-  ],
-);
 
 /**
  * Scorers — user-defined evaluation criteria stored in DB.

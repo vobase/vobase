@@ -2,8 +2,10 @@ import { createTool } from '@mastra/core/tools';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
+import type { ModuleDeps } from '../../modules/ai/lib/deps';
 import { getModuleDeps } from '../../modules/ai/lib/deps';
 import { createActivityMessage } from '../../modules/ai/lib/messages';
+import { transition } from '../../modules/ai/lib/state-machine';
 import { conversations } from '../../modules/ai/schema';
 
 const ESCALATION_MODES = ['supervised', 'human'] as const;
@@ -44,7 +46,9 @@ For background help without changing the mode, use consult_human instead.`,
     message: z.string(),
   }),
   execute: async (input, context) => {
-    const deps = getModuleDeps();
+    const deps =
+      (context?.requestContext?.get('deps') as ModuleDeps | undefined) ??
+      getModuleDeps();
     const { db, realtime } = deps;
 
     const conversationId =
@@ -67,27 +71,17 @@ For background help without changing the mode, use consult_human instead.`,
       };
     }
 
-    // Prevent no-op or downgrade (agent can't set back to 'ai')
+    // Transition mode + priority atomically via state machine
     const currentMode = conversation.mode ?? 'ai';
-    if (currentMode === input.mode) {
-      return {
-        success: true,
-        message: `Conversation is already in ${input.mode} mode.`,
-      };
-    }
-    if (currentMode === 'human') {
-      return {
-        success: false,
-        message:
-          'Conversation is already in human mode — cannot change from agent side.',
-      };
-    }
+    const result = await transition(deps, conversationId, {
+      type: 'ESCALATE_MODE',
+      mode: input.mode,
+      priority: input.priority,
+    });
 
-    // Update mode + priority
-    await db
-      .update(conversations)
-      .set({ mode: input.mode, priority: input.priority })
-      .where(eq(conversations.id, conversationId));
+    if (!result.ok) {
+      return { success: false, message: result.error };
+    }
 
     // Emit escalation.created for attention queue (pending review)
     await createActivityMessage(db, realtime, {
@@ -104,19 +98,6 @@ For background help without changing the mode, use consult_human instead.`,
         channelRoutingId: conversation.channelRoutingId,
       },
       resolutionStatus: 'pending',
-    });
-
-    // Emit handler.changed event (fire-and-forget, for activity feed)
-    await createActivityMessage(db, realtime, {
-      conversationId,
-      eventType: 'handler.changed',
-      actor: conversation.agentId,
-      actorType: 'agent',
-      data: {
-        from: currentMode,
-        to: input.mode,
-        reason: input.reason,
-      },
     });
 
     const modeLabel =

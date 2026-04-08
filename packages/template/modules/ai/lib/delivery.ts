@@ -1,54 +1,41 @@
 import type {
+  ChannelAdapter,
   ChannelsService,
+  OutboundMessage,
   Scheduler,
   SendResult,
   VobaseDb,
 } from '@vobase/core';
-import { logger } from '@vobase/core';
+import { CircuitBreaker, logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
-import { contacts, conversations, messages } from '../schema';
+import { channelInstances, contacts, conversations, messages } from '../schema';
+import { checkWindow } from './channel-sessions';
 import { getModuleDeps } from './deps';
 
-// ─── Circuit Breaker (in-memory, single-instance) ──────────────────
+// ─── Circuit Breaker (per channel type, in-memory) ─────────────────
 
-interface CircuitState {
-  failures: number;
-  openAt: number | null;
+const circuitBreakers = new Map<string, CircuitBreaker>();
+
+function getCircuit(channelType: string): CircuitBreaker {
+  let cb = circuitBreakers.get(channelType);
+  if (!cb) {
+    cb = new CircuitBreaker({ threshold: 5, resetTimeout: 60_000 });
+    circuitBreakers.set(channelType, cb);
+  }
+  return cb;
 }
 
-const circuitBreakers = new Map<string, CircuitState>();
-const CIRCUIT_FAILURE_THRESHOLD = 5;
-const CIRCUIT_OPEN_MS = 60_000;
-
 export function isCircuitOpen(channelType: string): boolean {
-  const state = circuitBreakers.get(channelType);
-  if (!state || state.openAt === null) return false;
-  if (Date.now() - state.openAt >= CIRCUIT_OPEN_MS) {
-    state.openAt = null;
-    return false;
-  }
-  return true;
+  return getCircuit(channelType).isOpen();
 }
 
 export function recordCircuitSuccess(channelType: string): void {
-  circuitBreakers.set(channelType, { failures: 0, openAt: null });
+  getCircuit(channelType).recordSuccess();
 }
 
 export function recordCircuitFailure(channelType: string): void {
-  const state = circuitBreakers.get(channelType) ?? {
-    failures: 0,
-    openAt: null,
-  };
-  state.failures += 1;
-  if (state.failures >= CIRCUIT_FAILURE_THRESHOLD && state.openAt === null) {
-    state.openAt = Date.now();
-    logger.warn('[delivery] circuit_open', {
-      channelType,
-      failures: state.failures,
-    });
-  }
-  circuitBreakers.set(channelType, state);
+  getCircuit(channelType).recordFailure();
 }
 
 export function resetCircuit(channelType: string): void {
@@ -136,25 +123,80 @@ export async function processDelivery(
       return;
     }
 
+    // Resolve adapter for this channel type
+    const [instance] = conversation.channelInstanceId
+      ? await db
+          .select({ type: channelInstances.type })
+          .from(channelInstances)
+          .where(eq(channelInstances.id, conversation.channelInstanceId))
+      : [];
+    const resolvedType = instance?.type ?? channelType;
+    const adapter = channels.getAdapter(resolvedType);
+    const channelSend = channels.get(resolvedType);
+
     let result: SendResult;
     const payload = (message.contentData ?? {}) as Record<string, unknown>;
 
-    if (channelType === 'whatsapp' && contact.phone) {
+    // Check messaging window before sending (e.g. WhatsApp 24h window)
+    if (adapter?.capabilities?.messagingWindow) {
+      const windowStatus = await checkWindow(db, message.conversationId);
+      // Only block if a session exists and is expired (no session = no window tracking yet)
+      if (windowStatus.expiresAt !== null && !windowStatus.isOpen) {
+        await markFailed(
+          db,
+          messageId,
+          'Messaging window expired — cannot send outside the 24h window',
+          message.conversationId,
+        );
+        logger.info('[delivery] window_expired', {
+          messageId,
+          conversationId: message.conversationId,
+          channelType,
+        });
+        return;
+      }
+    }
+
+    // Resolve contact address using adapter's contactIdentifierField
+    const identifierField =
+      adapter?.contactIdentifierField ?? resolveIdentifierField(resolvedType);
+    const recipientAddress = contact[identifierField] as string | null;
+
+    if (!adapter || !channelSend) {
+      // Web channel or unregistered adapter — no outbound send needed
+      result = { success: true };
+    } else if (!recipientAddress) {
+      await markFailed(
+        db,
+        messageId,
+        `Contact has no ${identifierField} for ${resolvedType} channel`,
+        message.conversationId,
+      );
+      return;
+    } else if (adapter.serializeOutbound) {
+      // Adapter-driven serialization
+      const outbound = adapter.serializeOutbound({
+        content: message.content,
+        contentData: payload,
+      });
+      outbound.to = recipientAddress;
+      result = await channelSend.send(outbound);
+    } else {
+      // Fallback: build OutboundMessage from content + payload
+      const outbound: OutboundMessage = {
+        to: recipientAddress,
+        text: message.content,
+      };
+
+      if (adapter.renderContent && message.content) {
+        outbound.text = adapter.renderContent(message.content);
+      }
+
       if (payload.template) {
-        result = await channels.whatsapp.send({
-          to: contact.phone,
-          template: payload.template as {
-            name: string;
-            language: string;
-            parameters?: string[];
-          },
-        });
+        outbound.template = payload.template as OutboundMessage['template'];
+        outbound.text = undefined;
       } else if (payload.interactive) {
-        result = await channels.whatsapp.send({
-          to: contact.phone,
-          text: message.content,
-          metadata: { interactive: payload.interactive },
-        });
+        outbound.metadata = { interactive: payload.interactive };
       } else if (payload.media) {
         const media = payload.media as {
           type: string;
@@ -162,33 +204,23 @@ export async function processDelivery(
           caption?: string;
           filename?: string;
         };
-        result = await channels.whatsapp.send({
-          to: contact.phone,
-          text: message.content,
-          media: [
-            {
-              type: media.type as 'image' | 'document' | 'audio' | 'video',
-              url: media.url,
-              caption: media.caption,
-              filename: media.filename,
-            },
-          ],
-        });
-      } else {
-        result = await channels.whatsapp.send({
-          to: contact.phone,
-          text: message.content,
-        });
+        outbound.media = [
+          {
+            type: media.type as 'image' | 'document' | 'audio' | 'video',
+            url: media.url,
+            caption: media.caption,
+            filename: media.filename,
+          },
+        ];
       }
-    } else if (channelType === 'email' && contact.email) {
-      result = await channels.email.send({
-        to: contact.email,
-        subject: 'Message',
-        html: `<p>${message.content}</p>`,
-      });
-    } else {
-      // Web channel — no outbound send needed
-      result = { success: true };
+
+      // Email-specific fields
+      if (identifierField === 'email') {
+        outbound.subject = (payload.subject as string) ?? 'Message';
+        outbound.html = outbound.text ? `<p>${outbound.text}</p>` : undefined;
+      }
+
+      result = await channelSend.send(outbound);
     }
 
     if (result.success) {
@@ -250,6 +282,24 @@ export async function processDelivery(
       error: errMsg,
     });
     await retryOrFail(db, scheduler, message, errMsg);
+  }
+}
+
+// ─── Identifier Resolution ────────────────────────────────────────
+
+/** Default contact identifier field when adapter doesn't specify one. */
+export function resolveIdentifierField(
+  channelType: string,
+): 'phone' | 'email' | 'identifier' {
+  switch (channelType) {
+    case 'whatsapp':
+      return 'phone';
+    case 'email':
+    case 'resend':
+    case 'smtp':
+      return 'email';
+    default:
+      return 'identifier';
   }
 }
 

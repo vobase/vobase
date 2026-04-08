@@ -1,5 +1,5 @@
 import { defineJob, logger } from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { getModuleDb, getModuleDeps } from './lib/deps';
@@ -8,40 +8,20 @@ export { setModuleDeps } from './lib/deps';
 
 import { runAgentEvals } from '../../mastra/evals/runner';
 import { getActiveCustomScorers } from '../../mastra/evals/scorers';
-import { processMemCell } from '../../mastra/processors/memory/formation';
 import { generateChannelReply } from './lib/channel-reply';
-import { getChat } from './lib/chat-init';
+import { expireSessions } from './lib/channel-sessions';
 import { checkConsultationTimeouts } from './lib/consult-human';
 import { completeConversation } from './lib/conversation';
 import { processDelivery } from './lib/delivery';
+import { handleInboundMessage } from './lib/inbound';
+import { transition } from './lib/state-machine';
 import { aiEvalRuns, channelInstances, conversations } from './schema';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// AI Memory & Eval jobs
+// AI Eval jobs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const memoryFormationDataSchema = z.object({ cellId: z.string().min(1) });
 const evalRunDataSchema = z.object({ runId: z.string().min(1) });
-
-/**
- * ai:memory-formation — Process a MemCell: extract episode + facts, embed, store.
- * Queued by the memory output processor when a conversation boundary is detected.
- */
-export const memoryFormationJob = defineJob(
-  'ai:memory-formation',
-  async (data) => {
-    const moduleDb = getModuleDb();
-    const { cellId } = memoryFormationDataSchema.parse(data);
-    logger.info('[memory] Formation job started', { cellId });
-    try {
-      await processMemCell(moduleDb, cellId);
-      logger.info('[memory] Formation job completed', { cellId });
-    } catch (err) {
-      logger.error('[memory] Formation job failed', { cellId, error: err });
-      throw err;
-    }
-  },
-);
 
 /**
  * ai:eval-run — Execute eval scorers against provided data items.
@@ -102,7 +82,6 @@ export const evalRunJob = defineJob('ai:eval-run', async (data) => {
 const deliverDataSchema = z.object({ messageId: z.string().min(1) });
 const channelReplyDataSchema = z.object({
   conversationId: z.string().min(1),
-  inboundContent: z.string().optional(),
 });
 const processInboundDataSchema = z.object({
   event: z
@@ -115,7 +94,6 @@ const processInboundDataSchema = z.object({
       timestamp: z.string().optional(),
     })
     .passthrough(),
-  adapterName: z.string(),
 });
 
 /**
@@ -136,10 +114,10 @@ export const deliverMessageJob = defineJob(
  * Called after an inbound message is routed to an active conversation.
  */
 export const channelReplyJob = defineJob('ai:channel-reply', async (data) => {
-  const { conversationId, inboundContent } = channelReplyDataSchema.parse(data);
+  const { conversationId } = channelReplyDataSchema.parse(data);
   const deps = getModuleDeps();
 
-  await generateChannelReply(deps, conversationId, inboundContent);
+  await generateChannelReply(deps, conversationId);
 });
 
 /**
@@ -224,32 +202,58 @@ export const conversationCleanupJob = defineJob(
 );
 
 /**
- * ai:process-inbound — Retry processing a failed inbound message (C1).
- * Scheduled when chat.processMessage fails in the event bridge.
+ * ai:completing-timeout — Cron every minute.
+ * Fail conversations stuck in 'completing' status for over 60 seconds.
+ * This catches zombie completions where generation never finished.
+ */
+export const completingTimeoutJob = defineJob(
+  'ai:completing-timeout',
+  async () => {
+    const deps = getModuleDeps();
+    const sixtySecondsAgo = new Date(Date.now() - 60_000);
+
+    const stuck = await deps.db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.status, 'completing'),
+          lt(conversations.updatedAt, sixtySecondsAgo),
+        ),
+      );
+
+    for (const s of stuck) {
+      await transition(deps, s.id, { type: 'COMPLETING_TIMEOUT' });
+    }
+
+    if (stuck.length > 0) {
+      logger.info('[ai] Completing timeout cleanup', { count: stuck.length });
+    }
+  },
+);
+
+/**
+ * ai:process-inbound — Retry processing a failed inbound message.
+ * Scheduled when handleInboundMessage fails in the event bridge.
  */
 export const processInboundJob = defineJob(
   'ai:process-inbound',
   async (data) => {
-    const { event, adapterName } = processInboundDataSchema.parse(data);
+    const { event } = processInboundDataSchema.parse(data);
+    const deps = getModuleDeps();
 
-    const chat = getChat();
-
-    const adapter = (
-      chat as unknown as { adapters: Map<string, unknown> }
-    ).adapters.get(adapterName);
-
-    if (!adapter) {
-      logger.error('[ai] Retry: no adapter for channel', {
-        adapterName,
-      });
-      return;
-    }
-
-    const bridgeAdapter = adapter as {
-      parseMessage: (raw: unknown) => unknown;
-    };
-    const message = bridgeAdapter.parseMessage(event);
-
-    chat.processMessage(adapter as never, event.from, message as never);
+    await handleInboundMessage(deps, event as never);
   },
 );
+
+/**
+ * ai:session-expiry — Cron every 5 minutes.
+ * Bulk-expire channel sessions where the messaging window has passed.
+ */
+export const sessionExpiryJob = defineJob('ai:session-expiry', async () => {
+  const deps = getModuleDeps();
+  const count = await expireSessions(deps.db);
+  if (count > 0) {
+    logger.info('[ai] Expired channel sessions', { count });
+  }
+});

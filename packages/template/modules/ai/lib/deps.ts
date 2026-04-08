@@ -2,6 +2,7 @@ import type {
   ChannelsService,
   RealtimeService,
   Scheduler,
+  StorageService,
   VobaseDb,
 } from '@vobase/core';
 
@@ -10,8 +11,18 @@ export interface ModuleDeps {
   scheduler: Scheduler;
   channels: ChannelsService;
   realtime: RealtimeService;
+  storage?: StorageService;
 }
 
+/**
+ * Module-level singleton deps — used by jobs, cron handlers, and init hooks
+ * where no Mastra RequestContext is available.
+ *
+ * Mastra tools MUST read deps from `context.requestContext.get('deps')` instead,
+ * falling back to getModuleDeps() only for safety during transition.
+ * Agent invocation sites (streamChat, generateChannelReply) set deps on the
+ * RequestContext before calling the agent.
+ */
 let moduleDeps: ModuleDeps | undefined;
 
 export function setModuleDeps(deps: ModuleDeps): void {

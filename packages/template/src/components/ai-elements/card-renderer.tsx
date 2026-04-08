@@ -18,7 +18,7 @@ import type {
   ImageElement,
   SectionElement,
   TextElement,
-} from "chat";
+} from "@modules/ai/lib/card-serialization";
 import type { ComponentProps } from "react";
 import { useState } from "react";
 

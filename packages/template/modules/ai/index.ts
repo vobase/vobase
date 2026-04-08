@@ -11,16 +11,16 @@ import { configureTracing } from '../../mastra/lib/observability';
 import { aiRoutes } from './handlers';
 import {
   channelReplyJob,
+  completingTimeoutJob,
   consultationTimeoutJob,
   conversationCleanupJob,
   deliverMessageJob,
   evalRunJob,
-  memoryFormationJob,
   processInboundJob,
+  sessionExpiryJob,
   setModuleDeps,
 } from './jobs';
-import { registerHandlers } from './lib/chat-handlers';
-import { getChat, initChat, onChatInit, reinitChat } from './lib/chat-init';
+import { handleInboundMessage } from './lib/inbound';
 import * as schema from './schema';
 import { channelInstances } from './schema';
 
@@ -29,13 +29,14 @@ export const aiModule = defineModule({
   schema,
   routes: aiRoutes,
   jobs: [
-    memoryFormationJob,
     evalRunJob,
     deliverMessageJob,
     channelReplyJob,
     consultationTimeoutJob,
     conversationCleanupJob,
+    completingTimeoutJob,
     processInboundJob,
+    sessionExpiryJob,
   ],
 
   async init(ctx) {
@@ -44,6 +45,7 @@ export const aiModule = defineModule({
       scheduler: ctx.scheduler,
       channels: ctx.channels,
       realtime: ctx.realtime,
+      storage: ctx.storage,
     };
 
     setModuleDeps(deps);
@@ -84,7 +86,6 @@ export const aiModule = defineModule({
         }
       }
 
-      await reinitChat({ ...deps, realtime: ctx.realtime });
       return { instanceId };
     });
 
@@ -110,38 +111,20 @@ export const aiModule = defineModule({
       });
     }
 
-    // Initialize chat-sdk with bridge adapters and state-pg
-    let chat: Awaited<ReturnType<typeof initChat>>;
-    try {
-      chat = await initChat(deps);
-    } catch (err) {
-      logger.error('[ai] Failed to initialize chat', { error: err });
-      await scheduleRecurringJobs(ctx.scheduler);
-      return;
-    }
-
-    // Register chat-sdk handlers (and re-register on every reinit)
-    registerHandlers(chat, deps);
-    onChatInit((newChat) => registerHandlers(newChat, deps));
-
     // Log init complete with active channel instance count
     try {
       const allInstances = await ctx.db
         .select({ id: channelInstances.id })
         .from(channelInstances)
         .where(eq(channelInstances.status, 'active'));
-      const chatAdapterCount = (
-        chat as unknown as { adapters: Map<string, unknown> }
-      ).adapters.size;
       logger.info('[ai] Init complete', {
         channelInstances: allInstances.length,
-        chatAdapters: chatAdapterCount,
       });
     } catch {
       // Non-critical — don't block init on logging
     }
 
-    // Bridge core channel events to chat-sdk
+    // Wire core channel events directly to handleInboundMessage
     let hasChannels = false;
     try {
       hasChannels = typeof ctx.channels.on === 'function';
@@ -151,87 +134,20 @@ export const aiModule = defineModule({
 
     if (hasChannels) {
       ctx.channels.on('message_received', (event: MessageReceivedEvent) => {
-        const adapterName = event.channelInstanceId ?? event.channel;
-        const currentChat = getChat();
-        const chatAdapters = (
-          currentChat as unknown as { adapters: Map<string, unknown> }
-        ).adapters;
-
-        try {
-          const adapter = chatAdapters.get(adapterName);
-
-          if (!adapter) {
-            logger.warn('[ai] No bridge adapter for channel', {
-              adapterName,
-              channelInstanceId: event.channelInstanceId,
-              availableAdapters: Array.from(chatAdapters.keys()),
-            });
-            return;
-          }
-
-          const bridgeAdapter = adapter as {
-            parseMessage: (raw: unknown) => unknown;
-          };
-          const message = bridgeAdapter.parseMessage(event);
-
-          Promise.resolve(
-            currentChat.processMessage(
-              adapter as never,
-              event.from,
-              message as never,
-            ),
-          ).catch((err) => {
-            logger.error('[ai] processMessage failed — scheduling retry job', {
-              adapterName,
-              from: event.from,
-              error: err,
-            });
-            ctx.scheduler
-              .add('ai:process-inbound', {
-                event: {
-                  channelInstanceId: event.channelInstanceId,
-                  channel: event.channel,
-                  from: event.from,
-                  content: event.content,
-                  profileName: event.profileName,
-                  timestamp: event.timestamp,
-                },
-                adapterName,
-              })
-              .catch((schedErr) => {
-                logger.error('[ai] Failed to schedule inbound retry', {
-                  error: schedErr,
-                });
-              });
-          });
-        } catch (err) {
-          logger.error('[ai] Failed to feed event to chat', {
-            event: {
-              channelInstanceId: event.channelInstanceId,
-              channel: event.channel,
-              from: event.from,
-            },
+        handleInboundMessage(deps, event).catch((err) => {
+          logger.error('[ai] handleInboundMessage failed — scheduling retry', {
+            from: event.from,
+            channel: event.channel,
             error: err,
           });
-
           ctx.scheduler
-            .add('ai:process-inbound', {
-              event: {
-                channelInstanceId: event.channelInstanceId,
-                channel: event.channel,
-                from: event.from,
-                content: event.content,
-                profileName: event.profileName,
-                timestamp: event.timestamp,
-              },
-              adapterName,
-            })
+            .add('ai:process-inbound', { event })
             .catch((schedErr) => {
               logger.error('[ai] Failed to schedule inbound retry', {
                 error: schedErr,
               });
             });
-        }
+        });
       });
     }
 
@@ -261,6 +177,18 @@ async function scheduleRecurringJobs(
       {},
       { singletonKey: 'ai:conversation-cleanup' },
     )
+    .catch(() => {
+      // Ignore — job may already be registered
+    });
+
+  await scheduler
+    .add('ai:completing-timeout', {}, { singletonKey: 'ai:completing-timeout' })
+    .catch(() => {
+      // Ignore — job may already be registered
+    });
+
+  await scheduler
+    .add('ai:session-expiry', {}, { singletonKey: 'ai:session-expiry' })
     .catch(() => {
       // Ignore — job may already be registered
     });

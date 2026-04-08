@@ -202,6 +202,7 @@ export const chatHandlers = new Hono()
 
     // Stream response
     const result = await streamChat({
+      db,
       conversationId: conversationId,
       message: lastUserMessage,
       agentId: body.agentId,
@@ -537,6 +538,7 @@ export const chatHandlers = new Hono()
 
     // Stream via Mastra agent with memory (auto-persists messages)
     const result = await streamChat({
+      db,
       conversationId: conversation.id,
       message: lastUserMsg,
       agentId: conversation.agentId,

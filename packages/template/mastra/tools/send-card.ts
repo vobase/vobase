@@ -2,13 +2,18 @@
  * send_card — Mastra tool for sending structured interactive cards.
  *
  * Accepts a simplified flat schema (LLM-friendly), validates against
- * per-channel constraints, and builds a CardElement using chat-sdk primitives.
+ * per-channel constraints, and builds a CardElement using local card primitives.
  * Returns an error string for agent self-correction on validation failures.
  */
 import { createTool } from '@mastra/core/tools';
-import { Actions, Button, Card, CardText } from 'chat';
 import { z } from 'zod';
 
+import {
+  Actions,
+  Button,
+  Card,
+  CardText,
+} from '../../modules/ai/lib/card-serialization';
 import { getConstraints } from '../../modules/ai/lib/channel-constraints';
 
 export const sendCardTool = createTool({
@@ -72,10 +77,10 @@ export const sendCardTool = createTool({
       }
     }
 
-    // Build CardElement using chat-sdk primitives.
+    // Build CardElement using local card primitives.
     // Button IDs use chat:${JSON.stringify(id)} to match the existing convention
     // in buildInteractiveCard() (chat-cards.ts:72), ensuring the onAction handler
-    // in chat-handlers.ts (which does JSON.parse(actionId.slice(5))) works as-is.
+    // in inbound.ts (which does JSON.parse(actionId.slice(5))) works as-is.
     const actionButtons = (buttons ?? []).map((btn) =>
       Button({
         id: `chat:${JSON.stringify(btn.id)}`,

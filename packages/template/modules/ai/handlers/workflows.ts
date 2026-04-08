@@ -15,9 +15,12 @@ const workflowRunsSchema = paginationSchema.extend({
   status: z.enum(['running', 'suspended', 'completed', 'failed']).optional(),
 });
 
-import { conversationLifecycleMeta } from '../../../mastra/workflows/session-lifecycle';
-
-const workflowRegistry = [conversationLifecycleMeta];
+const workflowRegistry: {
+  id: string;
+  name: string;
+  description: string;
+  steps: { id: string; name: string; description: string; type: string }[];
+}[] = [];
 
 export const workflowsHandlers = new Hono()
   /** GET /workflows/registry — returns registered workflow definitions with run counts */

@@ -2,10 +2,8 @@ import type { RealtimeService, Scheduler, VobaseDb } from '@vobase/core';
 import { createNanoid, logger, notFound } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
-import { flushConversationMemory } from '../../../mastra/processors/memory/memory-processor';
 import { channelRoutings, conversations } from '../schema';
-import { getChatState } from './chat-init';
-import { getModuleDeps, getModuleScheduler } from './deps';
+import { getModuleDeps } from './deps';
 import { createActivityMessage } from './messages';
 import { transition } from './state-machine';
 
@@ -73,10 +71,6 @@ export async function createConversation(
     action: 'update',
   });
 
-  // Subscribe in chat state for distributed tracking
-  const state = getChatState();
-  await state.subscribe(id);
-
   logger.info('[conversations] conversation_create', {
     conversationId: id,
     channelRoutingId: input.channelRoutingId,
@@ -113,28 +107,6 @@ export async function completeConversation(
       outcome: 'skipped',
     });
     return;
-  }
-
-  const state = getChatState();
-  await state.unsubscribe(conversationId);
-
-  // Flush unflushed messages into memory on conversation completion
-  const contactId = result.conversation.contactId;
-  if (contactId) {
-    try {
-      const scheduler = getModuleScheduler();
-      await flushConversationMemory({
-        db,
-        scheduler,
-        conversationId,
-        contactId,
-      });
-    } catch (err) {
-      logger.warn('[conversations] Memory flush failed', {
-        conversationId,
-        error: err,
-      });
-    }
   }
 
   logger.info('[conversations] conversation_complete', {
@@ -178,9 +150,6 @@ export async function failConversation(
     .update(conversations)
     .set({ metadata: { ...existingMeta, failReason: reason } })
     .where(eq(conversations.id, conversationId));
-
-  const state = getChatState();
-  await state.unsubscribe(conversationId);
 
   logger.info('[conversations] conversation_fail', {
     conversationId,

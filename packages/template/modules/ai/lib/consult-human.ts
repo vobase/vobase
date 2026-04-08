@@ -9,7 +9,6 @@ import { logger } from '@vobase/core';
 import { and, eq, lt, sql } from 'drizzle-orm';
 
 import { consultations, contacts, conversations } from '../schema';
-import { getChatState } from './chat-init';
 import { createActivityMessage } from './messages';
 import { transition } from './state-machine';
 
@@ -187,18 +186,17 @@ export async function handleStaffReply(
     return false;
   }
 
-  // Store reply in chat state for the agent to pick up
-  const state = getChatState();
-  await state.set(
-    `consultation:${consultation.conversationId}`,
-    {
-      reply: event.content,
-      staffId: consultation.staffContactId,
-      consultationId: consultation.id,
-    },
-    // TTL: 1 hour — agent should pick this up quickly
-    60 * 60 * 1000,
-  );
+  // Store reply payload in the consultation row for the agent to pick up
+  await db
+    .update(consultations)
+    .set({
+      replyPayload: {
+        reply: event.content,
+        staffId: consultation.staffContactId,
+        consultationId: consultation.id,
+      },
+    })
+    .where(eq(consultations.id, consultation.id));
 
   // Update conversation state via machine (re-derives hasPendingEscalation + notifies realtime)
   await transition(deps, consultation.conversationId, {
@@ -253,13 +251,13 @@ export async function checkConsultationTimeouts(
 
     if (updated.length === 0) continue; // Staff replied in the meantime
 
-    // Store timeout flag in chat state so agent knows
-    const state = getChatState();
-    await state.set(
-      `consultation:${c.conversationId}`,
-      { timeout: true, consultationId: c.id },
-      60 * 60 * 1000,
-    );
+    // Store timeout flag in consultation row so agent knows
+    await db
+      .update(consultations)
+      .set({
+        replyPayload: { timeout: true, consultationId: c.id },
+      })
+      .where(eq(consultations.id, c.id));
 
     // Update conversation state via machine (re-derives hasPendingEscalation + notifies realtime)
     await transition(deps, c.conversationId, {

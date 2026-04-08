@@ -28,7 +28,22 @@ type TransitionEvent =
   | { type: 'ESCALATE' }
   | { type: 'RESOLVE_ESCALATION' }
   | { type: 'INBOUND_MESSAGE'; contactId: string; content?: string }
-  | { type: 'CLAIM'; userId: string };
+  | { type: 'CLAIM'; userId: string }
+  | {
+      type: 'ESCALATE_MODE';
+      mode: 'supervised' | 'human';
+      priority?: 'low' | 'normal' | 'high' | 'urgent';
+    }
+  | { type: 'SET_COMPLETING' }
+  | {
+      type: 'GENERATION_DONE';
+      resolutionOutcome?:
+        | 'resolved'
+        | 'escalated_resolved'
+        | 'abandoned'
+        | 'failed';
+    }
+  | { type: 'COMPLETING_TIMEOUT' };
 
 type ConversationRow = typeof conversations.$inferSelect;
 type PreviousState = {
@@ -154,6 +169,16 @@ export async function transition(
   // Terminal states reject all events
   if (current.status === 'completed' || current.status === 'failed') {
     return invalid(state, event.type);
+  }
+
+  // Completing only accepts GENERATION_DONE and COMPLETING_TIMEOUT
+  if (current.status === 'completing') {
+    if (
+      event.type !== 'GENERATION_DONE' &&
+      event.type !== 'COMPLETING_TIMEOUT'
+    ) {
+      return invalid(state, event.type);
+    }
   }
 
   // ── SET_MODE ──────────────────────────────────────────────────────────────
@@ -571,6 +596,196 @@ export async function transition(
       result.updated,
       current,
       previousState,
+    );
+  }
+
+  // ── ESCALATE_MODE ──────────────────────────────────────────────────────
+
+  if (event.type === 'ESCALATE_MODE') {
+    const { mode, priority } = event;
+    const currentMode = current.mode ?? 'ai';
+
+    if (currentMode === 'human') {
+      return {
+        ok: false,
+        error: 'Cannot downgrade from human mode',
+        code: 'GUARD_FAILED',
+      };
+    }
+    if (currentMode === mode) {
+      return {
+        ok: false,
+        error: `Already in ${mode} mode`,
+        code: 'GUARD_FAILED',
+      };
+    }
+
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(conversations)
+        .set({
+          mode,
+          ...(priority ? { priority } : {}),
+        })
+        .where(
+          and(
+            eq(conversations.id, conversationId),
+            eq(conversations.status, 'active'),
+            eq(conversations.mode, current.mode),
+          ),
+        )
+        .returning();
+
+      if (!updated) return null;
+      return { updated };
+    });
+
+    if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'handler.changed',
+      actorType: 'system',
+      conversationId,
+      data: { from: currentMode, to: mode, reason: 'Agent escalation' },
+    });
+    return commitTransition(
+      db,
+      realtime,
+      conversationId,
+      result.updated,
+      current,
+      previousState,
+    );
+  }
+
+  // ── SET_COMPLETING ────────────────────────────────────────────────────
+
+  if (event.type === 'SET_COMPLETING') {
+    if (current.status !== 'active') {
+      return invalid(state, 'SET_COMPLETING');
+    }
+
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(conversations)
+        .set({ status: 'completing' })
+        .where(
+          and(
+            eq(conversations.id, conversationId),
+            eq(conversations.status, 'active'),
+          ),
+        )
+        .returning();
+
+      if (!updated) return null;
+      return { updated };
+    });
+
+    if (!result) return conflict();
+    return commitTransition(
+      db,
+      realtime,
+      conversationId,
+      result.updated,
+      current,
+      previousState,
+    );
+  }
+
+  // ── GENERATION_DONE ───────────────────────────────────────────────────
+
+  if (event.type === 'GENERATION_DONE') {
+    if (current.status !== 'completing') {
+      return invalid(state, 'GENERATION_DONE');
+    }
+    const { resolutionOutcome } = event;
+
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(conversations)
+        .set({
+          status: 'completed',
+          endedAt: new Date(),
+          waitingSince: null,
+          ...(resolutionOutcome ? { resolutionOutcome } : {}),
+        })
+        .where(
+          and(
+            eq(conversations.id, conversationId),
+            eq(conversations.status, 'completing'),
+          ),
+        )
+        .returning();
+
+      if (!updated) return null;
+      return { updated };
+    });
+
+    if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'conversation.completed',
+      actorType: 'system',
+      conversationId,
+      data: { resolutionOutcome: resolutionOutcome ?? 'resolved' },
+    });
+    return commitTransition(
+      db,
+      realtime,
+      conversationId,
+      result.updated,
+      current,
+      previousState,
+      [
+        { table: 'conversations-dashboard', action: 'update' },
+        { table: 'conversations-metrics', action: 'update' },
+      ],
+    );
+  }
+
+  // ── COMPLETING_TIMEOUT ────────────────────────────────────────────────
+
+  if (event.type === 'COMPLETING_TIMEOUT') {
+    if (current.status !== 'completing') {
+      return invalid(state, 'COMPLETING_TIMEOUT');
+    }
+
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(conversations)
+        .set({
+          status: 'failed',
+          endedAt: new Date(),
+          resolutionOutcome: 'failed',
+        })
+        .where(
+          and(
+            eq(conversations.id, conversationId),
+            eq(conversations.status, 'completing'),
+          ),
+        )
+        .returning();
+
+      if (!updated) return null;
+      return { updated };
+    });
+
+    if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'conversation.failed',
+      actorType: 'system',
+      conversationId,
+      data: { reason: 'Completing timeout — generation did not finish' },
+    });
+    return commitTransition(
+      db,
+      realtime,
+      conversationId,
+      result.updated,
+      current,
+      previousState,
+      [
+        { table: 'conversations-dashboard', action: 'update' },
+        { table: 'conversations-metrics', action: 'update' },
+      ],
     );
   }
 

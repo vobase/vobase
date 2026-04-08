@@ -1,22 +1,23 @@
 import { RequestContext } from '@mastra/core/request-context';
 import type { ChannelsService, Scheduler, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
-import type { CardElement } from 'chat';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 
 import { getAgent } from '../../../mastra/agents';
 import {
   channelInstances,
+  channelSessions,
   consultations as consultationsTable,
   conversations,
+  messages,
 } from '../schema';
+import type { CardElement } from './card-serialization';
+import { serializeCard } from './card-serialization';
 import { formatConstraintsForPrompt } from './channel-constraints';
-import { serializeCard } from './chat-bridge';
-import { getChatState } from './chat-init';
-import { completeConversation } from './conversation';
 import { enqueueDelivery } from './delivery';
 import { getModuleDeps } from './deps';
 import { createActivityMessage, insertMessage } from './messages';
+import { transition } from './state-machine';
 
 /** Tools that emit activity events on execution (side-effect tools). */
 const EMIT_EVENT_TOOLS = new Set([
@@ -114,7 +115,6 @@ export function extractSendCardResults(response: {
 export async function generateChannelReply(
   deps: ReplyDeps,
   conversationId: string,
-  inboundContent?: string,
 ): Promise<string | null> {
   const { db, scheduler } = deps;
   const { realtime } = getModuleDeps();
@@ -154,16 +154,64 @@ export async function generateChannelReply(
     : [];
   const channelType = instance?.type ?? 'web';
 
-  // Check for consultation reply in chat state
-  const state = getChatState();
-  const consultationReply = await state.get<{
+  // Run independent queries in parallel: last outgoing message + consultation reply
+  const [lastOutgoingResult, consultationResult] = await Promise.all([
+    db
+      .select({ createdAt: messages.createdAt })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.messageType, 'outgoing'),
+        ),
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(1),
+    db
+      .select({
+        id: consultationsTable.id,
+        replyPayload: consultationsTable.replyPayload,
+      })
+      .from(consultationsTable)
+      .where(
+        and(
+          eq(consultationsTable.conversationId, conversationId),
+          inArray(consultationsTable.status, ['replied', 'timeout']),
+        ),
+      )
+      .limit(1),
+  ]);
+
+  const [lastOutgoing] = lastOutgoingResult;
+  const [consultationWithReply] = consultationResult;
+
+  // Batch read: collect all unprocessed inbound messages since the last outgoing message
+  const inboundFilter = and(
+    eq(messages.conversationId, conversationId),
+    eq(messages.messageType, 'incoming'),
+    eq(messages.senderType, 'contact'),
+    ...(lastOutgoing ? [gt(messages.createdAt, lastOutgoing.createdAt)] : []),
+  );
+
+  const unprocessedMessages = await db
+    .select({ content: messages.content, createdAt: messages.createdAt })
+    .from(messages)
+    .where(inboundFilter)
+    .orderBy(messages.createdAt);
+
+  const inboundContent = unprocessedMessages
+    .map((m) => m.content)
+    .filter(Boolean)
+    .join('\n');
+
+  const consultationReply = consultationWithReply?.replyPayload as {
     reply?: string;
     timeout?: boolean;
     staffId?: string;
-  }>(`consultation:${conversationId}`);
+  } | null;
 
   // Build the message to send to the agent
-  let messageContent = inboundContent ?? '';
+  let messageContent = inboundContent;
 
   if (consultationReply) {
     if (consultationReply.reply) {
@@ -172,16 +220,42 @@ export async function generateChannelReply(
       messageContent +=
         '\n\n[System]: Staff consultation timed out. Please proceed with your best judgment or inform the customer.';
     }
-    await state.delete(`consultation:${conversationId}`);
+    // Clear replyPayload after processing
+    await db
+      .update(consultationsTable)
+      .set({ replyPayload: null })
+      .where(eq(consultationsTable.id, consultationWithReply.id));
   }
 
   if (!messageContent) {
     return null;
   }
 
+  // Load channel session context (messaging window status)
+  let sessionContext = '';
+  const adapter = deps.channels.getAdapter(channelType);
+  if (adapter?.getSessionContext) {
+    const [session] = await db
+      .select({
+        windowExpiresAt: channelSessions.windowExpiresAt,
+        sessionState: channelSessions.sessionState,
+      })
+      .from(channelSessions)
+      .where(eq(channelSessions.conversationId, conversationId))
+      .limit(1);
+
+    if (session) {
+      const ctx = adapter.getSessionContext({
+        windowExpiresAt: session.windowExpiresAt,
+        sessionState: session.sessionState,
+      });
+      if (ctx) sessionContext = `\n${ctx}`;
+    }
+  }
+
   // Prepend channel constraints so the agent tailors card structure per channel
   const constraintText = formatConstraintsForPrompt(channelType);
-  const contextPrefix = `[Channel: ${channelType}]\n${constraintText}\n\n`;
+  const contextPrefix = `[Channel: ${channelType}]${sessionContext}\n${constraintText}\n\n`;
 
   // Build RequestContext so sendCard tool and processors can access channel type
   const rc = new RequestContext();
@@ -189,6 +263,7 @@ export async function generateChannelReply(
   rc.set('contactId', conversation.contactId);
   rc.set('channel', channelType);
   rc.set('agentId', conversation.agentId);
+  rc.set('deps', getModuleDeps());
 
   // Generate response using agent (non-streaming for channels)
   try {
@@ -271,22 +346,15 @@ export async function generateChannelReply(
       await enqueueDelivery(scheduler, textMsg.id);
     }
 
-    // Post-generation: check if agent called complete_conversation
-    // Re-read conversation metadata in case complete_conversation tool modified it during generation
+    // Post-generation: check if conversation is in 'completing' status
+    // (set by complete_conversation tool via SET_COMPLETING transition during generation)
     const [updatedConversation] = await db
-      .select({ metadata: conversations.metadata })
+      .select({ status: conversations.status })
       .from(conversations)
       .where(eq(conversations.id, conversationId));
 
-    const updatedMeta = (
-      updatedConversation?.metadata &&
-      typeof updatedConversation.metadata === 'object'
-        ? updatedConversation.metadata
-        : {}
-    ) as Record<string, unknown>;
-
-    if (updatedMeta.completing) {
-      // Check if conversation had any consultations
+    if (updatedConversation?.status === 'completing') {
+      // Check if conversation had any consultations to determine outcome
       const [hasConsultation] = await db
         .select({ id: consultationsTable.id })
         .from(consultationsTable)
@@ -294,7 +362,10 @@ export async function generateChannelReply(
         .limit(1);
 
       const outcome = hasConsultation ? 'escalated_resolved' : 'resolved';
-      await completeConversation(db, conversationId, realtime, outcome);
+      await transition({ db, realtime }, conversationId, {
+        type: 'GENERATION_DONE',
+        resolutionOutcome: outcome,
+      });
     }
 
     return responseText || null;

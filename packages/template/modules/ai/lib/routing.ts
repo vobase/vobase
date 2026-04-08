@@ -1,8 +1,5 @@
 /**
  * Routing utilities — contact resolution from inbound events.
- *
- * The routing pipeline (routeInboundMessage) has been replaced by
- * chat-sdk handler dispatch in chat-handlers.ts.
  */
 import type { MessageReceivedEvent, VobaseDb } from '@vobase/core';
 import { eq, sql } from 'drizzle-orm';

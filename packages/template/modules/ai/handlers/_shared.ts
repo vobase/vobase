@@ -18,12 +18,6 @@ export const scopeSchema = z.union([
   z.string().regex(/^user:.+/, 'Scope must be contact:ID or user:ID'),
 ]);
 
-export function parseScope(raw: string) {
-  const [type, ...rest] = raw.split(':');
-  const id = rest.join(':');
-  return type === 'contact' ? { contactId: id } : { userId: id };
-}
-
 export const paginationSchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),

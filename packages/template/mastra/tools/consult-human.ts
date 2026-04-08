@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { requestConsultation } from '../../modules/ai/lib/consult-human';
+import type { ModuleDeps } from '../../modules/ai/lib/deps';
 import {
   getModuleChannels,
   getModuleDb,
@@ -36,9 +37,12 @@ export const consultHumanTool = createTool({
     error: z.string().optional().describe('Error message if creation failed'),
   }),
   execute: async ({ reason, message }, context) => {
-    const db = getModuleDb();
-    const channels = getModuleChannels();
-    const scheduler = getModuleScheduler();
+    const rcDeps = context?.requestContext?.get('deps') as
+      | ModuleDeps
+      | undefined;
+    const db = rcDeps?.db ?? getModuleDb();
+    const channels = rcDeps?.channels ?? getModuleChannels();
+    const scheduler = rcDeps?.scheduler ?? getModuleScheduler();
     const conversationId =
       (context?.requestContext?.get('conversationId') as string | undefined) ??
       '';

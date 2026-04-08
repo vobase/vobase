@@ -13,8 +13,6 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { getAgent } from '../../../mastra/agents';
-import { reinitChat } from '../lib/chat-init';
-import { getModuleDeps } from '../lib/deps';
 import {
   channelInstances,
   channelRoutings,
@@ -283,21 +281,6 @@ export const channelsHandlers = new Hono()
     );
     logger.info('WhatsApp connect: adapter hot-reloaded');
 
-    // Step 6: Reinitialize chat to pick up the new channel instance (non-fatal)
-    try {
-      await reinitChat({
-        db: ctx.db,
-        scheduler: ctx.scheduler,
-        channels: ctx.channels,
-        realtime: getModuleDeps().realtime,
-      });
-      logger.info('WhatsApp connect: chat reinitialized');
-    } catch (err) {
-      logger.error('WhatsApp connect: reinitChat failed (non-fatal)', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
     logger.info('WhatsApp connect: credentials stored, queueing setup job', {
       integrationId: integration.id,
     });
@@ -506,21 +489,6 @@ export const channelsHandlers = new Hono()
     // Disconnect the underlying integration if present
     if (existing.integrationId) {
       await integrations.disconnect(existing.integrationId);
-    }
-
-    // Reinitialize chat to drop the removed instance (non-fatal)
-    try {
-      await reinitChat({
-        db,
-        scheduler,
-        channels,
-        realtime: getModuleDeps().realtime,
-      });
-      logger.info('Instance delete: chat reinitialized', { instanceId });
-    } catch (err) {
-      logger.error('Instance delete: reinitChat failed (non-fatal)', {
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
 
     return c.json({ success: true });

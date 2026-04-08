@@ -1,9 +1,9 @@
 import { createTool } from '@mastra/core/tools';
-import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
+import type { ModuleDeps } from '../../modules/ai/lib/deps';
 import { getModuleDeps } from '../../modules/ai/lib/deps';
-import { conversations } from '../../modules/ai/schema';
+import { transition } from '../../modules/ai/lib/state-machine';
 
 export const completeConversationTool = createTool({
   id: 'complete_conversation',
@@ -16,8 +16,10 @@ export const completeConversationTool = createTool({
     success: z.boolean(),
     message: z.string(),
   }),
-  execute: async (input, context) => {
-    const deps = getModuleDeps();
+  execute: async (_input, context) => {
+    const deps =
+      (context?.requestContext?.get('deps') as ModuleDeps | undefined) ??
+      getModuleDeps();
 
     const conversationId =
       (context?.requestContext?.get('conversationId') as string | undefined) ??
@@ -27,36 +29,13 @@ export const completeConversationTool = createTool({
       return { success: false, message: 'No conversation context available' };
     }
 
-    const [conversation] = await deps.db
-      .select({
-        metadata: conversations.metadata,
-        status: conversations.status,
-      })
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
+    const result = await transition(deps, conversationId, {
+      type: 'SET_COMPLETING',
+    });
 
-    if (!conversation || conversation.status !== 'active') {
-      return {
-        success: false,
-        message: 'Conversation not found or not active',
-      };
+    if (!result.ok) {
+      return { success: false, message: result.error };
     }
-
-    const existingMeta =
-      conversation.metadata && typeof conversation.metadata === 'object'
-        ? (conversation.metadata as Record<string, unknown>)
-        : {};
-
-    await deps.db
-      .update(conversations)
-      .set({
-        metadata: {
-          ...existingMeta,
-          completing: true,
-          completionSummary: input.summary,
-        },
-      })
-      .where(eq(conversations.id, conversationId));
 
     return {
       success: true,

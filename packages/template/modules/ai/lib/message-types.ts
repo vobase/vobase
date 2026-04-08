@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
 // ─── Content Type Discriminants ────────────────────────────────────
+// These types must stay in sync with the CHECK constraints in schema.ts
+// (messages_type_check, messages_content_type_check, messages_sender_type_check,
+//  messages_status_check, messages_resolution_status_check).
 
 export type MessageType = 'incoming' | 'outgoing' | 'activity';
 export type SenderType = 'contact' | 'user' | 'agent' | 'system';
