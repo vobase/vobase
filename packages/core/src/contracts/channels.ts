@@ -42,6 +42,30 @@ export interface ChannelAdapter {
    *  Used when the webhook URL doesn't include an instanceId param
    *  (e.g. Messenger/Instagram where Meta sends all events to one URL). */
   extractInstanceIdentifier?(payload: unknown): string | null;
+
+  /** Adapter-specific outbound serialization (template, interactive, media routing). */
+  serializeOutbound?(message: {
+    content: string;
+    contentData: unknown;
+  }): OutboundMessage;
+
+  /** Format text for channel (e.g. WhatsApp markdown, email HTML wrapping). */
+  renderContent?(text: string): string;
+
+  /** Whether messages go through delivery queue or are instant (web). */
+  deliveryModel?: 'queued' | 'realtime';
+
+  /** Which contact field to use for outbound addressing. */
+  contactIdentifierField?: 'phone' | 'email' | 'identifier';
+
+  /** Per-channel debounce window in ms (WhatsApp: 3000, Email: 30000, Web: 0). */
+  debounceWindowMs?: number;
+
+  /** Format session state for agent prompt injection. */
+  getSessionContext?(session: {
+    windowExpiresAt: Date | null;
+    sessionState: string | null;
+  }): string | null;
 }
 
 export interface ChannelCapabilities {
@@ -132,10 +156,20 @@ export interface OutboundMessage {
       index?: number;
       parameters: Array<
         | { type: 'text'; text: string }
-        | { type: 'currency'; currency: { fallback_value: string; code: string; amount_1000: number } }
+        | {
+            type: 'currency';
+            currency: {
+              fallback_value: string;
+              code: string;
+              amount_1000: number;
+            };
+          }
         | { type: 'date_time'; date_time: { fallback_value: string } }
         | { type: 'image'; image: { link?: string; id?: string } }
-        | { type: 'document'; document: { link?: string; id?: string; filename?: string } }
+        | {
+            type: 'document';
+            document: { link?: string; id?: string; filename?: string };
+          }
         | { type: 'video'; video: { link?: string; id?: string } }
       >;
     }>;

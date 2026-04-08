@@ -5,7 +5,6 @@ import {
   authTableMap,
   organizationTableMap,
 } from './modules/auth/schema';
-
 import { channelsLog, channelsTemplates } from './modules/channels/schema';
 import { integrationsTable } from './modules/integrations/schema';
 import { sequences } from './modules/sequences/schema';

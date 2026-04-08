@@ -154,7 +154,9 @@ export async function refreshViaPlat(
 
   const tenantSlug = process.env.PLATFORM_TENANT_SLUG;
   if (!tenantSlug) {
-    throw new Error('PLATFORM_TENANT_SLUG env var is required for platform token refresh');
+    throw new Error(
+      'PLATFORM_TENANT_SLUG env var is required for platform token refresh',
+    );
   }
 
   const res = await fetch(`${platformUrl}/api/oauth-proxy/token/refresh`, {

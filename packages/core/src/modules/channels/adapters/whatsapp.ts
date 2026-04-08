@@ -131,11 +131,11 @@ export class WhatsAppApiError extends Error {
 const MAX_TEXT_LENGTH = 4096;
 const EVICTION_TTL_MS = 60_000;
 const MEDIA_SIZE_LIMITS: Record<string, number> = {
-  image: 5 * 1024 * 1024,       // 5MB
-  video: 16 * 1024 * 1024,      // 16MB
-  audio: 16 * 1024 * 1024,      // 16MB
-  document: 100 * 1024 * 1024,  // 100MB
-  sticker: 500 * 1024,          // 500KB (animated max)
+  image: 5 * 1024 * 1024, // 5MB
+  video: 16 * 1024 * 1024, // 16MB
+  audio: 16 * 1024 * 1024, // 16MB
+  document: 100 * 1024 * 1024, // 100MB
+  sticker: 500 * 1024, // 500KB (animated max)
 };
 const DEFAULT_MEDIA_SIZE_LIMIT = 25 * 1024 * 1024; // 25MB fallback
 
@@ -344,7 +344,9 @@ export function createWhatsAppAdapter(
       });
       if (!binRes.ok) return null;
 
-      const maxSize: number = (mediaType ? MEDIA_SIZE_LIMITS[mediaType] : undefined) ?? DEFAULT_MEDIA_SIZE_LIMIT;
+      const maxSize: number =
+        (mediaType ? MEDIA_SIZE_LIMITS[mediaType] : undefined) ??
+        DEFAULT_MEDIA_SIZE_LIMIT;
 
       // Check content-length before downloading to enforce size limit
       const contentLength = binRes.headers.get('content-length');
@@ -502,7 +504,8 @@ export function createWhatsAppAdapter(
         }
         // Also key contactMap by msg.from for profile name lookup when from !== wa_id
         for (const msg of value.messages ?? []) {
-          const contact = contacts.find((c) => c.wa_id === msg.from) ?? contacts[0];
+          const contact =
+            contacts.find((c) => c.wa_id === msg.from) ?? contacts[0];
           if (contact && contact.wa_id !== msg.from) {
             contactMap.set(msg.from, contact.profile.name);
             fromToWaId.set(msg.from, contact.wa_id);
@@ -515,7 +518,11 @@ export function createWhatsAppAdapter(
             // Skip recently sent (dedup outbound echoes)
             if (isRecentlySent(msg.id)) continue;
 
-            const event = await parseInboundMessage(msg, contactMap, fromToWaId);
+            const event = await parseInboundMessage(
+              msg,
+              contactMap,
+              fromToWaId,
+            );
             if (event) events.push(event);
           }
         }
@@ -542,7 +549,8 @@ export function createWhatsAppAdapter(
     const base = {
       channel: 'whatsapp',
       from: msg.from,
-      profileName: contactMap.get(msg.from) || contactMap.get(resolvedWaId) || '',
+      profileName:
+        contactMap.get(msg.from) || contactMap.get(resolvedWaId) || '',
       messageId: msg.id,
       timestamp: Number.parseInt(msg.timestamp, 10) * 1000,
     };
@@ -685,7 +693,10 @@ export function createWhatsAppAdapter(
             ...base,
             content: msg.interactive.button_reply.title,
             messageType: 'button_reply',
-            metadata: { ...baseMetadata, buttonId: msg.interactive.button_reply.id },
+            metadata: {
+              ...baseMetadata,
+              buttonId: msg.interactive.button_reply.id,
+            },
           } satisfies MessageReceivedEvent;
         }
         if (msg.interactive?.list_reply) {
@@ -850,7 +861,10 @@ export function createWhatsAppAdapter(
         ? [
             {
               type: 'body',
-              parameters: tmpl.parameters.map((p) => ({ type: 'text', text: p })),
+              parameters: tmpl.parameters.map((p) => ({
+                type: 'text',
+                text: p,
+              })),
             },
           ]
         : undefined;
@@ -1096,7 +1110,9 @@ export function createWhatsAppAdapter(
     extractInstanceIdentifier(payload: unknown): string | null {
       try {
         const p = payload as WebhookPayload;
-        return p?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? null;
+        return (
+          p?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? null
+        );
       } catch {
         return null;
       }

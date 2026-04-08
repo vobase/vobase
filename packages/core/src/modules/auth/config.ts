@@ -5,10 +5,12 @@
  * - Runtime: createAuthModule() in index.ts
  * - CLI: auth.ts at package root (schema generation)
  */
-import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
+
 import { apiKey } from '@better-auth/api-key';
+import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
 import { anonymous, organization } from 'better-auth/plugins';
 import { emailOTP } from 'better-auth/plugins/email-otp';
+
 import { platformAuth } from './platform-plugin';
 
 /** Callback to deliver OTP codes (email, SMS, etc.). */

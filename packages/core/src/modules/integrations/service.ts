@@ -101,22 +101,32 @@ export function createIntegrationsService(db: VobaseDb): IntegrationsService {
         try {
           return rowToIntegration(rows[0]);
         } catch (decryptErr) {
-          logger.warn('getActive: failed to decrypt integration config, skipping', {
-            provider,
-            id: rows[0].id,
-            error: decryptErr instanceof Error ? decryptErr.message : String(decryptErr),
-          });
+          logger.warn(
+            'getActive: failed to decrypt integration config, skipping',
+            {
+              provider,
+              id: rows[0].id,
+              error:
+                decryptErr instanceof Error
+                  ? decryptErr.message
+                  : String(decryptErr),
+            },
+          );
           return null;
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : '';
         const cause = err instanceof Error ? err.cause : undefined;
         const causeMsg =
-          cause != null && typeof (cause as { message?: unknown }).message === 'string'
+          cause != null &&
+          typeof (cause as { message?: unknown }).message === 'string'
             ? (cause as { message: string }).message
             : '';
         const fullMsg = `${msg} ${causeMsg}`;
-        if (fullMsg.includes('relation') && fullMsg.includes('does not exist')) {
+        if (
+          fullMsg.includes('relation') &&
+          fullMsg.includes('does not exist')
+        ) {
           return null;
         }
         throw err;

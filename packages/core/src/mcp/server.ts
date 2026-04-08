@@ -2,8 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { desc } from 'drizzle-orm';
 import { z } from 'zod';
 
-import type { AuthUser } from '../contracts/auth';
-import type { VerifyApiKey } from '../contracts/auth';
+import type { AuthUser, VerifyApiKey } from '../contracts/auth';
 import type { VobaseDb } from '../db';
 import type { VobaseModule } from '../module';
 import { auditLog } from '../modules/audit/schema';

@@ -1,7 +1,7 @@
 import type { ApiKey } from '@better-auth/api-key';
 import { betterAuth } from 'better-auth';
-import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 
@@ -12,15 +12,8 @@ import type {
   RevokeApiKey,
   VerifyApiKey,
 } from '../../contracts/auth';
-import { logger } from '../../infra/logger';
-import {
-  authInvitation,
-  authMember,
-  authOrganization,
-  authSession,
-  authUser,
-} from './schema';
 import type { VobaseDb } from '../../db/client';
+import { logger } from '../../infra/logger';
 import type { VobaseModule } from '../../module';
 import { defineBuiltinModule } from '../../module';
 import { createAuthAuditHooks } from './audit-hooks';
@@ -32,7 +25,12 @@ import {
 import {
   apikeyTableMap,
   authApikey,
+  authInvitation,
+  authMember,
+  authOrganization,
+  authSession,
   authTableMap,
+  authUser,
   organizationTableMap,
 } from './schema';
 
@@ -131,7 +129,9 @@ export async function autoJoinOrganization(
           organizationId: soleOrg.id,
           role,
         });
-        logger.info(`[auth] Auto-joined ${email} to org via domain match (${role})`);
+        logger.info(
+          `[auth] Auto-joined ${email} to org via domain match (${role})`,
+        );
         return soleOrg.id;
       }
     }
@@ -189,7 +189,11 @@ function buildAuthHooks(db: VobaseDb, config?: AuthModuleConfig) {
               config,
             );
             // Auto-set active org on the session so requireOrg() works immediately
-            if (orgId && session?.session?.id && !session.session.activeOrganizationId) {
+            if (
+              orgId &&
+              session?.session?.id &&
+              !session.session.activeOrganizationId
+            ) {
               await db
                 .update(authSession)
                 .set({ activeOrganizationId: orgId })
@@ -277,18 +281,15 @@ export function createAuthModule(
     init: async () => {
       // Auto-create default org on first boot for platform-provisioned tenants
       const tenantName = process.env.VITE_PLATFORM_TENANT_NAME;
-      if (!tenantName) return;
+      const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG;
+      if (!tenantName || !tenantSlug) return;
       const [existing] = await db
         .select({ id: authOrganization.id })
         .from(authOrganization)
         .limit(1);
       if (!existing) {
         const orgName = tenantName;
-        const orgSlug =
-          orgName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '') || 'default';
+        const orgSlug = tenantSlug;
         await db
           .insert(authOrganization)
           .values({
@@ -297,7 +298,9 @@ export function createAuthModule(
             slug: orgSlug,
           })
           .onConflictDoNothing();
-        logger.info(`[auth] Created default organization: ${orgName} (${orgSlug})`);
+        logger.info(
+          `[auth] Created default organization: ${orgName} (${orgSlug})`,
+        );
       }
     },
   });

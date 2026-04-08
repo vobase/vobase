@@ -114,9 +114,9 @@ export { trackChanges } from './modules/audit/track-changes';
 export {
   type AuthModule,
   type AuthModuleConfig,
+  createAuthModule,
   type SendInvitationEmail,
   type SendVerificationOTP,
-  createAuthModule,
 } from './modules/auth';
 // Auth Audit Hooks (re-exported from auth module)
 export { createAuthAuditHooks } from './modules/auth/audit-hooks';

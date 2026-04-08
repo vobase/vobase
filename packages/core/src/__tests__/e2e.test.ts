@@ -157,71 +157,75 @@ async function bootstrapDatabase(dir: string): Promise<void> {
 }
 
 // PGlite + pg-boss flaky under parallel test load (electric-sql/pglite#324)
-(process.env.CI ? describe.skip : describe)('vobase engine e2e integration', () => {
-  beforeAll(async () => {
-    previousAuthSecret = process.env.BETTER_AUTH_SECRET;
-    previousAuthUrl = process.env.BETTER_AUTH_URL;
-    process.env.BETTER_AUTH_SECRET = 'vobase-e2e-secret';
-    process.env.BETTER_AUTH_URL = 'http://localhost';
+(process.env.CI ? describe.skip : describe)(
+  'vobase engine e2e integration',
+  () => {
+    beforeAll(async () => {
+      previousAuthSecret = process.env.BETTER_AUTH_SECRET;
+      previousAuthUrl = process.env.BETTER_AUTH_URL;
+      process.env.BETTER_AUTH_SECRET = 'vobase-e2e-secret';
+      process.env.BETTER_AUTH_URL = 'http://localhost';
 
-    await bootstrapDatabase(tempDir);
+      await bootstrapDatabase(tempDir);
 
-    app = await createApp({
-      database: tempDir,
-      modules: [],
-      mcp: { enabled: true },
+      app = await createApp({
+        database: tempDir,
+        modules: [],
+        mcp: { enabled: true },
+      });
     });
-  });
 
-  afterAll(() => {
-    if (previousAuthSecret === undefined) delete process.env.BETTER_AUTH_SECRET;
-    else process.env.BETTER_AUTH_SECRET = previousAuthSecret;
-    if (previousAuthUrl === undefined) delete process.env.BETTER_AUTH_URL;
-    else process.env.BETTER_AUTH_URL = previousAuthUrl;
+    afterAll(() => {
+      if (previousAuthSecret === undefined)
+        delete process.env.BETTER_AUTH_SECRET;
+      else process.env.BETTER_AUTH_SECRET = previousAuthSecret;
+      if (previousAuthUrl === undefined) delete process.env.BETTER_AUTH_URL;
+      else process.env.BETTER_AUTH_URL = previousAuthUrl;
 
-    rmSync(tempDir, { force: true, recursive: true });
-  });
-  it('health endpoint returns ok', async () => {
-    const health = await app.request('http://localhost/health');
-    const healthBody = (await health.json()) as {
-      status: string;
-      uptime: number;
-    };
-    expect(health.status).toBe(200);
-    expect(healthBody).toMatchObject({ status: 'ok' });
-    expect(typeof healthBody.uptime).toBe('number');
-  });
+      rmSync(tempDir, { force: true, recursive: true });
+    });
+    it('health endpoint returns ok', async () => {
+      const health = await app.request('http://localhost/health');
+      const healthBody = (await health.json()) as {
+        status: string;
+        uptime: number;
+      };
+      expect(health.status).toBe(200);
+      expect(healthBody).toMatchObject({ status: 'ok' });
+      expect(typeof healthBody.uptime).toBe('number');
+    });
 
-  it('auth anonymous sign-in works', async () => {
-    const signin = await app.request(
-      'http://localhost/api/auth/sign-in/anonymous',
-      {
+    it('auth anonymous sign-in works', async () => {
+      const signin = await app.request(
+        'http://localhost/api/auth/sign-in/anonymous',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
+      expect(signin.status).toBe(200);
+      sessionCookie =
+        (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+      expect(sessionCookie.length).toBeGreaterThan(0);
+    });
+
+    it('MCP tools/list returns tools array', async () => {
+      const mcp = await app.request('http://localhost/mcp', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      },
-    );
-    expect(signin.status).toBe(200);
-    sessionCookie =
-      (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
-    expect(sessionCookie.length).toBeGreaterThan(0);
-  });
-
-  it('MCP tools/list returns tools array', async () => {
-    const mcp = await app.request('http://localhost/mcp', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
+      });
+      expect(mcp.status).toBe(200);
+      expect(
+        Array.isArray(
+          ((await mcp.json()) as { result?: { tools?: unknown[] } }).result
+            ?.tools,
+        ),
+      ).toBe(true);
     });
-    expect(mcp.status).toBe(200);
-    expect(
-      Array.isArray(
-        ((await mcp.json()) as { result?: { tools?: unknown[] } }).result
-          ?.tools,
-      ),
-    ).toBe(true);
-  });
-});
+  },
+);

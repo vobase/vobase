@@ -672,7 +672,13 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG);
       const payload = makeMessagePayload({
         type: 'errors',
-        errors: [{ code: 131051, title: 'Unsupported message type', details: 'Not supported' }],
+        errors: [
+          {
+            code: 131051,
+            title: 'Unsupported message type',
+            details: 'Not supported',
+          },
+        ],
       });
       const req = makeSignedWebhookRequest(payload);
       const events = (await adapter.parseWebhook?.(req)) ?? [];
@@ -680,7 +686,9 @@ describe('WhatsApp Adapter', () => {
       const evt = events[0] as MessageReceivedEvent;
       expect(evt.messageType).toBe('unsupported');
       expect(evt.metadata?.errors).toBeDefined();
-      expect((evt.metadata?.errors as Array<{ code: number }>)[0].code).toBe(131051);
+      expect((evt.metadata?.errors as Array<{ code: number }>)[0].code).toBe(
+        131051,
+      );
     });
 
     it('handles empty entry array', async () => {
@@ -744,7 +752,26 @@ describe('WhatsApp Adapter', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           object: 'instagram',
-          entry: [{ changes: [{ value: { messages: [{ id: 'msg1', from: '123', timestamp: '1234567890', type: 'text', text: { body: 'hi' } }] }, field: 'messages' }] }]
+          entry: [
+            {
+              changes: [
+                {
+                  value: {
+                    messages: [
+                      {
+                        id: 'msg1',
+                        from: '123',
+                        timestamp: '1234567890',
+                        type: 'text',
+                        text: { body: 'hi' },
+                      },
+                    ],
+                  },
+                  field: 'messages',
+                },
+              ],
+            },
+          ],
         }),
       });
       const events = await adapter.parseWebhook?.(request);
@@ -956,7 +983,11 @@ describe('WhatsApp Adapter', () => {
         to: '16315555555',
         media: [
           { type: 'image', url: 'https://example.com/img1.jpg' },
-          { type: 'document', url: 'https://example.com/doc.pdf', filename: 'doc.pdf' },
+          {
+            type: 'document',
+            url: 'https://example.com/doc.pdf',
+            filename: 'doc.pdf',
+          },
         ],
       });
       expect(result.success).toBe(true);
@@ -1068,7 +1099,10 @@ describe('WhatsApp Adapter', () => {
         .filter(([_, v]) => !v.retryable)
         .map(([k]) => Number(k));
 
-      for (const code of [131026, 131030, 131042, 131047, 131049, 131050, 131051, 132000, 132001, 132005, 132012, 132015, 132068, 190, 133010, 130472]) {
+      for (const code of [
+        131026, 131030, 131042, 131047, 131049, 131050, 131051, 132000, 132001,
+        132005, 132012, 132015, 132068, 190, 133010, 130472,
+      ]) {
         expect(nonRetryable).toContain(code);
       }
     });
@@ -1148,17 +1182,24 @@ describe('WhatsApp Adapter', () => {
       const adapter = createWhatsAppAdapter(config);
       const payload = {
         object: 'whatsapp_business_account',
-        entry: [{
-          id: 'WABA_ID',
-          changes: [{
-            value: {
-              messaging_product: 'whatsapp',
-              metadata: { display_phone_number: '15551234567', phone_number_id: 'PHONE_123' },
-              messages: [],
-            },
-            field: 'messages',
-          }],
-        }],
+        entry: [
+          {
+            id: 'WABA_ID',
+            changes: [
+              {
+                value: {
+                  messaging_product: 'whatsapp',
+                  metadata: {
+                    display_phone_number: '15551234567',
+                    phone_number_id: 'PHONE_123',
+                  },
+                  messages: [],
+                },
+                field: 'messages',
+              },
+            ],
+          },
+        ],
       };
       expect(adapter.extractInstanceIdentifier?.(payload)).toBe('PHONE_123');
     });
@@ -1240,8 +1281,13 @@ describe('WhatsApp Adapter', () => {
         );
       }) as unknown as typeof fetch;
 
-      await adapter.send({ to: '16315555555', text: 'Check https://example.com' });
-      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(true);
+      await adapter.send({
+        to: '16315555555',
+        text: 'Check https://example.com',
+      });
+      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(
+        true,
+      );
     });
 
     it('sets preview_url: false when text has no URL', async () => {
@@ -1261,7 +1307,9 @@ describe('WhatsApp Adapter', () => {
       }) as unknown as typeof fetch;
 
       await adapter.send({ to: '16315555555', text: 'Hello, no links here' });
-      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(false);
+      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(
+        false,
+      );
     });
   });
 
@@ -1396,7 +1444,12 @@ describe('WhatsApp Adapter', () => {
           components: [
             {
               type: 'header',
-              parameters: [{ type: 'image', image: { link: 'https://example.com/img.jpg' } }],
+              parameters: [
+                {
+                  type: 'image',
+                  image: { link: 'https://example.com/img.jpg' },
+                },
+              ],
             },
             {
               type: 'body',
@@ -1420,7 +1473,9 @@ describe('WhatsApp Adapter', () => {
 
       const tmplPayload = capturedBody?.template as Record<string, unknown>;
       expect(tmplPayload?.name).toBe('order_confirmation');
-      const sentComponents = tmplPayload?.components as Array<Record<string, unknown>>;
+      const sentComponents = tmplPayload?.components as Array<
+        Record<string, unknown>
+      >;
       expect(sentComponents).toHaveLength(3);
       expect(sentComponents[0].type).toBe('header');
       expect(sentComponents[1].type).toBe('body');
@@ -1455,10 +1510,14 @@ describe('WhatsApp Adapter', () => {
 
       expect(result.success).toBe(true);
       const tmplPayload = capturedBody?.template as Record<string, unknown>;
-      const sentComponents = tmplPayload?.components as Array<Record<string, unknown>>;
+      const sentComponents = tmplPayload?.components as Array<
+        Record<string, unknown>
+      >;
       expect(sentComponents).toHaveLength(1);
       expect(sentComponents[0].type).toBe('body');
-      const bodyParams = sentComponents[0].parameters as Array<Record<string, unknown>>;
+      const bodyParams = sentComponents[0].parameters as Array<
+        Record<string, unknown>
+      >;
       expect(bodyParams[0]).toEqual({ type: 'text', text: 'Alice' });
     });
   });

@@ -4,8 +4,8 @@ import type {
   SendResult,
 } from '../../contracts/channels';
 import type { VobaseDb } from '../../db/client';
-import type { ProvisionChannelData } from '../../infra/platform';
 import { logger } from '../../infra/logger';
+import type { ProvisionChannelData } from '../../infra/platform';
 import type { ChannelEventEmitter } from './events';
 import { channelsLog } from './schema';
 
@@ -22,6 +22,10 @@ export interface ChannelsService {
   email: ChannelSend;
   whatsapp: ChannelSend;
   on: ChannelEventEmitter['on'];
+  /** Look up a channel adapter by type name. Returns undefined if not registered. */
+  get(type: string): ChannelSend | undefined;
+  /** Look up the raw adapter by type name. Returns undefined if not registered. */
+  getAdapter(type: string): ChannelAdapter | undefined;
   /** Register a channel adapter at runtime (hot-reload). */
   registerAdapter(name: string, adapter: ChannelAdapter): void;
   /** Register a handler for channel provisioning (called from module init). */
@@ -113,6 +117,7 @@ export function createChannelsService(
 ): ChannelsService {
   const { db, adapters, emitter } = deps;
   let provisionHandler: ProvisionHandler | null = null;
+  const channelSendCache = new Map<string, ChannelSend>();
 
   return {
     // Lazy lookup: email tries 'email', then 'resend', then 'smtp'
@@ -124,8 +129,21 @@ export function createChannelsService(
     // Lazy lookup: whatsapp checks adapters Map at send-time
     whatsapp: createChannelSend(db, 'whatsapp', adapters),
     on: emitter.on.bind(emitter),
+    get(type: string): ChannelSend | undefined {
+      if (!adapters.has(type)) return undefined;
+      let cached = channelSendCache.get(type);
+      if (!cached) {
+        cached = createChannelSend(db, type, adapters);
+        channelSendCache.set(type, cached);
+      }
+      return cached;
+    },
+    getAdapter(type: string): ChannelAdapter | undefined {
+      return adapters.get(type);
+    },
     registerAdapter(name: string, adapter: ChannelAdapter) {
       adapters.set(name, adapter);
+      channelSendCache.delete(name);
       logger.info(`Channel adapter registered (hot-reload): ${name}`);
     },
     onProvision(handler: ProvisionHandler) {

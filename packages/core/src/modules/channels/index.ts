@@ -140,10 +140,9 @@ export function createChannelsModule(
 
     // L6: Warn when platform signature is present but HMAC secret is not configured
     if (platformSig && !process.env.PLATFORM_HMAC_SECRET) {
-      logger.warn(
-        'Platform signature present but HMAC secret not configured',
-        { channel: channelType },
-      );
+      logger.warn('Platform signature present but HMAC secret not configured', {
+        channel: channelType,
+      });
     }
 
     if (platformSig && !providerSig && process.env.PLATFORM_HMAC_SECRET) {
@@ -180,9 +179,11 @@ export function createChannelsModule(
     const request = c.req.raw;
     Promise.resolve()
       .then(async () => {
-        let events: Awaited<ReturnType<NonNullable<typeof adapter.parseWebhook>>>;
+        let events: Awaited<
+          ReturnType<NonNullable<typeof adapter.parseWebhook>>
+        >;
         try {
-          events = await adapter.parseWebhook?.(request) ?? [];
+          events = (await adapter.parseWebhook?.(request)) ?? [];
         } catch (error) {
           // M12: Classify as adapter_parse_error
           logger.error('Webhook processing error', {

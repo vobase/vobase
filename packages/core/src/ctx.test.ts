@@ -34,6 +34,12 @@ const channels: ChannelsService = {
   email: { send: async () => ({ success: true }) },
   whatsapp: { send: async () => ({ success: true }) },
   on() {},
+  get() {
+    return undefined;
+  },
+  getAdapter() {
+    return undefined;
+  },
   registerAdapter() {},
   onProvision() {},
   async provision() {

@@ -457,9 +457,7 @@ describe('platform /provision-channel', () => {
   });
 
   test('provisions with minimal body (no optional fields)', async () => {
-    const onProvision = mock(() =>
-      Promise.resolve({ instanceId: 'inst_min' }),
-    );
+    const onProvision = mock(() => Promise.resolve({ instanceId: 'inst_min' }));
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
@@ -492,9 +490,7 @@ describe('platform /provision-channel', () => {
   });
 
   test('rejects missing HMAC signature with 401', async () => {
-    const onProvision = mock(() =>
-      Promise.resolve({ instanceId: 'x' }),
-    );
+    const onProvision = mock(() => Promise.resolve({ instanceId: 'x' }));
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
@@ -518,9 +514,7 @@ describe('platform /provision-channel', () => {
   });
 
   test('rejects invalid HMAC signature with 401', async () => {
-    const onProvision = mock(() =>
-      Promise.resolve({ instanceId: 'x' }),
-    );
+    const onProvision = mock(() => Promise.resolve({ instanceId: 'x' }));
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
@@ -547,9 +541,7 @@ describe('platform /provision-channel', () => {
   });
 
   test('rejects invalid body (missing type) with 400', async () => {
-    const onProvision = mock(() =>
-      Promise.resolve({ instanceId: 'x' }),
-    );
+    const onProvision = mock(() => Promise.resolve({ instanceId: 'x' }));
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
@@ -575,9 +567,7 @@ describe('platform /provision-channel', () => {
   });
 
   test('rejects invalid source enum with 400', async () => {
-    const onProvision = mock(() =>
-      Promise.resolve({ instanceId: 'x' }),
-    );
+    const onProvision = mock(() => Promise.resolve({ instanceId: 'x' }));
     const routes = createPlatformIntegrationsRoutes({
       db: {} as unknown as VobaseDb,
       integrationsService: createMockService(),
@@ -641,9 +631,7 @@ describe('platform /provision-channel', () => {
     delete process.env.PLATFORM_HMAC_SECRET;
 
     try {
-      const onProvision = mock(() =>
-        Promise.resolve({ instanceId: 'x' }),
-      );
+      const onProvision = mock(() => Promise.resolve({ instanceId: 'x' }));
       const routes = createPlatformIntegrationsRoutes({
         db: {} as unknown as VobaseDb,
         integrationsService: createMockService(),

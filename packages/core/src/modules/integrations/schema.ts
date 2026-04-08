@@ -1,5 +1,11 @@
 import { sql } from 'drizzle-orm';
-import { check, index, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  check,
+  index,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
 import { DEFAULT_COLUMNS, nanoidPrimaryKey } from '../../db/helpers';
 import { infraPgSchema } from '../../db/pg-schemas';

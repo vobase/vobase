@@ -4,9 +4,9 @@ import { streamSSE } from 'hono/streaming';
 import { contextMiddleware } from './ctx';
 import { createDatabase } from './db/client';
 import { errorHandler } from './infra/errors';
-import { logger } from './infra/logger';
 import { createHttpClient, type HttpClientOptions } from './infra/http-client';
 import { createWorker } from './infra/job';
+import { logger } from './infra/logger';
 import {
   createPlatformIntegrationsRoutes,
   isPlatformEnabled,
@@ -98,8 +98,7 @@ export async function createApp(config: CreateAppConfig) {
             bucket: vaultIntegration.config.bucket as string,
             endpoint: vaultIntegration.config.endpoint as string,
             accessKeyId: vaultIntegration.config.accessKeyId as string,
-            secretAccessKey: vaultIntegration.config
-              .secretAccessKey as string,
+            secretAccessKey: vaultIntegration.config.secretAccessKey as string,
           },
           buckets: config.storage.buckets,
         };

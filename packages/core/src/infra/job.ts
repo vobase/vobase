@@ -83,7 +83,10 @@ export async function createWorker(
   try {
     await boss.start();
   } catch (err) {
-    console.error('[pg-boss worker] Failed to start — job workers will be disabled:', err);
+    console.error(
+      '[pg-boss worker] Failed to start — job workers will be disabled:',
+      err,
+    );
     return { close: async () => {} };
   }
 
