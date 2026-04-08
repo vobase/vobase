@@ -8,7 +8,6 @@ import {
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   BotIcon,
-  BrainIcon,
   CheckIcon,
   ChevronDownIcon,
   CircleAlertIcon,
@@ -173,41 +172,6 @@ async function fetchChannelInstance(
   });
   if (!res.ok) return null;
   return res.json() as unknown as Promise<ChannelInstance>;
-}
-
-interface MemoryStats {
-  cells: number;
-  episodes: number;
-  facts: number;
-}
-
-interface MemoryFact {
-  id: string;
-  content: string;
-  createdAt: string;
-}
-
-async function fetchContactMemoryStats(
-  contactId: string,
-): Promise<MemoryStats> {
-  const res = await aiClient.memory.stats.$get({
-    query: { scope: `contact:${contactId}` },
-  });
-  if (!res.ok) return { cells: 0, episodes: 0, facts: 0 };
-  return res.json();
-}
-
-async function fetchContactFacts(contactId: string): Promise<MemoryFact[]> {
-  const res = await aiClient.memory.facts.$get({
-    query: { scope: `contact:${contactId}` },
-  });
-  if (!res.ok) return [];
-  const data = (await res.json()) as unknown as {
-    facts?: Array<{ id: string; fact: string; createdAt: string }>;
-  };
-  return (data.facts ?? [])
-    .slice(0, 5)
-    .map((f) => ({ id: f.id, content: f.fact, createdAt: f.createdAt }));
 }
 
 interface AgentInfo {
@@ -390,18 +354,6 @@ function ConversationDetailPage() {
     queryKey: ['channel-instance', conversation?.channelInstanceId],
     queryFn: () => fetchChannelInstance(conversation?.channelInstanceId ?? ''),
     enabled: !!conversation?.channelInstanceId,
-  });
-
-  const { data: memoryStats } = useQuery({
-    queryKey: ['memory-stats', `contact:${conversation?.contactId}`],
-    queryFn: () => fetchContactMemoryStats(conversation?.contactId ?? ''),
-    enabled: !!conversation?.contactId,
-  });
-
-  const { data: memoryFacts = [] } = useQuery({
-    queryKey: ['memory-facts', `contact:${conversation?.contactId}`],
-    queryFn: () => fetchContactFacts(conversation?.contactId ?? ''),
-    enabled: !!conversation?.contactId && (memoryStats?.facts ?? 0) > 0,
   });
 
   const { data: agents = [] } = useQuery({
@@ -884,69 +836,6 @@ function ConversationDetailPage() {
                     </Collapsible>
                   </>
                 )}
-
-                {/* Contact Memory */}
-                {conversation.contactId &&
-                  memoryStats &&
-                  (memoryStats.facts > 0 ||
-                    memoryStats.episodes > 0 ||
-                    memoryStats.cells > 0) && (
-                    <>
-                      <Separator />
-                      <Collapsible defaultOpen>
-                        <CollapsibleTrigger className="flex w-full items-center justify-between group">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                            Memory
-                          </p>
-                          <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 space-y-2">
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <span>
-                              <span className="font-medium text-foreground">
-                                {memoryStats.facts}
-                              </span>{' '}
-                              facts
-                            </span>
-                            <span>
-                              <span className="font-medium text-foreground">
-                                {memoryStats.episodes}
-                              </span>{' '}
-                              episodes
-                            </span>
-                            <span>
-                              <span className="font-medium text-foreground">
-                                {memoryStats.cells}
-                              </span>{' '}
-                              cells
-                            </span>
-                          </div>
-                          {memoryFacts.length > 0 && (
-                            <div className="space-y-1.5">
-                              {memoryFacts.map((fact) => (
-                                <div
-                                  key={fact.id}
-                                  className="flex items-start gap-1.5 text-sm"
-                                >
-                                  <BrainIcon className="h-3 w-3 text-primary/40 mt-0.5 shrink-0" />
-                                  <span className="text-muted-foreground line-clamp-2 leading-relaxed">
-                                    {fact.content}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <Link
-                            to="/contacts/$contactId"
-                            params={{ contactId: conversation.contactId }}
-                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            View all memory &rarr;
-                          </Link>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    </>
-                  )}
               </div>
             </ScrollArea>
           </>

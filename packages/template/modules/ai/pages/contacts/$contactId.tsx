@@ -2,12 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   ArrowLeftIcon,
-  BookOpenIcon,
   BrainIcon,
   CalendarIcon,
   ChevronRightIcon,
-  ClockIcon,
-  LayersIcon,
   MailIcon,
   PhoneIcon,
   UserIcon,
@@ -48,25 +45,6 @@ interface Conversation {
   createdAt: string;
 }
 
-interface MemoryStats {
-  cells: number;
-  episodes: number;
-  facts: number;
-}
-
-interface MemoryEpisode {
-  id: string;
-  content: string;
-  timestamp?: string;
-  createdAt: string;
-}
-
-interface MemoryFact {
-  id: string;
-  content: string;
-  createdAt: string;
-}
-
 // ─── Data fetchers ───────────────────────────────────────────────────
 
 async function fetchContact(id: string): Promise<Contact> {
@@ -85,25 +63,6 @@ async function fetchContactConversations(
   return res.json() as unknown as Promise<Conversation[]>;
 }
 
-async function fetchMemoryStats(contactId: string): Promise<MemoryStats> {
-  const res = await aiClient.memory.stats.$get({
-    query: { scope: `contact:${contactId}` },
-  });
-  if (!res.ok) return { cells: 0, episodes: 0, facts: 0 };
-  return res.json();
-}
-
-async function fetchMemoryEpisodes(
-  contactId: string,
-): Promise<MemoryEpisode[]> {
-  const res = await aiClient.memory.episodes.$get({
-    query: { scope: `contact:${contactId}` },
-  });
-  if (!res.ok) return [];
-  const data = (await res.json()) as unknown as { episodes?: MemoryEpisode[] };
-  return data.episodes ?? [];
-}
-
 async function fetchWorkingMemory(contactId: string): Promise<string | null> {
   const res = await aiClient.memory.working.$get({
     query: { scope: `contact:${contactId}` },
@@ -113,21 +72,6 @@ async function fetchWorkingMemory(contactId: string): Promise<string | null> {
     workingMemory: string | null;
   };
   return data.workingMemory ?? null;
-}
-
-async function fetchMemoryFacts(contactId: string): Promise<MemoryFact[]> {
-  const res = await aiClient.memory.facts.$get({
-    query: { scope: `contact:${contactId}` },
-  });
-  if (!res.ok) return [];
-  const data = (await res.json()) as unknown as {
-    facts?: Array<{ id: string; fact: string; createdAt: string }>;
-  };
-  return (data.facts ?? []).map((f) => ({
-    id: f.id,
-    content: f.fact,
-    createdAt: f.createdAt,
-  }));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -346,65 +290,21 @@ function ConversationsTab({ contactId }: { contactId: string }) {
 // ─── Memory Tab ──────────────────────────────────────────────────────
 
 function MemoryTab({ contactId }: { contactId: string }) {
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['memory-stats', `contact:${contactId}`],
-    queryFn: () => fetchMemoryStats(contactId),
-  });
-
-  const { data: episodes = [] } = useQuery({
-    queryKey: ['memory-episodes', `contact:${contactId}`],
-    queryFn: () => fetchMemoryEpisodes(contactId),
-  });
-
-  const { data: facts = [] } = useQuery({
-    queryKey: ['memory-facts', `contact:${contactId}`],
-    queryFn: () => fetchMemoryFacts(contactId),
-  });
-
-  const { data: workingMemory } = useQuery({
+  const { data: workingMemory, isLoading } = useQuery({
     queryKey: ['memory-working', `contact:${contactId}`],
     queryFn: () => fetchWorkingMemory(contactId),
   });
 
-  const statCards = [
-    { label: 'Facts', value: stats?.facts ?? 0, icon: BrainIcon },
-    { label: 'Episodes', value: stats?.episodes ?? 0, icon: BookOpenIcon },
-    { label: 'Cells', value: stats?.cells ?? 0, icon: LayersIcon },
-  ];
-
-  const isEmpty =
-    !statsLoading &&
-    (stats?.facts ?? 0) + (stats?.episodes ?? 0) + (stats?.cells ?? 0) === 0 &&
-    !workingMemory;
-
   return (
     <div className="space-y-5">
-      {/* Stat cards */}
-      <div className="grid grid-cols-3 gap-3">
-        {statCards.map((card) => (
-          <Card key={card.label}>
-            <CardContent className="flex items-center gap-3 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
-                <card.icon className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                {statsLoading ? (
-                  <Skeleton className="h-5 w-8 mb-0.5" />
-                ) : (
-                  <p className="text-lg font-semibold leading-none">
-                    {card.value}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {card.label}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {isLoading && (
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full rounded-md" />
+          <Skeleton className="h-10 w-full rounded-md" />
+        </div>
+      )}
 
-      {isEmpty && (
+      {!isLoading && !workingMemory && (
         <div className="rounded-lg border bg-muted/20 py-8 text-center">
           <BrainIcon className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
           <p className="text-sm text-muted-foreground">
@@ -416,7 +316,6 @@ function MemoryTab({ contactId }: { contactId: string }) {
         </div>
       )}
 
-      {/* Working Memory (Mastra) */}
       {workingMemory && (
         <div>
           <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
@@ -435,68 +334,6 @@ function MemoryTab({ contactId }: { contactId: string }) {
               </div>
             </CardContent>
           </Card>
-        </div>
-      )}
-
-      {/* Facts */}
-      {facts.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-            Facts ({facts.length})
-          </h4>
-          <div className="space-y-1.5">
-            {facts.map((fact) => (
-              <div
-                key={fact.id}
-                className="flex items-start gap-2.5 rounded-md border bg-card px-3 py-2"
-              >
-                <BrainIcon className="h-3.5 w-3.5 text-primary/60 mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm leading-relaxed">{fact.content}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {formatDateTime(fact.createdAt)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Episodes */}
-      {episodes.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-            Episodes ({episodes.length})
-          </h4>
-          <div className="space-y-1.5">
-            {episodes.map((episode) => (
-              <div
-                key={episode.id}
-                className="flex items-start gap-2.5 rounded-md border bg-card px-3 py-2"
-              >
-                <ClockIcon className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm leading-relaxed">{episode.content}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {formatDateTime(episode.createdAt)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Link to full memory explorer */}
-      {!isEmpty && (
-        <div className="pt-2">
-          <Link
-            to="/ai/memory"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Open full memory explorer &rarr;
-          </Link>
         </div>
       )}
     </div>

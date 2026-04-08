@@ -4,21 +4,10 @@
  * enabling static Agent instances to resolve processors at runtime.
  */
 import type { Mastra } from '@mastra/core';
-import type {
-  InputProcessorOrWorkflow,
-  OutputProcessorOrWorkflow,
-} from '@mastra/core/processors';
+import type { InputProcessorOrWorkflow } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 
-import {
-  getModuleDbOrNull,
-  getModuleScheduler,
-} from '../../modules/ai/lib/deps';
-import { resolveScope } from '../lib/agents/shared';
-import {
-  createMemoryInputProcessor,
-  createMemoryOutputProcessor,
-} from './memory/memory-processor';
+import { getModuleDbOrNull } from '../../modules/ai/lib/deps';
 import { createModerationProcessor } from './moderation';
 import { createModerationLogger } from './moderation-logger';
 
@@ -31,7 +20,8 @@ export interface AgentRequestContext {
 }
 
 /**
- * Dynamic input processors: moderation + memory retrieval.
+ * Dynamic input processors: moderation only.
+ * Memory recall is now handled by Mastra Memory's built-in semantic recall + OM.
  * Returns empty array in Studio context (no requestContext).
  */
 export function resolveInputProcessors({
@@ -54,11 +44,7 @@ export function resolveInputProcessors({
   const db = getModuleDbOrNull();
   if (!rc?.conversationId || !db) return [];
 
-  const scope = resolveScope({
-    conversationId: rc.conversationId,
-    contactId: rc.contactId,
-  });
-  const processors: InputProcessorOrWorkflow[] = [
+  return [
     createModerationProcessor(
       undefined,
       createModerationLogger(db, {
@@ -68,65 +54,5 @@ export function resolveInputProcessors({
         conversationId: rc.conversationId,
       }),
     ),
-  ];
-
-  if (scope) {
-    processors.push(
-      createMemoryInputProcessor({
-        db,
-        conversationId: rc.conversationId,
-        scope,
-      }),
-    );
-  }
-
-  return processors;
-}
-
-/**
- * Dynamic output processors: memory formation.
- * Returns empty array in Studio context (no requestContext).
- */
-export function resolveOutputProcessors({
-  requestContext,
-}: {
-  requestContext: RequestContext<unknown>;
-  mastra?: Mastra;
-}): OutputProcessorOrWorkflow[] {
-  const rc = (
-    requestContext?.get?.('conversationId')
-      ? Object.fromEntries(
-          ['conversationId', 'contactId', 'channel', 'agentId'].map((k) => [
-            k,
-            requestContext.get(k),
-          ]),
-        )
-      : undefined
-  ) as AgentRequestContext | undefined;
-
-  const db = getModuleDbOrNull();
-  if (!rc?.conversationId || !db) return [];
-
-  let scheduler: ReturnType<typeof getModuleScheduler>;
-  try {
-    scheduler = getModuleScheduler();
-  } catch {
-    return [];
-  }
-
-  const scope = resolveScope({
-    conversationId: rc.conversationId,
-    contactId: rc.contactId,
-  });
-
-  if (!scope) return [];
-
-  return [
-    createMemoryOutputProcessor({
-      db,
-      scheduler,
-      conversationId: rc.conversationId,
-      scope,
-    }),
   ];
 }

@@ -1,109 +1,42 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import {
-  BookOpenIcon,
-  BrainIcon,
-  ClockIcon,
-  LayersIcon,
-  SearchIcon,
-} from 'lucide-react';
+import { BrainIcon } from 'lucide-react';
 import { useState } from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
-import { MemoryScopeSelector } from './-memory-scope-selector';
-import { MemorySearchView } from './-memory-search-view';
-import { MemoryTimeline } from './-memory-timeline';
 
-interface MemoryStats {
-  cells: number;
-  episodes: number;
-  facts: number;
-}
-
-async function fetchStats(scope: string): Promise<MemoryStats> {
-  const res = await aiClient.memory.stats.$get({ query: { scope } });
-  if (!res.ok) throw new Error('Failed to fetch memory stats');
-  return res.json();
-}
-
-type ViewMode = 'timeline' | 'search';
-
-function StatsHeader({ scope }: { scope: string }) {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['memory-stats', scope],
-    queryFn: () => fetchStats(scope),
-  });
-
-  const cards = [
-    {
-      label: 'Total Facts',
-      value: stats?.facts ?? 0,
-      icon: BrainIcon,
-    },
-    {
-      label: 'Episodes',
-      value: stats?.episodes ?? 0,
-      icon: BookOpenIcon,
-    },
-    {
-      label: 'Cells',
-      value: stats?.cells ?? 0,
-      icon: LayersIcon,
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      {cards.map((card) => (
-        <Card key={card.label}>
-          <CardContent className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <card.icon className="size-4 text-primary" />
-            </div>
-            <div>
-              {isLoading ? (
-                <Skeleton className="h-5 w-10 mb-1" />
-              ) : (
-                <p className="text-lg font-semibold leading-tight">
-                  {card.value.toLocaleString()}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">{card.label}</p>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
+async function fetchWorkingMemory(scope: string): Promise<string | null> {
+  const res = await aiClient.memory.working.$get({ query: { scope } });
+  if (!res.ok) return null;
+  const data = (await res.json()) as unknown as {
+    workingMemory: string | null;
+  };
+  return data.workingMemory ?? null;
 }
 
 function MemoryPage() {
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
+  const [scopeInput, setScopeInput] = useState('');
 
-  const [scope, setScope] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
+  const activeScope = scopeInput.trim() || (userId ? `user:${userId}` : null);
 
-  // Initialize scope once we have the user ID
-  const activeScope = scope ?? (userId ? `user:${userId}` : null);
+  const { data: workingMemory, isLoading } = useQuery({
+    queryKey: ['memory-working', activeScope],
+    queryFn: () => fetchWorkingMemory(activeScope!),
+    enabled: !!activeScope,
+  });
 
-  const handleScopeChange = (newScope: string) => {
-    setScope(newScope);
-  };
-
-  if (!userId || !activeScope) {
+  if (!userId) {
     return (
       <div className="p-6">
         <Skeleton className="h-8 w-48 mb-6" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-          <Skeleton className="h-20 w-full rounded-lg" />
-          <Skeleton className="h-20 w-full rounded-lg" />
-          <Skeleton className="h-20 w-full rounded-lg" />
-        </div>
         <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     );
@@ -111,52 +44,50 @@ function MemoryPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-end">
-        <MemoryScopeSelector
-          scope={activeScope}
-          onScopeChange={handleScopeChange}
-          userId={userId}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Working Memory</h2>
+        <Input
+          placeholder="Scope (e.g. contact:abc123)"
+          value={scopeInput}
+          onChange={(e) => setScopeInput(e.target.value)}
+          className="w-72"
         />
       </div>
 
-      {/* Stats */}
-      <StatsHeader scope={activeScope} />
+      {isLoading && (
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full rounded-md" />
+          <Skeleton className="h-10 w-full rounded-md" />
+        </div>
+      )}
 
-      {/* View Toggle */}
-      <div className="flex items-center gap-1 border-b">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`gap-1.5 rounded-none border-b-2 ${
-            viewMode === 'timeline'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-          onClick={() => setViewMode('timeline')}
-        >
-          <ClockIcon className="size-3.5" />
-          Timeline
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`gap-1.5 rounded-none border-b-2 ${
-            viewMode === 'search'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-          onClick={() => setViewMode('search')}
-        >
-          <SearchIcon className="size-3.5" />
-          Search
-        </Button>
-      </div>
+      {!isLoading && workingMemory && (
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <BrainIcon className="h-4 w-4 text-primary/60" />
+              <span className="text-sm font-medium">Agent's live context</span>
+              <span className="text-xs text-muted-foreground">
+                ({activeScope})
+              </span>
+            </div>
+            <div className="text-sm text-foreground leading-relaxed bg-muted/50 rounded-md p-3 overflow-auto max-h-96 [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:mt-3 [&_h1]:mb-1 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mt-2 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:mt-1.5 [&_h3]:mb-0.5 [&_p]:my-1 [&_ul]:my-1 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:my-1 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:my-0 [&_strong]:font-medium [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded">
+              <Markdown remarkPlugins={[remarkGfm]}>{workingMemory}</Markdown>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Content */}
-      {viewMode === 'timeline' ? (
-        <MemoryTimeline scope={activeScope} />
-      ) : (
-        <MemorySearchView scope={activeScope} />
+      {!isLoading && !workingMemory && (
+        <div className="rounded-lg border bg-muted/20 py-12 text-center">
+          <BrainIcon className="mx-auto h-8 w-8 text-muted-foreground/40 mb-3" />
+          <p className="text-sm text-muted-foreground">
+            No working memory for this scope yet.
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Working memory is built from agent conversations.
+          </p>
+        </div>
       )}
     </div>
   );

@@ -5,7 +5,7 @@ import { scorers } from '../evals/scorers';
 import type { AgentMeta } from '../lib/agents/define';
 import { models } from '../lib/models';
 import { agentModel } from '../lib/provider';
-import { resolveInputProcessors, resolveOutputProcessors } from '../processors';
+import { resolveInputProcessors } from '../processors';
 import {
   bookSlotTool,
   cancelBookingTool,
@@ -73,7 +73,6 @@ export const bookingAgent = new Agent({
   },
   defaultOptions: { maxSteps: 5 },
   inputProcessors: resolveInputProcessors,
-  outputProcessors: resolveOutputProcessors,
   scorers: Object.fromEntries(
     scorers.map((s) => [
       s.id,
