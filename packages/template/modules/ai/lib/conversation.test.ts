@@ -10,7 +10,6 @@ import {
   contacts,
   conversations,
 } from '../schema';
-import { initChat } from './chat-init';
 import {
   completeConversation,
   createConversation,
@@ -36,14 +35,8 @@ beforeEach(async () => {
   _pglite = result.pglite as unknown as PGlite;
   db = result.db;
 
-  // Initialize module deps + chat state
+  // Initialize module deps
   setModuleDeps({
-    db,
-    scheduler: mockScheduler,
-    channels: mockChannels,
-    realtime: mockRealtime,
-  });
-  await initChat({
     db,
     scheduler: mockScheduler,
     channels: mockChannels,

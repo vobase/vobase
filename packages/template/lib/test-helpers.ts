@@ -79,6 +79,8 @@ export async function createTestDb(options?: {
       identifier TEXT,
       role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'lead', 'staff')),
       metadata JSONB DEFAULT '{}',
+      working_memory TEXT,
+      resource_metadata JSONB,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -113,8 +115,9 @@ export async function createTestDb(options?: {
       contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id),
       agent_id TEXT NOT NULL,
       channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
+      title TEXT,
       conversation_type TEXT NOT NULL DEFAULT 'message' CHECK (conversation_type IN ('message', 'voice')),
-      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completing', 'completed', 'failed')),
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       ended_at TIMESTAMPTZ,
       call_started_at TIMESTAMPTZ,
@@ -155,6 +158,7 @@ export async function createTestDb(options?: {
       summary TEXT,
       status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'replied', 'timeout', 'cancelled', 'notification_failed')),
       requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reply_payload JSONB,
       replied_at TIMESTAMPTZ,
       timeout_minutes INTEGER NOT NULL DEFAULT 30,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -167,6 +171,7 @@ export async function createTestDb(options?: {
       content_type TEXT NOT NULL CHECK (content_type IN ('text', 'image', 'document', 'audio', 'video', 'template', 'interactive', 'sticker', 'email', 'system')),
       content TEXT NOT NULL,
       content_data JSONB DEFAULT '{}',
+      mastra_content JSONB,
       status TEXT CHECK (status IS NULL OR status IN ('queued', 'sent', 'delivered', 'read', 'failed')),
       failure_reason TEXT,
       retry_count INTEGER NOT NULL DEFAULT 0,
@@ -181,6 +186,20 @@ export async function createTestDb(options?: {
     );
 
     CREATE UNIQUE INDEX idx_messages_external_id_unique ON "conversations"."messages" (external_message_id) WHERE external_message_id IS NOT NULL;
+
+    CREATE TABLE "conversations"."channel_sessions" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(12),
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id),
+      channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
+      channel_type TEXT NOT NULL,
+      session_state TEXT NOT NULL DEFAULT 'window_open' CHECK (session_state IN ('window_open', 'window_expired')),
+      window_opens_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      window_expires_at TIMESTAMPTZ NOT NULL,
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (conversation_id, channel_instance_id)
+    );
 
     CREATE TABLE "conversations"."labels" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),

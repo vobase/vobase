@@ -19,6 +19,7 @@ import {
   aiScorers,
   channelInstances,
   channelRoutings,
+  channelSessions,
   consultations,
   contacts,
   conversationLabels,
@@ -357,6 +358,19 @@ export default async function seed(ctx: { db: VobaseDb }) {
   const staffContacts = seedContacts.filter((c) => c.role === 'staff');
   const activeChannelRoutings = seedChannelRoutings.filter((e) => e.enabled);
 
+  const CONVERSATION_TITLES = [
+    'Appointment booking inquiry',
+    'Reschedule request',
+    'New patient registration',
+    'Follow-up consultation',
+    'Cancellation request',
+    'Group booking inquiry',
+    'Insurance verification',
+    'Emergency appointment',
+    'Specialist referral',
+    'Feedback & review',
+  ];
+
   const CONVERSATION_COUNT = 80;
   const seedConversations: Array<{
     id: string;
@@ -368,6 +382,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     conversationType: string;
     startedAt: Date;
     endedAt?: Date;
+    title?: string;
     metadata: Record<string, unknown>;
   }> = [];
 
@@ -411,6 +426,10 @@ export default async function seed(ctx: { db: VobaseDb }) {
       conversationType: 'message',
       startedAt,
       ...(endedAt && { endedAt }),
+      // ~60% of conversations have a title (Mastra thread title)
+      ...(faker.datatype.boolean(0.6) && {
+        title: randomItem(CONVERSATION_TITLES),
+      }),
       metadata,
     });
   }
@@ -557,6 +576,21 @@ export default async function seed(ctx: { db: VobaseDb }) {
       metadata: {},
     },
     {
+      id: 'sess-completing',
+      channelRoutingId: 'ep-web-booking',
+      contactId: customerContacts[12].id,
+      agentId: 'booking',
+      channelInstanceId: 'ci-web',
+      status: 'completing',
+      conversationType: 'message',
+      mode: 'ai',
+      assignee: null,
+      assignedAt: null,
+      startedAt: hoursAgo(0.25),
+      title: 'Appointment booking — wrapping up',
+      metadata: {},
+    },
+    {
       id: 'sess-for-handoff',
       channelRoutingId: 'ep-web-booking',
       contactId: customerContacts[3].id,
@@ -595,6 +629,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       conversationType: 'message',
       mode: 'ai',
       resolutionOutcome: 'resolved',
+      title: 'Wednesday 2 PM appointment booking',
       startedAt: hoursAgo(24),
       endedAt: hoursAgo(23),
       metadata: {},
@@ -826,6 +861,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     timeoutMinutes: number;
     requestedAt: Date;
     repliedAt?: Date;
+    replyPayload?: Record<string, unknown>;
   }> = [];
 
   // Pending (from active sessions)
@@ -845,9 +881,16 @@ export default async function seed(ctx: { db: VobaseDb }) {
   }
 
   // Replied (from completed sessions)
+  const REPLY_SUMMARIES = [
+    'Approved with 10% discount. Manager confirmed.',
+    'Rescheduled to next available slot. Customer satisfied.',
+    'Referred to billing department for follow-up.',
+    'Special accommodation arranged. Notes added to file.',
+  ];
   for (let i = 0; i < Math.min(4, completedSessions.length); i++) {
     const sess = completedSessions[i];
     const reqHours = faker.number.int({ min: 24, max: 200 });
+    const summary = REPLY_SUMMARIES[i % REPLY_SUMMARIES.length];
     seedConsultations.push({
       id: `consult-${faker.string.alphanumeric(8)}`,
       conversationId: sess.id,
@@ -855,16 +898,12 @@ export default async function seed(ctx: { db: VobaseDb }) {
       channelType: sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
       channelInstanceId: sess.channelInstanceId,
       reason: CONSULTATION_REASONS[3 + i],
-      summary: randomItem([
-        'Approved with 10% discount. Manager confirmed.',
-        'Rescheduled to next available slot. Customer satisfied.',
-        'Referred to billing department for follow-up.',
-        'Special accommodation arranged. Notes added to file.',
-      ]),
+      summary,
       status: 'replied',
       timeoutMinutes: 30,
       requestedAt: hoursAgo(reqHours),
       repliedAt: hoursAgo(reqHours - faker.number.int({ min: 0, max: 1 })),
+      replyPayload: { reply: summary, staffId: randomItem(staffContacts).id },
     });
   }
 
@@ -1204,6 +1243,64 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   console.log(
     `${green('✓')} Seeded ${modeConversations.length} mode conversations, ${seedActivityMessages.length} activity messages`,
+  );
+
+  // ─── Channel Sessions (WhatsApp window tracking) ────────────────
+  const waConversations = allConversationsForMessages.filter(
+    (s) => s.channelInstanceId === 'ci-wa-main' && s.status === 'active',
+  );
+  const seedChannelSessions = waConversations.slice(0, 8).map((sess, i) => {
+    const isExpired = i >= 6; // last 2 are expired windows
+    const windowOpensAt = hoursAgo(isExpired ? 30 : 2);
+    return {
+      id: `cs-${faker.string.alphanumeric(8)}`,
+      conversationId: sess.id,
+      channelInstanceId: 'ci-wa-main',
+      channelType: 'whatsapp',
+      sessionState: isExpired ? 'window_expired' : 'window_open',
+      windowOpensAt,
+      windowExpiresAt: new Date(windowOpensAt.getTime() + 24 * 60 * 60 * 1000),
+      metadata: {},
+    };
+  });
+
+  if (seedChannelSessions.length > 0) {
+    await db
+      .insert(channelSessions)
+      .values(seedChannelSessions)
+      .onConflictDoNothing();
+  }
+  console.log(
+    `${green('✓')} Seeded ${seedChannelSessions.length} channel sessions`,
+  );
+
+  // ─── Contact working memory (Mastra resource data) ──────────────
+  // Populate workingMemory for a few contacts to demo the Mastra memory integration
+  const contactsWithMemory = customerContacts.slice(0, 5);
+  const WORKING_MEMORIES = [
+    'Preferred language: English. Last booking: Wednesday 2 PM general consultation. Prefers afternoon slots.',
+    'New customer. Interested in group booking for corporate wellness. Budget-conscious.',
+    'Returning patient. Has existing appointment history. Prefers Dr. Tan.',
+    'Referred by staff member Eve. First-time visitor. Needs accessibility accommodations.',
+    'VIP customer. Priority scheduling. Insurance: AIA Gold plan.',
+  ];
+
+  for (let i = 0; i < contactsWithMemory.length; i++) {
+    await db
+      .update(contacts)
+      .set({
+        workingMemory: WORKING_MEMORIES[i],
+        resourceMetadata: {
+          lastInteraction: hoursAgo(
+            faker.number.int({ min: 1, max: 48 }),
+          ).toISOString(),
+          conversationCount: faker.number.int({ min: 1, max: 10 }),
+        },
+      })
+      .where(eq(contacts.id, contactsWithMemory[i].id));
+  }
+  console.log(
+    `${green('✓')} Seeded working memory for ${contactsWithMemory.length} contacts`,
   );
 
   // ─── Eval runs ──────────────────────────────────────────────────

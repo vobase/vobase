@@ -11,7 +11,6 @@ import {
   contacts,
   conversations,
 } from '../schema';
-import { initChat } from './chat-init';
 import { handleStaffReply, requestConsultation } from './consult-human';
 
 let _pglite: PGlite;
@@ -232,18 +231,6 @@ describe('handleStaffReply', () => {
 const mockScheduler = { add: async () => ({ id: 'job-1' }) } as never;
 
 describe('handleStaffReply — hasPendingEscalation', () => {
-  beforeEach(async () => {
-    // Initialize chat state (state-pg via PGlite) so getChatState() works in success path
-    await initChat({
-      db,
-      scheduler: mockScheduler,
-      realtime: { notify: async () => {} } as never,
-      channels: {
-        whatsapp: { send: async () => ({ success: true }) },
-      } as never,
-    });
-  });
-
   it('clears hasPendingEscalation when no other pending consultations remain', async () => {
     await db
       .update(conversations)
