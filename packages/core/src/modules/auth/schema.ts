@@ -45,6 +45,7 @@ export const authSession = authPgSchema.table(
       .notNull()
       .references(() => authUser.id, { onDelete: 'cascade' }),
     activeOrganizationId: text('active_organization_id'),
+    activeTeamId: text('active_team_id'),
   },
   (table) => [
     index('session_user_id_idx').on(table.userId),
@@ -191,6 +192,7 @@ export const authInvitation = authPgSchema.table(
       .references(() => authUser.id, { onDelete: 'cascade' }),
     role: text('role').notNull().default('member'),
     status: text('status').notNull().default('pending'),
+    teamId: text('team_id'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -200,6 +202,46 @@ export const authInvitation = authPgSchema.table(
     index('invitation_org_id_idx').on(table.organizationId),
     index('invitation_inviter_id_idx').on(table.inviterId),
     index('invitation_email_idx').on(table.email),
+  ],
+);
+
+// Team tables (better-auth organization teams feature)
+export const authTeam = authPgSchema.table(
+  'team',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => authOrganization.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [index('team_org_id_idx').on(table.organizationId)],
+);
+
+export const authTeamMember = authPgSchema.table(
+  'team_member',
+  {
+    id: text('id').primaryKey(),
+    teamId: text('team_id')
+      .notNull()
+      .references(() => authTeam.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUser.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('team_member_team_id_idx').on(table.teamId),
+    index('team_member_user_id_idx').on(table.userId),
   ],
 );
 
@@ -218,4 +260,6 @@ export const organizationTableMap = {
   organization: authOrganization,
   member: authMember,
   invitation: authInvitation,
+  team: authTeam,
+  teamMember: authTeamMember,
 };

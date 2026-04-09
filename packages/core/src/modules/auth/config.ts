@@ -42,6 +42,8 @@ export interface AuthModuleConfig {
   allowedEmailDomains?: string[];
   /** Enable multi-org mode. Default: false (single org, soft-locked). */
   multiOrg?: boolean;
+  /** Enable teams within organizations. Requires multiOrg or single-org. Default: false. */
+  teams?: boolean;
   /** Additional better-auth plugins (e.g. dev-only plugins). No tables — routes only. */
   extraPlugins?: BetterAuthPlugin[];
 }
@@ -59,6 +61,7 @@ export function getAuthPlugins(config?: AuthModuleConfig): BetterAuthPlugin[] {
     }) as BetterAuthPlugin,
     organization({
       allowUserToCreateOrganization: config?.multiOrg ?? false,
+      teams: { enabled: config?.teams ?? true },
       ...(config?.sendInvitationEmail && {
         sendInvitationEmail: async (data) => {
           await config.sendInvitationEmail?.({
