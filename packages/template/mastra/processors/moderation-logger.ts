@@ -10,7 +10,7 @@ interface ModerationLogContext {
   channel: string;
   userId?: string | null;
   contactId?: string | null;
-  conversationId?: string | null;
+  interactionId?: string | null;
 }
 
 export function createModerationLogger(
@@ -25,7 +25,7 @@ export function createModerationLogger(
         channel: context.channel,
         userId: context.userId ?? null,
         contactId: context.contactId ?? null,
-        threadId: context.conversationId ?? null,
+        threadId: context.interactionId ?? null,
         reason: info.reason,
         blockedContent: info.content.slice(0, 200),
         matchedTerm: info.matchedTerm ?? null,
@@ -36,9 +36,9 @@ export function createModerationLogger(
         });
       });
 
-    if (realtime && context.conversationId) {
+    if (realtime && context.interactionId) {
       createActivityMessage(db, realtime, {
-        conversationId: context.conversationId,
+        interactionId: context.interactionId,
         eventType: 'guardrail.block',
         actor: context.agentId,
         actorType: 'system',

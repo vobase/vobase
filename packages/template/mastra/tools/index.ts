@@ -1,11 +1,12 @@
 export { bookSlotTool } from './book-slot';
 export { cancelBookingTool } from './cancel-booking';
 export { checkAvailabilityTool } from './check-availability';
-export { completeConversationTool } from './complete-conversation';
 export { consultHumanTool } from './consult-human';
 export { createBrowserTaskTool } from './create-browser-task';
 export { escalateTool } from './escalate';
+export { newTopicTool } from './new-topic';
 export { rescheduleBookingTool } from './reschedule-booking';
+export { resolveInteractionTool } from './resolve-interaction';
 export { searchKnowledgeBaseTool } from './search-knowledge-base';
 export { sendCardTool } from './send-card';
 export { sendReminderTool } from './send-reminder';

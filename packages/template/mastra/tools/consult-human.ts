@@ -16,7 +16,7 @@ import { contacts } from '../../modules/ai/schema';
 export const consultHumanTool = createTool({
   id: 'consult_human',
   description:
-    'Request a specific action from a human team member. Only use this AFTER you have exhausted all available tools (search_knowledge_base, check_availability, etc.) and still cannot resolve the issue. The request must include a concrete, actionable task for the human — not a vague "please help". Examples: "Verify the refund of $50 was processed for order #1234", "Confirm the physical room setup for tomorrow 3pm booking", "Approve a 20% discount for returning customer". The conversation continues normally while staff works on it.',
+    'Request a specific action from a human team member. Only use this AFTER you have exhausted all available tools (search_knowledge_base, check_availability, etc.) and still cannot resolve the issue. The request must include a concrete, actionable task for the human — not a vague "please help". Examples: "Verify the refund of $50 was processed for order #1234", "Confirm the physical room setup for tomorrow 3pm booking", "Approve a 20% discount for returning customer". The interaction continues normally while staff works on it.',
   inputSchema: z.object({
     reason: z
       .string()
@@ -43,15 +43,15 @@ export const consultHumanTool = createTool({
     const db = rcDeps?.db ?? getModuleDb();
     const channels = rcDeps?.channels ?? getModuleChannels();
     const scheduler = rcDeps?.scheduler ?? getModuleScheduler();
-    const conversationId =
-      (context?.requestContext?.get('conversationId') as string | undefined) ??
+    const interactionId =
+      (context?.requestContext?.get('interactionId') as string | undefined) ??
       '';
 
-    if (!conversationId) {
+    if (!interactionId) {
       return {
         consultationId: '',
         status: 'error' as const,
-        error: 'No conversation context available',
+        error: 'No interaction context available',
       };
     }
 
@@ -77,7 +77,7 @@ export const consultHumanTool = createTool({
       const consultation = await requestConsultation(
         { db, scheduler, channels, realtime: getModuleDeps().realtime },
         {
-          conversationId,
+          interactionId,
           staffContactId: staffContact.id,
           channelType: channel,
           reason,
@@ -91,7 +91,7 @@ export const consultHumanTool = createTool({
       };
     } catch (err) {
       logger.error('[consult-human] Failed to create consultation', {
-        conversationId,
+        interactionId,
         error: err,
       });
       return {

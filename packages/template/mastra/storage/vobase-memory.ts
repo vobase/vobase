@@ -1,8 +1,8 @@
 /**
  * VobaseMemoryStorage — Custom Mastra MemoryStorage that maps onto the
- * existing conversations schema (conversations, messages, contacts tables).
+ * existing interactions schema (interactions, messages, contacts tables).
  *
- * Threads → conversations, Messages → messages, Resources → contacts.
+ * Threads → interactions, Messages → messages, Resources → contacts.
  * Mastra's own PostgresStore-managed memory tables become unnecessary.
  */
 import type {
@@ -29,20 +29,9 @@ import type {
 } from '@mastra/core/storage';
 import { MemoryStorage } from '@mastra/core/storage';
 import type { VobaseDb } from '@vobase/core';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gt,
-  gte,
-  inArray,
-  lt,
-  lte,
-  sql,
-} from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte } from 'drizzle-orm';
 
-import { contacts, conversations, messages } from '../../modules/ai/schema';
+import { contacts, interactions, messages } from '../../modules/ai/schema';
 
 // ─── Role Mapping ──────────────────────────────────────────────────
 // Mastra role → Vobase senderType + messageType
@@ -95,7 +84,7 @@ function extractPlainText(content: MastraMessageContentV2): string {
 // ─── Row → Mastra Conversions ──────────────────────────────────────
 
 type MessageRow = typeof messages.$inferSelect;
-type ConversationRow = typeof conversations.$inferSelect;
+type InteractionRow = typeof interactions.$inferSelect;
 type ContactRow = typeof contacts.$inferSelect;
 
 function rowToMastraMessage(row: MessageRow): MastraDBMessage {
@@ -108,13 +97,13 @@ function rowToMastraMessage(row: MessageRow): MastraDBMessage {
       parts: [{ type: 'text' as const, text: row.content }],
     },
     createdAt: row.createdAt,
-    threadId: row.conversationId,
+    threadId: row.interactionId,
     resourceId: row.senderId,
     type: row.contentType,
   };
 }
 
-function rowToStorageThread(row: ConversationRow): StorageThreadType {
+function rowToStorageThread(row: InteractionRow): StorageThreadType {
   return {
     id: row.id,
     title: row.title ?? undefined,
@@ -169,7 +158,7 @@ export class VobaseMemoryStorage extends MemoryStorage {
     );
   }
 
-  // ─── Thread Methods (conversations table) ──────────────────────
+  // ─── Thread Methods (interactions table) ──────────────────────
 
   override async getThreadById({
     threadId,
@@ -179,8 +168,8 @@ export class VobaseMemoryStorage extends MemoryStorage {
     console.log('[VobaseMemoryStorage.getThreadById]', threadId);
     const rows = await this.db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, threadId))
+      .from(interactions)
+      .where(eq(interactions.id, threadId))
       .limit(1);
     return rows[0] ? rowToStorageThread(rows[0]) : null;
   }
@@ -191,9 +180,9 @@ export class VobaseMemoryStorage extends MemoryStorage {
     thread: StorageThreadType;
   }): Promise<StorageThreadType> {
     const contactId = stripContactPrefix(thread.resourceId);
-    // Upsert — if the conversation already exists, update it
+    // Upsert — if the interaction already exists, update it
     const rows = await this.db
-      .insert(conversations)
+      .insert(interactions)
       .values({
         id: thread.id,
         contactId,
@@ -207,7 +196,7 @@ export class VobaseMemoryStorage extends MemoryStorage {
           (thread.metadata?.channelInstanceId as string) ?? 'web',
       })
       .onConflictDoUpdate({
-        target: conversations.id,
+        target: interactions.id,
         set: {
           title: thread.title ?? null,
           metadata: thread.metadata ?? {},
@@ -227,9 +216,9 @@ export class VobaseMemoryStorage extends MemoryStorage {
     metadata: Record<string, unknown>;
   }): Promise<StorageThreadType> {
     const rows = await this.db
-      .update(conversations)
+      .update(interactions)
       .set({ title, metadata })
-      .where(eq(conversations.id, id))
+      .where(eq(interactions.id, id))
       .returning();
     if (!rows[0]) throw new Error(`Thread ${id} not found`);
     return rowToStorageThread(rows[0]);
@@ -240,11 +229,11 @@ export class VobaseMemoryStorage extends MemoryStorage {
   }: {
     threadId: string;
   }): Promise<void> {
-    // Soft delete — set status to completed rather than destroying data
+    // Soft delete — set status to resolved rather than destroying data
     await this.db
-      .update(conversations)
-      .set({ status: 'completed' })
-      .where(eq(conversations.id, threadId));
+      .update(interactions)
+      .set({ status: 'resolved' })
+      .where(eq(interactions.id, threadId));
   }
 
   override async listThreads(
@@ -259,16 +248,16 @@ export class VobaseMemoryStorage extends MemoryStorage {
     const conditions = [];
     if (args.filter?.resourceId) {
       const contactId = stripContactPrefix(args.filter.resourceId);
-      conditions.push(eq(conversations.contactId, contactId));
+      conditions.push(eq(interactions.contactId, contactId));
     }
 
     const orderCol =
-      field === 'updatedAt' ? conversations.updatedAt : conversations.createdAt;
+      field === 'updatedAt' ? interactions.updatedAt : interactions.createdAt;
     const orderFn = direction === 'ASC' ? asc : desc;
 
     const rows = await this.db
       .select()
-      .from(conversations)
+      .from(interactions)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(orderFn(orderCol))
       .limit(perPage + 1) // fetch one extra to check hasMore
@@ -297,14 +286,21 @@ export class VobaseMemoryStorage extends MemoryStorage {
   }): Promise<{ messages: MastraDBMessage[] }> {
     if (msgs.length === 0) return { messages: [] };
 
-    console.log('[VobaseMemoryStorage.saveMessages]', msgs.length, 'messages, threadIds:', [...new Set(msgs.map(m => m.threadId))], 'roles:', msgs.map(m => m.role));
+    console.log(
+      '[VobaseMemoryStorage.saveMessages]',
+      msgs.length,
+      'messages, threadIds:',
+      [...new Set(msgs.map((m) => m.threadId))],
+      'roles:',
+      msgs.map((m) => m.role),
+    );
 
     const values = msgs.map((msg) => {
       const { senderType, messageType } = mastraRoleToVobase(msg.role);
       const plainText = extractPlainText(msg.content);
       return {
         id: msg.id,
-        conversationId: msg.threadId!,
+        interactionId: msg.threadId!,
         messageType,
         contentType: 'text' as const,
         content: plainText || '(empty)',
@@ -321,7 +317,10 @@ export class VobaseMemoryStorage extends MemoryStorage {
         .insert(messages)
         .values(values)
         .onConflictDoNothing({ target: messages.id });
-      console.log('[VobaseMemoryStorage.saveMessages] INSERT OK, ids:', values.map(v => v.id));
+      console.log(
+        '[VobaseMemoryStorage.saveMessages] INSERT OK, ids:',
+        values.map((v) => v.id),
+      );
     } catch (err) {
       console.error('[VobaseMemoryStorage.saveMessages] INSERT FAILED:', err);
       throw err;
@@ -341,7 +340,7 @@ export class VobaseMemoryStorage extends MemoryStorage {
       args.perPage === false ? Number.MAX_SAFE_INTEGER : (args.perPage ?? 40);
     const direction = args.orderBy?.direction ?? 'DESC';
 
-    const conditions = [inArray(messages.conversationId, threadIds)];
+    const conditions = [inArray(messages.interactionId, threadIds)];
 
     if (args.filter?.dateRange) {
       const { start, end, startExclusive, endExclusive } =

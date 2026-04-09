@@ -28,7 +28,7 @@ import {
 
 /**
  * Working memory schema for the booking domain.
- * The agent updates this structured data via tool calls during conversation.
+ * The agent updates this structured data via tool calls during an interaction.
  * Stored per-resource (contact) and persisted across threads.
  */
 const contactWorkingMemorySchema = z.object({
@@ -58,7 +58,7 @@ let memoryInstance: Memory | undefined;
  * Initialize the Mastra singleton with storage from the vobase db connection.
  * Called from the AI module init hook after setAiModuleDeps().
  *
- * Memory domain routes to VobaseMemoryStorage (conversations schema),
+ * Memory domain routes to VobaseMemoryStorage (interactions schema),
  * everything else (workflows, observability) uses PostgresStore.
  */
 export async function initMastra(db: { $client: unknown }): Promise<void> {

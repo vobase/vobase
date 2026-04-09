@@ -9,7 +9,7 @@
 
 /**
  * Agent operating mode:
- * - full-auto: agent handles the entire conversation autonomously, only consulting humans for edge cases
+ * - full-auto: agent handles the entire interaction autonomously, only consulting humans for edge cases
  * - qualify-then-handoff: agent qualifies the lead/request, then consults a human for final decisions
  */
 export type AgentMode = 'full-auto' | 'qualify-then-handoff';

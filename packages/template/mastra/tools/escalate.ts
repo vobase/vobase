@@ -6,13 +6,13 @@ import type { ModuleDeps } from '../../modules/ai/lib/deps';
 import { getModuleDeps } from '../../modules/ai/lib/deps';
 import { createActivityMessage } from '../../modules/ai/lib/messages';
 import { transition } from '../../modules/ai/lib/state-machine';
-import { conversations } from '../../modules/ai/schema';
+import { interactions } from '../../modules/ai/schema';
 
 const ESCALATION_MODES = ['supervised', 'human'] as const;
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 
 /**
- * Graduated escalation tool — lets the agent change how the conversation is handled.
+ * Graduated escalation tool — lets the agent change how the interaction is handled.
  *
  * Available modes (agent can only escalate UP, never back to 'ai'):
  *   supervised — AI drafts responses, a human reviews and approves before sending.
@@ -22,7 +22,7 @@ const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
  */
 export const escalateTool = createTool({
   id: 'escalate',
-  description: `Escalate this conversation to involve a human. Two modes available:
+  description: `Escalate this interaction to involve a human. Two modes available:
 - "supervised": AI drafts responses but a human must approve them before sending. Use for sensitive topics (complaints, billing disputes, legal), uncertain answers, or when the stakes are high. The customer stays engaged while a human reviews.
 - "human": Complete transfer to a human agent — AI stops entirely. Use ONLY when the customer explicitly says they want a real person ("talk to a human", "no more bot"). This is irreversible from your side.
 For background help without changing the mode, use consult_human instead.`,
@@ -51,29 +51,29 @@ For background help without changing the mode, use consult_human instead.`,
       getModuleDeps();
     const { db, realtime } = deps;
 
-    const conversationId =
-      (context?.requestContext?.get('conversationId') as string | undefined) ??
+    const interactionId =
+      (context?.requestContext?.get('interactionId') as string | undefined) ??
       '';
 
-    if (!conversationId) {
-      return { success: false, message: 'No conversation context available' };
+    if (!interactionId) {
+      return { success: false, message: 'No interaction context available' };
     }
 
-    const [conversation] = await db
+    const [interaction] = await db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
+      .from(interactions)
+      .where(eq(interactions.id, interactionId));
 
-    if (!conversation || conversation.status !== 'active') {
+    if (!interaction || interaction.status !== 'active') {
       return {
         success: false,
-        message: 'Conversation not found or not active',
+        message: 'Interaction not found or not active',
       };
     }
 
     // Transition mode + priority atomically via state machine
-    const currentMode = conversation.mode ?? 'ai';
-    const result = await transition(deps, conversationId, {
+    const currentMode = interaction.mode ?? 'ai';
+    const result = await transition(deps, interactionId, {
       type: 'ESCALATE_MODE',
       mode: input.mode,
       priority: input.priority,
@@ -85,17 +85,17 @@ For background help without changing the mode, use consult_human instead.`,
 
     // Emit escalation.created for attention queue (pending review)
     await createActivityMessage(db, realtime, {
-      conversationId,
+      interactionId,
       eventType: 'escalation.created',
-      actor: conversation.agentId,
+      actor: interaction.agentId,
       actorType: 'agent',
       data: {
         reason: input.reason,
         mode: input.mode,
         priority: input.priority,
         previousMode: currentMode,
-        contactId: conversation.contactId,
-        channelRoutingId: conversation.channelRoutingId,
+        contactId: interaction.contactId,
+        channelRoutingId: interaction.channelRoutingId,
       },
       resolutionStatus: 'pending',
     });
@@ -103,7 +103,7 @@ For background help without changing the mode, use consult_human instead.`,
     const modeLabel =
       input.mode === 'supervised'
         ? 'Switched to supervised mode — your responses will be reviewed by a human before sending.'
-        : 'Conversation transferred to a human agent.';
+        : 'Interaction transferred to a human agent.';
 
     return { success: true, message: modeLabel };
   },
