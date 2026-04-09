@@ -17,7 +17,7 @@ import { z } from 'zod';
  * Every tool UI should have a unique identifier that:
  * - Is stable across re-renders
  * - Is meaningful (not auto-generated)
- * - Is unique within the conversation
+ * - Is unique within the interaction
  *
  * Format recommendation: `{component-type}-{semantic-identifier}`
  * Examples: "data-table-expenses-q3", "option-list-deploy-target"

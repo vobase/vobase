@@ -45,7 +45,7 @@ export interface NormalizedMessage {
   metadata: NormalizedMessageMetadata;
 }
 
-// ─── Core Helpers (extracted from $conversationId.tsx:221-276) ───────────
+// ─── Core Helpers (extracted from $interactionId.tsx:221-276) ────────────
 
 /** Extract plain text from any MemoryMessage content shape. */
 export function extractText(content: MemoryMessageContent): string {

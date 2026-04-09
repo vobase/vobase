@@ -2,11 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   ArrowLeftIcon,
+  BotIcon,
   BrainIcon,
   CalendarIcon,
   ChevronRightIcon,
+  GlobeIcon,
   MailIcon,
+  MessageSquareIcon,
   PhoneIcon,
+  SmartphoneIcon,
   UserIcon,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -34,15 +38,31 @@ interface Contact {
   updatedAt: string;
 }
 
-interface Conversation {
+interface TimelineMessage {
+  interactionId: string;
   id: string;
-  agentId: string | null;
-  channelInstanceId: string;
-  conversationType: string;
-  status: string;
-  startedAt: string;
-  endedAt: string | null;
+  content: string;
+  senderType: string;
+  messageType: string;
   createdAt: string;
+}
+
+interface TimelineInteraction {
+  id: string;
+  status: string;
+  mode: string;
+  outcome: string | null;
+  autonomyLevel: string;
+  reopenCount: number;
+  agentId: string;
+  channelInstanceId: string;
+  channelType: string;
+  channelLabel: string;
+  startedAt: string;
+  resolvedAt: string | null;
+  lastMessageAt: string | null;
+  title: string | null;
+  recentMessages: TimelineMessage[];
 }
 
 // ─── Data fetchers ───────────────────────────────────────────────────
@@ -53,14 +73,18 @@ async function fetchContact(id: string): Promise<Contact> {
   return res.json() as unknown as Promise<Contact>;
 }
 
-async function fetchContactConversations(
+async function fetchContactTimeline(
   contactId: string,
-): Promise<Conversation[]> {
-  const res = await aiClient.conversations.$get({
-    query: { contactId },
+): Promise<TimelineInteraction[]> {
+  const res = await aiClient.contacts[':id'].timeline.$get({
+    param: { id: contactId },
+    query: { limit: '50' },
   });
   if (!res.ok) return [];
-  return res.json() as unknown as Promise<Conversation[]>;
+  const data = (await res.json()) as unknown as {
+    interactions: TimelineInteraction[];
+  };
+  return data.interactions;
 }
 
 async function fetchWorkingMemory(contactId: string): Promise<string | null> {
@@ -80,9 +104,41 @@ function statusVariant(
   status: string,
 ): 'default' | 'secondary' | 'outline' | 'success' | 'destructive' {
   if (status === 'active') return 'default';
-  if (status === 'completed') return 'success';
+  if (status === 'resolved') return 'success';
   if (status === 'failed') return 'destructive';
+  if (status === 'resolving') return 'outline';
   return 'secondary';
+}
+
+const CHANNEL_CONFIG: Record<
+  string,
+  { icon: typeof GlobeIcon; color: string; bg: string }
+> = {
+  whatsapp: {
+    icon: SmartphoneIcon,
+    color: 'text-green-600 dark:text-green-400',
+    bg: 'bg-green-500/10',
+  },
+  email: {
+    icon: MailIcon,
+    color: 'text-blue-600 dark:text-blue-400',
+    bg: 'bg-blue-500/10',
+  },
+  web: {
+    icon: GlobeIcon,
+    color: 'text-muted-foreground',
+    bg: 'bg-muted',
+  },
+};
+
+function getChannelConfig(type: string) {
+  return (
+    CHANNEL_CONFIG[type] ?? {
+      icon: MessageSquareIcon,
+      color: 'text-muted-foreground',
+      bg: 'bg-muted',
+    }
+  );
 }
 
 function roleVariant(role: string): 'default' | 'secondary' | 'outline' {
@@ -108,7 +164,7 @@ function formatDateTime(dateStr: string): string {
   });
 }
 
-type Tab = 'overview' | 'sessions' | 'memory';
+type Tab = 'overview' | 'timeline' | 'memory';
 
 // ─── Overview Tab ────────────────────────────────────────────────────
 
@@ -201,90 +257,160 @@ function OverviewTab({ contact }: { contact: Contact }) {
   );
 }
 
-// ─── Sessions Tab ────────────────────────────────────────────────────
+// ─── Timeline Tab ───────────────────────────────────────────────────
 
-function ConversationsTab({ contactId }: { contactId: string }) {
-  const { data: conversations = [], isLoading } = useQuery({
-    queryKey: ['conversations-list', { contactId }],
-    queryFn: () => fetchContactConversations(contactId),
+function TimelineTab({ contactId }: { contactId: string }) {
+  const { data: timeline = [], isLoading } = useQuery({
+    queryKey: ['contacts-timeline', contactId],
+    queryFn: () => fetchContactTimeline(contactId),
   });
 
   if (isLoading) {
     return (
-      <div className="space-y-2">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
+      <div className="space-y-3">
+        {['t1', 't2', 't3'].map((k) => (
+          <Skeleton key={k} className="h-32 w-full rounded-lg" />
+        ))}
       </div>
     );
   }
 
-  if (conversations.length === 0) {
+  if (timeline.length === 0) {
     return (
       <div className="rounded-lg border bg-muted/20 py-8 text-center">
-        <p className="text-sm text-muted-foreground">No conversations yet.</p>
+        <MessageSquareIcon className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
+        <p className="text-sm text-muted-foreground">No interactions yet.</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-md border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/50">
-            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-              Status
-            </th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-              AI Agent
-            </th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-              Type
-            </th>
-            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-              Started
-            </th>
-            <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground" />
-          </tr>
-        </thead>
-        <tbody>
-          {conversations.map((conversation) => (
-            <tr
-              key={conversation.id}
-              className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-            >
-              <td className="px-3 py-2.5">
-                <Badge
-                  variant={statusVariant(conversation.status)}
-                  className="capitalize text-xs"
-                >
-                  {conversation.status}
-                </Badge>
-              </td>
-              <td className="px-3 py-2.5 text-muted-foreground text-xs">
-                {conversation.agentId ?? '—'}
-              </td>
-              <td className="px-3 py-2.5 text-muted-foreground text-xs capitalize">
-                {conversation.conversationType}
-              </td>
-              <td className="px-3 py-2.5 text-muted-foreground text-xs">
-                {formatDateTime(conversation.startedAt)}
-              </td>
-              <td className="px-3 py-2.5 text-right">
-                <Link
-                  to="/conversations/$conversationId"
-                  params={{ conversationId: conversation.id }}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  View
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-2">
+      {timeline.map((interaction) => (
+        <InteractionCard key={interaction.id} interaction={interaction} />
+      ))}
     </div>
   );
+}
+
+function InteractionCard({
+  interaction,
+}: {
+  interaction: TimelineInteraction;
+}) {
+  const channel = getChannelConfig(interaction.channelType);
+  const ChannelIcon = channel.icon;
+  const duration = interaction.resolvedAt
+    ? formatDuration(interaction.startedAt, interaction.resolvedAt)
+    : null;
+
+  return (
+    <div className="group rounded-lg border bg-background transition-colors hover:bg-muted/20">
+      {/* Header row */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        {/* Channel icon */}
+        <div
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${channel.bg}`}
+        >
+          <ChannelIcon className={`h-3.5 w-3.5 ${channel.color}`} />
+        </div>
+
+        {/* Title + meta */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium truncate">
+              {interaction.title ?? `${interaction.channelLabel} interaction`}
+            </span>
+            {interaction.reopenCount > 0 && (
+              <span className="text-[10px] text-muted-foreground">
+                reopened {interaction.reopenCount}x
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span>{formatDateTime(interaction.startedAt)}</span>
+            {duration && (
+              <>
+                <span>&middot;</span>
+                <span>{duration}</span>
+              </>
+            )}
+            <span>&middot;</span>
+            <span className="capitalize">{interaction.channelType}</span>
+          </div>
+        </div>
+
+        {/* Right side: badges */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {interaction.mode !== 'ai' && (
+            <Badge variant="outline" className="text-[10px] capitalize">
+              {interaction.mode}
+            </Badge>
+          )}
+          <Badge
+            variant={statusVariant(interaction.status)}
+            className="text-[10px] capitalize"
+          >
+            {interaction.status}
+          </Badge>
+          {interaction.outcome && interaction.status === 'resolved' && (
+            <Badge variant="secondary" className="text-[10px] capitalize">
+              {interaction.outcome.replace(/_/g, ' ')}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Recent messages preview */}
+      {interaction.recentMessages.length > 0 && (
+        <div className="border-t px-4 py-2.5">
+          <div className="space-y-1.5">
+            {interaction.recentMessages.map((msg) => (
+              <div key={msg.id} className="flex items-start gap-2">
+                <div className="mt-0.5 shrink-0">
+                  {msg.senderType === 'agent' ? (
+                    <BotIcon className="h-3 w-3 text-primary/60" />
+                  ) : (
+                    <UserIcon className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </div>
+                <p className="min-w-0 text-xs text-muted-foreground line-clamp-1">
+                  {msg.content}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer: agent + autonomy */}
+      <div className="flex items-center justify-between border-t px-4 py-2 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <span>Agent: {interaction.agentId}</span>
+          <span className="capitalize">
+            {interaction.autonomyLevel?.replace(/_/g, ' ') ?? 'in progress'}
+          </span>
+        </div>
+        <Link
+          to="/interactions/$interactionId"
+          params={{ interactionId: interaction.id }}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+        >
+          Open &rarr;
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function formatDuration(startStr: string, endStr: string): string {
+  const ms = new Date(endStr).getTime() - new Date(startStr).getTime();
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return '<1m';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ${mins % 60}m`;
+  return `${Math.floor(hours / 24)}d`;
 }
 
 // ─── Memory Tab ──────────────────────────────────────────────────────
@@ -311,7 +437,7 @@ function MemoryTab({ contactId }: { contactId: string }) {
             No memory data for this contact yet.
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Memory is built from conversations with AI agents.
+            Memory is built from interactions with AI agents.
           </p>
         </div>
       )}
@@ -383,7 +509,7 @@ function ContactDetailPage() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
-    { id: 'sessions', label: 'Conversations' },
+    { id: 'timeline', label: 'Timeline' },
     { id: 'memory', label: 'Memory' },
   ];
 
@@ -422,7 +548,7 @@ function ContactDetailPage() {
 
       {/* Tab content */}
       {activeTab === 'overview' && <OverviewTab contact={contact} />}
-      {activeTab === 'sessions' && <ConversationsTab contactId={contact.id} />}
+      {activeTab === 'timeline' && <TimelineTab contactId={contact.id} />}
       {activeTab === 'memory' && <MemoryTab contactId={contact.id} />}
     </div>
   );

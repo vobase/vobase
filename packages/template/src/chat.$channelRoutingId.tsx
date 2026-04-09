@@ -31,11 +31,11 @@ import { normalizeUIMessage } from '@/lib/normalize-message';
 
 function PublicChatView({
   channelRoutingId,
-  conversationId,
+  interactionId,
   initialMessages,
 }: {
   channelRoutingId: string;
-  conversationId: string;
+  interactionId: string;
   initialMessages: UIMessage[];
 }) {
   // SSE connection for realtime events — mounted here (after anonymous sign-in)
@@ -51,7 +51,7 @@ function PublicChatView({
   );
 
   const chatHelpers = useChat({
-    id: conversationId,
+    id: interactionId,
     transport,
     messages: initialMessages,
     onError: (error) => {
@@ -77,13 +77,13 @@ function PublicChatView({
   useEffect(() => {
     const unsubscribe = subscribeToPayloads((payload: RealtimePayload) => {
       if (
-        payload.table === 'conversations-messages' &&
-        payload.id === conversationId &&
+        payload.table === 'interactions-messages' &&
+        payload.id === interactionId &&
         statusRef.current === 'ready'
       ) {
-        aiClient.chat[':channelRoutingId'].conversations[':conversationId']
+        aiClient.chat[':channelRoutingId'].interactions[':interactionId']
           .$get({
-            param: { channelRoutingId, conversationId },
+            param: { channelRoutingId, interactionId },
           })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
@@ -97,13 +97,13 @@ function PublicChatView({
       }
     });
     return unsubscribe;
-  }, [conversationId, channelRoutingId, setMessages]);
+  }, [interactionId, channelRoutingId, setMessages]);
 
-  useTypingListener(conversationId);
-  const { signalTyping } = useTypingSender(conversationId);
+  useTypingListener(interactionId);
+  const { signalTyping } = useTypingSender(interactionId);
   const { data: session } = authClient.useSession();
   const { feedbackMap, handleReact, handleDeleteFeedback } =
-    useFeedback(conversationId);
+    useFeedback(interactionId);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -114,7 +114,7 @@ function PublicChatView({
         currentUserId={session?.user?.id}
         onReact={handleReact}
         onDeleteFeedback={handleDeleteFeedback}
-        conversationId={conversationId}
+        interactionId={interactionId}
         isAiThinking={status === 'submitted' || status === 'streaming'}
       >
         <VobaseToolUIs />
@@ -132,7 +132,7 @@ function PublicChatView({
 function PublicChatPage() {
   const { channelRoutingId } = useParams({ from: '/chat/$channelRoutingId' });
   const {
-    conversationId,
+    interactionId,
     initialMessages,
     loading,
     error,
@@ -166,7 +166,7 @@ function PublicChatPage() {
     );
   }
 
-  if (!conversationId) return null;
+  if (!interactionId) return null;
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -177,7 +177,7 @@ function PublicChatPage() {
 
       <PublicChatView
         channelRoutingId={channelRoutingId}
-        conversationId={conversationId}
+        interactionId={interactionId}
         initialMessages={initialMessages}
       />
     </div>

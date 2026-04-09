@@ -247,7 +247,7 @@ function LabelsPage() {
         <div>
           <h1 className="text-lg font-semibold">Labels</h1>
           <p className="text-sm text-muted-foreground">
-            Manage conversation labels for organization and filtering.
+            Manage interaction labels for organization and filtering.
           </p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={openCreate}>
@@ -267,7 +267,7 @@ function LabelsPage() {
           <TagIcon className="size-8 text-muted-foreground mb-3" />
           <p className="text-sm font-medium">No labels yet</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Create labels to organize your conversations.
+            Create labels to organize your interactions.
           </p>
           <Button
             size="sm"

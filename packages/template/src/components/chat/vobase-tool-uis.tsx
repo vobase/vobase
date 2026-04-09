@@ -373,10 +373,10 @@ const EscalateToolUI = makeAssistantToolUI({
   },
 });
 
-// ─── complete_conversation ───────────────────────────────────────────
+// ─── resolve_interaction ─────────────────────────────────────────────
 
-const CompleteConversationToolUI = makeAssistantToolUI({
-  toolName: 'complete_conversation',
+const ResolveInteractionToolUI = makeAssistantToolUI({
+  toolName: 'resolve_interaction',
   render: (props) => {
     if (props.status?.type === 'running') return <ToolFallback {...props} />;
 
@@ -387,12 +387,47 @@ const CompleteConversationToolUI = makeAssistantToolUI({
     return (
       <ToolSpacing>
         <ProgressTracker
-          id="conversation-complete"
+          id="interaction-resolve"
           steps={[
             {
-              id: 'complete',
-              label: r.success ? 'Conversation resolved' : 'Completion failed',
+              id: 'resolve',
+              label: r.success ? 'Interaction resolved' : 'Resolution failed',
               description: a?.summary ? String(a.summary) : undefined,
+              status: r.success ? 'completed' : 'failed',
+            },
+          ]}
+        />
+      </ToolSpacing>
+    );
+  },
+});
+
+// ─── new_topic ──────────────────────────────────────────────────────
+
+const NewTopicToolUI = makeAssistantToolUI({
+  toolName: 'new_topic',
+  render: (props) => {
+    if (props.status?.type === 'running') return <ToolFallback {...props} />;
+
+    const a = asRecord(props.args);
+    const r = asRecord(props.result);
+    if (!r) return <ToolFallback {...props} />;
+
+    return (
+      <ToolSpacing>
+        <ProgressTracker
+          id="new-topic"
+          steps={[
+            {
+              id: 'topic',
+              label: r.success
+                ? 'Topic resolved — next message starts fresh'
+                : 'Topic change failed',
+              description: a?.nextTopic
+                ? String(a.nextTopic)
+                : a?.summary
+                  ? String(a.summary)
+                  : undefined,
               status: r.success ? 'completed' : 'failed',
             },
           ]}
@@ -445,7 +480,8 @@ export function VobaseToolUIs() {
       <RescheduleBookingToolUI />
       <SendReminderToolUI />
       <EscalateToolUI />
-      <CompleteConversationToolUI />
+      <ResolveInteractionToolUI />
+      <NewTopicToolUI />
       <AgentHandoffToolUI />
     </>
   );

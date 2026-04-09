@@ -6,15 +6,15 @@ interface TypingUser {
 }
 
 interface StaffChatState {
-  /** Typing indicators: conversationId -> Map<userId, TypingUser> */
+  /** Typing indicators: interactionId -> Map<userId, TypingUser> */
   typingUsers: Map<string, Map<string, TypingUser>>;
-  addTypingUser: (conversationId: string, userId: string, name: string) => void;
-  removeTypingUser: (conversationId: string, userId: string) => void;
-  getTypingUsers: (conversationId: string) => { name: string }[];
+  addTypingUser: (interactionId: string, userId: string, name: string) => void;
+  removeTypingUser: (interactionId: string, userId: string) => void;
+  getTypingUsers: (interactionId: string) => { name: string }[];
 
-  /** Read status: conversationId -> last read messageId */
+  /** Read status: interactionId -> last read messageId */
   lastReadMessageId: Map<string, string>;
-  setLastRead: (conversationId: string, messageId: string) => void;
+  setLastRead: (interactionId: string, messageId: string) => void;
 
   /** KB curation mode (Phase 3) */
   kbCurationActive: boolean;
@@ -29,31 +29,31 @@ const TYPING_TTL_MS = 3000;
 export const useStaffChatStore = create<StaffChatState>((set, get) => ({
   typingUsers: new Map(),
 
-  addTypingUser: (conversationId, userId, name) => {
+  addTypingUser: (interactionId, userId, name) => {
     set((state) => {
       const next = new Map(state.typingUsers);
-      const convMap = new Map(next.get(conversationId) ?? []);
+      const convMap = new Map(next.get(interactionId) ?? []);
       convMap.set(userId, { name, expiresAt: Date.now() + TYPING_TTL_MS });
-      next.set(conversationId, convMap);
+      next.set(interactionId, convMap);
       return { typingUsers: next };
     });
   },
 
-  removeTypingUser: (conversationId, userId) => {
+  removeTypingUser: (interactionId, userId) => {
     set((state) => {
       const next = new Map(state.typingUsers);
-      const convMap = next.get(conversationId);
+      const convMap = next.get(interactionId);
       if (convMap) {
         const updated = new Map(convMap);
         updated.delete(userId);
-        next.set(conversationId, updated);
+        next.set(interactionId, updated);
       }
       return { typingUsers: next };
     });
   },
 
-  getTypingUsers: (conversationId) => {
-    const convMap = get().typingUsers.get(conversationId);
+  getTypingUsers: (interactionId) => {
+    const convMap = get().typingUsers.get(interactionId);
     if (!convMap) return [];
     const now = Date.now();
     const active: { name: string }[] = [];
@@ -67,10 +67,10 @@ export const useStaffChatStore = create<StaffChatState>((set, get) => ({
 
   lastReadMessageId: new Map(),
 
-  setLastRead: (conversationId, messageId) => {
+  setLastRead: (interactionId, messageId) => {
     set((state) => {
       const next = new Map(state.lastReadMessageId);
-      next.set(conversationId, messageId);
+      next.set(interactionId, messageId);
       return { lastReadMessageId: next };
     });
   },

@@ -8,11 +8,11 @@ import { hasStaffPrefix } from '@/lib/normalize-message';
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface StartResponse {
-  conversationId: string;
+  interactionId: string;
   agentId: string | null;
 }
 
-interface ConversationMessages {
+interface InteractionMessages {
   id: string;
   title: string | null;
   agentId: string | null;
@@ -24,7 +24,7 @@ interface ConversationMessages {
   }>;
 }
 
-function isStaffReply(m: ConversationMessages['messages'][number]): boolean {
+function isStaffReply(m: InteractionMessages['messages'][number]): boolean {
   return (
     m.role === 'assistant' &&
     m.parts.some((p) => p.type === 'text' && hasStaffPrefix(p.text ?? ''))
@@ -37,7 +37,7 @@ function isStaffReply(m: ConversationMessages['messages'][number]): boolean {
  * so useChat doesn't merge them into one turn.
  */
 export function preparePublicMessages(
-  messages: ConversationMessages['messages'],
+  messages: InteractionMessages['messages'],
 ): UIMessage[] {
   const result: UIMessage[] = [];
   let prevStaff = false;
@@ -70,23 +70,23 @@ export function preparePublicMessages(
 }
 
 interface UsePublicChatResult {
-  conversationId: string | null;
+  interactionId: string | null;
   initialMessages: UIMessage[];
   loading: boolean;
   error: string | null;
   errorRetryable: boolean;
   retry: () => void;
-  reset: () => Promise<void>;
+  newTopic: () => Promise<void>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function getStoredConversationId(channelRoutingId: string): string | null {
-  return localStorage.getItem(`vobase-conv-${channelRoutingId}`);
+function getStoredInteractionId(channelRoutingId: string): string | null {
+  return localStorage.getItem(`vobase-interaction-${channelRoutingId}`);
 }
 
-function storeConversationId(channelRoutingId: string, conversationId: string) {
-  localStorage.setItem(`vobase-conv-${channelRoutingId}`, conversationId);
+function storeInteractionId(channelRoutingId: string, interactionId: string) {
+  localStorage.setItem(`vobase-interaction-${channelRoutingId}`, interactionId);
 }
 
 /**
@@ -103,7 +103,7 @@ async function ensureAnonymousSession(): Promise<void> {
 // ─── Hook ─────────────────────────────────────────────────────────────
 
 export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [interactionId, setInteractionId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [errorRetryable, setErrorRetryable] = useState(true);
@@ -118,23 +118,23 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       // Sign in anonymously if no session exists
       await ensureAnonymousSession();
 
-      const storedConvId = getStoredConversationId(channelRoutingId);
+      const storedId = getStoredInteractionId(channelRoutingId);
 
-      // Try to resume existing conversation
-      if (storedConvId) {
+      // Try to resume existing interaction
+      if (storedId) {
         try {
-          const res = await aiClient.chat[':channelRoutingId'].conversations[
-            ':conversationId'
+          const res = await aiClient.chat[':channelRoutingId'].interactions[
+            ':interactionId'
           ].$get({
             param: {
               channelRoutingId,
-              conversationId: storedConvId,
+              interactionId: storedId,
             },
           });
           if (res.ok) {
-            const data = (await res.json()) as ConversationMessages;
+            const data = (await res.json()) as InteractionMessages;
             const uiMessages = preparePublicMessages(data.messages);
-            setConversationId(data.id);
+            setInteractionId(data.id);
             setInitialMessages(uiMessages);
             setLoading(false);
             return;
@@ -144,7 +144,7 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
         }
       }
 
-      // Start new conversation
+      // Start new interaction
       const startRes = await aiClient.chat[':channelRoutingId'].start.$post({
         param: { channelRoutingId },
       });
@@ -165,8 +165,8 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       }
 
       const startData = (await startRes.json()) as StartResponse;
-      storeConversationId(channelRoutingId, startData.conversationId);
-      setConversationId(startData.conversationId);
+      storeInteractionId(channelRoutingId, startData.interactionId);
+      setInteractionId(startData.interactionId);
       setLoading(false);
     } catch {
       setError('Failed to connect to chat');
@@ -182,7 +182,7 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
     initChat();
   }, [initChat]);
 
-  const reset = useCallback(async () => {
+  const newTopic = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -191,19 +191,19 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       });
 
       if (!res.ok) {
-        setError('Failed to reset conversation');
+        setError('Failed to start new topic');
         setErrorRetryable(true);
         setLoading(false);
         return;
       }
 
       const data = (await res.json()) as StartResponse;
-      storeConversationId(channelRoutingId, data.conversationId);
-      setConversationId(data.conversationId);
+      storeInteractionId(channelRoutingId, data.interactionId);
+      setInteractionId(data.interactionId);
       setInitialMessages([]);
       setLoading(false);
     } catch {
-      setError('Failed to reset conversation');
+      setError('Failed to start new topic');
       setErrorRetryable(true);
       setLoading(false);
     }
@@ -214,12 +214,12 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
   }, [initChat]);
 
   return {
-    conversationId,
+    interactionId,
     initialMessages,
     loading,
     error,
     errorRetryable,
     retry,
-    reset,
+    newTopic,
   };
 }

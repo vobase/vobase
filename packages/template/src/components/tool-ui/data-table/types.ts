@@ -101,14 +101,14 @@ export interface Column<
  */
 export interface DataTableSerializableProps<T extends object = RowData> {
   /**
-   * Unique identifier for this tool UI instance in the conversation.
+   * Unique identifier for this tool UI instance in the interaction.
    *
    * Used for:
    * - Assistant referencing ("the table above")
    * - Receipt generation (linking actions to their source)
    * - Narration context
    *
-   * Should be stable across re-renders, meaningful, and unique within the conversation.
+   * Should be stable across re-renders, meaningful, and unique within the interaction.
    *
    * @example "data-table-expenses-q3", "search-results-repos"
    */

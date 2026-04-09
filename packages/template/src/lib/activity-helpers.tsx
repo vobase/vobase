@@ -14,7 +14,7 @@ interface ActivityEvent {
   contentData: Record<string, unknown> | null;
 }
 
-/** Activity event types meaningful enough to show in the conversation timeline.
+/** Activity event types meaningful enough to show in the interaction timeline.
  *  Low-value events (message.read, message.outbound_queued, agent.tool_executed)
  *  are excluded — their info is already visible on message bubbles or redundant. */
 const TIMELINE_VISIBLE_EVENTS = new Set([
@@ -23,11 +23,11 @@ const TIMELINE_VISIBLE_EVENTS = new Set([
   'session.created',
   'session.completed',
   'session.failed',
-  'conversation.created',
-  'conversation.completed',
-  'conversation.failed',
-  'conversation.claimed',
-  'conversation.unassigned',
+  'interaction.created',
+  'interaction.resolved',
+  'interaction.failed',
+  'interaction.claimed',
+  'interaction.unassigned',
   'guardrail.block',
   'guardrail.warn',
   'agent.draft_generated',
@@ -37,7 +37,7 @@ const TIMELINE_VISIBLE_EVENTS = new Set([
   'label.removed',
 ]);
 
-/** Whether an activity event type should be rendered in the conversation timeline */
+/** Whether an activity event type should be rendered in the interaction timeline */
 export function isTimelineVisibleEvent(eventType: string): boolean {
   return TIMELINE_VISIBLE_EVENTS.has(eventType);
 }
@@ -48,17 +48,17 @@ export function activityDescription(event: ActivityEvent): string {
   const data = event.contentData ?? {};
   switch (type) {
     case 'session.created':
-    case 'conversation.created':
-      return 'Conversation started';
+    case 'interaction.created':
+      return 'Interaction started';
     case 'session.completed':
-    case 'conversation.completed':
-      return 'Conversation resolved';
+    case 'interaction.resolved':
+      return 'Interaction resolved';
     case 'session.failed':
-    case 'conversation.failed':
-      return 'Conversation failed';
-    case 'conversation.claimed':
+    case 'interaction.failed':
+      return 'Interaction failed';
+    case 'interaction.claimed':
       return `Assigned to ${(data.assignee as string) ?? 'staff'}`;
-    case 'conversation.unassigned':
+    case 'interaction.unassigned':
       return 'Unassigned from staff';
     case 'escalation.created':
       return `Escalated — ${(data.reason as string)?.slice(0, 60) ?? 'needs attention'}`;
@@ -91,19 +91,19 @@ export function activityIcon(type: string) {
     return <ZapIcon className="size-3 text-yellow-500" />;
   if (
     type === 'session.completed' ||
-    type === 'conversation.completed' ||
+    type === 'interaction.resolved' ||
     type === 'attention.reviewed'
   )
     return <CheckIcon className="size-3 text-green-500" />;
-  if (type === 'session.failed' || type === 'conversation.failed')
+  if (type === 'session.failed' || type === 'interaction.failed')
     return <AlertTriangleIcon className="size-3 text-red-500" />;
-  if (type === 'conversation.claimed' || type === 'conversation.unassigned')
+  if (type === 'interaction.claimed' || type === 'interaction.unassigned')
     return <ZapIcon className="size-3 text-blue-500" />;
   if (type === 'agent.draft_generated')
     return <WrenchIcon className="size-3 text-amber-500" />;
   if (type.startsWith('guardrail'))
     return <ShieldIcon className="size-3 text-orange-500" />;
-  if (type === 'session.created' || type === 'conversation.created')
+  if (type === 'session.created' || type === 'interaction.created')
     return <BotIcon className="size-3 text-violet-500" />;
   if (type === 'label.added' || type === 'label.removed')
     return <TagIcon className="size-3 text-violet-500" />;

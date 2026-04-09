@@ -47,20 +47,20 @@ async function fetchAgents(): Promise<Agent[]> {
   return res.json() as unknown as Promise<Agent[]>;
 }
 
-async function fetchConversations(): Promise<Thread[]> {
-  const res = await aiClient.conversations.$get();
-  if (!res.ok) throw new Error('Failed to fetch conversations');
+async function fetchInteractions(): Promise<Thread[]> {
+  const res = await aiClient.interactions.$get();
+  if (!res.ok) throw new Error('Failed to fetch interactions');
   return res.json() as unknown as Promise<Thread[]>;
 }
 
-async function createConversation(agentId: string): Promise<Thread> {
+async function createInteraction(agentId: string): Promise<Thread> {
   // biome-ignore lint/style/noRestrictedGlobals: No typed POST /sessions route — sessions are created via chat flow
-  const res = await fetch('/api/conversations/sessions', {
+  const res = await fetch('/api/interactions/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ agentId }),
   });
-  if (!res.ok) throw new Error('Failed to create conversation');
+  if (!res.ok) throw new Error('Failed to create interaction');
   return res.json();
 }
 
@@ -231,7 +231,7 @@ function AgentDetailSheet({
               </h4>
               {agentThreads.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No recent conversations
+                  No recent interactions
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -267,22 +267,22 @@ function AgentsPage() {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['conversations-agents'],
+    queryKey: ['interactions-agents'],
     queryFn: fetchAgents,
   });
 
   const { data: threads = [] } = useQuery({
-    queryKey: ['conversations-sessions'],
-    queryFn: fetchConversations,
+    queryKey: ['interactions-sessions'],
+    queryFn: fetchInteractions,
   });
 
   const chatMutation = useMutation({
-    mutationFn: (agentId: string) => createConversation(agentId),
-    onSuccess: (conversation) => {
+    mutationFn: (agentId: string) => createInteraction(agentId),
+    onSuccess: (interaction) => {
       setSelectedAgent(null);
       navigate({
-        to: '/conversations/$conversationId',
-        params: { conversationId: conversation.id },
+        to: '/interactions/$interactionId',
+        params: { interactionId: interaction.id },
       });
     },
   });

@@ -45,10 +45,10 @@ function parseFeedbackRows(
 }
 
 async function fetchFeedback(
-  conversationId: string,
+  interactionId: string,
 ): Promise<Map<string, MessageReactions>> {
-  const res = await aiClient.conversations[':id'].feedback.$get({
-    param: { id: conversationId },
+  const res = await aiClient.interactions[':id'].feedback.$get({
+    param: { id: interactionId },
   });
   if (!res.ok) return new Map();
   const rows = (await res.json()) as FeedbackApiRow[];
@@ -59,29 +59,29 @@ async function fetchFeedback(
  * Shared hook for message reactions — fetching, SSE sync, and mutation.
  * Uses TanStack Query for caching + SSE invalidation for realtime updates.
  */
-export function useFeedback(conversationId: string) {
+export function useFeedback(interactionId: string) {
   const queryClient = useQueryClient();
 
   const { data: feedbackMap = new Map<string, MessageReactions>() } = useQuery({
-    queryKey: ['conversations-feedback', conversationId],
-    queryFn: () => fetchFeedback(conversationId),
-    enabled: !!conversationId,
+    queryKey: ['interactions-feedback', interactionId],
+    queryFn: () => fetchFeedback(interactionId),
+    enabled: !!interactionId,
   });
 
   // SSE-based realtime sync
   useEffect(() => {
     const unsubscribe = subscribeToPayloads((payload: RealtimePayload) => {
       if (
-        payload.table === 'conversations-feedback' &&
-        payload.id === conversationId
+        payload.table === 'interactions-feedback' &&
+        payload.id === interactionId
       ) {
         queryClient.invalidateQueries({
-          queryKey: ['conversations-feedback', conversationId],
+          queryKey: ['interactions-feedback', interactionId],
         });
       }
     });
     return unsubscribe;
-  }, [conversationId, queryClient]);
+  }, [interactionId, queryClient]);
 
   const reactMutation = useMutation({
     mutationFn: async ({
@@ -93,10 +93,10 @@ export function useFeedback(conversationId: string) {
       rating: 'positive' | 'negative';
       reason?: string;
     }) => {
-      const res = await aiClient.conversations[':id'].messages[
+      const res = await aiClient.interactions[':id'].messages[
         ':messageId'
       ].feedback.$post(
-        { param: { id: conversationId, messageId } },
+        { param: { id: interactionId, messageId } },
         {
           headers: { 'Content-Type': 'application/json' },
           init: {
@@ -118,10 +118,10 @@ export function useFeedback(conversationId: string) {
       messageId: string;
       feedbackId: string;
     }) => {
-      const res = await aiClient.conversations[':id'].messages[
+      const res = await aiClient.interactions[':id'].messages[
         ':messageId'
       ].feedback[':feedbackId'].$delete({
-        param: { id: conversationId, messageId, feedbackId },
+        param: { id: interactionId, messageId, feedbackId },
       });
       if (!res.ok) throw new Error('Failed to delete feedback');
       return res.json();

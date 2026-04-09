@@ -24,8 +24,8 @@ interface VobaseThreadContextValue {
   qualityScores?: Map<string, MessageScoreGroup>;
   /** Contact label for turn grouping */
   contactLabel?: string;
-  /** Conversation ID for typing indicator */
-  conversationId?: string;
+  /** Interaction ID for typing indicator */
+  interactionId?: string;
   /** Whether AI is currently thinking (public chat) */
   isAiThinking?: boolean;
 }

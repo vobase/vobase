@@ -64,18 +64,18 @@ export function useRealtimeInvalidation() {
           // subscriber errors must not crash the dispatch loop
         }
       }
-      // Targeted invalidation for conversation tab events
-      if (payload.table === 'conversations' && payload.tab) {
-        const tabKey = `conversations-${payload.tab === 'ai' ? 'ai-active' : payload.tab === 'done' ? 'resolved' : 'attention'}`;
+      // Targeted invalidation for interaction tab events
+      if (payload.table === 'interactions' && payload.tab) {
+        const tabKey = `interactions-${payload.tab === 'ai' ? 'ai-active' : payload.tab === 'done' ? 'resolved' : 'attention'}`;
         queryClient.invalidateQueries({ queryKey: [tabKey] });
         if (payload.prevTab && payload.prevTab !== payload.tab) {
-          const prevKey = `conversations-${payload.prevTab === 'ai' ? 'ai-active' : payload.prevTab === 'done' ? 'resolved' : 'attention'}`;
+          const prevKey = `interactions-${payload.prevTab === 'ai' ? 'ai-active' : payload.prevTab === 'done' ? 'resolved' : 'attention'}`;
           queryClient.invalidateQueries({ queryKey: [prevKey] });
         }
-        queryClient.invalidateQueries({ queryKey: ['conversations-counts'] });
+        queryClient.invalidateQueries({ queryKey: ['interactions-counts'] });
         if (payload.id) {
           queryClient.invalidateQueries({
-            queryKey: ['conversation-detail', payload.id],
+            queryKey: ['interaction-detail', payload.id],
           });
         }
         return;

@@ -150,7 +150,7 @@ function eventDescription(
       return (
         <>
           <span className={n}>{agent}</span>
-          <span className={v}> started a conversation with </span>
+          <span className={v}> started an interaction with </span>
           <span className={n}>{contact}</span>
         </>
       );
@@ -269,27 +269,27 @@ function HomePage() {
   const queryClient = useQueryClient();
 
   const dashboardQuery = useQuery({
-    queryKey: ['conversations-dashboard'],
+    queryKey: ['interactions-dashboard'],
     queryFn: fetchDashboard,
   });
 
   const metricsQuery = useQuery({
-    queryKey: ['conversations-metrics'],
+    queryKey: ['interactions-metrics'],
     queryFn: fetchAgentMetrics,
   });
 
   const attentionQuery = useQuery({
-    queryKey: ['conversations-attention'],
+    queryKey: ['interactions-attention'],
     queryFn: fetchAttention,
   });
 
   const contactsQuery = useQuery({
-    queryKey: ['conversations-contacts'],
+    queryKey: ['interactions-contacts'],
     queryFn: fetchContacts,
   });
 
   const activityQuery = useInfiniteQuery({
-    queryKey: ['conversations-activity'],
+    queryKey: ['interactions-activity'],
     queryFn: fetchActivity,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -304,9 +304,9 @@ function HomePage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations-dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations-activity'] });
+      queryClient.invalidateQueries({ queryKey: ['interactions-attention'] });
+      queryClient.invalidateQueries({ queryKey: ['interactions-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['interactions-activity'] });
     },
   });
 
@@ -319,9 +319,9 @@ function HomePage() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations-dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['conversations-activity'] });
+      queryClient.invalidateQueries({ queryKey: ['interactions-attention'] });
+      queryClient.invalidateQueries({ queryKey: ['interactions-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['interactions-activity'] });
     },
   });
 
@@ -425,10 +425,10 @@ function HomePage() {
                         )}
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {event.conversationId ? (
+                        {event.interactionId ? (
                           <Link
-                            to="/conversations/$conversationId"
-                            params={{ conversationId: event.conversationId }}
+                            to="/interactions/$interactionId"
+                            params={{ interactionId: event.interactionId }}
                             className="hidden text-xs text-muted-foreground hover:text-foreground group-hover:inline"
                           >
                             View &rarr;
@@ -436,7 +436,7 @@ function HomePage() {
                         ) : null}
                         <span
                           className={
-                            event.conversationId ? 'group-hover:hidden' : ''
+                            event.interactionId ? 'group-hover:hidden' : ''
                           }
                         >
                           {relativeTime(event.createdAt)}
@@ -598,7 +598,7 @@ function HomePage() {
 
 export const Route = createFileRoute('/_app/')({
   beforeLoad: () => {
-    throw redirect({ to: '/conversations' });
+    throw redirect({ to: '/interactions' });
   },
   component: HomePage,
 });

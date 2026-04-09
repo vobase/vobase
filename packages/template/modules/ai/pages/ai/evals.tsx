@@ -48,15 +48,15 @@ import { cn } from '@/lib/utils';
 interface QualityOverview {
   avgScore: number | null;
   totalScores: number;
-  conversationsScored: number;
+  interactionsScored: number;
   feedback: { positive: number; negative: number };
   scorerBreakdown: Array<{
     scorerId: string;
     avgScore: number;
     count: number;
   }>;
-  worstConversations: Array<{
-    conversationId: string;
+  worstInteractions: Array<{
+    interactionId: string;
     avgScore: number;
     scoreCount: number;
     lastScored: string | null;
@@ -259,13 +259,13 @@ function QualityDashboard() {
           <CardHeader className="pb-1">
             <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <TrendingUpIcon className="h-3.5 w-3.5" />
-              Conversations Scored
+              Interactions Scored
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-semibold">
-                {overview.conversationsScored}
+                {overview.interactionsScored}
               </span>
               <span className="text-xs text-muted-foreground">
                 {overview.totalScores} total scores
@@ -318,11 +318,11 @@ function QualityDashboard() {
         </Card>
       </div>
 
-      {/* Worst conversations */}
-      {overview.worstConversations.length > 0 && (
+      {/* Worst interactions */}
+      {overview.worstInteractions.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium">
-            Conversations by Quality
+            Interactions by Quality
             <span className="ml-2 text-muted-foreground font-normal">
               lowest first
             </span>
@@ -332,7 +332,7 @@ function QualityDashboard() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Conversation
+                    Interaction
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                     Quality
@@ -346,22 +346,22 @@ function QualityDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {overview.worstConversations.map((conv) => {
+                {overview.worstInteractions.map((conv) => {
                   const pct = Math.round(conv.avgScore * 100);
                   return (
                     <tr
-                      key={conv.conversationId}
+                      key={conv.interactionId}
                       className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                     >
                       <td className="px-3 py-2.5">
                         <Link
-                          to="/conversations/$conversationId"
+                          to="/interactions/$interactionId"
                           params={{
-                            conversationId: conv.conversationId,
+                            interactionId: conv.interactionId,
                           }}
                           className="text-sm text-primary hover:underline font-mono"
                         >
-                          {conv.conversationId.slice(0, 8)}…
+                          {conv.interactionId.slice(0, 8)}…
                         </Link>
                       </td>
                       <td className="px-3 py-2.5">

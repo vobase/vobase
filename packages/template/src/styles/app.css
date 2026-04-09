@@ -96,6 +96,27 @@
   --color-info: var(--info);
 }
 
+/* New message flash highlight — fires once, fades out */
+@keyframes message-flash {
+  0% {
+    background-color: oklch(0.87 0.06 255 / 0.35);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.message-flash {
+  animation: message-flash 1s ease-out forwards;
+  border-radius: 0.375rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-flash {
+    animation: none;
+  }
+}
+
 .dark {
   --background: oklch(0.145 0.005 255);
   --foreground: oklch(0.985 0 0);

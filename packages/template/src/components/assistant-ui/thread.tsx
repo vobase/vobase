@@ -183,12 +183,12 @@ const ActivityEventMessage: FC = () => {
 
 const ThreadTypingIndicator: FC = () => {
   const ctx = useVobaseThread();
-  if (!ctx?.conversationId) return null;
+  if (!ctx?.interactionId) return null;
 
   return (
     <div className="mx-auto w-full max-w-(--thread-max-width) px-4">
       <TypingIndicator
-        conversationId={ctx.conversationId}
+        interactionId={ctx.interactionId}
         isAiThinking={ctx.isAiThinking}
         excludeUserId={ctx.currentUserId}
       />

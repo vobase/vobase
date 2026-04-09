@@ -85,7 +85,7 @@ function MemoryPage() {
             No working memory for this scope yet.
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Working memory is built from agent conversations.
+            Working memory is built from agent interactions.
           </p>
         </div>
       )}

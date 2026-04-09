@@ -54,10 +54,18 @@ export const navGroups: NavGroup[] = [
     title: 'Overview',
     items: [
       {
-        title: 'Conversations',
-        url: '/conversations',
+        title: 'Inbox',
+        url: '/inbox',
         icon: MessageSquareTextIcon,
-        keywords: ['home', 'overview', 'dashboard', 'status', 'chat', 'inbox'],
+        keywords: [
+          'home',
+          'overview',
+          'dashboard',
+          'status',
+          'chat',
+          'inbox',
+          'interactions',
+        ],
       },
       {
         title: 'Contacts',
