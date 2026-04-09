@@ -48,7 +48,11 @@ try {
 }
 console.log(`${green('✓')} Database recreated`);
 
-// 2. Apply fixtures + push schema
+// 2. Apply migrations, then push any pending schema changes
+console.log(dim('Migrating...'));
+run(['bun', 'run', 'db:migrate']);
+console.log(`${green('✓')} Migrations applied`);
+
 console.log(dim('Pushing...'));
 run(['bun', 'run', 'db:push']);
 console.log(`${green('✓')} Schema pushed`);

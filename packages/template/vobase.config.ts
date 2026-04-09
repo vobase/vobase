@@ -55,6 +55,7 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   auth: {
     appName: productName,
     multiOrg: process.env.MULTI_ORG === 'true',
+    teams: true,
     ...(process.env.VITE_ALLOWED_EMAIL_DOMAINS && {
       allowedEmailDomains: process.env.VITE_ALLOWED_EMAIL_DOMAINS.split(
         ',',

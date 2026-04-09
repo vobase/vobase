@@ -1,5 +1,5 @@
 /**
- * E2E test: Agent Control Plane (conversations module).
+ * E2E test: Agent Control Plane (interactions module).
  * Tests against a live dev server with seeded data.
  *
  * Prerequisites:
@@ -157,11 +157,11 @@ describe('Activity feed', () => {
   test('type filter', async () => {
     const { json } = await api(
       'GET',
-      '/api/ai/activity?type=conversation.created&limit=20',
+      '/api/ai/activity?type=interaction.created&limit=20',
     );
     const events = (json as { events: Array<{ type: string }> }).events;
     expect(events.length).toBeGreaterThanOrEqual(2);
-    expect(events.every((e) => e.type === 'conversation.created')).toBe(true);
+    expect(events.every((e) => e.type === 'interaction.created')).toBe(true);
   });
 
   test('category filter (agent)', async () => {
@@ -290,7 +290,7 @@ describe('Session mode guards', () => {
   test('human-mode session exists', async () => {
     const { status, json } = await api(
       'GET',
-      '/api/ai/conversations/sess-human-mode',
+      '/api/ai/interactions/sess-human-mode',
     );
     expect(status).toBe(200);
     expect((json as { mode: string }).mode).toBe('human');
@@ -299,7 +299,7 @@ describe('Session mode guards', () => {
   test('held-mode session exists', async () => {
     const { status, json } = await api(
       'GET',
-      '/api/ai/conversations/sess-held-mode',
+      '/api/ai/interactions/sess-held-mode',
     );
     expect(status).toBe(200);
     expect((json as { mode: string }).mode).toBe('held');
@@ -308,7 +308,7 @@ describe('Session mode guards', () => {
   test('supervised-mode session exists', async () => {
     const { status, json } = await api(
       'GET',
-      '/api/ai/conversations/sess-supervised-mode',
+      '/api/ai/interactions/sess-supervised-mode',
     );
     expect(status).toBe(200);
     expect((json as { mode: string }).mode).toBe('supervised');
@@ -319,7 +319,7 @@ describe('Session mode guards', () => {
 
 describe('Handoff/handback cycle', () => {
   test('handback from human to ai, or rejects if not possible', async () => {
-    const current = await api('GET', '/api/ai/conversations/sess-human-mode');
+    const current = await api('GET', '/api/ai/interactions/sess-human-mode');
     const { mode, status: sessStatus } = current.json as {
       mode: string;
       status: string;
@@ -327,7 +327,7 @@ describe('Handoff/handback cycle', () => {
 
     const handback = await api(
       'POST',
-      '/api/ai/conversations/sess-human-mode/handback',
+      '/api/ai/interactions/sess-human-mode/handback',
     );
 
     if (mode === 'human' && sessStatus === 'active') {
@@ -338,7 +338,7 @@ describe('Handoff/handback cycle', () => {
       await new Promise((r) => setTimeout(r, 500));
       const events = await api(
         'GET',
-        '/api/ai/activity?conversationId=sess-human-mode&type=handler.changed&limit=10',
+        '/api/ai/activity?interactionId=sess-human-mode&type=handler.changed&limit=10',
       );
       const hbEvents = (events.json as { events: Array<{ type: string }> })
         .events;
@@ -353,7 +353,7 @@ describe('Handoff/handback cycle', () => {
     // After the previous test, session should be ai
     const double = await api(
       'POST',
-      '/api/ai/conversations/sess-human-mode/handback',
+      '/api/ai/interactions/sess-human-mode/handback',
     );
     expect(double.status).toBe(400);
   });
@@ -365,7 +365,7 @@ describe('Approve supervised draft', () => {
   test('approves pending draft or 404 if already approved', async () => {
     const approve = await api(
       'POST',
-      '/api/ai/conversations/sess-supervised-mode/approve-draft',
+      '/api/ai/interactions/sess-supervised-mode/approve-draft',
     );
 
     if (approve.status === 200) {
@@ -373,7 +373,7 @@ describe('Approve supervised draft', () => {
       // Double-approve: no more pending drafts
       const double = await api(
         'POST',
-        '/api/ai/conversations/sess-supervised-mode/approve-draft',
+        '/api/ai/interactions/sess-supervised-mode/approve-draft',
       );
       expect(double.status).toBe(404);
     } else {
@@ -389,54 +389,52 @@ describe('Session lifecycle', () => {
   test('complete session emits event', async () => {
     const complete = await api(
       'PATCH',
-      '/api/ai/conversations/sess-for-completion',
-      { status: 'completed' },
+      '/api/ai/interactions/sess-for-completion',
+      { status: 'resolved' },
     );
     expect(complete.status).toBe(200);
-    expect((complete.json as { status: string }).status).toBe('completed');
+    expect((complete.json as { status: string }).status).toBe('resolved');
 
     await new Promise((r) => setTimeout(r, 500));
     const events = await api(
       'GET',
-      '/api/ai/activity?conversationId=sess-for-completion&limit=10',
+      '/api/ai/activity?interactionId=sess-for-completion&limit=10',
     );
     const types = (
       events.json as { events: Array<{ type: string }> }
     ).events.map((e) => e.type);
-    expect(types).toContain('conversation.completed');
+    expect(types).toContain('interaction.resolved');
   });
 
   test('fail session sets resolution outcome + event', async () => {
     // Check current status — seed may have been mutated by previous runs
-    const current = await api('GET', '/api/ai/conversations/sess-for-handoff');
+    const current = await api('GET', '/api/ai/interactions/sess-for-handoff');
     const currentStatus = (current.json as { status: string }).status;
 
     if (currentStatus === 'active') {
-      const fail = await api(
-        'PATCH',
-        '/api/ai/conversations/sess-for-handoff',
-        { status: 'failed' },
-      );
+      const fail = await api('PATCH', '/api/ai/interactions/sess-for-handoff', {
+        status: 'failed',
+      });
       expect(fail.status).toBe(200);
       const data = fail.json as {
         status: string;
-        resolutionOutcome: string | null;
+        outcome: string | null;
       };
       expect(data.status).toBe('failed');
-      expect(data.resolutionOutcome).toBe('failed');
+      expect(data.outcome).toBe('failed');
 
       await new Promise((r) => setTimeout(r, 500));
       const events = await api(
         'GET',
-        '/api/ai/activity?conversationId=sess-for-handoff&limit=10',
+        '/api/ai/activity?interactionId=sess-for-handoff&limit=10',
       );
       const types = (
         events.json as { events: Array<{ type: string }> }
       ).events.map((e) => e.type);
-      expect(types).toContain('conversation.failed');
+      expect(types).toContain('interaction.failed');
     } else {
       // Already terminal from previous run — verify it has a terminal status
-      expect(['completed', 'failed']).toContain(currentStatus);
+      expect(['resolved', 'failed']).toContain(currentStatus);
     }
   });
 });

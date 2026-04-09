@@ -1,13 +1,19 @@
 /**
- * Seed: conversations module — realistic demo data for a booking service.
+ * Seed: interactions module — realistic demo data for a booking service.
  *
- * Uses @faker-js/faker to generate volume that makes every UI page look populated:
- * - ~50 contacts (customers, leads, staff)
- * - 3 channel instances + 3 channel routings
- * - ~80 conversations across all lifecycle states, spread over 30 days
- * - ~3 messages per conversation (agent responses for transcript)
+ * Covers every lifecycle state and new model feature:
+ * - ~20 named contacts (customers, leads, staff) with intentional relationships
+ * - 3 channel instances (WhatsApp, Web, Email) + 3 routings
+ * - ~90 interactions across all statuses, modes, outcomes, and autonomy levels
+ * - Multi-interaction contacts for timeline testing
+ * - Reopened interactions (reopenCount > 0)
+ * - Topic change pending interactions
+ * - Interaction participants (multi-participant / CC / BCC)
+ * - Channel instance → team mappings
+ * - ~3 messages per interaction
  * - ~12 consultations across all states
- * - ~6 eval runs across all statuses (complete, running, pending, error)
+ * - ~6 eval runs, 3 custom scorers
+ * - Labels, reactions, feedback, channel sessions, activity events
  */
 
 import { faker } from '@faker-js/faker';
@@ -18,14 +24,19 @@ import {
   aiEvalRuns,
   aiScorers,
   channelInstances,
+  channelInstanceTeams,
   channelRoutings,
   channelSessions,
   consultations,
+  contactLabels,
   contacts,
-  conversationLabels,
-  conversations,
+  interactionLabels,
+  interactionParticipants,
+  interactions,
   labels,
+  messageFeedback,
   messages,
+  reactions,
 } from './schema';
 
 // Deterministic seed so `bun run db:seed` always produces the same data
@@ -37,190 +48,519 @@ function hoursAgo(n: number): Date {
   return new Date(Date.now() - n * 60 * 60 * 1000);
 }
 
-function randomItem<T>(arr: T[]): T {
+function pick<T>(arr: T[]): T {
   return arr[faker.number.int({ min: 0, max: arr.length - 1 })];
 }
 
-// ─── Generators ──────────────────────────────────────────────────────
+// ─── Scripted narratives for handcrafted contacts ───────────────────
+// Each key is an interaction ID. Turns are [customer, agent] pairs that
+// read as a continuous story when viewing the contact's timeline.
 
-function generateContacts(count: number) {
-  const items: Array<{
-    id: string;
-    phone: string;
-    email: string;
-    name: string;
-    role: 'customer' | 'lead' | 'staff';
-    metadata: Record<string, unknown>;
-  }> = [];
+const SCRIPTED: Record<string, Array<[string, string]>> = {
+  // ── Alice: 10 WhatsApp interactions over 12 days ───────────────────
+  // Continuous journey: new patient → booking → post-visit → billing issue → referral → loyalty
+  'int-alice-wa-01': [
+    [
+      'Hi, I would like to book an appointment please.',
+      'Hi Alice! I am your booking assistant. How can I help you today?',
+    ],
+    [
+      'Do you have anything on Wednesday afternoon?',
+      'Yes! I have 2:00 PM and 3:30 PM available this Wednesday. Which works better?',
+    ],
+    [
+      '2 PM please.',
+      'Done! Your appointment is confirmed for Wednesday at 2:00 PM. Reference: BK-4821. See you then!',
+    ],
+  ],
+  'int-alice-wa-02': [
+    [
+      'Hi, quick question before my appointment tomorrow — do I need to fast?',
+      'Hi Alice! For a general consultation, no fasting is required. Just bring your ID and any current medications list.',
+    ],
+    [
+      'Great, and where exactly is the clinic? I have not been before.',
+      'We are at Block 5, #03-12, Orchard Medical Centre. Basement parking available — first 2 hours free. See you tomorrow at 2 PM!',
+    ],
+  ],
+  'int-alice-wa-03': [
+    [
+      'Hi, just had my appointment. Dr. Tan was great. Quick question though.',
+      'Glad to hear it went well, Alice! What is your question?',
+    ],
+    [
+      'The receipt shows $120 but I thought consultations were $80?',
+      'Good catch — the $120 includes the blood panel Dr. Tan ordered. I can break it down: $80 consultation + $40 lab work. Does that look right?',
+    ],
+    [
+      'Ah ok. Actually, can I ask about my insurance coverage? That is a different topic.',
+      'Sure! Since this is a billing/insurance question, let me close out the visit follow-up and start fresh on the insurance topic.',
+    ],
+  ],
+  'int-alice-wa-04': [
+    [
+      'So my AIA plan should cover the lab work but the portal shows an outstanding balance.',
+      'I see — insurance billing is outside what I can resolve directly. Let me connect you with our operations team.',
+    ],
+    [
+      'Ok, please get back to me soon. I do not want this to go to collections.',
+      'Understood — I am flagging this as urgent. David from operations will check your AIA coverage and sort out the balance today.',
+    ],
+    [
+      'Thanks, I will wait for David.',
+      'David has been notified and will reach out within the hour. Your reference for this issue is INS-2241.',
+    ],
+  ],
+  'int-alice-wa-05': [
+    [
+      'Hey, David sorted out the insurance. All good now. I need to reschedule my follow-up.',
+      'Great news about the insurance! Let me check follow-up availability. When were you thinking?',
+    ],
+    [
+      'Sometime next week? Morning if possible.',
+      'I have Tuesday 9:30 AM and Thursday 10:00 AM. Either work?',
+    ],
+    [
+      'Actually wait — can I reopen this? I just realized I also need to bring my lab results.',
+      'Of course! I have noted that. Bring your lab results printout to the follow-up. Shall I book Tuesday 9:30 AM?',
+    ],
+    [
+      'Yes, Tuesday works.',
+      'Booked! Tuesday 9:30 AM, follow-up consultation. Bring your lab results. Reference: BK-4856.',
+    ],
+  ],
+  'int-alice-wa-06': [
+    [
+      'Quick question — is there parking validation for the Tuesday visit too?',
+      'Yes, Alice! Same as before — basement parking at Block 5, first 2 hours free. Just validate at reception.',
+    ],
+    ['Perfect, thanks!', 'You are welcome! See you Tuesday.'],
+  ],
+  'int-alice-wa-07': [
+    [
+      'Dr. Tan mentioned I should see a specialist for the blood work results. Can you help arrange?',
+      'Of course, Alice. Dr. Tan can refer you to our haematology specialist, Dr. Lee. Let me check her availability.',
+    ],
+    [
+      'Is she good? I am a bit nervous about specialist visits.',
+      'Dr. Lee is excellent — she has been with us for 8 years and is very patient. I am connecting David to help coordinate since specialist bookings need manual confirmation.',
+    ],
+    [
+      'Ok, whatever is fastest. I have been worrying about these results.',
+      'Completely understand. David is arranging a priority slot for you. He will confirm the date and time shortly.',
+    ],
+  ],
+  'int-alice-wa-08': [
+    [
+      'David confirmed Thursday 10:30 AM with Dr. Lee. Just want to double-check that is right.',
+      'Confirmed! Thursday 10:30 AM with Dr. Lee (haematology). Bring your ID, lab results, and referral letter from Dr. Tan.',
+    ],
+    [
+      'What referral letter? I did not get one.',
+      'Dr. Tan would have issued it after your last visit. Let me check — yes, it is in your file. I will ask reception to have a printed copy ready when you arrive.',
+    ],
+    [
+      'Oh great, thanks for catching that.',
+      'No problem! Everything is set for Thursday. Good luck with the appointment!',
+    ],
+  ],
+  'int-alice-wa-09': [
+    [
+      'Specialist visit went well! Dr. Lee said everything looks normal. Huge relief.',
+      'That is wonderful news, Alice! So glad to hear it.',
+    ],
+    [
+      'Thanks for all the help over the past couple weeks. Actually — do you offer family health plans? My husband might need a checkup too.',
+      'We do! Since this is a new topic, let me wrap up the specialist follow-up and start a fresh inquiry about family plans.',
+    ],
+  ],
+  'int-alice-wa-10': [
+    [
+      'So about that family plan — what packages do you have?',
+      'Welcome back, Alice! We offer several family wellness packages. For couples, the most popular is the Annual Duo Plan: 2 full checkups + 2 follow-ups for $580 (normally $720).',
+    ],
+    [
+      'That sounds good. My husband Edward might also want to sign up separately though. Can he message you directly?',
+      'Absolutely! He can reach us on this same WhatsApp number. I will make a note to link your accounts for family pricing.',
+    ],
+    [
+      'Great. One more thing — can we book the checkups back-to-back so we only make one trip?',
+      'Smart idea! Let me check for side-by-side morning slots. I will get back to you with options shortly.',
+    ],
+  ],
 
-  // Always include fixed staff (for consultations)
-  items.push(
-    {
-      id: 'contact-staff-david',
-      phone: '+6590001111',
-      email: 'david@clinic.sg',
-      name: 'David Lim',
-      role: 'staff',
-      metadata: { department: 'operations' },
-    },
-    {
-      id: 'contact-staff-eve',
-      phone: '+6590002222',
-      email: 'eve@clinic.sg',
-      name: 'Eve Chen',
-      role: 'staff',
-      metadata: { department: 'management' },
-    },
-    {
-      id: 'contact-staff-frank',
-      phone: '+6590003333',
-      email: 'frank@clinic.sg',
-      name: 'Frank Ng',
-      role: 'staff',
-      metadata: { department: 'clinical' },
-    },
-  );
+  // ── Bob: 8 cross-channel interactions (Web + Email) ────────────────
+  'int-bob-web-01': [
+    [
+      'I need to book consultations at two locations — Orchard and Tampines. Back-to-back if possible.',
+      'Hi Bob! Multi-branch bookings need manual coordination. Let me check both locations for you.',
+    ],
+    [
+      'The sooner the better. Ideally next week.',
+      'I have flagged this for our scheduling team. David will coordinate the dual booking and reach out shortly.',
+    ],
+  ],
+  'int-bob-email-01': [
+    [
+      'Hi, this is Bob Wong. Following up on my multi-branch booking from web chat. Cc-ing my assistant Alice.',
+      'Hi Bob! Your bookings are confirmed: Orchard Monday 10 AM, Tampines Monday 2 PM. References: BK-5102 and BK-5103.',
+    ],
+    [
+      'Can you send details to this thread so my assistant has them?',
+      'Done! Full confirmation sent. Both appointments locked in.',
+    ],
+  ],
+  'int-bob-web-02': [
+    [
+      'My Monday schedule changed. Can we move Orchard to Tuesday?',
+      'Hi Bob! Checking Tuesday... 10:00 AM is available at Orchard. Tampines stays Monday 2 PM. Update both?',
+    ],
+    [
+      'Yes please. Sorry for the changes.',
+      'No problem! Updated: Orchard → Tuesday 10 AM (BK-5104), Tampines → Monday 2 PM (BK-5105).',
+    ],
+  ],
+  'int-bob-web-03': [
+    [
+      'I got charged twice for the Orchard appointment. Can you check?',
+      'Oh no — let me look into that right away, Bob. I can see two charges on your account.',
+    ],
+    [
+      'This is frustrating. I want a refund for the duplicate.',
+      'Completely understandable. I am escalating this to our billing team for an immediate refund. They will process it within 24-48 hours.',
+    ],
+    [
+      'Make sure it actually happens this time.',
+      'I have flagged it as urgent. You will receive an email confirmation once the refund is processed.',
+    ],
+  ],
+  'int-bob-email-02': [
+    [
+      'Subject: Refund Confirmation\n\nDid the duplicate charge refund go through? I do not see it yet.',
+      'Hi Bob! I checked — the refund was processed yesterday and should appear in your account within 1-2 business days. Reference: REF-3301.',
+    ],
+    [
+      'Ok, I will check tomorrow. Thanks.',
+      'You are welcome! Let us know if it does not show up by Friday.',
+    ],
+  ],
+  'int-bob-web-04': [
+    [
+      'What should I bring to the Tampines appointment?',
+      'Hi Bob! For Tampines, bring your ID and the referral note from your Orchard visit (if applicable). Also bring your medication list.',
+    ],
+    ['Got it, thanks.', 'You are all set! See you Monday at 2 PM at Tampines.'],
+  ],
+  'int-bob-web-05': [
+    [
+      'Both appointments done. Orchard was great, Tampines was a bit rushed.',
+      'Thanks for the feedback, Bob! I will pass the Tampines note to our quality team. Anything else you need?',
+    ],
+    [
+      'Actually yes — I want to book the next quarterly checkup. Different topic though.',
+      'Got it! Let me close out the feedback and start fresh on the quarterly booking.',
+    ],
+  ],
+  'int-bob-web-06': [
+    [
+      'So for the quarterly checkup — can I do Orchard only this time?',
+      'Sure, Bob! Orchard has good availability. Same time preference — Tuesday mornings?',
+    ],
+    [
+      'Yes, and can you set it up as a recurring quarterly booking?',
+      'I can book the next one now and set a reminder for the following quarter. Tuesday 10 AM, 3 months from now?',
+    ],
+    [
+      'Perfect. And this time no duplicate charges please!',
+      'Ha! Noted. Your quarterly booking is confirmed: BK-5201. I have also flagged your account for billing review. No more duplicates!',
+    ],
+  ],
 
-  // Generate customers + leads
-  const usedPhones = new Set(items.map((c) => c.phone));
-  const usedEmails = new Set(items.map((c) => c.email));
+  // ── Charlie: VIP, 6 interactions ───────────────────────────────────
+  'int-charlie-wa-01': [
+    [
+      'This is Charlie Lee. Monthly checkup please.',
+      "Good morning, Mr. Lee! Checking Dr. Tan's availability for your monthly slot.",
+    ],
+    [
+      'Thursday as usual. Private room.',
+      'Thursday 2 PM, private room confirmed. David will handle your booking personally as always.',
+    ],
+  ],
+  'int-charlie-wa-02': [
+    [
+      'David, can we change Thursday to 3 PM? My meeting ran over.',
+      'Hi Mr. Lee! David has shifted your appointment to 3 PM. Same private room.',
+    ],
+    [
+      'Good. Also, I need the extended 90-minute session this time.',
+      'Noted — 90-minute session with Dr. Tan at 3 PM. Updated.',
+    ],
+  ],
+  'int-charlie-wa-03': [
+    [
+      'Checkup went well. Dr. Tan wants to discuss the cholesterol numbers. When can I call in?',
+      'Glad to hear it went well! For the results discussion, Dr. Tan has a call slot at 11 AM tomorrow. Shall I book that?',
+    ],
+    [
+      'Yes. Actually, better have David arrange it. I need my full records pulled.',
+      'Understood. David will pull your records and set up the call with Dr. Tan for 11 AM tomorrow.',
+    ],
+  ],
+  'int-charlie-wa-04': [
+    [
+      'I need a refill on my cholesterol medication. Same prescription as last time.',
+      'Hi Mr. Lee! I can see your last prescription — Atorvastatin 20mg. I will have the pharmacy prepare it for pickup.',
+    ],
+    [
+      'Actually, can it be delivered? I am traveling this week.',
+      'Checking delivery options... yes, we can courier it to your registered address. It will arrive within 2 business days.',
+    ],
+    [
+      'Wait — I reopened this because I also need the blood pressure meds refilled. Same order.',
+      'Added! Both prescriptions will be in the delivery: Atorvastatin 20mg + Amlodipine 5mg. Delivery confirmed.',
+    ],
+  ],
+  'int-charlie-wa-05': [
+    [
+      'Need to see Dr. Tan again. 90-minute session, private room. Next Thursday.',
+      'Hi Mr. Lee! Next Thursday is available. David will confirm the 90-minute private room session.',
+    ],
+    [
+      'Tell David to also book the lab for a full panel before the appointment.',
+      'Noted — full blood panel + 90-minute consultation. David is arranging both.',
+    ],
+  ],
+  'int-charlie-wa-06': [
+    [
+      'Test results in yet? I am getting anxious about the cholesterol recheck.',
+      'Hi Mr. Lee, let me check with the lab... the results are in and have been sent to Dr. Tan for review.',
+    ],
+    [
+      'Can David call me to discuss before the Thursday appointment?',
+      'David is reviewing now and will call you within the hour.',
+    ],
+  ],
 
-  for (let i = 0; i < count; i++) {
-    let phone: string;
-    do {
-      phone = `+65${faker.string.numeric(8)}`;
-    } while (usedPhones.has(phone));
-    usedPhones.add(phone);
+  // ── Diana: abandoned ───────────────────────────────────────────────
+  'int-diana-wa-1': [
+    [
+      'Hi, do you offer weekend appointments?',
+      'Hi Diana! Yes, we have Saturday 9 AM to 5 PM. Would you like to book?',
+    ],
+    [
+      'What is available this Saturday?',
+      'This Saturday: 9:00 AM, 11:30 AM, and 2:00 PM. Which works?',
+    ],
+    [
+      'Let me check and get back to you.',
+      'Sure, take your time! Just message when you are ready.',
+    ],
+  ],
 
-    let email: string;
-    do {
-      email = faker.internet.email({ provider: 'example.com' }).toLowerCase();
-    } while (usedEmails.has(email));
-    usedEmails.add(email);
+  // ── Edward: resolving ──────────────────────────────────────────────
+  'int-edward-web-1': [
+    [
+      'I want to book a general checkup for next week.',
+      'Hi Edward! Morning or afternoon?',
+    ],
+    [
+      'Morning please, before 11.',
+      'Monday 9:00 AM or Thursday 10:30 AM. Preference?',
+    ],
+    [
+      'Thursday 10:30.',
+      'Confirmed! Thursday 10:30 AM. Reference: BK-5201. Anything else?',
+    ],
+    ['No, that is all. Thanks!', 'See you Thursday, Edward!'],
+  ],
 
-    const role = faker.helpers.weightedArrayElement([
-      { value: 'customer' as const, weight: 7 },
-      { value: 'lead' as const, weight: 3 },
-    ]);
+  // ── Fiona: failed ──────────────────────────────────────────────────
+  'int-fiona-web-1': [
+    [
+      'I need to book three appointments for my family — myself, husband, and daughter (8 years old).',
+      'Hi Fiona! Three general checkups. Let me check family block availability...',
+    ],
+  ],
 
-    items.push({
-      id: `contact-${faker.string.alphanumeric(8)}`,
-      phone,
-      email,
-      name: faker.person.fullName(),
-      role,
-      metadata: {
-        source: randomItem(['whatsapp', 'web', 'referral', 'walk-in']),
-        ...(role === 'lead' && {
-          campaign: randomItem([
-            'google-ads',
-            'facebook',
-            'instagram',
-            'organic',
-          ]),
-        }),
-      },
-    });
-  }
+  // ── George: topic change pending ───────────────────────────────────
+  'int-george-wa-1': [
+    [
+      'Hey, confirming my Friday 3:30 PM is still on.',
+      'Hi George! Yes, confirmed. Reference: BK-4990.',
+    ],
+    [
+      'Great. Do you also do physiotherapy? Different question.',
+      'We do! Let me close the appointment confirmation and start a new inquiry for physio.',
+    ],
+    [
+      'Sure, go ahead.',
+      'Friday appointment is set. Next message will start a fresh physiotherapy conversation!',
+    ],
+  ],
 
-  return items;
-}
+  // ── Hannah: human mode ─────────────────────────────────────────────
+  'int-hannah-web-1': [
+    [
+      'I want a refund for my no-show. I called 20 minutes ahead — I was stuck in traffic.',
+      'I understand, Hannah. Since you called ahead, let me check if we can make an exception to the no-show policy.',
+    ],
+    [
+      'I should not have to pay full price when I gave notice.',
+      'You are right that calling ahead makes a difference. Refund exceptions need manager approval — transferring you to a staff member.',
+    ],
+    [
+      'How long will this take? I have been going back and forth for days.',
+      'David is looking at your case now and will respond here shortly. Apologies for the delay.',
+    ],
+  ],
 
-// Conversation turn pairs: [customer message, agent response]
-const CONVERSATION_TURNS: Array<[string, string]> = [
-  // Greeting exchanges
+  // ── Ivan: supervised ───────────────────────────────────────────────
+  'int-ivan-web-1': [
+    [
+      'We have 15 employees who need annual checkups. Bulk booking possible?',
+      'Hi Ivan! Yes, for 15 people we can arrange block appointments across 2-3 days with a 15% group discount.',
+    ],
+    [
+      'HR needs a formal quote with pricing tiers.',
+      'Drafting a quote now — a team member will verify pricing before I send it to you.',
+    ],
+  ],
+
+  // ── Jenny: held ────────────────────────────────────────────────────
+  'int-jenny-wa-1': [
+    [
+      'URGENT — my daughter fell and may have broken her wrist. Can we come in now?',
+      'I am sorry to hear that, Jenny! For injuries, please go to the nearest A&E. We handle scheduled appointments only.',
+    ],
+    [
+      'The A&E wait is 3 hours. Can Dr. Tan see her as emergency?',
+      'Dr. Tan is fully booked, but I am checking if any doctor can fit an emergency slot. Please hang tight.',
+    ],
+  ],
+
+  // ── Kenny: email ───────────────────────────────────────────────────
+  'int-kenny-email-1': [
+    [
+      'Subject: Appointment Confirmation\n\nPlease confirm my appointment details. Name: Kenny Ng.',
+      'Hi Kenny! Confirmed: Thursday 2 PM, General Consultation with Dr. Tan. Reference: BK-5300.',
+    ],
+    [
+      'Is parking available?',
+      'Yes! Basement parking at Block 5 — first 2 hours free. Validate at reception.',
+    ],
+  ],
+
+  // ── Lily: escalation story ─────────────────────────────────────────
+  'int-lily-web-1': [
+    [
+      'I have been waiting 45 minutes past my appointment time.',
+      'I sincerely apologize, Lily. Let me check on the delay.',
+    ],
+    [
+      'This is the second time. Last month was the same.',
+      'Repeated delays are unacceptable. Escalating to management. Eve will follow up.',
+    ],
+    [
+      'I want compensation or I am leaving a review.',
+      'Completely understandable. Eve will contact you within the hour.',
+    ],
+  ],
+  'int-lily-wa-1': [
+    [
+      'Eve was supposed to call back about my complaint. It has been 2 days.',
+      'I am sorry about the delay. Escalating again with higher priority.',
+    ],
+    [
+      'I am not interested in more escalation. I want an answer.',
+      'You are right. Getting Eve on this chat directly to resolve this now.',
+    ],
+  ],
+
+  // ── Leads ──────────────────────────────────────────────────────────
+  'int-lead-mark-1': [
+    [
+      'Saw your Google ad for new patient specials. What is the deal?',
+      'Hi Mark! New patients get 20% off their first consultation.',
+    ],
+    [
+      'What services does it cover?',
+      'General consultations, health screenings, and dental. Specialist referrals at standard pricing.',
+    ],
+    ['Let me think about it.', 'No rush! The offer is valid for 30 days.'],
+  ],
+  'int-lead-nina-1': [
+    [
+      'Looking into corporate wellness for about 20 employees.',
+      'Hello Nina! We offer tailored packages — screenings, flu shots, and annual checkups with volume discounts.',
+    ],
+    [
+      'Can you send a proposal? Cc my colleague Paula.',
+      'Absolutely! Proposal with pricing tiers coming within 24 hours.',
+    ],
+  ],
+  'int-lead-oscar-1': [
+    [
+      'Saw the Instagram promo. Still running?',
+      'Hi Oscar! Yes — 15% off any booking this month.',
+    ],
+    ['Maybe later.', 'No problem! Promo runs until end of month.'],
+  ],
+};
+
+// Generic dialogue turns used only for bulk (random) interactions
+const GENERIC_TURNS: Array<[string, string]> = [
   [
     'Hi, I would like to book an appointment please.',
-    'Hi! I am your booking assistant. How can I help you today? I can help you book, reschedule, or cancel appointments.',
+    'Hi! I am your booking assistant. How can I help you today?',
   ],
   [
-    'Hello, do you have any slots available this week?',
-    'Welcome! Let me check availability for you. We have openings on Monday, Wednesday, and Friday.',
+    'Do you have any slots available this week?',
+    'Let me check availability for you. We have openings on Monday, Wednesday, and Friday.',
   ],
-  [
-    'Hey, I need to see a doctor soon.',
-    'Hello! I can help you with that. What type of consultation are you looking for — general checkup, specialist, or follow-up?',
-  ],
-  [
-    'Good morning, I want to schedule something.',
-    'Good morning! Ready to help you with your booking. Would you prefer a morning or afternoon appointment?',
-  ],
-  // Availability discussion
   [
     'What times do you have on Wednesday?',
-    'Here are the available slots for Wednesday:\n- 10:00 AM\n- 11:30 AM\n- 2:00 PM\n- 3:30 PM\nWhich one works best for you?',
+    'Wednesday slots: 10:00 AM, 11:30 AM, 2:00 PM, 3:30 PM. Which works best?',
   ],
   [
     'Afternoon would be better for me.',
-    'We have good afternoon availability this week. I can see 2:00 PM and 3:30 PM on Wednesday, and 1:00 PM on Thursday. Any preference?',
+    'We have 2:00 PM and 3:30 PM on Wednesday, and 1:00 PM on Thursday. Any preference?',
   ],
-  [
-    'Do you have anything earlier in the day?',
-    'For mornings, I have 9:00 AM on Tuesday and 10:30 AM on Thursday. Shall I book one of those?',
-  ],
-  [
-    'What about next week?',
-    'Next week looks wide open. I can see slots every day from Monday through Friday. Any preferred day?',
-  ],
-  // Booking details
   [
     'Let me go with Wednesday at 2 PM.',
-    'Your appointment is confirmed! Here are the details:\n- Date: {date}\n- Time: 2:00 PM\n- Service: General Consultation\n- Reference: {ref}',
+    'Confirmed! Reference: BK-4821. See you Wednesday at 2:00 PM.',
   ],
   [
-    'I will take the 10:30 AM slot on Thursday.',
-    'All set! Your booking reference is {ref}. See you on {date} at 10:30 AM. You will receive a reminder 24 hours before.',
-  ],
-  [
-    'The 3:30 PM works for me.',
-    'Booking confirmed for 3:30 PM. Reference: {ref}. Is there anything else I can help with?',
-  ],
-  // Rescheduling
-  [
-    'I need to reschedule my appointment from last week.',
-    'Let me pull up your existing booking. I can see your appointment for {date}. When would you like to reschedule to?',
+    'I need to reschedule my appointment.',
+    'Let me pull up your booking. When would you like to reschedule to?',
   ],
   [
     'Can I move it to Friday instead?',
     'Friday works. I have 10:00 AM and 2:30 PM available. Which do you prefer?',
   ],
-  [
-    'Actually something came up, I need to push it back a week.',
-    'No problem, I will reschedule that for you. Same time next week — does that work?',
-  ],
-  // Follow-up / misc
-  [
-    'Thanks, that is all I need.',
-    'You are welcome! Have a great day. Do not hesitate to reach out if you need anything else.',
-  ],
+  ['Thanks, that is all I need.', 'You are welcome! Have a great day.'],
   [
     'Do I need to bring anything?',
-    'Please bring a valid ID and any relevant medical records. If this is your first visit, arrive 15 minutes early to complete the intake form.',
+    'Please bring a valid ID and any relevant medical records.',
   ],
   [
     'How long will the appointment take?',
-    'A general consultation typically takes 30-45 minutes. If additional tests are needed, it may take up to an hour.',
+    'A general consultation typically takes 30-45 minutes.',
   ],
   [
     'What is your cancellation policy?',
-    'You can cancel or reschedule up to 24 hours before your appointment at no charge. Late cancellations may incur a fee.',
+    'You can cancel or reschedule up to 24 hours before at no charge.',
   ],
-  // Problem scenarios
   [
-    'I have been waiting for a confirmation but never got one.',
-    'I apologize for the inconvenience. Let me check the status of your booking right away.',
+    'Do you have anything earlier in the day?',
+    'For mornings, I have 9:00 AM on Tuesday and 10:30 AM on Thursday.',
   ],
   [
     'This is not working, can I speak to someone?',
-    'I understand your frustration. Let me connect you with a staff member who can assist you directly.',
-  ],
-  [
-    'I already tried booking online but got an error.',
-    'Something went wrong on our end. I will create the booking manually for you. What date and time did you want?',
+    'I understand your frustration. Let me connect you with a staff member.',
   ],
 ];
 
-// Staff private notes
 const STAFF_NOTES = [
   'Customer seems frustrated — previous booking was lost. Handle with care.',
   'VIP customer, priority handling required.',
@@ -229,136 +569,882 @@ const STAFF_NOTES = [
   'Insurance details need to be verified before appointment.',
 ];
 
-const AGENT_MESSAGES = {
-  greeting: [
-    'Hi! I am your booking assistant. How can I help you today?',
-    'Welcome! How may I assist you with your appointment?',
-    'Hello! I can help you book, reschedule, or cancel appointments. What would you like to do?',
-    'Good day! Ready to help you with your booking needs.',
-  ],
-  availability: [
-    'I can see several slots available next week. Would you prefer morning or afternoon?',
-    'Let me check availability for you. We have openings on Monday, Wednesday, and Friday.',
-    'Here are the available slots:\n- Mon 10:00 AM\n- Wed 2:00 PM\n- Thu 11:00 AM\n- Fri 3:00 PM',
-    'We have good availability this week. Any preferred day?',
-  ],
-  confirmation: [
-    'Your appointment is confirmed! Here are the details:\n- Date: {date}\n- Time: {time}\n- Service: General Consultation',
-    'All set! Your booking reference is {ref}. See you on {date} at {time}.',
-    'Booking confirmed. You will receive a reminder 24 hours before your appointment.',
-    'Great, I have booked that for you. Reference: {ref}.',
-  ],
-  reschedule: [
-    'Let me check your existing booking so we can look at rescheduling options.',
-    'I can see your current appointment. When would you like to reschedule to?',
-    'No problem, I will reschedule that for you. What date and time work better?',
-  ],
-  fallback: [
-    'We are experiencing a temporary issue. Please try again shortly.',
-    'I apologize for the inconvenience. Let me connect you with a team member.',
-    'Something went wrong on my end. A staff member will follow up with you.',
-  ],
-  followup: [
-    'Just checking in — were you still looking to book an appointment?',
-    'Hi again! I noticed we did not complete your booking. Would you like to continue?',
-    'Friendly reminder: you had asked about availability. Shall I show you the latest openings?',
-  ],
+// ─── Named contacts ─────────────────────────────────────────────────
+// Fixed IDs so interactions can reference them deterministically.
+
+const SEED_CONTACTS = [
+  // Staff (3)
+  {
+    id: 'c-staff-david',
+    phone: '+6590001111',
+    email: 'david@clinic.sg',
+    name: 'David Lim',
+    role: 'staff' as const,
+    metadata: { department: 'operations' },
+  },
+  {
+    id: 'c-staff-eve',
+    phone: '+6590002222',
+    email: 'eve@clinic.sg',
+    name: 'Eve Chen',
+    role: 'staff' as const,
+    metadata: { department: 'management' },
+  },
+  {
+    id: 'c-staff-frank',
+    phone: '+6590003333',
+    email: 'frank@clinic.sg',
+    name: 'Frank Ng',
+    role: 'staff' as const,
+    metadata: { department: 'clinical' },
+  },
+  // Customers (12) — intentionally named so we can create multi-interaction timelines
+  {
+    id: 'c-alice',
+    phone: '+6581110001',
+    email: 'alice@example.com',
+    name: 'Alice Tan',
+    role: 'customer' as const,
+    metadata: { source: 'whatsapp' },
+  },
+  {
+    id: 'c-bob',
+    phone: '+6581110002',
+    email: 'bob@example.com',
+    name: 'Bob Wong',
+    role: 'customer' as const,
+    metadata: { source: 'web' },
+  },
+  {
+    id: 'c-charlie',
+    phone: '+6581110003',
+    email: 'charlie@example.com',
+    name: 'Charlie Lee',
+    role: 'customer' as const,
+    metadata: { source: 'referral' },
+  },
+  {
+    id: 'c-diana',
+    phone: '+6581110004',
+    email: 'diana@example.com',
+    name: 'Diana Goh',
+    role: 'customer' as const,
+    metadata: { source: 'whatsapp' },
+  },
+  {
+    id: 'c-edward',
+    phone: '+6581110005',
+    email: 'edward@example.com',
+    name: 'Edward Lim',
+    role: 'customer' as const,
+    metadata: { source: 'web' },
+  },
+  {
+    id: 'c-fiona',
+    phone: '+6581110006',
+    email: 'fiona@example.com',
+    name: 'Fiona Yap',
+    role: 'customer' as const,
+    metadata: { source: 'walk-in' },
+  },
+  {
+    id: 'c-george',
+    phone: '+6581110007',
+    email: 'george@example.com',
+    name: 'George Ong',
+    role: 'customer' as const,
+    metadata: { source: 'whatsapp' },
+  },
+  {
+    id: 'c-hannah',
+    phone: '+6581110008',
+    email: 'hannah@example.com',
+    name: 'Hannah Koh',
+    role: 'customer' as const,
+    metadata: { source: 'web' },
+  },
+  {
+    id: 'c-ivan',
+    phone: '+6581110009',
+    email: 'ivan@example.com',
+    name: 'Ivan Chua',
+    role: 'customer' as const,
+    metadata: { source: 'referral' },
+  },
+  {
+    id: 'c-jenny',
+    phone: '+6581110010',
+    email: 'jenny@example.com',
+    name: 'Jenny Sim',
+    role: 'customer' as const,
+    metadata: { source: 'whatsapp' },
+  },
+  {
+    id: 'c-kenny',
+    phone: '+6581110011',
+    email: 'kenny@example.com',
+    name: 'Kenny Ng',
+    role: 'customer' as const,
+    metadata: { source: 'web' },
+  },
+  {
+    id: 'c-lily',
+    phone: '+6581110012',
+    email: 'lily@example.com',
+    name: 'Lily Ho',
+    role: 'customer' as const,
+    metadata: { source: 'walk-in' },
+  },
+  // Leads (5)
+  {
+    id: 'c-lead-mark',
+    phone: '+6581120001',
+    email: 'mark@example.com',
+    name: 'Mark Teo',
+    role: 'lead' as const,
+    metadata: { source: 'google-ads', campaign: 'q2-booking' },
+  },
+  {
+    id: 'c-lead-nina',
+    phone: '+6581120002',
+    email: 'nina@example.com',
+    name: 'Nina Loh',
+    role: 'lead' as const,
+    metadata: { source: 'facebook', campaign: 'wellness' },
+  },
+  {
+    id: 'c-lead-oscar',
+    phone: '+6581120003',
+    email: 'oscar@example.com',
+    name: 'Oscar Pang',
+    role: 'lead' as const,
+    metadata: { source: 'instagram', campaign: 'promo' },
+  },
+  {
+    id: 'c-lead-paula',
+    phone: '+6581120004',
+    email: 'paula@example.com',
+    name: 'Paula Quek',
+    role: 'lead' as const,
+    metadata: { source: 'organic' },
+  },
+  {
+    id: 'c-lead-ray',
+    phone: '+6581120005',
+    email: 'ray@example.com',
+    name: 'Ray Soh',
+    role: 'lead' as const,
+    metadata: { source: 'referral' },
+  },
+];
+
+const customers = SEED_CONTACTS.filter((c) => c.role === 'customer');
+const staff = SEED_CONTACTS.filter((c) => c.role === 'staff');
+
+// ─── Channel instances & routings ───────────────────────────────────
+
+const SEED_CHANNEL_INSTANCES = [
+  {
+    id: 'ci-wa-main',
+    type: 'whatsapp',
+    label: 'WhatsApp Business',
+    source: 'self' as const,
+    config: {},
+    status: 'active',
+  },
+  {
+    id: 'ci-web',
+    type: 'web',
+    label: 'Website Chat',
+    source: 'env' as const,
+    config: {},
+    status: 'active',
+  },
+  {
+    id: 'ci-email',
+    type: 'email',
+    label: 'Support Email',
+    source: 'self' as const,
+    config: {},
+    status: 'active',
+  },
+];
+
+const SEED_CHANNEL_ROUTINGS = [
+  {
+    id: 'ep-wa-booking',
+    name: 'WhatsApp Booking',
+    channelInstanceId: 'ci-wa-main',
+    agentId: 'booking',
+    assignmentPattern: 'direct' as const,
+    config: {},
+    enabled: true,
+  },
+  {
+    id: 'ep-web-booking',
+    name: 'Web Chat Booking',
+    channelInstanceId: 'ci-web',
+    agentId: 'booking',
+    assignmentPattern: 'direct' as const,
+    config: {},
+    enabled: true,
+  },
+  {
+    id: 'ep-email-support',
+    name: 'Email Support',
+    channelInstanceId: 'ci-email',
+    agentId: 'booking',
+    assignmentPattern: 'direct' as const,
+    config: {},
+    enabled: true,
+  },
+];
+
+// ─── Team IDs (referencing better-auth teams, seeded separately) ────
+
+const TEAM_SALES = 'team-sales';
+const TEAM_SUPPORT = 'team-support';
+
+// ─── Interaction templates ──────────────────────────────────────────
+// Handcrafted interactions covering every dimension of the model.
+
+type InteractionSeed = {
+  id: string;
+  channelRoutingId: string;
+  contactId: string;
+  agentId: string;
+  channelInstanceId: string;
+  status: string;
+  interactionType: string;
+  startedAt: Date;
+  resolvedAt?: Date;
+  outcome?: string;
+  autonomyLevel?: string;
+  reopenCount?: number;
+  topicChangePending?: boolean;
+  mode?: string;
+  assignee?: string | null;
+  assignedAt?: Date | null;
+  priority?: string;
+  hasPendingEscalation?: boolean;
+  waitingSince?: Date | null;
+  unreadCount?: number;
+  title?: string;
+  metadata?: Record<string, unknown>;
 };
 
-function randomMessage(category: keyof typeof AGENT_MESSAGES): string {
-  const msg = randomItem(AGENT_MESSAGES[category]);
-  return msg
-    .replace('{date}', faker.date.soon({ days: 14 }).toLocaleDateString())
-    .replace(
-      '{time}',
-      randomItem(['10:00 AM', '11:30 AM', '2:00 PM', '3:30 PM', '4:00 PM']),
-    )
-    .replace('{ref}', `BK-${faker.string.numeric(4)}`);
-}
+const handcraftedInteractions: InteractionSeed[] = [
+  // ════════════════════════════════════════════════════════════════════
+  // ALICE — Hero contact #1: 10 dense WhatsApp interactions over 12 days
+  // Shows a complete customer journey: new patient → regular → escalation → loyalty
+  // ════════════════════════════════════════════════════════════════════
+  {
+    id: 'int-alice-wa-01',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(288), // Day 1
+    resolvedAt: hoursAgo(287),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'First appointment inquiry',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-02',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(264), // Day 2 (next morning)
+    resolvedAt: hoursAgo(263),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'Pre-visit questions',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-03',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(216), // Day 4 (after visit)
+    resolvedAt: hoursAgo(215),
+    outcome: 'topic_change',
+    autonomyLevel: 'full_ai',
+    title: 'Post-visit feedback → billing question',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-04',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(215), // Day 4 (right after topic change)
+    resolvedAt: hoursAgo(212),
+    outcome: 'escalated',
+    autonomyLevel: 'ai_with_escalation',
+    title: 'Insurance billing question',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-05',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(168), // Day 6
+    resolvedAt: hoursAgo(167),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    reopenCount: 1,
+    title: 'Reschedule follow-up appointment',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-06',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(120), // Day 7
+    resolvedAt: hoursAgo(119),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'Parking and directions question',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-07',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(72), // Day 9
+    resolvedAt: hoursAgo(71),
+    outcome: 'resolved',
+    autonomyLevel: 'human_assisted',
+    assignee: 'c-staff-david',
+    title: 'Specialist referral request',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-08',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(48), // Day 10
+    resolvedAt: hoursAgo(47),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'Specialist appointment confirmation',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-09',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(8), // Day 12 (yesterday)
+    resolvedAt: hoursAgo(7),
+    outcome: 'topic_change',
+    autonomyLevel: 'full_ai',
+    title: 'Confirm specialist visit → asked about family plan',
+    metadata: {},
+  },
+  {
+    id: 'int-alice-wa-10',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-alice',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'active',
+    interactionType: 'message',
+    startedAt: hoursAgo(7), // Day 12 (still active, right after topic change)
+    reopenCount: 1,
+    mode: 'ai',
+    title: 'Family wellness package inquiry',
+    metadata: {},
+  },
 
-// ─── Seed function ───────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════
+  // BOB — Hero contact #2: 8 cross-channel interactions (Web + Email)
+  // Complex scheduling needs, uses multiple channels, escalates twice
+  // ════════════════════════════════════════════════════════════════════
+  {
+    id: 'int-bob-web-01',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(240), // Day 1
+    resolvedAt: hoursAgo(238),
+    outcome: 'resolved',
+    autonomyLevel: 'human_assisted',
+    title: 'Multi-location booking request',
+    metadata: {},
+  },
+  {
+    id: 'int-bob-email-01',
+    channelRoutingId: 'ep-email-support',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-email',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(216), // Day 2 (followed up via email)
+    resolvedAt: hoursAgo(192),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'Email confirmation with CC to assistant',
+    metadata: {},
+  },
+  {
+    id: 'int-bob-web-02',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(168), // Day 4
+    resolvedAt: hoursAgo(167),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    reopenCount: 1,
+    title: 'Rescheduling Orchard appointment',
+    metadata: {},
+  },
+  {
+    id: 'int-bob-web-03',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(120), // Day 6
+    resolvedAt: hoursAgo(119),
+    outcome: 'escalated',
+    autonomyLevel: 'ai_with_escalation',
+    title: 'Billing discrepancy for multi-branch',
+    metadata: {},
+  },
+  {
+    id: 'int-bob-email-02',
+    channelRoutingId: 'ep-email-support',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-email',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(96), // Day 7
+    resolvedAt: hoursAgo(72),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'Updated invoice via email',
+    metadata: {},
+  },
+  {
+    id: 'int-bob-web-04',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(48), // Day 9
+    resolvedAt: hoursAgo(47),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'Pre-visit checklist question',
+    metadata: {},
+  },
+  {
+    id: 'int-bob-web-05',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(12), // Day 11 (yesterday)
+    resolvedAt: hoursAgo(11),
+    outcome: 'topic_change',
+    autonomyLevel: 'full_ai',
+    title: 'Post-visit feedback → new booking',
+    metadata: {},
+  },
+  {
+    id: 'int-bob-web-06',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'active',
+    interactionType: 'message',
+    startedAt: hoursAgo(11), // Day 11 (right after topic change)
+    reopenCount: 2,
+    mode: 'ai',
+    title: 'Booking next quarterly checkup',
+    metadata: {},
+  },
 
-export default async function seed(ctx: { db: VobaseDb }) {
-  const { db } = ctx;
+  // ════════════════════════════════════════════════════════════════════
+  // CHARLIE — VIP patient: 6 WhatsApp interactions, always gets staff
+  // ════════════════════════════════════════════════════════════════════
+  {
+    id: 'int-charlie-wa-01',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-charlie',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(192), // Day 1
+    resolvedAt: hoursAgo(190),
+    outcome: 'resolved',
+    autonomyLevel: 'human_only',
+    assignee: 'c-staff-david',
+    title: 'Monthly checkup booking',
+    metadata: {},
+  },
+  {
+    id: 'int-charlie-wa-02',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-charlie',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(144), // Day 3
+    resolvedAt: hoursAgo(143),
+    outcome: 'resolved',
+    autonomyLevel: 'human_only',
+    assignee: 'c-staff-david',
+    title: 'Private room request for Thursday',
+    metadata: {},
+  },
+  {
+    id: 'int-charlie-wa-03',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-charlie',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(96), // Day 5
+    resolvedAt: hoursAgo(95),
+    outcome: 'resolved',
+    autonomyLevel: 'human_assisted',
+    title: 'Post-checkup results discussion',
+    metadata: {},
+  },
+  {
+    id: 'int-charlie-wa-04',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-charlie',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(48), // Day 7
+    resolvedAt: hoursAgo(47),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    reopenCount: 1,
+    title: 'Prescription refill request',
+    metadata: {},
+  },
+  {
+    id: 'int-charlie-wa-05',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-charlie',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(12), // Day 9 (yesterday)
+    resolvedAt: hoursAgo(11),
+    outcome: 'resolved',
+    autonomyLevel: 'human_only',
+    assignee: 'c-staff-david',
+    title: '90-minute session with Dr. Tan',
+    metadata: {},
+  },
+  {
+    id: 'int-charlie-wa-06',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-charlie',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'active',
+    interactionType: 'message',
+    startedAt: hoursAgo(2), // Today
+    mode: 'human',
+    assignee: 'c-staff-david',
+    priority: 'high',
+    title: 'Urgent follow-up on test results',
+    metadata: {},
+  },
 
-  // ─── Contacts ────────────────────────────────────────────────────
-  const seedContacts = generateContacts(45);
-  await db.insert(contacts).values(seedContacts).onConflictDoNothing();
-  console.log(`${green('✓')} Seeded ${seedContacts.length} contacts`);
+  // ════════════════════════════════════════════════════════════════════
+  // Remaining contacts — 1-2 interactions each for variety
+  // ════════════════════════════════════════════════════════════════════
 
-  // ─── Channel Instances ───────────────────────────────────────────
-  const seedInstances = [
-    {
-      id: 'ci-wa-main',
-      type: 'whatsapp',
-      label: 'WhatsApp Business',
-      source: 'self' as const,
-      config: {},
-      status: 'active',
-    },
-    {
-      id: 'ci-web',
-      type: 'web',
-      label: 'Website Chat',
-      source: 'env' as const,
-      config: {},
-      status: 'active',
-    },
-    {
-      id: 'ci-wa-sandbox',
-      type: 'whatsapp',
-      label: 'WhatsApp Sandbox',
-      source: 'sandbox' as const,
-      config: {},
-      status: 'disconnected',
-    },
+  // Diana: abandoned (went silent)
+  {
+    id: 'int-diana-wa-1',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-diana',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(72),
+    resolvedAt: hoursAgo(48),
+    outcome: 'abandoned',
+    autonomyLevel: 'full_ai',
+    title: 'Weekend appointment inquiry — no response',
+    metadata: {},
+  },
+
+  // Edward: resolving state
+  {
+    id: 'int-edward-web-1',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-edward',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'resolving',
+    interactionType: 'message',
+    startedAt: hoursAgo(0.5),
+    mode: 'ai',
+    title: 'General checkup booking — wrapping up',
+    metadata: {},
+  },
+
+  // Fiona: failed
+  {
+    id: 'int-fiona-web-1',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-fiona',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'failed',
+    interactionType: 'message',
+    startedAt: hoursAgo(24),
+    mode: 'ai',
+    title: 'Family block booking — agent crashed',
+    metadata: { error: 'Agent exceeded max steps' },
+  },
+
+  // George: topicChangePending
+  {
+    id: 'int-george-wa-1',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-george',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(3),
+    resolvedAt: hoursAgo(0.5),
+    outcome: 'topic_change',
+    autonomyLevel: 'full_ai',
+    topicChangePending: true,
+    title: 'Appointment confirmed → switching to physiotherapy inquiry',
+    metadata: {},
+  },
+
+  // Hannah: human mode with escalation
+  {
+    id: 'int-hannah-web-1',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-hannah',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'active',
+    interactionType: 'message',
+    startedAt: hoursAgo(2),
+    mode: 'human',
+    hasPendingEscalation: true,
+    waitingSince: hoursAgo(2),
+    unreadCount: 3,
+    title: 'Refund request for no-show appointment',
+    metadata: {},
+  },
+
+  // Ivan: supervised mode
+  {
+    id: 'int-ivan-web-1',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-ivan',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'active',
+    interactionType: 'message',
+    startedAt: hoursAgo(1),
+    mode: 'supervised',
+    hasPendingEscalation: true,
+    waitingSince: hoursAgo(1),
+    unreadCount: 2,
+    title: 'Corporate bulk booking — pending pricing approval',
+    metadata: {},
+  },
+
+  // Jenny: held, urgent
+  {
+    id: 'int-jenny-wa-1',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-jenny',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'active',
+    interactionType: 'message',
+    startedAt: hoursAgo(3),
+    mode: 'held',
+    priority: 'urgent',
+    waitingSince: hoursAgo(3),
+    unreadCount: 0,
+    title: 'Emergency — daughter injured',
+    metadata: {},
+  },
+
+  // Kenny: email, recently resolved
+  {
+    id: 'int-kenny-email-1',
+    channelRoutingId: 'ep-email-support',
+    contactId: 'c-kenny',
+    agentId: 'booking',
+    channelInstanceId: 'ci-email',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(24),
+    resolvedAt: hoursAgo(6),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'Appointment confirmation email',
+    metadata: {},
+  },
+
+  // Lily: 2 interactions (escalation story)
+  {
+    id: 'int-lily-web-1',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-lily',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(48),
+    resolvedAt: hoursAgo(46),
+    outcome: 'escalated',
+    autonomyLevel: 'ai_with_escalation',
+    title: 'Wait time complaint — escalated to management',
+    metadata: {},
+  },
+  {
+    id: 'int-lily-wa-1',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-lily',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'active',
+    interactionType: 'message',
+    startedAt: hoursAgo(0.5),
+    mode: 'human',
+    priority: 'high',
+    hasPendingEscalation: true,
+    waitingSince: hoursAgo(0.5),
+    unreadCount: 5,
+    title: 'Follow-up — management never called back',
+    metadata: {},
+  },
+
+  // Leads
+  {
+    id: 'int-lead-mark-1',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-lead-mark',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(120),
+    resolvedAt: hoursAgo(119),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    title: 'New patient promo inquiry',
+    metadata: {},
+  },
+  {
+    id: 'int-lead-nina-1',
+    channelRoutingId: 'ep-web-booking',
+    contactId: 'c-lead-nina',
+    agentId: 'booking',
+    channelInstanceId: 'ci-web',
+    status: 'active',
+    interactionType: 'message',
+    startedAt: hoursAgo(4),
+    mode: 'ai',
+    title: 'Corporate wellness package inquiry',
+    metadata: {},
+  },
+  {
+    id: 'int-lead-oscar-1',
+    channelRoutingId: 'ep-wa-booking',
+    contactId: 'c-lead-oscar',
+    agentId: 'booking',
+    channelInstanceId: 'ci-wa-main',
+    status: 'resolved',
+    interactionType: 'message',
+    startedAt: hoursAgo(200),
+    resolvedAt: hoursAgo(198),
+    outcome: 'abandoned',
+    autonomyLevel: 'full_ai',
+    title: 'Instagram promo inquiry — no follow-up',
+    metadata: {},
+  },
+];
+
+// ─── Bulk random interactions ───────────────────────────────────────
+// Fill to ~90 total to populate lists and charts.
+
+function generateBulkInteractions(count: number): InteractionSeed[] {
+  const allCustomers = [
+    ...customers,
+    ...SEED_CONTACTS.filter((c) => c.role === 'lead'),
   ];
+  const routings = SEED_CHANNEL_ROUTINGS.filter((r) => r.enabled);
+  const items: InteractionSeed[] = [];
 
-  await db.insert(channelInstances).values(seedInstances).onConflictDoNothing();
-
-  // ─── Channel Routings ─────────────────────────────────────────────
-  const seedChannelRoutings = [
-    {
-      id: 'ep-wa-booking',
-      name: 'WhatsApp Booking',
-      channelInstanceId: 'ci-wa-main',
-      agentId: 'booking',
-      assignmentPattern: 'direct' as const,
-      config: {},
-      enabled: true,
-    },
-    {
-      id: 'ep-web-booking',
-      name: 'Web Chat Booking',
-      channelInstanceId: 'ci-web',
-      agentId: 'booking',
-      assignmentPattern: 'direct' as const,
-      config: {},
-      enabled: true,
-    },
-    {
-      id: 'ep-wa-sandbox',
-      name: 'Sandbox Testing',
-      channelInstanceId: 'ci-wa-sandbox',
-      agentId: 'booking',
-      assignmentPattern: 'direct' as const,
-      config: {},
-      enabled: false,
-    },
-  ];
-
-  await db
-    .insert(channelRoutings)
-    .values(seedChannelRoutings)
-    .onConflictDoNothing();
-
-  // ─── Conversations ───────────────────────────────────────────────
-  // ~80 conversations spread over last 30 days, all lifecycle states
-  const customerContacts = seedContacts.filter((c) => c.role !== 'staff');
-  const staffContacts = seedContacts.filter((c) => c.role === 'staff');
-  const activeChannelRoutings = seedChannelRoutings.filter((e) => e.enabled);
-
-  const CONVERSATION_TITLES = [
+  const TITLES = [
     'Appointment booking inquiry',
     'Reschedule request',
     'New patient registration',
@@ -366,301 +1452,221 @@ export default async function seed(ctx: { db: VobaseDb }) {
     'Cancellation request',
     'Group booking inquiry',
     'Insurance verification',
-    'Emergency appointment',
     'Specialist referral',
     'Feedback & review',
+    'Walk-in availability check',
   ];
 
-  const CONVERSATION_COUNT = 80;
-  const seedConversations: Array<{
-    id: string;
-    channelRoutingId: string;
-    contactId: string;
-    agentId: string;
-    channelInstanceId: string;
-    status: string;
-    conversationType: string;
-    startedAt: Date;
-    endedAt?: Date;
-    title?: string;
-    metadata: Record<string, unknown>;
-  }> = [];
-
-  for (let i = 0; i < CONVERSATION_COUNT; i++) {
-    const ep = randomItem(activeChannelRoutings);
-    const contact = randomItem(customerContacts);
-    const startHoursAgo = faker.number.int({ min: 1, max: 720 }); // up to 30 days
+  for (let i = 0; i < count; i++) {
+    const routing = pick(routings);
+    const contact = pick(allCustomers);
+    const startH = faker.number.int({ min: 6, max: 720 });
 
     const status = faker.helpers.weightedArrayElement([
-      { value: 'completed', weight: 50 },
-      { value: 'active', weight: 30 },
-      { value: 'failed', weight: 20 },
+      { value: 'resolved', weight: 55 },
+      { value: 'active', weight: 25 },
+      { value: 'failed', weight: 15 },
+      { value: 'resolving', weight: 5 },
     ]);
 
-    const startedAt = hoursAgo(startHoursAgo);
-    const endedAt =
-      status === 'completed' || status === 'failed'
-        ? hoursAgo(startHoursAgo - faker.number.int({ min: 0, max: 2 }))
+    const startedAt = hoursAgo(startH);
+    const resolvedAt =
+      status === 'resolved'
+        ? hoursAgo(startH - faker.number.int({ min: 0, max: 4 }))
         : undefined;
 
-    const metadata: Record<string, unknown> = {};
-    if (status === 'failed') {
-      metadata.error = randomItem([
-        'Agent exceeded max steps',
-        'Memory thread creation failed',
-        'Unhandled tool error: check_availability',
-        'Context window exceeded',
-      ]);
-    }
-    if (faker.datatype.boolean(0.1)) {
-      metadata.memoryDegraded = true;
-    }
+    const outcome =
+      status === 'resolved'
+        ? faker.helpers.weightedArrayElement([
+            { value: 'resolved', weight: 60 },
+            { value: 'escalated', weight: 20 },
+            { value: 'abandoned', weight: 15 },
+            { value: 'topic_change', weight: 5 },
+          ])
+        : undefined;
 
-    seedConversations.push({
-      id: `sess-${faker.string.alphanumeric(10)}`,
-      channelRoutingId: ep.id,
+    const autonomyLevel =
+      status === 'resolved'
+        ? faker.helpers.weightedArrayElement([
+            { value: 'full_ai', weight: 60 },
+            { value: 'ai_with_escalation', weight: 20 },
+            { value: 'human_assisted', weight: 15 },
+            { value: 'human_only', weight: 5 },
+          ])
+        : undefined;
+
+    const reopenCount =
+      status !== 'failed'
+        ? faker.helpers.weightedArrayElement([
+            { value: 0, weight: 75 },
+            { value: 1, weight: 15 },
+            { value: 2, weight: 7 },
+            { value: 3, weight: 3 },
+          ])
+        : 0;
+
+    items.push({
+      id: `int-bulk-${faker.string.alphanumeric(8)}`,
+      channelRoutingId: routing.id,
       contactId: contact.id,
       agentId: 'booking',
-      channelInstanceId: ep.channelInstanceId,
+      channelInstanceId: routing.channelInstanceId,
       status,
-      conversationType: 'message',
+      interactionType: 'message',
       startedAt,
-      ...(endedAt && { endedAt }),
-      // ~60% of conversations have a title (Mastra thread title)
-      ...(faker.datatype.boolean(0.6) && {
-        title: randomItem(CONVERSATION_TITLES),
-      }),
-      metadata,
+      ...(resolvedAt && { resolvedAt }),
+      ...(outcome && { outcome }),
+      ...(autonomyLevel && { autonomyLevel }),
+      reopenCount,
+      ...(faker.datatype.boolean(0.6) && { title: pick(TITLES) }),
+      metadata:
+        status === 'failed'
+          ? {
+              error: pick([
+                'Agent exceeded max steps',
+                'Memory thread creation failed',
+                'Unhandled tool error',
+                'Context window exceeded',
+              ]),
+            }
+          : {},
     });
   }
 
+  return items;
+}
+
+// ─── Seed function ──────────────────────────────────────────────────
+
+export default async function seed(ctx: { db: VobaseDb }) {
+  const { db } = ctx;
+
+  // ─── Contacts ────────────────────────────────────────────────────
+  await db.insert(contacts).values(SEED_CONTACTS).onConflictDoNothing();
+  console.log(`${green('✓')} Seeded ${SEED_CONTACTS.length} contacts`);
+
+  // ─── Channel Instances ───────────────────────────────────────────
   await db
-    .insert(conversations)
-    .values(seedConversations)
+    .insert(channelInstances)
+    .values(SEED_CHANNEL_INSTANCES)
     .onConflictDoNothing();
 
-  // ─── Mode Conversations (for control plane testing) ─────────────────
-  const modeConversations = [
-    {
-      id: 'sess-human-mode',
-      channelRoutingId: 'ep-web-booking',
-      contactId: customerContacts[0].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-web',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'human',
-      assignee: null,
-      assignedAt: null,
-      startedAt: hoursAgo(2),
-      hasPendingEscalation: true,
-      waitingSince: hoursAgo(2),
-      unreadCount: 3,
-      metadata: {},
-    },
-    {
-      id: 'sess-supervised-mode',
-      channelRoutingId: 'ep-web-booking',
-      contactId: customerContacts[1].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-web',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'supervised',
-      assignee: null,
-      assignedAt: null,
-      startedAt: hoursAgo(1),
-      hasPendingEscalation: true,
-      waitingSince: hoursAgo(1),
-      unreadCount: 2,
-      metadata: {},
-    },
-    {
-      id: 'sess-held-mode',
-      channelRoutingId: 'ep-wa-booking',
-      contactId: customerContacts[2].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-wa-main',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'held',
-      assignee: null,
-      assignedAt: null,
-      priority: 'high',
-      startedAt: hoursAgo(3),
-      waitingSince: hoursAgo(3),
-      unreadCount: 0,
-      metadata: {},
-    },
-    // Additional escalated conversations with priorities for queue testing
-    {
-      id: 'sess-human-urgent',
-      channelRoutingId: 'ep-wa-booking',
-      contactId: customerContacts[7].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-wa-main',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'human',
-      assignee: null,
-      assignedAt: null,
-      priority: 'urgent',
-      startedAt: hoursAgo(0.5),
-      waitingSince: hoursAgo(0.5),
-      unreadCount: 5,
-      metadata: {},
-    },
-    {
-      id: 'sess-human-high',
-      channelRoutingId: 'ep-web-booking',
-      contactId: customerContacts[8].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-web',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'human',
-      assignee: null,
-      assignedAt: null,
-      priority: 'high',
-      startedAt: hoursAgo(1.5),
-      waitingSince: hoursAgo(1.5),
-      unreadCount: 1,
-      metadata: {},
-    },
-    {
-      id: 'sess-supervised-normal',
-      channelRoutingId: 'ep-wa-booking',
-      contactId: customerContacts[9].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-wa-main',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'supervised',
-      assignee: null,
-      assignedAt: null,
-      priority: 'normal',
-      startedAt: hoursAgo(4),
-      waitingSince: hoursAgo(4),
-      metadata: {},
-    },
-    {
-      id: 'sess-human-low',
-      channelRoutingId: 'ep-web-booking',
-      contactId: customerContacts[10].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-web',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'human',
-      assignee: null,
-      assignedAt: null,
-      priority: 'low',
-      startedAt: hoursAgo(12),
-      waitingSince: hoursAgo(12),
-      metadata: {},
-    },
-    {
-      id: 'sess-supervised-high',
-      channelRoutingId: 'ep-wa-booking',
-      contactId: customerContacts[11].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-wa-main',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'supervised',
-      assignee: null,
-      assignedAt: null,
-      priority: 'high',
-      startedAt: hoursAgo(0.25),
-      waitingSince: hoursAgo(0.25),
-      metadata: {},
-    },
-    {
-      id: 'sess-completing',
-      channelRoutingId: 'ep-web-booking',
-      contactId: customerContacts[12].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-web',
-      status: 'completing',
-      conversationType: 'message',
-      mode: 'ai',
-      assignee: null,
-      assignedAt: null,
-      startedAt: hoursAgo(0.25),
-      title: 'Appointment booking — wrapping up',
-      metadata: {},
-    },
-    {
-      id: 'sess-for-handoff',
-      channelRoutingId: 'ep-web-booking',
-      contactId: customerContacts[3].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-web',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'ai',
-      assignee: null,
-      assignedAt: null,
-      startedAt: hoursAgo(0.5),
-      hasPendingEscalation: true,
-      metadata: {},
-    },
-    {
-      id: 'sess-for-completion',
-      channelRoutingId: 'ep-web-booking',
-      contactId: customerContacts[4].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-web',
-      status: 'active',
-      conversationType: 'message',
-      mode: 'ai',
-      assignee: null,
-      assignedAt: null,
-      startedAt: hoursAgo(1),
-      metadata: {},
-    },
-    {
-      id: 'sess-with-resolution',
-      channelRoutingId: 'ep-wa-booking',
-      contactId: customerContacts[5].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-wa-main',
-      status: 'completed',
-      conversationType: 'message',
-      mode: 'ai',
-      resolutionOutcome: 'resolved',
-      title: 'Wednesday 2 PM appointment booking',
-      startedAt: hoursAgo(24),
-      endedAt: hoursAgo(23),
-      metadata: {},
-    },
-    {
-      id: 'sess-escalated-resolved',
-      channelRoutingId: 'ep-wa-booking',
-      contactId: customerContacts[6].id,
-      agentId: 'booking',
-      channelInstanceId: 'ci-wa-main',
-      status: 'completed',
-      conversationType: 'message',
-      mode: 'ai',
-      priority: 'high',
-      resolutionOutcome: 'escalated_resolved',
-      startedAt: hoursAgo(48),
-      endedAt: hoursAgo(47),
-      metadata: {},
-    },
+  // ─── Channel Routings ────────────────────────────────────────────
+  await db
+    .insert(channelRoutings)
+    .values(SEED_CHANNEL_ROUTINGS)
+    .onConflictDoNothing();
+
+  // ─── Channel Instance Teams ──────────────────────────────────────
+  // WhatsApp + Email visible to support team; Web visible to both teams
+  const seedChannelInstanceTeams = [
+    { channelInstanceId: 'ci-wa-main', teamId: TEAM_SUPPORT },
+    { channelInstanceId: 'ci-email', teamId: TEAM_SUPPORT },
+    { channelInstanceId: 'ci-web', teamId: TEAM_SUPPORT },
+    { channelInstanceId: 'ci-web', teamId: TEAM_SALES },
   ];
+  await db
+    .insert(channelInstanceTeams)
+    .values(seedChannelInstanceTeams)
+    .onConflictDoNothing();
+  console.log(
+    `${green('✓')} Seeded ${seedChannelInstanceTeams.length} channel-instance-team mappings`,
+  );
+
+  // ─── Interactions ────────────────────────────────────────────────
+  const bulkInteractions = generateBulkInteractions(65);
+  const allInteractions = [...handcraftedInteractions, ...bulkInteractions];
+  const BATCH_SIZE = 50;
+
+  for (let i = 0; i < allInteractions.length; i += BATCH_SIZE) {
+    await db
+      .insert(interactions)
+      .values(allInteractions.slice(i, i + BATCH_SIZE))
+      .onConflictDoNothing();
+  }
+  console.log(
+    `${green('✓')} Seeded ${allInteractions.length} interactions (${handcraftedInteractions.length} handcrafted + ${bulkInteractions.length} bulk)`,
+  );
+
+  // ─── Interaction Participants ────────────────────────────────────
+  // Every interaction gets its primary contact as initiator.
+  // Some get additional participants (CC, BCC for email; participant for group).
+  const seedParticipants: Array<{
+    id: string;
+    interactionId: string;
+    contactId: string;
+    role: string;
+    joinedAt: Date;
+  }> = [];
+
+  // All handcrafted interactions get initiator
+  for (const int of handcraftedInteractions) {
+    seedParticipants.push({
+      id: `part-${int.id}-init`,
+      interactionId: int.id,
+      contactId: int.contactId,
+      role: 'initiator',
+      joinedAt: int.startedAt,
+    });
+  }
+
+  // Bob's email interaction has CC and BCC
+  seedParticipants.push(
+    {
+      id: 'part-bob-email-cc',
+      interactionId: 'int-bob-email-01',
+      contactId: 'c-alice',
+      role: 'cc',
+      joinedAt: hoursAgo(216),
+    },
+    {
+      id: 'part-bob-email-bcc',
+      interactionId: 'int-bob-email-01',
+      contactId: 'c-staff-eve',
+      role: 'bcc',
+      joinedAt: hoursAgo(216),
+    },
+  );
+
+  // Hannah's escalation has a staff participant
+  seedParticipants.push({
+    id: 'part-hannah-staff',
+    interactionId: 'int-hannah-web-1',
+    contactId: 'c-staff-david',
+    role: 'participant',
+    joinedAt: hoursAgo(1.5),
+  });
+
+  // Corporate inquiry has multiple participants
+  seedParticipants.push(
+    {
+      id: 'part-nina-init',
+      interactionId: 'int-lead-nina-1',
+      contactId: 'c-lead-nina',
+      role: 'initiator',
+      joinedAt: hoursAgo(4),
+    },
+    {
+      id: 'part-nina-cc',
+      interactionId: 'int-lead-nina-1',
+      contactId: 'c-lead-paula',
+      role: 'cc',
+      joinedAt: hoursAgo(3.5),
+    },
+  );
 
   await db
-    .insert(conversations)
-    .values(modeConversations)
+    .insert(interactionParticipants)
+    .values(seedParticipants)
     .onConflictDoNothing();
+  console.log(
+    `${green('✓')} Seeded ${seedParticipants.length} interaction participants`,
+  );
 
-  // ─── Messages (realistic back-and-forth conversations) ──────────
-  // Each conversation gets 2-5 turn pairs (customer + agent) plus occasional staff notes
+  // ─── Messages ────────────────────────────────────────────────────
   type SeedMessage = {
     id: string;
-    conversationId: string;
+    interactionId: string;
     messageType: 'incoming' | 'outgoing';
     contentType: 'text';
     content: string;
@@ -676,76 +1682,73 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   const seedMessages: SeedMessage[] = [];
 
-  const allConversationsForMessages = [
-    ...seedConversations,
-    ...modeConversations,
-  ];
-  for (const sess of allConversationsForMessages) {
+  for (const int of allInteractions) {
     const channelType =
-      sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web';
-    const turnCount = faker.number.int({ min: 2, max: 5 });
+      int.channelInstanceId === 'ci-wa-main'
+        ? 'whatsapp'
+        : int.channelInstanceId === 'ci-email'
+          ? 'email'
+          : 'web';
 
-    // Pick random conversation turns for this session
-    const shuffledTurns = [...CONVERSATION_TURNS]
-      .sort(() => faker.number.float() - 0.5)
-      .slice(0, turnCount);
+    // Use scripted turns if available, otherwise random generic turns
+    const script = SCRIPTED[int.id];
+    const turns: Array<[string, string]> = script
+      ? script
+      : [...GENERIC_TURNS]
+          .sort(() => faker.number.float() - 0.5)
+          .slice(0, faker.number.int({ min: 2, max: 5 }));
 
-    for (let t = 0; t < shuffledTurns.length; t++) {
-      const [customerMsg, agentMsg] = shuffledTurns[t];
-      const baseHoursAgo =
-        (sess.startedAt.getTime() - Date.now()) / (-1000 * 60 * 60);
-      // Each turn pair is ~6 minutes apart, messages within a turn ~1-2 min apart
-      const customerTime = hoursAgo(Math.max(0, baseHoursAgo - t * 0.1));
-      const agentTime = hoursAgo(Math.max(0, baseHoursAgo - t * 0.1 - 0.03));
+    for (let t = 0; t < turns.length; t++) {
+      const [customerMsg, agentMsg] = turns[t];
+      const baseH = (int.startedAt.getTime() - Date.now()) / (-1000 * 60 * 60);
+      // Space turns ~6 min apart; scripted interactions get slightly wider gaps for readability
+      const gap = script ? 0.15 : 0.1;
+      const customerTime = hoursAgo(Math.max(0, baseH - t * gap));
+      const agentTime = hoursAgo(Math.max(0, baseH - t * gap - 0.03));
 
-      const isLastTurn = t === shuffledTurns.length - 1;
+      const isLastTurn = t === turns.length - 1;
       let agentStatus: SeedMessage['status'];
-      if (sess.status === 'completed') {
-        agentStatus = randomItem(['delivered', 'read'] as const);
-      } else if (sess.status === 'failed' && isLastTurn) {
+      if (int.status === 'resolved') {
+        agentStatus = pick(['delivered', 'read'] as const);
+      } else if (int.status === 'failed' && isLastTurn) {
         agentStatus = 'failed';
-      } else if (sess.status === 'active' && isLastTurn) {
-        agentStatus = randomItem(['queued', 'sent'] as const);
+      } else if (int.status === 'active' && isLastTurn) {
+        agentStatus = pick(['queued', 'sent'] as const);
       } else {
         agentStatus = 'delivered';
       }
 
-      const hasExternalId =
-        agentStatus !== 'queued' && agentStatus !== 'failed';
+      const hasExtId = agentStatus !== 'queued' && agentStatus !== 'failed';
+      const prefix =
+        channelType === 'whatsapp'
+          ? 'wamid'
+          : channelType === 'email'
+            ? 'emlid'
+            : 'web';
 
-      // Customer message (incoming)
       seedMessages.push({
         id: `msg-${faker.string.alphanumeric(10)}`,
-        conversationId: sess.id,
+        interactionId: int.id,
         messageType: 'incoming',
         contentType: 'text',
         content: customerMsg,
         channelType,
-        externalMessageId: `${channelType === 'whatsapp' ? 'wamid' : 'web'}.in.${faker.string.alphanumeric(12)}`,
+        externalMessageId: `${prefix}.in.${faker.string.alphanumeric(12)}`,
         status: null,
-        senderId: sess.contactId,
+        senderId: int.contactId,
         senderType: 'contact',
         createdAt: customerTime,
       });
 
-      // Agent response (outgoing)
-      const agentContent = agentMsg
-        .replace('{date}', faker.date.soon({ days: 14 }).toLocaleDateString())
-        .replace(
-          '{time}',
-          randomItem(['10:00 AM', '11:30 AM', '2:00 PM', '3:30 PM', '4:00 PM']),
-        )
-        .replace('{ref}', `BK-${faker.string.numeric(4)}`);
-
       seedMessages.push({
         id: `msg-${faker.string.alphanumeric(10)}`,
-        conversationId: sess.id,
+        interactionId: int.id,
         messageType: 'outgoing',
         contentType: 'text',
-        content: agentContent,
+        content: agentMsg,
         channelType,
-        ...(hasExternalId && {
-          externalMessageId: `${channelType === 'whatsapp' ? 'wamid' : 'web'}.out.${faker.string.alphanumeric(12)}`,
+        ...(hasExtId && {
+          externalMessageId: `${prefix}.out.${faker.string.alphanumeric(12)}`,
         }),
         status: agentStatus,
         ...(agentStatus === 'failed' && {
@@ -756,30 +1759,26 @@ export default async function seed(ctx: { db: VobaseDb }) {
         createdAt: agentTime,
       });
 
-      // Occasionally add a staff private note (10% chance per turn)
-      if (faker.number.float() < 0.1) {
+      // 10% chance of a staff private note (only on non-scripted interactions)
+      if (!script && faker.number.float() < 0.1) {
         seedMessages.push({
           id: `msg-${faker.string.alphanumeric(10)}`,
-          conversationId: sess.id,
+          interactionId: int.id,
           messageType: 'outgoing',
           contentType: 'text',
-          content: randomItem(STAFF_NOTES),
+          content: pick(STAFF_NOTES),
           channelType,
           status: null,
           senderId: 'staff-admin',
           senderType: 'user',
           private: true,
-          createdAt: new Date(agentTime.getTime() + 30_000), // 30s after agent
+          createdAt: new Date(agentTime.getTime() + 30_000),
         });
       }
     }
   }
 
-  // ─── Messages (dead letters → failed outgoing) ───────────────────
-  const completedSessions = seedConversations.filter(
-    (s) => s.status === 'completed',
-  );
-
+  // Dead letter messages (failed outgoing)
   const DL_ERRORS = [
     'WhatsApp Cloud API error 131026: recipient phone number not on WhatsApp',
     'WhatsApp Cloud API error 130429: rate limit exceeded, retry after 3600s',
@@ -788,51 +1787,36 @@ export default async function seed(ctx: { db: VobaseDb }) {
     'Connection timeout after 30000ms',
   ];
 
-  const seedDeadLetterMessages: Array<{
-    id: string;
-    conversationId: string;
-    messageType: 'outgoing';
-    contentType: 'text';
-    content: string;
-    channelType: string;
-    status: 'failed';
-    failureReason: string;
-    senderId: string;
-    senderType: 'agent';
-    private: boolean;
-    createdAt: Date;
-  }> = DL_ERRORS.map((error, i) => {
-    const sess = completedSessions[i] ?? seedConversations[i];
+  const resolvedInts = allInteractions.filter((s) => s.status === 'resolved');
+  const seedDeadLetters = DL_ERRORS.map((error, i) => {
+    const int = resolvedInts[i] ?? allInteractions[i];
+    const chType = i < 3 ? 'whatsapp' : 'email';
     return {
       id: `msg-dl-${faker.string.alphanumeric(8)}`,
-      conversationId: sess.id,
-      messageType: 'outgoing',
-      contentType: 'text',
-      content: randomMessage(i < 3 ? 'confirmation' : 'followup'),
-      channelType: i < 3 ? 'whatsapp' : 'web',
-      status: 'failed',
+      interactionId: int.id,
+      messageType: 'outgoing' as const,
+      contentType: 'text' as const,
+      content: 'Your appointment is confirmed for next week.',
+      channelType: chType,
+      status: 'failed' as const,
       failureReason: error,
       senderId: 'agent-booking',
-      senderType: 'agent',
+      senderType: 'agent' as const,
       private: false,
       createdAt: hoursAgo(faker.number.int({ min: 24, max: 500 })),
     };
   });
 
-  // Insert outgoing messages in batches
-  const allOutgoingMessages = [...seedMessages, ...seedDeadLetterMessages];
-  const BATCH_SIZE = 50;
-  for (let i = 0; i < allOutgoingMessages.length; i += BATCH_SIZE) {
+  const allMessages = [...seedMessages, ...seedDeadLetters];
+  for (let i = 0; i < allMessages.length; i += BATCH_SIZE) {
     await db
       .insert(messages)
-      .values(allOutgoingMessages.slice(i, i + BATCH_SIZE))
+      .values(allMessages.slice(i, i + BATCH_SIZE))
       .onConflictDoNothing();
   }
+  console.log(`${green('✓')} Seeded ${allMessages.length} messages`);
 
   // ─── Consultations ───────────────────────────────────────────────
-  // Pick ~12 conversations that had human escalation
-  const activeSessions = seedConversations.filter((s) => s.status === 'active');
-  const failedSessions = seedConversations.filter((s) => s.status === 'failed');
 
   const CONSULTATION_REASONS = [
     'Customer requesting special pricing for a package deal.',
@@ -849,9 +1833,19 @@ export default async function seed(ctx: { db: VobaseDb }) {
     'Accessibility requirements for appointment venue.',
   ];
 
+  const REPLY_SUMMARIES = [
+    'Approved with 10% discount. Manager confirmed.',
+    'Rescheduled to next available slot. Customer satisfied.',
+    'Referred to billing department for follow-up.',
+    'Special accommodation arranged. Notes added to file.',
+  ];
+
+  const activeInts = allInteractions.filter((s) => s.status === 'active');
+  const failedInts = allInteractions.filter((s) => s.status === 'failed');
+
   const seedConsultations: Array<{
     id: string;
-    conversationId: string;
+    interactionId: string;
     staffContactId: string;
     channelType: string;
     channelInstanceId?: string;
@@ -864,15 +1858,15 @@ export default async function seed(ctx: { db: VobaseDb }) {
     replyPayload?: Record<string, unknown>;
   }> = [];
 
-  // Pending (from active sessions)
-  for (let i = 0; i < Math.min(3, activeSessions.length); i++) {
-    const sess = activeSessions[i];
+  // Pending (from active)
+  for (let i = 0; i < Math.min(3, activeInts.length); i++) {
+    const int = activeInts[i];
     seedConsultations.push({
-      id: `consult-${faker.string.alphanumeric(8)}`,
-      conversationId: sess.id,
-      staffContactId: randomItem(staffContacts).id,
-      channelType: sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
-      channelInstanceId: sess.channelInstanceId,
+      id: `consult-pend-${i}`,
+      interactionId: int.id,
+      staffContactId: pick(staff).id,
+      channelType: int.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
+      channelInstanceId: int.channelInstanceId,
       reason: CONSULTATION_REASONS[i],
       status: 'pending',
       timeoutMinutes: 30,
@@ -880,43 +1874,36 @@ export default async function seed(ctx: { db: VobaseDb }) {
     });
   }
 
-  // Replied (from completed sessions)
-  const REPLY_SUMMARIES = [
-    'Approved with 10% discount. Manager confirmed.',
-    'Rescheduled to next available slot. Customer satisfied.',
-    'Referred to billing department for follow-up.',
-    'Special accommodation arranged. Notes added to file.',
-  ];
-  for (let i = 0; i < Math.min(4, completedSessions.length); i++) {
-    const sess = completedSessions[i];
-    const reqHours = faker.number.int({ min: 24, max: 200 });
-    const summary = REPLY_SUMMARIES[i % REPLY_SUMMARIES.length];
+  // Replied (from resolved)
+  for (let i = 0; i < Math.min(4, resolvedInts.length); i++) {
+    const int = resolvedInts[i];
+    const reqH = faker.number.int({ min: 24, max: 200 });
     seedConsultations.push({
-      id: `consult-${faker.string.alphanumeric(8)}`,
-      conversationId: sess.id,
-      staffContactId: randomItem(staffContacts).id,
-      channelType: sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
-      channelInstanceId: sess.channelInstanceId,
+      id: `consult-replied-${i}`,
+      interactionId: int.id,
+      staffContactId: pick(staff).id,
+      channelType: int.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
+      channelInstanceId: int.channelInstanceId,
       reason: CONSULTATION_REASONS[3 + i],
-      summary,
+      summary: REPLY_SUMMARIES[i],
       status: 'replied',
       timeoutMinutes: 30,
-      requestedAt: hoursAgo(reqHours),
-      repliedAt: hoursAgo(reqHours - faker.number.int({ min: 0, max: 1 })),
-      replyPayload: { reply: summary, staffId: randomItem(staffContacts).id },
+      requestedAt: hoursAgo(reqH),
+      repliedAt: hoursAgo(reqH - faker.number.int({ min: 0, max: 1 })),
+      replyPayload: { reply: REPLY_SUMMARIES[i], staffId: pick(staff).id },
     });
   }
 
   // Timeout
-  for (let i = 0; i < Math.min(2, completedSessions.length - 4); i++) {
-    const sess = completedSessions[4 + i];
-    if (!sess) break;
+  for (let i = 0; i < Math.min(2, resolvedInts.length - 4); i++) {
+    const int = resolvedInts[4 + i];
+    if (!int) break;
     seedConsultations.push({
-      id: `consult-${faker.string.alphanumeric(8)}`,
-      conversationId: sess.id,
-      staffContactId: randomItem(staffContacts).id,
-      channelType: sess.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
-      channelInstanceId: sess.channelInstanceId,
+      id: `consult-timeout-${i}`,
+      interactionId: int.id,
+      staffContactId: pick(staff).id,
+      channelType: 'whatsapp',
+      channelInstanceId: 'ci-wa-main',
       reason: CONSULTATION_REASONS[7 + i],
       status: 'timeout',
       timeoutMinutes: 30,
@@ -925,12 +1912,12 @@ export default async function seed(ctx: { db: VobaseDb }) {
   }
 
   // Notification failed
-  for (let i = 0; i < Math.min(2, failedSessions.length); i++) {
-    const sess = failedSessions[i];
+  for (let i = 0; i < Math.min(2, failedInts.length); i++) {
+    const int = failedInts[i];
     seedConsultations.push({
-      id: `consult-${faker.string.alphanumeric(8)}`,
-      conversationId: sess.id,
-      staffContactId: randomItem(staffContacts).id,
+      id: `consult-notif-fail-${i}`,
+      interactionId: int.id,
+      staffContactId: pick(staff).id,
       channelType: 'whatsapp',
       channelInstanceId: 'ci-wa-main',
       reason: CONSULTATION_REASONS[9 + i],
@@ -946,15 +1933,17 @@ export default async function seed(ctx: { db: VobaseDb }) {
       .values(seedConsultations)
       .onConflictDoNothing();
   }
+  console.log(`${green('✓')} Seeded ${seedConsultations.length} consultations`);
 
-  // ─── Activity Events → messages (messageType='activity') ─────────
-  type ActivityEventInput = {
+  // ─── Activity Events (as messages with messageType='activity') ────
+
+  type ActivitySeed = {
     type: string;
     agentId?: string;
     userId?: string;
     source: 'agent' | 'staff' | 'system';
     contactId?: string;
-    conversationId: string;
+    interactionId: string;
     channelRoutingId?: string;
     channelType?: string;
     data: Record<string, unknown>;
@@ -962,200 +1951,26 @@ export default async function seed(ctx: { db: VobaseDb }) {
     createdAt: Date;
   };
 
-  const seedActivityEvents: ActivityEventInput[] = [
-    // Escalation events (attention queue)
-    {
-      type: 'escalation.created',
-      agentId: 'booking',
-      source: 'agent',
-      contactId: customerContacts[0].id,
-      conversationId: activeSessions[0]?.id ?? seedConversations[0].id,
-      channelRoutingId: 'ep-wa-booking',
-      channelType: 'whatsapp',
-      data: {
-        reason: 'Customer requesting special pricing',
-        staffContactId: 'contact-staff-david',
-      },
-      resolutionStatus: 'pending',
-      createdAt: hoursAgo(3),
-    },
-    {
-      type: 'escalation.created',
-      agentId: 'booking',
-      source: 'agent',
-      contactId: customerContacts[1].id,
-      conversationId: activeSessions[1]?.id ?? seedConversations[1].id,
-      channelRoutingId: 'ep-web-booking',
-      channelType: 'web',
-      data: { reason: 'Complex scheduling conflict' },
-      resolutionStatus: 'pending',
-      createdAt: hoursAgo(2),
-    },
-    // Guardrail block event (attention queue)
-    {
-      type: 'guardrail.block',
-      agentId: 'booking',
-      source: 'system',
-      contactId: customerContacts[2].id,
-      conversationId: activeSessions[2]?.id ?? seedConversations[2].id,
-      channelRoutingId: 'ep-wa-booking',
-      channelType: 'whatsapp',
-      data: { reason: 'Blocked offensive content', matchedTerm: 'profanity' },
-      resolutionStatus: 'pending',
-      createdAt: hoursAgo(1),
-    },
-    // Already reviewed escalation
-    {
-      type: 'escalation.created',
-      agentId: 'booking',
-      source: 'agent',
-      contactId: customerContacts[3].id,
-      conversationId: completedSessions[0]?.id ?? seedConversations[3].id,
-      channelRoutingId: 'ep-wa-booking',
-      channelType: 'whatsapp',
-      data: { reason: 'VIP customer needs priority' },
-      resolutionStatus: 'reviewed',
-      createdAt: hoursAgo(24),
-    },
-    // Session lifecycle events
-    {
-      type: 'conversation.created',
-      agentId: 'booking',
-      source: 'system',
-      contactId: customerContacts[0].id,
-      conversationId: activeSessions[0]?.id ?? seedConversations[0].id,
-      channelRoutingId: 'ep-wa-booking',
-      channelType: 'whatsapp',
-      data: {},
-      createdAt: hoursAgo(5),
-    },
-    {
-      type: 'conversation.created',
-      agentId: 'booking',
-      source: 'system',
-      contactId: customerContacts[1].id,
-      conversationId: activeSessions[1]?.id ?? seedConversations[1].id,
-      channelRoutingId: 'ep-web-booking',
-      channelType: 'web',
-      data: {},
-      createdAt: hoursAgo(4.5),
-    },
-    {
-      type: 'conversation.completed',
-      agentId: 'booking',
-      source: 'system',
-      conversationId: completedSessions[0]?.id ?? seedConversations[3].id,
-      data: { resolutionOutcome: 'resolved' },
-      createdAt: hoursAgo(20),
-    },
-    {
-      type: 'conversation.failed',
-      agentId: 'booking',
-      source: 'system',
-      conversationId: failedSessions[0]?.id ?? seedConversations[4].id,
-      data: { reason: 'Agent exceeded max steps' },
-      createdAt: hoursAgo(18),
-    },
-    // Tool execution events
-    {
-      type: 'agent.tool_executed',
-      agentId: 'booking',
-      source: 'agent',
-      contactId: customerContacts[0].id,
-      conversationId: activeSessions[0]?.id ?? seedConversations[0].id,
-      channelType: 'whatsapp',
-      data: { toolName: 'book_slot', isError: false },
-      createdAt: hoursAgo(4),
-    },
-    {
-      type: 'agent.tool_executed',
-      agentId: 'booking',
-      source: 'agent',
-      contactId: customerContacts[1].id,
-      conversationId: activeSessions[1]?.id ?? seedConversations[1].id,
-      channelType: 'web',
-      data: { toolName: 'check_availability', isError: false },
-      createdAt: hoursAgo(3.5),
-    },
-    {
-      type: 'agent.tool_executed',
-      agentId: 'booking',
-      source: 'agent',
-      contactId: customerContacts[2].id,
-      conversationId: activeSessions[2]?.id ?? seedConversations[2].id,
-      channelType: 'whatsapp',
-      data: { toolName: 'send_reminder', isError: false },
-      createdAt: hoursAgo(3),
-    },
-    // Handler mode change event
-    {
-      type: 'handler.changed',
-      agentId: 'booking',
-      source: 'agent',
-      conversationId: 'sess-human-mode',
-      data: {
-        from: 'ai',
-        to: 'human',
-        reason: 'Customer requested human agent',
-      },
-      createdAt: hoursAgo(2),
-    },
-    // Message events
-    {
-      type: 'message.outbound_queued',
-      source: 'agent',
-      conversationId: activeSessions[0]?.id ?? seedConversations[0].id,
-      channelType: 'whatsapp',
-      data: { outboxId: 'ob-test-1' },
-      createdAt: hoursAgo(4),
-    },
-    // Guardrail warn (non-attention, just activity)
-    {
-      type: 'guardrail.warn',
-      agentId: 'booking',
-      source: 'system',
-      contactId: customerContacts[4].id,
-      conversationId: activeSessions[3]?.id ?? seedConversations[4].id,
-      channelType: 'web',
-      data: { reason: 'Potential PII detected', matchedTerm: 'NRIC' },
-      createdAt: hoursAgo(6),
-    },
-    // Supervised draft event
-    {
-      type: 'agent.draft_generated',
-      agentId: 'booking',
-      source: 'agent',
-      conversationId: 'sess-supervised-mode',
-      channelType: 'web',
-      data: {
-        handlerMode: 'supervised',
-        draftContent: 'Here is your appointment confirmation for Monday 10am.',
-      },
-      resolutionStatus: 'pending',
-      createdAt: hoursAgo(0.5),
-    },
-  ];
-
-  function eventToContent(evt: ActivityEventInput): string {
+  function eventContent(evt: ActivitySeed): string {
     switch (evt.type) {
       case 'escalation.created':
-        return `Escalation created: ${(evt.data.reason as string) ?? 'No reason provided'}`;
+        return `Escalation created: ${(evt.data.reason as string) ?? 'No reason'}`;
       case 'guardrail.block':
         return `Guardrail blocked: ${(evt.data.reason as string) ?? 'Policy violation'}`;
       case 'guardrail.warn':
         return `Guardrail warning: ${(evt.data.reason as string) ?? 'Policy warning'}`;
-      case 'conversation.created':
-        return 'Conversation started';
-      case 'conversation.completed':
-        return `Conversation completed${evt.data.resolutionOutcome ? `: ${evt.data.resolutionOutcome}` : ''}`;
-      case 'conversation.failed':
-        return `Conversation failed: ${(evt.data.reason as string) ?? 'Unknown error'}`;
+      case 'interaction.created':
+        return 'Interaction started';
+      case 'interaction.resolved':
+        return `Interaction resolved${evt.data.outcome ? `: ${evt.data.outcome}` : ''}`;
+      case 'interaction.reopened':
+        return `Interaction reopened (reopen #${evt.data.reopenCount ?? 1})`;
+      case 'interaction.failed':
+        return `Interaction failed: ${(evt.data.reason as string) ?? 'Unknown error'}`;
       case 'agent.tool_executed':
         return `Tool executed: ${(evt.data.toolName as string) ?? 'unknown'}`;
       case 'handler.changed':
         return `Handler changed from ${evt.data.from} to ${evt.data.to}`;
-      case 'message.outbound_queued':
-        return 'Outbound message queued';
       case 'agent.draft_generated':
         return 'Agent draft generated for review';
       default:
@@ -1171,12 +1986,171 @@ export default async function seed(ctx: { db: VobaseDb }) {
     return 'system';
   }
 
-  const seedActivityMessages = seedActivityEvents.map((evt, i) => ({
+  const seedActivity: ActivitySeed[] = [
+    // Escalation events
+    {
+      type: 'escalation.created',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: 'c-hannah',
+      interactionId: 'int-hannah-web-1',
+      channelRoutingId: 'ep-web-booking',
+      channelType: 'web',
+      data: {
+        reason: 'Customer requesting refund',
+        staffContactId: 'c-staff-david',
+      },
+      resolutionStatus: 'pending',
+      createdAt: hoursAgo(1.8),
+    },
+    {
+      type: 'escalation.created',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: 'c-ivan',
+      interactionId: 'int-ivan-web-1',
+      channelRoutingId: 'ep-web-booking',
+      channelType: 'web',
+      data: { reason: 'Needs manager approval for discount' },
+      resolutionStatus: 'pending',
+      createdAt: hoursAgo(0.8),
+    },
+    // Guardrail events
+    {
+      type: 'guardrail.block',
+      agentId: 'booking',
+      source: 'system',
+      contactId: 'c-jenny',
+      interactionId: 'int-jenny-wa-1',
+      channelRoutingId: 'ep-wa-booking',
+      channelType: 'whatsapp',
+      data: { reason: 'Blocked offensive content', matchedTerm: 'profanity' },
+      resolutionStatus: 'pending',
+      createdAt: hoursAgo(2.5),
+    },
+    {
+      type: 'guardrail.warn',
+      agentId: 'booking',
+      source: 'system',
+      contactId: 'c-lily',
+      interactionId: 'int-lily-wa-1',
+      channelType: 'whatsapp',
+      data: { reason: 'Potential PII detected', matchedTerm: 'NRIC' },
+      createdAt: hoursAgo(0.3),
+    },
+    // Reviewed escalation (from Alice's second interaction)
+    {
+      type: 'escalation.created',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: 'c-alice',
+      interactionId: 'int-alice-wa-04',
+      channelRoutingId: 'ep-wa-booking',
+      channelType: 'whatsapp',
+      data: { reason: 'Insurance billing question' },
+      resolutionStatus: 'reviewed',
+      createdAt: hoursAgo(335),
+    },
+    // Lifecycle events
+    {
+      type: 'interaction.created',
+      agentId: 'booking',
+      source: 'system',
+      contactId: 'c-alice',
+      interactionId: 'int-alice-wa-10',
+      channelRoutingId: 'ep-wa-booking',
+      channelType: 'whatsapp',
+      data: {},
+      createdAt: hoursAgo(2),
+    },
+    {
+      type: 'interaction.reopened',
+      agentId: 'booking',
+      source: 'system',
+      interactionId: 'int-alice-wa-10',
+      data: { reopenCount: 1 },
+      createdAt: hoursAgo(1),
+    },
+    {
+      type: 'interaction.resolved',
+      agentId: 'booking',
+      source: 'system',
+      interactionId: 'int-alice-wa-01',
+      data: { outcome: 'resolved' },
+      createdAt: hoursAgo(503),
+    },
+    {
+      type: 'interaction.resolved',
+      agentId: 'booking',
+      source: 'system',
+      interactionId: 'int-george-wa-1',
+      data: { outcome: 'topic_change' },
+      createdAt: hoursAgo(0.5),
+    },
+    {
+      type: 'interaction.failed',
+      agentId: 'booking',
+      source: 'system',
+      interactionId: 'int-fiona-web-1',
+      data: { reason: 'Agent exceeded max steps' },
+      createdAt: hoursAgo(47),
+    },
+    // Tool execution events
+    {
+      type: 'agent.tool_executed',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: 'c-alice',
+      interactionId: 'int-alice-wa-10',
+      channelType: 'whatsapp',
+      data: { toolName: 'book_slot', isError: false },
+      createdAt: hoursAgo(1.5),
+    },
+    {
+      type: 'agent.tool_executed',
+      agentId: 'booking',
+      source: 'agent',
+      contactId: 'c-bob',
+      interactionId: 'int-bob-web-06',
+      channelType: 'web',
+      data: { toolName: 'check_availability', isError: false },
+      createdAt: hoursAgo(0.8),
+    },
+    // Handler mode changes
+    {
+      type: 'handler.changed',
+      agentId: 'booking',
+      source: 'agent',
+      interactionId: 'int-hannah-web-1',
+      data: {
+        from: 'ai',
+        to: 'human',
+        reason: 'Customer requested human agent',
+      },
+      createdAt: hoursAgo(1.9),
+    },
+    // Supervised draft
+    {
+      type: 'agent.draft_generated',
+      agentId: 'booking',
+      source: 'agent',
+      interactionId: 'int-ivan-web-1',
+      channelType: 'web',
+      data: {
+        handlerMode: 'supervised',
+        draftContent: 'Here is your appointment confirmation for Monday 10am.',
+      },
+      resolutionStatus: 'pending',
+      createdAt: hoursAgo(0.5),
+    },
+  ];
+
+  const seedActivityMessages = seedActivity.map((evt, i) => ({
     id: `msg-evt-${faker.string.alphanumeric(8)}-${i}`,
-    conversationId: evt.conversationId,
+    interactionId: evt.interactionId,
     messageType: 'activity' as const,
     contentType: 'system' as const,
-    content: eventToContent(evt),
+    content: eventContent(evt),
     contentData: { ...evt.data, eventType: evt.type },
     senderId: evt.agentId ?? evt.userId ?? 'system',
     senderType: eventSenderType(evt.source),
@@ -1195,66 +2169,60 @@ export default async function seed(ctx: { db: VobaseDb }) {
   }
 
   // ─── Update last-message denormalized columns ────────────────────
-  const allSeedMessages = [...allOutgoingMessages, ...seedActivityMessages];
+  const allMsgs = [...allMessages, ...seedActivityMessages];
+  const lastRealByInt = new Map<string, (typeof allMsgs)[number]>();
+  const lastActivityByInt = new Map<string, (typeof allMsgs)[number]>();
 
-  // Build maps: conversationId → last real message + last activity
-  const lastRealMsgByConv = new Map<string, (typeof allSeedMessages)[number]>();
-  const lastActivityByConv = new Map<
-    string,
-    (typeof allSeedMessages)[number]
-  >();
-
-  for (const msg of allSeedMessages) {
+  for (const msg of allMsgs) {
     if (msg.messageType === 'activity') {
-      const existing = lastActivityByConv.get(msg.conversationId);
+      const existing = lastActivityByInt.get(msg.interactionId);
       if (!existing || msg.createdAt > existing.createdAt) {
-        lastActivityByConv.set(msg.conversationId, msg);
+        lastActivityByInt.set(msg.interactionId, msg);
       }
-    } else if (!msg.private) {
-      const existing = lastRealMsgByConv.get(msg.conversationId);
+    } else if (!('private' in msg && msg.private)) {
+      const existing = lastRealByInt.get(msg.interactionId);
       if (!existing || msg.createdAt > existing.createdAt) {
-        lastRealMsgByConv.set(msg.conversationId, msg);
+        lastRealByInt.set(msg.interactionId, msg);
       }
     }
   }
 
-  // Use latest real message for preview, fall back to activity if no real messages
-  const allConvIds = new Set([
-    ...lastRealMsgByConv.keys(),
-    ...lastActivityByConv.keys(),
+  const allIntIds = new Set([
+    ...lastRealByInt.keys(),
+    ...lastActivityByInt.keys(),
   ]);
 
-  for (const convId of allConvIds) {
-    const lastReal = lastRealMsgByConv.get(convId);
-    const lastActivity = lastActivityByConv.get(convId);
-    const displayMsg = lastReal ?? lastActivity;
-    if (!displayMsg) continue;
+  for (const intId of allIntIds) {
+    const lastReal = lastRealByInt.get(intId);
+    const lastActivity = lastActivityByInt.get(intId);
+    const display = lastReal ?? lastActivity;
+    if (!display) continue;
 
     await db
-      .update(conversations)
+      .update(interactions)
       .set({
-        lastMessageContent: displayMsg.content.slice(0, 100),
-        lastMessageAt: displayMsg.createdAt,
-        lastMessageType: displayMsg.messageType,
-        lastActivityAt: lastActivity?.createdAt ?? displayMsg.createdAt,
+        lastMessageContent: display.content.slice(0, 100),
+        lastMessageAt: display.createdAt,
+        lastMessageType: display.messageType,
+        lastActivityAt: lastActivity?.createdAt ?? display.createdAt,
       })
-      .where(eq(conversations.id, convId));
+      .where(eq(interactions.id, intId));
   }
 
   console.log(
-    `${green('✓')} Seeded ${modeConversations.length} mode conversations, ${seedActivityMessages.length} activity messages`,
+    `${green('✓')} Seeded ${seedActivityMessages.length} activity events`,
   );
 
-  // ─── Channel Sessions (WhatsApp window tracking) ────────────────
-  const waConversations = allConversationsForMessages.filter(
+  // ─── Channel Sessions (WhatsApp window tracking) ─────────────────
+  const waActiveInts = allInteractions.filter(
     (s) => s.channelInstanceId === 'ci-wa-main' && s.status === 'active',
   );
-  const seedChannelSessions = waConversations.slice(0, 8).map((sess, i) => {
-    const isExpired = i >= 6; // last 2 are expired windows
+  const seedSessions = waActiveInts.slice(0, 8).map((int, i) => {
+    const isExpired = i >= 6;
     const windowOpensAt = hoursAgo(isExpired ? 30 : 2);
     return {
       id: `cs-${faker.string.alphanumeric(8)}`,
-      conversationId: sess.id,
+      interactionId: int.id,
       channelInstanceId: 'ci-wa-main',
       channelType: 'whatsapp',
       sessionState: isExpired ? 'window_expired' : 'window_open',
@@ -1264,49 +2232,86 @@ export default async function seed(ctx: { db: VobaseDb }) {
     };
   });
 
-  if (seedChannelSessions.length > 0) {
-    await db
-      .insert(channelSessions)
-      .values(seedChannelSessions)
-      .onConflictDoNothing();
+  if (seedSessions.length > 0) {
+    await db.insert(channelSessions).values(seedSessions).onConflictDoNothing();
   }
-  console.log(
-    `${green('✓')} Seeded ${seedChannelSessions.length} channel sessions`,
-  );
+  console.log(`${green('✓')} Seeded ${seedSessions.length} channel sessions`);
 
-  // ─── Contact working memory (Mastra resource data) ──────────────
-  // Populate workingMemory for a few contacts to demo the Mastra memory integration
-  const contactsWithMemory = customerContacts.slice(0, 5);
-  const WORKING_MEMORIES = [
-    'Preferred language: English. Last booking: Wednesday 2 PM general consultation. Prefers afternoon slots.',
-    'New customer. Interested in group booking for corporate wellness. Budget-conscious.',
-    'Returning patient. Has existing appointment history. Prefers Dr. Tan.',
-    'Referred by staff member Eve. First-time visitor. Needs accessibility accommodations.',
-    'VIP customer. Priority scheduling. Insurance: AIA Gold plan.',
-  ];
+  // ─── Contact working memory ──────────────────────────────────────
+  const WORKING_MEMORIES: Record<string, string> = {
+    'c-alice':
+      'Preferred language: English. Last booking: Wednesday 2 PM general consultation. Prefers afternoon slots. Has been reopened before — recurring customer.',
+    'c-bob':
+      'Uses both web and email. Complex scheduling needs. Previously required human assistance.',
+    'c-charlie':
+      'VIP customer. Always handled by David (staff). Priority scheduling.',
+    'c-diana':
+      'Tends to go silent mid-conversation. Follow up proactively if no response within 2 hours.',
+    'c-lead-nina':
+      'Corporate wellness inquiry. Budget-conscious. Needs group booking for 20+ employees.',
+  };
 
-  for (let i = 0; i < contactsWithMemory.length; i++) {
+  for (const [contactId, memory] of Object.entries(WORKING_MEMORIES)) {
     await db
       .update(contacts)
       .set({
-        workingMemory: WORKING_MEMORIES[i],
+        workingMemory: memory,
         resourceMetadata: {
           lastInteraction: hoursAgo(
             faker.number.int({ min: 1, max: 48 }),
           ).toISOString(),
-          conversationCount: faker.number.int({ min: 1, max: 10 }),
+          interactionCount: faker.number.int({ min: 1, max: 10 }),
         },
       })
-      .where(eq(contacts.id, contactsWithMemory[i].id));
+      .where(eq(contacts.id, contactId));
   }
   console.log(
-    `${green('✓')} Seeded working memory for ${contactsWithMemory.length} contacts`,
+    `${green('✓')} Seeded working memory for ${Object.keys(WORKING_MEMORIES).length} contacts`,
   );
 
-  // ─── Eval runs ──────────────────────────────────────────────────
-  // Realistic eval run history so the /ai/evals page renders populated.
+  // ─── Reactions + Feedback ────────────────────────────────────────
+  // A few reactions and feedback entries for UI testing
+  const reactionMessages = seedMessages.filter(
+    (m) => m.senderType === 'agent' && m.status === 'delivered',
+  );
 
-  // Deterministic scores using faker (re-seed for eval block)
+  const seedReactions = reactionMessages.slice(0, 5).map((msg, i) => ({
+    id: `react-${faker.string.alphanumeric(8)}`,
+    messageId: msg.id,
+    interactionId: msg.interactionId,
+    contactId: allInteractions.find((s) => s.id === msg.interactionId)
+      ?.contactId,
+    userId: null,
+    emoji: pick(['👍', '❤️', '😊', '🙏', '✅']),
+    createdAt: new Date(msg.createdAt.getTime() + 60_000 * (i + 1)),
+  }));
+
+  if (seedReactions.length > 0) {
+    await db.insert(reactions).values(seedReactions).onConflictDoNothing();
+  }
+
+  const seedFeedback = reactionMessages.slice(5, 10).map((msg, i) => ({
+    id: `fb-${faker.string.alphanumeric(8)}`,
+    interactionId: msg.interactionId,
+    messageId: msg.id,
+    rating: i < 3 ? 'positive' : 'negative',
+    reason:
+      i >= 3
+        ? pick(['Unhelpful response', 'Wrong information', 'Too slow'])
+        : null,
+    contactId: allInteractions.find((s) => s.id === msg.interactionId)
+      ?.contactId,
+    userId: null,
+  }));
+
+  if (seedFeedback.length > 0) {
+    await db.insert(messageFeedback).values(seedFeedback).onConflictDoNothing();
+  }
+  console.log(
+    `${green('✓')} Seeded ${seedReactions.length} reactions, ${seedFeedback.length} feedback`,
+  );
+
+  // ─── Eval Runs ───────────────────────────────────────────────────
   faker.seed(99);
 
   const bookingQAPairs = [
@@ -1315,73 +2320,62 @@ export default async function seed(ctx: { db: VobaseDb }) {
       output:
         'I can check availability for Monday at 10am. Let me look that up for you.',
       context: [
-        'You are a booking assistant for a service business.',
-        'Available slots are managed via the check-availability tool.',
+        'You are a booking assistant.',
+        'Available slots managed via check-availability tool.',
       ],
     },
     {
       input: 'I need to reschedule my appointment from Tuesday to Thursday.',
-      output:
-        "I'll help you reschedule. Let me check Thursday availability and move your booking.",
-      context: [
-        'You are a booking assistant.',
-        'Use reschedule-booking tool to move appointments.',
-      ],
+      output: "I'll help you reschedule. Let me check Thursday availability.",
+      context: ['You are a booking assistant.', 'Use reschedule-booking tool.'],
     },
     {
       input: 'What services do you offer?',
       output:
-        'We offer haircuts, coloring, styling, and treatments. Would you like to book any of these?',
+        'We offer haircuts, coloring, styling, and treatments. Would you like to book?',
       context: [
         'You are a booking assistant for a hair salon.',
-        'Services: haircut ($30), coloring ($80), styling ($50), treatments ($60).',
+        'Services: haircut ($30), coloring ($80).',
       ],
     },
     {
       input: 'Cancel my appointment please.',
-      output:
-        "I'll cancel your upcoming appointment right away. You'll receive a confirmation shortly.",
-      context: [
-        'You are a booking assistant.',
-        'Use cancel-booking tool. Always confirm cancellation with the customer.',
-      ],
+      output: "I'll cancel your upcoming appointment right away.",
+      context: ['You are a booking assistant.', 'Use cancel-booking tool.'],
     },
     {
       input: 'Do you have any availability this weekend?',
-      output:
-        'Let me check our weekend slots for you. We typically have Saturday morning and afternoon openings.',
+      output: 'Let me check our weekend slots for you.',
       context: [
         'You are a booking assistant.',
-        'Weekend hours: Saturday 9am-5pm, Sunday closed.',
+        'Weekend: Saturday 9am-5pm, Sunday closed.',
       ],
     },
     {
       input: 'How much does a haircut cost?',
       output:
-        'A standard haircut is $30. We also have premium cuts at $45 which include a wash and style.',
+        'A standard haircut is $30. Premium cuts at $45 include wash and style.',
       context: [
-        'You are a booking assistant for a hair salon.',
-        'Pricing: standard cut $30, premium cut $45, kids cut $20.',
+        'Hair salon booking assistant.',
+        'Standard $30, premium $45, kids $20.',
       ],
     },
   ];
 
   function makeEvalItems(
     pairs: typeof bookingQAPairs,
-    scoreRange: [number, number],
+    range: [number, number],
   ) {
     return pairs.map((p) => ({
       ...p,
       scores: {
         'answer-relevancy-scorer':
           Math.round(
-            faker.number.float({ min: scoreRange[0], max: scoreRange[1] }) *
-              100,
+            faker.number.float({ min: range[0], max: range[1] }) * 100,
           ) / 100,
         'faithfulness-scorer':
           Math.round(
-            faker.number.float({ min: scoreRange[0], max: scoreRange[1] }) *
-              100,
+            faker.number.float({ min: range[0], max: range[1] }) * 100,
           ) / 100,
       },
     }));
@@ -1389,7 +2383,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   const seedEvalRuns = [
     {
-      id: 'eval-run-001',
+      id: 'eval-001',
       agentId: 'booking',
       status: 'complete' as const,
       itemCount: 6,
@@ -1398,7 +2392,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       completedAt: hoursAgo(7 * 24),
     },
     {
-      id: 'eval-run-002',
+      id: 'eval-002',
       agentId: 'booking',
       status: 'complete' as const,
       itemCount: 4,
@@ -1409,7 +2403,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       completedAt: hoursAgo(5 * 24),
     },
     {
-      id: 'eval-run-003',
+      id: 'eval-003',
       agentId: 'booking',
       status: 'complete' as const,
       itemCount: 6,
@@ -1418,7 +2412,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       completedAt: hoursAgo(2 * 24),
     },
     {
-      id: 'eval-run-004',
+      id: 'eval-004',
       agentId: 'booking',
       status: 'running' as const,
       itemCount: 3,
@@ -1427,7 +2421,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       completedAt: null,
     },
     {
-      id: 'eval-run-005',
+      id: 'eval-005',
       agentId: 'booking',
       status: 'pending' as const,
       itemCount: 5,
@@ -1436,7 +2430,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       completedAt: null,
     },
     {
-      id: 'eval-run-006',
+      id: 'eval-006',
       agentId: 'booking',
       status: 'error' as const,
       itemCount: 6,
@@ -1448,27 +2442,17 @@ export default async function seed(ctx: { db: VobaseDb }) {
   ];
 
   await db.insert(aiEvalRuns).values(seedEvalRuns).onConflictDoNothing();
-
-  // Restore original faker seed
   faker.seed(42);
-
   console.log(`${green('✓')} Seeded ${seedEvalRuns.length} eval runs`);
 
-  // ─── Custom scorers ─────────────────────────────────────────────
-  const seedCustomScorers = [
+  // ─── Custom Scorers ──────────────────────────────────────────────
+  const seedScorers = [
     {
       id: 'scorer-policy',
       name: 'Policy Compliance',
-      description:
-        'Checks if the response follows booking and cancellation policies',
-      criteria: [
-        'Evaluate whether the AI response correctly follows the business booking and cancellation policies:',
-        '- Cancellations must be made at least 24 hours in advance',
-        '- Rescheduling is free for the first change, $25 fee after',
-        '- No-shows are charged the full appointment fee',
-        '- The agent should never promise exceptions to these policies',
-        'Score 1.0 if the response fully complies, 0.0 if it contradicts a policy.',
-      ].join('\n'),
+      description: 'Checks response follows booking/cancellation policies',
+      criteria:
+        'Evaluate whether the AI response correctly follows business booking and cancellation policies.\nScore 1.0 if fully compliant, 0.0 if it contradicts a policy.',
       model: 'openai/gpt-5.4-mini',
       enabled: true,
     },
@@ -1476,15 +2460,9 @@ export default async function seed(ctx: { db: VobaseDb }) {
       id: 'scorer-tone',
       name: 'Professional Tone',
       description:
-        'Rates whether the response maintains a professional, helpful tone',
-      criteria: [
-        'Evaluate the tone and professionalism of the AI response:',
-        '- Warm but professional (not overly casual or robotic)',
-        '- Empathetic when the customer has a complaint or frustration',
-        '- Clear and direct without unnecessary filler',
-        '- Uses the customer name when available',
-        'Score 1.0 for perfect tone, 0.5 for acceptable, 0.0 for inappropriate.',
-      ].join('\n'),
+        'Rates whether response maintains professional, helpful tone',
+      criteria:
+        'Evaluate tone and professionalism.\nScore 1.0 for perfect tone, 0.5 for acceptable, 0.0 for inappropriate.',
       model: 'openai/gpt-5.4-mini',
       enabled: true,
     },
@@ -1492,24 +2470,16 @@ export default async function seed(ctx: { db: VobaseDb }) {
       id: 'scorer-accuracy',
       name: 'Availability Accuracy',
       description:
-        'Checks if the agent accurately reports appointment availability',
-      criteria: [
-        'Evaluate whether the AI agent accurately handled appointment availability:',
-        '- Did it check availability before confirming a booking?',
-        '- Did it offer alternative times when the requested slot was unavailable?',
-        '- Did it avoid confirming appointments without tool verification?',
-        'Score 1.0 if availability handling was correct, 0.0 if it made up availability.',
-      ].join('\n'),
+        'Checks if agent accurately reports appointment availability',
+      criteria:
+        'Evaluate availability handling accuracy.\nScore 1.0 if correct, 0.0 if it made up availability.',
       model: 'openai/gpt-5.4-mini',
       enabled: true,
     },
   ];
 
-  await db.insert(aiScorers).values(seedCustomScorers).onConflictDoNothing();
-
-  console.log(
-    `${green('✓')} Seeded ${seedCustomScorers.length} custom scorers`,
-  );
+  await db.insert(aiScorers).values(seedScorers).onConflictDoNothing();
+  console.log(`${green('✓')} Seeded ${seedScorers.length} custom scorers`);
 
   // ─── Labels ──────────────────────────────────────────────────────
   const seedLabels = [
@@ -1547,32 +2517,60 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   await db.insert(labels).values(seedLabels).onConflictDoNothing();
 
-  // Assign labels to some conversations
-  const labelAssignments = seedConversations.slice(0, 15).flatMap((conv, i) => {
-    const assigned = [seedLabels[i % seedLabels.length]];
-    if (i % 3 === 0 && seedLabels[(i + 2) % seedLabels.length]) {
-      assigned.push(seedLabels[(i + 2) % seedLabels.length]);
-    }
-    return assigned.map((lbl) => ({
-      conversationId: conv.id,
-      labelId: lbl.id,
-    }));
-  });
+  const labelAssignments = [
+    // VIP labels on Charlie and Alice
+    { interactionId: 'int-charlie-wa-01', labelId: 'lbl-vip' },
+    { interactionId: 'int-alice-wa-10', labelId: 'lbl-vip' },
+    // Urgent on Jenny and Lily
+    { interactionId: 'int-jenny-wa-1', labelId: 'lbl-urgent' },
+    { interactionId: 'int-lily-wa-1', labelId: 'lbl-urgent' },
+    // Follow-up on Diana (abandoned)
+    { interactionId: 'int-diana-wa-1', labelId: 'lbl-followup' },
+    // Feedback on Bob
+    { interactionId: 'int-bob-web-06', labelId: 'lbl-feedback' },
+    // Bug on Fiona (failed)
+    { interactionId: 'int-fiona-web-1', labelId: 'lbl-bug' },
+    // Multi-label: Alice's reopened interaction gets VIP + follow-up
+    { interactionId: 'int-alice-wa-10', labelId: 'lbl-followup' },
+    // Bulk interactions get some labels too
+    ...bulkInteractions.slice(0, 8).map((int, i) => ({
+      interactionId: int.id,
+      labelId: seedLabels[i % seedLabels.length].id,
+    })),
+  ];
 
   await db
-    .insert(conversationLabels)
+    .insert(interactionLabels)
     .values(labelAssignments)
     .onConflictDoNothing();
 
+  // Migrate interactionLabels → contactLabels (dedup by contact+label)
+  const interactionContactMap = new Map<string, string>();
+  for (const int of allInteractions) {
+    interactionContactMap.set(int.id, int.contactId);
+  }
+  const contactLabelSet = new Set<string>();
+  const contactLabelRows: { contactId: string; labelId: string }[] = [];
+  for (const la of labelAssignments) {
+    const cId = interactionContactMap.get(la.interactionId);
+    if (!cId) continue;
+    const key = `${cId}:${la.labelId}`;
+    if (contactLabelSet.has(key)) continue;
+    contactLabelSet.add(key);
+    contactLabelRows.push({ contactId: cId, labelId: la.labelId });
+  }
+  if (contactLabelRows.length > 0) {
+    await db
+      .insert(contactLabels)
+      .values(contactLabelRows)
+      .onConflictDoNothing();
+  }
   console.log(
-    `${green('✓')} Seeded ${seedLabels.length} labels, ${labelAssignments.length} conversation-label assignments`,
+    `${green('✓')} Seeded ${seedLabels.length} labels, ${labelAssignments.length} interaction assignments, ${contactLabelRows.length} contact labels`,
   );
 
   // ─── Summary ─────────────────────────────────────────────────────
   console.log(
-    `${green('✓')} Seeded ${seedInstances.length} channel instances, ${seedChannelRoutings.length} channel routings, ${seedConversations.length} conversations`,
-  );
-  console.log(
-    `${green('✓')} Seeded ${allOutgoingMessages.length + seedActivityMessages.length} messages, ${seedConsultations.length} consultations`,
+    `\n${green('Done!')} Seeded ${allInteractions.length} interactions, ${allMessages.length + seedActivityMessages.length} messages, ${seedConsultations.length} consultations, ${seedParticipants.length} participants`,
   );
 }
