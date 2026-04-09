@@ -63,7 +63,7 @@ export const automationTasks = automationPgSchema.table(
     domSnapshot: text('dom_snapshot'),
     errorMessage: text('error_message'),
     requestedBy: text('requested_by').notNull(),
-    sourceConversationId: text('source_conversation_id'),
+    sourceInteractionId: text('source_interaction_id'),
     timeoutMinutes: integer('timeout_minutes').notNull().default(10),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

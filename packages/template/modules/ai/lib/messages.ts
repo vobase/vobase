@@ -1,7 +1,7 @@
 import type { RealtimeService, VobaseDb } from '@vobase/core';
 import { eq, sql } from 'drizzle-orm';
 
-import { conversations, messages } from '../schema';
+import { interactions, messages } from '../schema';
 import type {
   ContentType,
   MessageType,
@@ -12,7 +12,7 @@ import type {
 // ─── Insert Message ────────────────────────────────────────────────
 
 interface InsertMessageInput {
-  conversationId: string;
+  interactionId: string;
   messageType: MessageType;
   contentType: ContentType;
   content: string;
@@ -25,6 +25,7 @@ interface InsertMessageInput {
   channelType?: string | null;
   private?: boolean;
   withdrawn?: boolean;
+  replyToMessageId?: string | null;
   resolutionStatus?: ResolutionStatus | null;
 }
 
@@ -36,7 +37,7 @@ export async function insertMessage(
   const [message] = await db
     .insert(messages)
     .values({
-      conversationId: input.conversationId,
+      interactionId: input.interactionId,
       messageType: input.messageType,
       contentType: input.contentType,
       content: input.content,
@@ -49,25 +50,26 @@ export async function insertMessage(
       channelType: input.channelType ?? null,
       private: input.private ?? false,
       withdrawn: input.withdrawn ?? false,
+      replyToMessageId: input.replyToMessageId ?? null,
       resolutionStatus: input.resolutionStatus ?? null,
     })
     .returning();
 
-  // Update denormalized fields on the conversation
-  await updateConversationDenormalized(db, input.conversationId, message);
+  // Update denormalized fields on the interaction
+  await updateInteractionDenormalized(db, input.interactionId, message);
 
   // SSE notify
   await realtime
     .notify({
-      table: 'conversations-messages',
-      id: input.conversationId,
+      table: 'interactions-messages',
+      id: input.interactionId,
       action: 'insert',
     })
     .catch(() => {});
   await realtime
     .notify({
-      table: 'conversations',
-      id: input.conversationId,
+      table: 'interactions',
+      id: input.interactionId,
       action: 'update',
     })
     .catch(() => {});
@@ -75,23 +77,23 @@ export async function insertMessage(
   return message;
 }
 
-// ─── Update Conversation Denormalized Fields ───────────────────────
+// ─── Update Interaction Denormalized Fields ─────────────────────────
 
 const HUMAN_MODES = ['human', 'supervised', 'held'];
 
-async function updateConversationDenormalized(
+async function updateInteractionDenormalized(
   db: VobaseDb,
-  conversationId: string,
+  interactionId: string,
   message: typeof messages.$inferSelect,
 ): Promise<void> {
   // Activity messages and private notes only update lastActivityAt — they
-  // should not overwrite the conversation list preview with event type
+  // should not overwrite the interaction list preview with event type
   // strings or internal staff notes
   if (message.messageType === 'activity' || message.private) {
     await db
-      .update(conversations)
+      .update(interactions)
       .set({ lastActivityAt: message.createdAt })
-      .where(eq(conversations.id, conversationId));
+      .where(eq(interactions.id, interactionId));
     return;
   }
 
@@ -105,32 +107,32 @@ async function updateConversationDenormalized(
   // Increment unreadCount for inbound messages in human-handled modes
   if (message.messageType === 'incoming') {
     const [conv] = await db
-      .select({ mode: conversations.mode })
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
+      .select({ mode: interactions.mode })
+      .from(interactions)
+      .where(eq(interactions.id, interactionId));
 
     if (conv && HUMAN_MODES.includes(conv.mode)) {
       await db
-        .update(conversations)
+        .update(interactions)
         .set({
           ...updates,
           unreadCount: sql`unread_count + 1`,
         })
-        .where(eq(conversations.id, conversationId));
+        .where(eq(interactions.id, interactionId));
       return;
     }
   }
 
   await db
-    .update(conversations)
+    .update(interactions)
     .set(updates)
-    .where(eq(conversations.id, conversationId));
+    .where(eq(interactions.id, interactionId));
 }
 
 // ─── Create Activity Message ───────────────────────────────────────
 
 interface CreateActivityMessageInput {
-  conversationId: string;
+  interactionId: string;
   eventType: string;
   actor?: string;
   actorType?: SenderType;
@@ -147,7 +149,7 @@ export async function createActivityMessage(
   const senderType = input.actorType ?? 'system';
 
   const message = await insertMessage(db, realtime, {
-    conversationId: input.conversationId,
+    interactionId: input.interactionId,
     messageType: 'activity',
     contentType: 'system',
     content: input.eventType,
@@ -165,11 +167,11 @@ export async function createActivityMessage(
   // Additional SSE for attention/dashboard
   if (input.resolutionStatus === 'pending') {
     await realtime
-      .notify({ table: 'conversations-attention', action: 'insert' })
+      .notify({ table: 'interactions-attention', action: 'insert' })
       .catch(() => {});
   }
   await realtime
-    .notify({ table: 'conversations-dashboard', action: 'update' })
+    .notify({ table: 'interactions-dashboard', action: 'update' })
     .catch(() => {});
 
   return message;

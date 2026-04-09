@@ -11,11 +11,11 @@ import { getActiveCustomScorers } from '../../mastra/evals/scorers';
 import { generateChannelReply } from './lib/channel-reply';
 import { expireSessions } from './lib/channel-sessions';
 import { checkConsultationTimeouts } from './lib/consult-human';
-import { completeConversation } from './lib/conversation';
 import { processDelivery } from './lib/delivery';
 import { handleInboundMessage } from './lib/inbound';
+import { resolveInteraction } from './lib/interaction';
 import { transition } from './lib/state-machine';
-import { aiEvalRuns, channelInstances, conversations } from './schema';
+import { aiEvalRuns, channelInstances, interactions } from './schema';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AI Eval jobs
@@ -76,12 +76,12 @@ export const evalRunJob = defineJob('ai:eval-run', async (data) => {
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Conversations & Channel jobs
+// Interactions & Channel jobs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const deliverDataSchema = z.object({ messageId: z.string().min(1) });
 const channelReplyDataSchema = z.object({
-  conversationId: z.string().min(1),
+  interactionId: z.string().min(1),
 });
 const processInboundDataSchema = z.object({
   event: z
@@ -110,14 +110,14 @@ export const deliverMessageJob = defineJob(
 );
 
 /**
- * ai:channel-reply — Generate AI reply for a channel conversation.
- * Called after an inbound message is routed to an active conversation.
+ * ai:channel-reply — Generate AI reply for a channel interaction.
+ * Called after an inbound message is routed to an active interaction.
  */
 export const channelReplyJob = defineJob('ai:channel-reply', async (data) => {
-  const { conversationId } = channelReplyDataSchema.parse(data);
+  const { interactionId } = channelReplyDataSchema.parse(data);
   const deps = getModuleDeps();
 
-  await generateChannelReply(deps, conversationId);
+  await generateChannelReply(deps, interactionId);
 });
 
 /**
@@ -139,16 +139,16 @@ export const consultationTimeoutJob = defineJob(
 );
 
 /**
- * ai:conversation-cleanup — Cron every 5 minutes.
- * Complete conversations that have exceeded per-channel inactivity timeouts or
+ * ai:interaction-cleanup — Cron every 5 minutes.
+ * Resolve interactions that have exceeded per-channel inactivity timeouts or
  * been stale for 7+ days (abandoned).
  *
  * Per-channel timeouts: web=30min, whatsapp=24h, email=72h.
- * Timed-out conversations resolve as 'resolved' (natural end).
- * 7-day stale conversations resolve as 'abandoned'.
+ * Timed-out interactions resolve as 'resolved' (natural end).
+ * 7-day stale interactions resolve as 'abandoned'.
  */
-export const conversationCleanupJob = defineJob(
-  'ai:conversation-cleanup',
+export const interactionCleanupJob = defineJob(
+  'ai:interaction-cleanup',
   async () => {
     const deps = getModuleDeps();
 
@@ -160,40 +160,40 @@ export const conversationCleanupJob = defineJob(
     };
     const defaultTimeout = 24 * 60;
 
-    const activeConversations = await deps.db
+    const activeInteractions = await deps.db
       .select({
-        id: conversations.id,
-        updatedAt: conversations.updatedAt,
+        id: interactions.id,
+        updatedAt: interactions.updatedAt,
         channelType: channelInstances.type,
       })
-      .from(conversations)
+      .from(interactions)
       .innerJoin(
         channelInstances,
-        eq(conversations.channelInstanceId, channelInstances.id),
+        eq(interactions.channelInstanceId, channelInstances.id),
       )
-      .where(eq(conversations.status, 'active'));
+      .where(eq(interactions.status, 'active'));
 
     const now = Date.now();
     let timedOutCount = 0;
     let abandonedCount = 0;
 
-    for (const s of activeConversations) {
+    for (const s of activeInteractions) {
       const timeoutMinutes = timeouts[s.channelType] ?? defaultTimeout;
       const age = (now - s.updatedAt.getTime()) / 60_000;
 
       if (age > 7 * 24 * 60) {
         // 7-day stale → abandoned
-        await completeConversation(deps.db, s.id, deps.realtime, 'abandoned');
+        await resolveInteraction(deps.db, s.id, deps.realtime, 'abandoned');
         abandonedCount++;
       } else if (age > timeoutMinutes) {
         // Per-channel timeout → resolved (natural end)
-        await completeConversation(deps.db, s.id, deps.realtime, 'resolved');
+        await resolveInteraction(deps.db, s.id, deps.realtime, 'resolved');
         timedOutCount++;
       }
     }
 
     if (timedOutCount > 0 || abandonedCount > 0) {
-      logger.info('[ai] Conversation cleanup', {
+      logger.info('[ai] Interaction cleanup', {
         timedOut: timedOutCount,
         abandoned: abandonedCount,
       });
@@ -202,32 +202,32 @@ export const conversationCleanupJob = defineJob(
 );
 
 /**
- * ai:completing-timeout — Cron every minute.
- * Fail conversations stuck in 'completing' status for over 60 seconds.
- * This catches zombie completions where generation never finished.
+ * ai:resolving-timeout — Cron every minute.
+ * Fail interactions stuck in 'resolving' status for over 60 seconds.
+ * This catches zombie resolutions where generation never finished.
  */
-export const completingTimeoutJob = defineJob(
-  'ai:completing-timeout',
+export const resolvingTimeoutJob = defineJob(
+  'ai:resolving-timeout',
   async () => {
     const deps = getModuleDeps();
     const sixtySecondsAgo = new Date(Date.now() - 60_000);
 
     const stuck = await deps.db
-      .select({ id: conversations.id })
-      .from(conversations)
+      .select({ id: interactions.id })
+      .from(interactions)
       .where(
         and(
-          eq(conversations.status, 'completing'),
-          lt(conversations.updatedAt, sixtySecondsAgo),
+          eq(interactions.status, 'resolving'),
+          lt(interactions.updatedAt, sixtySecondsAgo),
         ),
       );
 
     for (const s of stuck) {
-      await transition(deps, s.id, { type: 'COMPLETING_TIMEOUT' });
+      await transition(deps, s.id, { type: 'RESOLVING_TIMEOUT' });
     }
 
     if (stuck.length > 0) {
-      logger.info('[ai] Completing timeout cleanup', { count: stuck.length });
+      logger.info('[ai] Resolving timeout cleanup', { count: stuck.length });
     }
   },
 );

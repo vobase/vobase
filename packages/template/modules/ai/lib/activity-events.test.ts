@@ -3,12 +3,12 @@ import { describe, expect, it } from 'bun:test';
 import { computeTab } from './activity-events';
 
 describe('computeTab', () => {
-  it('returns "done" for completed conversations', () => {
-    expect(computeTab('ai', 'completed', false)).toBe('done');
-    expect(computeTab('human', 'completed', true)).toBe('done');
+  it('returns "done" for resolved interactions', () => {
+    expect(computeTab('ai', 'resolved', false)).toBe('done');
+    expect(computeTab('human', 'resolved', true)).toBe('done');
   });
 
-  it('returns "attention" for failed conversations', () => {
+  it('returns "attention" for failed interactions', () => {
     expect(computeTab('ai', 'failed', false)).toBe('attention');
   });
 
@@ -22,7 +22,7 @@ describe('computeTab', () => {
     expect(computeTab('held', 'active', false)).toBe('attention');
   });
 
-  it('returns "ai" for ai mode active conversations', () => {
+  it('returns "ai" for ai mode active interactions', () => {
     expect(computeTab('ai', 'active', false)).toBe('ai');
   });
 });

@@ -1,5 +1,4 @@
 import type {
-  ChannelAdapter,
   ChannelsService,
   OutboundMessage,
   Scheduler,
@@ -9,7 +8,7 @@ import type {
 import { CircuitBreaker, logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
-import { channelInstances, contacts, conversations, messages } from '../schema';
+import { channelInstances, contacts, interactions, messages } from '../schema';
 import { checkWindow } from './channel-sessions';
 import { getModuleDeps } from './deps';
 
@@ -74,7 +73,7 @@ export async function processDelivery(
       db,
       messageId,
       'No channel type on message',
-      message.conversationId,
+      message.interactionId,
     );
     return;
   }
@@ -91,18 +90,18 @@ export async function processDelivery(
     return;
   }
 
-  // Load conversation + contact
-  const [conversation] = await db
+  // Load interaction + contact
+  const [interaction] = await db
     .select()
-    .from(conversations)
-    .where(eq(conversations.id, message.conversationId));
+    .from(interactions)
+    .where(eq(interactions.id, message.interactionId));
 
-  if (!conversation) {
+  if (!interaction) {
     await markFailed(
       db,
       messageId,
-      'Conversation not found',
-      message.conversationId,
+      'Interaction not found',
+      message.interactionId,
     );
     return;
   }
@@ -111,24 +110,24 @@ export async function processDelivery(
     const [contact] = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.id, conversation.contactId));
+      .where(eq(contacts.id, interaction.contactId));
 
     if (!contact) {
       await markFailed(
         db,
         messageId,
         'Contact not found',
-        message.conversationId,
+        message.interactionId,
       );
       return;
     }
 
     // Resolve adapter for this channel type
-    const [instance] = conversation.channelInstanceId
+    const [instance] = interaction.channelInstanceId
       ? await db
           .select({ type: channelInstances.type })
           .from(channelInstances)
-          .where(eq(channelInstances.id, conversation.channelInstanceId))
+          .where(eq(channelInstances.id, interaction.channelInstanceId))
       : [];
     const resolvedType = instance?.type ?? channelType;
     const adapter = channels.getAdapter(resolvedType);
@@ -139,18 +138,18 @@ export async function processDelivery(
 
     // Check messaging window before sending (e.g. WhatsApp 24h window)
     if (adapter?.capabilities?.messagingWindow) {
-      const windowStatus = await checkWindow(db, message.conversationId);
+      const windowStatus = await checkWindow(db, message.interactionId);
       // Only block if a session exists and is expired (no session = no window tracking yet)
       if (windowStatus.expiresAt !== null && !windowStatus.isOpen) {
         await markFailed(
           db,
           messageId,
           'Messaging window expired — cannot send outside the 24h window',
-          message.conversationId,
+          message.interactionId,
         );
         logger.info('[delivery] window_expired', {
           messageId,
-          conversationId: message.conversationId,
+          interactionId: message.interactionId,
           channelType,
         });
         return;
@@ -170,7 +169,7 @@ export async function processDelivery(
         db,
         messageId,
         `Contact has no ${identifierField} for ${resolvedType} channel`,
-        message.conversationId,
+        message.interactionId,
       );
       return;
     } else if (adapter.serializeOutbound) {
@@ -218,6 +217,23 @@ export async function processDelivery(
       if (identifierField === 'email') {
         outbound.subject = (payload.subject as string) ?? 'Message';
         outbound.html = outbound.text ? `<p>${outbound.text}</p>` : undefined;
+        if (Array.isArray(payload.cc) && payload.cc.length > 0) {
+          outbound.metadata = { ...outbound.metadata, cc: payload.cc };
+        }
+      }
+
+      // Reply-to threading: look up the referenced message's external ID
+      if (message.replyToMessageId) {
+        const [referencedMsg] = await db
+          .select({ externalMessageId: messages.externalMessageId })
+          .from(messages)
+          .where(eq(messages.id, message.replyToMessageId));
+        if (referencedMsg?.externalMessageId) {
+          outbound.metadata = {
+            ...outbound.metadata,
+            replyToMessageId: referencedMsg.externalMessageId,
+          };
+        }
       }
 
       result = await channelSend.send(outbound);
@@ -236,15 +252,15 @@ export async function processDelivery(
       const { realtime } = getModuleDeps();
       await realtime
         .notify({
-          table: 'conversations-messages',
-          id: message.conversationId,
+          table: 'interactions-messages',
+          id: message.interactionId,
           action: 'update',
         })
         .catch(() => {});
 
       logger.info('[delivery] send', {
         messageId,
-        conversationId: message.conversationId,
+        interactionId: message.interactionId,
         channelType,
         durationMs: Date.now() - start,
         outcome: 'sent',
@@ -254,7 +270,7 @@ export async function processDelivery(
         [result.code, result.error].filter(Boolean).join(': ') || 'Send failed';
 
       if (result.retryable === false) {
-        await markFailed(db, messageId, reason, message.conversationId);
+        await markFailed(db, messageId, reason, message.interactionId);
       } else {
         recordCircuitFailure(channelType);
         await retryOrFail(db, scheduler, message, reason);
@@ -262,7 +278,7 @@ export async function processDelivery(
 
       logger.info('[delivery] send', {
         messageId,
-        conversationId: message.conversationId,
+        interactionId: message.interactionId,
         channelType,
         durationMs: Date.now() - start,
         outcome: 'failed',
@@ -314,7 +330,7 @@ async function retryOrFail(
   const attempt = (message.retryCount ?? 0) + 1;
 
   if (attempt >= MAX_RETRIES) {
-    await markFailed(db, message.id, error, message.conversationId);
+    await markFailed(db, message.id, error, message.interactionId);
     return;
   }
 
@@ -336,7 +352,7 @@ async function retryOrFail(
       },
     );
   } catch {
-    await markFailed(db, message.id, error, message.conversationId);
+    await markFailed(db, message.id, error, message.interactionId);
   }
 }
 
@@ -344,19 +360,19 @@ async function markFailed(
   db: VobaseDb,
   messageId: string,
   reason: string,
-  conversationId?: string,
+  interactionId?: string,
 ): Promise<void> {
   await db
     .update(messages)
     .set({ status: 'failed', failureReason: reason })
     .where(eq(messages.id, messageId));
 
-  if (conversationId) {
+  if (interactionId) {
     const { realtime } = getModuleDeps();
     await realtime
       .notify({
-        table: 'conversations-messages',
-        id: conversationId,
+        table: 'interactions-messages',
+        id: interactionId,
         action: 'update',
       })
       .catch(() => {});

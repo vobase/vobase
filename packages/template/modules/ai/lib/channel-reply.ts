@@ -8,7 +8,7 @@ import {
   channelInstances,
   channelSessions,
   consultations as consultationsTable,
-  conversations,
+  interactions,
   messages,
 } from '../schema';
 import type { CardElement } from './card-serialization';
@@ -65,7 +65,7 @@ export function extractSendCardResults(response: {
 
       if (!result.payload) {
         logger.warn(
-          '[conversations] extractSendCardResults: toolResult missing .payload — possible Mastra API drift',
+          '[interactions] extractSendCardResults: toolResult missing .payload — possible Mastra API drift',
           { tr },
         );
         continue;
@@ -114,43 +114,43 @@ export function extractSendCardResults(response: {
 
 export async function generateChannelReply(
   deps: ReplyDeps,
-  conversationId: string,
+  interactionId: string,
 ): Promise<string | null> {
   const { db, scheduler } = deps;
   const { realtime } = getModuleDeps();
 
-  // Load conversation
-  const [conversation] = await db
+  // Load interaction
+  const [interaction] = await db
     .select()
-    .from(conversations)
-    .where(eq(conversations.id, conversationId));
+    .from(interactions)
+    .where(eq(interactions.id, interactionId));
 
-  if (!conversation || conversation.status !== 'active') {
+  if (!interaction || interaction.status !== 'active') {
     logger.warn(
-      '[conversations] Cannot generate reply for inactive conversation',
+      '[interactions] Cannot generate reply for inactive interaction',
       {
-        conversationId,
-        status: conversation?.status,
+        interactionId,
+        status: interaction?.status,
       },
     );
     return null;
   }
 
   // Get agent
-  const registered = getAgent(conversation.agentId);
+  const registered = getAgent(interaction.agentId);
   if (!registered) {
-    logger.error('[conversations] Agent not found', {
-      agentId: conversation.agentId,
+    logger.error('[interactions] Agent not found', {
+      agentId: interaction.agentId,
     });
     return null;
   }
 
   // Resolve channel type early (needed for context injection and card routing)
-  const [instance] = conversation.channelInstanceId
+  const [instance] = interaction.channelInstanceId
     ? await db
         .select({ type: channelInstances.type })
         .from(channelInstances)
-        .where(eq(channelInstances.id, conversation.channelInstanceId))
+        .where(eq(channelInstances.id, interaction.channelInstanceId))
     : [];
   const channelType = instance?.type ?? 'web';
 
@@ -161,7 +161,7 @@ export async function generateChannelReply(
       .from(messages)
       .where(
         and(
-          eq(messages.conversationId, conversationId),
+          eq(messages.interactionId, interactionId),
           eq(messages.messageType, 'outgoing'),
         ),
       )
@@ -175,7 +175,7 @@ export async function generateChannelReply(
       .from(consultationsTable)
       .where(
         and(
-          eq(consultationsTable.conversationId, conversationId),
+          eq(consultationsTable.interactionId, interactionId),
           inArray(consultationsTable.status, ['replied', 'timeout']),
         ),
       )
@@ -187,7 +187,7 @@ export async function generateChannelReply(
 
   // Batch read: collect all unprocessed inbound messages since the last outgoing message
   const inboundFilter = and(
-    eq(messages.conversationId, conversationId),
+    eq(messages.interactionId, interactionId),
     eq(messages.messageType, 'incoming'),
     eq(messages.senderType, 'contact'),
     ...(lastOutgoing ? [gt(messages.createdAt, lastOutgoing.createdAt)] : []),
@@ -241,7 +241,7 @@ export async function generateChannelReply(
         sessionState: channelSessions.sessionState,
       })
       .from(channelSessions)
-      .where(eq(channelSessions.conversationId, conversationId))
+      .where(eq(channelSessions.interactionId, interactionId))
       .limit(1);
 
     if (session) {
@@ -255,14 +255,19 @@ export async function generateChannelReply(
 
   // Prepend channel constraints so the agent tailors card structure per channel
   const constraintText = formatConstraintsForPrompt(channelType);
-  const contextPrefix = `[Channel: ${channelType}]${sessionContext}\n${constraintText}\n\n`;
+  let contextPrefix = `[Channel: ${channelType}]${sessionContext}\n${constraintText}\n\n`;
+
+  // Inject reopenCount into agent context if > 0
+  if (interaction.reopenCount > 0) {
+    contextPrefix += `[System]: This interaction was reopened ${interaction.reopenCount} time(s). The contact is returning to a previously resolved topic.\n\n`;
+  }
 
   // Build RequestContext so sendCard tool and processors can access channel type
   const rc = new RequestContext();
-  rc.set('conversationId', conversationId);
-  rc.set('contactId', conversation.contactId);
+  rc.set('interactionId', interactionId);
+  rc.set('contactId', interaction.contactId);
   rc.set('channel', channelType);
-  rc.set('agentId', conversation.agentId);
+  rc.set('agentId', interaction.agentId);
   rc.set('deps', getModuleDeps());
 
   // Generate response using agent (non-streaming for channels)
@@ -271,8 +276,8 @@ export async function generateChannelReply(
       contextPrefix + messageContent,
       {
         memory: {
-          thread: conversationId,
-          resource: `contact:${conversation.contactId}`,
+          thread: interactionId,
+          resource: `contact:${interaction.contactId}`,
         },
         maxSteps: 5,
         requestContext: rc,
@@ -287,9 +292,9 @@ export async function generateChannelReply(
             const toolName = payload.toolName as string | undefined;
             if (toolName && EMIT_EVENT_TOOLS.has(toolName)) {
               await createActivityMessage(db, realtime, {
-                conversationId,
+                interactionId: interactionId,
                 eventType: 'agent.tool_executed',
-                actor: conversation.agentId,
+                actor: interaction.agentId,
                 actorType: 'agent',
                 data: {
                   toolName,
@@ -313,13 +318,13 @@ export async function generateChannelReply(
     for (const cardElement of cardElements) {
       const serialized = serializeCard(cardElement);
       const cardMsg = await insertMessage(db, realtime, {
-        conversationId,
+        interactionId,
         messageType: 'outgoing',
         contentType: 'interactive',
         content: serialized.content,
         contentData: serialized.payload ?? {},
         status: 'queued',
-        senderId: conversation.agentId,
+        senderId: interaction.agentId,
         senderType: 'agent',
         channelType,
       });
@@ -334,57 +339,57 @@ export async function generateChannelReply(
 
     if (responseText && cardElements.length === 0) {
       const textMsg = await insertMessage(db, realtime, {
-        conversationId,
+        interactionId,
         messageType: 'outgoing',
         contentType: 'text',
         content: responseText,
         status: 'queued',
-        senderId: conversation.agentId,
+        senderId: interaction.agentId,
         senderType: 'agent',
         channelType,
       });
       await enqueueDelivery(scheduler, textMsg.id);
     }
 
-    // Post-generation: check if conversation is in 'completing' status
-    // (set by complete_conversation tool via SET_COMPLETING transition during generation)
-    const [updatedConversation] = await db
-      .select({ status: conversations.status })
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
+    // Post-generation: check if interaction is in 'resolving' status
+    // (set by resolve_interaction tool via SET_RESOLVING transition during generation)
+    const [updatedInteraction] = await db
+      .select({ status: interactions.status })
+      .from(interactions)
+      .where(eq(interactions.id, interactionId));
 
-    if (updatedConversation?.status === 'completing') {
-      // Check if conversation had any consultations to determine outcome
+    if (updatedInteraction?.status === 'resolving') {
+      // Check if interaction had any consultations to determine outcome
       const [hasConsultation] = await db
         .select({ id: consultationsTable.id })
         .from(consultationsTable)
-        .where(eq(consultationsTable.conversationId, conversationId))
+        .where(eq(consultationsTable.interactionId, interactionId))
         .limit(1);
 
-      const outcome = hasConsultation ? 'escalated_resolved' : 'resolved';
-      await transition({ db, realtime }, conversationId, {
+      const outcome = hasConsultation ? 'escalated' : 'resolved';
+      await transition({ db, realtime }, interactionId, {
         type: 'GENERATION_DONE',
-        resolutionOutcome: outcome,
+        outcome,
       });
     }
 
     return responseText || null;
   } catch (err) {
-    logger.error('[conversations] Agent generation failed', {
-      conversationId,
-      agentId: conversation.agentId,
+    logger.error('[interactions] Agent generation failed', {
+      interactionId,
+      agentId: interaction.agentId,
       error: err,
     });
 
     // Enqueue a fallback message so the customer is not left without a response
     const fallbackMsg = await insertMessage(db, realtime, {
-      conversationId,
+      interactionId,
       messageType: 'outgoing',
       contentType: 'text',
       content:
         "We're experiencing a temporary issue. Please try again shortly.",
       status: 'queued',
-      senderId: conversation.agentId,
+      senderId: interaction.agentId,
       senderType: 'agent',
       channelType,
     });

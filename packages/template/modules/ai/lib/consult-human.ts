@@ -8,7 +8,7 @@ import type {
 import { logger } from '@vobase/core';
 import { and, eq, lt, sql } from 'drizzle-orm';
 
-import { consultations, contacts, conversations } from '../schema';
+import { consultations, contacts, interactions } from '../schema';
 import { createActivityMessage } from './messages';
 import { transition } from './state-machine';
 
@@ -20,7 +20,7 @@ interface ConsultDeps {
 }
 
 interface RequestConsultationInput {
-  conversationId: string;
+  interactionId: string;
   staffContactId: string;
   channelType: string;
   channelInstanceId?: string;
@@ -35,13 +35,13 @@ export async function requestConsultation(
   const { db, channels } = deps;
   const start = Date.now();
 
-  // Check no active (pending) consultation for this conversation
+  // Check no active (pending) consultation for this interaction
   const [existing] = await db
     .select()
     .from(consultations)
     .where(
       and(
-        eq(consultations.conversationId, input.conversationId),
+        eq(consultations.interactionId, input.interactionId),
         eq(consultations.status, 'pending'),
       ),
     );
@@ -50,23 +50,23 @@ export async function requestConsultation(
     return existing;
   }
 
-  // Look up conversation for event context
-  const [conversation] = await db
+  // Look up interaction for event context
+  const [interaction] = await db
     .select({
-      agentId: conversations.agentId,
-      contactId: conversations.contactId,
-      channelRoutingId: conversations.channelRoutingId,
-      mode: conversations.mode,
+      agentId: interactions.agentId,
+      contactId: interactions.contactId,
+      channelRoutingId: interactions.channelRoutingId,
+      mode: interactions.mode,
     })
-    .from(conversations)
-    .where(eq(conversations.id, input.conversationId));
+    .from(interactions)
+    .where(eq(interactions.id, input.interactionId));
 
   // Insert consultation record
   const consultation = await db.transaction(async (tx) => {
     const [record] = await tx
       .insert(consultations)
       .values({
-        conversationId: input.conversationId,
+        interactionId: input.interactionId,
         staffContactId: input.staffContactId,
         channelType: input.channelType,
         channelInstanceId: input.channelInstanceId ?? null,
@@ -80,16 +80,16 @@ export async function requestConsultation(
 
   // Emit activity after transaction
   await createActivityMessage(db, deps.realtime, {
-    conversationId: input.conversationId,
+    interactionId: input.interactionId,
     eventType: 'escalation.created',
-    actor: conversation?.agentId,
+    actor: interaction?.agentId,
     actorType: 'agent',
     data: { reason: input.reason, staffContactId: input.staffContactId },
     resolutionStatus: 'pending',
   });
 
-  // Update conversation state via machine (derives hasPendingEscalation + notifies realtime)
-  await transition(deps, input.conversationId, { type: 'ESCALATE' });
+  // Update interaction state via machine (derives hasPendingEscalation + notifies realtime)
+  await transition(deps, input.interactionId, { type: 'ESCALATE' });
 
   // Look up staff contact for delivery address
   const [staffContact] = await db
@@ -98,7 +98,7 @@ export async function requestConsultation(
     .where(eq(contacts.id, input.staffContactId));
 
   if (!staffContact) {
-    logger.warn('[conversations] Staff contact not found for consultation', {
+    logger.warn('[interactions] Staff contact not found for consultation', {
       staffContactId: input.staffContactId,
     });
     return consultation;
@@ -125,7 +125,7 @@ export async function requestConsultation(
 
     // Check send result — mark consultation if notification failed (H7)
     if (sendResult && !sendResult.success) {
-      logger.error('[conversations] Consultation notification send failed', {
+      logger.error('[interactions] Consultation notification send failed', {
         consultationId: consultation.id,
         error: sendResult.error,
       });
@@ -135,7 +135,7 @@ export async function requestConsultation(
         .where(eq(consultations.id, consultation.id));
     }
   } catch (err) {
-    logger.error('[conversations] Failed to send consultation notification', {
+    logger.error('[interactions] Failed to send consultation notification', {
       consultationId: consultation.id,
       error: err,
     });
@@ -145,9 +145,9 @@ export async function requestConsultation(
       .where(eq(consultations.id, consultation.id));
   }
 
-  logger.info('[conversations] consultation_request', {
+  logger.info('[interactions] consultation_request', {
     consultationId: consultation.id,
-    conversationId: input.conversationId,
+    interactionId: input.interactionId,
     channelType: input.channelType,
     durationMs: Date.now() - start,
     outcome: 'requested',
@@ -180,7 +180,7 @@ export async function handleStaffReply(
     .returning();
 
   if (updated.length === 0) {
-    logger.info('[conversations] Staff reply arrived after timeout — ignored', {
+    logger.info('[interactions] Staff reply arrived after timeout — ignored', {
       consultationId: consultation.id,
     });
     return false;
@@ -198,19 +198,19 @@ export async function handleStaffReply(
     })
     .where(eq(consultations.id, consultation.id));
 
-  // Update conversation state via machine (re-derives hasPendingEscalation + notifies realtime)
-  await transition(deps, consultation.conversationId, {
+  // Update interaction state via machine (re-derives hasPendingEscalation + notifies realtime)
+  await transition(deps, consultation.interactionId, {
     type: 'RESOLVE_ESCALATION',
   });
 
   // Queue channel-reply so the agent processes the consultation response
   await scheduler.add('ai:channel-reply', {
-    conversationId: consultation.conversationId,
+    interactionId: consultation.interactionId,
   });
 
-  logger.info('[conversations] consultation_reply', {
+  logger.info('[interactions] consultation_reply', {
     consultationId: consultation.id,
-    conversationId: consultation.conversationId,
+    interactionId: consultation.interactionId,
     outcome: 'replied',
   });
 
@@ -259,13 +259,13 @@ export async function checkConsultationTimeouts(
       })
       .where(eq(consultations.id, c.id));
 
-    // Update conversation state via machine (re-derives hasPendingEscalation + notifies realtime)
-    await transition(deps, c.conversationId, {
+    // Update interaction state via machine (re-derives hasPendingEscalation + notifies realtime)
+    await transition(deps, c.interactionId, {
       type: 'RESOLVE_ESCALATION',
     });
   }
 
-  logger.info('[conversations] Timed out consultations', {
+  logger.info('[interactions] Timed out consultations', {
     count: timedOut.length,
   });
 

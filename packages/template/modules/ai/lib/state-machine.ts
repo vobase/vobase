@@ -1,7 +1,7 @@
 import type { RealtimeService, VobaseDb } from '@vobase/core';
 import { and, eq, isNull } from 'drizzle-orm';
 
-import { consultations, conversations } from '../schema';
+import { consultations, interactions } from '../schema';
 import { computeTab } from './activity-events';
 import { createActivityMessage } from './messages';
 
@@ -17,12 +17,8 @@ type TransitionEvent =
   | { type: 'UNASSIGN'; userId: string }
   | { type: 'HANDBACK'; userId: string }
   | {
-      type: 'COMPLETE';
-      resolutionOutcome?:
-        | 'resolved'
-        | 'escalated_resolved'
-        | 'abandoned'
-        | 'failed';
+      type: 'RESOLVE';
+      outcome?: 'resolved' | 'escalated' | 'abandoned' | 'topic_change';
     }
   | { type: 'FAIL'; reason: string }
   | { type: 'ESCALATE' }
@@ -34,18 +30,15 @@ type TransitionEvent =
       mode: 'supervised' | 'human';
       priority?: 'low' | 'normal' | 'high' | 'urgent';
     }
-  | { type: 'SET_COMPLETING' }
+  | { type: 'SET_RESOLVING' }
   | {
       type: 'GENERATION_DONE';
-      resolutionOutcome?:
-        | 'resolved'
-        | 'escalated_resolved'
-        | 'abandoned'
-        | 'failed';
+      outcome?: 'resolved' | 'escalated' | 'abandoned' | 'topic_change';
     }
-  | { type: 'COMPLETING_TIMEOUT' };
+  | { type: 'RESOLVING_TIMEOUT' }
+  | { type: 'REOPEN'; idleWindowMs: number };
 
-type ConversationRow = typeof conversations.$inferSelect;
+type InteractionRow = typeof interactions.$inferSelect;
 type PreviousState = {
   status: string;
   mode: string | null;
@@ -53,7 +46,7 @@ type PreviousState = {
 };
 
 type TransitionResult =
-  | { ok: true; conversation: ConversationRow; previousState: PreviousState }
+  | { ok: true; interaction: InteractionRow; previousState: PreviousState }
   | {
       ok: false;
       error: string;
@@ -82,21 +75,21 @@ function invalid(state: string, event: string): TransitionResult {
 function conflict(): TransitionResult {
   return {
     ok: false,
-    error: 'Conversation state changed concurrently — retry the operation',
+    error: 'Interaction state changed concurrently — retry the operation',
     code: 'CONCURRENCY_CONFLICT',
   };
 }
 
 async function hasPendingConsultations(
   db: VobaseDb,
-  conversationId: string,
+  interactionId: string,
 ): Promise<boolean> {
   const rows = await db
     .select({ id: consultations.id })
     .from(consultations)
     .where(
       and(
-        eq(consultations.conversationId, conversationId),
+        eq(consultations.interactionId, interactionId),
         eq(consultations.status, 'pending'),
       ),
     )
@@ -104,13 +97,28 @@ async function hasPendingConsultations(
   return rows.length > 0;
 }
 
+/**
+ * Compute autonomy level based on interaction history.
+ * Checks mode transitions to determine how much human involvement occurred.
+ */
+function computeAutonomyLevel(
+  current: InteractionRow,
+): 'full_ai' | 'ai_with_escalation' | 'human_assisted' | 'human_only' {
+  // If currently in human mode or was ever assigned, it was human-assisted at minimum
+  if (current.mode === 'human') return 'human_only';
+  if (current.assignee !== null || current.assignedAt !== null)
+    return 'human_assisted';
+  if (current.hasPendingEscalation) return 'ai_with_escalation';
+  return 'full_ai';
+}
+
 /** Post-transition epilogue: notify realtime + return success */
 async function commitTransition(
   _db: VobaseDb,
   realtime: RealtimeService,
-  conversationId: string,
-  updated: ConversationRow,
-  current: ConversationRow,
+  interactionId: string,
+  updated: InteractionRow,
+  current: InteractionRow,
   previousState: PreviousState,
   extraNotifications?: Array<{ table: string; action?: string }>,
 ): Promise<TransitionResult> {
@@ -121,8 +129,8 @@ async function commitTransition(
   }
 
   await realtime.notify({
-    table: 'conversations',
-    id: conversationId,
+    table: 'interactions',
+    id: interactionId,
     tab: computeTab(updated.mode, updated.status, updated.hasPendingEscalation),
     prevTab: computeTab(
       current.mode,
@@ -131,32 +139,32 @@ async function commitTransition(
     ),
   });
 
-  return { ok: true, conversation: updated, previousState };
+  return { ok: true, interaction: updated, previousState };
 }
 
 // ─── transition() ─────────────────────────────────────────────────────────────
 
 /**
- * Central conversation state machine. All transitions that mutate status, mode,
+ * Central interaction state machine. All transitions that mutate status, mode,
  * assignee, assignedAt, waitingSince, or hasPendingEscalation flow through here.
  *
  * Uses optimistic concurrency via WHERE clause (no SELECT FOR UPDATE — PGlite-compatible).
- * Each transition atomically: updates the conversation row + inserts an activity event.
+ * Each transition atomically: updates the interaction row + inserts an activity event.
  */
 export async function transition(
   deps: { db: VobaseDb; realtime: RealtimeService },
-  conversationId: string,
+  interactionId: string,
   event: TransitionEvent,
 ): Promise<TransitionResult> {
   const { db, realtime } = deps;
 
   const [current] = await db
     .select()
-    .from(conversations)
-    .where(eq(conversations.id, conversationId));
+    .from(interactions)
+    .where(eq(interactions.id, interactionId));
 
   if (!current) {
-    return { ok: false, error: 'Conversation not found', code: 'GUARD_FAILED' };
+    return { ok: false, error: 'Interaction not found', code: 'GUARD_FAILED' };
   }
 
   const state = `${current.status}:${current.mode}`;
@@ -166,16 +174,23 @@ export async function transition(
     assignee: current.assignee,
   };
 
-  // Terminal states reject all events
-  if (current.status === 'completed' || current.status === 'failed') {
+  // Terminal state: only 'failed' is terminal (rejects all events)
+  if (current.status === 'failed') {
     return invalid(state, event.type);
   }
 
-  // Completing only accepts GENERATION_DONE and COMPLETING_TIMEOUT
-  if (current.status === 'completing') {
+  // Resolved accepts only REOPEN
+  if (current.status === 'resolved') {
+    if (event.type !== 'REOPEN') {
+      return invalid(state, event.type);
+    }
+  }
+
+  // Resolving only accepts GENERATION_DONE and RESOLVING_TIMEOUT
+  if (current.status === 'resolving') {
     if (
       event.type !== 'GENERATION_DONE' &&
-      event.type !== 'COMPLETING_TIMEOUT'
+      event.type !== 'RESOLVING_TIMEOUT'
     ) {
       return invalid(state, event.type);
     }
@@ -204,16 +219,16 @@ export async function transition(
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({
           mode,
           ...(waitingSince !== undefined ? { waitingSince } : {}),
         })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, current.status),
-            eq(conversations.mode, current.mode),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, current.status),
+            eq(interactions.mode, current.mode),
           ),
         )
         .returning();
@@ -227,13 +242,13 @@ export async function transition(
       eventType: 'handler.changed',
       actor: userId,
       actorType: 'user',
-      conversationId,
+      interactionId: interactionId,
       data: { from: currentMode, to: mode, reason: 'Staff action' },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
@@ -248,7 +263,7 @@ export async function transition(
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({
           mode: 'human',
           assignee,
@@ -257,9 +272,9 @@ export async function transition(
         })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
-            eq(conversations.mode, 'ai'),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
+            eq(interactions.mode, 'ai'),
           ),
         )
         .returning();
@@ -273,13 +288,13 @@ export async function transition(
       eventType: 'handler.changed',
       actor: userId,
       actorType: 'user',
-      conversationId,
+      interactionId: interactionId,
       data: { from: 'ai', to: 'human', reason: 'Assigned to staff' },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
@@ -291,13 +306,13 @@ export async function transition(
   if (event.type === 'UNASSIGN') {
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({ assignee: null, assignedAt: null })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
-            eq(conversations.mode, current.mode),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
+            eq(interactions.mode, current.mode),
           ),
         )
         .returning();
@@ -308,16 +323,16 @@ export async function transition(
 
     if (!result) return conflict();
     await createActivityMessage(db, realtime, {
-      eventType: 'conversation.unassigned',
+      eventType: 'interaction.unassigned',
       actor: event.userId,
       actorType: 'user',
-      conversationId,
+      interactionId: interactionId,
       data: { previousAssignee: current.assignee },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
@@ -335,11 +350,11 @@ export async function transition(
     const result = await db.transaction(async (tx) => {
       const pendingExists = await hasPendingConsultations(
         txDb(tx),
-        conversationId,
+        interactionId,
       );
 
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({
           mode: 'ai',
           assignee: null,
@@ -350,9 +365,9 @@ export async function transition(
         })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
-            eq(conversations.mode, current.mode),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
+            eq(interactions.mode, current.mode),
           ),
         )
         .returning();
@@ -366,37 +381,39 @@ export async function transition(
       eventType: 'handler.changed',
       actor: userId,
       actorType: 'user',
-      conversationId,
+      interactionId: interactionId,
       data: { from: current.mode, to: 'ai', reason: 'Staff handback' },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
     );
   }
 
-  // ── COMPLETE ─────────────────────────────────────────────────────────────
+  // ── RESOLVE (active → resolved) ─────────────────────────────────────────
 
-  if (event.type === 'COMPLETE') {
-    const { resolutionOutcome } = event;
+  if (event.type === 'RESOLVE') {
+    const { outcome } = event;
+    const now = new Date();
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({
-          status: 'completed',
-          endedAt: new Date(),
+          status: 'resolved',
+          resolvedAt: now,
           waitingSince: null,
-          ...(resolutionOutcome ? { resolutionOutcome } : {}),
+          outcome: outcome ?? 'resolved',
+          autonomyLevel: computeAutonomyLevel(current),
         })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
           ),
         )
         .returning();
@@ -407,21 +424,21 @@ export async function transition(
 
     if (!result) return conflict();
     await createActivityMessage(db, realtime, {
-      eventType: 'conversation.completed',
+      eventType: 'interaction.resolved',
       actorType: 'system',
-      conversationId,
-      data: { resolutionOutcome: resolutionOutcome ?? 'resolved' },
+      interactionId: interactionId,
+      data: { outcome: outcome ?? 'resolved' },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
       [
-        { table: 'conversations-dashboard', action: 'update' },
-        { table: 'conversations-metrics', action: 'update' },
+        { table: 'interactions-dashboard', action: 'update' },
+        { table: 'interactions-metrics', action: 'update' },
       ],
     );
   }
@@ -433,17 +450,15 @@ export async function transition(
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({
           status: 'failed',
-          endedAt: new Date(),
           waitingSince: null,
-          resolutionOutcome: 'failed',
         })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
           ),
         )
         .returning();
@@ -454,21 +469,21 @@ export async function transition(
 
     if (!result) return conflict();
     await createActivityMessage(db, realtime, {
-      eventType: 'conversation.failed',
+      eventType: 'interaction.failed',
       actorType: 'system',
-      conversationId,
+      interactionId: interactionId,
       data: { reason },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
       [
-        { table: 'conversations-dashboard', action: 'update' },
-        { table: 'conversations-metrics', action: 'update' },
+        { table: 'interactions-dashboard', action: 'update' },
+        { table: 'interactions-metrics', action: 'update' },
       ],
     );
   }
@@ -478,13 +493,13 @@ export async function transition(
   if (event.type === 'ESCALATE') {
     // Caller already inserted the consultation — hasPendingEscalation is always true
     const [updated] = await db
-      .update(conversations)
+      .update(interactions)
       .set({ hasPendingEscalation: true })
       .where(
         and(
-          eq(conversations.id, conversationId),
-          eq(conversations.status, 'active'),
-          eq(conversations.mode, current.mode),
+          eq(interactions.id, interactionId),
+          eq(interactions.status, 'active'),
+          eq(interactions.mode, current.mode),
         ),
       )
       .returning();
@@ -493,7 +508,7 @@ export async function transition(
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       updated,
       current,
       previousState,
@@ -507,17 +522,17 @@ export async function transition(
       // Re-derive — may still be true if other consultations are pending
       const pendingExists = await hasPendingConsultations(
         txDb(tx),
-        conversationId,
+        interactionId,
       );
 
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({ hasPendingEscalation: pendingExists })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
-            eq(conversations.mode, current.mode),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
+            eq(interactions.mode, current.mode),
           ),
         )
         .returning();
@@ -530,7 +545,7 @@ export async function transition(
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
@@ -547,17 +562,17 @@ export async function transition(
       eventType:
         mode === 'human' ? 'message.inbound_human_mode' : 'message.inbound',
       actorType: 'system',
-      conversationId,
+      interactionId: interactionId,
       data: { contactId, content: content?.slice(0, 200) },
     });
 
     await realtime.notify({
-      table: 'conversations',
-      id: conversationId,
+      table: 'interactions',
+      id: interactionId,
       tab: computeTab(mode, current.status, current.hasPendingEscalation),
     });
 
-    return { ok: true, conversation: current, previousState };
+    return { ok: true, interaction: current, previousState };
   }
 
   // ── CLAIM ─────────────────────────────────────────────────────────────────
@@ -567,13 +582,13 @@ export async function transition(
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({ assignee: userId, assignedAt: new Date() })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
-            isNull(conversations.assignee),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
+            isNull(interactions.assignee),
           ),
         )
         .returning();
@@ -584,15 +599,15 @@ export async function transition(
 
     if (!result) return conflict();
     await createActivityMessage(db, realtime, {
-      eventType: 'conversation.claimed',
+      eventType: 'interaction.claimed',
       actor: userId,
       actorType: 'user',
-      conversationId,
+      interactionId: interactionId,
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
@@ -622,16 +637,16 @@ export async function transition(
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({
           mode,
           ...(priority ? { priority } : {}),
         })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
-            eq(conversations.mode, current.mode),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
+            eq(interactions.mode, current.mode),
           ),
         )
         .returning();
@@ -644,34 +659,34 @@ export async function transition(
     await createActivityMessage(db, realtime, {
       eventType: 'handler.changed',
       actorType: 'system',
-      conversationId,
+      interactionId: interactionId,
       data: { from: currentMode, to: mode, reason: 'Agent escalation' },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
     );
   }
 
-  // ── SET_COMPLETING ────────────────────────────────────────────────────
+  // ── SET_RESOLVING (active → resolving) ────────────────────────────────
 
-  if (event.type === 'SET_COMPLETING') {
+  if (event.type === 'SET_RESOLVING') {
     if (current.status !== 'active') {
-      return invalid(state, 'SET_COMPLETING');
+      return invalid(state, 'SET_RESOLVING');
     }
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
-        .set({ status: 'completing' })
+        .update(interactions)
+        .set({ status: 'resolving' })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'active'),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'active'),
           ),
         )
         .returning();
@@ -684,34 +699,36 @@ export async function transition(
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
     );
   }
 
-  // ── GENERATION_DONE ───────────────────────────────────────────────────
+  // ── GENERATION_DONE (resolving → resolved) ───────────────────────────
 
   if (event.type === 'GENERATION_DONE') {
-    if (current.status !== 'completing') {
+    if (current.status !== 'resolving') {
       return invalid(state, 'GENERATION_DONE');
     }
-    const { resolutionOutcome } = event;
+    const { outcome } = event;
+    const now = new Date();
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({
-          status: 'completed',
-          endedAt: new Date(),
+          status: 'resolved',
+          resolvedAt: now,
           waitingSince: null,
-          ...(resolutionOutcome ? { resolutionOutcome } : {}),
+          outcome: outcome ?? 'resolved',
+          autonomyLevel: computeAutonomyLevel(current),
         })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'completing'),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'resolving'),
           ),
         )
         .returning();
@@ -722,44 +739,42 @@ export async function transition(
 
     if (!result) return conflict();
     await createActivityMessage(db, realtime, {
-      eventType: 'conversation.completed',
+      eventType: 'interaction.resolved',
       actorType: 'system',
-      conversationId,
-      data: { resolutionOutcome: resolutionOutcome ?? 'resolved' },
+      interactionId: interactionId,
+      data: { outcome: outcome ?? 'resolved' },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
       [
-        { table: 'conversations-dashboard', action: 'update' },
-        { table: 'conversations-metrics', action: 'update' },
+        { table: 'interactions-dashboard', action: 'update' },
+        { table: 'interactions-metrics', action: 'update' },
       ],
     );
   }
 
-  // ── COMPLETING_TIMEOUT ────────────────────────────────────────────────
+  // ── RESOLVING_TIMEOUT (resolving → failed) ────────────────────────────
 
-  if (event.type === 'COMPLETING_TIMEOUT') {
-    if (current.status !== 'completing') {
-      return invalid(state, 'COMPLETING_TIMEOUT');
+  if (event.type === 'RESOLVING_TIMEOUT') {
+    if (current.status !== 'resolving') {
+      return invalid(state, 'RESOLVING_TIMEOUT');
     }
 
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx
-        .update(conversations)
+        .update(interactions)
         .set({
           status: 'failed',
-          endedAt: new Date(),
-          resolutionOutcome: 'failed',
         })
         .where(
           and(
-            eq(conversations.id, conversationId),
-            eq(conversations.status, 'completing'),
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'resolving'),
           ),
         )
         .returning();
@@ -770,22 +785,88 @@ export async function transition(
 
     if (!result) return conflict();
     await createActivityMessage(db, realtime, {
-      eventType: 'conversation.failed',
+      eventType: 'interaction.failed',
       actorType: 'system',
-      conversationId,
-      data: { reason: 'Completing timeout — generation did not finish' },
+      interactionId: interactionId,
+      data: { reason: 'Resolving timeout — generation did not finish' },
     });
     return commitTransition(
       db,
       realtime,
-      conversationId,
+      interactionId,
       result.updated,
       current,
       previousState,
       [
-        { table: 'conversations-dashboard', action: 'update' },
-        { table: 'conversations-metrics', action: 'update' },
+        { table: 'interactions-dashboard', action: 'update' },
+        { table: 'interactions-metrics', action: 'update' },
       ],
+    );
+  }
+
+  // ── REOPEN (resolved → active) ────────────────────────────────────────
+
+  if (event.type === 'REOPEN') {
+    if (current.status !== 'resolved') {
+      return invalid(state, 'REOPEN');
+    }
+
+    // Guard: check idle window
+    const { idleWindowMs } = event;
+    if (current.resolvedAt) {
+      const elapsed = Date.now() - current.resolvedAt.getTime();
+      if (elapsed > idleWindowMs) {
+        return {
+          ok: false,
+          error: `Idle window expired (${elapsed}ms > ${idleWindowMs}ms)`,
+          code: 'GUARD_FAILED',
+        };
+      }
+    }
+
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(interactions)
+        .set({
+          status: 'active',
+          resolvedAt: null,
+          outcome: null,
+          autonomyLevel: null,
+          mode: 'ai',
+          assignee: null,
+          assignedAt: null,
+          waitingSince: null,
+          unreadCount: 0,
+          topicChangePending: false,
+          reopenCount: current.reopenCount + 1,
+        })
+        .where(
+          and(
+            eq(interactions.id, interactionId),
+            eq(interactions.status, 'resolved'),
+          ),
+        )
+        .returning();
+
+      if (!updated) return null;
+      return { updated };
+    });
+
+    if (!result) return conflict();
+    await createActivityMessage(db, realtime, {
+      eventType: 'interaction.reopened',
+      actorType: 'system',
+      interactionId: interactionId,
+      data: { reopenCount: current.reopenCount + 1 },
+    });
+    return commitTransition(
+      db,
+      realtime,
+      interactionId,
+      result.updated,
+      current,
+      previousState,
+      [{ table: 'interactions-dashboard', action: 'update' }],
     );
   }
 

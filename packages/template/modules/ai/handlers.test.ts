@@ -12,7 +12,7 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  conversations,
+  interactions,
 } from './schema';
 
 const BASE = 'http://localhost/api/ai';
@@ -169,7 +169,7 @@ describe('channel instance deletion protection (M8)', () => {
       agentId: 'booking',
     });
 
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'session-m8',
       channelRoutingId: 'ep-m8',
       contactId: 'contact-m8',
@@ -185,7 +185,7 @@ describe('channel instance deletion protection (M8)', () => {
     expect(res.status).toBe(409);
   });
 
-  it('DELETE /instances/:id succeeds when sessions are completed (not active)', async () => {
+  it('DELETE /instances/:id succeeds when sessions are resolved (not active)', async () => {
     const app = createApp(db);
 
     // Seed a second channel instance for this test
@@ -211,13 +211,13 @@ describe('channel instance deletion protection (M8)', () => {
       agentId: 'booking',
     });
 
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'session-m8b',
       channelRoutingId: 'ep-m8b',
       contactId: 'contact-m8b',
       agentId: 'booking',
       channelInstanceId: 'ci-web-m8b',
-      status: 'completed',
+      status: 'resolved',
     });
 
     const res = await app.request(`${BASE}/instances/ci-web-m8b`, {
@@ -247,15 +247,20 @@ async function seedConversationFixtures(db: VobaseDb) {
 }
 
 describe('helpdesk tab endpoints', () => {
-  it('GET /conversations/attention returns active human/supervised/held conversations', async () => {
+  it('GET /interactions/attention returns contacts with human/supervised/held interactions', async () => {
     const app = createApp(db);
     await seedConversationFixtures(db);
 
-    await db.insert(conversations).values([
+    // Create two contacts: one with human interaction (attention), one with ai-only
+    await db.insert(contacts).values([
+      { id: 'contact-human', phone: '+6511111111', role: 'customer' },
+      { id: 'contact-ai', phone: '+6522222222', role: 'customer' },
+    ]);
+    await db.insert(interactions).values([
       {
         id: 'conv-human',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'contact-human',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
         status: 'active',
@@ -264,7 +269,7 @@ describe('helpdesk tab endpoints', () => {
       {
         id: 'conv-ai',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'contact-ai',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
         status: 'active',
@@ -272,21 +277,28 @@ describe('helpdesk tab endpoints', () => {
       },
     ]);
 
-    const res = await app.request(`${BASE}/conversations/attention`);
+    const res = await app.request(`${BASE}/interactions/attention`);
     expect(res.status).toBe(200);
     const body = await res.json();
+    // Returns one contact row (contact-human), not interaction row
     expect(body.length).toBe(1);
-    expect(body[0].id).toBe('conv-human');
+    expect(body[0].id).toBe('contact-human');
+    expect(body[0].mode).toBe('human');
   });
 
-  it('GET /conversations/attention includes hasPendingEscalation ai-mode conversations', async () => {
+  it('GET /interactions/attention includes hasPendingEscalation ai-mode interactions', async () => {
     const app = createApp(db);
     await seedConversationFixtures(db);
 
-    await db.insert(conversations).values({
+    await db.insert(contacts).values({
+      id: 'contact-esc',
+      phone: '+6533333333',
+      role: 'customer',
+    });
+    await db.insert(interactions).values({
       id: 'conv-escalated-ai',
       channelRoutingId: 'ep-tab',
-      contactId: 'contact-tab',
+      contactId: 'contact-esc',
       agentId: 'booking',
       channelInstanceId: 'ci-web-test',
       status: 'active',
@@ -294,22 +306,28 @@ describe('helpdesk tab endpoints', () => {
       hasPendingEscalation: true,
     });
 
-    const res = await app.request(`${BASE}/conversations/attention`);
+    const res = await app.request(`${BASE}/interactions/attention`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.length).toBe(1);
-    expect(body[0].id).toBe('conv-escalated-ai');
+    expect(body[0].id).toBe('contact-esc');
+    expect(body[0].hasPendingEscalation).toBe(true);
   });
 
-  it('GET /conversations/ai-active returns active ai-mode conversations only', async () => {
+  it('GET /interactions/ai-active returns contacts with active ai-only interactions', async () => {
     const app = createApp(db);
     await seedConversationFixtures(db);
 
-    await db.insert(conversations).values([
+    // Two contacts: one ai-only (active), one human (attention)
+    await db.insert(contacts).values([
+      { id: 'contact-ai-only', phone: '+6544444444', role: 'customer' },
+      { id: 'contact-human-2', phone: '+6555555555', role: 'customer' },
+    ]);
+    await db.insert(interactions).values([
       {
         id: 'conv-ai-1',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'contact-ai-only',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
         status: 'active',
@@ -318,7 +336,7 @@ describe('helpdesk tab endpoints', () => {
       {
         id: 'conv-human-1',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'contact-human-2',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
         status: 'active',
@@ -326,61 +344,81 @@ describe('helpdesk tab endpoints', () => {
       },
     ]);
 
-    const res = await app.request(`${BASE}/conversations/ai-active`);
+    const res = await app.request(`${BASE}/interactions/ai-active`);
     expect(res.status).toBe(200);
     const body = await res.json();
+    // Only the ai-only contact, not the human one (which is in attention)
     expect(body.length).toBe(1);
-    expect(body[0].id).toBe('conv-ai-1');
+    expect(body[0].id).toBe('contact-ai-only');
   });
 
-  it('GET /conversations/resolved returns completed and failed conversations', async () => {
+  it('GET /interactions/resolved returns contacts where all interactions are terminal', async () => {
     const app = createApp(db);
     await seedConversationFixtures(db);
 
-    await db.insert(conversations).values([
+    // Contact with only resolved/failed interactions
+    await db.insert(contacts).values([
+      { id: 'contact-done', phone: '+6566666666', role: 'customer' },
+      { id: 'contact-mixed', phone: '+6577777777', role: 'customer' },
+    ]);
+    await db.insert(interactions).values([
       {
         id: 'conv-done',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'contact-done',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
-        status: 'completed',
+        status: 'resolved',
       },
       {
         id: 'conv-failed',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'contact-done',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
         status: 'failed',
       },
+      // Mixed contact: has active + resolved — should NOT be in done
       {
-        id: 'conv-active',
+        id: 'conv-mixed-active',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'contact-mixed',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
         status: 'active',
       },
+      {
+        id: 'conv-mixed-done',
+        channelRoutingId: 'ep-tab',
+        contactId: 'contact-mixed',
+        agentId: 'booking',
+        channelInstanceId: 'ci-web-test',
+        status: 'resolved',
+      },
     ]);
 
-    const res = await app.request(`${BASE}/conversations/resolved`);
+    const res = await app.request(`${BASE}/interactions/resolved`);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.length).toBe(2);
-    const ids = body.map((r: { id: string }) => r.id).sort();
-    expect(ids).toEqual(['conv-done', 'conv-failed'].sort());
+    // Only contact-done (all terminal), not contact-mixed (has active)
+    expect(body.length).toBe(1);
+    expect(body[0].id).toBe('contact-done');
   });
 
-  it('GET /conversations/counts returns accurate tab counts', async () => {
+  it('GET /interactions/counts returns accurate contact-level tab counts', async () => {
     const app = createApp(db);
     await seedConversationFixtures(db);
 
-    await db.insert(conversations).values([
+    await db.insert(contacts).values([
+      { id: 'cnt-c1', phone: '+6588881111', role: 'customer' },
+      { id: 'cnt-c2', phone: '+6588882222', role: 'customer' },
+      { id: 'cnt-c3', phone: '+6588883333', role: 'customer' },
+    ]);
+    await db.insert(interactions).values([
       {
         id: 'cnt-human',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'cnt-c1',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
         status: 'active',
@@ -389,7 +427,7 @@ describe('helpdesk tab endpoints', () => {
       {
         id: 'cnt-ai',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'cnt-c2',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
         status: 'active',
@@ -398,28 +436,28 @@ describe('helpdesk tab endpoints', () => {
       {
         id: 'cnt-done',
         channelRoutingId: 'ep-tab',
-        contactId: 'contact-tab',
+        contactId: 'cnt-c3',
         agentId: 'booking',
         channelInstanceId: 'ci-web-test',
-        status: 'completed',
+        status: 'resolved',
       },
     ]);
 
-    const res = await app.request(`${BASE}/conversations/counts`);
+    const res = await app.request(`${BASE}/interactions/counts`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.attention).toBe(1);
-    expect(body.ai).toBe(1);
+    expect(body.active).toBe(1);
     expect(body.done).toBe(1);
   });
 
-  it('route ordering: /conversations/attention is not matched as /:id', async () => {
+  it('route ordering: /interactions/attention is not matched as /:id', async () => {
     const app = createApp(db);
 
     // If /attention were matched as /:id, the handler would try to look up
-    // a conversation with id='attention' and return 404. A correct route
+    // an interaction with id='attention' and return 404. A correct route
     // ordering returns 200 with an array instead.
-    const res = await app.request(`${BASE}/conversations/attention`);
+    const res = await app.request(`${BASE}/interactions/attention`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body)).toBe(true);
@@ -429,7 +467,7 @@ describe('helpdesk tab endpoints', () => {
 describe('waitingSince lifecycle', () => {
   beforeEach(async () => {
     await seedConversationFixtures(db);
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'conv-ws',
       channelRoutingId: 'ep-tab',
       contactId: 'contact-tab',
@@ -443,7 +481,7 @@ describe('waitingSince lifecycle', () => {
   it('PATCH ai→human sets waitingSince', async () => {
     const app = createApp(db);
 
-    const res = await app.request(`${BASE}/conversations/conv-ws`, {
+    const res = await app.request(`${BASE}/interactions/conv-ws`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: 'human' }),
@@ -458,8 +496,8 @@ describe('waitingSince lifecycle', () => {
   it('PATCH human→supervised preserves waitingSince', async () => {
     const app = createApp(db);
 
-    // Set up a human-mode conversation with waitingSince already set
-    await db.insert(conversations).values({
+    // Set up a human-mode interaction with waitingSince already set
+    await db.insert(interactions).values({
       id: 'conv-ws-human',
       channelRoutingId: 'ep-tab',
       contactId: 'contact-tab',
@@ -470,7 +508,7 @@ describe('waitingSince lifecycle', () => {
       waitingSince: new Date('2024-01-01T00:00:00Z'),
     });
 
-    const res = await app.request(`${BASE}/conversations/conv-ws-human`, {
+    const res = await app.request(`${BASE}/interactions/conv-ws-human`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: 'supervised' }),
@@ -486,7 +524,7 @@ describe('waitingSince lifecycle', () => {
   it('POST /handback clears waitingSince and hasPendingEscalation', async () => {
     const app = createApp(db);
 
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'conv-ws-hb',
       channelRoutingId: 'ep-tab',
       contactId: 'contact-tab',
@@ -498,7 +536,7 @@ describe('waitingSince lifecycle', () => {
       hasPendingEscalation: true,
     });
 
-    const res = await app.request(`${BASE}/conversations/conv-ws-hb/handback`, {
+    const res = await app.request(`${BASE}/interactions/conv-ws-hb/handback`, {
       method: 'POST',
     });
 
@@ -509,12 +547,12 @@ describe('waitingSince lifecycle', () => {
     // Verify DB state directly — handback returns { success, mode } not the full record
     const [conv] = await db
       .select({
-        mode: conversations.mode,
-        waitingSince: conversations.waitingSince,
-        hasPendingEscalation: conversations.hasPendingEscalation,
+        mode: interactions.mode,
+        waitingSince: interactions.waitingSince,
+        hasPendingEscalation: interactions.hasPendingEscalation,
       })
-      .from(conversations)
-      .where(eq(conversations.id, 'conv-ws-hb'));
+      .from(interactions)
+      .where(eq(interactions.id, 'conv-ws-hb'));
     expect(conv.mode).toBe('ai');
     expect(conv.waitingSince == null).toBe(true);
     expect(conv.hasPendingEscalation).toBe(false);
@@ -522,11 +560,11 @@ describe('waitingSince lifecycle', () => {
 });
 
 describe('unreadCount', () => {
-  it('POST /conversations/:id/read resets unreadCount to 0', async () => {
+  it('POST /interactions/:id/read resets unreadCount to 0', async () => {
     const app = createApp(db);
     await seedConversationFixtures(db);
 
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'conv-unread',
       channelRoutingId: 'ep-tab',
       contactId: 'contact-tab',
@@ -537,7 +575,7 @@ describe('unreadCount', () => {
       unreadCount: 5,
     });
 
-    const res = await app.request(`${BASE}/conversations/conv-unread/read`, {
+    const res = await app.request(`${BASE}/interactions/conv-unread/read`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lastReadMessageId: 'msg-last' }),
@@ -546,9 +584,9 @@ describe('unreadCount', () => {
     expect(res.status).toBe(200);
 
     const [conv] = await db
-      .select({ unreadCount: conversations.unreadCount })
-      .from(conversations)
-      .where(eq(conversations.id, 'conv-unread'));
+      .select({ unreadCount: interactions.unreadCount })
+      .from(interactions)
+      .where(eq(interactions.id, 'conv-unread'));
     expect(conv.unreadCount).toBe(0);
   });
 });

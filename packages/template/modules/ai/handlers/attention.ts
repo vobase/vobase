@@ -52,14 +52,14 @@ export const attentionHandlers = new Hono()
     const row = updated[0];
     const contentData = (row.contentData ?? {}) as Record<string, unknown>;
     await createActivityMessage(db, realtime, {
-      conversationId: row.conversationId,
+      interactionId: row.interactionId,
       eventType: 'attention.reviewed',
       actor: user.id,
       actorType: 'user',
       data: { eventId, originalType: contentData.eventType },
     });
     await realtime.notify({
-      table: 'conversations-dashboard',
+      table: 'interactions-dashboard',
       action: 'update',
     });
 
@@ -92,14 +92,14 @@ export const attentionHandlers = new Hono()
     const row = updated[0];
     const contentData = (row.contentData ?? {}) as Record<string, unknown>;
     await createActivityMessage(db, realtime, {
-      conversationId: row.conversationId,
+      interactionId: row.interactionId,
       eventType: 'attention.dismissed',
       actor: user.id,
       actorType: 'user',
       data: { eventId, originalType: contentData.eventType },
     });
     await realtime.notify({
-      table: 'conversations-dashboard',
+      table: 'interactions-dashboard',
       action: 'update',
     });
 

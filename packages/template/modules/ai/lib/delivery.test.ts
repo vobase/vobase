@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import type { PGlite } from '@electric-sql/pglite';
 import type { ChannelAdapter, OutboundMessage, VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
@@ -8,7 +7,7 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  conversations,
+  interactions,
   messages,
 } from '../schema';
 import {
@@ -235,7 +234,7 @@ describe('adapter-driven delivery', () => {
       },
     ]);
 
-    await db.insert(conversations).values([
+    await db.insert(interactions).values([
       {
         id: 'conv-wa',
         channelRoutingId: 'cr-wa',
@@ -258,7 +257,7 @@ describe('adapter-driven delivery', () => {
   it('dispatches through adapter.serializeOutbound for WhatsApp', async () => {
     await db.insert(messages).values({
       id: 'msg-wa-1',
-      conversationId: 'conv-wa',
+      interactionId: 'conv-wa',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Hello customer',
@@ -286,7 +285,7 @@ describe('adapter-driven delivery', () => {
   it('uses adapter.contactIdentifierField for email address', async () => {
     await db.insert(messages).values({
       id: 'msg-email-1',
-      conversationId: 'conv-email',
+      interactionId: 'conv-email',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Hello via email',
@@ -317,7 +316,7 @@ describe('adapter-driven delivery', () => {
       agentId: 'agent-1',
     });
 
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'conv-web',
       channelRoutingId: 'cr-web',
       contactId: 'contact-1',
@@ -328,7 +327,7 @@ describe('adapter-driven delivery', () => {
 
     await db.insert(messages).values({
       id: 'msg-web-1',
-      conversationId: 'conv-web',
+      interactionId: 'conv-web',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Hello web user',
@@ -356,7 +355,7 @@ describe('adapter-driven delivery', () => {
       role: 'customer',
     });
 
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'conv-nophone',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-nophone',
@@ -367,7 +366,7 @@ describe('adapter-driven delivery', () => {
 
     await db.insert(messages).values({
       id: 'msg-nophone',
-      conversationId: 'conv-nophone',
+      interactionId: 'conv-nophone',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'This should fail',

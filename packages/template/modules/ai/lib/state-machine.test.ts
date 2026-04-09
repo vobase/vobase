@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import type { PGlite } from '@electric-sql/pglite';
 import type { VobaseDb } from '@vobase/core';
-import { eq } from 'drizzle-orm';
 
 import { createTestDb } from '../../../lib/test-helpers';
 import {
   channelInstances,
   channelRoutings,
   contacts,
-  conversations,
+  interactions,
 } from '../schema';
 import { setModuleDeps } from './deps';
 import { transition } from './state-machine';
@@ -57,12 +56,12 @@ beforeEach(async () => {
   });
 });
 
-async function insertActiveConversation(
-  overrides: Partial<typeof conversations.$inferInsert> = {},
+async function insertActiveInteraction(
+  overrides: Partial<typeof interactions.$inferInsert> = {},
 ) {
   const id = overrides.id ?? 'conv-sm';
   const [conv] = await db
-    .insert(conversations)
+    .insert(interactions)
     .values({
       id,
       channelRoutingId: 'ep-sm',
@@ -76,19 +75,19 @@ async function insertActiveConversation(
   return conv;
 }
 
-/** Insert active then transition to completing via the state machine */
-async function insertCompletingConversation(id = 'conv-sm') {
-  await insertActiveConversation({ id });
-  const result = await transition(deps(), id, { type: 'SET_COMPLETING' });
-  if (!result.ok) throw new Error(`Failed to set completing: ${result.error}`);
-  return result.conversation;
+/** Insert active then transition to resolving via the state machine */
+async function insertResolvingInteraction(id = 'conv-sm') {
+  await insertActiveInteraction({ id });
+  const result = await transition(deps(), id, { type: 'SET_RESOLVING' });
+  if (!result.ok) throw new Error(`Failed to set resolving: ${result.error}`);
+  return result.interaction;
 }
 
 // ── ESCALATE_MODE ─────────────────────────────────────────────────────
 
 describe('ESCALATE_MODE', () => {
   it('transitions ai -> supervised with priority', async () => {
-    await insertActiveConversation({ mode: 'ai' });
+    await insertActiveInteraction({ mode: 'ai' });
 
     const result = await transition(deps(), 'conv-sm', {
       type: 'ESCALATE_MODE',
@@ -98,12 +97,12 @@ describe('ESCALATE_MODE', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.conversation.mode).toBe('supervised');
-    expect(result.conversation.priority).toBe('high');
+    expect(result.interaction.mode).toBe('supervised');
+    expect(result.interaction.priority).toBe('high');
   });
 
   it('transitions supervised -> human', async () => {
-    await insertActiveConversation({ mode: 'supervised' });
+    await insertActiveInteraction({ mode: 'supervised' });
 
     const result = await transition(deps(), 'conv-sm', {
       type: 'ESCALATE_MODE',
@@ -112,11 +111,11 @@ describe('ESCALATE_MODE', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.conversation.mode).toBe('human');
+    expect(result.interaction.mode).toBe('human');
   });
 
   it('rejects downgrade from human', async () => {
-    await insertActiveConversation({ mode: 'human' });
+    await insertActiveInteraction({ mode: 'human' });
 
     const result = await transition(deps(), 'conv-sm', {
       type: 'ESCALATE_MODE',
@@ -130,7 +129,7 @@ describe('ESCALATE_MODE', () => {
   });
 
   it('rejects no-op (same mode)', async () => {
-    await insertActiveConversation({ mode: 'supervised' });
+    await insertActiveInteraction({ mode: 'supervised' });
 
     const result = await transition(deps(), 'conv-sm', {
       type: 'ESCALATE_MODE',
@@ -143,10 +142,10 @@ describe('ESCALATE_MODE', () => {
     expect(result.error).toContain('Already in supervised');
   });
 
-  it('rejects when conversation is completed', async () => {
-    await insertActiveConversation();
+  it('rejects when interaction is resolved', async () => {
+    await insertActiveInteraction();
     // Complete via state machine
-    await transition(deps(), 'conv-sm', { type: 'COMPLETE' });
+    await transition(deps(), 'conv-sm', { type: 'RESOLVE' });
 
     const result = await transition(deps(), 'conv-sm', {
       type: 'ESCALATE_MODE',
@@ -159,27 +158,27 @@ describe('ESCALATE_MODE', () => {
   });
 });
 
-// ── SET_COMPLETING ────────────────────────────────────────────────────
+// ── SET_RESOLVING ────────────────────────────────────────────────────
 
-describe('SET_COMPLETING', () => {
-  it('transitions active -> completing', async () => {
-    await insertActiveConversation();
+describe('SET_RESOLVING', () => {
+  it('transitions active -> resolving', async () => {
+    await insertActiveInteraction();
 
     const result = await transition(deps(), 'conv-sm', {
-      type: 'SET_COMPLETING',
+      type: 'SET_RESOLVING',
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.conversation.status).toBe('completing');
+    expect(result.interaction.status).toBe('resolving');
   });
 
-  it('rejects from completed status', async () => {
-    await insertActiveConversation();
-    await transition(deps(), 'conv-sm', { type: 'COMPLETE' });
+  it('rejects from resolved status', async () => {
+    await insertActiveInteraction();
+    await transition(deps(), 'conv-sm', { type: 'RESOLVE' });
 
     const result = await transition(deps(), 'conv-sm', {
-      type: 'SET_COMPLETING',
+      type: 'SET_RESOLVING',
     });
 
     expect(result.ok).toBe(false);
@@ -188,14 +187,14 @@ describe('SET_COMPLETING', () => {
   });
 
   it('rejects from failed status', async () => {
-    await insertActiveConversation();
+    await insertActiveInteraction();
     await transition(deps(), 'conv-sm', {
       type: 'FAIL',
       reason: 'test failure',
     });
 
     const result = await transition(deps(), 'conv-sm', {
-      type: 'SET_COMPLETING',
+      type: 'SET_RESOLVING',
     });
 
     expect(result.ok).toBe(false);
@@ -207,23 +206,23 @@ describe('SET_COMPLETING', () => {
 // ── GENERATION_DONE ───────────────────────────────────────────────────
 
 describe('GENERATION_DONE', () => {
-  it('transitions completing -> completed', async () => {
-    await insertCompletingConversation();
+  it('transitions resolving -> resolved', async () => {
+    await insertResolvingInteraction();
 
     const result = await transition(deps(), 'conv-sm', {
       type: 'GENERATION_DONE',
-      resolutionOutcome: 'resolved',
+      outcome: 'resolved',
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.conversation.status).toBe('completed');
-    expect(result.conversation.endedAt).not.toBeNull();
-    expect(result.conversation.resolutionOutcome).toBe('resolved');
+    expect(result.interaction.status).toBe('resolved');
+    expect(result.interaction.resolvedAt).not.toBeNull();
+    expect(result.interaction.outcome).toBe('resolved');
   });
 
   it('rejects from active status', async () => {
-    await insertActiveConversation();
+    await insertActiveInteraction();
 
     const result = await transition(deps(), 'conv-sm', {
       type: 'GENERATION_DONE',
@@ -235,28 +234,26 @@ describe('GENERATION_DONE', () => {
   });
 });
 
-// ── COMPLETING_TIMEOUT ──────────────────────────────────────────────
+// ── RESOLVING_TIMEOUT ──────────────────────────────────────────────
 
-describe('COMPLETING_TIMEOUT', () => {
-  it('transitions completing -> failed', async () => {
-    await insertCompletingConversation();
+describe('RESOLVING_TIMEOUT', () => {
+  it('transitions resolving -> failed', async () => {
+    await insertResolvingInteraction();
 
     const result = await transition(deps(), 'conv-sm', {
-      type: 'COMPLETING_TIMEOUT',
+      type: 'RESOLVING_TIMEOUT',
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.conversation.status).toBe('failed');
-    expect(result.conversation.endedAt).not.toBeNull();
-    expect(result.conversation.resolutionOutcome).toBe('failed');
+    expect(result.interaction.status).toBe('failed');
   });
 
   it('rejects from active status', async () => {
-    await insertActiveConversation();
+    await insertActiveInteraction();
 
     const result = await transition(deps(), 'conv-sm', {
-      type: 'COMPLETING_TIMEOUT',
+      type: 'RESOLVING_TIMEOUT',
     });
 
     expect(result.ok).toBe(false);
@@ -265,11 +262,11 @@ describe('COMPLETING_TIMEOUT', () => {
   });
 });
 
-// ── completing blocks other events ──────────────────────────────────
+// ── resolving blocks other events ──────────────────────────────────
 
-describe('completing status guards', () => {
-  it('rejects SET_MODE from completing', async () => {
-    await insertCompletingConversation();
+describe('resolving status guards', () => {
+  it('rejects SET_MODE from resolving', async () => {
+    await insertResolvingInteraction();
 
     const result = await transition(deps(), 'conv-sm', {
       type: 'SET_MODE',
@@ -281,11 +278,11 @@ describe('completing status guards', () => {
     expect(result.code).toBe('INVALID_TRANSITION');
   });
 
-  it('rejects COMPLETE from completing', async () => {
-    await insertCompletingConversation();
+  it('rejects COMPLETE from resolving', async () => {
+    await insertResolvingInteraction();
 
     const result = await transition(deps(), 'conv-sm', {
-      type: 'COMPLETE',
+      type: 'RESOLVE',
     });
 
     expect(result.ok).toBe(false);

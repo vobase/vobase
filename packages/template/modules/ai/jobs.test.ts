@@ -1,6 +1,6 @@
 /**
  * Job schema validation tests — verifies each job's Zod schema rejects bad input
- * and accepts valid input. Uses a real DB to test conversationCleanupJob's query logic.
+ * and accepts valid input. Uses a real DB to test interactionCleanupJob's query logic.
  *
  * NOTE: We intentionally avoid mock.module here to prevent module cache
  * pollution that would break sibling test files (Bun shares module registry
@@ -17,7 +17,7 @@ import { createTestDb } from '../../lib/test-helpers';
 
 const deliverDataSchema = z.object({ messageId: z.string().min(1) });
 const channelReplyDataSchema = z.object({
-  conversationId: z.string().min(1),
+  interactionId: z.string().min(1),
   inboundContent: z.string().optional(),
 });
 const processInboundDataSchema = z.object({
@@ -53,21 +53,21 @@ describe('deliverMessageJob schema (ai:deliver-message)', () => {
 });
 
 describe('channelReplyJob schema (ai:channel-reply)', () => {
-  it('accepts valid conversationId without inboundContent', () => {
-    const result = channelReplyDataSchema.parse({ conversationId: 'sess-1' });
-    expect(result.conversationId).toBe('sess-1');
+  it('accepts valid interactionId without inboundContent', () => {
+    const result = channelReplyDataSchema.parse({ interactionId: 'sess-1' });
+    expect(result.interactionId).toBe('sess-1');
     expect(result.inboundContent).toBeUndefined();
   });
 
-  it('accepts valid conversationId with inboundContent', () => {
+  it('accepts valid interactionId with inboundContent', () => {
     const result = channelReplyDataSchema.parse({
-      conversationId: 'sess-1',
+      interactionId: 'sess-1',
       inboundContent: 'hello',
     });
     expect(result.inboundContent).toBe('hello');
   });
 
-  it('rejects missing conversationId', () => {
+  it('rejects missing interactionId', () => {
     expect(() => channelReplyDataSchema.parse({})).toThrow();
   });
 });
@@ -97,8 +97,8 @@ describe('processInboundJob schema (ai:process-inbound)', () => {
   });
 });
 
-// ─── conversationCleanupJob integration ──────────────────────────────────────
-// Test the stale conversation query logic with a real DB (without mock.module).
+// ─── interactionCleanupJob integration ──────────────────────────────────────
+// Test the stale interaction query logic with a real DB (without mock.module).
 
 import { and, eq, lt } from 'drizzle-orm';
 
@@ -106,7 +106,7 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  conversations,
+  interactions,
 } from './schema';
 
 let _pglite: PGlite;
@@ -120,8 +120,8 @@ beforeEach(async () => {
 
 // Singleton PGlite — never close; process exit handles cleanup
 
-describe('conversationCleanupJob stale-conversation query', () => {
-  it('finds conversations inactive for 7+ days', async () => {
+describe('interactionCleanupJob stale-interaction query', () => {
+  it('finds interactions inactive for 7+ days', async () => {
     await db.insert(contacts).values({
       id: 'contact-1',
       phone: '+6591234567',
@@ -141,7 +141,7 @@ describe('conversationCleanupJob stale-conversation query', () => {
       channelInstanceId: 'ci-web-1',
       agentId: 'booking',
     });
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'sess-stale',
       channelRoutingId: 'ep-1',
       contactId: 'contact-1',
@@ -153,18 +153,18 @@ describe('conversationCleanupJob stale-conversation query', () => {
     // Backdate updatedAt to 8 days ago
     const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
     await db
-      .update(conversations)
+      .update(interactions)
       .set({ updatedAt: eightDaysAgo })
-      .where(eq(conversations.id, 'sess-stale'));
+      .where(eq(interactions.id, 'sess-stale'));
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const stale = await db
-      .select({ id: conversations.id })
-      .from(conversations)
+      .select({ id: interactions.id })
+      .from(interactions)
       .where(
         and(
-          eq(conversations.status, 'active'),
-          lt(conversations.updatedAt, sevenDaysAgo),
+          eq(interactions.status, 'active'),
+          lt(interactions.updatedAt, sevenDaysAgo),
         ),
       );
 
@@ -172,7 +172,7 @@ describe('conversationCleanupJob stale-conversation query', () => {
     expect(stale[0].id).toBe('sess-stale');
   });
 
-  it('does not find recently-active conversations', async () => {
+  it('does not find recently-active interactions', async () => {
     await db.insert(contacts).values({
       id: 'contact-2',
       phone: '+6598765432',
@@ -192,7 +192,7 @@ describe('conversationCleanupJob stale-conversation query', () => {
       channelInstanceId: 'ci-web-2',
       agentId: 'booking',
     });
-    await db.insert(conversations).values({
+    await db.insert(interactions).values({
       id: 'sess-fresh',
       channelRoutingId: 'ep-2',
       contactId: 'contact-2',
@@ -203,12 +203,12 @@ describe('conversationCleanupJob stale-conversation query', () => {
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const stale = await db
-      .select({ id: conversations.id })
-      .from(conversations)
+      .select({ id: interactions.id })
+      .from(interactions)
       .where(
         and(
-          eq(conversations.status, 'active'),
-          lt(conversations.updatedAt, sevenDaysAgo),
+          eq(interactions.status, 'active'),
+          lt(interactions.updatedAt, sevenDaysAgo),
         ),
       );
 

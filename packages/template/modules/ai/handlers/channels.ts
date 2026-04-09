@@ -17,7 +17,7 @@ import {
   channelInstances,
   channelRoutings,
   consultations,
-  conversations,
+  interactions,
 } from '../schema';
 
 const META_GRAPH_API = 'https://graph.facebook.com/v22.0';
@@ -422,36 +422,36 @@ export const channelsHandlers = new Hono()
 
     if (!existing) throw notFound('Channel instance not found');
 
-    // M8: Prevent deletion if active conversations exist on channel routings bound to this instance
-    const activeConversations = await db
-      .select({ id: conversations.id })
-      .from(conversations)
+    // M8: Prevent deletion if active interactions exist on channel routings bound to this instance
+    const activeInteractions = await db
+      .select({ id: interactions.id })
+      .from(interactions)
       .innerJoin(
         channelRoutings,
-        eq(conversations.channelRoutingId, channelRoutings.id),
+        eq(interactions.channelRoutingId, channelRoutings.id),
       )
       .where(
         and(
           eq(channelRoutings.channelInstanceId, instanceId),
-          eq(conversations.status, 'active'),
+          eq(interactions.status, 'active'),
         ),
       )
       .limit(1);
 
-    if (activeConversations.length > 0) {
+    if (activeInteractions.length > 0) {
       return c.json(
         {
           error: {
             code: 'CONFLICT',
             message:
-              'This channel has active conversations. Complete or end them before removing.',
+              'This channel has active interactions. Resolve or end them before removing.',
           },
         },
         409,
       );
     }
 
-    // Clean up completed conversations and channel routings before deleting instance (FK safety)
+    // Clean up resolved interactions and channel routings before deleting instance (FK safety)
     const relatedRoutingIds = (
       await db
         .select({ id: channelRoutings.id })
@@ -460,22 +460,22 @@ export const channelsHandlers = new Hono()
     ).map((r) => r.id);
 
     if (relatedRoutingIds.length > 0) {
-      // Batch: get all conversation IDs for these routings
-      const relatedConvIds = (
+      // Batch: get all interaction IDs for these routings
+      const relatedInteractionIds = (
         await db
-          .select({ id: conversations.id })
-          .from(conversations)
-          .where(inArray(conversations.channelRoutingId, relatedRoutingIds))
-      ).map((c) => c.id);
+          .select({ id: interactions.id })
+          .from(interactions)
+          .where(inArray(interactions.channelRoutingId, relatedRoutingIds))
+      ).map((r) => r.id);
 
-      // Batch: delete consultations → conversations → routings
-      if (relatedConvIds.length > 0) {
+      // Batch: delete consultations → interactions → routings
+      if (relatedInteractionIds.length > 0) {
         await db
           .delete(consultations)
-          .where(inArray(consultations.conversationId, relatedConvIds));
+          .where(inArray(consultations.interactionId, relatedInteractionIds));
         await db
-          .delete(conversations)
-          .where(inArray(conversations.id, relatedConvIds));
+          .delete(interactions)
+          .where(inArray(interactions.id, relatedInteractionIds));
       }
       await db
         .delete(channelRoutings)
@@ -604,7 +604,7 @@ export const channelsHandlers = new Hono()
 
     return c.json(row);
   })
-  /** GET /channels/status — List channel instances with active conversation counts. */
+  /** GET /channels/status — List channel instances with active interaction counts. */
   .get('/channels/status', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
@@ -615,17 +615,17 @@ export const channelsHandlers = new Hono()
       .from(channelInstances)
       .orderBy(channelInstances.type);
 
-    const conversationCounts = await db
+    const interactionCounts = await db
       .select({
-        channelInstanceId: conversations.channelInstanceId,
+        channelInstanceId: interactions.channelInstanceId,
         count: count(),
       })
-      .from(conversations)
-      .where(eq(conversations.status, 'active'))
-      .groupBy(conversations.channelInstanceId);
+      .from(interactions)
+      .where(eq(interactions.status, 'active'))
+      .groupBy(interactions.channelInstanceId);
 
     const countMap = new Map(
-      conversationCounts.map((r) => [r.channelInstanceId, Number(r.count)]),
+      interactionCounts.map((r) => [r.channelInstanceId, Number(r.count)]),
     );
 
     const channels = instances.map((inst) => ({

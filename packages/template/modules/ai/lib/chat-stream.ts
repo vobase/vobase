@@ -2,7 +2,7 @@
  * Chat streaming — web chat SSE response generation.
  *
  * Acquires a Postgres advisory lock, streams agent response, releases lock.
- * Used by the POST /chat handler for web-based conversations.
+ * Used by the POST /chat handler for web-based interactions.
  */
 import { RequestContext } from '@mastra/core/request-context';
 import type { VobaseDb } from '@vobase/core';
@@ -14,7 +14,7 @@ import { getModuleDeps } from './deps';
 
 interface StreamChatInput {
   db: VobaseDb;
-  conversationId: string;
+  interactionId: string;
   /** Last user message text — passed as a string to the agent. */
   message: string;
   agentId: string;
@@ -23,6 +23,8 @@ interface StreamChatInput {
   contactId?: string | null;
   /** Channel type — defaults to 'web'. */
   channelType?: string;
+  /** Number of times this interaction has been reopened. */
+  reopenCount?: number;
 }
 
 /** Fixed class ID for Vobase advisory locks — prevents collisions with other pg_advisory_lock users. */
@@ -41,12 +43,13 @@ function hashStringToInt(s: string): number {
 export async function streamChat(input: StreamChatInput) {
   const {
     db,
-    conversationId,
+    interactionId,
     message,
     agentId,
     resourceId,
     contactId,
     channelType,
+    reopenCount,
   } = input;
 
   const registered = getAgent(agentId);
@@ -56,7 +59,7 @@ export async function streamChat(input: StreamChatInput) {
 
   // Acquire Postgres advisory lock to prevent concurrent generation
   // Two-arg form: (classId, objId) namespaces the lock to avoid collisions
-  const lockKey = hashStringToInt(conversationId);
+  const lockKey = hashStringToInt(interactionId);
   const result = await db.execute(
     sql`SELECT pg_try_advisory_lock(${VOBASE_LOCK_CLASS}, ${lockKey}) as locked`,
   );
@@ -67,23 +70,29 @@ export async function streamChat(input: StreamChatInput) {
 
   if (!locked) {
     throw new Error(
-      `Conversation ${conversationId} is locked — concurrent generation in progress`,
+      `Interaction ${interactionId} is locked — concurrent generation in progress`,
     );
   }
 
   // Build RequestContext so sendCard tool and processors can access channel type
   const rc = new RequestContext();
-  rc.set('conversationId', conversationId);
+  rc.set('interactionId', interactionId);
   rc.set('contactId', contactId ?? null);
   rc.set('channel', channelType ?? 'web');
   rc.set('agentId', agentId);
   rc.set('deps', getModuleDeps());
 
+  // Inject reopenCount context if applicable
+  let contextPrefix = '';
+  if (reopenCount && reopenCount > 0) {
+    contextPrefix = `[System]: This interaction was reopened ${reopenCount} time(s). The contact is returning to a previously resolved topic.\n\n`;
+  }
+
   try {
-    // Pass as a string — agent + memory handles full conversation context
-    const result = await registered.agent.stream(message, {
+    // Pass as a string — agent + memory handles full interaction context
+    const result = await registered.agent.stream(contextPrefix + message, {
       memory: {
-        thread: conversationId,
+        thread: interactionId,
         resource: resourceId,
       },
       maxSteps: 5,
@@ -92,8 +101,8 @@ export async function streamChat(input: StreamChatInput) {
 
     return result;
   } catch (err) {
-    logger.error('[conversations] Stream generation failed', {
-      conversationId,
+    logger.error('[interactions] Stream generation failed', {
+      interactionId,
       agentId,
       error: err,
     });

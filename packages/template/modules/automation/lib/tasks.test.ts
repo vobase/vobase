@@ -21,7 +21,7 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     domSnapshot: null,
     errorMessage: null,
     requestedBy: 'staff',
-    sourceConversationId: null,
+    sourceInteractionId: null,
     timeoutMinutes: 10,
     createdAt: new Date(),
     updatedAt: new Date(),

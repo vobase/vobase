@@ -8,14 +8,14 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  conversations,
+  interactions,
 } from '../schema';
-import {
-  completeConversation,
-  createConversation,
-  failConversation,
-} from './conversation';
 import { setModuleDeps } from './deps';
+import {
+  createInteraction,
+  failInteraction,
+  resolveInteraction,
+} from './interaction';
 
 let _pglite: PGlite;
 let db: VobaseDb;
@@ -68,12 +68,12 @@ beforeEach(async () => {
 
 // Singleton PGlite — never close; process exit handles cleanup
 
-describe('createConversation (M9 — endpoint validation)', () => {
+describe('createInteraction (M9 — endpoint validation)', () => {
   it('throws when channel routing does not exist', async () => {
     // M9: notFound() fires before any memory/DB insert, so no memory stub needed
     let threw = false;
     try {
-      await createConversation(
+      await createInteraction(
         { db, scheduler: mockScheduler, realtime: mockRealtime },
         {
           channelRoutingId: 'ep-nonexistent',
@@ -93,10 +93,10 @@ describe('createConversation (M9 — endpoint validation)', () => {
     expect(threw).toBe(true);
   });
 
-  it('does not insert conversation row when channel routing is missing', async () => {
-    // M9: throws before insert — conversations table stays empty
+  it('does not insert interaction row when channel routing is missing', async () => {
+    // M9: throws before insert — interactions table stays empty
     try {
-      await createConversation(
+      await createInteraction(
         { db, scheduler: mockScheduler, realtime: mockRealtime },
         {
           channelRoutingId: 'ep-missing',
@@ -109,15 +109,15 @@ describe('createConversation (M9 — endpoint validation)', () => {
       // expected — notFound() thrown before insert
     }
 
-    const all = await db.select().from(conversations);
+    const all = await db.select().from(interactions);
     expect(all.length).toBe(0);
   });
 });
 
-describe('completeConversation (M1 — structured logging)', () => {
-  it('sets status to completed and records endedAt', async () => {
+describe('resolveInteraction (M1 — structured logging)', () => {
+  it('sets status to resolved and records resolvedAt', async () => {
     const [conv] = await db
-      .insert(conversations)
+      .insert(interactions)
       .values({
         id: 'sess-complete',
         channelRoutingId: 'ep-sess',
@@ -128,22 +128,22 @@ describe('completeConversation (M1 — structured logging)', () => {
       })
       .returning();
 
-    await completeConversation(db, conv.id);
+    await resolveInteraction(db, conv.id);
 
     const [updated] = await db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, conv.id));
+      .from(interactions)
+      .where(eq(interactions.id, conv.id));
 
-    expect(updated.status).toBe('completed');
-    expect(updated.endedAt).not.toBeNull();
+    expect(updated.status).toBe('resolved');
+    expect(updated.resolvedAt).not.toBeNull();
   });
 });
 
-describe('failConversation (M1 — structured logging)', () => {
+describe('failInteraction (M1 — structured logging)', () => {
   it('sets status to failed with reason stored in metadata', async () => {
     const [conv] = await db
-      .insert(conversations)
+      .insert(interactions)
       .values({
         id: 'sess-fail',
         channelRoutingId: 'ep-sess',
@@ -154,15 +154,14 @@ describe('failConversation (M1 — structured logging)', () => {
       })
       .returning();
 
-    await failConversation(db, conv.id, 'Agent error');
+    await failInteraction(db, conv.id, 'Agent error');
 
     const [updated] = await db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, conv.id));
+      .from(interactions)
+      .where(eq(interactions.id, conv.id));
 
     expect(updated.status).toBe('failed');
-    expect(updated.endedAt).not.toBeNull();
     expect((updated.metadata as Record<string, unknown>).failReason).toBe(
       'Agent error',
     );

@@ -8,15 +8,29 @@ import {
   gte,
   ilike,
   inArray,
+  lt,
   lte,
   or,
+  sql,
 } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { validator } from 'hono/validator';
 import { z } from 'zod';
 
 import { dataTableConfig } from '@/config/data-table';
 import { filterColumns } from '@/lib/filter-columns';
-import { contacts } from '../schema';
+import { getModuleDeps } from '../lib/deps';
+import { createInteraction } from '../lib/interaction';
+import { insertMessage } from '../lib/messages';
+import {
+  channelInstances,
+  channelRoutings,
+  contactLabels,
+  contacts,
+  interactions,
+  labels,
+  messages,
+} from '../schema';
 
 // ─── Schemas ────────────────────────────────────────────────────────
 
@@ -342,4 +356,273 @@ export const contactsHandlers = new Hono()
       .returning();
 
     return c.json(row);
+  })
+  // GET /:id/timeline — all messages for a contact across all channels/interactions, cursor-paginated
+  .get(
+    '/:id/timeline',
+    validator('query', (value) => {
+      return z
+        .object({
+          limit: z.coerce.number().int().min(1).max(100).default(50),
+          before: z.string().optional(),
+        })
+        .parse(value);
+    }),
+    async (c) => {
+      const { db, user } = getCtx(c);
+      if (!user) throw unauthorized();
+
+      const contactId = c.req.param('id');
+      const { limit, before } = c.req.valid('query');
+
+      // Verify contact exists
+      const [contact] = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(eq(contacts.id, contactId));
+
+      if (!contact) throw notFound('Contact not found');
+
+      // Fetch all interactions for this contact with channel info
+      const allInteractions = await db
+        .select({
+          id: interactions.id,
+          status: interactions.status,
+          outcome: interactions.outcome,
+          startedAt: interactions.startedAt,
+          resolvedAt: interactions.resolvedAt,
+          reopenCount: interactions.reopenCount,
+          mode: interactions.mode,
+          priority: interactions.priority,
+          assignee: interactions.assignee,
+          channelInstanceId: interactions.channelInstanceId,
+          channelType: channelInstances.type,
+          channelLabel: channelInstances.label,
+          hasPendingEscalation: interactions.hasPendingEscalation,
+          waitingSince: interactions.waitingSince,
+        })
+        .from(interactions)
+        .innerJoin(
+          channelInstances,
+          eq(interactions.channelInstanceId, channelInstances.id),
+        )
+        .where(eq(interactions.contactId, contactId))
+        .orderBy(asc(interactions.startedAt));
+
+      const interactionIds = allInteractions.map((i) => i.id);
+
+      // Fetch messages across all interactions with cursor pagination
+      let messageRows: (typeof messages.$inferSelect)[] = [];
+      if (interactionIds.length > 0) {
+        const conditions = [inArray(messages.interactionId, interactionIds)];
+        if (before) {
+          conditions.push(lt(messages.createdAt, new Date(before)));
+        }
+
+        messageRows = await db
+          .select()
+          .from(messages)
+          .where(and(...conditions))
+          .orderBy(desc(messages.createdAt))
+          .limit(limit + 1);
+      }
+
+      const hasMore = messageRows.length > limit;
+      const page = hasMore ? messageRows.slice(0, limit) : messageRows;
+      const nextCursor =
+        hasMore && page.length > 0
+          ? page[page.length - 1].createdAt.toISOString()
+          : null;
+
+      // Deduplicate channels
+      const channelMap = new Map<
+        string,
+        { id: string; type: string; label: string | null }
+      >();
+      for (const i of allInteractions) {
+        if (!channelMap.has(i.channelInstanceId)) {
+          channelMap.set(i.channelInstanceId, {
+            id: i.channelInstanceId,
+            type: i.channelType,
+            label: i.channelLabel,
+          });
+        }
+      }
+
+      return c.json({
+        messages: page.reverse(),
+        hasMore,
+        nextCursor,
+        interactions: allInteractions.map((i) => ({
+          id: i.id,
+          status: i.status,
+          outcome: i.outcome,
+          startedAt: i.startedAt.toISOString(),
+          resolvedAt: i.resolvedAt?.toISOString() ?? null,
+          reopenCount: i.reopenCount,
+          mode: i.mode,
+          priority: i.priority,
+          assignee: i.assignee,
+          channelInstanceId: i.channelInstanceId,
+          channelType: i.channelType,
+          channelLabel: i.channelLabel,
+          hasPendingEscalation: i.hasPendingEscalation,
+          waitingSince: i.waitingSince?.toISOString() ?? null,
+        })),
+        channels: [...channelMap.values()],
+      });
+    },
+  )
+  // POST /:id/mark-read — bulk mark all interactions for a contact as read
+  .post('/:id/mark-read', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const contactId = c.req.param('id');
+    const { realtime } = getModuleDeps();
+
+    const affected = await db
+      .update(interactions)
+      .set({ unreadCount: 0, agentLastSeenAt: new Date() })
+      .where(
+        and(
+          eq(interactions.contactId, contactId),
+          sql`${interactions.unreadCount} > 0`,
+        ),
+      )
+      .returning({ id: interactions.id });
+
+    // Notify for each affected interaction
+    for (const row of affected) {
+      await realtime
+        .notify({ table: 'interactions', id: row.id, action: 'update' })
+        .catch(() => {});
+    }
+
+    return c.json({ ok: true, count: affected.length });
+  })
+  // GET /:id/labels — get labels for a contact
+  .get('/:id/labels', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const contactId = c.req.param('id');
+
+    const rows = await db
+      .select({
+        id: labels.id,
+        title: labels.title,
+        color: labels.color,
+        description: labels.description,
+        assignedAt: contactLabels.createdAt,
+      })
+      .from(contactLabels)
+      .innerJoin(labels, eq(contactLabels.labelId, labels.id))
+      .where(eq(contactLabels.contactId, contactId));
+
+    return c.json(rows);
+  })
+  // POST /:id/labels — add label to a contact
+  .post('/:id/labels', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const contactId = c.req.param('id');
+    const body = z
+      .object({ labelIds: z.array(z.string().min(1)).min(1) })
+      .parse(await c.req.json());
+
+    // Validate labels exist
+    const existing = await db
+      .select({ id: labels.id })
+      .from(labels)
+      .where(inArray(labels.id, body.labelIds));
+
+    if (existing.length !== body.labelIds.length) {
+      throw validation({ labelIds: 'One or more labels not found' });
+    }
+
+    // Insert with conflict ignore for dedup
+    await db
+      .insert(contactLabels)
+      .values(
+        body.labelIds.map((labelId) => ({
+          contactId,
+          labelId,
+        })),
+      )
+      .onConflictDoNothing();
+
+    return c.json({ ok: true });
+  })
+  // DELETE /:id/labels/:labelId — remove a label from a contact
+  .delete('/:id/labels/:labelId', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const contactId = c.req.param('id');
+    const labelId = c.req.param('labelId');
+
+    await db
+      .delete(contactLabels)
+      .where(
+        and(
+          eq(contactLabels.contactId, contactId),
+          eq(contactLabels.labelId, labelId),
+        ),
+      );
+
+    return c.json({ ok: true });
+  })
+  // POST /:id/new-interaction — create a new interaction + first message for a contact
+  .post('/:id/new-interaction', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const contactId = c.req.param('id');
+    const body = z
+      .object({
+        channelInstanceId: z.string().min(1),
+        content: z.string().min(1),
+        isInternal: z.boolean().optional(),
+      })
+      .parse(await c.req.json());
+
+    // Resolve channel routing for this channel instance
+    const [routing] = await db
+      .select()
+      .from(channelRoutings)
+      .where(eq(channelRoutings.channelInstanceId, body.channelInstanceId))
+      .limit(1);
+
+    if (!routing) throw notFound('No channel routing found for this channel');
+
+    const { scheduler, realtime } = getModuleDeps();
+
+    // Create the interaction
+    const interaction = await createInteraction(
+      { db, scheduler, realtime },
+      {
+        channelRoutingId: routing.id,
+        contactId,
+        agentId: routing.agentId,
+        channelInstanceId: body.channelInstanceId,
+      },
+    );
+
+    // Insert the first message
+    const message = await insertMessage(db, realtime, {
+      interactionId: interaction.id,
+      messageType: 'outgoing',
+      contentType: 'text',
+      content: body.content,
+      senderId: user.id,
+      senderType: 'user',
+      private: body.isInternal ?? false,
+    });
+
+    return c.json(
+      { interactionId: interaction.id, messageId: message.id },
+      201,
+    );
   });

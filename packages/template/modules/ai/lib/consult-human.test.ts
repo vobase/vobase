@@ -9,7 +9,7 @@ import {
   channelRoutings,
   consultations,
   contacts,
-  conversations,
+  interactions,
 } from '../schema';
 import { handleStaffReply, requestConsultation } from './consult-human';
 
@@ -53,7 +53,7 @@ beforeEach(async () => {
     agentId: 'booking',
   });
 
-  await db.insert(conversations).values({
+  await db.insert(interactions).values({
     id: 'session-1',
     channelRoutingId: 'ep-wa-1',
     contactId: 'contact-cust',
@@ -84,7 +84,7 @@ describe('requestConsultation', () => {
         realtime: mockRealtime,
       },
       {
-        conversationId: 'session-1',
+        interactionId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -113,7 +113,7 @@ describe('requestConsultation', () => {
         realtime: mockRealtime,
       },
       {
-        conversationId: 'session-1',
+        interactionId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'email',
         reason: 'Escalation needed',
@@ -137,7 +137,7 @@ describe('requestConsultation', () => {
       realtime: mockRealtime,
     };
     const input = {
-      conversationId: 'session-1',
+      interactionId: 'session-1',
       staffContactId: 'contact-staff',
       channelType: 'whatsapp',
       channelInstanceId: 'ci-wa-1',
@@ -151,7 +151,7 @@ describe('requestConsultation', () => {
     expect(first.id).toBe(second.id);
   });
 
-  it('sets hasPendingEscalation: true on the conversation', async () => {
+  it('sets hasPendingEscalation: true on the interaction', async () => {
     const mockChannels = {
       whatsapp: { send: async () => ({ success: true }) },
     } as never;
@@ -164,7 +164,7 @@ describe('requestConsultation', () => {
         realtime: mockRealtime,
       },
       {
-        conversationId: 'session-1',
+        interactionId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -174,9 +174,9 @@ describe('requestConsultation', () => {
     );
 
     const [conv] = await db
-      .select({ hasPendingEscalation: conversations.hasPendingEscalation })
-      .from(conversations)
-      .where(eq(conversations.id, 'session-1'));
+      .select({ hasPendingEscalation: interactions.hasPendingEscalation })
+      .from(interactions)
+      .where(eq(interactions.id, 'session-1'));
     expect(conv.hasPendingEscalation).toBe(true);
   });
 });
@@ -187,7 +187,7 @@ describe('handleStaffReply', () => {
     const [timedOut] = await db
       .insert(consultations)
       .values({
-        conversationId: 'session-1',
+        interactionId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -233,14 +233,14 @@ const mockScheduler = { add: async () => ({ id: 'job-1' }) } as never;
 describe('handleStaffReply — hasPendingEscalation', () => {
   it('clears hasPendingEscalation when no other pending consultations remain', async () => {
     await db
-      .update(conversations)
+      .update(interactions)
       .set({ hasPendingEscalation: true })
-      .where(eq(conversations.id, 'session-1'));
+      .where(eq(interactions.id, 'session-1'));
 
     const [pending] = await db
       .insert(consultations)
       .values({
-        conversationId: 'session-1',
+        interactionId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -273,22 +273,22 @@ describe('handleStaffReply — hasPendingEscalation', () => {
     expect(result).toBe(true);
 
     const [conv] = await db
-      .select({ hasPendingEscalation: conversations.hasPendingEscalation })
-      .from(conversations)
-      .where(eq(conversations.id, 'session-1'));
+      .select({ hasPendingEscalation: interactions.hasPendingEscalation })
+      .from(interactions)
+      .where(eq(interactions.id, 'session-1'));
     expect(conv.hasPendingEscalation).toBe(false);
   });
 
   it('keeps hasPendingEscalation: true when other pending consultations remain', async () => {
     await db
-      .update(conversations)
+      .update(interactions)
       .set({ hasPendingEscalation: true })
-      .where(eq(conversations.id, 'session-1'));
+      .where(eq(interactions.id, 'session-1'));
 
     const [first] = await db
       .insert(consultations)
       .values({
-        conversationId: 'session-1',
+        interactionId: 'session-1',
         staffContactId: 'contact-staff',
         channelType: 'whatsapp',
         channelInstanceId: 'ci-wa-1',
@@ -299,7 +299,7 @@ describe('handleStaffReply — hasPendingEscalation', () => {
 
     // Second pending consultation — not replied to yet
     await db.insert(consultations).values({
-      conversationId: 'session-1',
+      interactionId: 'session-1',
       staffContactId: 'contact-staff',
       channelType: 'whatsapp',
       channelInstanceId: 'ci-wa-1',
@@ -329,9 +329,9 @@ describe('handleStaffReply — hasPendingEscalation', () => {
     );
 
     const [conv] = await db
-      .select({ hasPendingEscalation: conversations.hasPendingEscalation })
-      .from(conversations)
-      .where(eq(conversations.id, 'session-1'));
+      .select({ hasPendingEscalation: interactions.hasPendingEscalation })
+      .from(interactions)
+      .where(eq(interactions.id, 'session-1'));
     expect(conv.hasPendingEscalation).toBe(true);
   });
 });

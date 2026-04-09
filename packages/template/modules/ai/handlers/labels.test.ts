@@ -8,7 +8,7 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  conversations,
+  interactions,
 } from '../schema';
 import { labelsHandlers } from './labels';
 
@@ -18,9 +18,15 @@ let db: VobaseDb;
 function buildApp(testDb: VobaseDb): Hono {
   const app = new Hono();
 
-  // Inject db into Hono context before routes
+  // Inject db + user into Hono context before routes
   app.use('*', async (c, next) => {
     c.set('db', testDb);
+    c.set('user', {
+      id: 'test-user',
+      email: 'test@example.com',
+      name: 'Test',
+      role: 'admin',
+    });
     await next();
   });
 
@@ -36,7 +42,7 @@ beforeEach(async () => {
   db = result.db;
   app = buildApp(db);
 
-  // Seed a contact + channel + routing + conversation for label attachment tests
+  // Seed a contact + channel + routing + interaction for label attachment tests
   await db.insert(contacts).values({
     id: 'lbl-contact',
     phone: '+6599999999',
@@ -59,7 +65,7 @@ beforeEach(async () => {
     agentId: 'booking',
   });
 
-  await db.insert(conversations).values({
+  await db.insert(interactions).values({
     id: 'lbl-conv',
     channelRoutingId: 'lbl-cr',
     contactId: 'lbl-contact',
@@ -152,7 +158,7 @@ describe('Labels CRUD', () => {
   });
 });
 
-describe('Conversation Labels', () => {
+describe('Interaction Labels', () => {
   async function createLabel(title: string): Promise<string> {
     const res = await app.request('/labels', {
       method: 'POST',
@@ -163,10 +169,10 @@ describe('Conversation Labels', () => {
     return body.id as string;
   }
 
-  it('POST /conversations/:id/labels attaches labels', async () => {
+  it('POST /interactions/:id/labels attaches labels', async () => {
     const lid = await createLabel('VIP');
 
-    const res = await app.request('/conversations/lbl-conv/labels', {
+    const res = await app.request('/interactions/lbl-conv/labels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ labelIds: [lid] }),
@@ -177,17 +183,17 @@ describe('Conversation Labels', () => {
     expect(body.ok).toBe(true);
   });
 
-  it('GET /conversations/:id/labels returns attached labels', async () => {
+  it('GET /interactions/:id/labels returns attached labels', async () => {
     const lid1 = await createLabel('Priority');
     const lid2 = await createLabel('Billing');
 
-    await app.request('/conversations/lbl-conv/labels', {
+    await app.request('/interactions/lbl-conv/labels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ labelIds: [lid1, lid2] }),
     });
 
-    const res = await app.request('/conversations/lbl-conv/labels');
+    const res = await app.request('/interactions/lbl-conv/labels');
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body)).toBe(true);
@@ -197,24 +203,24 @@ describe('Conversation Labels', () => {
     expect(titles).toContain('Billing');
   });
 
-  it('DELETE /conversations/:id/labels/:lid removes label', async () => {
+  it('DELETE /interactions/:id/labels/:lid removes label', async () => {
     const lid = await createLabel('Temporary');
 
-    await app.request('/conversations/lbl-conv/labels', {
+    await app.request('/interactions/lbl-conv/labels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ labelIds: [lid] }),
     });
 
     const deleteRes = await app.request(
-      `/conversations/lbl-conv/labels/${lid}`,
+      `/interactions/lbl-conv/labels/${lid}`,
       { method: 'DELETE' },
     );
     expect(deleteRes.status).toBe(200);
     const body = await deleteRes.json();
     expect(body.ok).toBe(true);
 
-    const listRes = await app.request('/conversations/lbl-conv/labels');
+    const listRes = await app.request('/interactions/lbl-conv/labels');
     const list = await listRes.json();
     expect(list.length).toBe(0);
   });

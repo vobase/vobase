@@ -72,8 +72,8 @@ const updateScorerSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
-/** COALESCE(threadId, requestContext->>'conversationId') — resolves conversation ID from Mastra scorer data */
-const convId = sql<string>`COALESCE(${mastraScorers.threadId}, ${mastraScorers.requestContext}->>'conversationId')`;
+/** COALESCE(threadId, requestContext->>'interactionId') — resolves interaction ID from Mastra scorer data */
+const interactionIdSql = sql<string>`COALESCE(${mastraScorers.threadId}, ${mastraScorers.requestContext}->>'interactionId')`;
 
 /**
  * Safely execute a query against mastra_scorers.
@@ -246,7 +246,7 @@ export const evalsHandlers = new Hono()
             reason: mastraScorers.reason,
             createdAt: mastraScorers.createdAt,
             agentId: mastraScorers.entityId,
-            conversationId: convId,
+            interactionId: interactionIdSql,
           })
           .from(mastraScorers)
           .where(eq(mastraScorers.source, 'LIVE'))
@@ -257,12 +257,12 @@ export const evalsHandlers = new Hono()
 
     return c.json(rows);
   })
-  /** GET /evals/conversation-scores — batch quality scores for conversation list */
-  .get('/evals/conversation-scores', async (c) => {
+  /** GET /evals/interaction-scores — batch quality scores for interaction list */
+  .get('/evals/interaction-scores', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
-    const idsParam = c.req.query('conversationIds');
+    const idsParam = c.req.query('interactionIds');
     if (!idsParam) return c.json({});
 
     const ids = idsParam.split(',').filter(Boolean).slice(0, 100);
@@ -272,20 +272,25 @@ export const evalsHandlers = new Hono()
       () =>
         db
           .select({
-            convId,
+            interactionId: interactionIdSql,
             avgScore: avg(mastraScorers.score).mapWith(Number),
             scoreCount: count(),
           })
           .from(mastraScorers)
-          .where(and(eq(mastraScorers.source, 'LIVE'), inArray(convId, ids)))
-          .groupBy(convId),
+          .where(
+            and(
+              eq(mastraScorers.source, 'LIVE'),
+              inArray(interactionIdSql, ids),
+            ),
+          )
+          .groupBy(interactionIdSql),
       [],
     );
 
     const result: Record<string, { avgScore: number; count: number }> = {};
     for (const row of rows) {
-      if (row.convId) {
-        result[row.convId] = {
+      if (row.interactionId) {
+        result[row.interactionId] = {
           avgScore: row.avgScore,
           count: row.scoreCount,
         };
@@ -293,12 +298,12 @@ export const evalsHandlers = new Hono()
     }
     return c.json(result);
   })
-  /** GET /evals/conversation/:conversationId/scores — individual scores for a conversation */
-  .get('/evals/conversation/:conversationId/scores', async (c) => {
+  /** GET /evals/interaction/:interactionId/scores — individual scores for an interaction */
+  .get('/evals/interaction/:interactionId/scores', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
-    const conversationId = c.req.param('conversationId');
+    const interactionId = c.req.param('interactionId');
 
     const rows = await safeScorersQuery(
       () =>
@@ -313,7 +318,10 @@ export const evalsHandlers = new Hono()
           })
           .from(mastraScorers)
           .where(
-            and(eq(mastraScorers.source, 'LIVE'), eq(convId, conversationId)),
+            and(
+              eq(mastraScorers.source, 'LIVE'),
+              eq(interactionIdSql, interactionId),
+            ),
           )
           .orderBy(desc(mastraScorers.createdAt)),
       [],
@@ -341,7 +349,7 @@ export const evalsHandlers = new Hono()
           .select({
             avgScore: avg(mastraScorers.score).mapWith(Number),
             totalScores: count(),
-            conversationsScored: countDistinct(convId),
+            interactionsScored: countDistinct(interactionIdSql),
           })
           .from(mastraScorers)
           .where(liveAfterCutoff),
@@ -349,7 +357,7 @@ export const evalsHandlers = new Hono()
         {
           avgScore: null as unknown as number,
           totalScores: 0,
-          conversationsScored: 0,
+          interactionsScored: 0,
         },
       ],
     );
@@ -383,19 +391,19 @@ export const evalsHandlers = new Hono()
       .from(messageFeedback)
       .where(gte(messageFeedback.createdAt, cutoff));
 
-    // Worst conversations (lowest avg score)
-    const worstConversations = await safeScorersQuery(
+    // Worst interactions (lowest avg score)
+    const worstInteractions = await safeScorersQuery(
       () =>
         db
           .select({
-            conversationId: convId,
+            interactionId: interactionIdSql,
             avgScore: avg(mastraScorers.score).mapWith(Number),
             scoreCount: count(),
             lastScored: max(mastraScorers.createdAt),
           })
           .from(mastraScorers)
-          .where(and(liveAfterCutoff, isNotNull(convId)))
-          .groupBy(convId)
+          .where(and(liveAfterCutoff, isNotNull(interactionIdSql)))
+          .groupBy(interactionIdSql)
           .orderBy(avg(mastraScorers.score))
           .limit(20),
       [],
@@ -404,7 +412,7 @@ export const evalsHandlers = new Hono()
     return c.json({
       avgScore: scoreStats?.avgScore ?? null,
       totalScores: scoreStats?.totalScores ?? 0,
-      conversationsScored: scoreStats?.conversationsScored ?? 0,
+      interactionsScored: scoreStats?.interactionsScored ?? 0,
       feedback: {
         positive: feedbackStats?.positive ?? 0,
         negative: feedbackStats?.negative ?? 0,
@@ -414,8 +422,8 @@ export const evalsHandlers = new Hono()
         avgScore: r.avgScore,
         count: r.count,
       })),
-      worstConversations: worstConversations.map((r) => ({
-        conversationId: r.conversationId,
+      worstInteractions: worstInteractions.map((r) => ({
+        interactionId: r.interactionId,
         avgScore: r.avgScore,
         scoreCount: r.scoreCount,
         lastScored: r.lastScored,

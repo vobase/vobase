@@ -49,7 +49,7 @@ export const guardrailsHandlers = new Hono()
         channel: aiModerationLogs.channel,
         userId: aiModerationLogs.userId,
         contactId: aiModerationLogs.contactId,
-        conversationId: aiModerationLogs.threadId,
+        interactionId: aiModerationLogs.threadId,
         reason: aiModerationLogs.reason,
         blockedContent: aiModerationLogs.blockedContent,
         matchedTerm: aiModerationLogs.matchedTerm,

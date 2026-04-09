@@ -8,7 +8,7 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  conversations,
+  interactions,
   messages,
 } from '../schema';
 import { createActivityMessage, insertMessage } from './messages';
@@ -45,7 +45,7 @@ beforeEach(async () => {
     agentId: 'booking',
   });
 
-  await db.insert(conversations).values({
+  await db.insert(interactions).values({
     id: 'conv-1',
     channelRoutingId: 'cr-1',
     contactId: 'contact-1',
@@ -59,7 +59,7 @@ beforeEach(async () => {
 describe('insertMessage', () => {
   it('creates a message row and returns it', async () => {
     const msg = await insertMessage(db, mockRealtime, {
-      conversationId: 'conv-1',
+      interactionId: 'conv-1',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Hello from agent',
@@ -80,9 +80,9 @@ describe('insertMessage', () => {
     expect(row.content).toBe('Hello from agent');
   });
 
-  it('updates conversation denormalized fields (lastMessageContent, lastMessageAt, lastMessageType)', async () => {
+  it('updates interaction denormalized fields (lastMessageContent, lastMessageAt, lastMessageType)', async () => {
     await insertMessage(db, mockRealtime, {
-      conversationId: 'conv-1',
+      interactionId: 'conv-1',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Denorm update test',
@@ -92,8 +92,8 @@ describe('insertMessage', () => {
 
     const [conv] = await db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, 'conv-1'));
+      .from(interactions)
+      .where(eq(interactions.id, 'conv-1'));
 
     expect(conv.lastMessageContent).toBe('Denorm update test');
     expect(conv.lastMessageAt).not.toBeNull();
@@ -101,14 +101,14 @@ describe('insertMessage', () => {
   });
 
   it('increments unreadCount for incoming messages in human mode', async () => {
-    // Switch conversation to human mode
+    // Switch interaction to human mode
     await db
-      .update(conversations)
+      .update(interactions)
       .set({ mode: 'human' })
-      .where(eq(conversations.id, 'conv-1'));
+      .where(eq(interactions.id, 'conv-1'));
 
     await insertMessage(db, mockRealtime, {
-      conversationId: 'conv-1',
+      interactionId: 'conv-1',
       messageType: 'incoming',
       contentType: 'text',
       content: 'Customer message',
@@ -118,16 +118,16 @@ describe('insertMessage', () => {
 
     const [conv] = await db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, 'conv-1'));
+      .from(interactions)
+      .where(eq(interactions.id, 'conv-1'));
 
     expect(conv.unreadCount).toBe(1);
   });
 
   it('does NOT increment unreadCount for incoming messages in ai mode', async () => {
-    // conversation is already in 'ai' mode from seed
+    // interaction is already in 'ai' mode from seed
     await insertMessage(db, mockRealtime, {
-      conversationId: 'conv-1',
+      interactionId: 'conv-1',
       messageType: 'incoming',
       contentType: 'text',
       content: 'Customer message in AI mode',
@@ -137,20 +137,20 @@ describe('insertMessage', () => {
 
     const [conv] = await db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, 'conv-1'));
+      .from(interactions)
+      .where(eq(interactions.id, 'conv-1'));
 
     expect(conv.unreadCount).toBe(0);
   });
 
   it('does NOT increment unreadCount for outgoing messages', async () => {
     await db
-      .update(conversations)
+      .update(interactions)
       .set({ mode: 'human' })
-      .where(eq(conversations.id, 'conv-1'));
+      .where(eq(interactions.id, 'conv-1'));
 
     await insertMessage(db, mockRealtime, {
-      conversationId: 'conv-1',
+      interactionId: 'conv-1',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Agent reply',
@@ -160,8 +160,8 @@ describe('insertMessage', () => {
 
     const [conv] = await db
       .select()
-      .from(conversations)
-      .where(eq(conversations.id, 'conv-1'));
+      .from(interactions)
+      .where(eq(interactions.id, 'conv-1'));
 
     expect(conv.unreadCount).toBe(0);
   });
@@ -170,8 +170,8 @@ describe('insertMessage', () => {
 describe('createActivityMessage', () => {
   it('creates an activity-type message with eventType in contentData', async () => {
     const msg = await createActivityMessage(db, mockRealtime, {
-      conversationId: 'conv-1',
-      eventType: 'conversation.escalated',
+      interactionId: 'conv-1',
+      eventType: 'interaction.escalated',
       actor: 'agent-1',
       actorType: 'agent',
       data: { reason: 'customer request' },
@@ -179,9 +179,9 @@ describe('createActivityMessage', () => {
 
     expect(msg.messageType).toBe('activity');
     expect(msg.contentType).toBe('system');
-    expect(msg.content).toBe('conversation.escalated');
+    expect(msg.content).toBe('interaction.escalated');
     expect((msg.contentData as Record<string, unknown>).eventType).toBe(
-      'conversation.escalated',
+      'interaction.escalated',
     );
     expect((msg.contentData as Record<string, unknown>).actor).toBe('agent-1');
 
@@ -194,8 +194,8 @@ describe('createActivityMessage', () => {
 
   it('createActivityMessage with resolutionStatus="pending" sets the column', async () => {
     const msg = await createActivityMessage(db, mockRealtime, {
-      conversationId: 'conv-1',
-      eventType: 'conversation.needs_review',
+      interactionId: 'conv-1',
+      eventType: 'interaction.needs_review',
       resolutionStatus: 'pending',
     });
 

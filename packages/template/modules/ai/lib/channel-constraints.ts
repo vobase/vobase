@@ -22,6 +22,8 @@ interface ChannelConstraints {
   /** Messaging window in hours after last user message. null = no window limit. */
   messagingWindowHours: number | null;
   supportsTypingIndicators: boolean;
+  /** Idle window in ms — resolved interactions within this window can be reopened. */
+  idleWindowMs: number;
 }
 
 /** @lintignore */
@@ -40,6 +42,7 @@ export const CHANNEL_CONSTRAINTS: Record<string, ChannelConstraints> = {
     supportsReadReceipts: true,
     messagingWindowHours: 24,
     supportsTypingIndicators: false,
+    idleWindowMs: 86_400_000, // 24h
   },
   web: {
     maxButtons: null,
@@ -55,6 +58,23 @@ export const CHANNEL_CONSTRAINTS: Record<string, ChannelConstraints> = {
     supportsReadReceipts: false,
     messagingWindowHours: null,
     supportsTypingIndicators: true,
+    idleWindowMs: 1_800_000, // 30min
+  },
+  email: {
+    maxButtons: null,
+    maxButtonLabelLength: 100,
+    maxBodyLength: 50000,
+    supportsMarkdown: true,
+    name: 'Email',
+    supportsLists: false,
+    maxListItems: null,
+    supportsMedia: ['image', 'document'],
+    supportsTemplates: false,
+    supportsReactions: false,
+    supportsReadReceipts: false,
+    messagingWindowHours: null,
+    supportsTypingIndicators: false,
+    idleWindowMs: 259_200_000, // 72h
   },
   telegram: {
     maxButtons: 8,
@@ -70,6 +90,7 @@ export const CHANNEL_CONSTRAINTS: Record<string, ChannelConstraints> = {
     supportsReadReceipts: true,
     messagingWindowHours: null,
     supportsTypingIndicators: true,
+    idleWindowMs: 86_400_000, // 24h (same as WhatsApp)
   },
 };
 

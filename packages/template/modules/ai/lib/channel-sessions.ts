@@ -2,10 +2,10 @@
  * Channel session management — tracks messaging window state.
  *
  * WhatsApp enforces a 24-hour messaging window after the last inbound message.
- * This module tracks window open/close state per conversation + channel instance.
+ * This module tracks window open/close state per interaction + channel instance.
  */
 import type { VobaseDb } from '@vobase/core';
-import { and, eq, lt, sql } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 
 import { channelSessions } from '../schema';
 
@@ -18,7 +18,7 @@ const WINDOW_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 export async function upsertSession(
   db: VobaseDb,
   params: {
-    conversationId: string;
+    interactionId: string;
     channelInstanceId: string;
     channelType: string;
   },
@@ -29,7 +29,7 @@ export async function upsertSession(
   await db
     .insert(channelSessions)
     .values({
-      conversationId: params.conversationId,
+      interactionId: params.interactionId,
       channelInstanceId: params.channelInstanceId,
       channelType: params.channelType,
       sessionState: 'window_open',
@@ -38,7 +38,7 @@ export async function upsertSession(
     })
     .onConflictDoUpdate({
       target: [
-        channelSessions.conversationId,
+        channelSessions.interactionId,
         channelSessions.channelInstanceId,
       ],
       set: {
@@ -51,12 +51,12 @@ export async function upsertSession(
 }
 
 /**
- * Check if a messaging window is open for a conversation.
+ * Check if a messaging window is open for an interaction.
  * Returns { isOpen, expiresAt } based on the most recent session record.
  */
 export async function checkWindow(
   db: VobaseDb,
-  conversationId: string,
+  interactionId: string,
 ): Promise<{ isOpen: boolean; expiresAt: Date | null }> {
   const [session] = await db
     .select({
@@ -64,7 +64,7 @@ export async function checkWindow(
       windowExpiresAt: channelSessions.windowExpiresAt,
     })
     .from(channelSessions)
-    .where(eq(channelSessions.conversationId, conversationId))
+    .where(eq(channelSessions.interactionId, interactionId))
     .limit(1);
 
   if (!session) {

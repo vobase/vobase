@@ -2,7 +2,7 @@ import { getCtx, unauthorized } from '@vobase/core';
 import { count, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
-import { consultations, conversations } from '../schema';
+import { consultations, interactions } from '../schema';
 
 export const statsHandlers = new Hono()
   /** GET /stats — Per-agent consultation count + error rate for dashboard. */
@@ -10,30 +10,27 @@ export const statsHandlers = new Hono()
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
-    // Per-agent conversation counts (total + failed)
-    const conversationStats = await db
+    // Per-agent interaction counts (total + failed)
+    const interactionStats = await db
       .select({
-        agentId: conversations.agentId,
+        agentId: interactions.agentId,
         total: count(),
         failed: count(
-          sql`CASE WHEN ${conversations.status} = 'failed' THEN 1 END`,
+          sql`CASE WHEN ${interactions.status} = 'failed' THEN 1 END`,
         ),
       })
-      .from(conversations)
-      .groupBy(conversations.agentId);
+      .from(interactions)
+      .groupBy(interactions.agentId);
 
-    // Per-agent consultation counts (via conversation → consultation join)
+    // Per-agent consultation counts (via interaction → consultation join)
     const consultationStats = await db
       .select({
-        agentId: conversations.agentId,
+        agentId: interactions.agentId,
         consultations: count(),
       })
       .from(consultations)
-      .innerJoin(
-        conversations,
-        eq(consultations.conversationId, conversations.id),
-      )
-      .groupBy(conversations.agentId);
+      .innerJoin(interactions, eq(consultations.interactionId, interactions.id))
+      .groupBy(interactions.agentId);
 
     // Merge into a map
     const statsMap = new Map<
@@ -46,7 +43,7 @@ export const statsHandlers = new Hono()
       }
     >();
 
-    for (const row of conversationStats) {
+    for (const row of interactionStats) {
       statsMap.set(row.agentId, {
         total: Number(row.total),
         failed: Number(row.failed),

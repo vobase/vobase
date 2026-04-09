@@ -11,16 +11,16 @@ import { z } from 'zod';
 import { getMemory } from '../../../mastra';
 import { getAgent } from '../../../mastra/agents';
 import { streamChat } from '../lib/chat-stream';
-import { completeConversation, createConversation } from '../lib/conversation';
+import { createInteraction, resolveInteraction } from '../lib/interaction';
 import {
   channelInstances,
   channelRoutings,
   contacts,
-  conversations,
+  interactions,
 } from '../schema';
 
 const chatSchema = z.object({
-  conversationId: z.string().optional(),
+  interactionId: z.string().optional(),
   agentId: z.string().min(1),
   messages: z.array(
     z.object({
@@ -101,7 +101,7 @@ async function upsertContact(
 }
 
 export const chatHandlers = new Hono()
-  /** POST /chat — Web chat: stream agent response. Creates conversation if needed. */
+  /** POST /chat — Web chat: stream agent response. Creates interaction if needed. */
   .post('/chat', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
@@ -112,12 +112,12 @@ export const chatHandlers = new Hono()
     const registered = getAgent(body.agentId);
     if (!registered) throw notFound('Agent not found');
 
-    // Resolve or create conversation
-    let conversationId = body.conversationId;
+    // Resolve or create interaction
+    let interactionId = body.interactionId;
     let contactId: string;
 
-    if (!conversationId) {
-      // New conversation — create contact for authenticated user
+    if (!interactionId) {
+      // New interaction — create contact for authenticated user
       contactId = await upsertContact(db, {
         userId: user.id,
         role: 'staff',
@@ -160,7 +160,7 @@ export const chatHandlers = new Hono()
       }
 
       const { scheduler, realtime } = getCtx(c);
-      const conversation = await createConversation(
+      const interaction = await createInteraction(
         { db, scheduler, realtime },
         {
           channelRoutingId: channelRouting.id,
@@ -169,31 +169,31 @@ export const chatHandlers = new Hono()
           channelInstanceId: webInstance.id,
         },
       );
-      conversationId = conversation.id;
+      interactionId = interaction.id;
     } else {
-      // Existing conversation — read contactId + mode in one query
-      const [conv] = await db
+      // Existing interaction — read contactId + mode in one query
+      const [existing] = await db
         .select({
-          contactId: conversations.contactId,
-          mode: conversations.mode,
+          contactId: interactions.contactId,
+          mode: interactions.mode,
         })
-        .from(conversations)
-        .where(eq(conversations.id, conversationId));
+        .from(interactions)
+        .where(eq(interactions.id, interactionId));
 
-      if (!conv) throw notFound('Conversation not found');
+      if (!existing) throw notFound('Interaction not found');
 
-      if (conv.mode === 'human' || conv.mode === 'held') {
+      if (existing.mode === 'human' || existing.mode === 'held') {
         return c.json(
           {
             error:
-              'Conversation is in human/held mode — AI responses are disabled',
+              'Interaction is in human/held mode — AI responses are disabled',
           },
           403,
         );
       }
 
-      if (!conv.contactId) throw notFound('Conversation has no contact');
-      contactId = conv.contactId;
+      if (!existing.contactId) throw notFound('Interaction has no contact');
+      contactId = existing.contactId;
     }
 
     // Extract last user message for streaming
@@ -203,7 +203,7 @@ export const chatHandlers = new Hono()
     // Stream response
     const result = await streamChat({
       db,
-      conversationId: conversationId,
+      interactionId: interactionId,
       message: lastUserMessage,
       agentId: body.agentId,
       resourceId: `contact:${contactId}`,
@@ -223,11 +223,11 @@ export const chatHandlers = new Hono()
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
-        'X-Conversation-Id': conversationId,
+        'X-Interaction-Id': interactionId,
       },
     });
   })
-  /** POST /chat/:channelRoutingId/start — Start or resume a public chat conversation. */
+  /** POST /chat/:channelRoutingId/start — Start or resume a public chat interaction. */
   .post('/chat/:channelRoutingId/start', async (c) => {
     const { db, user, scheduler, realtime } = getCtx(c);
     if (!user) throw unauthorized();
@@ -257,27 +257,27 @@ export const chatHandlers = new Hono()
     // Upsert visitor contact from session user
     const contactId = await upsertContact(db, { userId: user.id });
 
-    // Check for existing active conversation for this visitor + channel routing
-    const [existingConversation] = await db
+    // Check for existing active interaction for this visitor + channel routing
+    const [existingInteraction] = await db
       .select()
-      .from(conversations)
+      .from(interactions)
       .where(
         and(
-          eq(conversations.channelRoutingId, channelRoutingId),
-          eq(conversations.contactId, contactId),
-          eq(conversations.status, 'active'),
+          eq(interactions.channelRoutingId, channelRoutingId),
+          eq(interactions.contactId, contactId),
+          eq(interactions.status, 'active'),
         ),
       );
 
-    if (existingConversation) {
+    if (existingInteraction) {
       return c.json({
-        conversationId: existingConversation.id,
-        agentId: existingConversation.agentId,
+        interactionId: existingInteraction.id,
+        agentId: existingInteraction.agentId,
       });
     }
 
-    // Create new conversation
-    const conversation = await createConversation(
+    // Create new interaction
+    const interaction = await createInteraction(
       { db, scheduler, realtime },
       {
         channelRoutingId: channelRouting.id,
@@ -288,42 +288,42 @@ export const chatHandlers = new Hono()
     );
 
     return c.json({
-      conversationId: conversation.id,
-      agentId: conversation.agentId,
+      interactionId: interaction.id,
+      agentId: interaction.agentId,
     });
   })
-  /** GET /chat/:channelRoutingId/conversations/:conversationId — Load message history. */
-  .get('/chat/:channelRoutingId/conversations/:conversationId', async (c) => {
+  /** GET /chat/:channelRoutingId/interactions/:interactionId — Load message history. */
+  .get('/chat/:channelRoutingId/interactions/:interactionId', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
     const channelRoutingId = c.req.param('channelRoutingId');
-    const conversationId = c.req.param('conversationId');
+    const interactionId = c.req.param('interactionId');
 
-    // Verify the conversation belongs to this channel routing
-    const [conversation] = await db
+    // Verify the interaction belongs to this channel routing
+    const [interaction] = await db
       .select()
-      .from(conversations)
+      .from(interactions)
       .where(
         and(
-          eq(conversations.id, conversationId),
-          eq(conversations.channelRoutingId, channelRoutingId),
+          eq(interactions.id, interactionId),
+          eq(interactions.channelRoutingId, channelRoutingId),
         ),
       );
 
-    if (!conversation) throw notFound('Conversation not found');
+    if (!interaction) throw notFound('Interaction not found');
 
-    // Verify visitor owns this conversation
+    // Verify visitor owns this interaction
     const [contact] = await db
       .select({ id: contacts.id })
       .from(contacts)
       .where(eq(contacts.identifier, `user:${user.id}`));
 
-    if (!contact || contact.id !== conversation.contactId) throw unauthorized();
+    if (!contact || contact.id !== interaction.contactId) throw unauthorized();
 
     // Load messages from Mastra Memory
     try {
       const memory = getMemory();
-      const result = await memory.recall({ threadId: conversationId });
+      const result = await memory.recall({ threadId: interactionId });
       const messages = (result?.messages ?? [])
         .filter((m) => {
           // Filter out internal notes from public chat history
@@ -404,22 +404,22 @@ export const chatHandlers = new Hono()
         });
 
       return c.json({
-        id: conversation.id,
+        id: interaction.id,
         title: null,
-        agentId: conversation.agentId,
+        agentId: interaction.agentId,
         messages,
       });
     } catch {
       // Memory unavailable — return empty
       return c.json({
-        id: conversation.id,
+        id: interaction.id,
         title: null,
-        agentId: conversation.agentId,
+        agentId: interaction.agentId,
         messages: [],
       });
     }
   })
-  /** POST /chat/:channelRoutingId/reset — Reset: complete current conversation + start a new one. */
+  /** POST /chat/:channelRoutingId/reset — Reset: resolve current interaction + start a new one. */
   .post('/chat/:channelRoutingId/reset', async (c) => {
     const { db, user, scheduler, realtime } = getCtx(c);
     if (!user) throw unauthorized();
@@ -441,29 +441,24 @@ export const chatHandlers = new Hono()
     // Resolve visitor contact from session
     const contactId = await upsertContact(db, { userId: user.id });
 
-    // Complete any active conversation for this visitor + channel routing
-    const [activeConversation] = await db
-      .select({ id: conversations.id })
-      .from(conversations)
+    // Resolve any active interaction for this visitor + channel routing
+    const [activeInteraction] = await db
+      .select({ id: interactions.id })
+      .from(interactions)
       .where(
         and(
-          eq(conversations.channelRoutingId, channelRoutingId),
-          eq(conversations.contactId, contactId),
-          eq(conversations.status, 'active'),
+          eq(interactions.channelRoutingId, channelRoutingId),
+          eq(interactions.contactId, contactId),
+          eq(interactions.status, 'active'),
         ),
       );
 
-    if (activeConversation) {
-      await completeConversation(
-        db,
-        activeConversation.id,
-        realtime,
-        'abandoned',
-      );
+    if (activeInteraction) {
+      await resolveInteraction(db, activeInteraction.id, realtime, 'abandoned');
     }
 
-    // Create fresh conversation
-    const conversation = await createConversation(
+    // Create fresh interaction
+    const interaction = await createInteraction(
       { db, scheduler, realtime },
       {
         channelRoutingId: channelRouting.id,
@@ -474,8 +469,8 @@ export const chatHandlers = new Hono()
     );
 
     return c.json({
-      conversationId: conversation.id,
-      agentId: conversation.agentId,
+      interactionId: interaction.id,
+      agentId: interaction.agentId,
     });
   })
   /** POST /chat/:channelRoutingId/stream — Stream agent response for public chat. */
@@ -492,26 +487,26 @@ export const chatHandlers = new Hono()
 
     if (!contact) throw unauthorized();
 
-    // Find the active conversation for this visitor + channel routing
-    const [conversation] = await db
+    // Find the active interaction for this visitor + channel routing
+    const [interaction] = await db
       .select()
-      .from(conversations)
+      .from(interactions)
       .where(
         and(
-          eq(conversations.channelRoutingId, channelRoutingId),
-          eq(conversations.contactId, contact.id),
-          eq(conversations.status, 'active'),
+          eq(interactions.channelRoutingId, channelRoutingId),
+          eq(interactions.contactId, contact.id),
+          eq(interactions.status, 'active'),
         ),
       );
 
-    if (!conversation) throw notFound('No active conversation');
+    if (!interaction) throw notFound('No active interaction');
 
     // Check handler mode
-    if (conversation.mode === 'human' || conversation.mode === 'held') {
+    if (interaction.mode === 'human' || interaction.mode === 'held') {
       return c.json(
         {
           error:
-            'Conversation is in human/held mode — AI responses are disabled',
+            'Interaction is in human/held mode — AI responses are disabled',
         },
         403,
       );
@@ -539,15 +534,15 @@ export const chatHandlers = new Hono()
     // Stream via Mastra agent with memory (auto-persists messages)
     const result = await streamChat({
       db,
-      conversationId: conversation.id,
+      interactionId: interaction.id,
       message: lastUserMsg,
-      agentId: conversation.agentId,
+      agentId: interaction.agentId,
       resourceId: `contact:${contact.id}`,
       contactId: contact.id,
     });
 
     // Bridge to AI SDK v6 UIMessageStream format
-    const conversationIdForNotify = conversation.id;
+    const interactionIdForNotify = interaction.id;
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         for await (const part of toAISdkStream(result, {
@@ -560,8 +555,8 @@ export const chatHandlers = new Hono()
         }
         // Notify staff view that messages have been updated
         realtime.notify({
-          table: 'conversations-messages',
-          id: conversationIdForNotify,
+          table: 'interactions-messages',
+          id: interactionIdForNotify,
         });
       },
     });

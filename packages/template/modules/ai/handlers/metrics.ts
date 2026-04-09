@@ -3,7 +3,7 @@ import { and, count, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { listAgents } from '../../../mastra/agents';
-import { conversations, messages } from '../schema';
+import { interactions, messages } from '../schema';
 
 export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
   const { db, user } = getCtx(c);
@@ -14,43 +14,44 @@ export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
   // Active sessions per agent
   const activeCounts = await db
     .select({
-      agentId: conversations.agentId,
+      agentId: interactions.agentId,
       activeCount: count(),
     })
-    .from(conversations)
-    .where(eq(conversations.status, 'active'))
-    .groupBy(conversations.agentId);
+    .from(interactions)
+    .where(eq(interactions.status, 'active'))
+    .groupBy(interactions.agentId);
 
-  // Queued outgoing messages per agent (via conversation join)
+  // Queued outgoing messages per agent (via interaction join)
   const queuedCounts = await db
     .select({
-      agentId: conversations.agentId,
+      agentId: interactions.agentId,
       queuedCount: count(),
     })
     .from(messages)
-    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .innerJoin(interactions, eq(messages.interactionId, interactions.id))
     .where(
       and(eq(messages.messageType, 'outgoing'), eq(messages.status, 'queued')),
     )
-    .groupBy(conversations.agentId);
+    .groupBy(interactions.agentId);
 
-  // Weighted success score per agent
-  // resolved=1.0, escalated_resolved=0.5, failed=0.0, abandoned=0.0
+  // Weighted success score per agent (outcome-based)
+  // resolved=1.0, escalated=0.5, failed=0.0, abandoned=0.0
+  // Exclude topic_change outcomes — they represent continuations, not resolutions
   const successScores = await db
     .select({
-      agentId: conversations.agentId,
+      agentId: interactions.agentId,
       score: sql<number>`
-          CASE WHEN COUNT(*) FILTER (WHERE ${conversations.resolutionOutcome} IS NOT NULL) = 0 THEN 0
+          CASE WHEN COUNT(*) FILTER (WHERE ${interactions.outcome} IS NOT NULL AND ${interactions.outcome} != 'topic_change') = 0 THEN 0
           ELSE (
-            COUNT(*) FILTER (WHERE ${conversations.resolutionOutcome} = 'resolved') * 1.0 +
-            COUNT(*) FILTER (WHERE ${conversations.resolutionOutcome} = 'escalated_resolved') * 0.5
-          ) / NULLIF(COUNT(*) FILTER (WHERE ${conversations.resolutionOutcome} IS NOT NULL), 0)
+            COUNT(*) FILTER (WHERE ${interactions.outcome} = 'resolved') * 1.0 +
+            COUNT(*) FILTER (WHERE ${interactions.outcome} = 'escalated') * 0.5
+          ) / NULLIF(COUNT(*) FILTER (WHERE ${interactions.outcome} IS NOT NULL AND ${interactions.outcome} != 'topic_change'), 0)
           END
         `.as('score'),
     })
-    .from(conversations)
-    .where(sql`${conversations.status} IN ('completed', 'failed')`)
-    .groupBy(conversations.agentId);
+    .from(interactions)
+    .where(sql`${interactions.status} IN ('resolved', 'failed')`)
+    .groupBy(interactions.agentId);
 
   // Merge results
   const activeMap = new Map(
