@@ -106,13 +106,15 @@ function LabelFormDialog({
               placeholder="Optional description"
             />
           </div>
-          <div className="space-y-1.5">
-            <span className="text-sm font-medium">Color</span>
+          <fieldset className="space-y-1.5">
+            <legend className="text-sm font-medium">Color</legend>
             <div className="flex flex-wrap gap-2">
               {COLOR_PRESETS.map((c) => (
                 <button
                   key={c}
                   type="button"
+                  aria-pressed={color === c}
+                  aria-label={`Color ${c}`}
                   className={`h-7 w-7 rounded-full border-2 transition-all ${
                     color === c
                       ? 'border-foreground scale-110'
@@ -123,7 +125,7 @@ function LabelFormDialog({
                 />
               ))}
             </div>
-          </div>
+          </fieldset>
         </div>
         <DialogFooter>
           <Button

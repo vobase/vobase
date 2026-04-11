@@ -8,6 +8,8 @@ import {
   useState,
 } from 'react';
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { AvatarGroup } from '@/components/ui/avatar-group';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -102,24 +104,6 @@ function getInitials(name: string | null): string {
     .slice(0, 2);
 }
 
-/** Tiny avatar for reactor display */
-function MiniAvatar({ reactor }: { reactor: Reactor }) {
-  if (reactor.userImage) {
-    return (
-      <img
-        src={reactor.userImage}
-        alt={reactor.userName ?? ''}
-        className="size-[18px] rounded-full object-cover ring-1 ring-background"
-      />
-    );
-  }
-  return (
-    <span className="inline-flex size-[18px] items-center justify-center rounded-full bg-muted text-[8px] leading-none text-muted-foreground ring-1 ring-background">
-      {getInitials(reactor.userName)}
-    </span>
-  );
-}
-
 /** Avatar cluster showing who reacted */
 function ReactorAvatars({
   reactors,
@@ -148,16 +132,18 @@ function ReactorAvatars({
               'border-red-200/60 bg-red-50/50 dark:border-red-800/60 dark:bg-red-950/30',
           )}
         >
-          <span className="flex -space-x-1">
-            {reactors.slice(0, 3).map((r) => (
-              <MiniAvatar key={r.id} reactor={r} />
+          <AvatarGroup max={4} size={18}>
+            {reactors.map((r) => (
+              <Avatar key={r.id} className="size-[18px] ring-1 ring-background">
+                {r.userImage ? (
+                  <AvatarImage src={r.userImage} alt={r.userName ?? ''} />
+                ) : null}
+                <AvatarFallback className="text-[8px]">
+                  {getInitials(r.userName)}
+                </AvatarFallback>
+              </Avatar>
             ))}
-          </span>
-          {reactors.length > 3 && (
-            <span className="text-xs text-muted-foreground">
-              +{reactors.length - 3}
-            </span>
-          )}
+          </AvatarGroup>
         </span>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="text-xs">
