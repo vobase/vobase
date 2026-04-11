@@ -71,7 +71,7 @@ One `bun create vobase` and you have a working full-stack app:
 | **Integrations** | Encrypted credential vault for external services (OAuth providers, APIs). AES-256-GCM at rest. Platform-aware: opt-in multi-tenant OAuth handoff via HMAC-signed JWT. |
 | **Jobs** | Background tasks with retries, cron, and job chains. **pg-boss** backed — Postgres only, no Redis. |
 | **Knowledge Base** | Upload PDF, DOCX, XLSX, PPTX, images, HTML. Auto-extract to Markdown, chunk, embed, and search. Hybrid search with RRF + HyDE. Gemini OCR for scanned docs. |
-| **AI Agents** | Declarative agents via [Mastra](https://mastra.ai) in a top-level `mastra/` directory. Multi-provider (OpenAI, Anthropic, Google). Tools, workflows, memory processors, eval scorers, conversation state machine. Embedded **Mastra Studio** at `/studio` for dev. Frontend stays on AI SDK `useChat`. |
+| **AI Agents** | Declarative agents via [Mastra](https://mastra.ai) inside the `agents` module. Multi-provider (OpenAI, Anthropic, Google). Tools, workflows, memory processors, eval scorers, guardrails. Embedded **Mastra Studio** at `/studio` for dev. Frontend stays on AI SDK `useChat`. |
 | **Frontend** | **React + TanStack Router + shadcn/ui + Tailwind v4**. Type-safe routing with codegen, code-splitting. You own the component source — no tailwind.config.js needed. |
 | **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
 | **MCP** | Module-aware tools with API key auth via **@modelcontextprotocol/sdk**. AI tools can read your schema, list modules, and view logs before generating code. Same process, shared port. |
@@ -362,7 +362,7 @@ Docker container (--restart=always)
         ├── Hono server
         │     ├── /auth/*       → better-auth (sessions, passwords, CSRF)
         │     ├── /api/*        → module handlers (session-validated)
-        │     ├── /api/mastra/* → Mastra agent/tool/workflow API
+        │     ├── /api/agents/*  → Mastra agent/tool/workflow API
         │     ├── /studio       → Mastra Studio SPA (dev-only)
         │     ├── /mcp          → MCP server (same process, shared port)
         │     ├── /webhooks/*   → inbound event receiver (signature verified, dedup)
@@ -464,30 +464,40 @@ my-app/
   vobase.config.ts        ← database URL, auth, connections, webhooks
   vite.config.ts          ← Vite + TanStack Router + path aliases
   index.html
-  server.ts               ← createApp() entry + Mastra init + Studio mount
-  AGENTS.md               ← project context and guardrails
+  server.ts               ← createApp() entry
+  AGENTS.md               ← project context and guardrails (CLAUDE.md symlinks here)
   .agents/
     skills/
       integer-money/
         SKILL.md          ← core: all money as integer cents
-  mastra/                 ← Mastra primitives (follows Mastra project conventions)
-    index.ts              ← Mastra singleton: initMastra(), getMastra(), getMemory()
-    studio.ts             ← dev-only Studio SPA middleware
-    agents/               ← agent definitions (Mastra Agent instances)
-    tools/                ← RAG tools, escalation, etc.
-    workflows/            ← human-in-the-loop flows
-    processors/           ← input/output processors + EverMemOS memory pipeline
-    evals/                ← eval framework (scorers, runner)
-    mcp/                  ← AI module MCP server
-    lib/                  ← DI, model aliases, observability
   modules/
-    ai/                   ← AI conversations, agents, memory, evals, channels
-      index.ts            ← defineModule() — imports from ../../mastra/
-      schema.ts           ← conversations, mem_cells, episodes, facts, etc.
-      handlers/           ← chat, conversations, channels, contacts, evals, memory, etc.
-      jobs.ts             ← memory formation, eval runs, outbox delivery
-      lib/                ← state machine, chat bridge, channel reply, outbox
-      pages/              ← conversations, contacts, channels, AI config, evals
+    messaging/            ← conversations, contacts, channels, labels, state machine
+      index.ts            ← defineModule()
+      schema.ts           ← conversations, messages, contacts, channels, labels, etc.
+      handlers/           ← conversations, contacts, channels, labels, activity
+      jobs.ts             ← outbox delivery, channel sessions
+      lib/                ← state machine, channel reply, delivery, inbound
+      pages/              ← inbox, conversations, contacts, channels, labels
+      seed.ts             ← demo data
+    agents/               ← AI agents, evals, guardrails, memory, MCP
+      index.ts            ← defineModule()
+      schema.ts           ← moderation_logs (scorers use Mastra native storage)
+      handlers/           ← chat, agents, evals, guardrails, memory, metrics, MCP
+      jobs.ts             ← agent wake
+      mastra/             ← Mastra primitives
+        index.ts          ← Mastra singleton: initMastra(), getMastra(), getMemory()
+        studio.ts         ← dev-only Studio SPA middleware
+        agents/           ← agent definitions (Mastra Agent instances)
+        tools/            ← RAG tools, booking, conversation tools
+        processors/       ← input/output processors, moderation guardrail
+        evals/            ← code scorers, custom scorer factory
+        mcp/              ← AI module MCP server
+        storage/          ← VobaseMemoryStorage (hybrid Mastra + Vobase)
+        lib/              ← DI, model aliases, observability
+      pages/              ← evals dashboard, guardrails, memory
+    automation/           ← browser task automation
+      index.ts
+      pages/
     system/               ← ops dashboard
       index.ts            ← defineModule()
       handlers.ts         ← health, audit log, sequences, record audits

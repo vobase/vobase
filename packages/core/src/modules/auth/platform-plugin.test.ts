@@ -83,7 +83,8 @@ async function createTestDatabase() {
       "ip_address" TEXT,
       "user_agent" TEXT,
       "user_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE,
-      "active_organization_id" TEXT
+      "active_organization_id" TEXT,
+      "active_team_id" TEXT
     );
     CREATE TABLE IF NOT EXISTS "auth"."account" (
       "id" TEXT PRIMARY KEY NOT NULL,

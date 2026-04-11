@@ -142,6 +142,8 @@ export {
   authMember,
   authOrganization,
   authSession,
+  authTeam,
+  authTeamMember,
   authUser,
   authVerification,
 } from './modules/auth/schema';

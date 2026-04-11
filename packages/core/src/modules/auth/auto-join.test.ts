@@ -63,6 +63,7 @@ const ORG_TABLES_SQL = `
     "inviter_id" TEXT NOT NULL REFERENCES "auth"."user" ("id") ON DELETE CASCADE,
     "role" TEXT NOT NULL DEFAULT 'member',
     "status" TEXT NOT NULL DEFAULT 'pending',
+    "team_id" TEXT,
     "expires_at" TIMESTAMPTZ NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
