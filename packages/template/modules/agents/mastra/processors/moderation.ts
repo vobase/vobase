@@ -27,6 +27,9 @@ const MODERATION_NOTICE =
   '[Content moderated: message blocked by content policy]';
 
 /** Extract text content from a MastraDBMessage regardless of content format. */
+/** @internal exported for tests */
+export { extractText, MODERATION_NOTICE };
+
 function extractText(content: unknown): string {
   if (typeof content === 'string') return content;
   if (content && typeof content === 'object' && 'parts' in content) {
@@ -146,5 +149,3 @@ export function createModerationProcessor(
     },
   };
 }
-
-export { extractText, MODERATION_NOTICE };

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Safely parse a JSON text column, returning fallback on failure. */
-export function safeJsonParse(
+function safeJsonParse(
   value: string | null,
   fallback: unknown = null,
 ): unknown {

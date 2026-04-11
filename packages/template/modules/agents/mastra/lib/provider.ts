@@ -13,7 +13,7 @@ import { createOpenAI } from '@ai-sdk/openai';
  * Create an AI SDK OpenAI-compatible provider.
  * Routes through Bifrost when BIFROST_API_KEY is set.
  */
-export function createLLMProvider() {
+function createLLMProvider() {
   const bifrostKey = process.env.BIFROST_API_KEY;
   if (bifrostKey) {
     return createOpenAI({

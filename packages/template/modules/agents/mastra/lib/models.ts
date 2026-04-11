@@ -18,12 +18,3 @@ export type ModelId = (typeof models)[keyof typeof models];
 
 /** Embedding dimensions for text-embedding-3-small. */
 export const EMBEDDING_DIMENSIONS = 1536;
-
-/**
- * Extract the bare model name from a Mastra provider/model ID.
- * e.g. 'openai/gpt-5-mini' → 'gpt-5-mini'
- */
-export function bareModelName(modelId: string): string {
-  const slash = modelId.indexOf('/');
-  return slash === -1 ? modelId : modelId.slice(slash + 1);
-}
