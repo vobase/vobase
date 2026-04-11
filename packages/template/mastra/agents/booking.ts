@@ -10,14 +10,16 @@ import {
   bookSlotTool,
   cancelBookingTool,
   checkAvailabilityTool,
-  consultHumanTool,
-  escalateTool,
-  newTopicTool,
+  createDraftTool,
+  holdTool,
+  mentionTool,
+  reassignTool,
   rescheduleBookingTool,
-  resolveInteractionTool,
+  resolveConversationTool,
   searchKnowledgeBaseTool,
   sendCardTool,
   sendReminderTool,
+  topicMarkerTool,
 } from '../tools';
 
 export const bookingMeta: AgentMeta = {
@@ -37,14 +39,14 @@ export const bookingMeta: AgentMeta = {
 const FULL_AUTO_INSTRUCTIONS = `You are a booking assistant operating in full-auto mode. Handle the entire booking flow autonomously:
 - Check availability, book appointments, reschedule, and cancel without human intervention.
 - Send reminders for upcoming appointments using the send_reminder tool.
-- Only use consult_human when you encounter a situation that genuinely requires human judgment (e.g., special pricing, complex scheduling conflicts, customer complaints).
+- Only use mention when you need human guidance without transferring ownership, or reassign when the conversation should be handled by a human.
 - Always confirm details with the customer before finalizing a booking.
 - Be proactive: suggest alternative times if the requested slot is unavailable.`;
 
 const QUALIFY_THEN_HANDOFF_INSTRUCTIONS = `You are a booking assistant operating in qualify-then-handoff mode. Your role is to gather information and qualify the request, then hand off to a human for final decisions:
 - Collect the customer's preferred dates, times, and service type.
 - Check availability to narrow down options.
-- Once you have qualified the request (gathered all necessary details), use consult_human to hand off to a staff member with a summary of the customer's needs and available slots.
+- Once you have qualified the request (gathered all necessary details), use reassign to hand off to a staff member with a summary of the customer's needs and available slots.
 - Do NOT finalize bookings yourself — the human operator confirms and books.
 - Keep the customer informed that their request is being reviewed by a team member.
 - You may cancel or reschedule existing bookings if the customer explicitly requests it with clear details.`;
@@ -67,11 +69,13 @@ export const bookingAgent = new Agent({
     cancel_booking: cancelBookingTool,
     reschedule_booking: rescheduleBookingTool,
     send_reminder: sendReminderTool,
-    consult_human: consultHumanTool,
-    escalate: escalateTool,
+    mention: mentionTool,
+    reassign: reassignTool,
+    create_draft: createDraftTool,
+    hold: holdTool,
     send_card: sendCardTool,
-    resolve_interaction: resolveInteractionTool,
-    new_topic: newTopicTool,
+    resolve_conversation: resolveConversationTool,
+    topic_marker: topicMarkerTool,
   },
   defaultOptions: { maxSteps: 5 },
   inputProcessors: resolveInputProcessors,

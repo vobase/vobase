@@ -20,7 +20,6 @@ import {
   bookSlotTool,
   cancelBookingTool,
   checkAvailabilityTool,
-  consultHumanTool,
   rescheduleBookingTool,
   searchKnowledgeBaseTool,
   sendReminderTool,
@@ -28,7 +27,7 @@ import {
 
 /**
  * Working memory schema for the booking domain.
- * The agent updates this structured data via tool calls during an interaction.
+ * The agent updates this structured data via tool calls during a conversation.
  * Stored per-resource (contact) and persisted across threads.
  */
 const contactWorkingMemorySchema = z.object({
@@ -48,7 +47,7 @@ const contactWorkingMemorySchema = z.object({
     .optional(),
   notes: z.string().optional(),
   language: z.string().optional(),
-  lastInteractionSummary: z.string().optional(),
+  lastConversationSummary: z.string().optional(),
 });
 
 let mastraInstance: Mastra | undefined;
@@ -58,7 +57,7 @@ let memoryInstance: Memory | undefined;
  * Initialize the Mastra singleton with storage from the vobase db connection.
  * Called from the AI module init hook after setAiModuleDeps().
  *
- * Memory domain routes to VobaseMemoryStorage (interactions schema),
+ * Memory domain routes to VobaseMemoryStorage (conversations schema),
  * everything else (workflows, observability) uses PostgresStore.
  */
 export async function initMastra(db: { $client: unknown }): Promise<void> {
@@ -123,7 +122,6 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
       cancel_booking: cancelBookingTool,
       reschedule_booking: rescheduleBookingTool,
       send_reminder: sendReminderTool,
-      consult_human: consultHumanTool,
     },
     workflows: {},
     memory: { 'agent-memory': memoryInstance },

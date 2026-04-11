@@ -5,10 +5,10 @@ import type { ModuleDeps } from '../../modules/ai/lib/deps';
 import { getModuleDeps } from '../../modules/ai/lib/deps';
 import { transition } from '../../modules/ai/lib/state-machine';
 
-export const resolveInteractionTool = createTool({
-  id: 'resolve_interaction',
+export const resolveConversationTool = createTool({
+  id: 'resolve_conversation',
   description:
-    'Mark the current interaction as resolved. The interaction will be completed after the current response is delivered.',
+    'Mark the current conversation as resolved. The conversation will be completed after the current response is delivered.',
   inputSchema: z.object({
     summary: z.string().optional().describe('Brief summary of the resolution'),
   }),
@@ -21,15 +21,15 @@ export const resolveInteractionTool = createTool({
       (context?.requestContext?.get('deps') as ModuleDeps | undefined) ??
       getModuleDeps();
 
-    const interactionId =
-      (context?.requestContext?.get('interactionId') as string | undefined) ??
+    const conversationId =
+      (context?.requestContext?.get('conversationId') as string | undefined) ??
       '';
 
-    if (!interactionId) {
-      return { success: false, message: 'No interaction context available' };
+    if (!conversationId) {
+      return { success: false, message: 'No conversation context available' };
     }
 
-    const result = await transition(deps, interactionId, {
+    const result = await transition(deps, conversationId, {
       type: 'SET_RESOLVING',
     });
 
@@ -39,7 +39,7 @@ export const resolveInteractionTool = createTool({
 
     return {
       success: true,
-      message: 'Interaction will be completed after this response.',
+      message: 'Conversation will be completed after this response.',
     };
   },
 });

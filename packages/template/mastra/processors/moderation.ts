@@ -4,7 +4,7 @@ import type {
   ProcessInputResult,
 } from '@mastra/core/processors';
 
-export interface ModerationConfig {
+interface ModerationConfig {
   /** Literal strings to block. Case-insensitive matching. */
   blocklist?: string[];
   /** Maximum allowed message length in characters. */

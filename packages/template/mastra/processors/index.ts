@@ -12,8 +12,8 @@ import { createModerationProcessor } from './moderation';
 import { createModerationLogger } from './moderation-logger';
 
 /** Shape of requestContext passed by chat/channel handlers. */
-export interface AgentRequestContext {
-  interactionId: string;
+interface AgentRequestContext {
+  conversationId: string;
   contactId?: string | null;
   channel?: string;
   agentId?: string;
@@ -31,9 +31,9 @@ export function resolveInputProcessors({
   mastra?: Mastra;
 }): InputProcessorOrWorkflow[] {
   const rc = (
-    requestContext?.get?.('interactionId')
+    requestContext?.get?.('conversationId')
       ? Object.fromEntries(
-          ['interactionId', 'contactId', 'channel', 'agentId'].map((k) => [
+          ['conversationId', 'contactId', 'channel', 'agentId'].map((k) => [
             k,
             requestContext.get(k),
           ]),
@@ -42,7 +42,7 @@ export function resolveInputProcessors({
   ) as AgentRequestContext | undefined;
 
   const db = getModuleDbOrNull();
-  if (!rc?.interactionId || !db) return [];
+  if (!rc?.conversationId || !db) return [];
 
   return [
     createModerationProcessor(
@@ -51,7 +51,7 @@ export function resolveInputProcessors({
         agentId: rc.agentId ?? 'unknown',
         channel: rc.channel ?? 'web',
         contactId: rc.contactId ?? undefined,
-        interactionId: rc.interactionId,
+        conversationId: rc.conversationId,
       }),
     ),
   ];
