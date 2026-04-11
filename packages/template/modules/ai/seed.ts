@@ -1,17 +1,15 @@
 /**
- * Seed: interactions module — realistic demo data for a booking service.
+ * Seed: ai module — realistic demo data for a booking service.
  *
  * Covers every lifecycle state and new model feature:
  * - ~20 named contacts (customers, leads, staff) with intentional relationships
  * - 3 channel instances (WhatsApp, Web, Email) + 3 routings
- * - ~90 interactions across all statuses, modes, outcomes, and autonomy levels
- * - Multi-interaction contacts for timeline testing
- * - Reopened interactions (reopenCount > 0)
- * - Topic change pending interactions
- * - Interaction participants (multi-participant / CC / BCC)
+ * - ~90 conversations across all statuses, assignees, outcomes, and autonomy levels
+ * - Multi-conversation contacts for timeline testing
+ * - Reopened conversations (reopenCount > 0)
+ * - Conversation participants (multi-participant / CC / BCC)
  * - Channel instance → team mappings
- * - ~3 messages per interaction
- * - ~12 consultations across all states
+ * - ~3 messages per conversation
  * - ~6 eval runs, 3 custom scorers
  * - Labels, reactions, feedback, channel sessions, activity events
  */
@@ -27,12 +25,11 @@ import {
   channelInstanceTeams,
   channelRoutings,
   channelSessions,
-  consultations,
   contactLabels,
   contacts,
-  interactionLabels,
-  interactionParticipants,
-  interactions,
+  conversationLabels,
+  conversationParticipants,
+  conversations,
   labels,
   messageFeedback,
   messages,
@@ -53,13 +50,14 @@ function pick<T>(arr: T[]): T {
 }
 
 // ─── Scripted narratives for handcrafted contacts ───────────────────
-// Each key is an interaction ID. Turns are [customer, agent] pairs that
+// Each key is a conversation ID. Turns are [customer, agent] pairs that
 // read as a continuous story when viewing the contact's timeline.
 
 const SCRIPTED: Record<string, Array<[string, string]>> = {
-  // ── Alice: 10 WhatsApp interactions over 12 days ───────────────────
+  // ── Alice: WhatsApp — all 10 original segments concatenated under the surviving conversation ID
   // Continuous journey: new patient → booking → post-visit → billing issue → referral → loyalty
-  'int-alice-wa-01': [
+  'int-alice-wa-10': [
+    // segment 1 — first appointment inquiry
     [
       'Hi, I would like to book an appointment please.',
       'Hi Alice! I am your booking assistant. How can I help you today?',
@@ -72,8 +70,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       '2 PM please.',
       'Done! Your appointment is confirmed for Wednesday at 2:00 PM. Reference: BK-4821. See you then!',
     ],
-  ],
-  'int-alice-wa-02': [
+    // segment 2 — pre-visit questions
     [
       'Hi, quick question before my appointment tomorrow — do I need to fast?',
       'Hi Alice! For a general consultation, no fasting is required. Just bring your ID and any current medications list.',
@@ -82,8 +79,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Great, and where exactly is the clinic? I have not been before.',
       'We are at Block 5, #03-12, Orchard Medical Centre. Basement parking available — first 2 hours free. See you tomorrow at 2 PM!',
     ],
-  ],
-  'int-alice-wa-03': [
+    // segment 3 — post-visit feedback → billing question
     [
       'Hi, just had my appointment. Dr. Tan was great. Quick question though.',
       'Glad to hear it went well, Alice! What is your question?',
@@ -96,8 +92,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Ah ok. Actually, can I ask about my insurance coverage? That is a different topic.',
       'Sure! Since this is a billing/insurance question, let me close out the visit follow-up and start fresh on the insurance topic.',
     ],
-  ],
-  'int-alice-wa-04': [
+    // segment 4 — insurance billing question
     [
       'So my AIA plan should cover the lab work but the portal shows an outstanding balance.',
       'I see — insurance billing is outside what I can resolve directly. Let me connect you with our operations team.',
@@ -110,8 +105,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Thanks, I will wait for David.',
       'David has been notified and will reach out within the hour. Your reference for this issue is INS-2241.',
     ],
-  ],
-  'int-alice-wa-05': [
+    // segment 5 — reschedule follow-up
     [
       'Hey, David sorted out the insurance. All good now. I need to reschedule my follow-up.',
       'Great news about the insurance! Let me check follow-up availability. When were you thinking?',
@@ -128,15 +122,13 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Yes, Tuesday works.',
       'Booked! Tuesday 9:30 AM, follow-up consultation. Bring your lab results. Reference: BK-4856.',
     ],
-  ],
-  'int-alice-wa-06': [
+    // segment 6 — parking question
     [
       'Quick question — is there parking validation for the Tuesday visit too?',
       'Yes, Alice! Same as before — basement parking at Block 5, first 2 hours free. Just validate at reception.',
     ],
     ['Perfect, thanks!', 'You are welcome! See you Tuesday.'],
-  ],
-  'int-alice-wa-07': [
+    // segment 7 — specialist referral
     [
       'Dr. Tan mentioned I should see a specialist for the blood work results. Can you help arrange?',
       'Of course, Alice. Dr. Tan can refer you to our haematology specialist, Dr. Lee. Let me check her availability.',
@@ -149,8 +141,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Ok, whatever is fastest. I have been worrying about these results.',
       'Completely understand. David is arranging a priority slot for you. He will confirm the date and time shortly.',
     ],
-  ],
-  'int-alice-wa-08': [
+    // segment 8 — specialist appointment confirmation
     [
       'David confirmed Thursday 10:30 AM with Dr. Lee. Just want to double-check that is right.',
       'Confirmed! Thursday 10:30 AM with Dr. Lee (haematology). Bring your ID, lab results, and referral letter from Dr. Tan.',
@@ -163,8 +154,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Oh great, thanks for catching that.',
       'No problem! Everything is set for Thursday. Good luck with the appointment!',
     ],
-  ],
-  'int-alice-wa-09': [
+    // segment 9 — confirm specialist visit → asked about family plan
     [
       'Specialist visit went well! Dr. Lee said everything looks normal. Huge relief.',
       'That is wonderful news, Alice! So glad to hear it.',
@@ -173,8 +163,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Thanks for all the help over the past couple weeks. Actually — do you offer family health plans? My husband might need a checkup too.',
       'We do! Since this is a new topic, let me wrap up the specialist follow-up and start a fresh inquiry about family plans.',
     ],
-  ],
-  'int-alice-wa-10': [
+    // segment 10 — family wellness package inquiry (current active segment)
     [
       'So about that family plan — what packages do you have?',
       'Welcome back, Alice! We offer several family wellness packages. For couples, the most popular is the Annual Duo Plan: 2 full checkups + 2 follow-ups for $580 (normally $720).',
@@ -188,19 +177,9 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Smart idea! Let me check for side-by-side morning slots. I will get back to you with options shortly.',
     ],
   ],
-
-  // ── Bob: 8 cross-channel interactions (Web + Email) ────────────────
-  'int-bob-web-01': [
-    [
-      'I need to book consultations at two locations — Orchard and Tampines. Back-to-back if possible.',
-      'Hi Bob! Multi-branch bookings need manual coordination. Let me check both locations for you.',
-    ],
-    [
-      'The sooner the better. Ideally next week.',
-      'I have flagged this for our scheduling team. David will coordinate the dual booking and reach out shortly.',
-    ],
-  ],
-  'int-bob-email-01': [
+  // ── Bob email (surviving int-bob-email-02): 2 segments concatenated
+  'int-bob-email-02': [
+    // segment 1 — email confirmation with CC to assistant
     [
       'Hi, this is Bob Wong. Following up on my multi-branch booking from web chat. Cc-ing my assistant Alice.',
       'Hi Bob! Your bookings are confirmed: Orchard Monday 10 AM, Tampines Monday 2 PM. References: BK-5102 and BK-5103.',
@@ -209,8 +188,28 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Can you send details to this thread so my assistant has them?',
       'Done! Full confirmation sent. Both appointments locked in.',
     ],
+    // segment 2 — refund confirmation follow-up
+    [
+      'Subject: Refund Confirmation\n\nDid the duplicate charge refund go through? I do not see it yet.',
+      'Hi Bob! I checked — the refund was processed yesterday and should appear in your account within 1-2 business days. Reference: REF-3301.',
+    ],
+    [
+      'Ok, I will check tomorrow. Thanks.',
+      'You are welcome! Let us know if it does not show up by Friday.',
+    ],
   ],
-  'int-bob-web-02': [
+  // ── Bob web (surviving int-bob-web-06): all 6 original segments concatenated
+  'int-bob-web-06': [
+    // segment 1 — multi-location booking
+    [
+      'I need to book consultations at two locations — Orchard and Tampines. Back-to-back if possible.',
+      'Hi Bob! Multi-branch bookings need manual coordination. Let me check both locations for you.',
+    ],
+    [
+      'The sooner the better. Ideally next week.',
+      'I have flagged this for our scheduling team. David will coordinate the dual booking and reach out shortly.',
+    ],
+    // segment 2 — rescheduling
     [
       'My Monday schedule changed. Can we move Orchard to Tuesday?',
       'Hi Bob! Checking Tuesday... 10:00 AM is available at Orchard. Tampines stays Monday 2 PM. Update both?',
@@ -219,8 +218,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Yes please. Sorry for the changes.',
       'No problem! Updated: Orchard → Tuesday 10 AM (BK-5104), Tampines → Monday 2 PM (BK-5105).',
     ],
-  ],
-  'int-bob-web-03': [
+    // segment 3 — billing discrepancy
     [
       'I got charged twice for the Orchard appointment. Can you check?',
       'Oh no — let me look into that right away, Bob. I can see two charges on your account.',
@@ -233,25 +231,13 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Make sure it actually happens this time.',
       'I have flagged it as urgent. You will receive an email confirmation once the refund is processed.',
     ],
-  ],
-  'int-bob-email-02': [
-    [
-      'Subject: Refund Confirmation\n\nDid the duplicate charge refund go through? I do not see it yet.',
-      'Hi Bob! I checked — the refund was processed yesterday and should appear in your account within 1-2 business days. Reference: REF-3301.',
-    ],
-    [
-      'Ok, I will check tomorrow. Thanks.',
-      'You are welcome! Let us know if it does not show up by Friday.',
-    ],
-  ],
-  'int-bob-web-04': [
+    // segment 4 — pre-visit checklist
     [
       'What should I bring to the Tampines appointment?',
       'Hi Bob! For Tampines, bring your ID and the referral note from your Orchard visit (if applicable). Also bring your medication list.',
     ],
     ['Got it, thanks.', 'You are all set! See you Monday at 2 PM at Tampines.'],
-  ],
-  'int-bob-web-05': [
+    // segment 5 — post-visit feedback → new booking
     [
       'Both appointments done. Orchard was great, Tampines was a bit rushed.',
       'Thanks for the feedback, Bob! I will pass the Tampines note to our quality team. Anything else you need?',
@@ -260,8 +246,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Actually yes — I want to book the next quarterly checkup. Different topic though.',
       'Got it! Let me close out the feedback and start fresh on the quarterly booking.',
     ],
-  ],
-  'int-bob-web-06': [
+    // segment 6 — quarterly checkup booking (current active segment)
     [
       'So for the quarterly checkup — can I do Orchard only this time?',
       'Sure, Bob! Orchard has good availability. Same time preference — Tuesday mornings?',
@@ -276,8 +261,9 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
     ],
   ],
 
-  // ── Charlie: VIP, 6 interactions ───────────────────────────────────
-  'int-charlie-wa-01': [
+  // ── Charlie (surviving int-charlie-wa-06): all 6 original segments concatenated
+  'int-charlie-wa-06': [
+    // segment 1 — monthly checkup booking
     [
       'This is Charlie Lee. Monthly checkup please.',
       "Good morning, Mr. Lee! Checking Dr. Tan's availability for your monthly slot.",
@@ -286,8 +272,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Thursday as usual. Private room.',
       'Thursday 2 PM, private room confirmed. David will handle your booking personally as always.',
     ],
-  ],
-  'int-charlie-wa-02': [
+    // segment 2 — time change request
     [
       'David, can we change Thursday to 3 PM? My meeting ran over.',
       'Hi Mr. Lee! David has shifted your appointment to 3 PM. Same private room.',
@@ -296,8 +281,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Good. Also, I need the extended 90-minute session this time.',
       'Noted — 90-minute session with Dr. Tan at 3 PM. Updated.',
     ],
-  ],
-  'int-charlie-wa-03': [
+    // segment 3 — results discussion
     [
       'Checkup went well. Dr. Tan wants to discuss the cholesterol numbers. When can I call in?',
       'Glad to hear it went well! For the results discussion, Dr. Tan has a call slot at 11 AM tomorrow. Shall I book that?',
@@ -306,8 +290,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Yes. Actually, better have David arrange it. I need my full records pulled.',
       'Understood. David will pull your records and set up the call with Dr. Tan for 11 AM tomorrow.',
     ],
-  ],
-  'int-charlie-wa-04': [
+    // segment 4 — prescription refill
     [
       'I need a refill on my cholesterol medication. Same prescription as last time.',
       'Hi Mr. Lee! I can see your last prescription — Atorvastatin 20mg. I will have the pharmacy prepare it for pickup.',
@@ -320,8 +303,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Wait — I reopened this because I also need the blood pressure meds refilled. Same order.',
       'Added! Both prescriptions will be in the delivery: Atorvastatin 20mg + Amlodipine 5mg. Delivery confirmed.',
     ],
-  ],
-  'int-charlie-wa-05': [
+    // segment 5 — 90-minute session booking
     [
       'Need to see Dr. Tan again. 90-minute session, private room. Next Thursday.',
       'Hi Mr. Lee! Next Thursday is available. David will confirm the 90-minute private room session.',
@@ -330,8 +312,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Tell David to also book the lab for a full panel before the appointment.',
       'Noted — full blood panel + 90-minute consultation. David is arranging both.',
     ],
-  ],
-  'int-charlie-wa-06': [
+    // segment 6 — urgent test results follow-up (current active segment)
     [
       'Test results in yet? I am getting anxious about the cholesterol recheck.',
       'Hi Mr. Lee, let me check with the lab... the results are in and have been sent to Dr. Tan for review.',
@@ -508,7 +489,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
   ],
 };
 
-// Generic dialogue turns used only for bulk (random) interactions
+// Generic dialogue turns used only for bulk (random) conversations
 const GENERIC_TURNS: Array<[string, string]> = [
   [
     'Hi, I would like to book an appointment please.',
@@ -570,7 +551,7 @@ const STAFF_NOTES = [
 ];
 
 // ─── Named contacts ─────────────────────────────────────────────────
-// Fixed IDs so interactions can reference them deterministically.
+// Fixed IDs so conversations can reference them deterministically.
 
 const SEED_CONTACTS = [
   // Staff (3)
@@ -598,7 +579,7 @@ const SEED_CONTACTS = [
     role: 'staff' as const,
     metadata: { department: 'clinical' },
   },
-  // Customers (12) — intentionally named so we can create multi-interaction timelines
+  // Customers (12) — intentionally named so we can create multi-conversation timelines
   {
     id: 'c-alice',
     phone: '+6581110001',
@@ -805,176 +786,37 @@ const SEED_CHANNEL_ROUTINGS = [
 const TEAM_SALES = 'team-sales';
 const TEAM_SUPPORT = 'team-support';
 
-// ─── Interaction templates ──────────────────────────────────────────
-// Handcrafted interactions covering every dimension of the model.
+// ─── Conversation templates ──────────────────────────────────────────
+// Handcrafted conversations covering every dimension of the model.
 
-type InteractionSeed = {
+type ConversationSeed = {
   id: string;
   channelRoutingId: string;
   contactId: string;
   agentId: string;
   channelInstanceId: string;
   status: string;
-  interactionType: string;
   startedAt: Date;
   resolvedAt?: Date;
   outcome?: string;
   autonomyLevel?: string;
   reopenCount?: number;
-  topicChangePending?: boolean;
-  mode?: string;
-  assignee?: string | null;
+  assignee: string;
   assignedAt?: Date | null;
+  onHold?: boolean;
   priority?: string;
-  hasPendingEscalation?: boolean;
-  waitingSince?: Date | null;
   unreadCount?: number;
   title?: string;
   metadata?: Record<string, unknown>;
 };
 
-const handcraftedInteractions: InteractionSeed[] = [
+const handcraftedConversations: ConversationSeed[] = [
   // ════════════════════════════════════════════════════════════════════
-  // ALICE — Hero contact #1: 10 dense WhatsApp interactions over 12 days
+  // ALICE — Hero contact #1: WhatsApp conversation spanning 12 days
+  // Single conversation (unique per contact+channel) with reopenCount=9
+  // representing all 10 original conversation segments collapsed.
   // Shows a complete customer journey: new patient → regular → escalation → loyalty
   // ════════════════════════════════════════════════════════════════════
-  {
-    id: 'int-alice-wa-01',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(288), // Day 1
-    resolvedAt: hoursAgo(287),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    title: 'First appointment inquiry',
-    metadata: {},
-  },
-  {
-    id: 'int-alice-wa-02',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(264), // Day 2 (next morning)
-    resolvedAt: hoursAgo(263),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    title: 'Pre-visit questions',
-    metadata: {},
-  },
-  {
-    id: 'int-alice-wa-03',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(216), // Day 4 (after visit)
-    resolvedAt: hoursAgo(215),
-    outcome: 'topic_change',
-    autonomyLevel: 'full_ai',
-    title: 'Post-visit feedback → billing question',
-    metadata: {},
-  },
-  {
-    id: 'int-alice-wa-04',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(215), // Day 4 (right after topic change)
-    resolvedAt: hoursAgo(212),
-    outcome: 'escalated',
-    autonomyLevel: 'ai_with_escalation',
-    title: 'Insurance billing question',
-    metadata: {},
-  },
-  {
-    id: 'int-alice-wa-05',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(168), // Day 6
-    resolvedAt: hoursAgo(167),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    reopenCount: 1,
-    title: 'Reschedule follow-up appointment',
-    metadata: {},
-  },
-  {
-    id: 'int-alice-wa-06',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(120), // Day 7
-    resolvedAt: hoursAgo(119),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    title: 'Parking and directions question',
-    metadata: {},
-  },
-  {
-    id: 'int-alice-wa-07',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(72), // Day 9
-    resolvedAt: hoursAgo(71),
-    outcome: 'resolved',
-    autonomyLevel: 'human_assisted',
-    assignee: 'c-staff-david',
-    title: 'Specialist referral request',
-    metadata: {},
-  },
-  {
-    id: 'int-alice-wa-08',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(48), // Day 10
-    resolvedAt: hoursAgo(47),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    title: 'Specialist appointment confirmation',
-    metadata: {},
-  },
-  {
-    id: 'int-alice-wa-09',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-alice',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(8), // Day 12 (yesterday)
-    resolvedAt: hoursAgo(7),
-    outcome: 'topic_change',
-    autonomyLevel: 'full_ai',
-    title: 'Confirm specialist visit → asked about family plan',
-    metadata: {},
-  },
   {
     id: 'int-alice-wa-10',
     channelRoutingId: 'ep-wa-booking',
@@ -982,124 +824,18 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-wa-main',
     status: 'active',
-    interactionType: 'message',
-    startedAt: hoursAgo(7), // Day 12 (still active, right after topic change)
-    reopenCount: 1,
-    mode: 'ai',
+    startedAt: hoursAgo(288), // Day 1 — earliest segment start
+    reopenCount: 9, // 10 segments → 9 reopens
+    assignee: 'agent:booking',
     title: 'Family wellness package inquiry',
     metadata: {},
   },
 
   // ════════════════════════════════════════════════════════════════════
-  // BOB — Hero contact #2: 8 cross-channel interactions (Web + Email)
-  // Complex scheduling needs, uses multiple channels, escalates twice
+  // BOB — Hero contact #2: cross-channel conversations (Web + Email)
+  // Web channel: single conversation with reopenCount=5 (6 segments collapsed)
+  // Email channel: single conversation with reopenCount=1 (2 segments collapsed)
   // ════════════════════════════════════════════════════════════════════
-  {
-    id: 'int-bob-web-01',
-    channelRoutingId: 'ep-web-booking',
-    contactId: 'c-bob',
-    agentId: 'booking',
-    channelInstanceId: 'ci-web',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(240), // Day 1
-    resolvedAt: hoursAgo(238),
-    outcome: 'resolved',
-    autonomyLevel: 'human_assisted',
-    title: 'Multi-location booking request',
-    metadata: {},
-  },
-  {
-    id: 'int-bob-email-01',
-    channelRoutingId: 'ep-email-support',
-    contactId: 'c-bob',
-    agentId: 'booking',
-    channelInstanceId: 'ci-email',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(216), // Day 2 (followed up via email)
-    resolvedAt: hoursAgo(192),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    title: 'Email confirmation with CC to assistant',
-    metadata: {},
-  },
-  {
-    id: 'int-bob-web-02',
-    channelRoutingId: 'ep-web-booking',
-    contactId: 'c-bob',
-    agentId: 'booking',
-    channelInstanceId: 'ci-web',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(168), // Day 4
-    resolvedAt: hoursAgo(167),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    reopenCount: 1,
-    title: 'Rescheduling Orchard appointment',
-    metadata: {},
-  },
-  {
-    id: 'int-bob-web-03',
-    channelRoutingId: 'ep-web-booking',
-    contactId: 'c-bob',
-    agentId: 'booking',
-    channelInstanceId: 'ci-web',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(120), // Day 6
-    resolvedAt: hoursAgo(119),
-    outcome: 'escalated',
-    autonomyLevel: 'ai_with_escalation',
-    title: 'Billing discrepancy for multi-branch',
-    metadata: {},
-  },
-  {
-    id: 'int-bob-email-02',
-    channelRoutingId: 'ep-email-support',
-    contactId: 'c-bob',
-    agentId: 'booking',
-    channelInstanceId: 'ci-email',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(96), // Day 7
-    resolvedAt: hoursAgo(72),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    title: 'Updated invoice via email',
-    metadata: {},
-  },
-  {
-    id: 'int-bob-web-04',
-    channelRoutingId: 'ep-web-booking',
-    contactId: 'c-bob',
-    agentId: 'booking',
-    channelInstanceId: 'ci-web',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(48), // Day 9
-    resolvedAt: hoursAgo(47),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    title: 'Pre-visit checklist question',
-    metadata: {},
-  },
-  {
-    id: 'int-bob-web-05',
-    channelRoutingId: 'ep-web-booking',
-    contactId: 'c-bob',
-    agentId: 'booking',
-    channelInstanceId: 'ci-web',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(12), // Day 11 (yesterday)
-    resolvedAt: hoursAgo(11),
-    outcome: 'topic_change',
-    autonomyLevel: 'full_ai',
-    title: 'Post-visit feedback → new booking',
-    metadata: {},
-  },
   {
     id: 'int-bob-web-06',
     channelRoutingId: 'ep-web-booking',
@@ -1107,96 +843,34 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-web',
     status: 'active',
-    interactionType: 'message',
-    startedAt: hoursAgo(11), // Day 11 (right after topic change)
-    reopenCount: 2,
-    mode: 'ai',
-    title: 'Booking next quarterly checkup',
+    startedAt: hoursAgo(240), // Day 1 — earliest web segment start
+    reopenCount: 5, // 6 web segments → 5 reopens
+    assignee: 'agent:booking',
+    title: 'Multi-location booking request',
+    metadata: {},
+  },
+  // Bob email: single conversation (2 segments collapsed, reopenCount=1)
+  {
+    id: 'int-bob-email-02',
+    channelRoutingId: 'ep-email-support',
+    contactId: 'c-bob',
+    agentId: 'booking',
+    channelInstanceId: 'ci-email',
+    status: 'resolved',
+    startedAt: hoursAgo(216), // Day 2 — earliest email segment start
+    resolvedAt: hoursAgo(72),
+    outcome: 'resolved',
+    autonomyLevel: 'full_ai',
+    reopenCount: 1, // 2 email segments → 1 reopen
+    assignee: 'agent:booking',
+    title: 'Email confirmation and refund follow-up',
     metadata: {},
   },
 
   // ════════════════════════════════════════════════════════════════════
-  // CHARLIE — VIP patient: 6 WhatsApp interactions, always gets staff
+  // CHARLIE — VIP patient: single WhatsApp conversation with reopenCount=5
+  // (6 original segments collapsed — always handled by staff David)
   // ════════════════════════════════════════════════════════════════════
-  {
-    id: 'int-charlie-wa-01',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-charlie',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(192), // Day 1
-    resolvedAt: hoursAgo(190),
-    outcome: 'resolved',
-    autonomyLevel: 'human_only',
-    assignee: 'c-staff-david',
-    title: 'Monthly checkup booking',
-    metadata: {},
-  },
-  {
-    id: 'int-charlie-wa-02',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-charlie',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(144), // Day 3
-    resolvedAt: hoursAgo(143),
-    outcome: 'resolved',
-    autonomyLevel: 'human_only',
-    assignee: 'c-staff-david',
-    title: 'Private room request for Thursday',
-    metadata: {},
-  },
-  {
-    id: 'int-charlie-wa-03',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-charlie',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(96), // Day 5
-    resolvedAt: hoursAgo(95),
-    outcome: 'resolved',
-    autonomyLevel: 'human_assisted',
-    title: 'Post-checkup results discussion',
-    metadata: {},
-  },
-  {
-    id: 'int-charlie-wa-04',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-charlie',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(48), // Day 7
-    resolvedAt: hoursAgo(47),
-    outcome: 'resolved',
-    autonomyLevel: 'full_ai',
-    reopenCount: 1,
-    title: 'Prescription refill request',
-    metadata: {},
-  },
-  {
-    id: 'int-charlie-wa-05',
-    channelRoutingId: 'ep-wa-booking',
-    contactId: 'c-charlie',
-    agentId: 'booking',
-    channelInstanceId: 'ci-wa-main',
-    status: 'resolved',
-    interactionType: 'message',
-    startedAt: hoursAgo(12), // Day 9 (yesterday)
-    resolvedAt: hoursAgo(11),
-    outcome: 'resolved',
-    autonomyLevel: 'human_only',
-    assignee: 'c-staff-david',
-    title: '90-minute session with Dr. Tan',
-    metadata: {},
-  },
   {
     id: 'int-charlie-wa-06',
     channelRoutingId: 'ep-wa-booking',
@@ -1204,9 +878,8 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-wa-main',
     status: 'active',
-    interactionType: 'message',
-    startedAt: hoursAgo(2), // Today
-    mode: 'human',
+    startedAt: hoursAgo(192), // Day 1 — earliest segment start
+    reopenCount: 5, // 6 segments → 5 reopens
     assignee: 'c-staff-david',
     priority: 'high',
     title: 'Urgent follow-up on test results',
@@ -1214,7 +887,7 @@ const handcraftedInteractions: InteractionSeed[] = [
   },
 
   // ════════════════════════════════════════════════════════════════════
-  // Remaining contacts — 1-2 interactions each for variety
+  // Remaining contacts — 1-2 conversations each for variety
   // ════════════════════════════════════════════════════════════════════
 
   // Diana: abandoned (went silent)
@@ -1225,11 +898,11 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-wa-main',
     status: 'resolved',
-    interactionType: 'message',
     startedAt: hoursAgo(72),
     resolvedAt: hoursAgo(48),
     outcome: 'abandoned',
     autonomyLevel: 'full_ai',
+    assignee: 'agent:booking',
     title: 'Weekend appointment inquiry — no response',
     metadata: {},
   },
@@ -1242,9 +915,8 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-web',
     status: 'resolving',
-    interactionType: 'message',
     startedAt: hoursAgo(0.5),
-    mode: 'ai',
+    assignee: 'agent:booking',
     title: 'General checkup booking — wrapping up',
     metadata: {},
   },
@@ -1257,14 +929,13 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-web',
     status: 'failed',
-    interactionType: 'message',
     startedAt: hoursAgo(24),
-    mode: 'ai',
+    assignee: 'agent:booking',
     title: 'Family block booking — agent crashed',
     metadata: { error: 'Agent exceeded max steps' },
   },
 
-  // George: topicChangePending
+  // George: topic change outcome
   {
     id: 'int-george-wa-1',
     channelRoutingId: 'ep-wa-booking',
@@ -1272,17 +943,16 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-wa-main',
     status: 'resolved',
-    interactionType: 'message',
     startedAt: hoursAgo(3),
     resolvedAt: hoursAgo(0.5),
     outcome: 'topic_change',
     autonomyLevel: 'full_ai',
-    topicChangePending: true,
+    assignee: 'agent:booking',
     title: 'Appointment confirmed → switching to physiotherapy inquiry',
     metadata: {},
   },
 
-  // Hannah: human mode with escalation
+  // Hannah: human assignee with unread messages
   {
     id: 'int-hannah-web-1',
     channelRoutingId: 'ep-web-booking',
@@ -1290,17 +960,14 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-web',
     status: 'active',
-    interactionType: 'message',
     startedAt: hoursAgo(2),
-    mode: 'human',
-    hasPendingEscalation: true,
-    waitingSince: hoursAgo(2),
+    assignee: 'c-staff-david',
     unreadCount: 3,
     title: 'Refund request for no-show appointment',
     metadata: {},
   },
 
-  // Ivan: supervised mode
+  // Ivan: active with pending approval
   {
     id: 'int-ivan-web-1',
     channelRoutingId: 'ep-web-booking',
@@ -1308,17 +975,14 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-web',
     status: 'active',
-    interactionType: 'message',
     startedAt: hoursAgo(1),
-    mode: 'supervised',
-    hasPendingEscalation: true,
-    waitingSince: hoursAgo(1),
+    assignee: 'agent:booking',
     unreadCount: 2,
     title: 'Corporate bulk booking — pending pricing approval',
     metadata: {},
   },
 
-  // Jenny: held, urgent
+  // Jenny: on hold, urgent
   {
     id: 'int-jenny-wa-1',
     channelRoutingId: 'ep-wa-booking',
@@ -1326,11 +990,10 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-wa-main',
     status: 'active',
-    interactionType: 'message',
     startedAt: hoursAgo(3),
-    mode: 'held',
+    assignee: 'agent:booking',
+    onHold: true,
     priority: 'urgent',
-    waitingSince: hoursAgo(3),
     unreadCount: 0,
     title: 'Emergency — daughter injured',
     metadata: {},
@@ -1344,16 +1007,16 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-email',
     status: 'resolved',
-    interactionType: 'message',
     startedAt: hoursAgo(24),
     resolvedAt: hoursAgo(6),
     outcome: 'resolved',
     autonomyLevel: 'full_ai',
+    assignee: 'agent:booking',
     title: 'Appointment confirmation email',
     metadata: {},
   },
 
-  // Lily: 2 interactions (escalation story)
+  // Lily: 2 conversations (escalation story)
   {
     id: 'int-lily-web-1',
     channelRoutingId: 'ep-web-booking',
@@ -1361,11 +1024,11 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-web',
     status: 'resolved',
-    interactionType: 'message',
     startedAt: hoursAgo(48),
     resolvedAt: hoursAgo(46),
     outcome: 'escalated',
     autonomyLevel: 'ai_with_escalation',
+    assignee: 'agent:booking',
     title: 'Wait time complaint — escalated to management',
     metadata: {},
   },
@@ -1376,12 +1039,9 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-wa-main',
     status: 'active',
-    interactionType: 'message',
     startedAt: hoursAgo(0.5),
-    mode: 'human',
+    assignee: 'c-staff-eve',
     priority: 'high',
-    hasPendingEscalation: true,
-    waitingSince: hoursAgo(0.5),
     unreadCount: 5,
     title: 'Follow-up — management never called back',
     metadata: {},
@@ -1395,11 +1055,11 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-wa-main',
     status: 'resolved',
-    interactionType: 'message',
     startedAt: hoursAgo(120),
     resolvedAt: hoursAgo(119),
     outcome: 'resolved',
     autonomyLevel: 'full_ai',
+    assignee: 'agent:booking',
     title: 'New patient promo inquiry',
     metadata: {},
   },
@@ -1410,9 +1070,8 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-web',
     status: 'active',
-    interactionType: 'message',
     startedAt: hoursAgo(4),
-    mode: 'ai',
+    assignee: 'agent:booking',
     title: 'Corporate wellness package inquiry',
     metadata: {},
   },
@@ -1423,26 +1082,26 @@ const handcraftedInteractions: InteractionSeed[] = [
     agentId: 'booking',
     channelInstanceId: 'ci-wa-main',
     status: 'resolved',
-    interactionType: 'message',
     startedAt: hoursAgo(200),
     resolvedAt: hoursAgo(198),
     outcome: 'abandoned',
     autonomyLevel: 'full_ai',
+    assignee: 'agent:booking',
     title: 'Instagram promo inquiry — no follow-up',
     metadata: {},
   },
 ];
 
-// ─── Bulk random interactions ───────────────────────────────────────
+// ─── Bulk random conversations ───────────────────────────────────────
 // Fill to ~90 total to populate lists and charts.
 
-function generateBulkInteractions(count: number): InteractionSeed[] {
+function generateBulkConversations(count: number, existingPairs: Set<string> = new Set()): ConversationSeed[] {
   const allCustomers = [
     ...customers,
     ...SEED_CONTACTS.filter((c) => c.role === 'lead'),
   ];
   const routings = SEED_CHANNEL_ROUTINGS.filter((r) => r.enabled);
-  const items: InteractionSeed[] = [];
+  const items: ConversationSeed[] = [];
 
   const TITLES = [
     'Appointment booking inquiry',
@@ -1512,12 +1171,12 @@ function generateBulkInteractions(count: number): InteractionSeed[] {
       agentId: 'booking',
       channelInstanceId: routing.channelInstanceId,
       status,
-      interactionType: 'message',
       startedAt,
       ...(resolvedAt && { resolvedAt }),
       ...(outcome && { outcome }),
       ...(autonomyLevel && { autonomyLevel }),
       reopenCount,
+      assignee: 'agent:booking',
       ...(faker.datatype.boolean(0.6) && { title: pick(TITLES) }),
       metadata:
         status === 'failed'
@@ -1533,7 +1192,16 @@ function generateBulkInteractions(count: number): InteractionSeed[] {
     });
   }
 
-  return items;
+  // Deduplicate by (contactId, channelInstanceId) — exclude pairs that already
+  // exist in handcrafted conversations and skip internal duplicates.
+  // This satisfies the UNIQUE (contact_id, channel_instance_id) constraint.
+  const seen = new Set<string>(existingPairs);
+  return items.filter((item) => {
+    const key = `${item.contactId}:${item.channelInstanceId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // ─── Seed function ──────────────────────────────────────────────────
@@ -1573,55 +1241,58 @@ export default async function seed(ctx: { db: VobaseDb }) {
     `${green('✓')} Seeded ${seedChannelInstanceTeams.length} channel-instance-team mappings`,
   );
 
-  // ─── Interactions ────────────────────────────────────────────────
-  const bulkInteractions = generateBulkInteractions(65);
-  const allInteractions = [...handcraftedInteractions, ...bulkInteractions];
+  // ─── Conversations ────────────────────────────────────────────────
+  const handcraftedPairs = new Set(
+    handcraftedConversations.map((c) => `${c.contactId}:${c.channelInstanceId}`),
+  );
+  const bulkConversations = generateBulkConversations(65, handcraftedPairs);
+  const allConversations = [...handcraftedConversations, ...bulkConversations];
   const BATCH_SIZE = 50;
 
-  for (let i = 0; i < allInteractions.length; i += BATCH_SIZE) {
+  for (let i = 0; i < allConversations.length; i += BATCH_SIZE) {
     await db
-      .insert(interactions)
-      .values(allInteractions.slice(i, i + BATCH_SIZE))
+      .insert(conversations)
+      .values(allConversations.slice(i, i + BATCH_SIZE))
       .onConflictDoNothing();
   }
   console.log(
-    `${green('✓')} Seeded ${allInteractions.length} interactions (${handcraftedInteractions.length} handcrafted + ${bulkInteractions.length} bulk)`,
+    `${green('✓')} Seeded ${allConversations.length} conversations (${handcraftedConversations.length} handcrafted + ${bulkConversations.length} bulk)`,
   );
 
-  // ─── Interaction Participants ────────────────────────────────────
-  // Every interaction gets its primary contact as initiator.
+  // ─── Conversation Participants ────────────────────────────────────
+  // Every conversation gets its primary contact as initiator.
   // Some get additional participants (CC, BCC for email; participant for group).
   const seedParticipants: Array<{
     id: string;
-    interactionId: string;
+    conversationId: string;
     contactId: string;
     role: string;
     joinedAt: Date;
   }> = [];
 
-  // All handcrafted interactions get initiator
-  for (const int of handcraftedInteractions) {
+  // All handcrafted conversations get initiator
+  for (const conv of handcraftedConversations) {
     seedParticipants.push({
-      id: `part-${int.id}-init`,
-      interactionId: int.id,
-      contactId: int.contactId,
+      id: `part-${conv.id}-init`,
+      conversationId: conv.id,
+      contactId: conv.contactId,
       role: 'initiator',
-      joinedAt: int.startedAt,
+      joinedAt: conv.startedAt,
     });
   }
 
-  // Bob's email interaction has CC and BCC
+  // Bob's email conversation has CC and BCC (referencing the surviving int-bob-email-02)
   seedParticipants.push(
     {
       id: 'part-bob-email-cc',
-      interactionId: 'int-bob-email-01',
+      conversationId: 'int-bob-email-02',
       contactId: 'c-alice',
       role: 'cc',
       joinedAt: hoursAgo(216),
     },
     {
       id: 'part-bob-email-bcc',
-      interactionId: 'int-bob-email-01',
+      conversationId: 'int-bob-email-02',
       contactId: 'c-staff-eve',
       role: 'bcc',
       joinedAt: hoursAgo(216),
@@ -1631,7 +1302,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
   // Hannah's escalation has a staff participant
   seedParticipants.push({
     id: 'part-hannah-staff',
-    interactionId: 'int-hannah-web-1',
+    conversationId: 'int-hannah-web-1',
     contactId: 'c-staff-david',
     role: 'participant',
     joinedAt: hoursAgo(1.5),
@@ -1641,14 +1312,14 @@ export default async function seed(ctx: { db: VobaseDb }) {
   seedParticipants.push(
     {
       id: 'part-nina-init',
-      interactionId: 'int-lead-nina-1',
+      conversationId: 'int-lead-nina-1',
       contactId: 'c-lead-nina',
       role: 'initiator',
       joinedAt: hoursAgo(4),
     },
     {
       id: 'part-nina-cc',
-      interactionId: 'int-lead-nina-1',
+      conversationId: 'int-lead-nina-1',
       contactId: 'c-lead-paula',
       role: 'cc',
       joinedAt: hoursAgo(3.5),
@@ -1656,17 +1327,17 @@ export default async function seed(ctx: { db: VobaseDb }) {
   );
 
   await db
-    .insert(interactionParticipants)
+    .insert(conversationParticipants)
     .values(seedParticipants)
     .onConflictDoNothing();
   console.log(
-    `${green('✓')} Seeded ${seedParticipants.length} interaction participants`,
+    `${green('✓')} Seeded ${seedParticipants.length} conversation participants`,
   );
 
   // ─── Messages ────────────────────────────────────────────────────
   type SeedMessage = {
     id: string;
-    interactionId: string;
+    conversationId: string;
     messageType: 'incoming' | 'outgoing';
     contentType: 'text';
     content: string;
@@ -1682,16 +1353,16 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   const seedMessages: SeedMessage[] = [];
 
-  for (const int of allInteractions) {
+  for (const conv of allConversations) {
     const channelType =
-      int.channelInstanceId === 'ci-wa-main'
+      conv.channelInstanceId === 'ci-wa-main'
         ? 'whatsapp'
-        : int.channelInstanceId === 'ci-email'
+        : conv.channelInstanceId === 'ci-email'
           ? 'email'
           : 'web';
 
     // Use scripted turns if available, otherwise random generic turns
-    const script = SCRIPTED[int.id];
+    const script = SCRIPTED[conv.id];
     const turns: Array<[string, string]> = script
       ? script
       : [...GENERIC_TURNS]
@@ -1700,19 +1371,19 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
     for (let t = 0; t < turns.length; t++) {
       const [customerMsg, agentMsg] = turns[t];
-      const baseH = (int.startedAt.getTime() - Date.now()) / (-1000 * 60 * 60);
-      // Space turns ~6 min apart; scripted interactions get slightly wider gaps for readability
+      const baseH = (conv.startedAt.getTime() - Date.now()) / (-1000 * 60 * 60);
+      // Space turns ~6 min apart; scripted conversations get slightly wider gaps for readability
       const gap = script ? 0.15 : 0.1;
       const customerTime = hoursAgo(Math.max(0, baseH - t * gap));
       const agentTime = hoursAgo(Math.max(0, baseH - t * gap - 0.03));
 
       const isLastTurn = t === turns.length - 1;
       let agentStatus: SeedMessage['status'];
-      if (int.status === 'resolved') {
+      if (conv.status === 'resolved') {
         agentStatus = pick(['delivered', 'read'] as const);
-      } else if (int.status === 'failed' && isLastTurn) {
+      } else if (conv.status === 'failed' && isLastTurn) {
         agentStatus = 'failed';
-      } else if (int.status === 'active' && isLastTurn) {
+      } else if (conv.status === 'active' && isLastTurn) {
         agentStatus = pick(['queued', 'sent'] as const);
       } else {
         agentStatus = 'delivered';
@@ -1728,21 +1399,21 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
       seedMessages.push({
         id: `msg-${faker.string.alphanumeric(10)}`,
-        interactionId: int.id,
+        conversationId: conv.id,
         messageType: 'incoming',
         contentType: 'text',
         content: customerMsg,
         channelType,
         externalMessageId: `${prefix}.in.${faker.string.alphanumeric(12)}`,
         status: null,
-        senderId: int.contactId,
+        senderId: conv.contactId,
         senderType: 'contact',
         createdAt: customerTime,
       });
 
       seedMessages.push({
         id: `msg-${faker.string.alphanumeric(10)}`,
-        interactionId: int.id,
+        conversationId: conv.id,
         messageType: 'outgoing',
         contentType: 'text',
         content: agentMsg,
@@ -1759,11 +1430,11 @@ export default async function seed(ctx: { db: VobaseDb }) {
         createdAt: agentTime,
       });
 
-      // 10% chance of a staff private note (only on non-scripted interactions)
+      // 10% chance of a staff private note (only on non-scripted conversations)
       if (!script && faker.number.float() < 0.1) {
         seedMessages.push({
           id: `msg-${faker.string.alphanumeric(10)}`,
-          interactionId: int.id,
+          conversationId: conv.id,
           messageType: 'outgoing',
           contentType: 'text',
           content: pick(STAFF_NOTES),
@@ -1787,13 +1458,13 @@ export default async function seed(ctx: { db: VobaseDb }) {
     'Connection timeout after 30000ms',
   ];
 
-  const resolvedInts = allInteractions.filter((s) => s.status === 'resolved');
+  const resolvedConvs = allConversations.filter((s) => s.status === 'resolved');
   const seedDeadLetters = DL_ERRORS.map((error, i) => {
-    const int = resolvedInts[i] ?? allInteractions[i];
+    const conv = resolvedConvs[i] ?? allConversations[i];
     const chType = i < 3 ? 'whatsapp' : 'email';
     return {
       id: `msg-dl-${faker.string.alphanumeric(8)}`,
-      interactionId: int.id,
+      conversationId: conv.id,
       messageType: 'outgoing' as const,
       contentType: 'text' as const,
       content: 'Your appointment is confirmed for next week.',
@@ -1816,124 +1487,8 @@ export default async function seed(ctx: { db: VobaseDb }) {
   }
   console.log(`${green('✓')} Seeded ${allMessages.length} messages`);
 
-  // ─── Consultations ───────────────────────────────────────────────
-
-  const CONSULTATION_REASONS = [
-    'Customer requesting special pricing for a package deal.',
-    'Customer asked about group booking policy.',
-    'Complex scheduling conflict — needs manual resolution.',
-    'Customer wants to book outside normal operating hours.',
-    'Customer requesting refund for no-show appointment.',
-    'VIP customer — needs priority scheduling.',
-    'Insurance billing question beyond agent knowledge.',
-    'Customer complaint about wait times.',
-    'Multi-location booking across branches.',
-    'Corporate wellness package inquiry — needs manager approval.',
-    'Customer requesting home visit service.',
-    'Accessibility requirements for appointment venue.',
-  ];
-
-  const REPLY_SUMMARIES = [
-    'Approved with 10% discount. Manager confirmed.',
-    'Rescheduled to next available slot. Customer satisfied.',
-    'Referred to billing department for follow-up.',
-    'Special accommodation arranged. Notes added to file.',
-  ];
-
-  const activeInts = allInteractions.filter((s) => s.status === 'active');
-  const failedInts = allInteractions.filter((s) => s.status === 'failed');
-
-  const seedConsultations: Array<{
-    id: string;
-    interactionId: string;
-    staffContactId: string;
-    channelType: string;
-    channelInstanceId?: string;
-    reason: string;
-    summary?: string;
-    status: string;
-    timeoutMinutes: number;
-    requestedAt: Date;
-    repliedAt?: Date;
-    replyPayload?: Record<string, unknown>;
-  }> = [];
-
-  // Pending (from active)
-  for (let i = 0; i < Math.min(3, activeInts.length); i++) {
-    const int = activeInts[i];
-    seedConsultations.push({
-      id: `consult-pend-${i}`,
-      interactionId: int.id,
-      staffContactId: pick(staff).id,
-      channelType: int.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
-      channelInstanceId: int.channelInstanceId,
-      reason: CONSULTATION_REASONS[i],
-      status: 'pending',
-      timeoutMinutes: 30,
-      requestedAt: hoursAgo(faker.number.int({ min: 0, max: 1 })),
-    });
-  }
-
-  // Replied (from resolved)
-  for (let i = 0; i < Math.min(4, resolvedInts.length); i++) {
-    const int = resolvedInts[i];
-    const reqH = faker.number.int({ min: 24, max: 200 });
-    seedConsultations.push({
-      id: `consult-replied-${i}`,
-      interactionId: int.id,
-      staffContactId: pick(staff).id,
-      channelType: int.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : 'web',
-      channelInstanceId: int.channelInstanceId,
-      reason: CONSULTATION_REASONS[3 + i],
-      summary: REPLY_SUMMARIES[i],
-      status: 'replied',
-      timeoutMinutes: 30,
-      requestedAt: hoursAgo(reqH),
-      repliedAt: hoursAgo(reqH - faker.number.int({ min: 0, max: 1 })),
-      replyPayload: { reply: REPLY_SUMMARIES[i], staffId: pick(staff).id },
-    });
-  }
-
-  // Timeout
-  for (let i = 0; i < Math.min(2, resolvedInts.length - 4); i++) {
-    const int = resolvedInts[4 + i];
-    if (!int) break;
-    seedConsultations.push({
-      id: `consult-timeout-${i}`,
-      interactionId: int.id,
-      staffContactId: pick(staff).id,
-      channelType: 'whatsapp',
-      channelInstanceId: 'ci-wa-main',
-      reason: CONSULTATION_REASONS[7 + i],
-      status: 'timeout',
-      timeoutMinutes: 30,
-      requestedAt: hoursAgo(faker.number.int({ min: 48, max: 200 })),
-    });
-  }
-
-  // Notification failed
-  for (let i = 0; i < Math.min(2, failedInts.length); i++) {
-    const int = failedInts[i];
-    seedConsultations.push({
-      id: `consult-notif-fail-${i}`,
-      interactionId: int.id,
-      staffContactId: pick(staff).id,
-      channelType: 'whatsapp',
-      channelInstanceId: 'ci-wa-main',
-      reason: CONSULTATION_REASONS[9 + i],
-      status: 'notification_failed',
-      timeoutMinutes: 30,
-      requestedAt: hoursAgo(faker.number.int({ min: 4, max: 72 })),
-    });
-  }
-
-  if (seedConsultations.length > 0) {
-    await db
-      .insert(consultations)
-      .values(seedConsultations)
-      .onConflictDoNothing();
-  }
-  console.log(`${green('✓')} Seeded ${seedConsultations.length} consultations`);
+  const activeConvs = allConversations.filter((s) => s.status === 'active');
+  const failedConvs = allConversations.filter((s) => s.status === 'failed');
 
   // ─── Activity Events (as messages with messageType='activity') ────
 
@@ -1943,7 +1498,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     userId?: string;
     source: 'agent' | 'staff' | 'system';
     contactId?: string;
-    interactionId: string;
+    conversationId: string;
     channelRoutingId?: string;
     channelType?: string;
     data: Record<string, unknown>;
@@ -1959,14 +1514,14 @@ export default async function seed(ctx: { db: VobaseDb }) {
         return `Guardrail blocked: ${(evt.data.reason as string) ?? 'Policy violation'}`;
       case 'guardrail.warn':
         return `Guardrail warning: ${(evt.data.reason as string) ?? 'Policy warning'}`;
-      case 'interaction.created':
-        return 'Interaction started';
-      case 'interaction.resolved':
-        return `Interaction resolved${evt.data.outcome ? `: ${evt.data.outcome}` : ''}`;
-      case 'interaction.reopened':
-        return `Interaction reopened (reopen #${evt.data.reopenCount ?? 1})`;
-      case 'interaction.failed':
-        return `Interaction failed: ${(evt.data.reason as string) ?? 'Unknown error'}`;
+      case 'conversation.created':
+        return 'Conversation started';
+      case 'conversation.resolved':
+        return `Conversation resolved${evt.data.outcome ? `: ${evt.data.outcome}` : ''}`;
+      case 'conversation.reopened':
+        return `Conversation reopened (reopen #${evt.data.reopenCount ?? 1})`;
+      case 'conversation.failed':
+        return `Conversation failed: ${(evt.data.reason as string) ?? 'Unknown error'}`;
       case 'agent.tool_executed':
         return `Tool executed: ${(evt.data.toolName as string) ?? 'unknown'}`;
       case 'handler.changed':
@@ -1993,7 +1548,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       agentId: 'booking',
       source: 'agent',
       contactId: 'c-hannah',
-      interactionId: 'int-hannah-web-1',
+      conversationId: 'int-hannah-web-1',
       channelRoutingId: 'ep-web-booking',
       channelType: 'web',
       data: {
@@ -2008,7 +1563,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       agentId: 'booking',
       source: 'agent',
       contactId: 'c-ivan',
-      interactionId: 'int-ivan-web-1',
+      conversationId: 'int-ivan-web-1',
       channelRoutingId: 'ep-web-booking',
       channelType: 'web',
       data: { reason: 'Needs manager approval for discount' },
@@ -2021,7 +1576,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       agentId: 'booking',
       source: 'system',
       contactId: 'c-jenny',
-      interactionId: 'int-jenny-wa-1',
+      conversationId: 'int-jenny-wa-1',
       channelRoutingId: 'ep-wa-booking',
       channelType: 'whatsapp',
       data: { reason: 'Blocked offensive content', matchedTerm: 'profanity' },
@@ -2033,18 +1588,18 @@ export default async function seed(ctx: { db: VobaseDb }) {
       agentId: 'booking',
       source: 'system',
       contactId: 'c-lily',
-      interactionId: 'int-lily-wa-1',
+      conversationId: 'int-lily-wa-1',
       channelType: 'whatsapp',
       data: { reason: 'Potential PII detected', matchedTerm: 'NRIC' },
       createdAt: hoursAgo(0.3),
     },
-    // Reviewed escalation (from Alice's second interaction)
+    // Reviewed escalation (from Alice's insurance billing segment)
     {
       type: 'escalation.created',
       agentId: 'booking',
       source: 'agent',
       contactId: 'c-alice',
-      interactionId: 'int-alice-wa-04',
+      conversationId: 'int-alice-wa-10',
       channelRoutingId: 'ep-wa-booking',
       channelType: 'whatsapp',
       data: { reason: 'Insurance billing question' },
@@ -2053,45 +1608,45 @@ export default async function seed(ctx: { db: VobaseDb }) {
     },
     // Lifecycle events
     {
-      type: 'interaction.created',
+      type: 'conversation.created',
       agentId: 'booking',
       source: 'system',
       contactId: 'c-alice',
-      interactionId: 'int-alice-wa-10',
+      conversationId: 'int-alice-wa-10',
       channelRoutingId: 'ep-wa-booking',
       channelType: 'whatsapp',
       data: {},
       createdAt: hoursAgo(2),
     },
     {
-      type: 'interaction.reopened',
+      type: 'conversation.reopened',
       agentId: 'booking',
       source: 'system',
-      interactionId: 'int-alice-wa-10',
+      conversationId: 'int-alice-wa-10',
       data: { reopenCount: 1 },
       createdAt: hoursAgo(1),
     },
     {
-      type: 'interaction.resolved',
+      type: 'conversation.resolved',
       agentId: 'booking',
       source: 'system',
-      interactionId: 'int-alice-wa-01',
+      conversationId: 'int-alice-wa-10',
       data: { outcome: 'resolved' },
       createdAt: hoursAgo(503),
     },
     {
-      type: 'interaction.resolved',
+      type: 'conversation.resolved',
       agentId: 'booking',
       source: 'system',
-      interactionId: 'int-george-wa-1',
+      conversationId: 'int-george-wa-1',
       data: { outcome: 'topic_change' },
       createdAt: hoursAgo(0.5),
     },
     {
-      type: 'interaction.failed',
+      type: 'conversation.failed',
       agentId: 'booking',
       source: 'system',
-      interactionId: 'int-fiona-web-1',
+      conversationId: 'int-fiona-web-1',
       data: { reason: 'Agent exceeded max steps' },
       createdAt: hoursAgo(47),
     },
@@ -2101,7 +1656,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       agentId: 'booking',
       source: 'agent',
       contactId: 'c-alice',
-      interactionId: 'int-alice-wa-10',
+      conversationId: 'int-alice-wa-10',
       channelType: 'whatsapp',
       data: { toolName: 'book_slot', isError: false },
       createdAt: hoursAgo(1.5),
@@ -2111,7 +1666,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       agentId: 'booking',
       source: 'agent',
       contactId: 'c-bob',
-      interactionId: 'int-bob-web-06',
+      conversationId: 'int-bob-web-06',
       channelType: 'web',
       data: { toolName: 'check_availability', isError: false },
       createdAt: hoursAgo(0.8),
@@ -2121,7 +1676,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       type: 'handler.changed',
       agentId: 'booking',
       source: 'agent',
-      interactionId: 'int-hannah-web-1',
+      conversationId: 'int-hannah-web-1',
       data: {
         from: 'ai',
         to: 'human',
@@ -2134,7 +1689,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       type: 'agent.draft_generated',
       agentId: 'booking',
       source: 'agent',
-      interactionId: 'int-ivan-web-1',
+      conversationId: 'int-ivan-web-1',
       channelType: 'web',
       data: {
         handlerMode: 'supervised',
@@ -2147,7 +1702,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   const seedActivityMessages = seedActivity.map((evt, i) => ({
     id: `msg-evt-${faker.string.alphanumeric(8)}-${i}`,
-    interactionId: evt.interactionId,
+    conversationId: evt.conversationId,
     messageType: 'activity' as const,
     contentType: 'system' as const,
     content: eventContent(evt),
@@ -2170,43 +1725,43 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   // ─── Update last-message denormalized columns ────────────────────
   const allMsgs = [...allMessages, ...seedActivityMessages];
-  const lastRealByInt = new Map<string, (typeof allMsgs)[number]>();
-  const lastActivityByInt = new Map<string, (typeof allMsgs)[number]>();
+  const lastRealByConv = new Map<string, (typeof allMsgs)[number]>();
+  const lastActivityByConv = new Map<string, (typeof allMsgs)[number]>();
 
   for (const msg of allMsgs) {
     if (msg.messageType === 'activity') {
-      const existing = lastActivityByInt.get(msg.interactionId);
+      const existing = lastActivityByConv.get(msg.conversationId);
       if (!existing || msg.createdAt > existing.createdAt) {
-        lastActivityByInt.set(msg.interactionId, msg);
+        lastActivityByConv.set(msg.conversationId, msg);
       }
     } else if (!('private' in msg && msg.private)) {
-      const existing = lastRealByInt.get(msg.interactionId);
+      const existing = lastRealByConv.get(msg.conversationId);
       if (!existing || msg.createdAt > existing.createdAt) {
-        lastRealByInt.set(msg.interactionId, msg);
+        lastRealByConv.set(msg.conversationId, msg);
       }
     }
   }
 
-  const allIntIds = new Set([
-    ...lastRealByInt.keys(),
-    ...lastActivityByInt.keys(),
+  const allConvIds = new Set([
+    ...lastRealByConv.keys(),
+    ...lastActivityByConv.keys(),
   ]);
 
-  for (const intId of allIntIds) {
-    const lastReal = lastRealByInt.get(intId);
-    const lastActivity = lastActivityByInt.get(intId);
+  for (const convId of allConvIds) {
+    const lastReal = lastRealByConv.get(convId);
+    const lastActivity = lastActivityByConv.get(convId);
     const display = lastReal ?? lastActivity;
     if (!display) continue;
 
     await db
-      .update(interactions)
+      .update(conversations)
       .set({
         lastMessageContent: display.content.slice(0, 100),
         lastMessageAt: display.createdAt,
         lastMessageType: display.messageType,
         lastActivityAt: lastActivity?.createdAt ?? display.createdAt,
       })
-      .where(eq(interactions.id, intId));
+      .where(eq(conversations.id, convId));
   }
 
   console.log(
@@ -2214,15 +1769,15 @@ export default async function seed(ctx: { db: VobaseDb }) {
   );
 
   // ─── Channel Sessions (WhatsApp window tracking) ─────────────────
-  const waActiveInts = allInteractions.filter(
+  const waActiveConvs = allConversations.filter(
     (s) => s.channelInstanceId === 'ci-wa-main' && s.status === 'active',
   );
-  const seedSessions = waActiveInts.slice(0, 8).map((int, i) => {
+  const seedSessions = waActiveConvs.slice(0, 8).map((conv, i) => {
     const isExpired = i >= 6;
     const windowOpensAt = hoursAgo(isExpired ? 30 : 2);
     return {
       id: `cs-${faker.string.alphanumeric(8)}`,
-      interactionId: int.id,
+      conversationId: conv.id,
       channelInstanceId: 'ci-wa-main',
       channelType: 'whatsapp',
       sessionState: isExpired ? 'window_expired' : 'window_open',
@@ -2257,10 +1812,10 @@ export default async function seed(ctx: { db: VobaseDb }) {
       .set({
         workingMemory: memory,
         resourceMetadata: {
-          lastInteraction: hoursAgo(
+          lastConversation: hoursAgo(
             faker.number.int({ min: 1, max: 48 }),
           ).toISOString(),
-          interactionCount: faker.number.int({ min: 1, max: 10 }),
+          conversationCount: faker.number.int({ min: 1, max: 10 }),
         },
       })
       .where(eq(contacts.id, contactId));
@@ -2278,8 +1833,8 @@ export default async function seed(ctx: { db: VobaseDb }) {
   const seedReactions = reactionMessages.slice(0, 5).map((msg, i) => ({
     id: `react-${faker.string.alphanumeric(8)}`,
     messageId: msg.id,
-    interactionId: msg.interactionId,
-    contactId: allInteractions.find((s) => s.id === msg.interactionId)
+    conversationId: msg.conversationId,
+    contactId: allConversations.find((s) => s.id === msg.conversationId)
       ?.contactId,
     userId: null,
     emoji: pick(['👍', '❤️', '😊', '🙏', '✅']),
@@ -2292,14 +1847,14 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   const seedFeedback = reactionMessages.slice(5, 10).map((msg, i) => ({
     id: `fb-${faker.string.alphanumeric(8)}`,
-    interactionId: msg.interactionId,
+    conversationId: msg.conversationId,
     messageId: msg.id,
     rating: i < 3 ? 'positive' : 'negative',
     reason:
       i >= 3
         ? pick(['Unhelpful response', 'Wrong information', 'Too slow'])
         : null,
-    contactId: allInteractions.find((s) => s.id === msg.interactionId)
+    contactId: allConversations.find((s) => s.id === msg.conversationId)
       ?.contactId,
     userId: null,
   }));
@@ -2519,40 +2074,40 @@ export default async function seed(ctx: { db: VobaseDb }) {
 
   const labelAssignments = [
     // VIP labels on Charlie and Alice
-    { interactionId: 'int-charlie-wa-01', labelId: 'lbl-vip' },
-    { interactionId: 'int-alice-wa-10', labelId: 'lbl-vip' },
+    { conversationId: 'int-charlie-wa-06', labelId: 'lbl-vip' },
+    { conversationId: 'int-alice-wa-10', labelId: 'lbl-vip' },
     // Urgent on Jenny and Lily
-    { interactionId: 'int-jenny-wa-1', labelId: 'lbl-urgent' },
-    { interactionId: 'int-lily-wa-1', labelId: 'lbl-urgent' },
+    { conversationId: 'int-jenny-wa-1', labelId: 'lbl-urgent' },
+    { conversationId: 'int-lily-wa-1', labelId: 'lbl-urgent' },
     // Follow-up on Diana (abandoned)
-    { interactionId: 'int-diana-wa-1', labelId: 'lbl-followup' },
+    { conversationId: 'int-diana-wa-1', labelId: 'lbl-followup' },
     // Feedback on Bob
-    { interactionId: 'int-bob-web-06', labelId: 'lbl-feedback' },
+    { conversationId: 'int-bob-web-06', labelId: 'lbl-feedback' },
     // Bug on Fiona (failed)
-    { interactionId: 'int-fiona-web-1', labelId: 'lbl-bug' },
-    // Multi-label: Alice's reopened interaction gets VIP + follow-up
-    { interactionId: 'int-alice-wa-10', labelId: 'lbl-followup' },
-    // Bulk interactions get some labels too
-    ...bulkInteractions.slice(0, 8).map((int, i) => ({
-      interactionId: int.id,
+    { conversationId: 'int-fiona-web-1', labelId: 'lbl-bug' },
+    // Multi-label: Alice's reopened conversation gets VIP + follow-up
+    { conversationId: 'int-alice-wa-10', labelId: 'lbl-followup' },
+    // Bulk conversations get some labels too
+    ...bulkConversations.slice(0, 8).map((conv, i) => ({
+      conversationId: conv.id,
       labelId: seedLabels[i % seedLabels.length].id,
     })),
   ];
 
   await db
-    .insert(interactionLabels)
+    .insert(conversationLabels)
     .values(labelAssignments)
     .onConflictDoNothing();
 
-  // Migrate interactionLabels → contactLabels (dedup by contact+label)
-  const interactionContactMap = new Map<string, string>();
-  for (const int of allInteractions) {
-    interactionContactMap.set(int.id, int.contactId);
+  // Migrate conversationLabels → contactLabels (dedup by contact+label)
+  const conversationContactMap = new Map<string, string>();
+  for (const conv of allConversations) {
+    conversationContactMap.set(conv.id, conv.contactId);
   }
   const contactLabelSet = new Set<string>();
   const contactLabelRows: { contactId: string; labelId: string }[] = [];
   for (const la of labelAssignments) {
-    const cId = interactionContactMap.get(la.interactionId);
+    const cId = conversationContactMap.get(la.conversationId);
     if (!cId) continue;
     const key = `${cId}:${la.labelId}`;
     if (contactLabelSet.has(key)) continue;
@@ -2566,11 +2121,11 @@ export default async function seed(ctx: { db: VobaseDb }) {
       .onConflictDoNothing();
   }
   console.log(
-    `${green('✓')} Seeded ${seedLabels.length} labels, ${labelAssignments.length} interaction assignments, ${contactLabelRows.length} contact labels`,
+    `${green('✓')} Seeded ${seedLabels.length} labels, ${labelAssignments.length} conversation assignments, ${contactLabelRows.length} contact labels`,
   );
 
   // ─── Summary ─────────────────────────────────────────────────────
   console.log(
-    `\n${green('Done!')} Seeded ${allInteractions.length} interactions, ${allMessages.length + seedActivityMessages.length} messages, ${seedConsultations.length} consultations, ${seedParticipants.length} participants`,
+    `\n${green('Done!')} Seeded ${allConversations.length} conversations, ${allMessages.length + seedActivityMessages.length} messages, ${seedParticipants.length} participants`,
   );
 }

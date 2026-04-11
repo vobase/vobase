@@ -8,7 +8,7 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  interactions,
+  conversations,
 } from '../schema';
 import { labelsHandlers } from './labels';
 
@@ -42,7 +42,7 @@ beforeEach(async () => {
   db = result.db;
   app = buildApp(db);
 
-  // Seed a contact + channel + routing + interaction for label attachment tests
+  // Seed a contact + channel + routing + conversation for label attachment tests
   await db.insert(contacts).values({
     id: 'lbl-contact',
     phone: '+6599999999',
@@ -65,14 +65,14 @@ beforeEach(async () => {
     agentId: 'booking',
   });
 
-  await db.insert(interactions).values({
+  await db.insert(conversations).values({
     id: 'lbl-conv',
     channelRoutingId: 'lbl-cr',
     contactId: 'lbl-contact',
     agentId: 'booking',
     channelInstanceId: 'lbl-ci',
+    assignee: 'agent:booking',
     status: 'active',
-    mode: 'ai',
   });
 });
 
@@ -158,7 +158,7 @@ describe('Labels CRUD', () => {
   });
 });
 
-describe('Interaction Labels', () => {
+describe('Conversation Labels', () => {
   async function createLabel(title: string): Promise<string> {
     const res = await app.request('/labels', {
       method: 'POST',
@@ -169,10 +169,10 @@ describe('Interaction Labels', () => {
     return body.id as string;
   }
 
-  it('POST /interactions/:id/labels attaches labels', async () => {
+  it('POST /conversations/:id/labels attaches labels', async () => {
     const lid = await createLabel('VIP');
 
-    const res = await app.request('/interactions/lbl-conv/labels', {
+    const res = await app.request('/conversations/lbl-conv/labels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ labelIds: [lid] }),
@@ -183,17 +183,17 @@ describe('Interaction Labels', () => {
     expect(body.ok).toBe(true);
   });
 
-  it('GET /interactions/:id/labels returns attached labels', async () => {
+  it('GET /conversations/:id/labels returns attached labels', async () => {
     const lid1 = await createLabel('Priority');
     const lid2 = await createLabel('Billing');
 
-    await app.request('/interactions/lbl-conv/labels', {
+    await app.request('/conversations/lbl-conv/labels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ labelIds: [lid1, lid2] }),
     });
 
-    const res = await app.request('/interactions/lbl-conv/labels');
+    const res = await app.request('/conversations/lbl-conv/labels');
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body)).toBe(true);
@@ -203,24 +203,24 @@ describe('Interaction Labels', () => {
     expect(titles).toContain('Billing');
   });
 
-  it('DELETE /interactions/:id/labels/:lid removes label', async () => {
+  it('DELETE /conversations/:id/labels/:lid removes label', async () => {
     const lid = await createLabel('Temporary');
 
-    await app.request('/interactions/lbl-conv/labels', {
+    await app.request('/conversations/lbl-conv/labels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ labelIds: [lid] }),
     });
 
     const deleteRes = await app.request(
-      `/interactions/lbl-conv/labels/${lid}`,
+      `/conversations/lbl-conv/labels/${lid}`,
       { method: 'DELETE' },
     );
     expect(deleteRes.status).toBe(200);
     const body = await deleteRes.json();
     expect(body.ok).toBe(true);
 
-    const listRes = await app.request('/interactions/lbl-conv/labels');
+    const listRes = await app.request('/conversations/lbl-conv/labels');
     const list = await listRes.json();
     expect(list.length).toBe(0);
   });

@@ -7,7 +7,7 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  interactions,
+  conversations,
   messages,
 } from '../schema';
 import {
@@ -234,13 +234,14 @@ describe('adapter-driven delivery', () => {
       },
     ]);
 
-    await db.insert(interactions).values([
+    await db.insert(conversations).values([
       {
         id: 'conv-wa',
         channelRoutingId: 'cr-wa',
         contactId: 'contact-1',
         agentId: 'agent-1',
         channelInstanceId: 'ci-wa',
+        assignee: 'agent:agent-1',
         status: 'active',
       },
       {
@@ -249,6 +250,7 @@ describe('adapter-driven delivery', () => {
         contactId: 'contact-1',
         agentId: 'agent-1',
         channelInstanceId: 'ci-email',
+        assignee: 'agent:agent-1',
         status: 'active',
       },
     ]);
@@ -257,7 +259,7 @@ describe('adapter-driven delivery', () => {
   it('dispatches through adapter.serializeOutbound for WhatsApp', async () => {
     await db.insert(messages).values({
       id: 'msg-wa-1',
-      interactionId: 'conv-wa',
+      conversationId: 'conv-wa',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Hello customer',
@@ -285,7 +287,7 @@ describe('adapter-driven delivery', () => {
   it('uses adapter.contactIdentifierField for email address', async () => {
     await db.insert(messages).values({
       id: 'msg-email-1',
-      interactionId: 'conv-email',
+      conversationId: 'conv-email',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Hello via email',
@@ -316,18 +318,19 @@ describe('adapter-driven delivery', () => {
       agentId: 'agent-1',
     });
 
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-web',
       channelRoutingId: 'cr-web',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-web',
+      assignee: 'agent:agent-1',
       status: 'active',
     });
 
     await db.insert(messages).values({
       id: 'msg-web-1',
-      interactionId: 'conv-web',
+      conversationId: 'conv-web',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'Hello web user',
@@ -355,18 +358,19 @@ describe('adapter-driven delivery', () => {
       role: 'customer',
     });
 
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-nophone',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-nophone',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'agent:agent-1',
       status: 'active',
     });
 
     await db.insert(messages).values({
       id: 'msg-nophone',
-      interactionId: 'conv-nophone',
+      conversationId: 'conv-nophone',
       messageType: 'outgoing',
       contentType: 'text',
       content: 'This should fail',

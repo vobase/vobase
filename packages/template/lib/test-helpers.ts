@@ -25,7 +25,7 @@ const nanoidSql = readFileSync(
   'utf-8',
 );
 
-const TEMPLATE_SCHEMAS = ['interactions', 'ai', 'kb'] as const;
+const TEMPLATE_SCHEMAS = ['conversations', 'ai', 'kb'] as const;
 
 let shared: PGlite | null = null;
 let nanoidInstalled = false;
@@ -68,10 +68,10 @@ export async function createTestDb(options?: {
     nanoidInstalled = true;
   }
 
-  // Interactions tables (always created — most tests need them)
+  // Conversations tables (always created — most tests need them)
   // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
   await (pglite as any).exec(`
-    CREATE TABLE "interactions"."contacts" (
+    CREATE TABLE "conversations"."contacts" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       phone TEXT UNIQUE,
       email TEXT UNIQUE,
@@ -85,7 +85,7 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "interactions"."channel_instances" (
+    CREATE TABLE "conversations"."channel_instances" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       type TEXT NOT NULL,
       integration_id TEXT,
@@ -97,10 +97,10 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "interactions"."channel_routings" (
+    CREATE TABLE "conversations"."channel_routings" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       name TEXT NOT NULL,
-      channel_instance_id TEXT NOT NULL REFERENCES "interactions"."channel_instances" (id),
+      channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
       agent_id TEXT NOT NULL,
       assignment_pattern TEXT NOT NULL DEFAULT 'direct' CHECK (assignment_pattern IN ('direct', 'router', 'workflow')),
       config JSONB DEFAULT '{}',
@@ -109,28 +109,26 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "interactions"."interactions" (
+    CREATE TABLE "conversations"."conversations" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      channel_routing_id TEXT NOT NULL REFERENCES "interactions"."channel_routings" (id),
-      contact_id TEXT NOT NULL REFERENCES "interactions"."contacts" (id),
+      channel_routing_id TEXT REFERENCES "conversations"."channel_routings" (id),
+      contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id),
       agent_id TEXT NOT NULL,
-      channel_instance_id TEXT NOT NULL REFERENCES "interactions"."channel_instances" (id),
+      channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
       title TEXT,
-      interaction_type TEXT NOT NULL DEFAULT 'message' CHECK (interaction_type IN ('message')),
       status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'resolving', 'resolved', 'failed')),
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       resolved_at TIMESTAMPTZ,
       outcome TEXT CHECK (outcome IS NULL OR outcome IN ('resolved', 'escalated', 'abandoned', 'topic_change')),
       autonomy_level TEXT CHECK (autonomy_level IS NULL OR autonomy_level IN ('full_ai', 'ai_with_escalation', 'human_assisted', 'human_only')),
       reopen_count INTEGER NOT NULL DEFAULT 0,
-      topic_change_pending BOOLEAN NOT NULL DEFAULT FALSE,
       metadata JSONB DEFAULT '{}',
-      mode TEXT NOT NULL DEFAULT 'ai' CHECK (mode IN ('ai', 'human', 'supervised', 'held')),
-      assignee TEXT,
+      assignee TEXT NOT NULL,
       assigned_at TIMESTAMPTZ,
+      on_hold BOOLEAN NOT NULL DEFAULT FALSE,
+      held_at TIMESTAMPTZ,
+      hold_reason TEXT,
       priority TEXT CHECK (priority IS NULL OR priority IN ('low', 'normal', 'high', 'urgent')),
-      has_pending_escalation BOOLEAN NOT NULL DEFAULT FALSE,
-      waiting_since TIMESTAMPTZ,
       unread_count INTEGER NOT NULL DEFAULT 0,
       custom_attributes JSONB DEFAULT '{}',
       first_replied_at TIMESTAMPTZ,
@@ -144,25 +142,11 @@ export async function createTestDb(options?: {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "interactions"."consultations" (
-      id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      interaction_id TEXT NOT NULL REFERENCES "interactions"."interactions" (id),
-      staff_contact_id TEXT NOT NULL REFERENCES "interactions"."contacts" (id),
-      channel_type TEXT NOT NULL,
-      channel_instance_id TEXT REFERENCES "interactions"."channel_instances" (id),
-      reason TEXT NOT NULL,
-      summary TEXT,
-      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'replied', 'timeout', 'notification_failed')),
-      requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      reply_payload JSONB,
-      replied_at TIMESTAMPTZ,
-      timeout_minutes INTEGER NOT NULL DEFAULT 30,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+    CREATE UNIQUE INDEX conversations_contact_channel_unique ON "conversations"."conversations" (contact_id, channel_instance_id) WHERE status IN ('active', 'resolving');
 
-    CREATE TABLE "interactions"."messages" (
+    CREATE TABLE "conversations"."messages" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      interaction_id TEXT NOT NULL REFERENCES "interactions"."interactions" (id) ON DELETE CASCADE,
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id) ON DELETE CASCADE,
       message_type TEXT NOT NULL CHECK (message_type IN ('incoming', 'outgoing', 'activity')),
       content_type TEXT NOT NULL CHECK (content_type IN ('text', 'image', 'document', 'audio', 'video', 'template', 'interactive', 'sticker', 'email', 'system')),
       content TEXT NOT NULL,
@@ -177,16 +161,18 @@ export async function createTestDb(options?: {
       channel_type TEXT,
       private BOOLEAN NOT NULL DEFAULT FALSE,
       withdrawn BOOLEAN NOT NULL DEFAULT FALSE,
+      reply_to_message_id TEXT,
       resolution_status TEXT CHECK (resolution_status IS NULL OR resolution_status IN ('pending', 'reviewed', 'dismissed')),
+      mentions JSONB DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE UNIQUE INDEX idx_messages_external_id_unique ON "interactions"."messages" (external_message_id) WHERE external_message_id IS NOT NULL;
+    CREATE UNIQUE INDEX idx_messages_external_id_unique ON "conversations"."messages" (external_message_id) WHERE external_message_id IS NOT NULL;
 
-    CREATE TABLE "interactions"."channel_sessions" (
+    CREATE TABLE "conversations"."channel_sessions" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      interaction_id TEXT NOT NULL REFERENCES "interactions"."interactions" (id),
-      channel_instance_id TEXT NOT NULL REFERENCES "interactions"."channel_instances" (id),
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id),
+      channel_instance_id TEXT NOT NULL REFERENCES "conversations"."channel_instances" (id),
       channel_type TEXT NOT NULL,
       session_state TEXT NOT NULL DEFAULT 'window_open' CHECK (session_state IN ('window_open', 'window_expired')),
       window_opens_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -194,10 +180,10 @@ export async function createTestDb(options?: {
       metadata JSONB DEFAULT '{}',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (interaction_id, channel_instance_id)
+      UNIQUE (conversation_id, channel_instance_id)
     );
 
-    CREATE TABLE "interactions"."labels" (
+    CREATE TABLE "conversations"."labels" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       title TEXT NOT NULL UNIQUE,
       color TEXT,
@@ -205,26 +191,26 @@ export async function createTestDb(options?: {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE "interactions"."interaction_labels" (
+    CREATE TABLE "conversations"."conversation_labels" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      interaction_id TEXT NOT NULL REFERENCES "interactions"."interactions" (id) ON DELETE CASCADE,
-      label_id TEXT NOT NULL REFERENCES "interactions"."labels" (id) ON DELETE CASCADE,
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id) ON DELETE CASCADE,
+      label_id TEXT NOT NULL REFERENCES "conversations"."labels" (id) ON DELETE CASCADE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (interaction_id, label_id)
+      UNIQUE (conversation_id, label_id)
     );
 
-    CREATE TABLE "interactions"."contact_labels" (
+    CREATE TABLE "conversations"."contact_labels" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
-      contact_id TEXT NOT NULL REFERENCES "interactions"."contacts" (id) ON DELETE CASCADE,
-      label_id TEXT NOT NULL REFERENCES "interactions"."labels" (id) ON DELETE CASCADE,
+      contact_id TEXT NOT NULL REFERENCES "conversations"."contacts" (id) ON DELETE CASCADE,
+      label_id TEXT NOT NULL REFERENCES "conversations"."labels" (id) ON DELETE CASCADE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (contact_id, label_id)
     );
 
-    CREATE TABLE "interactions"."reactions" (
+    CREATE TABLE "conversations"."reactions" (
       id TEXT PRIMARY KEY DEFAULT nanoid(12),
       message_id TEXT NOT NULL,
-      interaction_id TEXT NOT NULL REFERENCES "interactions"."interactions" (id) ON DELETE CASCADE,
+      conversation_id TEXT NOT NULL REFERENCES "conversations"."conversations" (id) ON DELETE CASCADE,
       user_id TEXT,
       contact_id TEXT,
       emoji TEXT NOT NULL,

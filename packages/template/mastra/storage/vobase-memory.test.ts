@@ -8,7 +8,7 @@ import {
   channelInstances,
   channelRoutings,
   contacts,
-  interactions,
+  conversations,
   messages,
 } from '../../modules/ai/schema';
 import { VobaseMemoryStorage } from './vobase-memory';
@@ -19,10 +19,10 @@ const noopOmDelegate = {} as MemoryStorage;
 let db: VobaseDb;
 let storage: VobaseMemoryStorage;
 let testContactId: string;
-let testInteractionId: string;
+let testConversationId: string;
 
 async function seedScaffold() {
-  // Insert required FK chain: contact → channelInstance → channelRouting → interaction
+  // Insert required FK chain: contact → channelInstance → channelRouting → conversation
   const [contact] = await db
     .insert(contacts)
     .values({ name: 'Test Contact', phone: '+6591234567', role: 'customer' })
@@ -44,16 +44,17 @@ async function seedScaffold() {
     .returning();
 
   const [conv] = await db
-    .insert(interactions)
+    .insert(conversations)
     .values({
       channelRoutingId: routing?.id,
       contactId: testContactId,
       agentId: 'booking-agent',
       channelInstanceId: instance?.id,
       title: 'Initial title',
+      assignee: 'agent:booking-agent',
     })
     .returning();
-  testInteractionId = conv?.id;
+  testConversationId = conv?.id;
 }
 
 describe('VobaseMemoryStorage', () => {
@@ -66,13 +67,13 @@ describe('VobaseMemoryStorage', () => {
 
   // ─── Thread CRUD ──────────────────────────────────────────────
 
-  describe('threads (interactions)', () => {
+  describe('threads (conversations)', () => {
     it('getThreadById returns mapped StorageThreadType', async () => {
       const thread = await storage.getThreadById({
-        threadId: testInteractionId,
+        threadId: testConversationId,
       });
       expect(thread).not.toBeNull();
-      expect(thread?.id).toBe(testInteractionId);
+      expect(thread?.id).toBe(testConversationId);
       expect(thread?.resourceId).toBe(`contact:${testContactId}`);
       expect(thread?.title).toBe('Initial title');
       expect(thread?.createdAt).toBeInstanceOf(Date);
@@ -85,7 +86,7 @@ describe('VobaseMemoryStorage', () => {
 
     it('updateThread updates title and metadata', async () => {
       const updated = await storage.updateThread({
-        id: testInteractionId,
+        id: testConversationId,
         title: 'Updated title',
         metadata: { foo: 'bar' },
       });
@@ -94,11 +95,11 @@ describe('VobaseMemoryStorage', () => {
     });
 
     it('deleteThread soft-deletes by setting status to resolved', async () => {
-      await storage.deleteThread({ threadId: testInteractionId });
+      await storage.deleteThread({ threadId: testConversationId });
       const rows = await db
         .select()
-        .from(interactions)
-        .where(eq(interactions.id, testInteractionId));
+        .from(conversations)
+        .where(eq(conversations.id, testConversationId));
       expect(rows[0]?.status).toBe('resolved');
     });
 
@@ -107,7 +108,7 @@ describe('VobaseMemoryStorage', () => {
         filter: { resourceId: `contact:${testContactId}` },
       });
       expect(result.threads.length).toBe(1);
-      expect(result.threads[0]?.id).toBe(testInteractionId);
+      expect(result.threads[0]?.id).toBe(testConversationId);
     });
 
     it('listThreads returns empty for unknown resourceId', async () => {
@@ -132,7 +133,7 @@ describe('VobaseMemoryStorage', () => {
               parts: [{ type: 'text', text: 'Hello there' }],
             },
             createdAt: new Date(),
-            threadId: testInteractionId,
+            threadId: testConversationId,
             resourceId: testContactId,
           },
           {
@@ -143,7 +144,7 @@ describe('VobaseMemoryStorage', () => {
               parts: [{ type: 'text', text: 'Hi! How can I help?' }],
             },
             createdAt: new Date(),
-            threadId: testInteractionId,
+            threadId: testConversationId,
             resourceId: 'booking-agent',
           },
         ],
@@ -154,7 +155,7 @@ describe('VobaseMemoryStorage', () => {
       const rows = await db
         .select()
         .from(messages)
-        .where(eq(messages.interactionId, testInteractionId));
+        .where(eq(messages.conversationId, testConversationId));
       expect(rows).toHaveLength(2);
 
       const userMsg = rows.find((r) => r.id === 'msg-1')!;
@@ -180,7 +181,7 @@ describe('VobaseMemoryStorage', () => {
           parts: [{ type: 'text' as const, text: 'First' }],
         },
         createdAt: new Date(),
-        threadId: testInteractionId,
+        threadId: testConversationId,
         resourceId: testContactId,
       };
       await storage.saveMessages({ messages: [msg] });
@@ -205,19 +206,19 @@ describe('VobaseMemoryStorage', () => {
               parts: [{ type: 'text', text: 'Question' }],
             },
             createdAt: new Date(),
-            threadId: testInteractionId,
+            threadId: testConversationId,
             resourceId: testContactId,
           },
         ],
       });
 
       const result = await storage.listMessages({
-        threadId: testInteractionId,
+        threadId: testConversationId,
       });
       expect(result.messages).toHaveLength(1);
       expect(result.messages[0]?.role).toBe('user');
       expect(result.messages[0]?.content.format).toBe(2);
-      expect(result.messages[0]?.threadId).toBe(testInteractionId);
+      expect(result.messages[0]?.threadId).toBe(testConversationId);
     });
 
     it('listMessagesById fetches by IDs', async () => {
@@ -231,7 +232,7 @@ describe('VobaseMemoryStorage', () => {
               parts: [{ type: 'text', text: 'Answer' }],
             },
             createdAt: new Date(),
-            threadId: testInteractionId,
+            threadId: testConversationId,
             resourceId: 'booking-agent',
           },
         ],
@@ -255,7 +256,7 @@ describe('VobaseMemoryStorage', () => {
               parts: [{ type: 'text', text: 'Delete me' }],
             },
             createdAt: new Date(),
-            threadId: testInteractionId,
+            threadId: testConversationId,
             resourceId: testContactId,
           },
         ],
@@ -329,7 +330,7 @@ describe('VobaseMemoryStorage', () => {
       // Insert a raw message without mastraContent (like existing data)
       await db.insert(messages).values({
         id: 'legacy-msg',
-        interactionId: testInteractionId,
+        conversationId: testConversationId,
         messageType: 'incoming',
         contentType: 'text',
         content: 'Legacy text message',
@@ -338,7 +339,7 @@ describe('VobaseMemoryStorage', () => {
       });
 
       const result = await storage.listMessages({
-        threadId: testInteractionId,
+        threadId: testConversationId,
       });
       const msg = result.messages.find((m) => m.id === 'legacy-msg')!;
       expect(msg.role).toBe('user');

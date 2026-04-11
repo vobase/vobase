@@ -3,26 +3,20 @@ import { describe, expect, it } from 'bun:test';
 import { computeTab } from './activity-events';
 
 describe('computeTab', () => {
-  it('returns "done" for resolved interactions', () => {
-    expect(computeTab('ai', 'resolved', false)).toBe('done');
-    expect(computeTab('human', 'resolved', true)).toBe('done');
+  it('returns "done" for resolved conversations', () => {
+    expect(computeTab('resolved', false)).toBe('done');
+    expect(computeTab('resolved', true)).toBe('done');
   });
 
-  it('returns "attention" for failed interactions', () => {
-    expect(computeTab('ai', 'failed', false)).toBe('attention');
+  it('returns "done" for failed conversations', () => {
+    expect(computeTab('failed', false)).toBe('done');
   });
 
-  it('returns "attention" when hasPendingEscalation', () => {
-    expect(computeTab('ai', 'active', true)).toBe('attention');
+  it('returns "on-hold" when onHold is true', () => {
+    expect(computeTab('active', true)).toBe('on-hold');
   });
 
-  it('returns "attention" for human/supervised/held modes', () => {
-    expect(computeTab('human', 'active', false)).toBe('attention');
-    expect(computeTab('supervised', 'active', false)).toBe('attention');
-    expect(computeTab('held', 'active', false)).toBe('attention');
-  });
-
-  it('returns "ai" for ai mode active interactions', () => {
-    expect(computeTab('ai', 'active', false)).toBe('ai');
+  it('returns "active" for active non-held conversations', () => {
+    expect(computeTab('active', false)).toBe('active');
   });
 });

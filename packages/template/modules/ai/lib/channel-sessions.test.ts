@@ -8,7 +8,7 @@ import {
   channelRoutings,
   channelSessions,
   contacts,
-  interactions,
+  conversations,
 } from '../schema';
 import { checkWindow, expireSessions, upsertSession } from './channel-sessions';
 
@@ -40,12 +40,13 @@ async function seedTestData() {
     channelInstanceId: INSTANCE_ID,
     agentId: 'test-agent',
   });
-  await db.insert(interactions).values({
+  await db.insert(conversations).values({
     id: CONV_ID,
     channelRoutingId: ROUTING_ID,
     contactId: CONTACT_ID,
     agentId: 'test-agent',
     channelInstanceId: INSTANCE_ID,
+    assignee: 'agent:test-agent',
     status: 'active',
   });
 }
@@ -59,7 +60,7 @@ beforeEach(async () => {
 describe('upsertSession', () => {
   it('creates a new session with window_open state', async () => {
     await upsertSession(db, {
-      interactionId: CONV_ID,
+      conversationId: CONV_ID,
       channelInstanceId: INSTANCE_ID,
       channelType: 'whatsapp',
     });
@@ -67,7 +68,7 @@ describe('upsertSession', () => {
     const [session] = await db
       .select()
       .from(channelSessions)
-      .where(eq(channelSessions.interactionId, CONV_ID));
+      .where(eq(channelSessions.conversationId, CONV_ID));
 
     expect(session).toBeDefined();
     expect(session.sessionState).toBe('window_open');
@@ -78,7 +79,7 @@ describe('upsertSession', () => {
   it('upserts existing session (refreshes window)', async () => {
     // First upsert
     await upsertSession(db, {
-      interactionId: CONV_ID,
+      conversationId: CONV_ID,
       channelInstanceId: INSTANCE_ID,
       channelType: 'whatsapp',
     });
@@ -86,14 +87,14 @@ describe('upsertSession', () => {
     const [first] = await db
       .select()
       .from(channelSessions)
-      .where(eq(channelSessions.interactionId, CONV_ID));
+      .where(eq(channelSessions.conversationId, CONV_ID));
 
     // Small delay to get different timestamps
     await new Promise((r) => setTimeout(r, 10));
 
     // Second upsert — should update, not create duplicate
     await upsertSession(db, {
-      interactionId: CONV_ID,
+      conversationId: CONV_ID,
       channelInstanceId: INSTANCE_ID,
       channelType: 'whatsapp',
     });
@@ -101,7 +102,7 @@ describe('upsertSession', () => {
     const all = await db
       .select()
       .from(channelSessions)
-      .where(eq(channelSessions.interactionId, CONV_ID));
+      .where(eq(channelSessions.conversationId, CONV_ID));
 
     expect(all).toHaveLength(1);
     expect(all[0].windowExpiresAt.getTime()).toBeGreaterThanOrEqual(
@@ -119,7 +120,7 @@ describe('checkWindow', () => {
 
   it('returns isOpen=true for active session', async () => {
     await upsertSession(db, {
-      interactionId: CONV_ID,
+      conversationId: CONV_ID,
       channelInstanceId: INSTANCE_ID,
       channelType: 'whatsapp',
     });
@@ -133,7 +134,7 @@ describe('checkWindow', () => {
     // Insert a session that already expired
     const pastExpiry = new Date(Date.now() - 1000);
     await db.insert(channelSessions).values({
-      interactionId: CONV_ID,
+      conversationId: CONV_ID,
       channelInstanceId: INSTANCE_ID,
       channelType: 'whatsapp',
       sessionState: 'window_open',
@@ -150,7 +151,7 @@ describe('expireSessions', () => {
   it('bulk-expires sessions past their window', async () => {
     // Insert an expired session (windowExpiresAt in the past)
     await db.insert(channelSessions).values({
-      interactionId: CONV_ID,
+      conversationId: CONV_ID,
       channelInstanceId: INSTANCE_ID,
       channelType: 'whatsapp',
       sessionState: 'window_open',
@@ -164,14 +165,14 @@ describe('expireSessions', () => {
     const [session] = await db
       .select()
       .from(channelSessions)
-      .where(eq(channelSessions.interactionId, CONV_ID));
+      .where(eq(channelSessions.conversationId, CONV_ID));
 
     expect(session.sessionState).toBe('window_expired');
   });
 
   it('does not expire sessions with future window', async () => {
     await upsertSession(db, {
-      interactionId: CONV_ID,
+      conversationId: CONV_ID,
       channelInstanceId: INSTANCE_ID,
       channelType: 'whatsapp',
     });
@@ -182,14 +183,14 @@ describe('expireSessions', () => {
     const [session] = await db
       .select()
       .from(channelSessions)
-      .where(eq(channelSessions.interactionId, CONV_ID));
+      .where(eq(channelSessions.conversationId, CONV_ID));
 
     expect(session.sessionState).toBe('window_open');
   });
 
   it('skips already expired sessions', async () => {
     await db.insert(channelSessions).values({
-      interactionId: CONV_ID,
+      conversationId: CONV_ID,
       channelInstanceId: INSTANCE_ID,
       channelType: 'whatsapp',
       sessionState: 'window_expired',

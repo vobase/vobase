@@ -15,9 +15,8 @@ import {
   channelInstances,
   channelRoutings,
   channelSessions,
-  consultations,
   contacts,
-  interactions,
+  conversations,
   messages,
 } from '../schema';
 import { setModuleDeps } from './deps';
@@ -202,10 +201,10 @@ beforeEach(async () => {
   ]);
 });
 
-// ─── 1. New interaction creation ─────────────────────────────────
+// ─── 1. New conversation creation ─────────────────────────────────
 
-describe('handleInboundMessage — new interaction', () => {
-  it('creates contact and interaction for unknown sender', async () => {
+describe('handleInboundMessage — new conversation', () => {
+  it('creates contact and conversation for unknown sender', async () => {
     const event = makeEvent({
       from: '+6599999999',
       profileName: 'New Person',
@@ -232,14 +231,14 @@ describe('handleInboundMessage — new interaction', () => {
     expect(contact.role).toBe('customer');
 
     // Conversation was created
-    const allConvs = await db.select().from(interactions);
+    const allConvs = await db.select().from(conversations);
     expect(allConvs).toHaveLength(1);
     expect(allConvs[0].contactId).toBe(contact.id);
     expect(allConvs[0].channelInstanceId).toBe('ci-wa');
     expect(allConvs[0].status).toBe('active');
   });
 
-  it('stores inbound message in newly created interaction', async () => {
+  it('stores inbound message in newly created conversation', async () => {
     const event = makeEvent({
       from: '+6599999999',
       content: 'First message',
@@ -285,27 +284,27 @@ describe('handleInboundMessage — new interaction', () => {
       event,
     );
 
-    const allConvs = await db.select().from(interactions);
+    const allConvs = await db.select().from(conversations);
     expect(allConvs).toHaveLength(0);
   });
 });
 
-// ─── 2. Existing interaction routing ─────────────────────────────
+// ─── 2. Existing conversation routing ─────────────────────────────
 
-describe('handleInboundMessage — existing interaction', () => {
+describe('handleInboundMessage — existing conversation', () => {
   beforeEach(async () => {
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-existing',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'agent:agent-1',
       status: 'active',
-      mode: 'ai',
     });
   });
 
-  it('routes to existing active interaction instead of creating new', async () => {
+  it('routes to existing active conversation instead of creating new', async () => {
     const event = makeEvent({ content: 'Follow-up message' });
 
     await handleInboundMessage(
@@ -319,114 +318,18 @@ describe('handleInboundMessage — existing interaction', () => {
       event,
     );
 
-    // No new interaction created
-    const allConvs = await db.select().from(interactions);
+    // No new conversation created
+    const allConvs = await db.select().from(conversations);
     expect(allConvs).toHaveLength(1);
     expect(allConvs[0].id).toBe('conv-existing');
 
-    // Message stored against existing interaction
+    // Message stored against existing conversation
     const allMessages = await db.select().from(messages);
     expect(allMessages.length).toBeGreaterThanOrEqual(1);
     const inbound = allMessages.find((m) => m.messageType === 'incoming');
     expect(inbound).toBeDefined();
-    expect(inbound?.interactionId).toBe('conv-existing');
+    expect(inbound?.conversationId).toBe('conv-existing');
     expect(inbound?.content).toBe('Follow-up message');
-  });
-});
-
-// ─── 3. Staff reply interception ──────────────────────────────────
-
-describe('handleInboundMessage — staff reply intercept', () => {
-  beforeEach(async () => {
-    await db.insert(contacts).values({
-      id: 'staff-1',
-      phone: '+6500000001',
-      name: 'Staff Member',
-      role: 'staff',
-    });
-
-    await db.insert(interactions).values({
-      id: 'conv-customer',
-      channelRoutingId: 'cr-wa',
-      contactId: 'contact-1',
-      agentId: 'agent-1',
-      channelInstanceId: 'ci-wa',
-      status: 'active',
-      mode: 'ai',
-    });
-
-    await db.insert(consultations).values({
-      id: 'consult-1',
-      interactionId: 'conv-customer',
-      staffContactId: 'staff-1',
-      channelType: 'whatsapp',
-      channelInstanceId: 'ci-wa',
-      reason: 'Need expert opinion',
-      status: 'pending',
-      timeoutMinutes: 30,
-    });
-  });
-
-  it('intercepts message from staff with pending consultation', async () => {
-    const event = makeEvent({
-      from: '+6500000001',
-      content: 'Here is my expert answer',
-    });
-
-    await handleInboundMessage(
-      {
-        db,
-        scheduler: mockScheduler,
-        channels: mockChannels,
-        realtime: mockRealtime,
-        storage: mockStorage,
-      },
-      event,
-    );
-
-    // Consultation should be updated to replied (handleStaffReply was called)
-    const [consultation] = await db
-      .select()
-      .from(consultations)
-      .where(eq(consultations.id, 'consult-1'));
-    expect(consultation.status).toBe('replied');
-
-    // No new interaction created for staff
-    const allConvs = await db.select().from(interactions);
-    expect(allConvs).toHaveLength(1);
-    expect(allConvs[0].id).toBe('conv-customer');
-  });
-
-  it('does not intercept staff without pending consultation', async () => {
-    // Mark consultation as replied so there's no pending one
-    await db
-      .update(consultations)
-      .set({ status: 'replied' })
-      .where(eq(consultations.id, 'consult-1'));
-
-    const event = makeEvent({
-      from: '+6500000001',
-      content: 'Regular staff message',
-    });
-
-    await handleInboundMessage(
-      {
-        db,
-        scheduler: mockScheduler,
-        channels: mockChannels,
-        realtime: mockRealtime,
-        storage: mockStorage,
-      },
-      event,
-    );
-
-    // Staff contact should be reused (not intercepted), and either routes to existing conv or creates new
-    // The consultation should remain replied
-    const [consultation] = await db
-      .select()
-      .from(consultations)
-      .where(eq(consultations.id, 'consult-1'));
-    expect(consultation.status).toBe('replied');
   });
 });
 
@@ -434,18 +337,19 @@ describe('handleInboundMessage — staff reply intercept', () => {
 
 describe('handleInboundMessage — held mode', () => {
   beforeEach(async () => {
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-held',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'agent:agent-1',
       status: 'active',
-      mode: 'held',
+      onHold: true,
     });
   });
 
-  it('inserts canned response and enqueues delivery for held interaction', async () => {
+  it('accepts message silently (no auto-reply) for on-hold conversation', async () => {
     const event = makeEvent({ content: 'Hello, anyone there?' });
 
     await handleInboundMessage(
@@ -459,29 +363,21 @@ describe('handleInboundMessage — held mode', () => {
       event,
     );
 
-    // Should have inbound message + canned outgoing response
+    // Inbound message is stored
     const allMessages = await db
       .select()
       .from(messages)
-      .where(eq(messages.interactionId, 'conv-held'));
+      .where(eq(messages.conversationId, 'conv-held'));
 
     const inbound = allMessages.find((m) => m.messageType === 'incoming');
     expect(inbound).toBeDefined();
 
+    // No outgoing canned response — on-hold accepts silently in V1
     const outgoing = allMessages.find((m) => m.messageType === 'outgoing');
-    expect(outgoing).toBeDefined();
-    expect(outgoing?.content).toContain('message has been received');
-    expect(outgoing?.status).toBe('queued');
-    expect(outgoing?.senderType).toBe('system');
+    expect(outgoing).toBeUndefined();
 
-    // Delivery job was enqueued
-    const deliveryJob = schedulerJobs.find(
-      (j) => j.name === 'ai:deliver-message',
-    );
-    expect(deliveryJob).toBeDefined();
-    expect((deliveryJob?.data as { messageId: string }).messageId).toBe(
-      outgoing?.id,
-    );
+    // No delivery job, no channel-reply job
+    expect(schedulerJobs).toHaveLength(0);
   });
 });
 
@@ -489,14 +385,14 @@ describe('handleInboundMessage — held mode', () => {
 
 describe('handleInboundMessage — ai mode', () => {
   beforeEach(async () => {
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-ai',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'agent:agent-1',
       status: 'active',
-      mode: 'ai',
     });
   });
 
@@ -516,7 +412,7 @@ describe('handleInboundMessage — ai mode', () => {
 
     const replyJob = schedulerJobs.find((j) => j.name === 'ai:channel-reply');
     expect(replyJob).toBeDefined();
-    expect((replyJob?.data as { interactionId: string }).interactionId).toBe(
+    expect((replyJob?.data as { conversationId: string }).conversationId).toBe(
       'conv-ai',
     );
     // WhatsApp adapter has debounceWindowMs: 3000 -> singletonKey + startAfter
@@ -530,14 +426,14 @@ describe('handleInboundMessage — ai mode', () => {
 
 describe('handleInboundMessage — supervised mode', () => {
   beforeEach(async () => {
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-sup',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'agent:agent-1',
       status: 'active',
-      mode: 'supervised',
     });
   });
 
@@ -557,7 +453,7 @@ describe('handleInboundMessage — supervised mode', () => {
 
     const replyJob = schedulerJobs.find((j) => j.name === 'ai:channel-reply');
     expect(replyJob).toBeDefined();
-    expect((replyJob?.data as { interactionId: string }).interactionId).toBe(
+    expect((replyJob?.data as { conversationId: string }).conversationId).toBe(
       'conv-sup',
     );
   });
@@ -567,14 +463,14 @@ describe('handleInboundMessage — supervised mode', () => {
 
 describe('handleInboundMessage — human mode', () => {
   beforeEach(async () => {
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-human',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'user-1',
       status: 'active',
-      mode: 'human',
     });
   });
 
@@ -596,7 +492,7 @@ describe('handleInboundMessage — human mode', () => {
     const allMessages = await db
       .select()
       .from(messages)
-      .where(eq(messages.interactionId, 'conv-human'));
+      .where(eq(messages.conversationId, 'conv-human'));
     const inbound = allMessages.find((m) => m.messageType === 'incoming');
     expect(inbound).toBeDefined();
     expect(inbound?.content).toBe('Talking to a human');
@@ -617,14 +513,14 @@ describe('handleInboundMessage — human mode', () => {
 
 describe('handleInboundMessage — media upload', () => {
   beforeEach(async () => {
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-media',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'agent:agent-1',
       status: 'active',
-      mode: 'ai',
     });
   });
 
@@ -663,7 +559,7 @@ describe('handleInboundMessage — media upload', () => {
     const allMessages = await db
       .select()
       .from(messages)
-      .where(eq(messages.interactionId, 'conv-media'));
+      .where(eq(messages.conversationId, 'conv-media'));
     const inbound = allMessages.find((m) => m.messageType === 'incoming');
     expect(inbound).toBeDefined();
     expect(inbound?.contentType).toBe('image');
@@ -690,7 +586,7 @@ describe('handleInboundMessage — media upload', () => {
     const allMessages = await db
       .select()
       .from(messages)
-      .where(eq(messages.interactionId, 'conv-media'));
+      .where(eq(messages.conversationId, 'conv-media'));
     const inbound = allMessages.find((m) => m.messageType === 'incoming');
     expect(inbound?.contentType).toBe('text');
     expect(inbound?.content).toBe('Just text, no media');
@@ -734,14 +630,14 @@ describe('handleInboundMessage — media upload', () => {
 
 describe('handleInboundMessage — session upsert', () => {
   beforeEach(async () => {
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-session',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'agent:agent-1',
       status: 'active',
-      mode: 'ai',
     });
   });
 
@@ -762,21 +658,21 @@ describe('handleInboundMessage — session upsert', () => {
     // WhatsApp adapter has messagingWindow: true -> session should be created
     const sessions = await db.select().from(channelSessions);
     expect(sessions).toHaveLength(1);
-    expect(sessions[0].interactionId).toBe('conv-session');
+    expect(sessions[0].conversationId).toBe('conv-session');
     expect(sessions[0].channelInstanceId).toBe('ci-wa');
     expect(sessions[0].channelType).toBe('whatsapp');
     expect(sessions[0].sessionState).toBe('window_open');
   });
 
   it('does not create session for web channel without messaging window', async () => {
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-web',
       channelRoutingId: 'cr-web',
       contactId: 'contact-1',
       agentId: 'agent-1',
       channelInstanceId: 'ci-web',
+      assignee: 'agent:agent-1',
       status: 'active',
-      mode: 'ai',
     });
 
     const event = makeEvent({
@@ -800,7 +696,7 @@ describe('handleInboundMessage — session upsert', () => {
     const sessions = await db
       .select()
       .from(channelSessions)
-      .where(eq(channelSessions.interactionId, 'conv-web'));
+      .where(eq(channelSessions.conversationId, 'conv-web'));
     expect(sessions).toHaveLength(0);
   });
 });
@@ -815,12 +711,13 @@ describe('handleInboundAction', () => {
       name: 'Action Test Contact',
       role: 'customer',
     });
-    await db.insert(interactions).values({
+    await db.insert(conversations).values({
       id: 'conv-action',
       channelRoutingId: 'cr-wa',
       contactId: 'contact-action',
       agentId: 'agent-1',
       channelInstanceId: 'ci-wa',
+      assignee: 'agent:agent-1',
       status: 'active',
     });
   });
@@ -836,7 +733,7 @@ describe('handleInboundAction', () => {
 
     const replyJob = schedulerJobs.find((j) => j.name === 'ai:channel-reply');
     expect(replyJob).toBeDefined();
-    expect((replyJob?.data as { interactionId: string }).interactionId).toBe(
+    expect((replyJob?.data as { conversationId: string }).conversationId).toBe(
       'conv-action',
     );
 
@@ -844,7 +741,7 @@ describe('handleInboundAction', () => {
     const [actionMsg] = await db
       .select()
       .from(messages)
-      .where(eq(messages.interactionId, 'conv-action'));
+      .where(eq(messages.conversationId, 'conv-action'));
     expect(actionMsg).toBeDefined();
     expect(actionMsg.content).toBe('[Button: Confirm Booking]');
     expect(actionMsg.contentType).toBe('interactive');
