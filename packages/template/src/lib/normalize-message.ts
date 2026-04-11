@@ -136,7 +136,7 @@ const STAFF_REGEX = /^\[Staff:\s*(.+?)\]\s*/;
 const INTERNAL_REGEX = /^\[Internal\]/i;
 
 /** Check if text starts with [Staff: ...] prefix */
-export function hasStaffPrefix(text: string): boolean {
+function hasStaffPrefix(text: string): boolean {
   return STAFF_REGEX.test(text);
 }
 

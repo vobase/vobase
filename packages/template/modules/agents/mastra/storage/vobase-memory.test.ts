@@ -220,7 +220,8 @@ describe('VobaseMemoryStorage', () => {
         .where(eq(messages.conversationId, testConversationId));
       expect(rows).toHaveLength(2);
 
-      const userMsg = rows.find((r) => r.id === 'msg-1')!;
+      const userMsg = rows.find((r) => r.id === 'msg-1');
+      if (!userMsg) throw new Error('msg-1 not found');
       expect(userMsg.senderType).toBe('contact');
       expect(userMsg.messageType).toBe('incoming');
       expect(userMsg.content).toBe('Hello there');
@@ -229,7 +230,8 @@ describe('VobaseMemoryStorage', () => {
         parts: [{ type: 'text', text: 'Hello there' }],
       });
 
-      const agentMsg = rows.find((r) => r.id === 'msg-2')!;
+      const agentMsg = rows.find((r) => r.id === 'msg-2');
+      if (!agentMsg) throw new Error('msg-2 not found');
       expect(agentMsg.senderType).toBe('agent');
       expect(agentMsg.messageType).toBe('outgoing');
     });
@@ -380,7 +382,8 @@ describe('VobaseMemoryStorage', () => {
       const result = await storage.listMessages({
         threadId: testConversationId,
       });
-      const msg = result.messages.find((m) => m.id === 'legacy-msg')!;
+      const msg = result.messages.find((m) => m.id === 'legacy-msg');
+      if (!msg) throw new Error('legacy-msg not found');
       expect(msg.role).toBe('user');
       expect(msg.content.format).toBe(2);
       expect(msg.content.parts).toEqual([

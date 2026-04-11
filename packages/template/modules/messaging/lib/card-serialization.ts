@@ -115,7 +115,7 @@ interface SerializedOutput {
 }
 
 /** Serialize a CardElement to outbox content + payload. */
-export function serializeCard(card: unknown): SerializedOutput {
+function serializeCard(card: unknown): SerializedOutput {
   const cardObj = card as Record<string, unknown>;
 
   const metadata = (cardObj.metadata ?? {}) as Record<string, unknown>;

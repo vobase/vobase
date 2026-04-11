@@ -47,8 +47,6 @@ type HeaderProps = React.HTMLAttributes<HTMLElement> & {
 export function Header({ className, fixed, ...props }: HeaderProps) {
   const [offset, setOffset] = useState(0);
   const topNavLinks = useTopNavLinks();
-  const { pathname } = useLocation();
-
   useEffect(() => {
     const onScroll = () => {
       setOffset(document.body.scrollTop || document.documentElement.scrollTop);

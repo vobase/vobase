@@ -29,7 +29,7 @@ function MemoryPage() {
 
   const { data: workingMemory, isLoading } = useQuery({
     queryKey: ['memory-working', activeScope],
-    queryFn: () => fetchWorkingMemory(activeScope!),
+    queryFn: () => fetchWorkingMemory(activeScope as string),
     enabled: !!activeScope,
   });
 

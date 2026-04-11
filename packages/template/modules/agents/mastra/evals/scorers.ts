@@ -41,6 +41,6 @@ export function getScorerMeta() {
   });
 }
 
-export function getScorer(id: string) {
+function getScorer(id: string) {
   return scorers.find((s) => s.id === id);
 }

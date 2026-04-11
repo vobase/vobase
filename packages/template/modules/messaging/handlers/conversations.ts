@@ -829,7 +829,7 @@ export const conversationsDetailHandlers = new Hono()
   })
   /** POST /conversations/:id/read — Mark conversation as read by current user. */
   .post('/conversations/:id/read', async (c) => {
-    const { db, user } = getCtx(c);
+    const { user } = getCtx(c);
     if (!user) throw unauthorized();
     const conversationId = c.req.param('id');
 

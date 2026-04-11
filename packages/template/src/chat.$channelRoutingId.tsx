@@ -62,6 +62,7 @@ function PublicChatView({
 
   const { mutate: sendMessage, isPending } = useMutation({
     mutationFn: async (content: string) => {
+      // biome-ignore lint/style/noRestrictedGlobals: dynamic URL with route param
       const res = await fetch(`/api/agents/chat/${channelRoutingId}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

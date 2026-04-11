@@ -225,6 +225,7 @@ function LoginPage() {
               disabled={loading}
               onClick={async () => {
                 setLoading(true);
+                // biome-ignore lint/style/noRestrictedGlobals: dev-only endpoint, no RPC type
                 const res = await fetch('/api/auth/dev-login', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },

@@ -37,7 +37,7 @@ const wakeAgentSchema = z.object({
  * Schedule an agent-wake job with a 2-second debounce.
  * Rapid consecutive calls (e.g. 5 messages in 1 second) collapse into a single wake.
  */
-export async function wakeAgent(
+async function wakeAgent(
   scheduler: Scheduler,
   params: WakeAgentParams,
 ): Promise<void> {
