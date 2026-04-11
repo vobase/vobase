@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
 import { knowledgeBaseClient } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
 
 interface KBSource {
   id: string;
@@ -25,19 +26,13 @@ async function fetchSources() {
   return res.json();
 }
 
-function StatusDot({ status }: { status: string }) {
-  const dotClass = cn('h-2 w-2 rounded-full shrink-0', {
-    'bg-emerald-500': status === 'active' || status === 'connected',
-    'bg-amber-500 animate-pulse': status === 'syncing',
-    'bg-red-500': status === 'error' || status === 'failed',
-    'bg-muted-foreground':
-      status !== 'active' &&
-      status !== 'connected' &&
-      status !== 'syncing' &&
-      status !== 'error' &&
-      status !== 'failed',
-  });
-  return <span className={dotClass} aria-hidden="true" />;
+type StatusVariant = 'default' | 'success' | 'error' | 'warning' | 'info';
+
+function sourceStatusVariant(status: string): StatusVariant {
+  if (status === 'active' || status === 'connected') return 'success';
+  if (status === 'syncing') return 'warning';
+  if (status === 'error' || status === 'failed') return 'error';
+  return 'default';
 }
 
 function SourcesPage() {
@@ -182,20 +177,22 @@ function SourcesPage() {
               <CardContent className="flex items-center justify-between py-4 px-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <StatusDot status={source.status} />
+                    <Status variant={sourceStatusVariant(source.status)}>
+                      <StatusIndicator />
+                      <StatusLabel className="capitalize">
+                        {source.status}
+                      </StatusLabel>
+                    </Status>
                     <p className="text-sm font-medium">{source.name}</p>
                   </div>
                   <div className="flex items-center gap-2 mt-1.5 ml-4">
                     <Badge variant="outline" className="text-xs font-normal">
                       {source.type}
                     </Badge>
-                    <span className="text-xs text-muted-foreground capitalize">
-                      {source.status}
-                    </span>
                     {source.lastSyncAt && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
                         &middot; synced{' '}
-                        {new Date(source.lastSyncAt).toLocaleString()}
+                        <RelativeTimeCard date={source.lastSyncAt} />
                       </span>
                     )}
                   </div>

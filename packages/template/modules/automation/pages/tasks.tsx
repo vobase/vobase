@@ -3,7 +3,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { ChevronDownIcon, ChevronUpIcon, PlusIcon, XIcon } from 'lucide-react';
 import { useState } from 'react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -14,6 +13,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
@@ -23,38 +23,25 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
 import { Textarea } from '@/components/ui/textarea';
 import { automationClient } from '@/lib/api-client';
-import { fetchTasks, STATUS_VARIANT, type Task } from './-shared';
+import { fetchTasks, type Task } from './-shared';
 
-const STATUS_CLASS: Record<string, string> = {
-  executing:
-    'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20',
-  completed:
-    'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
-  timeout:
-    'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
+type StatusVariant = 'default' | 'success' | 'error' | 'warning' | 'info';
+
+const STATUS_VARIANT_MAP: Record<string, StatusVariant> = {
+  executing: 'warning',
+  completed: 'success',
+  timeout: 'warning',
+  failed: 'error',
+  queued: 'info',
+  pending: 'default',
+  cancelled: 'default',
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const extraClass = STATUS_CLASS[status];
-  if (extraClass) {
-    return (
-      <span
-        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${extraClass}`}
-      >
-        {status}
-      </span>
-    );
-  }
-  return (
-    <Badge
-      variant={STATUS_VARIANT[status] ?? 'outline'}
-      className="capitalize text-xs"
-    >
-      {status}
-    </Badge>
-  );
+function statusVariant(status: string): StatusVariant {
+  return STATUS_VARIANT_MAP[status] ?? 'default';
 }
 
 function TaskRow({ task }: { task: Task }) {
@@ -83,7 +70,10 @@ function TaskRow({ task }: { task: Task }) {
         onClick={() => setExpanded((v) => !v)}
       >
         <td className="px-4 py-3 whitespace-nowrap">
-          <StatusBadge status={task.status} />
+          <Status variant={statusVariant(task.status)}>
+            <StatusIndicator />
+            <StatusLabel className="capitalize">{task.status}</StatusLabel>
+          </Status>
         </td>
         <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">
           {task.adapterId}
@@ -97,8 +87,8 @@ function TaskRow({ task }: { task: Task }) {
         <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[120px]">
           {task.assignedTo ?? <span className="italic">—</span>}
         </td>
-        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-          {new Date(task.createdAt).toLocaleString()}
+        <td className="px-4 py-3 whitespace-nowrap">
+          <RelativeTimeCard date={task.createdAt} />
         </td>
         <td className="px-4 py-3">
           <div className="flex items-center gap-1 justify-end">
@@ -187,8 +177,8 @@ function TaskRow({ task }: { task: Task }) {
                 <span>
                   ID: <span className="font-mono">{task.id}</span>
                 </span>
-                <span>
-                  Updated: {new Date(task.updatedAt).toLocaleString()}
+                <span className="flex items-center gap-1">
+                  Updated: <RelativeTimeCard date={task.updatedAt} />
                 </span>
               </div>
             </div>

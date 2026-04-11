@@ -9,9 +9,9 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronLeft, Eye, FileText, Pencil, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
 import { knowledgeBaseClient } from '@/lib/api-client';
 import {
   documentComponents,
@@ -63,16 +63,23 @@ async function fetchDocument(id: string) {
   return res.json();
 }
 
-type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+type DocStatusVariant = 'default' | 'success' | 'error' | 'warning' | 'info';
 
-const statusConfig: Record<string, { variant: StatusVariant; label: string }> =
-  {
-    ready: { variant: 'default', label: 'Ready' },
-    processing: { variant: 'secondary', label: 'Processing' },
-    pending: { variant: 'outline', label: 'Pending' },
-    error: { variant: 'destructive', label: 'Error' },
-    needs_ocr: { variant: 'secondary', label: 'Needs OCR' },
-  };
+const DOC_STATUS_VARIANT: Record<string, DocStatusVariant> = {
+  ready: 'success',
+  processing: 'warning',
+  pending: 'default',
+  error: 'error',
+  needs_ocr: 'warning',
+};
+
+const DOC_STATUS_LABEL: Record<string, string> = {
+  ready: 'Ready',
+  processing: 'Processing',
+  pending: 'Pending',
+  error: 'Error',
+  needs_ocr: 'Needs OCR',
+};
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -103,10 +110,8 @@ function ViewerContent({ doc }: { doc: Doc }) {
     onSuccess: () => setSavedCount((n) => n + 1),
   });
 
-  const status = statusConfig[doc.status] ?? {
-    variant: 'outline' as StatusVariant,
-    label: doc.status,
-  };
+  const variant = DOC_STATUS_VARIANT[doc.status] ?? 'default';
+  const statusLabel = DOC_STATUS_LABEL[doc.status] ?? doc.status;
 
   return (
     <div className="flex h-full flex-col">
@@ -125,9 +130,10 @@ function ViewerContent({ doc }: { doc: Doc }) {
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="truncate text-sm font-medium">{doc.title}</span>
-          <Badge variant={status.variant} className="shrink-0 text-xs">
-            {status.label}
-          </Badge>
+          <Status variant={variant} className="shrink-0">
+            <StatusIndicator />
+            <StatusLabel>{statusLabel}</StatusLabel>
+          </Status>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">

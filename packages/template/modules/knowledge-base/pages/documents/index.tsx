@@ -10,10 +10,10 @@ import {
   Upload,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
 import { knowledgeBaseClient } from '@/lib/api-client';
 
 async function fetchDocuments() {
@@ -22,16 +22,23 @@ async function fetchDocuments() {
   return res.json();
 }
 
-type StatusVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+type DocStatusVariant = 'default' | 'success' | 'error' | 'warning' | 'info';
 
-const statusConfig: Record<string, { variant: StatusVariant; label: string }> =
-  {
-    ready: { variant: 'default', label: 'Ready' },
-    processing: { variant: 'secondary', label: 'Processing' },
-    pending: { variant: 'outline', label: 'Pending' },
-    error: { variant: 'destructive', label: 'Error' },
-    needs_ocr: { variant: 'secondary', label: 'Needs OCR' },
-  };
+const DOC_STATUS_VARIANT: Record<string, DocStatusVariant> = {
+  ready: 'success',
+  processing: 'warning',
+  pending: 'default',
+  error: 'error',
+  needs_ocr: 'warning',
+};
+
+const DOC_STATUS_LABEL: Record<string, string> = {
+  ready: 'Ready',
+  processing: 'Processing',
+  pending: 'Pending',
+  error: 'Error',
+  needs_ocr: 'Needs OCR',
+};
 
 function getFileIcon(mimeType: string) {
   if (mimeType.startsWith('image/')) return FileImage;
@@ -144,10 +151,8 @@ function DocumentsPage() {
         <div className="space-y-2">
           {documents.map((doc) => {
             const Icon = getFileIcon(doc.mimeType);
-            const status = statusConfig[doc.status] ?? {
-              variant: 'outline' as StatusVariant,
-              label: doc.status,
-            };
+            const variant = DOC_STATUS_VARIANT[doc.status] ?? 'default';
+            const label = DOC_STATUS_LABEL[doc.status] ?? doc.status;
             return (
               <Card
                 key={doc.id}
@@ -174,7 +179,10 @@ function DocumentsPage() {
                     </div>
                   </Link>
                   <div className="flex shrink-0 items-center gap-2 ml-4">
-                    <Badge variant={status.variant}>{status.label}</Badge>
+                    <Status variant={variant}>
+                      <StatusIndicator />
+                      <StatusLabel>{label}</StatusLabel>
+                    </Status>
                     <Button
                       variant="ghost"
                       size="sm"

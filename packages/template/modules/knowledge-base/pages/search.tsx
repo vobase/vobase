@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { SearchBar } from '@/components/search-bar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AUTOCOMPLETE_SEED, CATEGORIES, EXAMPLES } from '@/config/search';
 import { knowledgeBaseClient } from '@/lib/api-client';
@@ -146,15 +147,11 @@ function KnowledgeBaseSearch() {
                       </Badge>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <div
-                        className="h-1.5 w-16 rounded-full bg-muted overflow-hidden"
-                        title={`${scorePct}% relevance`}
-                      >
-                        <div
-                          className="h-full rounded-full bg-primary transition-all"
-                          style={{ width: `${scorePct}%` }}
-                        />
-                      </div>
+                      <Progress
+                        value={scorePct}
+                        className="h-1.5 w-16"
+                        aria-label={`${scorePct}% relevance`}
+                      />
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {scorePct}%
                       </span>
