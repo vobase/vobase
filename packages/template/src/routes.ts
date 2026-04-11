@@ -13,30 +13,11 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'home.tsx'),
-    route('/inbox', '../modules/ai/pages/inbox/index.tsx', [
-      route(
-        '/$contactId',
-        '../modules/ai/pages/inbox/$contactId.tsx',
-      ),
+    route('/messaging', '../modules/messaging/pages/layout.tsx', [
+      physical('../modules/messaging/pages/'),
     ]),
-    route('/conversations', '../modules/ai/pages/conversations/index.tsx', [
-      route(
-        '/$conversationId',
-        '../modules/ai/pages/conversations/$conversationId.tsx',
-      ),
-    ]),
-    route('/contacts', '../modules/ai/pages/contacts/index.tsx'),
-    route(
-      '/contacts/$contactId',
-      '../modules/ai/pages/contacts/$contactId.tsx',
-    ),
-    route('/channels', '../modules/ai/pages/channels/index.tsx'),
-    route('/labels', '../modules/ai/pages/ai/labels.tsx'),
-    layout('ai', '../modules/ai/pages/ai/layout.tsx', [
-      route('/ai/agents', '../modules/ai/pages/ai/agents.tsx'),
-      route('/ai/evals', '../modules/ai/pages/ai/evals.tsx'),
-      route('/ai/guardrails', '../modules/ai/pages/ai/guardrails.tsx'),
-      route('/ai/memory', '../modules/ai/pages/ai/memory.tsx'),
+    route('/agents', '../modules/agents/pages/layout.tsx', [
+      physical('../modules/agents/pages/'),
     ]),
     route('/automation', '../modules/automation/pages/layout.tsx', [
       physical('../modules/automation/pages/'),
@@ -48,12 +29,7 @@ export const routes = rootRoute('root.tsx', [
       physical('../modules/system/pages/'),
     ]),
     route('/settings', 'shell/settings/layout.tsx', [
-      route('/profile', 'shell/settings/profile.tsx'),
-      route('/account', 'shell/settings/account.tsx'),
-      route('/appearance', 'shell/settings/appearance.tsx'),
-      route('/notifications', 'shell/settings/notifications.tsx'),
-      route('/display', 'shell/settings/display.tsx'),
-      route('/api-keys', 'shell/settings/api-keys.tsx'),
+      physical('./shell/settings/'),
     ]),
   ]),
 ]);

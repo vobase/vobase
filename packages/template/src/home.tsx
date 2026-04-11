@@ -1,7 +1,4 @@
-import {
-  useInfiniteQuery,
-  useQuery,
-} from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import {
   AlertTriangle,
@@ -14,18 +11,18 @@ import {
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { type RealtimeStatus, useRealtimeStatus } from '@/hooks/use-realtime';
-import { aiClient } from '@/lib/api-client';
+import { agentsClient, messagingClient } from '@/lib/api-client';
 
 // ─── Data fetchers ────────────────────────────────────────────────────
 
 async function fetchDashboard() {
-  const res = await aiClient.dashboard.$get();
+  const res = await agentsClient.dashboard.$get();
   if (!res.ok) throw new Error('Dashboard endpoint failed');
   return res.json();
 }
 
 async function fetchAgentMetrics() {
-  const res = await aiClient.agents.metrics.$get();
+  const res = await agentsClient.agents.metrics.$get();
   if (!res.ok) throw new Error('Agent metrics endpoint failed');
   return res.json();
 }
@@ -33,13 +30,13 @@ async function fetchAgentMetrics() {
 async function fetchActivity({ pageParam }: { pageParam: string | undefined }) {
   const query: Record<string, string> = { limit: '15' };
   if (pageParam) query.cursor = pageParam;
-  const res = await aiClient.activity.$get({ query });
+  const res = await messagingClient.activity.$get({ query });
   if (!res.ok) throw new Error('Activity endpoint failed');
   return res.json();
 }
 
 async function fetchContacts(): Promise<{ id: string; name: string | null }[]> {
-  const res = await aiClient.contacts.$get();
+  const res = await messagingClient.contacts.$get();
   if (!res.ok) return [];
   const body = await res.json();
   if (Array.isArray(body)) return body as { id: string; name: string | null }[];
@@ -368,7 +365,7 @@ function HomePage() {
                       <span className="shrink-0 text-xs text-muted-foreground">
                         {eventContactId ? (
                           <Link
-                            to="/inbox/$contactId"
+                            to="/messaging/inbox/$contactId"
                             params={{ contactId: eventContactId }}
                             className="hidden text-xs text-muted-foreground hover:text-foreground group-hover:inline"
                           >
@@ -376,9 +373,7 @@ function HomePage() {
                           </Link>
                         ) : null}
                         <span
-                          className={
-                            eventContactId ? 'group-hover:hidden' : ''
-                          }
+                          className={eventContactId ? 'group-hover:hidden' : ''}
                         >
                           {relativeTime(event.createdAt)}
                         </span>
@@ -455,7 +450,7 @@ function HomePage() {
 
 export const Route = createFileRoute('/_app/')({
   beforeLoad: () => {
-    throw redirect({ to: '/conversations' });
+    throw redirect({ to: '/messaging/conversations' });
   },
   component: HomePage,
 });

@@ -4,7 +4,7 @@ import {
   type RealtimePayload,
   subscribeToPayloads,
 } from '@/hooks/use-realtime';
-import { aiClient } from '@/lib/api-client';
+import { messagingClient } from '@/lib/api-client';
 import { useStaffChatStore } from '@/stores/staff-chat-store';
 
 /**
@@ -55,7 +55,7 @@ export function useTypingListener(conversationId: string): void {
 
 /**
  * Hook for the sender side — throttled typing signal.
- * POST /api/ai/conversations/:id/typing, throttled to 1.5s intervals.
+ * POST /api/messaging/conversations/:id/typing, throttled to 1.5s intervals.
  */
 export function useTypingSender(conversationId: string): {
   signalTyping: () => void;
@@ -67,7 +67,7 @@ export function useTypingSender(conversationId: string): {
     if (now - lastSentRef.current < 1500) return;
     lastSentRef.current = now;
 
-    aiClient.conversations[':id'].typing
+    messagingClient.conversations[':id'].typing
       .$post({ param: { id: conversationId } })
       .catch(() => {});
   }, [conversationId]);

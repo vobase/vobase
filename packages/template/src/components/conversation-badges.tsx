@@ -381,7 +381,7 @@ export function ContactBadge({
   if (variant === 'link' && contactId) {
     return (
       <Link
-        to="/contacts/$contactId"
+        to="/messaging/contacts/$contactId"
         params={{ contactId }}
         className={cn(
           'inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:underline',

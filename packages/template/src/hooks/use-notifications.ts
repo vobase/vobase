@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 
-import { aiClient } from '@/lib/api-client';
+import { messagingClient } from '@/lib/api-client';
 
 /**
  * Track failed sessions that need attention.
@@ -16,7 +16,7 @@ export function useEscalationNotifications() {
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['conversations-list', 'alerts'],
     queryFn: async () => {
-      const res = await aiClient.conversations.$get({
+      const res = await messagingClient.conversations.$get({
         query: { status: 'failed' },
       });
       if (!res.ok) return 0;

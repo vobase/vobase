@@ -45,7 +45,7 @@ export interface NormalizedMessage {
   metadata: NormalizedMessageMetadata;
 }
 
-// ─── Core Helpers (extracted from $conversationId.tsx:221-276) ───────────
+// ─── Core Helpers ──────────────────────────────────────────────────────
 
 /** Extract plain text from any MemoryMessage content shape. */
 export function extractText(content: MemoryMessageContent): string {
@@ -199,7 +199,7 @@ export function isInternalNote(msg: NormalizedMessage): boolean {
 
 // ─── Normalizers ────────────────────────────────────────────────────────
 
-/** Normalize a UIMessage (from useChat) into NormalizedMessage. */
+/** Normalize a UIMessage into NormalizedMessage. */
 export function normalizeUIMessage(msg: UIMessage): NormalizedMessage {
   const parts: NormalizedPart[] = msg.parts.flatMap((part) => {
     if (part.type === 'text') {

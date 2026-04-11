@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { aiClient } from '@/lib/api-client';
+import { agentsClient } from '@/lib/api-client';
 
 interface QualityScore {
   avgScore: number;
@@ -11,7 +11,7 @@ async function fetchConversationScores(
   ids: string[],
 ): Promise<Record<string, QualityScore>> {
   if (ids.length === 0) return {};
-  const res = await aiClient.evals['conversation-scores'].$get({
+  const res = await agentsClient.evals['conversation-scores'].$get({
     query: { conversationIds: ids.join(',') },
   });
   if (!res.ok) return {};

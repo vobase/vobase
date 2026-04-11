@@ -1,145 +1,219 @@
-import { useChat } from '@ai-sdk/react';
-import { AssistantRuntimeProvider } from '@assistant-ui/react';
-import { useAISDKRuntime } from '@assistant-ui/react-ai-sdk';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useParams } from '@tanstack/react-router';
-import { DefaultChatTransport, type UIMessage } from 'ai';
-import { Bot } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { ArrowUpIcon, Bot } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
-import { ThreadMessages } from '@/components/assistant-ui/thread';
-import { VobaseComposer } from '@/components/chat/vobase-composer';
-import { VobaseThreadProvider } from '@/components/chat/vobase-thread-context';
-import { VobaseToolUIs } from '@/components/chat/vobase-tool-uis';
+import { TypingIndicator } from '@/components/chat/typing-indicator';
 import { Button } from '@/components/ui/button';
-import { useFeedback } from '@/hooks/use-feedback';
-import { preparePublicMessages, usePublicChat } from '@/hooks/use-public-chat';
+import { usePublicChat } from '@/hooks/use-public-chat';
 import {
   type RealtimePayload,
   subscribeToPayloads,
   useRealtimeInvalidation,
 } from '@/hooks/use-realtime';
-import {
-  useTypingListener,
-  useTypingSender,
-} from '@/hooks/use-typing-indicator';
-import { aiClient } from '@/lib/api-client';
-import { authClient } from '@/lib/auth-client';
-import { normalizeUIMessage } from '@/lib/normalize-message';
+import { agentsClient } from '@/lib/api-client';
+import { extractText } from '@/lib/normalize-message';
 
-// ─── Chat View ──────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────
+
+interface ConversationMessage {
+  id: string;
+  role: string;
+  parts: Array<{ type: string; text?: string; [key: string]: unknown }>;
+  createdAt: string;
+}
+
+// ─── Chat View ──────────────────────────────────────────────────────
 
 function PublicChatView({
   channelRoutingId,
   conversationId,
-  initialMessages,
 }: {
   channelRoutingId: string;
   conversationId: string;
-  initialMessages: UIMessage[];
 }) {
-  // SSE connection for realtime events — mounted here (after anonymous sign-in)
   useRealtimeInvalidation();
+  const queryClient = useQueryClient();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState('');
+  const [sseTyping, setSseTyping] = useState(false);
 
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: `/api/ai/chat/${channelRoutingId}/stream`,
+  const { data: messages = [] } = useQuery({
+    queryKey: ['public-chat-messages', conversationId],
+    queryFn: async () => {
+      const res = await agentsClient.chat[':channelRoutingId'].conversations[
+        ':conversationId'
+      ].$get({
+        param: { channelRoutingId, conversationId },
+      });
+      if (!res.ok) return [];
+      const data = (await res.json()) as { messages: ConversationMessage[] };
+      return data.messages;
+    },
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const { mutate: sendMessage, isPending } = useMutation({
+    mutationFn: async (content: string) => {
+      const res = await fetch(`/api/agents/chat/${channelRoutingId}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-      }),
-    [channelRoutingId],
-  );
-
-  const chatHelpers = useChat({
-    id: conversationId,
-    transport,
-    messages: initialMessages,
-    onError: (error) => {
-      console.error('[public-chat] Error:', error.message);
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error('Failed to send message');
+      return res.json();
+    },
+    onMutate: (content) => {
+      const previous = queryClient.getQueryData<ConversationMessage[]>([
+        'public-chat-messages',
+        conversationId,
+      ]);
+      queryClient.setQueryData<ConversationMessage[]>(
+        ['public-chat-messages', conversationId],
+        (old = []) => [
+          ...old,
+          {
+            id: `optimistic-${Date.now()}`,
+            role: 'user',
+            parts: [{ type: 'text', text: content }],
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      );
+      return { previous };
+    },
+    onError: (_err, _content, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          ['public-chat-messages', conversationId],
+          context.previous,
+        );
+      }
     },
   });
 
-  const { messages, setMessages, status } = chatHelpers;
-
-  // Wrap useChat with assistant-ui runtime (preserves usePublicChat lifecycle)
-  const runtime = useAISDKRuntime(chatHelpers);
-
-  // Normalized messages for VobaseThreadProvider (feedback, metadata access)
-  const normalizedMessages = useMemo(
-    () => messages.map(normalizeUIMessage),
-    [messages],
-  );
-
-  // Use a ref for status so the SSE listener doesn't re-subscribe on every status change
-  const statusRef = useRef(status);
-  statusRef.current = status;
+  const isAgentTyping = isPending || sseTyping;
 
   useEffect(() => {
     const unsubscribe = subscribeToPayloads((payload: RealtimePayload) => {
       if (
         payload.table === 'conversations-messages' &&
-        payload.id === conversationId &&
-        payload.action === 'insert' &&
-        statusRef.current === 'ready'
+        payload.id === conversationId
       ) {
-        aiClient.chat[':channelRoutingId'].conversations[':conversationId']
-          .$get({
-            param: { channelRoutingId, conversationId },
-          })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (!data?.messages) return;
-            const uiMessages = preparePublicMessages(data.messages);
-            setMessages(uiMessages);
-          })
-          .catch((err) =>
-            console.error('[public-chat] message reload error:', err),
-          );
+        queryClient.invalidateQueries({
+          queryKey: ['public-chat-messages', conversationId],
+        });
+        setSseTyping(false);
+      }
+      if (
+        payload.table === 'conversations' &&
+        payload.id === conversationId &&
+        payload.action === 'typing'
+      ) {
+        setSseTyping(true);
       }
     });
     return unsubscribe;
-  }, [conversationId, channelRoutingId, setMessages]);
+  }, [conversationId, queryClient]);
 
-  useTypingListener(conversationId);
-  const { signalTyping } = useTypingSender(conversationId);
-  const { data: session } = authClient.useSession();
-  const { feedbackMap, handleReact, handleDeleteFeedback } =
-    useFeedback(conversationId);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [messages.length, isAgentTyping]);
+
+  const handleSubmit = useCallback(() => {
+    const trimmed = input.trim();
+    if (!trimmed || isPending) return;
+    setInput('');
+    sendMessage(trimmed);
+  }, [input, isPending, sendMessage]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit],
+  );
+
+  const trimmedInput = input.trim();
 
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      <VobaseThreadProvider
-        viewMode="public"
-        messages={normalizedMessages}
-        feedbackMap={feedbackMap}
-        currentUserId={session?.user?.id}
-        onReact={handleReact}
-        onDeleteFeedback={handleDeleteFeedback}
-        conversationId={conversationId}
-        isAiThinking={status === 'submitted' || status === 'streaming'}
-      >
-        <VobaseToolUIs />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <ThreadMessages />
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="mx-auto max-w-2xl space-y-4">
+          {messages.map((msg) => {
+            const textContent = extractText(msg.parts);
+            if (!textContent) return null;
+
+            const from = msg.role === 'user' ? 'user' : 'assistant';
+            return (
+              <Message key={msg.id} from={from}>
+                <MessageContent>
+                  {from === 'assistant' ? (
+                    <MessageResponse>{textContent}</MessageResponse>
+                  ) : (
+                    <p>{textContent}</p>
+                  )}
+                </MessageContent>
+              </Message>
+            );
+          })}
+          {isAgentTyping && (
+            <TypingIndicator conversationId={conversationId} isAiThinking />
+          )}
         </div>
-        <VobaseComposer onInputChange={signalTyping} />
-      </VobaseThreadProvider>
-    </AssistantRuntimeProvider>
+      </div>
+
+      <div className="border-t bg-background px-4 pb-4 pt-3">
+        <div className="mx-auto max-w-2xl">
+          <div className="flex w-full gap-2 rounded-xl border bg-muted/30 p-2.5 transition-shadow focus-within:border-ring/75 focus-within:ring-2 focus-within:ring-ring/20">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              className="max-h-32 min-h-10 w-full flex-1 resize-none bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-muted-foreground/80"
+              rows={1}
+              autoFocus
+              aria-label="Message input"
+            />
+            <Button
+              type="button"
+              variant="default"
+              size="icon"
+              className="size-8 shrink-0 self-end rounded-full"
+              disabled={!trimmedInput || isPending}
+              onClick={handleSubmit}
+              aria-label="Send message"
+            >
+              <ArrowUpIcon className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────────
+// ─── Main Page ──────────────────────────────────────────────────────
 
 function PublicChatPage() {
   const { channelRoutingId } = useParams({ from: '/chat/$channelRoutingId' });
-  const {
-    conversationId,
-    initialMessages,
-    loading,
-    error,
-    errorRetryable,
-    retry,
-  } = usePublicChat(channelRoutingId);
+  const { conversationId, loading, error, errorRetryable, retry } =
+    usePublicChat(channelRoutingId);
 
   if (loading) {
     return (
@@ -179,7 +253,6 @@ function PublicChatPage() {
       <PublicChatView
         channelRoutingId={channelRoutingId}
         conversationId={conversationId}
-        initialMessages={initialMessages}
       />
     </div>
   );

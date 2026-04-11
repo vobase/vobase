@@ -6,7 +6,6 @@ import { TopNav, type TopNavLink } from '@/components/layout/top-nav';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { sidebarNavGroups } from '@/constants/navigation';
-import { isFullHeightRoute } from '@/lib/route-helpers';
 import { cn } from '@/lib/utils';
 import { ThemeSwitch } from '@/shell/theme-switch';
 
@@ -57,8 +56,6 @@ export function Header({ className, fixed, ...props }: HeaderProps) {
     document.addEventListener('scroll', onScroll, { passive: true });
     return () => document.removeEventListener('scroll', onScroll);
   }, []);
-
-  if (isFullHeightRoute(pathname)) return null;
 
   return (
     <header

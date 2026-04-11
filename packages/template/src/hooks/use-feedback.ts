@@ -9,7 +9,7 @@ import {
   type RealtimePayload,
   subscribeToPayloads,
 } from '@/hooks/use-realtime';
-import { aiClient } from '@/lib/api-client';
+import { messagingClient } from '@/lib/api-client';
 
 interface FeedbackApiRow {
   id: string;
@@ -47,7 +47,7 @@ function parseFeedbackRows(
 async function fetchFeedback(
   conversationId: string,
 ): Promise<Map<string, MessageReactions>> {
-  const res = await aiClient.conversations[':id'].feedback.$get({
+  const res = await messagingClient.conversations[':id'].feedback.$get({
     param: { id: conversationId },
   });
   if (!res.ok) return new Map();
@@ -93,7 +93,7 @@ export function useFeedback(conversationId: string) {
       rating: 'positive' | 'negative';
       reason?: string;
     }) => {
-      const res = await aiClient.conversations[':id'].messages[
+      const res = await messagingClient.conversations[':id'].messages[
         ':messageId'
       ].feedback.$post(
         { param: { id: conversationId, messageId } },
@@ -118,7 +118,7 @@ export function useFeedback(conversationId: string) {
       messageId: string;
       feedbackId: string;
     }) => {
-      const res = await aiClient.conversations[':id'].messages[
+      const res = await messagingClient.conversations[':id'].messages[
         ':messageId'
       ].feedback[':feedbackId'].$delete({
         param: { id: conversationId, messageId, feedbackId },

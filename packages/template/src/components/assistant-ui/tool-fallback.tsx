@@ -312,4 +312,4 @@ ToolFallback.Args = ToolFallbackArgs;
 ToolFallback.Result = ToolFallbackResult;
 ToolFallback.Error = ToolFallbackError;
 
-export { ToolFallback, };
+export { ToolFallback };

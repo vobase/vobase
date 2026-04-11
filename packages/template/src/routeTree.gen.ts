@@ -11,43 +11,45 @@
 import { Route as rootRouteImport } from './root'
 import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
 import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
-import { Route as DotDotModulesAiPagesConversationsIndexRouteImport } from './../modules/ai/pages/conversations/index'
-import { Route as DotDotModulesAiPagesInboxIndexRouteImport } from './../modules/ai/pages/inbox/index'
-import { Route as DotDotModulesAiPagesContactsIndexRouteImport } from './../modules/ai/pages/contacts/index'
-import { Route as DotDotModulesAiPagesChannelsIndexRouteImport } from './../modules/ai/pages/channels/index'
 import { Route as chatDotchannelRoutingIdRouteImport } from './chat.$channelRoutingId'
-import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as shellAuthPendingRouteImport } from './shell/auth/pending'
+import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as DotDotModulesSystemPagesLayoutRouteImport } from './../modules/system/pages/layout'
 import { Route as shellSettingsLayoutRouteImport } from './shell/settings/layout'
-import { Route as DotDotModulesAiPagesAiLabelsRouteImport } from './../modules/ai/pages/ai/labels'
+import { Route as DotDotModulesMessagingPagesLayoutRouteImport } from './../modules/messaging/pages/layout'
 import { Route as DotDotModulesKnowledgeBasePagesLayoutRouteImport } from './../modules/knowledge-base/pages/layout'
 import { Route as DotDotModulesAutomationPagesLayoutRouteImport } from './../modules/automation/pages/layout'
-import { Route as DotDotModulesAiPagesAiLayoutRouteImport } from './../modules/ai/pages/ai/layout'
+import { Route as DotDotModulesAgentsPagesLayoutRouteImport } from './../modules/agents/pages/layout'
 import { Route as homeRouteImport } from './home'
-import { Route as IndexRouteImport } from './../modules/automation/pages/index'
+import { Route as IndexRouteImport } from './../modules/agents/pages/index'
 import { Route as LogsRouteImport } from './../modules/system/pages/logs'
 import { Route as ListRouteImport } from './../modules/system/pages/list'
-import { Route as shellSettingsProfileRouteImport } from './shell/settings/profile'
-import { Route as shellSettingsNotificationsRouteImport } from './shell/settings/notifications'
-import { Route as shellSettingsDisplayRouteImport } from './shell/settings/display'
-import { Route as shellSettingsAppearanceRouteImport } from './shell/settings/appearance'
-import { Route as shellSettingsApiKeysRouteImport } from './shell/settings/api-keys'
-import { Route as shellSettingsAccountRouteImport } from './shell/settings/account'
+import { Route as ProfileRouteImport } from './shell/settings/profile'
+import { Route as NotificationsRouteImport } from './shell/settings/notifications'
+import { Route as DisplayRouteImport } from './shell/settings/display'
+import { Route as AppearanceRouteImport } from './shell/settings/appearance'
+import { Route as ApiKeysRouteImport } from './shell/settings/api-keys'
+import { Route as AccountRouteImport } from './shell/settings/account'
+import { Route as LabelsRouteImport } from './../modules/messaging/pages/labels'
+import { Route as InboxRouteImport } from './../modules/messaging/pages/inbox'
 import { Route as SourcesRouteImport } from './../modules/knowledge-base/pages/sources'
 import { Route as SearchRouteImport } from './../modules/knowledge-base/pages/search'
-import { Route as DotDotModulesAiPagesConversationsConversationIdRouteImport } from './../modules/ai/pages/conversations/$conversationId'
-import { Route as DotDotModulesAiPagesInboxContactIdRouteImport } from './../modules/ai/pages/inbox/$contactId'
-import { Route as DotDotModulesAiPagesContactsContactIdRouteImport } from './../modules/ai/pages/contacts/$contactId'
 import { Route as TasksRouteImport } from './../modules/automation/pages/tasks'
 import { Route as PairingRouteImport } from './../modules/automation/pages/pairing'
+import { Route as OverviewRouteImport } from './../modules/automation/pages/overview'
+import { Route as MemoryRouteImport } from './../modules/agents/pages/memory'
+import { Route as GuardrailsRouteImport } from './../modules/agents/pages/guardrails'
+import { Route as EvalsRouteImport } from './../modules/agents/pages/evals'
 import { Route as OrganizationsIndexRouteImport } from './../modules/system/pages/organizations/index'
+import { Route as InboxIndexRouteImport } from './../modules/messaging/pages/inbox/index'
+import { Route as ConversationsIndexRouteImport } from './../modules/messaging/pages/conversations/index'
+import { Route as ContactsIndexRouteImport } from './../modules/messaging/pages/contacts/index'
+import { Route as ChannelsIndexRouteImport } from './../modules/messaging/pages/channels/index'
 import { Route as DocumentsIndexRouteImport } from './../modules/knowledge-base/pages/documents/index'
+import { Route as InboxContactIdRouteImport } from './../modules/messaging/pages/inbox/$contactId'
+import { Route as ConversationsConversationIdRouteImport } from './../modules/messaging/pages/conversations/$conversationId'
+import { Route as ContactsContactIdRouteImport } from './../modules/messaging/pages/contacts/$contactId'
 import { Route as DocumentsIdRouteImport } from './../modules/knowledge-base/pages/documents/$id'
-import { Route as DotDotModulesAiPagesAiMemoryRouteImport } from './../modules/ai/pages/ai/memory'
-import { Route as DotDotModulesAiPagesAiGuardrailsRouteImport } from './../modules/ai/pages/ai/guardrails'
-import { Route as DotDotModulesAiPagesAiEvalsRouteImport } from './../modules/ai/pages/ai/evals'
-import { Route as DotDotModulesAiPagesAiAgentsRouteImport } from './../modules/ai/pages/ai/agents'
 
 const shellAuthLayoutRoute = shellAuthLayoutRouteImport.update({
   id: '/_auth',
@@ -57,43 +59,19 @@ const shellAppLayoutRoute = shellAppLayoutRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DotDotModulesAiPagesConversationsIndexRoute =
-  DotDotModulesAiPagesConversationsIndexRouteImport.update({
-    id: '/conversations',
-    path: '/conversations',
-    getParentRoute: () => shellAppLayoutRoute,
-  } as any)
-const DotDotModulesAiPagesInboxIndexRoute =
-  DotDotModulesAiPagesInboxIndexRouteImport.update({
-    id: '/inbox',
-    path: '/inbox',
-    getParentRoute: () => shellAppLayoutRoute,
-  } as any)
-const DotDotModulesAiPagesContactsIndexRoute =
-  DotDotModulesAiPagesContactsIndexRouteImport.update({
-    id: '/contacts',
-    path: '/contacts',
-    getParentRoute: () => shellAppLayoutRoute,
-  } as any)
-const DotDotModulesAiPagesChannelsIndexRoute =
-  DotDotModulesAiPagesChannelsIndexRouteImport.update({
-    id: '/channels',
-    path: '/channels',
-    getParentRoute: () => shellAppLayoutRoute,
-  } as any)
 const chatDotchannelRoutingIdRoute = chatDotchannelRoutingIdRouteImport.update({
   id: '/chat/$channelRoutingId',
   path: '/chat/$channelRoutingId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const shellAuthLoginRoute = shellAuthLoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => shellAuthLayoutRoute,
-} as any)
 const shellAuthPendingRoute = shellAuthPendingRouteImport.update({
   id: '/pending',
   path: '/pending',
+  getParentRoute: () => shellAuthLayoutRoute,
+} as any)
+const shellAuthLoginRoute = shellAuthLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => shellAuthLayoutRoute,
 } as any)
 const DotDotModulesSystemPagesLayoutRoute =
@@ -107,10 +85,10 @@ const shellSettingsLayoutRoute = shellSettingsLayoutRouteImport.update({
   path: '/settings',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
-const DotDotModulesAiPagesAiLabelsRoute =
-  DotDotModulesAiPagesAiLabelsRouteImport.update({
-    id: '/labels',
-    path: '/labels',
+const DotDotModulesMessagingPagesLayoutRoute =
+  DotDotModulesMessagingPagesLayoutRouteImport.update({
+    id: '/messaging',
+    path: '/messaging',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
 const DotDotModulesKnowledgeBasePagesLayoutRoute =
@@ -125,9 +103,10 @@ const DotDotModulesAutomationPagesLayoutRoute =
     path: '/automation',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
-const DotDotModulesAiPagesAiLayoutRoute =
-  DotDotModulesAiPagesAiLayoutRouteImport.update({
-    id: '/_ai',
+const DotDotModulesAgentsPagesLayoutRoute =
+  DotDotModulesAgentsPagesLayoutRouteImport.update({
+    id: '/agents',
+    path: '/agents',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
 const homeRoute = homeRouteImport.update({
@@ -138,7 +117,7 @@ const homeRoute = homeRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => DotDotModulesAutomationPagesLayoutRoute,
+  getParentRoute: () => DotDotModulesAgentsPagesLayoutRoute,
 } as any)
 const LogsRoute = LogsRouteImport.update({
   id: '/logs',
@@ -150,36 +129,45 @@ const ListRoute = ListRouteImport.update({
   path: '/list',
   getParentRoute: () => DotDotModulesSystemPagesLayoutRoute,
 } as any)
-const shellSettingsProfileRoute = shellSettingsProfileRouteImport.update({
+const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const shellSettingsNotificationsRoute =
-  shellSettingsNotificationsRouteImport.update({
-    id: '/notifications',
-    path: '/notifications',
-    getParentRoute: () => shellSettingsLayoutRoute,
-  } as any)
-const shellSettingsDisplayRoute = shellSettingsDisplayRouteImport.update({
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => shellSettingsLayoutRoute,
+} as any)
+const DisplayRoute = DisplayRouteImport.update({
   id: '/display',
   path: '/display',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const shellSettingsAppearanceRoute = shellSettingsAppearanceRouteImport.update({
+const AppearanceRoute = AppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const shellSettingsApiKeysRoute = shellSettingsApiKeysRouteImport.update({
+const ApiKeysRoute = ApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const shellSettingsAccountRoute = shellSettingsAccountRouteImport.update({
+const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
   getParentRoute: () => shellSettingsLayoutRoute,
+} as any)
+const LabelsRoute = LabelsRouteImport.update({
+  id: '/labels',
+  path: '/labels',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+} as any)
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
 const SourcesRoute = SourcesRouteImport.update({
   id: '/sources',
@@ -191,24 +179,6 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => DotDotModulesKnowledgeBasePagesLayoutRoute,
 } as any)
-const DotDotModulesAiPagesConversationsConversationIdRoute =
-  DotDotModulesAiPagesConversationsConversationIdRouteImport.update({
-    id: '/$conversationId',
-    path: '/$conversationId',
-    getParentRoute: () => DotDotModulesAiPagesConversationsIndexRoute,
-  } as any)
-const DotDotModulesAiPagesInboxContactIdRoute =
-  DotDotModulesAiPagesInboxContactIdRouteImport.update({
-    id: '/$contactId',
-    path: '/$contactId',
-    getParentRoute: () => DotDotModulesAiPagesInboxIndexRoute,
-  } as any)
-const DotDotModulesAiPagesContactsContactIdRoute =
-  DotDotModulesAiPagesContactsContactIdRouteImport.update({
-    id: '/contacts/$contactId',
-    path: '/contacts/$contactId',
-    getParentRoute: () => shellAppLayoutRoute,
-  } as any)
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
@@ -219,186 +189,225 @@ const PairingRoute = PairingRouteImport.update({
   path: '/pairing',
   getParentRoute: () => DotDotModulesAutomationPagesLayoutRoute,
 } as any)
+const OverviewRoute = OverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => DotDotModulesAutomationPagesLayoutRoute,
+} as any)
+const MemoryRoute = MemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
+  getParentRoute: () => DotDotModulesAgentsPagesLayoutRoute,
+} as any)
+const GuardrailsRoute = GuardrailsRouteImport.update({
+  id: '/guardrails',
+  path: '/guardrails',
+  getParentRoute: () => DotDotModulesAgentsPagesLayoutRoute,
+} as any)
+const EvalsRoute = EvalsRouteImport.update({
+  id: '/evals',
+  path: '/evals',
+  getParentRoute: () => DotDotModulesAgentsPagesLayoutRoute,
+} as any)
 const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
   id: '/organizations/',
   path: '/organizations/',
   getParentRoute: () => DotDotModulesSystemPagesLayoutRoute,
+} as any)
+const InboxIndexRoute = InboxIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => InboxRoute,
+} as any)
+const ConversationsIndexRoute = ConversationsIndexRouteImport.update({
+  id: '/conversations/',
+  path: '/conversations/',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+} as any)
+const ContactsIndexRoute = ContactsIndexRouteImport.update({
+  id: '/contacts/',
+  path: '/contacts/',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+} as any)
+const ChannelsIndexRoute = ChannelsIndexRouteImport.update({
+  id: '/channels/',
+  path: '/channels/',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
 const DocumentsIndexRoute = DocumentsIndexRouteImport.update({
   id: '/documents/',
   path: '/documents/',
   getParentRoute: () => DotDotModulesKnowledgeBasePagesLayoutRoute,
 } as any)
+const InboxContactIdRoute = InboxContactIdRouteImport.update({
+  id: '/$contactId',
+  path: '/$contactId',
+  getParentRoute: () => InboxRoute,
+} as any)
+const ConversationsConversationIdRoute =
+  ConversationsConversationIdRouteImport.update({
+    id: '/conversations/$conversationId',
+    path: '/conversations/$conversationId',
+    getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+  } as any)
+const ContactsContactIdRoute = ContactsContactIdRouteImport.update({
+  id: '/contacts/$contactId',
+  path: '/contacts/$contactId',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+} as any)
 const DocumentsIdRoute = DocumentsIdRouteImport.update({
   id: '/documents/$id',
   path: '/documents/$id',
   getParentRoute: () => DotDotModulesKnowledgeBasePagesLayoutRoute,
 } as any)
-const DotDotModulesAiPagesAiMemoryRoute =
-  DotDotModulesAiPagesAiMemoryRouteImport.update({
-    id: '/ai/memory',
-    path: '/ai/memory',
-    getParentRoute: () => DotDotModulesAiPagesAiLayoutRoute,
-  } as any)
-const DotDotModulesAiPagesAiGuardrailsRoute =
-  DotDotModulesAiPagesAiGuardrailsRouteImport.update({
-    id: '/ai/guardrails',
-    path: '/ai/guardrails',
-    getParentRoute: () => DotDotModulesAiPagesAiLayoutRoute,
-  } as any)
-const DotDotModulesAiPagesAiEvalsRoute =
-  DotDotModulesAiPagesAiEvalsRouteImport.update({
-    id: '/ai/evals',
-    path: '/ai/evals',
-    getParentRoute: () => DotDotModulesAiPagesAiLayoutRoute,
-  } as any)
-const DotDotModulesAiPagesAiAgentsRoute =
-  DotDotModulesAiPagesAiAgentsRouteImport.update({
-    id: '/ai/agents',
-    path: '/ai/agents',
-    getParentRoute: () => DotDotModulesAiPagesAiLayoutRoute,
-  } as any)
 
-interface FileRoutesByFullPath {
+export interface FileRoutesByFullPath {
+  '/': typeof homeRoute
+  '/agents': typeof DotDotModulesAgentsPagesLayoutRouteWithChildren
+  '/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
+  '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
+  '/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
+  '/settings': typeof shellSettingsLayoutRouteWithChildren
+  '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
+  '/login': typeof shellAuthLoginRoute
+  '/pending': typeof shellAuthPendingRoute
+  '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
+  '/agents/evals': typeof EvalsRoute
+  '/agents/guardrails': typeof GuardrailsRoute
+  '/agents/memory': typeof MemoryRoute
+  '/automation/overview': typeof OverviewRoute
+  '/automation/pairing': typeof PairingRoute
+  '/automation/tasks': typeof TasksRoute
+  '/knowledge-base/search': typeof SearchRoute
+  '/knowledge-base/sources': typeof SourcesRoute
+  '/messaging/inbox': typeof InboxRouteWithChildren
+  '/messaging/labels': typeof LabelsRoute
+  '/settings/account': typeof AccountRoute
+  '/settings/api-keys': typeof ApiKeysRoute
+  '/settings/appearance': typeof AppearanceRoute
+  '/settings/display': typeof DisplayRoute
+  '/settings/notifications': typeof NotificationsRoute
+  '/settings/profile': typeof ProfileRoute
+  '/system/list': typeof ListRoute
+  '/system/logs': typeof LogsRoute
+  '/agents/': typeof IndexRoute
+  '/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/messaging/contacts/$contactId': typeof ContactsContactIdRoute
+  '/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
+  '/messaging/inbox/$contactId': typeof InboxContactIdRoute
+  '/knowledge-base/documents/': typeof DocumentsIndexRoute
+  '/messaging/channels/': typeof ChannelsIndexRoute
+  '/messaging/contacts/': typeof ContactsIndexRoute
+  '/messaging/conversations/': typeof ConversationsIndexRoute
+  '/messaging/inbox/': typeof InboxIndexRoute
+  '/system/organizations/': typeof OrganizationsIndexRoute
+}
+export interface FileRoutesByTo {
   '/': typeof homeRoute
   '/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
-  '/labels': typeof DotDotModulesAiPagesAiLabelsRoute
+  '/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/settings': typeof shellSettingsLayoutRouteWithChildren
   '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/login': typeof shellAuthLoginRoute
   '/pending': typeof shellAuthPendingRoute
   '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
-  '/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
-  '/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
-  '/inbox': typeof DotDotModulesAiPagesInboxIndexRouteWithChildren
-  '/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
+  '/agents/evals': typeof EvalsRoute
+  '/agents/guardrails': typeof GuardrailsRoute
+  '/agents/memory': typeof MemoryRoute
+  '/automation/overview': typeof OverviewRoute
   '/automation/pairing': typeof PairingRoute
   '/automation/tasks': typeof TasksRoute
-  '/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
-  '/inbox/$contactId': typeof DotDotModulesAiPagesInboxContactIdRoute
-  '/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
-  '/settings/account': typeof shellSettingsAccountRoute
-  '/settings/api-keys': typeof shellSettingsApiKeysRoute
-  '/settings/appearance': typeof shellSettingsAppearanceRoute
-  '/settings/display': typeof shellSettingsDisplayRoute
-  '/settings/notifications': typeof shellSettingsNotificationsRoute
-  '/settings/profile': typeof shellSettingsProfileRoute
+  '/messaging/labels': typeof LabelsRoute
+  '/settings/account': typeof AccountRoute
+  '/settings/api-keys': typeof ApiKeysRoute
+  '/settings/appearance': typeof AppearanceRoute
+  '/settings/display': typeof DisplayRoute
+  '/settings/notifications': typeof NotificationsRoute
+  '/settings/profile': typeof ProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
-  '/automation/': typeof IndexRoute
-  '/ai/agents': typeof DotDotModulesAiPagesAiAgentsRoute
-  '/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
-  '/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
-  '/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
+  '/agents': typeof IndexRoute
   '/knowledge-base/documents/$id': typeof DocumentsIdRoute
-  '/knowledge-base/documents/': typeof DocumentsIndexRoute
-  '/system/organizations/': typeof OrganizationsIndexRoute
-}
-interface FileRoutesByTo {
-  '/': typeof homeRoute
-  '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
-  '/labels': typeof DotDotModulesAiPagesAiLabelsRoute
-  '/settings': typeof shellSettingsLayoutRouteWithChildren
-  '/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
-  '/login': typeof shellAuthLoginRoute
-  '/pending': typeof shellAuthPendingRoute
-  '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
-  '/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
-  '/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
-  '/inbox': typeof DotDotModulesAiPagesInboxIndexRouteWithChildren
-  '/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
-  '/automation/pairing': typeof PairingRoute
-  '/automation/tasks': typeof TasksRoute
-  '/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
-  '/inbox/$contactId': typeof DotDotModulesAiPagesInboxContactIdRoute
-  '/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
-  '/knowledge-base/search': typeof SearchRoute
-  '/knowledge-base/sources': typeof SourcesRoute
-  '/settings/account': typeof shellSettingsAccountRoute
-  '/settings/api-keys': typeof shellSettingsApiKeysRoute
-  '/settings/appearance': typeof shellSettingsAppearanceRoute
-  '/settings/display': typeof shellSettingsDisplayRoute
-  '/settings/notifications': typeof shellSettingsNotificationsRoute
-  '/settings/profile': typeof shellSettingsProfileRoute
-  '/system/list': typeof ListRoute
-  '/system/logs': typeof LogsRoute
-  '/automation': typeof IndexRoute
-  '/ai/agents': typeof DotDotModulesAiPagesAiAgentsRoute
-  '/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
-  '/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
-  '/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
-  '/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/messaging/contacts/$contactId': typeof ContactsContactIdRoute
+  '/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
+  '/messaging/inbox/$contactId': typeof InboxContactIdRoute
   '/knowledge-base/documents': typeof DocumentsIndexRoute
+  '/messaging/channels': typeof ChannelsIndexRoute
+  '/messaging/contacts': typeof ContactsIndexRoute
+  '/messaging/conversations': typeof ConversationsIndexRoute
+  '/messaging/inbox': typeof InboxIndexRoute
   '/system/organizations': typeof OrganizationsIndexRoute
 }
-interface FileRoutesById {
+export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof shellAppLayoutRouteWithChildren
   '/_auth': typeof shellAuthLayoutRouteWithChildren
   '/_app/': typeof homeRoute
-  '/_app/_ai': typeof DotDotModulesAiPagesAiLayoutRouteWithChildren
+  '/_app/agents': typeof DotDotModulesAgentsPagesLayoutRouteWithChildren
   '/_app/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   '/_app/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
-  '/_app/labels': typeof DotDotModulesAiPagesAiLabelsRoute
+  '/_app/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/_app/settings': typeof shellSettingsLayoutRouteWithChildren
   '/_app/system': typeof DotDotModulesSystemPagesLayoutRouteWithChildren
   '/_auth/login': typeof shellAuthLoginRoute
   '/_auth/pending': typeof shellAuthPendingRoute
   '/chat/$channelRoutingId': typeof chatDotchannelRoutingIdRoute
-  '/_app/channels': typeof DotDotModulesAiPagesChannelsIndexRoute
-  '/_app/contacts': typeof DotDotModulesAiPagesContactsIndexRoute
-  '/_app/inbox': typeof DotDotModulesAiPagesInboxIndexRouteWithChildren
-  '/_app/conversations': typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
+  '/_app/agents/evals': typeof EvalsRoute
+  '/_app/agents/guardrails': typeof GuardrailsRoute
+  '/_app/agents/memory': typeof MemoryRoute
+  '/_app/automation/overview': typeof OverviewRoute
   '/_app/automation/pairing': typeof PairingRoute
   '/_app/automation/tasks': typeof TasksRoute
-  '/_app/contacts/$contactId': typeof DotDotModulesAiPagesContactsContactIdRoute
-  '/_app/inbox/$contactId': typeof DotDotModulesAiPagesInboxContactIdRoute
-  '/_app/conversations/$conversationId': typeof DotDotModulesAiPagesConversationsConversationIdRoute
   '/_app/knowledge-base/search': typeof SearchRoute
   '/_app/knowledge-base/sources': typeof SourcesRoute
-  '/_app/settings/account': typeof shellSettingsAccountRoute
-  '/_app/settings/api-keys': typeof shellSettingsApiKeysRoute
-  '/_app/settings/appearance': typeof shellSettingsAppearanceRoute
-  '/_app/settings/display': typeof shellSettingsDisplayRoute
-  '/_app/settings/notifications': typeof shellSettingsNotificationsRoute
-  '/_app/settings/profile': typeof shellSettingsProfileRoute
+  '/_app/messaging/inbox': typeof InboxRouteWithChildren
+  '/_app/messaging/labels': typeof LabelsRoute
+  '/_app/settings/account': typeof AccountRoute
+  '/_app/settings/api-keys': typeof ApiKeysRoute
+  '/_app/settings/appearance': typeof AppearanceRoute
+  '/_app/settings/display': typeof DisplayRoute
+  '/_app/settings/notifications': typeof NotificationsRoute
+  '/_app/settings/profile': typeof ProfileRoute
   '/_app/system/list': typeof ListRoute
   '/_app/system/logs': typeof LogsRoute
-  '/_app/automation/': typeof IndexRoute
-  '/_app/_ai/ai/agents': typeof DotDotModulesAiPagesAiAgentsRoute
-  '/_app/_ai/ai/evals': typeof DotDotModulesAiPagesAiEvalsRoute
-  '/_app/_ai/ai/guardrails': typeof DotDotModulesAiPagesAiGuardrailsRoute
-  '/_app/_ai/ai/memory': typeof DotDotModulesAiPagesAiMemoryRoute
+  '/_app/agents/': typeof IndexRoute
   '/_app/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/_app/messaging/contacts/$contactId': typeof ContactsContactIdRoute
+  '/_app/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
+  '/_app/messaging/inbox/$contactId': typeof InboxContactIdRoute
   '/_app/knowledge-base/documents/': typeof DocumentsIndexRoute
+  '/_app/messaging/channels/': typeof ChannelsIndexRoute
+  '/_app/messaging/contacts/': typeof ContactsIndexRoute
+  '/_app/messaging/conversations/': typeof ConversationsIndexRoute
+  '/_app/messaging/inbox/': typeof InboxIndexRoute
   '/_app/system/organizations/': typeof OrganizationsIndexRoute
 }
-interface FileRouteTypes {
+export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/agents'
     | '/automation'
     | '/knowledge-base'
-    | '/labels'
+    | '/messaging'
     | '/settings'
     | '/system'
     | '/login'
     | '/pending'
     | '/chat/$channelRoutingId'
-    | '/channels'
-    | '/contacts'
-    | '/inbox'
-    | '/conversations'
+    | '/agents/evals'
+    | '/agents/guardrails'
+    | '/agents/memory'
+    | '/automation/overview'
     | '/automation/pairing'
     | '/automation/tasks'
-    | '/contacts/$contactId'
-    | '/inbox/$contactId'
-    | '/conversations/$conversationId'
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
+    | '/messaging/inbox'
+    | '/messaging/labels'
     | '/settings/account'
     | '/settings/api-keys'
     | '/settings/appearance'
@@ -407,35 +416,37 @@ interface FileRouteTypes {
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
-    | '/automation/'
-    | '/ai/agents'
-    | '/ai/evals'
-    | '/ai/guardrails'
-    | '/ai/memory'
+    | '/agents/'
     | '/knowledge-base/documents/$id'
+    | '/messaging/contacts/$contactId'
+    | '/messaging/conversations/$conversationId'
+    | '/messaging/inbox/$contactId'
     | '/knowledge-base/documents/'
+    | '/messaging/channels/'
+    | '/messaging/contacts/'
+    | '/messaging/conversations/'
+    | '/messaging/inbox/'
     | '/system/organizations/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/automation'
     | '/knowledge-base'
-    | '/labels'
+    | '/messaging'
     | '/settings'
     | '/system'
     | '/login'
     | '/pending'
     | '/chat/$channelRoutingId'
-    | '/channels'
-    | '/contacts'
-    | '/inbox'
-    | '/conversations'
+    | '/agents/evals'
+    | '/agents/guardrails'
+    | '/agents/memory'
+    | '/automation/overview'
     | '/automation/pairing'
     | '/automation/tasks'
-    | '/contacts/$contactId'
-    | '/inbox/$contactId'
-    | '/conversations/$conversationId'
     | '/knowledge-base/search'
     | '/knowledge-base/sources'
+    | '/messaging/labels'
     | '/settings/account'
     | '/settings/api-keys'
     | '/settings/appearance'
@@ -444,39 +455,41 @@ interface FileRouteTypes {
     | '/settings/profile'
     | '/system/list'
     | '/system/logs'
-    | '/automation'
-    | '/ai/agents'
-    | '/ai/evals'
-    | '/ai/guardrails'
-    | '/ai/memory'
+    | '/agents'
     | '/knowledge-base/documents/$id'
+    | '/messaging/contacts/$contactId'
+    | '/messaging/conversations/$conversationId'
+    | '/messaging/inbox/$contactId'
     | '/knowledge-base/documents'
+    | '/messaging/channels'
+    | '/messaging/contacts'
+    | '/messaging/conversations'
+    | '/messaging/inbox'
     | '/system/organizations'
   id:
     | '__root__'
     | '/_app'
     | '/_auth'
     | '/_app/'
-    | '/_app/_ai'
+    | '/_app/agents'
     | '/_app/automation'
     | '/_app/knowledge-base'
-    | '/_app/labels'
+    | '/_app/messaging'
     | '/_app/settings'
     | '/_app/system'
     | '/_auth/login'
     | '/_auth/pending'
     | '/chat/$channelRoutingId'
-    | '/_app/channels'
-    | '/_app/contacts'
-    | '/_app/inbox'
-    | '/_app/conversations'
+    | '/_app/agents/evals'
+    | '/_app/agents/guardrails'
+    | '/_app/agents/memory'
+    | '/_app/automation/overview'
     | '/_app/automation/pairing'
     | '/_app/automation/tasks'
-    | '/_app/contacts/$contactId'
-    | '/_app/inbox/$contactId'
-    | '/_app/conversations/$conversationId'
     | '/_app/knowledge-base/search'
     | '/_app/knowledge-base/sources'
+    | '/_app/messaging/inbox'
+    | '/_app/messaging/labels'
     | '/_app/settings/account'
     | '/_app/settings/api-keys'
     | '/_app/settings/appearance'
@@ -485,17 +498,20 @@ interface FileRouteTypes {
     | '/_app/settings/profile'
     | '/_app/system/list'
     | '/_app/system/logs'
-    | '/_app/automation/'
-    | '/_app/_ai/ai/agents'
-    | '/_app/_ai/ai/evals'
-    | '/_app/_ai/ai/guardrails'
-    | '/_app/_ai/ai/memory'
+    | '/_app/agents/'
     | '/_app/knowledge-base/documents/$id'
+    | '/_app/messaging/contacts/$contactId'
+    | '/_app/messaging/conversations/$conversationId'
+    | '/_app/messaging/inbox/$contactId'
     | '/_app/knowledge-base/documents/'
+    | '/_app/messaging/channels/'
+    | '/_app/messaging/contacts/'
+    | '/_app/messaging/conversations/'
+    | '/_app/messaging/inbox/'
     | '/_app/system/organizations/'
   fileRoutesById: FileRoutesById
 }
-interface RootRouteChildren {
+export interface RootRouteChildren {
   shellAppLayoutRoute: typeof shellAppLayoutRouteWithChildren
   shellAuthLayoutRoute: typeof shellAuthLayoutRouteWithChildren
   chatDotchannelRoutingIdRoute: typeof chatDotchannelRoutingIdRoute
@@ -517,34 +533,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof shellAppLayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/conversations': {
-      id: '/_app/conversations'
-      path: '/conversations'
-      fullPath: '/conversations'
-      preLoaderRoute: typeof DotDotModulesAiPagesConversationsIndexRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
-    '/_app/inbox': {
-      id: '/_app/inbox'
-      path: '/inbox'
-      fullPath: '/inbox'
-      preLoaderRoute: typeof DotDotModulesAiPagesInboxIndexRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
-    '/_app/contacts': {
-      id: '/_app/contacts'
-      path: '/contacts'
-      fullPath: '/contacts'
-      preLoaderRoute: typeof DotDotModulesAiPagesContactsIndexRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
-    '/_app/channels': {
-      id: '/_app/channels'
-      path: '/channels'
-      fullPath: '/channels'
-      preLoaderRoute: typeof DotDotModulesAiPagesChannelsIndexRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
     '/chat/$channelRoutingId': {
       id: '/chat/$channelRoutingId'
       path: '/chat/$channelRoutingId'
@@ -552,18 +540,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof chatDotchannelRoutingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth/login': {
-      id: '/_auth/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof shellAuthLoginRouteImport
-      parentRoute: typeof shellAuthLayoutRoute
-    }
     '/_auth/pending': {
       id: '/_auth/pending'
       path: '/pending'
       fullPath: '/pending'
       preLoaderRoute: typeof shellAuthPendingRouteImport
+      parentRoute: typeof shellAuthLayoutRoute
+    }
+    '/_auth/login': {
+      id: '/_auth/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof shellAuthLoginRouteImport
       parentRoute: typeof shellAuthLayoutRoute
     }
     '/_app/system': {
@@ -580,11 +568,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof shellSettingsLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/labels': {
-      id: '/_app/labels'
-      path: '/labels'
-      fullPath: '/labels'
-      preLoaderRoute: typeof DotDotModulesAiPagesAiLabelsRouteImport
+    '/_app/messaging': {
+      id: '/_app/messaging'
+      path: '/messaging'
+      fullPath: '/messaging'
+      preLoaderRoute: typeof DotDotModulesMessagingPagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
     '/_app/knowledge-base': {
@@ -601,11 +589,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotDotModulesAutomationPagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/_ai': {
-      id: '/_app/_ai'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof DotDotModulesAiPagesAiLayoutRouteImport
+    '/_app/agents': {
+      id: '/_app/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof DotDotModulesAgentsPagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
     '/_app/': {
@@ -615,12 +603,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof homeRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/automation/': {
-      id: '/_app/automation/'
+    '/_app/agents/': {
+      id: '/_app/agents/'
       path: '/'
-      fullPath: '/automation/'
+      fullPath: '/agents/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof DotDotModulesAutomationPagesLayoutRoute
+      parentRoute: typeof DotDotModulesAgentsPagesLayoutRoute
     }
     '/_app/system/logs': {
       id: '/_app/system/logs'
@@ -640,43 +628,57 @@ declare module '@tanstack/react-router' {
       id: '/_app/settings/profile'
       path: '/profile'
       fullPath: '/settings/profile'
-      preLoaderRoute: typeof shellSettingsProfileRouteImport
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/notifications': {
       id: '/_app/settings/notifications'
       path: '/notifications'
       fullPath: '/settings/notifications'
-      preLoaderRoute: typeof shellSettingsNotificationsRouteImport
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/display': {
       id: '/_app/settings/display'
       path: '/display'
       fullPath: '/settings/display'
-      preLoaderRoute: typeof shellSettingsDisplayRouteImport
+      preLoaderRoute: typeof DisplayRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/appearance': {
       id: '/_app/settings/appearance'
       path: '/appearance'
       fullPath: '/settings/appearance'
-      preLoaderRoute: typeof shellSettingsAppearanceRouteImport
+      preLoaderRoute: typeof AppearanceRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/api-keys': {
       id: '/_app/settings/api-keys'
       path: '/api-keys'
       fullPath: '/settings/api-keys'
-      preLoaderRoute: typeof shellSettingsApiKeysRouteImport
+      preLoaderRoute: typeof ApiKeysRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/account': {
       id: '/_app/settings/account'
       path: '/account'
       fullPath: '/settings/account'
-      preLoaderRoute: typeof shellSettingsAccountRouteImport
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
+    }
+    '/_app/messaging/labels': {
+      id: '/_app/messaging/labels'
+      path: '/labels'
+      fullPath: '/messaging/labels'
+      preLoaderRoute: typeof LabelsRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
+    '/_app/messaging/inbox': {
+      id: '/_app/messaging/inbox'
+      path: '/inbox'
+      fullPath: '/messaging/inbox'
+      preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
     '/_app/knowledge-base/sources': {
       id: '/_app/knowledge-base/sources'
@@ -692,27 +694,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
     }
-    '/_app/conversations/$conversationId': {
-      id: '/_app/conversations/$conversationId'
-      path: '/$conversationId'
-      fullPath: '/conversations/$conversationId'
-      preLoaderRoute: typeof DotDotModulesAiPagesConversationsConversationIdRouteImport
-      parentRoute: typeof DotDotModulesAiPagesConversationsIndexRoute
-    }
-    '/_app/inbox/$contactId': {
-      id: '/_app/inbox/$contactId'
-      path: '/$contactId'
-      fullPath: '/inbox/$contactId'
-      preLoaderRoute: typeof DotDotModulesAiPagesInboxContactIdRouteImport
-      parentRoute: typeof DotDotModulesAiPagesInboxIndexRoute
-    }
-    '/_app/contacts/$contactId': {
-      id: '/_app/contacts/$contactId'
-      path: '/contacts/$contactId'
-      fullPath: '/contacts/$contactId'
-      preLoaderRoute: typeof DotDotModulesAiPagesContactsContactIdRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
     '/_app/automation/tasks': {
       id: '/_app/automation/tasks'
       path: '/tasks'
@@ -727,12 +708,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PairingRouteImport
       parentRoute: typeof DotDotModulesAutomationPagesLayoutRoute
     }
+    '/_app/automation/overview': {
+      id: '/_app/automation/overview'
+      path: '/overview'
+      fullPath: '/automation/overview'
+      preLoaderRoute: typeof OverviewRouteImport
+      parentRoute: typeof DotDotModulesAutomationPagesLayoutRoute
+    }
+    '/_app/agents/memory': {
+      id: '/_app/agents/memory'
+      path: '/memory'
+      fullPath: '/agents/memory'
+      preLoaderRoute: typeof MemoryRouteImport
+      parentRoute: typeof DotDotModulesAgentsPagesLayoutRoute
+    }
+    '/_app/agents/guardrails': {
+      id: '/_app/agents/guardrails'
+      path: '/guardrails'
+      fullPath: '/agents/guardrails'
+      preLoaderRoute: typeof GuardrailsRouteImport
+      parentRoute: typeof DotDotModulesAgentsPagesLayoutRoute
+    }
+    '/_app/agents/evals': {
+      id: '/_app/agents/evals'
+      path: '/evals'
+      fullPath: '/agents/evals'
+      preLoaderRoute: typeof EvalsRouteImport
+      parentRoute: typeof DotDotModulesAgentsPagesLayoutRoute
+    }
     '/_app/system/organizations/': {
       id: '/_app/system/organizations/'
       path: '/organizations'
       fullPath: '/system/organizations/'
       preLoaderRoute: typeof OrganizationsIndexRouteImport
       parentRoute: typeof DotDotModulesSystemPagesLayoutRoute
+    }
+    '/_app/messaging/inbox/': {
+      id: '/_app/messaging/inbox/'
+      path: '/'
+      fullPath: '/messaging/inbox/'
+      preLoaderRoute: typeof InboxIndexRouteImport
+      parentRoute: typeof InboxRoute
+    }
+    '/_app/messaging/conversations/': {
+      id: '/_app/messaging/conversations/'
+      path: '/conversations'
+      fullPath: '/messaging/conversations/'
+      preLoaderRoute: typeof ConversationsIndexRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
+    '/_app/messaging/contacts/': {
+      id: '/_app/messaging/contacts/'
+      path: '/contacts'
+      fullPath: '/messaging/contacts/'
+      preLoaderRoute: typeof ContactsIndexRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
+    '/_app/messaging/channels/': {
+      id: '/_app/messaging/channels/'
+      path: '/channels'
+      fullPath: '/messaging/channels/'
+      preLoaderRoute: typeof ChannelsIndexRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
     '/_app/knowledge-base/documents/': {
       id: '/_app/knowledge-base/documents/'
@@ -741,6 +778,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocumentsIndexRouteImport
       parentRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
     }
+    '/_app/messaging/inbox/$contactId': {
+      id: '/_app/messaging/inbox/$contactId'
+      path: '/$contactId'
+      fullPath: '/messaging/inbox/$contactId'
+      preLoaderRoute: typeof InboxContactIdRouteImport
+      parentRoute: typeof InboxRoute
+    }
+    '/_app/messaging/conversations/$conversationId': {
+      id: '/_app/messaging/conversations/$conversationId'
+      path: '/conversations/$conversationId'
+      fullPath: '/messaging/conversations/$conversationId'
+      preLoaderRoute: typeof ConversationsConversationIdRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
+    '/_app/messaging/contacts/$contactId': {
+      id: '/_app/messaging/contacts/$contactId'
+      path: '/contacts/$contactId'
+      fullPath: '/messaging/contacts/$contactId'
+      preLoaderRoute: typeof ContactsContactIdRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
     '/_app/knowledge-base/documents/$id': {
       id: '/_app/knowledge-base/documents/$id'
       path: '/documents/$id'
@@ -748,69 +806,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocumentsIdRouteImport
       parentRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
     }
-    '/_app/_ai/ai/memory': {
-      id: '/_app/_ai/ai/memory'
-      path: '/ai/memory'
-      fullPath: '/ai/memory'
-      preLoaderRoute: typeof DotDotModulesAiPagesAiMemoryRouteImport
-      parentRoute: typeof DotDotModulesAiPagesAiLayoutRoute
-    }
-    '/_app/_ai/ai/guardrails': {
-      id: '/_app/_ai/ai/guardrails'
-      path: '/ai/guardrails'
-      fullPath: '/ai/guardrails'
-      preLoaderRoute: typeof DotDotModulesAiPagesAiGuardrailsRouteImport
-      parentRoute: typeof DotDotModulesAiPagesAiLayoutRoute
-    }
-    '/_app/_ai/ai/evals': {
-      id: '/_app/_ai/ai/evals'
-      path: '/ai/evals'
-      fullPath: '/ai/evals'
-      preLoaderRoute: typeof DotDotModulesAiPagesAiEvalsRouteImport
-      parentRoute: typeof DotDotModulesAiPagesAiLayoutRoute
-    }
-    '/_app/_ai/ai/agents': {
-      id: '/_app/_ai/ai/agents'
-      path: '/ai/agents'
-      fullPath: '/ai/agents'
-      preLoaderRoute: typeof DotDotModulesAiPagesAiAgentsRouteImport
-      parentRoute: typeof DotDotModulesAiPagesAiLayoutRoute
-    }
   }
 }
 
-interface DotDotModulesAiPagesAiLayoutRouteChildren {
-  DotDotModulesAiPagesAiAgentsRoute: typeof DotDotModulesAiPagesAiAgentsRoute
-  DotDotModulesAiPagesAiEvalsRoute: typeof DotDotModulesAiPagesAiEvalsRoute
-  DotDotModulesAiPagesAiGuardrailsRoute: typeof DotDotModulesAiPagesAiGuardrailsRoute
-  DotDotModulesAiPagesAiMemoryRoute: typeof DotDotModulesAiPagesAiMemoryRoute
+interface DotDotModulesAgentsPagesLayoutRouteChildren {
+  EvalsRoute: typeof EvalsRoute
+  GuardrailsRoute: typeof GuardrailsRoute
+  MemoryRoute: typeof MemoryRoute
+  IndexRoute: typeof IndexRoute
 }
 
-const DotDotModulesAiPagesAiLayoutRouteChildren: DotDotModulesAiPagesAiLayoutRouteChildren =
+const DotDotModulesAgentsPagesLayoutRouteChildren: DotDotModulesAgentsPagesLayoutRouteChildren =
   {
-    DotDotModulesAiPagesAiAgentsRoute: DotDotModulesAiPagesAiAgentsRoute,
-    DotDotModulesAiPagesAiEvalsRoute: DotDotModulesAiPagesAiEvalsRoute,
-    DotDotModulesAiPagesAiGuardrailsRoute:
-      DotDotModulesAiPagesAiGuardrailsRoute,
-    DotDotModulesAiPagesAiMemoryRoute: DotDotModulesAiPagesAiMemoryRoute,
+    EvalsRoute: EvalsRoute,
+    GuardrailsRoute: GuardrailsRoute,
+    MemoryRoute: MemoryRoute,
+    IndexRoute: IndexRoute,
   }
 
-const DotDotModulesAiPagesAiLayoutRouteWithChildren =
-  DotDotModulesAiPagesAiLayoutRoute._addFileChildren(
-    DotDotModulesAiPagesAiLayoutRouteChildren,
+const DotDotModulesAgentsPagesLayoutRouteWithChildren =
+  DotDotModulesAgentsPagesLayoutRoute._addFileChildren(
+    DotDotModulesAgentsPagesLayoutRouteChildren,
   )
 
 interface DotDotModulesAutomationPagesLayoutRouteChildren {
+  OverviewRoute: typeof OverviewRoute
   PairingRoute: typeof PairingRoute
   TasksRoute: typeof TasksRoute
-  IndexRoute: typeof IndexRoute
 }
 
 const DotDotModulesAutomationPagesLayoutRouteChildren: DotDotModulesAutomationPagesLayoutRouteChildren =
   {
+    OverviewRoute: OverviewRoute,
     PairingRoute: PairingRoute,
     TasksRoute: TasksRoute,
-    IndexRoute: IndexRoute,
   }
 
 const DotDotModulesAutomationPagesLayoutRouteWithChildren =
@@ -838,22 +867,60 @@ const DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren =
     DotDotModulesKnowledgeBasePagesLayoutRouteChildren,
   )
 
+interface InboxRouteChildren {
+  InboxContactIdRoute: typeof InboxContactIdRoute
+  InboxIndexRoute: typeof InboxIndexRoute
+}
+
+const InboxRouteChildren: InboxRouteChildren = {
+  InboxContactIdRoute: InboxContactIdRoute,
+  InboxIndexRoute: InboxIndexRoute,
+}
+
+const InboxRouteWithChildren = InboxRoute._addFileChildren(InboxRouteChildren)
+
+interface DotDotModulesMessagingPagesLayoutRouteChildren {
+  InboxRoute: typeof InboxRouteWithChildren
+  LabelsRoute: typeof LabelsRoute
+  ContactsContactIdRoute: typeof ContactsContactIdRoute
+  ConversationsConversationIdRoute: typeof ConversationsConversationIdRoute
+  ChannelsIndexRoute: typeof ChannelsIndexRoute
+  ContactsIndexRoute: typeof ContactsIndexRoute
+  ConversationsIndexRoute: typeof ConversationsIndexRoute
+}
+
+const DotDotModulesMessagingPagesLayoutRouteChildren: DotDotModulesMessagingPagesLayoutRouteChildren =
+  {
+    InboxRoute: InboxRouteWithChildren,
+    LabelsRoute: LabelsRoute,
+    ContactsContactIdRoute: ContactsContactIdRoute,
+    ConversationsConversationIdRoute: ConversationsConversationIdRoute,
+    ChannelsIndexRoute: ChannelsIndexRoute,
+    ContactsIndexRoute: ContactsIndexRoute,
+    ConversationsIndexRoute: ConversationsIndexRoute,
+  }
+
+const DotDotModulesMessagingPagesLayoutRouteWithChildren =
+  DotDotModulesMessagingPagesLayoutRoute._addFileChildren(
+    DotDotModulesMessagingPagesLayoutRouteChildren,
+  )
+
 interface shellSettingsLayoutRouteChildren {
-  shellSettingsAccountRoute: typeof shellSettingsAccountRoute
-  shellSettingsApiKeysRoute: typeof shellSettingsApiKeysRoute
-  shellSettingsAppearanceRoute: typeof shellSettingsAppearanceRoute
-  shellSettingsDisplayRoute: typeof shellSettingsDisplayRoute
-  shellSettingsNotificationsRoute: typeof shellSettingsNotificationsRoute
-  shellSettingsProfileRoute: typeof shellSettingsProfileRoute
+  AccountRoute: typeof AccountRoute
+  ApiKeysRoute: typeof ApiKeysRoute
+  AppearanceRoute: typeof AppearanceRoute
+  DisplayRoute: typeof DisplayRoute
+  NotificationsRoute: typeof NotificationsRoute
+  ProfileRoute: typeof ProfileRoute
 }
 
 const shellSettingsLayoutRouteChildren: shellSettingsLayoutRouteChildren = {
-  shellSettingsAccountRoute: shellSettingsAccountRoute,
-  shellSettingsApiKeysRoute: shellSettingsApiKeysRoute,
-  shellSettingsAppearanceRoute: shellSettingsAppearanceRoute,
-  shellSettingsDisplayRoute: shellSettingsDisplayRoute,
-  shellSettingsNotificationsRoute: shellSettingsNotificationsRoute,
-  shellSettingsProfileRoute: shellSettingsProfileRoute,
+  AccountRoute: AccountRoute,
+  ApiKeysRoute: ApiKeysRoute,
+  AppearanceRoute: AppearanceRoute,
+  DisplayRoute: DisplayRoute,
+  NotificationsRoute: NotificationsRoute,
+  ProfileRoute: ProfileRoute,
 }
 
 const shellSettingsLayoutRouteWithChildren =
@@ -877,73 +944,29 @@ const DotDotModulesSystemPagesLayoutRouteWithChildren =
     DotDotModulesSystemPagesLayoutRouteChildren,
   )
 
-interface DotDotModulesAiPagesInboxIndexRouteChildren {
-  DotDotModulesAiPagesInboxContactIdRoute: typeof DotDotModulesAiPagesInboxContactIdRoute
-}
-
-const DotDotModulesAiPagesInboxIndexRouteChildren: DotDotModulesAiPagesInboxIndexRouteChildren =
-  {
-    DotDotModulesAiPagesInboxContactIdRoute:
-      DotDotModulesAiPagesInboxContactIdRoute,
-  }
-
-const DotDotModulesAiPagesInboxIndexRouteWithChildren =
-  DotDotModulesAiPagesInboxIndexRoute._addFileChildren(
-    DotDotModulesAiPagesInboxIndexRouteChildren,
-  )
-
-interface DotDotModulesAiPagesConversationsIndexRouteChildren {
-  DotDotModulesAiPagesConversationsConversationIdRoute: typeof DotDotModulesAiPagesConversationsConversationIdRoute
-}
-
-const DotDotModulesAiPagesConversationsIndexRouteChildren: DotDotModulesAiPagesConversationsIndexRouteChildren =
-  {
-    DotDotModulesAiPagesConversationsConversationIdRoute:
-      DotDotModulesAiPagesConversationsConversationIdRoute,
-  }
-
-const DotDotModulesAiPagesConversationsIndexRouteWithChildren =
-  DotDotModulesAiPagesConversationsIndexRoute._addFileChildren(
-    DotDotModulesAiPagesConversationsIndexRouteChildren,
-  )
-
 interface shellAppLayoutRouteChildren {
   homeRoute: typeof homeRoute
-  DotDotModulesAiPagesAiLayoutRoute: typeof DotDotModulesAiPagesAiLayoutRouteWithChildren
+  DotDotModulesAgentsPagesLayoutRoute: typeof DotDotModulesAgentsPagesLayoutRouteWithChildren
   DotDotModulesAutomationPagesLayoutRoute: typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
   DotDotModulesKnowledgeBasePagesLayoutRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren
-  DotDotModulesAiPagesAiLabelsRoute: typeof DotDotModulesAiPagesAiLabelsRoute
+  DotDotModulesMessagingPagesLayoutRoute: typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   shellSettingsLayoutRoute: typeof shellSettingsLayoutRouteWithChildren
   DotDotModulesSystemPagesLayoutRoute: typeof DotDotModulesSystemPagesLayoutRouteWithChildren
-  DotDotModulesAiPagesChannelsIndexRoute: typeof DotDotModulesAiPagesChannelsIndexRoute
-  DotDotModulesAiPagesContactsIndexRoute: typeof DotDotModulesAiPagesContactsIndexRoute
-  DotDotModulesAiPagesInboxIndexRoute: typeof DotDotModulesAiPagesInboxIndexRouteWithChildren
-  DotDotModulesAiPagesConversationsIndexRoute: typeof DotDotModulesAiPagesConversationsIndexRouteWithChildren
-  DotDotModulesAiPagesContactsContactIdRoute: typeof DotDotModulesAiPagesContactsContactIdRoute
 }
 
 const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   homeRoute: homeRoute,
-  DotDotModulesAiPagesAiLayoutRoute:
-    DotDotModulesAiPagesAiLayoutRouteWithChildren,
+  DotDotModulesAgentsPagesLayoutRoute:
+    DotDotModulesAgentsPagesLayoutRouteWithChildren,
   DotDotModulesAutomationPagesLayoutRoute:
     DotDotModulesAutomationPagesLayoutRouteWithChildren,
   DotDotModulesKnowledgeBasePagesLayoutRoute:
     DotDotModulesKnowledgeBasePagesLayoutRouteWithChildren,
-  DotDotModulesAiPagesAiLabelsRoute: DotDotModulesAiPagesAiLabelsRoute,
+  DotDotModulesMessagingPagesLayoutRoute:
+    DotDotModulesMessagingPagesLayoutRouteWithChildren,
   shellSettingsLayoutRoute: shellSettingsLayoutRouteWithChildren,
   DotDotModulesSystemPagesLayoutRoute:
     DotDotModulesSystemPagesLayoutRouteWithChildren,
-  DotDotModulesAiPagesChannelsIndexRoute:
-    DotDotModulesAiPagesChannelsIndexRoute,
-  DotDotModulesAiPagesContactsIndexRoute:
-    DotDotModulesAiPagesContactsIndexRoute,
-  DotDotModulesAiPagesInboxIndexRoute:
-    DotDotModulesAiPagesInboxIndexRouteWithChildren,
-  DotDotModulesAiPagesConversationsIndexRoute:
-    DotDotModulesAiPagesConversationsIndexRouteWithChildren,
-  DotDotModulesAiPagesContactsContactIdRoute:
-    DotDotModulesAiPagesContactsContactIdRoute,
 }
 
 const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(

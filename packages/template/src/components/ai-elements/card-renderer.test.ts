@@ -5,7 +5,7 @@
 import { describe, expect, it } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { CardElement } from "@modules/ai/lib/card-serialization";
+import type { CardElement } from "@modules/messaging/lib/card-serialization";
 import { CardRenderer } from "./card-renderer";
 
 function makeCard(overrides: Partial<CardElement> = {}): CardElement {

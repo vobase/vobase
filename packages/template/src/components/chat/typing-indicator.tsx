@@ -6,7 +6,7 @@ import { useStaffChatStore } from '@/stores/staff-chat-store';
 
 interface TypingIndicatorProps {
   conversationId: string;
-  /** For public chat: show "thinking" based on useChat status instead of SSE */
+  /** For public chat: show "thinking" shimmer when AI is processing */
   isAiThinking?: boolean;
   /** Hide typing events from this user (the current staff user) */
   excludeUserId?: string;

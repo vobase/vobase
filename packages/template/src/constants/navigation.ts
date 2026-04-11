@@ -55,7 +55,7 @@ export const navGroups: NavGroup[] = [
     items: [
       {
         title: 'Inbox',
-        url: '/inbox',
+        url: '/messaging/inbox',
         icon: MessageSquareTextIcon,
         keywords: [
           'home',
@@ -69,13 +69,13 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Contacts',
-        url: '/contacts',
+        url: '/messaging/contacts',
         icon: Contact,
         keywords: ['people', 'customers', 'staff', 'phone', 'directory'],
       },
       {
         title: 'Channels',
-        url: '/channels',
+        url: '/messaging/channels',
         icon: RadioIcon,
         keywords: [
           'whatsapp',
@@ -88,7 +88,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Labels',
-        url: '/labels',
+        url: '/messaging/labels',
         icon: TagIcon,
         keywords: ['tags', 'categories', 'organization', 'labels'],
       },
@@ -99,25 +99,25 @@ export const navGroups: NavGroup[] = [
     items: [
       {
         title: 'Agents',
-        url: '/ai/agents',
+        url: '/agents',
         icon: BotIcon,
         keywords: ['ai', 'agents', 'bot', 'llm'],
       },
       {
         title: 'Evals',
-        url: '/ai/evals',
+        url: '/agents/evals',
         icon: BarChart3,
         keywords: ['evaluation', 'scoring', 'quality', 'faithfulness'],
       },
       {
         title: 'Guardrails',
-        url: '/ai/guardrails',
+        url: '/agents/guardrails',
         icon: ShieldCheckIcon,
         keywords: ['moderation', 'safety', 'content', 'filter'],
       },
       {
         title: 'Memory',
-        url: '/ai/memory',
+        url: '/agents/memory',
         icon: BrainIcon,
         keywords: ['context', 'recall', 'knowledge', 'memory'],
       },
