@@ -59,7 +59,7 @@ export const taskHandlers = new Hono()
       action: z.string().min(1),
       input: z.record(z.string(), z.unknown()),
       assignedTo: z.string().optional(),
-      sourceInteractionId: z.string().optional(),
+      sourceConversationId: z.string().optional(),
       timeoutMinutes: z.number().int().positive().optional(),
     });
 

@@ -2,7 +2,7 @@
  * Chat streaming — web chat SSE response generation.
  *
  * Acquires a Postgres advisory lock, streams agent response, releases lock.
- * Used by the POST /chat handler for web-based interactions.
+ * Used by the POST /chat handler for web-based conversations.
  */
 import { RequestContext } from '@mastra/core/request-context';
 import type { VobaseDb } from '@vobase/core';
@@ -14,7 +14,7 @@ import { getModuleDeps } from './deps';
 
 interface StreamChatInput {
   db: VobaseDb;
-  interactionId: string;
+  conversationId: string;
   /** Last user message text — passed as a string to the agent. */
   message: string;
   agentId: string;
@@ -23,7 +23,7 @@ interface StreamChatInput {
   contactId?: string | null;
   /** Channel type — defaults to 'web'. */
   channelType?: string;
-  /** Number of times this interaction has been reopened. */
+  /** Number of times this conversation has been reopened. */
   reopenCount?: number;
 }
 
@@ -43,7 +43,7 @@ function hashStringToInt(s: string): number {
 export async function streamChat(input: StreamChatInput) {
   const {
     db,
-    interactionId,
+    conversationId,
     message,
     agentId,
     resourceId,
@@ -59,7 +59,7 @@ export async function streamChat(input: StreamChatInput) {
 
   // Acquire Postgres advisory lock to prevent concurrent generation
   // Two-arg form: (classId, objId) namespaces the lock to avoid collisions
-  const lockKey = hashStringToInt(interactionId);
+  const lockKey = hashStringToInt(conversationId);
   const result = await db.execute(
     sql`SELECT pg_try_advisory_lock(${VOBASE_LOCK_CLASS}, ${lockKey}) as locked`,
   );
@@ -70,13 +70,13 @@ export async function streamChat(input: StreamChatInput) {
 
   if (!locked) {
     throw new Error(
-      `Interaction ${interactionId} is locked — concurrent generation in progress`,
+      `Conversation ${conversationId} is locked — concurrent generation in progress`,
     );
   }
 
   // Build RequestContext so sendCard tool and processors can access channel type
   const rc = new RequestContext();
-  rc.set('interactionId', interactionId);
+  rc.set('conversationId', conversationId);
   rc.set('contactId', contactId ?? null);
   rc.set('channel', channelType ?? 'web');
   rc.set('agentId', agentId);
@@ -85,14 +85,14 @@ export async function streamChat(input: StreamChatInput) {
   // Inject reopenCount context if applicable
   let contextPrefix = '';
   if (reopenCount && reopenCount > 0) {
-    contextPrefix = `[System]: This interaction was reopened ${reopenCount} time(s). The contact is returning to a previously resolved topic.\n\n`;
+    contextPrefix = `[System]: This conversation was reopened ${reopenCount} time(s). The contact is returning to a previously resolved topic.\n\n`;
   }
 
   try {
-    // Pass as a string — agent + memory handles full interaction context
+    // Pass as a string — agent + memory handles full conversation context
     const result = await registered.agent.stream(contextPrefix + message, {
       memory: {
-        thread: interactionId,
+        thread: conversationId,
         resource: resourceId,
       },
       maxSteps: 5,
@@ -101,8 +101,8 @@ export async function streamChat(input: StreamChatInput) {
 
     return result;
   } catch (err) {
-    logger.error('[interactions] Stream generation failed', {
-      interactionId,
+    logger.error('[conversations] Stream generation failed', {
+      conversationId,
       agentId,
       error: err,
     });

@@ -1,18 +1,14 @@
 /**
- * Compute the inbox tab an interaction belongs to, given its current state.
- * - "attention": human/supervised/held modes, or has a pending escalation, or status is 'failed'
- * - "ai": mode is 'ai' and status is 'active'
- * - "done": status is 'resolved'
+ * Compute the inbox tab a conversation belongs to, given its current state.
+ * - "active": status is 'active' and not on hold
+ * - "on-hold": status is 'active' and on hold
+ * - "done": status is 'resolved' or 'failed'
  */
 export function computeTab(
-  mode: string | null,
   status: string,
-  hasPendingEscalation: boolean,
-): 'attention' | 'ai' | 'done' {
-  if (status === 'resolved') return 'done';
-  if (status === 'failed') return 'attention';
-  if (hasPendingEscalation) return 'attention';
-  if (mode === 'human' || mode === 'supervised' || mode === 'held')
-    return 'attention';
-  return 'ai';
+  onHold: boolean,
+): 'active' | 'on-hold' | 'done' {
+  if (status === 'resolved' || status === 'failed') return 'done';
+  if (onHold) return 'on-hold';
+  return 'active';
 }

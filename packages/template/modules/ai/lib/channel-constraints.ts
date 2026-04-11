@@ -22,7 +22,7 @@ interface ChannelConstraints {
   /** Messaging window in hours after last user message. null = no window limit. */
   messagingWindowHours: number | null;
   supportsTypingIndicators: boolean;
-  /** Idle window in ms — resolved interactions within this window can be reopened. */
+  /** Idle window in ms — resolved conversations within this window can be reopened. */
   idleWindowMs: number;
 }
 

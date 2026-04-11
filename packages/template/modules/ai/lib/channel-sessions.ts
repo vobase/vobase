@@ -2,7 +2,7 @@
  * Channel session management — tracks messaging window state.
  *
  * WhatsApp enforces a 24-hour messaging window after the last inbound message.
- * This module tracks window open/close state per interaction + channel instance.
+ * This module tracks window open/close state per conversation + channel instance.
  */
 import type { VobaseDb } from '@vobase/core';
 import { and, eq, lt } from 'drizzle-orm';
@@ -18,7 +18,7 @@ const WINDOW_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 export async function upsertSession(
   db: VobaseDb,
   params: {
-    interactionId: string;
+    conversationId: string;
     channelInstanceId: string;
     channelType: string;
   },
@@ -29,7 +29,7 @@ export async function upsertSession(
   await db
     .insert(channelSessions)
     .values({
-      interactionId: params.interactionId,
+      conversationId: params.conversationId,
       channelInstanceId: params.channelInstanceId,
       channelType: params.channelType,
       sessionState: 'window_open',
@@ -38,7 +38,7 @@ export async function upsertSession(
     })
     .onConflictDoUpdate({
       target: [
-        channelSessions.interactionId,
+        channelSessions.conversationId,
         channelSessions.channelInstanceId,
       ],
       set: {
@@ -51,12 +51,12 @@ export async function upsertSession(
 }
 
 /**
- * Check if a messaging window is open for an interaction.
+ * Check if a messaging window is open for a conversation.
  * Returns { isOpen, expiresAt } based on the most recent session record.
  */
 export async function checkWindow(
   db: VobaseDb,
-  interactionId: string,
+  conversationId: string,
 ): Promise<{ isOpen: boolean; expiresAt: Date | null }> {
   const [session] = await db
     .select({
@@ -64,7 +64,7 @@ export async function checkWindow(
       windowExpiresAt: channelSessions.windowExpiresAt,
     })
     .from(channelSessions)
-    .where(eq(channelSessions.interactionId, interactionId))
+    .where(eq(channelSessions.conversationId, conversationId))
     .limit(1);
 
   if (!session) {

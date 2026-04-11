@@ -49,26 +49,10 @@ export function getModuleDbOrNull(): VobaseDb | undefined {
   return moduleDeps?.db;
 }
 
-export function getModuleScheduler(): Scheduler {
-  if (!moduleDeps?.scheduler)
-    throw new Error(
-      'AI module scheduler not initialized — call setModuleDeps() first',
-    );
-  return moduleDeps.scheduler;
-}
-
 export function getModuleChannels(): ChannelsService {
   if (!moduleDeps?.channels)
     throw new Error(
       'AI module channels not initialized — call setModuleDeps() first',
     );
   return moduleDeps.channels;
-}
-
-function _getModuleChannelsOrNull(): ChannelsService | undefined {
-  return moduleDeps?.channels;
-}
-
-export function getModuleRealtimeOrNull(): RealtimeService | undefined {
-  return moduleDeps?.realtime;
 }

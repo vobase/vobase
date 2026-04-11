@@ -38,7 +38,7 @@ export interface FlatElement {
   rect: { top: number; left: number; width: number; height: number };
 }
 
-export interface AdapterAction {
+interface AdapterAction {
   name: string;
   requiresApproval: boolean;
   execute: (
@@ -54,7 +54,7 @@ export interface Adapter {
   actions: Record<string, AdapterAction>;
 }
 
-export interface AdapterResult {
+interface AdapterResult {
   success: boolean;
   output?: Record<string, unknown>;
   error?: string;

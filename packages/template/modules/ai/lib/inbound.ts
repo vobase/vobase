@@ -2,13 +2,13 @@
  * Inbound message handler — processes channel messages directly (no chat-sdk).
  *
  * Single entry point for all inbound channel messages — no chat-sdk dependency.
- * Handles staff reply intercept, contact resolution, interaction dedup,
- * reopen logic, new interaction creation, mode routing, and action button replies.
+ * Handles staff reply intercept, contact resolution, conversation dedup,
+ * reopen logic, new conversation creation, mode routing, and action button replies.
  *
  * TOCTOU note: The reopen check here is a "soft filter" (optimization to avoid
  * unnecessary REOPEN attempts). The state machine's REOPEN guard is the "hard filter"
  * (authoritative). If the idle window expires between the two checks, the state machine
- * rejects and we fall back to creating a new interaction.
+ * rejects and we fall back to creating a new conversation.
  */
 import type {
   ChannelsService,
@@ -21,19 +21,16 @@ import type {
 import { logger } from '@vobase/core';
 import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 
-import {
-  channelInstances,
-  channelRoutings,
-  consultations,
-  interactions,
-} from '../schema';
+import { channelInstances, channelRoutings, conversations } from '../schema';
 import { getConstraints } from './channel-constraints';
 import { upsertSession } from './channel-sessions';
-import { handleStaffReply } from './consult-human';
-import { enqueueDelivery } from './delivery';
-import { createInteraction, reopenInteraction } from './interaction';
+import {
+  createConversation,
+  isAgentAssignee,
+  reopenConversation,
+} from './conversation';
 import { insertMessage } from './messages';
-import { findContactByAddress, findOrCreateContact } from './routing';
+import { findOrCreateContact } from './routing';
 import { transition } from './state-machine';
 
 interface InboundDeps {
@@ -50,7 +47,7 @@ interface InboundDeps {
  * Flow:
  * 1. Staff reply intercept — check if sender is staff with pending consultation
  * 2. Contact lookup/create
- * 3. Interaction dedup — find active/resolving interaction, or reopen resolved, or create new
+ * 3. Conversation dedup — find active/resolving conversation, or reopen resolved, or create new
  * 4. Insert inbound message
  * 5. Route by mode (held → canned response, ai/supervised → channel-reply job, human → noop)
  */
@@ -63,48 +60,25 @@ export async function handleInboundMessage(
   try {
     const channelInstanceId = event.channelInstanceId ?? event.channel;
 
-    // 1. Staff reply intercept — check if sender is staff with pending consultation
-    const staffContact = await findContactByAddress(db, event);
-    if (staffContact && staffContact.role === 'staff') {
-      const [pendingConsultation] = await db
-        .select()
-        .from(consultations)
-        .where(
-          and(
-            eq(consultations.staffContactId, staffContact.id),
-            eq(consultations.status, 'pending'),
-          ),
-        );
+    // 1. Resolve or create contact
+    const contact = await findOrCreateContact(db, event);
 
-      if (pendingConsultation) {
-        await handleStaffReply(
-          { db, scheduler, channels, realtime },
-          pendingConsultation,
-          event,
-        );
-        return;
-      }
-    }
-
-    // 2. Resolve or create contact
-    const contact = staffContact ?? (await findOrCreateContact(db, event));
-
-    // 3a. Check for existing active or resolving interaction
-    const [existingInteraction] = await db
+    // 3a. Check for existing active or resolving conversation
+    const [existingConversation] = await db
       .select()
-      .from(interactions)
+      .from(conversations)
       .where(
         and(
-          eq(interactions.contactId, contact.id),
-          eq(interactions.channelInstanceId, channelInstanceId),
-          inArray(interactions.status, ['active', 'resolving']),
+          eq(conversations.contactId, contact.id),
+          eq(conversations.channelInstanceId, channelInstanceId),
+          inArray(conversations.status, ['active', 'resolving']),
         ),
       );
 
-    if (existingInteraction) {
+    if (existingConversation) {
       await appendAndRoute(
         deps,
-        existingInteraction,
+        existingConversation,
         event,
         contact.id,
         channelInstanceId,
@@ -112,7 +86,7 @@ export async function handleInboundMessage(
       return;
     }
 
-    // 3b. Check for reopenable interaction: resolved within idle window, no topicChangePending
+    // 3b. Check for reopenable conversation: resolved within idle window
     const channelInfo = await resolveChannelAdapter(
       db,
       channels,
@@ -124,33 +98,32 @@ export async function handleInboundMessage(
 
     const [reopenable] = await db
       .select()
-      .from(interactions)
+      .from(conversations)
       .where(
         and(
-          eq(interactions.contactId, contact.id),
-          eq(interactions.channelInstanceId, channelInstanceId),
-          eq(interactions.status, 'resolved'),
-          gt(interactions.resolvedAt, idleThreshold),
-          eq(interactions.topicChangePending, false),
+          eq(conversations.contactId, contact.id),
+          eq(conversations.channelInstanceId, channelInstanceId),
+          eq(conversations.status, 'resolved'),
+          gt(conversations.resolvedAt, idleThreshold),
         ),
       )
-      .orderBy(desc(interactions.resolvedAt))
+      .orderBy(desc(conversations.resolvedAt))
       .limit(1);
 
     if (reopenable) {
       // Soft filter passed — attempt reopen via state machine (hard filter)
-      const reopenResult = await reopenInteraction(
+      const reopenResult = await reopenConversation(
         { db, realtime },
         reopenable.id,
         idleWindowMs,
       );
 
       if (reopenResult.ok) {
-        // Re-read the interaction after reopen to get updated state
+        // Re-read the conversation after reopen to get updated state
         const [reopened] = await db
           .select()
-          .from(interactions)
-          .where(eq(interactions.id, reopenable.id));
+          .from(conversations)
+          .where(eq(conversations.id, reopenable.id));
 
         if (reopened) {
           await appendAndRoute(
@@ -166,7 +139,7 @@ export async function handleInboundMessage(
       // If reopen rejected (idle window expired between soft/hard check), fall through to create new
     }
 
-    // 4. New interaction — find channelRouting by channel instance
+    // 4. New conversation — find channelRouting by channel instance
     const [channelRouting] = await db
       .select()
       .from(channelRoutings)
@@ -179,7 +152,7 @@ export async function handleInboundMessage(
 
     if (!channelRouting) {
       logger.warn(
-        '[interactions] No enabled channelRouting for channel instance',
+        '[conversations] No enabled channelRouting for channel instance',
         {
           channelInstanceId,
           from: event.from,
@@ -188,8 +161,8 @@ export async function handleInboundMessage(
       return;
     }
 
-    // Create interaction
-    const interaction = await createInteraction(
+    // Create conversation
+    const conversation = await createConversation(
       { db, scheduler, realtime },
       {
         channelRoutingId: channelRouting.id,
@@ -201,13 +174,13 @@ export async function handleInboundMessage(
 
     await appendAndRoute(
       deps,
-      interaction,
+      conversation,
       event,
       contact.id,
       channelInstanceId,
     );
   } catch (err) {
-    logger.error('[interactions] Inbound message handler failed', {
+    logger.error('[conversations] Inbound message handler failed', {
       from: event.from,
       channel: event.channel,
       error: err,
@@ -216,14 +189,15 @@ export async function handleInboundMessage(
 }
 
 /**
- * Append an inbound message to an interaction and route by mode.
- * Shared by existing-interaction, reopened-interaction, and new-interaction paths.
+ * Append an inbound message to a conversation and route by assignee.
+ * Shared by existing-conversation, reopened-conversation, and new-conversation paths.
  */
 async function appendAndRoute(
   deps: InboundDeps,
-  interaction: {
+  conversation: {
     id: string;
-    mode: string | null;
+    assignee: string;
+    onHold: boolean;
     contactId: string;
     channelInstanceId: string;
   },
@@ -234,12 +208,12 @@ async function appendAndRoute(
   const { db, scheduler, channels, realtime, storage } = deps;
 
   // Upload inbound media to storage
-  const mediaResult = await uploadInboundMedia(storage, interaction.id, event);
+  const mediaResult = await uploadInboundMedia(storage, conversation.id, event);
 
   // Store inbound message
   if (event.content || mediaResult) {
     await insertMessage(db, realtime, {
-      interactionId: interaction.id,
+      conversationId: conversation.id,
       messageType: 'incoming',
       contentType: mediaResult?.contentType ?? 'text',
       content: event.content || `[${mediaResult?.contentType ?? 'media'}]`,
@@ -260,14 +234,14 @@ async function appendAndRoute(
   // Refresh channel session window on inbound
   await upsertSessionIfWindowed(
     db,
-    interaction.id,
+    conversation.id,
     channelInstanceId,
     channelInfo,
   );
 
-  await routeByMode(
+  await routeByAssignee(
     { db, scheduler, channels, realtime },
-    interaction,
+    conversation,
     event.content,
     contactId,
     channelInfo,
@@ -287,7 +261,7 @@ export async function handleInboundAction(
     if (!actionId?.startsWith('chat:')) return;
 
     const data = JSON.parse(actionId.slice(5));
-    logger.info('[interactions] Action received', {
+    logger.info('[conversations] Action received', {
       threadId: event.threadId,
       data,
     });
@@ -295,7 +269,7 @@ export async function handleInboundAction(
     // Store the button action as an inbound message so the agent sees which button was pressed
     const label = (data as Record<string, unknown>).label ?? actionId.slice(5);
     await insertMessage(deps.db, deps.realtime, {
-      interactionId: event.threadId,
+      conversationId: event.threadId,
       messageType: 'incoming',
       contentType: 'interactive',
       content: `[Button: ${label}]`,
@@ -306,10 +280,10 @@ export async function handleInboundAction(
     });
 
     await deps.scheduler.add('ai:channel-reply', {
-      interactionId: event.threadId,
+      conversationId: event.threadId,
     });
   } catch (err) {
-    logger.error('[interactions] Action handler failed', { error: err });
+    logger.error('[conversations] Action handler failed', { error: err });
   }
 }
 
@@ -333,18 +307,19 @@ async function resolveChannelAdapter(
   return { type: instance.type, adapter: channels.getAdapter(instance.type) };
 }
 
-// ─── Mode routing ───────────────────────────────────────────────────
+// ─── Assignee routing ──────────────────────────────────────────────
 
-async function routeByMode(
+async function routeByAssignee(
   deps: {
     db: VobaseDb;
     scheduler: Scheduler;
     channels: ChannelsService;
     realtime: RealtimeService;
   },
-  interaction: {
+  conversation: {
     id: string;
-    mode: string | null;
+    assignee: string;
+    onHold: boolean;
     contactId: string;
     channelInstanceId: string;
   },
@@ -356,43 +331,32 @@ async function routeByMode(
   } | null,
 ): Promise<void> {
   const { db, scheduler, realtime } = deps;
-  const mode = interaction.mode ?? 'ai';
 
   // Delegate all state mutations to the machine
-  await transition({ db, realtime }, interaction.id, {
+  await transition({ db, realtime }, conversation.id, {
     type: 'INBOUND_MESSAGE',
     contactId,
     content: messageText,
   });
 
-  if (mode === 'human') {
+  // On-hold: accept silently — no auto-reply in V1
+  if (conversation.onHold) {
     return;
   }
 
-  if (mode === 'held') {
-    const msg = await insertMessage(db, realtime, {
-      interactionId: interaction.id,
-      messageType: 'outgoing',
-      contentType: 'text',
-      content:
-        'Your message has been received. We will get back to you shortly.',
-      status: 'queued',
-      senderId: 'system',
-      senderType: 'system',
-      channelType: 'web',
-    });
-    await enqueueDelivery(scheduler, msg.id);
+  // Human assignee: noop — human handles the reply
+  if (!isAgentAssignee(conversation.assignee)) {
     return;
   }
 
-  // 'ai' or 'supervised' — schedule channel-reply job with per-channel debounce
+  // Agent assignee — schedule channel-reply job with per-channel debounce
   const debounceMs = channelInfo?.adapter?.debounceWindowMs ?? 0;
   await scheduler.add(
     'ai:channel-reply',
-    { interactionId: interaction.id },
+    { conversationId: conversation.id },
     debounceMs > 0
       ? {
-          singletonKey: `channel-reply:${interaction.id}`,
+          singletonKey: `channel-reply:${conversation.id}`,
           startAfter: Math.ceil(debounceMs / 1000),
         }
       : undefined,
@@ -417,7 +381,7 @@ interface MediaUploadResult {
  */
 async function uploadInboundMedia(
   storage: StorageService | undefined,
-  interactionId: string,
+  conversationId: string,
   event: MessageReceivedEvent,
 ): Promise<MediaUploadResult | null> {
   if (!event.media || event.media.length === 0 || !storage) return null;
@@ -429,7 +393,7 @@ async function uploadInboundMedia(
     const filename =
       media.filename ??
       `${event.messageId ?? Date.now()}.${extensionFromMime(media.mimeType)}`;
-    const key = `${interactionId}/${event.messageId ?? Date.now()}/${filename}`;
+    const key = `${conversationId}/${event.messageId ?? Date.now()}/${filename}`;
 
     try {
       await bucket.upload(key, media.data, { contentType: media.mimeType });
@@ -441,8 +405,8 @@ async function uploadInboundMedia(
         filename: media.filename,
       });
     } catch (err) {
-      logger.error('[interactions] Failed to upload inbound media', {
-        interactionId,
+      logger.error('[conversations] Failed to upload inbound media', {
+        conversationId,
         filename,
         error: err,
       });
@@ -479,7 +443,7 @@ function extensionFromMime(mimeType: string): string {
  */
 async function upsertSessionIfWindowed(
   db: VobaseDb,
-  interactionId: string,
+  conversationId: string,
   channelInstanceId: string,
   channelInfo: {
     type: string;
@@ -489,7 +453,7 @@ async function upsertSessionIfWindowed(
   if (!channelInfo?.adapter?.capabilities?.messagingWindow) return;
 
   await upsertSession(db, {
-    interactionId,
+    conversationId,
     channelInstanceId,
     channelType: channelInfo.type,
   });

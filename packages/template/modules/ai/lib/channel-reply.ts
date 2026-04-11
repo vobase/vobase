@@ -1,14 +1,14 @@
 import { RequestContext } from '@mastra/core/request-context';
 import type { ChannelsService, Scheduler, VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
-import { and, desc, eq, gt, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, sql } from 'drizzle-orm';
 
 import { getAgent } from '../../../mastra/agents';
+import { isAgentAssignee } from './assignee';
 import {
   channelInstances,
   channelSessions,
-  consultations as consultationsTable,
-  interactions,
+  conversations,
   messages,
 } from '../schema';
 import type { CardElement } from './card-serialization';
@@ -25,7 +25,9 @@ const EMIT_EVENT_TOOLS = new Set([
   'cancel_booking',
   'reschedule_booking',
   'send_reminder',
-  'consult_human',
+  'mention',
+  'reassign',
+  'hold',
   'send_card',
 ]);
 
@@ -65,7 +67,7 @@ export function extractSendCardResults(response: {
 
       if (!result.payload) {
         logger.warn(
-          '[interactions] extractSendCardResults: toolResult missing .payload — possible Mastra API drift',
+          '[conversations] extractSendCardResults: toolResult missing .payload — possible Mastra API drift',
           { tr },
         );
         continue;
@@ -114,80 +116,62 @@ export function extractSendCardResults(response: {
 
 export async function generateChannelReply(
   deps: ReplyDeps,
-  interactionId: string,
+  conversationId: string,
 ): Promise<string | null> {
   const { db, scheduler } = deps;
   const { realtime } = getModuleDeps();
 
-  // Load interaction
-  const [interaction] = await db
+  // Load conversation
+  const [conversation] = await db
     .select()
-    .from(interactions)
-    .where(eq(interactions.id, interactionId));
+    .from(conversations)
+    .where(eq(conversations.id, conversationId));
 
-  if (!interaction || interaction.status !== 'active') {
+  if (!conversation || conversation.status !== 'active') {
     logger.warn(
-      '[interactions] Cannot generate reply for inactive interaction',
+      '[conversations] Cannot generate reply for inactive conversation',
       {
-        interactionId,
-        status: interaction?.status,
+        conversationId,
+        status: conversation?.status,
       },
     );
     return null;
   }
 
   // Get agent
-  const registered = getAgent(interaction.agentId);
+  const registered = getAgent(conversation.agentId);
   if (!registered) {
-    logger.error('[interactions] Agent not found', {
-      agentId: interaction.agentId,
+    logger.error('[conversations] Agent not found', {
+      agentId: conversation.agentId,
     });
     return null;
   }
 
   // Resolve channel type early (needed for context injection and card routing)
-  const [instance] = interaction.channelInstanceId
+  const [instance] = conversation.channelInstanceId
     ? await db
         .select({ type: channelInstances.type })
         .from(channelInstances)
-        .where(eq(channelInstances.id, interaction.channelInstanceId))
+        .where(eq(channelInstances.id, conversation.channelInstanceId))
     : [];
   const channelType = instance?.type ?? 'web';
 
-  // Run independent queries in parallel: last outgoing message + consultation reply
-  const [lastOutgoingResult, consultationResult] = await Promise.all([
-    db
-      .select({ createdAt: messages.createdAt })
-      .from(messages)
-      .where(
-        and(
-          eq(messages.interactionId, interactionId),
-          eq(messages.messageType, 'outgoing'),
-        ),
-      )
-      .orderBy(desc(messages.createdAt))
-      .limit(1),
-    db
-      .select({
-        id: consultationsTable.id,
-        replyPayload: consultationsTable.replyPayload,
-      })
-      .from(consultationsTable)
-      .where(
-        and(
-          eq(consultationsTable.interactionId, interactionId),
-          inArray(consultationsTable.status, ['replied', 'timeout']),
-        ),
-      )
-      .limit(1),
-  ]);
-
-  const [lastOutgoing] = lastOutgoingResult;
-  const [consultationWithReply] = consultationResult;
+  // Load last outgoing message timestamp (used to filter unprocessed inbound + mention notes)
+  const [lastOutgoing] = await db
+    .select({ createdAt: messages.createdAt })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.messageType, 'outgoing'),
+      ),
+    )
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
 
   // Batch read: collect all unprocessed inbound messages since the last outgoing message
   const inboundFilter = and(
-    eq(messages.interactionId, interactionId),
+    eq(messages.conversationId, conversationId),
     eq(messages.messageType, 'incoming'),
     eq(messages.senderType, 'contact'),
     ...(lastOutgoing ? [gt(messages.createdAt, lastOutgoing.createdAt)] : []),
@@ -204,27 +188,27 @@ export async function generateChannelReply(
     .filter(Boolean)
     .join('\n');
 
-  const consultationReply = consultationWithReply?.replyPayload as {
-    reply?: string;
-    timeout?: boolean;
-    staffId?: string;
-  } | null;
-
   // Build the message to send to the agent
   let messageContent = inboundContent;
 
-  if (consultationReply) {
-    if (consultationReply.reply) {
-      messageContent += `\n\n[Staff consultation reply]: ${consultationReply.reply}`;
-    } else if (consultationReply.timeout) {
-      messageContent +=
-        '\n\n[System]: Staff consultation timed out. Please proceed with your best judgment or inform the customer.';
-    }
-    // Clear replyPayload after processing
-    await db
-      .update(consultationsTable)
-      .set({ replyPayload: null })
-      .where(eq(consultationsTable.id, consultationWithReply.id));
+  // Inject @mention-based staff notes since last outgoing message
+  const mentionNotes = await db
+    .select({ content: messages.content, senderId: messages.senderId })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.messageType, 'activity'),
+        sql`mentions @> ${JSON.stringify([{ targetId: conversation.agentId, targetType: 'agent' }])}::jsonb`,
+        ...(lastOutgoing
+          ? [gt(messages.createdAt, lastOutgoing.createdAt)]
+          : []),
+      ),
+    )
+    .orderBy(messages.createdAt);
+
+  for (const note of mentionNotes) {
+    messageContent += `\n\n[Staff note from ${note.senderId}]: ${note.content}`;
   }
 
   if (!messageContent) {
@@ -241,7 +225,7 @@ export async function generateChannelReply(
         sessionState: channelSessions.sessionState,
       })
       .from(channelSessions)
-      .where(eq(channelSessions.interactionId, interactionId))
+      .where(eq(channelSessions.conversationId, conversationId))
       .limit(1);
 
     if (session) {
@@ -258,16 +242,16 @@ export async function generateChannelReply(
   let contextPrefix = `[Channel: ${channelType}]${sessionContext}\n${constraintText}\n\n`;
 
   // Inject reopenCount into agent context if > 0
-  if (interaction.reopenCount > 0) {
-    contextPrefix += `[System]: This interaction was reopened ${interaction.reopenCount} time(s). The contact is returning to a previously resolved topic.\n\n`;
+  if (conversation.reopenCount > 0) {
+    contextPrefix += `[System]: This conversation was reopened ${conversation.reopenCount} time(s). The contact is returning to a previously resolved topic.\n\n`;
   }
 
   // Build RequestContext so sendCard tool and processors can access channel type
   const rc = new RequestContext();
-  rc.set('interactionId', interactionId);
-  rc.set('contactId', interaction.contactId);
+  rc.set('conversationId', conversationId);
+  rc.set('contactId', conversation.contactId);
   rc.set('channel', channelType);
-  rc.set('agentId', interaction.agentId);
+  rc.set('agentId', conversation.agentId);
   rc.set('deps', getModuleDeps());
 
   // Generate response using agent (non-streaming for channels)
@@ -276,8 +260,8 @@ export async function generateChannelReply(
       contextPrefix + messageContent,
       {
         memory: {
-          thread: interactionId,
-          resource: `contact:${interaction.contactId}`,
+          thread: conversationId,
+          resource: `contact:${conversation.contactId}`,
         },
         maxSteps: 5,
         requestContext: rc,
@@ -292,9 +276,9 @@ export async function generateChannelReply(
             const toolName = payload.toolName as string | undefined;
             if (toolName && EMIT_EVENT_TOOLS.has(toolName)) {
               await createActivityMessage(db, realtime, {
-                interactionId: interactionId,
+                conversationId: conversationId,
                 eventType: 'agent.tool_executed',
-                actor: interaction.agentId,
+                actor: conversation.agentId,
                 actorType: 'agent',
                 data: {
                   toolName,
@@ -318,13 +302,13 @@ export async function generateChannelReply(
     for (const cardElement of cardElements) {
       const serialized = serializeCard(cardElement);
       const cardMsg = await insertMessage(db, realtime, {
-        interactionId,
+        conversationId,
         messageType: 'outgoing',
         contentType: 'interactive',
         content: serialized.content,
         contentData: serialized.payload ?? {},
         status: 'queued',
-        senderId: interaction.agentId,
+        senderId: conversation.agentId,
         senderType: 'agent',
         channelType,
       });
@@ -339,35 +323,31 @@ export async function generateChannelReply(
 
     if (responseText && cardElements.length === 0) {
       const textMsg = await insertMessage(db, realtime, {
-        interactionId,
+        conversationId,
         messageType: 'outgoing',
         contentType: 'text',
         content: responseText,
         status: 'queued',
-        senderId: interaction.agentId,
+        senderId: conversation.agentId,
         senderType: 'agent',
         channelType,
       });
       await enqueueDelivery(scheduler, textMsg.id);
     }
 
-    // Post-generation: check if interaction is in 'resolving' status
-    // (set by resolve_interaction tool via SET_RESOLVING transition during generation)
-    const [updatedInteraction] = await db
-      .select({ status: interactions.status })
-      .from(interactions)
-      .where(eq(interactions.id, interactionId));
+    // Post-generation: check if conversation is in 'resolving' status
+    // (set by resolve_conversation tool via SET_RESOLVING transition during generation)
+    const [updatedConversation] = await db
+      .select({ status: conversations.status, assignee: conversations.assignee })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId));
 
-    if (updatedInteraction?.status === 'resolving') {
-      // Check if interaction had any consultations to determine outcome
-      const [hasConsultation] = await db
-        .select({ id: consultationsTable.id })
-        .from(consultationsTable)
-        .where(eq(consultationsTable.interactionId, interactionId))
-        .limit(1);
-
-      const outcome = hasConsultation ? 'escalated' : 'resolved';
-      await transition({ db, realtime }, interactionId, {
+    if (updatedConversation?.status === 'resolving') {
+      // Determine outcome based on current assignee: human assignee = escalated, agent = resolved
+      const outcome = !isAgentAssignee(updatedConversation.assignee)
+        ? 'escalated'
+        : 'resolved';
+      await transition({ db, realtime }, conversationId, {
         type: 'GENERATION_DONE',
         outcome,
       });
@@ -375,21 +355,21 @@ export async function generateChannelReply(
 
     return responseText || null;
   } catch (err) {
-    logger.error('[interactions] Agent generation failed', {
-      interactionId,
-      agentId: interaction.agentId,
+    logger.error('[conversations] Agent generation failed', {
+      conversationId,
+      agentId: conversation.agentId,
       error: err,
     });
 
     // Enqueue a fallback message so the customer is not left without a response
     const fallbackMsg = await insertMessage(db, realtime, {
-      interactionId,
+      conversationId,
       messageType: 'outgoing',
       contentType: 'text',
       content:
         "We're experiencing a temporary issue. Please try again shortly.",
       status: 'queued',
-      senderId: interaction.agentId,
+      senderId: conversation.agentId,
       senderType: 'agent',
       channelType,
     });

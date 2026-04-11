@@ -23,7 +23,7 @@ export interface DividerElement {
   type: 'divider';
 }
 
-export interface FieldElement {
+interface FieldElement {
   type?: 'field';
   label: string;
   value: string;
@@ -43,7 +43,7 @@ export interface ButtonElement {
   disabled?: boolean;
 }
 
-export interface LinkButtonElement {
+interface LinkButtonElement {
   type: 'link-button';
   url: string;
   label: string;
@@ -59,7 +59,7 @@ export interface SectionElement {
   children: CardChildElement[];
 }
 
-export type CardChildElement =
+type CardChildElement =
   | TextElement
   | ImageElement
   | DividerElement
@@ -101,14 +101,6 @@ export function Button(opts: { id: string; label: string }): ButtonElement {
 }
 
 // ─── Type guard ─────────────────────────────────────────────────────
-
-export function isCardElement(value: unknown): value is CardElement {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    (value as Record<string, unknown>).type === 'card'
-  );
-}
 
 // ─── Serialization ──────────────────────────────────────────────────
 

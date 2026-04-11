@@ -40,7 +40,7 @@ export async function createTask(input: {
   assignedTo?: string;
   requestedBy: RequestedBy;
   requiresApproval?: boolean;
-  sourceInteractionId?: string;
+  sourceConversationId?: string;
   timeoutMinutes?: number;
 }): Promise<typeof automationTasks.$inferSelect> {
   const db = getModuleDb();
@@ -55,7 +55,7 @@ export async function createTask(input: {
       assignedTo: input.assignedTo ?? null,
       requestedBy: input.requestedBy,
       requiresApproval: input.requiresApproval ?? false,
-      sourceInteractionId: input.sourceInteractionId ?? null,
+      sourceConversationId: input.sourceConversationId ?? null,
       timeoutMinutes: input.timeoutMinutes ?? 10,
       status: 'pending',
     })
