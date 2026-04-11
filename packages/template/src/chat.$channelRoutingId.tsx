@@ -124,6 +124,7 @@ function PublicChatView({
     return unsubscribe;
   }, [conversationId, queryClient]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on new messages / typing state
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
@@ -187,6 +188,7 @@ function PublicChatView({
               placeholder="Type a message..."
               className="max-h-32 min-h-10 w-full flex-1 resize-none bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-muted-foreground/80"
               rows={1}
+              // biome-ignore lint/a11y/noAutofocus: chat input should auto-focus
               autoFocus
               aria-label="Message input"
             />

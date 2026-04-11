@@ -150,6 +150,7 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
   }, [channelRoutingId]);
 
   // Reset init guard when channelRoutingId changes (e.g. route navigation)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on channelRoutingId change
   useEffect(() => {
     initRef.current = false;
   }, [channelRoutingId]);

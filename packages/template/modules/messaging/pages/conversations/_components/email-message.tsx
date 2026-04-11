@@ -186,6 +186,7 @@ export const EmailMessage = memo(function EmailMessage({
         {mainHtml !== null ? (
           <div
             className="prose prose-sm max-w-none dark:prose-invert text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: email HTML sanitized by DOMPurify
             dangerouslySetInnerHTML={{ __html: mainHtml }}
           />
         ) : (
@@ -212,6 +213,7 @@ export const EmailMessage = memo(function EmailMessage({
             {showReplies && (
               <div
                 className="mt-2 border-l-2 border-muted-foreground/30 pl-3 prose prose-sm max-w-none dark:prose-invert text-sm opacity-70 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                // biome-ignore lint/security/noDangerouslySetInnerHtml: email HTML sanitized by DOMPurify
                 dangerouslySetInnerHTML={{ __html: quotedHtml }}
               />
             )}

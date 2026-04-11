@@ -717,7 +717,6 @@ const SEED_CONTACTS = [
 ];
 
 const customers = SEED_CONTACTS.filter((c) => c.role === 'customer');
-const staff = SEED_CONTACTS.filter((c) => c.role === 'staff');
 
 // ─── Channel instances & routings ───────────────────────────────────
 

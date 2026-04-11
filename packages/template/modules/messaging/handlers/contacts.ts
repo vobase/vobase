@@ -11,7 +11,6 @@ import {
   lt,
   lte,
   or,
-  sql,
 } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { validator } from 'hono/validator';

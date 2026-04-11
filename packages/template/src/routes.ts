@@ -13,9 +13,6 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'home.tsx'),
-    route('/messaging', '../modules/messaging/pages/layout.tsx', [
-      physical('../modules/messaging/pages/'),
-    ]),
     route('/agents', '../modules/agents/pages/layout.tsx', [
       physical('../modules/agents/pages/'),
     ]),
@@ -25,11 +22,19 @@ export const routes = rootRoute('root.tsx', [
     route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx', [
       physical('../modules/knowledge-base/pages/'),
     ]),
+    route('/messaging', '../modules/messaging/pages/layout.tsx', [
+      physical('../modules/messaging/pages/'),
+    ]),
     route('/system', '../modules/system/pages/layout.tsx', [
       physical('../modules/system/pages/'),
     ]),
     route('/settings', 'shell/settings/layout.tsx', [
-      physical('./shell/settings/'),
+      route('/profile', 'shell/settings/profile.tsx'),
+      route('/account', 'shell/settings/account.tsx'),
+      route('/appearance', 'shell/settings/appearance.tsx'),
+      route('/notifications', 'shell/settings/notifications.tsx'),
+      route('/display', 'shell/settings/display.tsx'),
+      route('/api-keys', 'shell/settings/api-keys.tsx'),
     ]),
   ]),
 ]);

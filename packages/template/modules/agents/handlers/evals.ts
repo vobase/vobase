@@ -184,7 +184,14 @@ export const evalsHandlers = new Hono()
     if (!store) throw conflict('Scorer definitions storage not initialized');
 
     // Build update payload — map Vobase fields to Mastra scorer definition fields
-    const update: Record<string, unknown> = { id };
+    const update: {
+      id: string;
+      name?: string;
+      description?: string;
+      instructions?: string;
+      status?: 'draft' | 'published' | 'archived';
+      metadata?: Record<string, unknown>;
+    } = { id };
     if (body.name !== undefined) update.name = body.name;
     if (body.description !== undefined) update.description = body.description;
     if (body.criteria !== undefined) update.instructions = body.criteria;

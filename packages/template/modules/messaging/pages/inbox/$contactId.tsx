@@ -497,6 +497,7 @@ function InboxDetailPage() {
 
   // ── Scroll to bottom on channel tab switch ─────────────────────────
   const channelScrollRef = useRef<HTMLDivElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on tab switch / new messages
   useEffect(() => {
     if (channelScrollRef.current && selectedTabChannelId) {
       channelScrollRef.current.scrollTop =

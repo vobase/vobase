@@ -328,7 +328,7 @@ async function routeByAssignee(
   },
   messageText: string | undefined,
   contactId: string,
-  channelInfo: {
+  _channelInfo: {
     type: string;
     adapter: ReturnType<ChannelsService['getAdapter']>;
   } | null,
