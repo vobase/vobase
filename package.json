@@ -30,11 +30,7 @@
     "turbo": "^2.9.6",
     "typescript": "^6.0.2"
   },
-  "overrides": {
-    "@assistant-ui/core": "0.1.12"
-  },
   "dependencies": {
-    "@assistant-ui/react-streamdown": "^0.1.9",
     "drizzle-kit": "1.0.0-beta.19",
     "drizzle-orm": "1.0.0-beta.19",
     "nanoid": "^5.1.7"

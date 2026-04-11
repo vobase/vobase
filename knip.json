@@ -15,24 +15,24 @@
         "modules/*/index.ts",
         "modules/*/seed.ts",
         "modules/seed-types.ts",
-        "modules/*/pages/**/layout.tsx",
-        "mastra/**/*.ts"
+        "modules/*/pages/**/layout.tsx"
       ],
       "project": [
         "src/**/*.{ts,tsx}",
         "modules/**/*.{ts,tsx}",
-        "mastra/**/*.ts",
         "scripts/**/*.ts",
         "*.config.ts"
       ],
       "ignore": [
         "src/components/ai-elements/**",
-        "src/components/assistant-ui/**",
         "src/components/tool-ui/**",
         "src/components/ui/**",
         "src/lib/compose-refs.ts",
+        "src/lib/store/**",
+        "src/lib/table-schema/**",
         "modules/automation/browser/**",
-        "**/*.test.ts"
+        "**/*.test.ts",
+        "e2e/**"
       ],
       "ignoreDependencies": [
         "shadcn",
@@ -45,7 +45,9 @@
         "embla-carousel-react",
         "shiki",
         "streamdown",
-        "vaul"
+        "vaul",
+        "@faker-js/faker",
+        "@tanstack/virtual-file-routes"
       ]
     },
     "packages/create-vobase": {

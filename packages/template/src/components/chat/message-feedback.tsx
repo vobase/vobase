@@ -1,7 +1,13 @@
 import { ThumbsDownIcon, ThumbsUpIcon, XIcon } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { Slot } from 'radix-ui';
+import {
+  type ComponentPropsWithRef,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 
-import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -24,6 +30,34 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+
+type TooltipIconButtonProps = ComponentPropsWithRef<typeof Button> & {
+  tooltip: string;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+};
+
+const TooltipIconButton = forwardRef<HTMLButtonElement, TooltipIconButtonProps>(
+  ({ children, tooltip, side = 'bottom', className, ...rest }, ref) => {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            {...rest}
+            className={cn('size-6 p-1', className)}
+            ref={ref}
+          >
+            <Slot.Slottable>{children}</Slot.Slottable>
+            <span className="sr-only">{tooltip}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side={side}>{tooltip}</TooltipContent>
+      </Tooltip>
+    );
+  },
+);
+TooltipIconButton.displayName = 'TooltipIconButton';
 
 export interface Reactor {
   id: string;

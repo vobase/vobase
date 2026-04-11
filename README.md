@@ -529,7 +529,6 @@ my-app/
     components/
       ui/                 ← shadcn/ui (owned by you)
       ai-elements/        ← AI chat UI components (owned by you)
-      assistant-ui/       ← assistant-ui thread components
       chat/               ← chat-specific components
       data-table/         ← DiceUI data-table components
     shell/

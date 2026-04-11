@@ -519,7 +519,6 @@ my-app/
     components/
       ui/                 ← shadcn/ui（归你所有）
       ai-elements/        ← AI 聊天 UI 组件（归你所有）
-      assistant-ui/       ← assistant-ui 线程组件
       chat/               ← 聊天专用组件
       data-table/         ← DiceUI 数据表格组件
     shell/

@@ -47,7 +47,7 @@ Core identity: "AI agents need a codebase they can understand." Every convention
 - SSE for server-push via LISTEN/NOTIFY. No WebSocket — no use case needs bidirectional. Modules emit NOTIFY after mutations; the core SSE endpoint streams events to browsers; `useRealtimeInvalidation()` invalidates matching TanStack Query keys automatically.
 - For any new feature, ask "is this genuinely blocking someone?" Prefer direct implementations over "nice-to-have from competitor research."
 - What goes in core vs template modules: core owns infrastructure primitives every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. Template modules own business logic, UI, domain features — anything an AI agent would modify per-app (messaging threads, knowledge base, AI agents, etc.).
-- AI agents use Mastra (`@mastra/core`). Tools via `createTool()` from `@mastra/core/tools`. Agents via `new Agent()` from `@mastra/core/agent`. Streaming bridged to AI SDK via `toAISdkStream` from `@mastra/ai-sdk`. Frontend stays on AI SDK `useChat` from `@ai-sdk/react`.
+- AI agents use Mastra (`@mastra/core`). Tools via `createTool()` from `@mastra/core/tools`. Agents via `new Agent()` from `@mastra/core/agent`. Frontend chat uses ai-elements components (`src/components/ai-elements/`).
 - This file documents core's full public API so you never need to read node_modules. Keep it accurate when core changes.
 
 ## How Core Works
