@@ -70,7 +70,16 @@ Linear-inspired: clean density, information-forward, keyboard-first. Light + dar
 
 4. **DiceUI data-table** — production-ready data tables with server-side filtering, sorting, pagination, and URL state via nuqs. Skill: `data-table`. Install: `bunx shadcn@latest add "https://diceui.com/r/data-table.json"`. Use for any non-trivial table — only skip for simple static tables.
 
-Always check these libraries before writing custom components. Each has a corresponding agent skill with full component catalogs in `references/`.
+Always check these libraries before writing custom components. Each has a corresponding agent skill with full component catalogs in `references/`. **Never write custom components for functionality already covered by these registries** — search `bunx shadcn@latest search @shadcn -q ""` and `bunx shadcn@latest search @diceui -q ""` before building anything custom.
+
+### Key Pre-built Components (use instead of custom)
+
+- **Date/time display: `RelativeTimeCard`** (DiceUI) — use for ALL date/time rendering. Shows auto-updating relative time ("2 minutes ago") with hover card revealing full absolute date + timezone. Inherits parent font size/color. Uses `intlFormatDistance` from date-fns (i18n-safe). Never use raw `new Date().toLocaleString()`, `formatDate()`, or custom time formatting in UI — wrap with `<RelativeTimeCard date={value} />` instead.
+- **Empty states: `Empty`** (shadcn) — compose with `EmptyHeader`, `EmptyMedia`, `EmptyTitle`, `EmptyDescription`, `EmptyContent`. Never build custom centered icon + text empty states.
+- **Stat cards: `Stat`** (DiceUI) — compose with `StatLabel`, `StatValue`, `StatDescription`, `StatIndicator`, `StatTrend`. Never build custom metric display cards.
+- **Status indicators: `Status`** (DiceUI) — compose with `StatusIndicator` (animated dot) + `StatusLabel`. Variants: `default`, `success`, `error`, `warning`, `info`. Never build custom status badges or colored dots.
+- **Progress: `Progress`** (shadcn) — for linear progress bars. `Gauge` (DiceUI) — for circular/radial score displays.
+- **Avatar stacks: `AvatarGroup`** (DiceUI) — handles overlap masking and +N overflow automatically. Never build custom `-space-x` avatar stacking.
 
 ### Design Mockups with Stitch
 
