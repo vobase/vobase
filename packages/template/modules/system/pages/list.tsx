@@ -2,12 +2,24 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Activity, Box, Database, Heart } from 'lucide-react';
 
-import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
-import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Stat,
+  StatDescription,
+  StatIndicator,
+  StatLabel,
+  StatValue,
+} from '@/components/ui/stat';
 import { systemClient } from '@/lib/api-client';
 
 async function fetchSystemInfo() {
@@ -51,54 +63,62 @@ function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={Activity}
-          label="Version"
-          value={
-            infoQuery.isPending
+        <Stat>
+          <StatIndicator variant="icon">
+            <Activity />
+          </StatIndicator>
+          <StatLabel>Version</StatLabel>
+          <StatValue>
+            {infoQuery.isPending
               ? '—'
               : infoQuery.isError
                 ? 'Unavailable'
-                : (infoQuery.data?.version ?? '—')
-          }
-          description="Current backend release"
-        />
-        <StatCard
-          icon={Heart}
-          label="Health"
-          value={
-            healthQuery.isPending
+                : (infoQuery.data?.version ?? '—')}
+          </StatValue>
+          <StatDescription>Current backend release</StatDescription>
+        </Stat>
+        <Stat>
+          <StatIndicator variant="icon">
+            <Heart />
+          </StatIndicator>
+          <StatLabel>Health</StatLabel>
+          <StatValue>
+            {healthQuery.isPending
               ? '—'
               : healthQuery.isError
                 ? 'Unavailable'
-                : (healthQuery.data?.status ?? '—')
-          }
-          description="API health status"
-        />
-        <StatCard
-          icon={Database}
-          label="Database"
-          value={
-            healthQuery.isPending
+                : (healthQuery.data?.status ?? '—')}
+          </StatValue>
+          <StatDescription>API health status</StatDescription>
+        </Stat>
+        <Stat>
+          <StatIndicator variant="icon">
+            <Database />
+          </StatIndicator>
+          <StatLabel>Database</StatLabel>
+          <StatValue>
+            {healthQuery.isPending
               ? '—'
               : healthQuery.isError
                 ? 'Unavailable'
-                : (healthQuery.data?.db ?? '—')
-          }
-          description="SQLite connectivity"
-        />
-        <StatCard
-          icon={Box}
-          label="Modules"
-          value={
-            infoQuery.isPending
+                : (healthQuery.data?.db ?? '—')}
+          </StatValue>
+          <StatDescription>SQLite connectivity</StatDescription>
+        </Stat>
+        <Stat>
+          <StatIndicator variant="icon">
+            <Box />
+          </StatIndicator>
+          <StatLabel>Modules</StatLabel>
+          <StatValue>
+            {infoQuery.isPending
               ? '—'
               : infoQuery.isError
                 ? 'Unavailable'
-                : modules.length
-          }
-          description="Registered at runtime"
-        />
+                : modules.length}
+          </StatValue>
+          <StatDescription>Registered at runtime</StatDescription>
+        </Stat>
       </div>
 
       <Card>
@@ -125,11 +145,17 @@ function SystemDashboardPage(_: Readonly<SystemDashboardPageProps>) {
               ))}
             </div>
           ) : (
-            <EmptyState
-              icon={Box}
-              title="No modules"
-              description="No modules reported by the API."
-            />
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Box />
+                </EmptyMedia>
+                <EmptyTitle>No modules</EmptyTitle>
+                <EmptyDescription>
+                  No modules reported by the API.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </CardContent>
       </Card>

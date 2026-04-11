@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
-import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import {
   AlertDialog,
@@ -35,8 +34,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import {
   Select,
   SelectContent,
@@ -256,11 +263,17 @@ function OrganizationPage() {
           title="Organization"
           description="Manage your organization and members"
         />
-        <EmptyState
-          icon={BuildingIcon}
-          title="No organization"
-          description="An organization is created automatically during setup."
-        />
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <BuildingIcon />
+            </EmptyMedia>
+            <EmptyTitle>No organization</EmptyTitle>
+            <EmptyDescription>
+              An organization is created automatically during setup.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </div>
     );
   }
@@ -465,7 +478,7 @@ function OrganizationPage() {
                       </Select>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(member.createdAt).toLocaleDateString()}
+                      <RelativeTimeCard date={member.createdAt} />
                     </TableCell>
                     <TableCell>
                       {member.role !== 'owner' &&
@@ -540,7 +553,7 @@ function OrganizationPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(inv.expiresAt).toLocaleDateString()}
+                        <RelativeTimeCard date={inv.expiresAt} />
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">

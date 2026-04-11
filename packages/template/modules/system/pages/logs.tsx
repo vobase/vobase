@@ -18,8 +18,15 @@ import { useState } from 'react';
 import { DataTable } from '@/components/data-table/data-table';
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
 import { DataTableToolbar } from '@/components/data-table/data-table-toolbar';
-import { EmptyState } from '@/components/empty-state';
 import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { systemClient } from '@/lib/api-client';
 
 async function fetchAuditLog(cursor: string | null) {
@@ -35,14 +42,6 @@ async function fetchAuditLog(cursor: string | null) {
 }
 
 type AuditEntry = Awaited<ReturnType<typeof fetchAuditLog>>['entries'][number];
-
-function formatTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'Unknown time';
-  }
-  return date.toLocaleString();
-}
 
 const columns: ColumnDef<AuditEntry>[] = [
   {
@@ -84,11 +83,7 @@ const columns: ColumnDef<AuditEntry>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} label="Timestamp" />
     ),
-    cell: (info) => (
-      <span className="text-muted-foreground">
-        {formatTimestamp(info.getValue() as string)}
-      </span>
-    ),
+    cell: (info) => <RelativeTimeCard date={info.getValue() as string} />,
     enableSorting: true,
     enableHiding: true,
     meta: { label: 'Timestamp' },
@@ -136,11 +131,17 @@ function SystemLogsPage() {
           Unable to load audit log entries.
         </p>
       ) : table.getRowModel().rows.length === 0 && !auditQuery.isPending ? (
-        <EmptyState
-          icon={ScrollText}
-          title="No audit entries"
-          description="Events will appear here once activity occurs."
-        />
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <ScrollText />
+            </EmptyMedia>
+            <EmptyTitle>No audit entries</EmptyTitle>
+            <EmptyDescription>
+              Events will appear here once activity occurs.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <DataTable table={table}>
           <DataTableToolbar table={table} />

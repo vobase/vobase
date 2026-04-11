@@ -1,7 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { KeyIcon } from 'lucide-react';
 
-import { EmptyState } from '@/components/empty-state';
+import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 
 function ApiKeysPage() {
   return (
@@ -13,17 +21,29 @@ function ApiKeysPage() {
         </p>
       </div>
 
-      <EmptyState
-        icon={KeyIcon}
-        title="No API keys yet"
-        description="API keys allow programmatic access to your workspace. Management coming soon."
-        action={{
-          label: 'Create API Key',
-          onClick: () => {
-            // coming soon
-          },
-        }}
-      />
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <KeyIcon />
+          </EmptyMedia>
+          <EmptyTitle>No API keys yet</EmptyTitle>
+          <EmptyDescription>
+            API keys allow programmatic access to your workspace. Management
+            coming soon.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // coming soon
+            }}
+          >
+            Create API Key
+          </Button>
+        </EmptyContent>
+      </Empty>
     </div>
   );
 }
