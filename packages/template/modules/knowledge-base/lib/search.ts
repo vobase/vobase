@@ -156,8 +156,8 @@ async function generateHyDE(query: string): Promise<number[] | null> {
   if (!isAIConfigured()) return null;
 
   const { generateText } = await import('ai');
-  const { getChatModel } = await import('../../../mastra/lib/provider');
-  const { models } = await import('../../../mastra/lib/models');
+  const { getChatModel } = await import('../../agents/mastra/lib/provider');
+  const { models } = await import('../../agents/mastra/lib/models');
 
   const { text: hypothetical } = await generateText({
     model: getChatModel(models.gpt_mini),
@@ -176,8 +176,8 @@ async function rerankWithLLM(
   topK: number,
 ): Promise<SearchResult[]> {
   const { generateText } = await import('ai');
-  const { getChatModel } = await import('../../../mastra/lib/provider');
-  const { models } = await import('../../../mastra/lib/models');
+  const { getChatModel } = await import('../../agents/mastra/lib/provider');
+  const { models } = await import('../../agents/mastra/lib/models');
 
   const passages = candidates
     .map((c, i) => `[${i}] ${c.content.slice(0, 300)}`)

@@ -48,7 +48,7 @@ beforeAll(async () => {
 
 describe('Dashboard aggregates', () => {
   test('returns counts from seeded data', async () => {
-    const { status, json } = await api('GET', '/api/ai/dashboard');
+    const { status, json } = await api('GET', '/api/agents/dashboard');
     const d = json as Record<string, number>;
     expect(status).toBe(200);
     expect(typeof d.needsAttentionCount).toBe('number');
@@ -62,7 +62,7 @@ describe('Dashboard aggregates', () => {
 
 describe('Attention queue', () => {
   test('returns pending items in FIFO order', async () => {
-    const { status, json } = await api('GET', '/api/ai/attention');
+    const { status, json } = await api('GET', '/api/agents/attention');
     const data = json as {
       items: Array<{
         id: string;
@@ -88,34 +88,46 @@ describe('Attention queue', () => {
   });
 
   test('review then 409 on double-review', async () => {
-    const { json } = await api('GET', '/api/ai/attention');
+    const { json } = await api('GET', '/api/agents/attention');
     const items = (json as { items: Array<{ id: string }> }).items;
     if (items.length === 0) return; // skip if no pending items (stale seed)
 
     const targetId = items[0].id;
-    const review = await api('POST', `/api/ai/attention/${targetId}/review`);
+    const review = await api(
+      'POST',
+      `/api/agents/attention/${targetId}/review`,
+    );
     expect(review.status).toBe(200);
     expect((review.json as { resolutionStatus: string }).resolutionStatus).toBe(
       'reviewed',
     );
 
-    const double = await api('POST', `/api/ai/attention/${targetId}/review`);
+    const double = await api(
+      'POST',
+      `/api/agents/attention/${targetId}/review`,
+    );
     expect(double.status).toBe(409);
   });
 
   test('dismiss then 409 on double-dismiss', async () => {
-    const { json } = await api('GET', '/api/ai/attention');
+    const { json } = await api('GET', '/api/agents/attention');
     const items = (json as { items: Array<{ id: string }> }).items;
     if (items.length === 0) return; // skip if no pending items (stale seed)
 
     const targetId = items[0].id;
-    const dismiss = await api('POST', `/api/ai/attention/${targetId}/dismiss`);
+    const dismiss = await api(
+      'POST',
+      `/api/agents/attention/${targetId}/dismiss`,
+    );
     expect(dismiss.status).toBe(200);
     expect(
       (dismiss.json as { resolutionStatus: string }).resolutionStatus,
     ).toBe('dismissed');
 
-    const double = await api('POST', `/api/ai/attention/${targetId}/dismiss`);
+    const double = await api(
+      'POST',
+      `/api/agents/attention/${targetId}/dismiss`,
+    );
     expect(double.status).toBe(409);
   });
 });
@@ -124,7 +136,7 @@ describe('Attention queue', () => {
 
 describe('Activity feed', () => {
   test('pagination across multiple pages', async () => {
-    const p1 = await api('GET', '/api/ai/activity?limit=5');
+    const p1 = await api('GET', '/api/messaging/activity?limit=5');
     const page1 = p1.json as {
       events: Array<{ id: string; createdAt: string }>;
       nextCursor: string | null;
@@ -135,7 +147,7 @@ describe('Activity feed', () => {
 
     const p2 = await api(
       'GET',
-      `/api/ai/activity?limit=5&cursor=${page1.nextCursor}`,
+      `/api/messaging/activity?limit=5&cursor=${page1.nextCursor}`,
     );
     const page2 = p2.json as {
       events: Array<{ id: string; createdAt: string }>;
@@ -157,7 +169,7 @@ describe('Activity feed', () => {
   test('type filter', async () => {
     const { json } = await api(
       'GET',
-      '/api/ai/activity?type=conversation.created&limit=20',
+      '/api/messaging/activity?type=conversation.created&limit=20',
     );
     const events = (json as { events: Array<{ type: string }> }).events;
     expect(events.length).toBeGreaterThanOrEqual(2);
@@ -167,7 +179,7 @@ describe('Activity feed', () => {
   test('category filter (agent)', async () => {
     const { json } = await api(
       'GET',
-      '/api/ai/activity?category=agent&limit=20',
+      '/api/messaging/activity?category=agent&limit=20',
     );
     const events = (json as { events: Array<{ type: string }> }).events;
     expect(events.every((e) => e.type.startsWith('agent.'))).toBe(true);
@@ -176,7 +188,7 @@ describe('Activity feed', () => {
   test('category filter (escalation)', async () => {
     const { json } = await api(
       'GET',
-      '/api/ai/activity?category=escalation&limit=20',
+      '/api/messaging/activity?category=escalation&limit=20',
     );
     const events = (json as { events: Array<{ type: string }> }).events;
     expect(events.every((e) => e.type.startsWith('escalation.'))).toBe(true);
@@ -185,7 +197,7 @@ describe('Activity feed', () => {
   test('category filter (guardrail)', async () => {
     const { json } = await api(
       'GET',
-      '/api/ai/activity?category=guardrail&limit=20',
+      '/api/messaging/activity?category=guardrail&limit=20',
     );
     const events = (json as { events: Array<{ type: string }> }).events;
     expect(events.every((e) => e.type.startsWith('guardrail.'))).toBe(true);
@@ -196,7 +208,7 @@ describe('Activity feed', () => {
   test('channel filter (whatsapp)', async () => {
     const { json } = await api(
       'GET',
-      '/api/ai/activity?channelType=whatsapp&limit=20',
+      '/api/messaging/activity?channelType=whatsapp&limit=20',
     );
     const events = (json as { events: Array<{ channelType: string }> }).events;
     expect(events.every((e) => e.channelType === 'whatsapp')).toBe(true);
@@ -206,7 +218,7 @@ describe('Activity feed', () => {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const { json } = await api(
       'GET',
-      `/api/ai/activity?timeFrom=${twoHoursAgo}&limit=20`,
+      `/api/messaging/activity?timeFrom=${twoHoursAgo}&limit=20`,
     );
     const events = (json as { events: Array<{ createdAt: string }> }).events;
     expect(
@@ -220,7 +232,7 @@ describe('Activity feed', () => {
   test('resolution status filter', async () => {
     const { json } = await api(
       'GET',
-      '/api/ai/activity?resolutionStatus=reviewed&limit=20',
+      '/api/messaging/activity?resolutionStatus=reviewed&limit=20',
     );
     const events = (json as { events: Array<{ resolutionStatus: string }> })
       .events;
@@ -232,7 +244,7 @@ describe('Activity feed', () => {
 
 describe('Agent metrics', () => {
   test('returns metrics with resolution outcomes', async () => {
-    const { status, json } = await api('GET', '/api/ai/agents/metrics');
+    const { status, json } = await api('GET', '/api/agents/agents/metrics');
     const agents = (
       json as {
         agents: Array<{
@@ -259,7 +271,7 @@ describe('Agent metrics', () => {
 
 describe('Channel status', () => {
   test('counts match dashboard', async () => {
-    const { json: chJson } = await api('GET', '/api/ai/channels/status');
+    const { json: chJson } = await api('GET', '/api/messaging/channels/status');
     const channels = (
       chJson as {
         channels: Array<{
@@ -275,7 +287,7 @@ describe('Channel status', () => {
       (sum, c) => sum + c.activeSessionCount,
       0,
     );
-    const { json: dashJson } = await api('GET', '/api/ai/dashboard');
+    const { json: dashJson } = await api('GET', '/api/agents/dashboard');
     const dashActive = (dashJson as { activeSessions: number }).activeSessions;
     expect(totalActive).toBe(dashActive);
 
@@ -290,7 +302,7 @@ describe('Session mode guards', () => {
   test('human-mode session exists', async () => {
     const { status, json } = await api(
       'GET',
-      '/api/ai/conversations/sess-human-mode',
+      '/api/messaging/conversations/sess-human-mode',
     );
     expect(status).toBe(200);
     expect((json as { mode: string }).mode).toBe('human');
@@ -299,7 +311,7 @@ describe('Session mode guards', () => {
   test('held-mode session exists', async () => {
     const { status, json } = await api(
       'GET',
-      '/api/ai/conversations/sess-held-mode',
+      '/api/messaging/conversations/sess-held-mode',
     );
     expect(status).toBe(200);
     expect((json as { mode: string }).mode).toBe('held');
@@ -308,7 +320,7 @@ describe('Session mode guards', () => {
   test('supervised-mode session exists', async () => {
     const { status, json } = await api(
       'GET',
-      '/api/ai/conversations/sess-supervised-mode',
+      '/api/messaging/conversations/sess-supervised-mode',
     );
     expect(status).toBe(200);
     expect((json as { mode: string }).mode).toBe('supervised');
@@ -319,7 +331,10 @@ describe('Session mode guards', () => {
 
 describe('Handoff/handback cycle', () => {
   test('handback from human to ai, or rejects if not possible', async () => {
-    const current = await api('GET', '/api/ai/conversations/sess-human-mode');
+    const current = await api(
+      'GET',
+      '/api/messaging/conversations/sess-human-mode',
+    );
     const { mode, status: sessStatus } = current.json as {
       mode: string;
       status: string;
@@ -327,7 +342,7 @@ describe('Handoff/handback cycle', () => {
 
     const handback = await api(
       'POST',
-      '/api/ai/conversations/sess-human-mode/handback',
+      '/api/messaging/conversations/sess-human-mode/handback',
     );
 
     if (mode === 'human' && sessStatus === 'active') {
@@ -338,7 +353,7 @@ describe('Handoff/handback cycle', () => {
       await new Promise((r) => setTimeout(r, 500));
       const events = await api(
         'GET',
-        '/api/ai/activity?conversationId=sess-human-mode&type=handler.changed&limit=10',
+        '/api/messaging/activity?conversationId=sess-human-mode&type=handler.changed&limit=10',
       );
       const hbEvents = (events.json as { events: Array<{ type: string }> })
         .events;
@@ -353,7 +368,7 @@ describe('Handoff/handback cycle', () => {
     // After the previous test, session should be ai
     const double = await api(
       'POST',
-      '/api/ai/conversations/sess-human-mode/handback',
+      '/api/messaging/conversations/sess-human-mode/handback',
     );
     expect(double.status).toBe(400);
   });
@@ -365,7 +380,7 @@ describe('Approve supervised draft', () => {
   test('approves pending draft or 404 if already approved', async () => {
     const approve = await api(
       'POST',
-      '/api/ai/conversations/sess-supervised-mode/approve-draft',
+      '/api/messaging/conversations/sess-supervised-mode/approve-draft',
     );
 
     if (approve.status === 200) {
@@ -373,7 +388,7 @@ describe('Approve supervised draft', () => {
       // Double-approve: no more pending drafts
       const double = await api(
         'POST',
-        '/api/ai/conversations/sess-supervised-mode/approve-draft',
+        '/api/messaging/conversations/sess-supervised-mode/approve-draft',
       );
       expect(double.status).toBe(404);
     } else {
@@ -389,7 +404,7 @@ describe('Session lifecycle', () => {
   test('complete session emits event', async () => {
     const complete = await api(
       'PATCH',
-      '/api/ai/conversations/sess-for-completion',
+      '/api/messaging/conversations/sess-for-completion',
       { status: 'resolved' },
     );
     expect(complete.status).toBe(200);
@@ -398,7 +413,7 @@ describe('Session lifecycle', () => {
     await new Promise((r) => setTimeout(r, 500));
     const events = await api(
       'GET',
-      '/api/ai/activity?conversationId=sess-for-completion&limit=10',
+      '/api/messaging/activity?conversationId=sess-for-completion&limit=10',
     );
     const types = (
       events.json as { events: Array<{ type: string }> }
@@ -408,13 +423,20 @@ describe('Session lifecycle', () => {
 
   test('fail session sets resolution outcome + event', async () => {
     // Check current status — seed may have been mutated by previous runs
-    const current = await api('GET', '/api/ai/conversations/sess-for-handoff');
+    const current = await api(
+      'GET',
+      '/api/messaging/conversations/sess-for-handoff',
+    );
     const currentStatus = (current.json as { status: string }).status;
 
     if (currentStatus === 'active') {
-      const fail = await api('PATCH', '/api/ai/conversations/sess-for-handoff', {
-        status: 'failed',
-      });
+      const fail = await api(
+        'PATCH',
+        '/api/messaging/conversations/sess-for-handoff',
+        {
+          status: 'failed',
+        },
+      );
       expect(fail.status).toBe(200);
       const data = fail.json as {
         status: string;
@@ -426,7 +448,7 @@ describe('Session lifecycle', () => {
       await new Promise((r) => setTimeout(r, 500));
       const events = await api(
         'GET',
-        '/api/ai/activity?conversationId=sess-for-handoff&limit=10',
+        '/api/messaging/activity?conversationId=sess-for-handoff&limit=10',
       );
       const types = (
         events.json as { events: Array<{ type: string }> }
@@ -443,11 +465,11 @@ describe('Session lifecycle', () => {
 
 describe('Auth required on all endpoints', () => {
   const endpoints = [
-    '/api/ai/dashboard',
-    '/api/ai/activity',
-    '/api/ai/attention',
-    '/api/ai/agents/metrics',
-    '/api/ai/channels/status',
+    '/api/agents/dashboard',
+    '/api/messaging/activity',
+    '/api/agents/attention',
+    '/api/agents/agents/metrics',
+    '/api/messaging/channels/status',
   ];
 
   for (const ep of endpoints) {
@@ -462,7 +484,7 @@ describe('Auth required on all endpoints', () => {
 
 describe('Metrics update after resolution changes', () => {
   test('active count decreased after completions/failures', async () => {
-    const { json } = await api('GET', '/api/ai/agents/metrics');
+    const { json } = await api('GET', '/api/agents/agents/metrics');
     const agents = (
       json as { agents: Array<{ agentId: string; activeCount: number }> }
     ).agents;

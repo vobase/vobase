@@ -3,16 +3,16 @@ import { MastraServer } from '@mastra/hono';
 import { createApp } from '@vobase/core';
 import { serveStatic } from 'hono/bun';
 
-import { getMastra, initMastra } from './mastra';
 import { modules } from './modules';
-import { getModuleDb } from './modules/ai/lib/deps';
+import { getMastra, initMastra } from './modules/agents/mastra';
+import { getModuleDeps } from './modules/messaging/lib/deps';
 import config from './vobase.config';
 
 const app = await createApp({ ...config, modules });
 
 // Initialize Mastra after createApp (init hook sets deps synchronously, but Mastra init is async)
 try {
-  const db = getModuleDb();
+  const { db } = getModuleDeps();
   await initMastra(db as unknown as { $client: unknown });
 
   const mastra = getMastra();
@@ -29,7 +29,9 @@ try {
 
 // Mount Mastra Studio SPA (dev-only)
 if (process.env.NODE_ENV !== 'production') {
-  const { createStudioMiddleware } = await import('./mastra/studio');
+  const { createStudioMiddleware } = await import(
+    './modules/agents/mastra/studio'
+  );
   app.route('/studio', createStudioMiddleware());
 }
 

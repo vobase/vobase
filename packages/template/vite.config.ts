@@ -31,7 +31,7 @@ export default defineConfig({
       virtualRouteConfig: './src/routes.ts',
       routesDirectory: './src',
       generatedRouteTree: './src/routeTree.gen.ts',
-      routeFileIgnorePattern: '(layout|.test|.spec)',
+      routeFileIgnorePattern: '(layout|.test|.spec|_components)',
     }),
   ],
   resolve: {

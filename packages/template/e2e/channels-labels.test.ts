@@ -50,7 +50,7 @@ describe('Labels CRUD', () => {
   let testLabelId = '';
 
   test('list seeded labels', async () => {
-    const { status, json } = await api('GET', '/api/ai/labels');
+    const { status, json } = await api('GET', '/api/messaging/labels');
     const labels = json as Array<{ id: string; title: string; color: string }>;
     expect(status).toBe(200);
     expect(labels.length).toBeGreaterThanOrEqual(5);
@@ -59,7 +59,7 @@ describe('Labels CRUD', () => {
   });
 
   test('create label', async () => {
-    const { status, json } = await api('POST', '/api/ai/labels', {
+    const { status, json } = await api('POST', '/api/messaging/labels', {
       title: 'E2E Test Label',
       color: '#10b981',
       description: 'Created by E2E test',
@@ -74,7 +74,7 @@ describe('Labels CRUD', () => {
   test('update label', async () => {
     const { status, json } = await api(
       'PATCH',
-      `/api/ai/labels/${testLabelId}`,
+      `/api/messaging/labels/${testLabelId}`,
       {
         title: 'E2E Updated Label',
         color: '#f59e0b',
@@ -89,19 +89,19 @@ describe('Labels CRUD', () => {
   test('delete label', async () => {
     const { status, json } = await api(
       'DELETE',
-      `/api/ai/labels/${testLabelId}`,
+      `/api/messaging/labels/${testLabelId}`,
     );
     expect(status).toBe(200);
     expect((json as { ok: boolean }).ok).toBe(true);
 
     // Verify deleted
-    const list = await api('GET', '/api/ai/labels');
+    const list = await api('GET', '/api/messaging/labels');
     const labels = list.json as Array<{ id: string }>;
     expect(labels.find((l) => l.id === testLabelId)).toBeUndefined();
   });
 
   test('delete non-existent label returns 404', async () => {
-    const { status } = await api('DELETE', '/api/ai/labels/nonexistent');
+    const { status } = await api('DELETE', '/api/messaging/labels/nonexistent');
     expect(status).toBe(404);
   });
 });
@@ -114,7 +114,7 @@ describe('Conversation labels', () => {
   test('get labels for conversation', async () => {
     const { status, json } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/labels`,
+      `/api/messaging/conversations/${convId}/labels`,
     );
     expect(status).toBe(200);
     expect(Array.isArray(json)).toBe(true);
@@ -124,7 +124,7 @@ describe('Conversation labels', () => {
     // Add label
     const { status } = await api(
       'POST',
-      `/api/ai/conversations/${convId}/labels`,
+      `/api/messaging/conversations/${convId}/labels`,
       { labelIds: ['lbl-bug'] },
     );
     expect(status).toBe(200);
@@ -132,7 +132,7 @@ describe('Conversation labels', () => {
     // Verify label assigned
     const { json: labels } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/labels`,
+      `/api/messaging/conversations/${convId}/labels`,
     );
     const assigned = labels as Array<{ id: string }>;
     expect(assigned.some((l) => l.id === 'lbl-bug')).toBe(true);
@@ -140,7 +140,7 @@ describe('Conversation labels', () => {
     // Verify activity event created
     const { json: msgs } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/messages?limit=5`,
+      `/api/messaging/conversations/${convId}/messages?limit=5`,
     );
     const messages = (msgs as { messages: Array<{ content: string }> })
       .messages;
@@ -150,14 +150,14 @@ describe('Conversation labels', () => {
   test('remove label from conversation creates activity event', async () => {
     const { status } = await api(
       'DELETE',
-      `/api/ai/conversations/${convId}/labels/lbl-bug`,
+      `/api/messaging/conversations/${convId}/labels/lbl-bug`,
     );
     expect(status).toBe(200);
 
     // Verify label removed
     const { json: labels } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/labels`,
+      `/api/messaging/conversations/${convId}/labels`,
     );
     const assigned = labels as Array<{ id: string }>;
     expect(assigned.some((l) => l.id === 'lbl-bug')).toBe(false);
@@ -165,7 +165,7 @@ describe('Conversation labels', () => {
     // Verify activity event
     const { json: msgs } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/messages?limit=5`,
+      `/api/messaging/conversations/${convId}/messages?limit=5`,
     );
     const messages = (msgs as { messages: Array<{ content: string }> })
       .messages;
@@ -173,12 +173,12 @@ describe('Conversation labels', () => {
   });
 
   test('adding duplicate label is idempotent', async () => {
-    await api('POST', `/api/ai/conversations/${convId}/labels`, {
+    await api('POST', `/api/messaging/conversations/${convId}/labels`, {
       labelIds: ['lbl-vip'],
     });
     const { status } = await api(
       'POST',
-      `/api/ai/conversations/${convId}/labels`,
+      `/api/messaging/conversations/${convId}/labels`,
       { labelIds: ['lbl-vip'] },
     );
     expect(status).toBe(200); // onConflictDoNothing
@@ -186,7 +186,7 @@ describe('Conversation labels', () => {
     // Only one VIP label
     const { json: labels } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/labels`,
+      `/api/messaging/conversations/${convId}/labels`,
     );
     const vipCount = (labels as Array<{ id: string }>).filter(
       (l) => l.id === 'lbl-vip',
@@ -201,7 +201,7 @@ describe('Conversation list includes labels', () => {
   test('attention queue returns labels array', async () => {
     const { status, json } = await api(
       'GET',
-      '/api/ai/conversations/attention?limit=10',
+      '/api/messaging/conversations/attention?limit=10',
     );
     expect(status).toBe(200);
     const convs = json as Array<{
@@ -218,7 +218,7 @@ describe('Conversation list includes labels', () => {
   test('ai-active list returns labels array', async () => {
     const { json } = await api(
       'GET',
-      '/api/ai/conversations/ai-active?limit=10',
+      '/api/messaging/conversations/ai-active?limit=10',
     );
     const convs = json as Array<{ labels: unknown[] }>;
     for (const c of convs) {
@@ -227,7 +227,10 @@ describe('Conversation list includes labels', () => {
   });
 
   test('resolved list returns labels array', async () => {
-    const { json } = await api('GET', '/api/ai/conversations/resolved?limit=10');
+    const { json } = await api(
+      'GET',
+      '/api/messaging/conversations/resolved?limit=10',
+    );
     const convs = json as Array<{ labels: unknown[] }>;
     for (const c of convs) {
       expect(Array.isArray(c.labels)).toBe(true);
@@ -243,7 +246,7 @@ describe('Staff reply and private notes', () => {
   test('send staff reply persists message', async () => {
     const { status, json } = await api(
       'POST',
-      `/api/ai/conversations/${convId}/reply`,
+      `/api/messaging/conversations/${convId}/reply`,
       { content: 'E2E test reply message' },
     );
     expect([200, 201]).toContain(status);
@@ -254,7 +257,7 @@ describe('Staff reply and private notes', () => {
     // Verify in messages
     const { json: msgs } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/messages?limit=10`,
+      `/api/messaging/conversations/${convId}/messages?limit=10`,
     );
     const messages = (
       msgs as { messages: Array<{ content: string; private: boolean }> }
@@ -267,7 +270,7 @@ describe('Staff reply and private notes', () => {
   test('send private note does not leak to lastMessageContent', async () => {
     const { status } = await api(
       'POST',
-      `/api/ai/conversations/${convId}/reply`,
+      `/api/messaging/conversations/${convId}/reply`,
       {
         content: 'SECRET_PRIVATE_NOTE_E2E',
         isInternal: true,
@@ -278,7 +281,7 @@ describe('Staff reply and private notes', () => {
     // Verify note is persisted with private=true
     const { json: msgs } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/messages?limit=10`,
+      `/api/messaging/conversations/${convId}/messages?limit=10`,
     );
     const messages = (
       msgs as {
@@ -296,7 +299,7 @@ describe('Staff reply and private notes', () => {
     // Verify lastMessageContent is NOT the private note
     const { json: convs } = await api(
       'GET',
-      '/api/ai/conversations/attention?limit=50',
+      '/api/messaging/conversations/attention?limit=50',
     );
     const conv = (
       convs as Array<{ id: string; lastMessageContent: string }>
@@ -315,7 +318,7 @@ describe('Message timeline activity filtering', () => {
     const convId = 'sess-for-completion';
     const { json: msgs } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/messages?limit=50`,
+      `/api/messaging/conversations/${convId}/messages?limit=50`,
     );
     const messages = (
       msgs as {
@@ -335,7 +338,7 @@ describe('Message timeline activity filtering', () => {
     const convId = 'sess-human-low';
     const { json: msgs } = await api(
       'GET',
-      `/api/ai/conversations/${convId}/messages?limit=100`,
+      `/api/messaging/conversations/${convId}/messages?limit=100`,
     );
     const messages = (
       msgs as {
@@ -386,7 +389,7 @@ describe('Real AI agent chat (web streaming)', () => {
   test('start a new chat conversation', async () => {
     const { status, json } = await api(
       'POST',
-      '/api/ai/chat/ep-web-booking/start',
+      '/api/agents/chat/ep-web-booking/start',
     );
     expect(status).toBe(200);
     const data = json as { conversationId: string; agentId: string };
@@ -395,7 +398,7 @@ describe('Real AI agent chat (web streaming)', () => {
   });
 
   test('stream AI response with real LLM', async () => {
-    const res = await fetch(`${BASE}/api/ai/chat/ep-web-booking/stream`, {
+    const res = await fetch(`${BASE}/api/agents/chat/ep-web-booking/stream`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -442,7 +445,7 @@ describe('Real AI agent chat (web streaming)', () => {
   });
 
   test('multi-turn conversation retains context', async () => {
-    const res = await fetch(`${BASE}/api/ai/chat/ep-web-booking/stream`, {
+    const res = await fetch(`${BASE}/api/agents/chat/ep-web-booking/stream`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -494,7 +497,7 @@ describe('Real AI agent chat (web streaming)', () => {
     // First start a conversation for it (if needed)
     const { json: conv } = await api(
       'GET',
-      '/api/ai/conversations/sess-held-mode',
+      '/api/messaging/conversations/sess-held-mode',
     );
     const mode = (conv as { mode: string }).mode;
     expect(mode).toBe('held');
@@ -510,8 +513,8 @@ describe('Real AI agent chat (web streaming)', () => {
 
 describe('Auth required on new endpoints', () => {
   const endpoints = [
-    '/api/ai/labels',
-    '/api/ai/conversations/sess-human-low/labels',
+    '/api/messaging/labels',
+    '/api/messaging/conversations/sess-human-low/labels',
   ];
 
   for (const ep of endpoints) {

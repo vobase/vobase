@@ -1,7 +1,10 @@
 import { embed, embedMany } from 'ai';
 
-import { EMBEDDING_DIMENSIONS, models } from '../mastra/lib/models';
-import { getEmbeddingModel } from '../mastra/lib/provider';
+import {
+  EMBEDDING_DIMENSIONS,
+  models,
+} from '../modules/agents/mastra/lib/models';
+import { getEmbeddingModel } from '../modules/agents/mastra/lib/provider';
 
 /**
  * Embed multiple text chunks. Returns float arrays.

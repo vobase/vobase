@@ -2,7 +2,7 @@ import { PDFiumLibrary } from '@hyzyla/pdfium';
 import { logger } from '@vobase/core';
 import sharp from 'sharp';
 
-import { models } from '../../../mastra/lib/models';
+import { models } from '../../agents/mastra/lib/models';
 import { htmlToPlate, markdownToPlate } from './plate-deserialize';
 import {
   createHeading,
@@ -100,7 +100,7 @@ async function getOcrProvider(): Promise<OcrProvider> {
     const { generateText } = await import('ai');
     cachedGenText = generateText;
   }
-  const { getChatModel } = await import('../../../mastra/lib/provider');
+  const { getChatModel } = await import('../../agents/mastra/lib/provider');
   return {
     generateText: cachedGenText,
     model: getChatModel(models.gemini_flash),
@@ -601,7 +601,7 @@ async function ocrWithFallback(
     return '';
   }
   try {
-    const { getChatModel } = await import('../../../mastra/lib/provider');
+    const { getChatModel } = await import('../../agents/mastra/lib/provider');
     const fallbackModel = getChatModel(models.gpt_mini);
 
     const { text } = await genText({

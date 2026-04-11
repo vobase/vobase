@@ -1,7 +1,13 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 
+import { PageLayout } from '@/components/layout/page-layout';
+
 function KnowledgeBaseLayout() {
-  return <Outlet />;
+  return (
+    <PageLayout>
+      <Outlet />
+    </PageLayout>
+  );
 }
 
 export const Route = createFileRoute('/_app/knowledge-base')({

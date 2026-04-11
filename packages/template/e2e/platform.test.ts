@@ -42,7 +42,7 @@ const createdInstanceIds: string[] = [];
 afterAll(async () => {
   // Clean up test data
   for (const id of createdInstanceIds) {
-    await sql`DELETE FROM conversations.channel_instances WHERE id = ${id}`;
+    await sql`DELETE FROM messaging.channel_instances WHERE id = ${id}`;
   }
   for (const provider of createdIntegrationProviders) {
     await sql`DELETE FROM infra.integrations WHERE provider = ${provider} AND auth_type = 'platform'`;
@@ -136,7 +136,7 @@ describe('E2E: POST /api/integrations/provision-channel', () => {
     // Verify DB state
     const [row] = await sql`
       SELECT id, type, label, source, status
-      FROM conversations.channel_instances
+      FROM messaging.channel_instances
       WHERE id = ${json.instanceId}
     `;
     expect(row).toBeDefined();
@@ -162,7 +162,7 @@ describe('E2E: POST /api/integrations/provision-channel', () => {
 
     const [row] = await sql`
       SELECT id, type, source, config
-      FROM conversations.channel_instances
+      FROM messaging.channel_instances
       WHERE id = ${json.instanceId}
     `;
     expect(row).toBeDefined();
