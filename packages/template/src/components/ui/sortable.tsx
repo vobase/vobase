@@ -566,16 +566,6 @@ function SortableOverlay(props: SortableOverlayProps) {
   );
 }
 
-export {
-  SortableRoot as Sortable,
-  SortableContent,
-  SortableItem,
-  SortableItemHandle,
-  SortableOverlay,
-  //
-  SortableRoot as Root,
-  SortableContent as Content,
-  SortableItem as Item,
-  SortableItemHandle as ItemHandle,
-  SortableOverlay as Overlay,
-};
+export { SortableRoot as Sortable, SortableContent, SortableItem, SortableItemHandle, SortableOverlay, 
+//
+SortableRoot as Root, SortableContent as Content, SortableItem as Item, SortableItemHandle as ItemHandle, SortableOverlay as Overlay, };

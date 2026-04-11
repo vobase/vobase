@@ -32,7 +32,6 @@ const smtpAdapter = smtpHost
 
 /** Server-side branding. See also: src/lib/branding.ts (client-side equivalent). */
 export const productName = process.env.VITE_PRODUCT_NAME || 'Vobase';
-export const companyName = process.env.VITE_COMPANY_NAME || 'Vobase';
 
 const config: Omit<CreateAppConfig, 'modules'> = {
   database: databaseUrl,
