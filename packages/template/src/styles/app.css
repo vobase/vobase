@@ -94,6 +94,15 @@
   --color-warning: var(--warning);
   --color-error: var(--error);
   --color-info: var(--info);
+  --animate-spin-around: spin-around 0.8s linear infinite;
+  @keyframes spin-around {
+    0% {
+      transform: rotate(-90deg);
+    }
+    100% {
+      transform: rotate(270deg);
+    }
+  }
 }
 
 /* New message flash highlight — fires once, fades out */
