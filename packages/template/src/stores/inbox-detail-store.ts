@@ -4,14 +4,14 @@ interface InboxDetailState {
   // ── Identity ──
   contactId: string | null;
 
-  // ── Channel selection (for "new message" flow when all interactions terminal) ──
+  // ── Channel selection (for "new message" flow when all conversations terminal) ──
   selectedChannelId: string | null;
 
-  // ── Block expand/collapse ──
-  expandedInteractionIds: Set<string>;
+  // ── Tab channel selection (for channel tabs in detail view) ──
+  selectedTabChannelId: string | null;
 
-  // ── View mode ──
-  viewMode: 'threads' | 'timeline';
+  // ── Block expand/collapse ──
+  expandedConversationIds: Set<string>;
 
   // ── Actions ──
   /** Called when URL contactId changes. Resets all per-contact state. */
@@ -19,6 +19,9 @@ interface InboxDetailState {
 
   /** Called from channel picker. */
   selectChannel: (channelId: string) => void;
+
+  /** Called when user switches channel tab in detail view. */
+  selectTabChannel: (channelId: string | null) => void;
 
   /** Toggle a block open/closed. */
   toggleBlock: (id: string) => void;
@@ -29,64 +32,64 @@ interface InboxDetailState {
   /** Collapse a specific block. */
   collapseBlock: (id: string) => void;
 
-  /** Called when timeline data loads — expands active interactions, collapses resolved/failed. */
+  /** Called when timeline data loads — expands active conversations, collapses resolved/failed. */
   setDefaultExpansion: (
-    interactions: Array<{ id: string; status: string }>,
+    conversations: Array<{ id: string; status: string }>,
   ) => void;
-
-  /** Switch between threads and timeline view. */
-  setViewMode: (mode: 'threads' | 'timeline') => void;
 }
 
 export const useInboxDetailStore = create<InboxDetailState>((set) => ({
   contactId: null,
   selectedChannelId: null,
-  expandedInteractionIds: new Set(),
-  viewMode: 'threads',
+  selectedTabChannelId: null,
+  expandedConversationIds: new Set(),
 
   switchContact: (contactId) =>
     set({
       contactId,
       selectedChannelId: null,
-      expandedInteractionIds: new Set(),
-      viewMode: 'threads',
+      selectedTabChannelId: null,
+      expandedConversationIds: new Set(),
     }),
 
   selectChannel: (channelId) => set({ selectedChannelId: channelId }),
 
+  selectTabChannel: (channelId) => set({ selectedTabChannelId: channelId }),
+
   toggleBlock: (id) =>
     set((state) => {
-      const next = new Set(state.expandedInteractionIds);
+      const next = new Set(state.expandedConversationIds);
       if (next.has(id)) {
         next.delete(id);
       } else {
         next.add(id);
       }
-      return { expandedInteractionIds: next };
+      return { expandedConversationIds: next };
     }),
 
   expandBlock: (id) =>
     set((state) => {
-      if (state.expandedInteractionIds.has(id)) return state;
+      if (state.expandedConversationIds.has(id)) return state;
       return {
-        expandedInteractionIds: new Set([...state.expandedInteractionIds, id]),
+        expandedConversationIds: new Set([
+          ...state.expandedConversationIds,
+          id,
+        ]),
       };
     }),
 
   collapseBlock: (id) =>
     set((state) => {
-      if (!state.expandedInteractionIds.has(id)) return state;
-      const next = new Set(state.expandedInteractionIds);
+      if (!state.expandedConversationIds.has(id)) return state;
+      const next = new Set(state.expandedConversationIds);
       next.delete(id);
-      return { expandedInteractionIds: next };
+      return { expandedConversationIds: next };
     }),
 
-  setDefaultExpansion: (interactions) =>
+  setDefaultExpansion: (conversations) =>
     set({
-      expandedInteractionIds: new Set(
-        interactions.filter((i) => i.status === 'active').map((i) => i.id),
+      expandedConversationIds: new Set(
+        conversations.filter((i) => i.status === 'active').map((i) => i.id),
       ),
     }),
-
-  setViewMode: (mode) => set({ viewMode: mode }),
 }));

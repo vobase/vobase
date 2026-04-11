@@ -3,7 +3,7 @@ import type { UIMessage } from 'ai';
 // ─── Types ──────────────────────────────────────────────────────────────
 
 /** Content shapes from Mastra memory messages */
-export type MemoryMessageContent =
+type MemoryMessageContent =
   | string
   | { type: string; text?: string; [key: string]: unknown }[]
   | {
@@ -26,7 +26,7 @@ export interface NormalizedPart {
   [key: string]: unknown;
 }
 
-export interface NormalizedMessageMetadata {
+interface NormalizedMessageMetadata {
   visibility?: 'internal' | 'public';
   isStaffReply?: boolean;
   staffName?: string;
@@ -45,7 +45,7 @@ export interface NormalizedMessage {
   metadata: NormalizedMessageMetadata;
 }
 
-// ─── Core Helpers (extracted from $interactionId.tsx:221-276) ────────────
+// ─── Core Helpers (extracted from $conversationId.tsx:221-276) ───────────
 
 /** Extract plain text from any MemoryMessage content shape. */
 export function extractText(content: MemoryMessageContent): string {

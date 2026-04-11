@@ -3,12 +3,10 @@ import {
   BotIcon,
   CheckIcon,
   ChevronDownIcon,
-  CircleIcon,
   GlobeIcon,
   MailIcon,
   MessageSquareIcon,
   MicIcon,
-  PauseCircleIcon,
   UserIcon,
   XCircleIcon,
 } from 'lucide-react';
@@ -18,6 +16,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -26,142 +25,6 @@ import { cn } from '@/lib/utils';
 
 const FIELD_TRIGGER_CLASS =
   'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50';
-
-// ─── Mode ────────────────────────────────────────────────────────────
-
-const MODE_CONFIG = {
-  ai: {
-    label: 'AI',
-    color: 'text-violet-600 dark:text-violet-400',
-    Icon: BotIcon,
-    iconColor: 'text-violet-500',
-    iconFill: undefined,
-    iconSize: undefined,
-  },
-  human: {
-    label: 'Human',
-    color: 'text-blue-600 dark:text-blue-400',
-    Icon: UserIcon,
-    iconColor: 'text-blue-500',
-    iconFill: undefined,
-    iconSize: undefined,
-  },
-  supervised: {
-    label: 'Supervised',
-    color: 'text-amber-600 dark:text-amber-400',
-    Icon: CircleIcon,
-    iconColor: 'text-amber-500',
-    iconFill: 'fill-amber-500',
-    iconSize: 'h-3 w-3',
-  },
-  held: {
-    label: 'On Hold',
-    color: 'text-muted-foreground',
-    Icon: PauseCircleIcon,
-    iconColor: 'text-muted-foreground',
-    iconFill: undefined,
-    iconSize: undefined,
-  },
-} as const;
-
-type ModeValue = keyof typeof MODE_CONFIG;
-
-function getModeConfig(mode: string) {
-  return MODE_CONFIG[mode as ModeValue] ?? MODE_CONFIG.held;
-}
-
-function ModeIcon({ mode, className }: { mode: string; className?: string }) {
-  const cfg = getModeConfig(mode);
-  return (
-    <cfg.Icon
-      className={cn(
-        cfg.iconSize ?? 'h-3.5 w-3.5',
-        cfg.iconColor,
-        cfg.iconFill,
-        className,
-      )}
-    />
-  );
-}
-
-export function ModeBadge({
-  mode,
-  variant = 'badge',
-  onSelect,
-  disabled,
-  className,
-}: {
-  mode: string;
-  variant?: 'field' | 'icon' | 'badge' | 'muted';
-  onSelect?: (mode: string) => void;
-  disabled?: boolean;
-  className?: string;
-}) {
-  const cfg = getModeConfig(mode);
-
-  if (variant === 'icon') {
-    return <ModeIcon mode={mode} />;
-  }
-
-  if (variant === 'field' && onSelect) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild disabled={disabled}>
-          <button type="button" className={cn(FIELD_TRIGGER_CLASS, cfg.color)}>
-            <ModeIcon mode={mode} />
-            <span className="font-medium">{cfg.label}</span>
-            <ChevronDownIcon className="h-3 w-3 opacity-40" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-[140px]">
-          {Object.entries(MODE_CONFIG).map(([value, c]) => (
-            <DropdownMenuItem
-              key={value}
-              onClick={() => onSelect(value)}
-              className="gap-2 text-sm"
-            >
-              <c.Icon className={cn('h-3 w-3', c.iconColor, c.iconFill)} />
-              {c.label}
-              {value === mode && (
-                <CheckIcon className="ml-auto h-3.5 w-3.5 text-foreground" />
-              )}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
-
-  if (variant === 'muted') {
-    return (
-      <span
-        className={cn(
-          'inline-flex items-center gap-1 text-xs font-medium text-muted-foreground',
-          className,
-        )}
-      >
-        <cfg.Icon
-          className={cn(cfg.iconSize ?? 'h-3 w-3', 'text-muted-foreground/60')}
-        />
-        {cfg.label}
-      </span>
-    );
-  }
-
-  // badge (read-only)
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 px-1.5 py-0.5 text-sm font-medium',
-        cfg.color,
-        className,
-      )}
-    >
-      <ModeIcon mode={mode} />
-      {cfg.label}
-    </span>
-  );
-}
 
 // ─── Priority ────────────────────────────────────────────────────────
 
@@ -369,54 +232,124 @@ export function ChannelBadge({
 
 // ─── Assignee ────────────────────────────────────────────────────────
 
+function getAssigneeDisplay(
+  assignee: string | null,
+  agents: Array<{ id: string; name: string }>,
+  teamMembers: Array<{ id: string; name: string }>,
+): { label: string; isAgent: boolean } {
+  if (!assignee) return { label: 'Assign', isAgent: false };
+  if (assignee.startsWith('agent:')) {
+    const agentId = assignee.slice(6);
+    const agent = agents.find((a) => a.id === agentId);
+    const label =
+      agent?.name ??
+      agentId.charAt(0).toUpperCase() + agentId.slice(1).replace(/-/g, ' ');
+    return { label, isAgent: true };
+  }
+  const member = teamMembers.find((m) => m.id === assignee);
+  return { label: member?.name ?? 'Staff', isAgent: false };
+}
+
 export function AssigneeBadge({
   assignee,
-  isMe,
   variant = 'badge',
-  onAssign,
-  onUnassign,
+  onSelect,
   disabled,
+  agents = [],
+  teamMembers = [],
 }: {
   assignee: string | null;
-  isMe?: boolean;
   variant?: 'field' | 'badge';
-  onAssign?: () => void;
-  onUnassign?: () => void;
+  onSelect?: (assignee: string | null) => void;
   disabled?: boolean;
+  agents?: Array<{ id: string; name: string }>;
+  teamMembers?: Array<{ id: string; name: string }>;
 }) {
-  const label = assignee ? (isMe ? 'You' : 'Staff') : null;
+  const { label, isAgent } = getAssigneeDisplay(assignee, agents, teamMembers);
+  const AssigneeIcon = isAgent ? BotIcon : UserIcon;
+  const iconClass = isAgent
+    ? 'text-violet-500'
+    : assignee
+      ? 'text-foreground'
+      : 'text-muted-foreground';
 
-  if (variant === 'field') {
-    if (assignee) {
-      return (
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted group"
-          onClick={onUnassign}
-          disabled={disabled}
-          title="Click to unassign"
-        >
-          <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <UserIcon className="h-2.5 w-2.5" />
-          </div>
-          <span className="font-medium">{label}</span>
-          <XCircleIcon className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
-        </button>
-      );
-    }
-
+  if (variant === 'field' && onSelect) {
     return (
-      <button
-        type="button"
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        onClick={onAssign}
-        disabled={disabled}
-      >
-        <div className="flex h-4 w-4 items-center justify-center rounded-full border border-dashed border-muted-foreground/50">
-          <UserIcon className="h-2.5 w-2.5" />
-        </div>
-        Assign to me
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild disabled={disabled}>
+          <button
+            type="button"
+            className={cn(
+              FIELD_TRIGGER_CLASS,
+              assignee ? 'text-foreground' : 'text-muted-foreground',
+            )}
+          >
+            <AssigneeIcon className={cn('h-3.5 w-3.5', iconClass)} />
+            <span className="font-medium">{label}</span>
+            <ChevronDownIcon className="h-3 w-3 opacity-40" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[180px]">
+          {agents.length > 0 && (
+            <>
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                AI Agents
+              </div>
+              {agents.map((agent) => {
+                const value = `agent:${agent.id}`;
+                return (
+                  <DropdownMenuItem
+                    key={agent.id}
+                    onClick={() => onSelect(value)}
+                    className="gap-2 text-sm"
+                  >
+                    <BotIcon className="h-3.5 w-3.5 text-violet-500" />
+                    {agent.name}
+                    {value === assignee && (
+                      <CheckIcon className="ml-auto h-3.5 w-3.5" />
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
+            </>
+          )}
+          {agents.length > 0 && teamMembers.length > 0 && (
+            <DropdownMenuSeparator />
+          )}
+          {teamMembers.length > 0 && (
+            <>
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                Team Members
+              </div>
+              {teamMembers.map((member) => (
+                <DropdownMenuItem
+                  key={member.id}
+                  onClick={() => onSelect(member.id)}
+                  className="gap-2 text-sm"
+                >
+                  <UserIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                  {member.name}
+                  {member.id === assignee && (
+                    <CheckIcon className="ml-auto h-3.5 w-3.5" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
+          {(agents.length > 0 || teamMembers.length > 0) && assignee && (
+            <DropdownMenuSeparator />
+          )}
+          {assignee && (
+            <DropdownMenuItem
+              onClick={() => onSelect(null)}
+              className="gap-2 text-sm text-muted-foreground"
+            >
+              <XCircleIcon className="h-3.5 w-3.5" />
+              Unassign
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
 
@@ -424,9 +357,7 @@ export function AssigneeBadge({
   if (!assignee) return null;
   return (
     <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 text-sm text-muted-foreground">
-      <div className="flex h-4 w-4 items-center justify-center rounded-full bg-muted">
-        <UserIcon className="h-2.5 w-2.5" />
-      </div>
+      <AssigneeIcon className={cn('h-3.5 w-3.5', iconClass)} />
       {label}
     </span>
   );

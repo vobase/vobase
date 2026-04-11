@@ -38,9 +38,9 @@ interface ReplyToMessage {
   contentPreview: string;
 }
 
-export interface BlockReplyInputProps {
+interface BlockReplyInputProps {
   channelType: string;
-  interactionTitle?: string;
+  conversationTitle?: string;
   replyToMessage?: ReplyToMessage | null;
   onClearReplyTo?: () => void;
   onSend: (
@@ -55,6 +55,8 @@ export interface BlockReplyInputProps {
   ) => void;
   isPending?: boolean;
   error?: string | null;
+  /** Pre-fill the composer with draft content (e.g. from agent.draft_created). */
+  initialContent?: string;
 }
 
 // ─── Email toolbar (must be inside <Plate> context) ───────────────────────────
@@ -88,6 +90,31 @@ function MarkBtn({
 }
 
 function ListBtn({
+  listStyleType,
+  title,
+  children,
+}: {
+  listStyleType: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const editor = useEditorRef();
+  // Guard: Plate list hooks crash when editor.selection is undefined (before first focus)
+  if (!editor.selection) {
+    return (
+      <button type="button" title={title} className={TOOLBAR_BTN_CLASS}>
+        {children}
+      </button>
+    );
+  }
+  return (
+    <ListBtnInner listStyleType={listStyleType} title={title}>
+      {children}
+    </ListBtnInner>
+  );
+}
+
+function ListBtnInner({
   listStyleType,
   title,
   children,
@@ -213,30 +240,33 @@ function KbdHint() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export const BlockReplyInput = memo(function BlockReplyInput({
-  channelType,
-  interactionTitle,
+export const BlockReplyInput = memo(function BlockReplyInput(
+  props: BlockReplyInputProps,
+) {
+  if (props.channelType === 'email') {
+    return <EmailReplyInput {...props} />;
+  }
+  return <StandardReplyInput {...props} />;
+});
+
+// ─── Email reply (Plate editor) ───────────────────────────────────────────────
+
+const EmailReplyInput = memo(function EmailReplyInput({
+  conversationTitle,
   replyToMessage,
   onClearReplyTo,
   onSend,
   isPending = false,
   error,
 }: BlockReplyInputProps) {
-  const [content, setContent] = useState('');
-  const [isInternal, setIsInternal] = useState(false);
-  const [subject, setSubject] = useState(interactionTitle ?? '');
+  const [subject, setSubject] = useState(conversationTitle ?? '');
   const [cc, setCc] = useState('');
   const [replyAll, setReplyAll] = useState(false);
 
-  // Always initialise — hooks cannot be conditional.
   const emailEditor = usePlateEditor({
     plugins: emailEditorPlugins,
     override: { components: emailEditorComponents },
   });
-
-  const isEmail = channelType === 'email';
-
-  // ── Handlers ────────────────────────────────────────────────────────────────
 
   function handleSendEmail() {
     const body = JSON.stringify(emailEditor.children);
@@ -248,112 +278,119 @@ export const BlockReplyInput = memo(function BlockReplyInput({
         .filter(Boolean),
       replyAll,
     });
-    // Reset body to empty paragraph
     emailEditor.tf.setValue([{ type: 'p', children: [{ text: '' }] }]);
   }
 
-  function handleSendStandard() {
+  return (
+    <div className="border-t bg-background px-4 py-3">
+      {replyToMessage && (
+        <QuoteChip replyTo={replyToMessage} onClear={onClearReplyTo} />
+      )}
+
+      <div className="flex flex-col gap-2">
+        {/* Subject */}
+        <div className="flex items-center gap-2">
+          <span className="w-14 shrink-0 text-xs text-muted-foreground">
+            Subject
+          </span>
+          <Input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="(no subject)"
+            className="h-7 text-sm"
+            disabled={isPending}
+          />
+        </div>
+
+        {/* CC */}
+        <div className="flex items-center gap-2">
+          <span className="w-14 shrink-0 text-xs text-muted-foreground">
+            CC
+          </span>
+          <Input
+            value={cc}
+            onChange={(e) => setCc(e.target.value)}
+            placeholder="Comma-separated addresses"
+            className="h-7 text-sm"
+            disabled={isPending}
+          />
+        </div>
+
+        {/* Rich text body */}
+        <div className="overflow-hidden rounded-md border bg-background">
+          <Plate editor={emailEditor}>
+            <EmailEditorInner
+              onSubmit={handleSendEmail}
+              isPending={isPending}
+            />
+          </Plate>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <KbdHint />
+            <button
+              type="button"
+              onClick={() => setReplyAll((r) => !r)}
+              className={cn(
+                'rounded px-1.5 py-0.5 text-xs font-medium transition-colors',
+                replyAll
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {replyAll ? 'Reply All' : 'Reply'}
+            </button>
+          </div>
+          <Button
+            size="sm"
+            className="h-7 gap-1.5 px-3"
+            disabled={isPending}
+            onClick={handleSendEmail}
+          >
+            <SendIcon className="h-3.5 w-3.5" />
+            Send
+          </Button>
+        </div>
+
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+    </div>
+  );
+});
+
+// ─── Standard reply (textarea) ────────────────────────────────────────────────
+
+const StandardReplyInput = memo(function StandardReplyInput({
+  replyToMessage,
+  onClearReplyTo,
+  onSend,
+  isPending = false,
+  error,
+  initialContent,
+}: BlockReplyInputProps) {
+  const [content, setContent] = useState(initialContent ?? '');
+  const [isInternal, setIsInternal] = useState(false);
+
+  function handleSend() {
     const trimmed = content.trim();
     if (!trimmed || isPending) return;
     onSend(trimmed, isInternal, replyToMessage?.messageId ?? undefined);
     setContent('');
   }
 
-  function handleKeyDownStandard(e: React.KeyboardEvent) {
+  function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      handleSendStandard();
+      handleSend();
     }
   }
-
-  // ── Email mode ───────────────────────────────────────────────────────────────
-
-  if (isEmail) {
-    return (
-      <div className="border-t bg-background px-4 py-3">
-        {replyToMessage && (
-          <QuoteChip replyTo={replyToMessage} onClear={onClearReplyTo} />
-        )}
-
-        <div className="flex flex-col gap-2">
-          {/* Subject */}
-          <div className="flex items-center gap-2">
-            <span className="w-14 shrink-0 text-xs text-muted-foreground">
-              Subject
-            </span>
-            <Input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="(no subject)"
-              className="h-7 text-sm"
-              disabled={isPending}
-            />
-          </div>
-
-          {/* CC */}
-          <div className="flex items-center gap-2">
-            <span className="w-14 shrink-0 text-xs text-muted-foreground">
-              CC
-            </span>
-            <Input
-              value={cc}
-              onChange={(e) => setCc(e.target.value)}
-              placeholder="Comma-separated addresses"
-              className="h-7 text-sm"
-              disabled={isPending}
-            />
-          </div>
-
-          {/* Rich text body */}
-          <div className="overflow-hidden rounded-md border bg-background">
-            <Plate editor={emailEditor}>
-              <EmailEditorInner
-                onSubmit={handleSendEmail}
-                isPending={isPending}
-              />
-            </Plate>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <KbdHint />
-              <button
-                type="button"
-                onClick={() => setReplyAll((r) => !r)}
-                className={cn(
-                  'rounded px-1.5 py-0.5 text-xs font-medium transition-colors',
-                  replyAll
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {replyAll ? 'Reply All' : 'Reply'}
-              </button>
-            </div>
-            <Button
-              size="sm"
-              className="h-7 gap-1.5 px-3"
-              disabled={isPending}
-              onClick={handleSendEmail}
-            >
-              <SendIcon className="h-3.5 w-3.5" />
-              Send
-            </Button>
-          </div>
-
-          {error && <p className="text-xs text-destructive">{error}</p>}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Standard / non-email mode ────────────────────────────────────────────────
 
   return (
     <div
       className={cn(
-        'border-t bg-background px-4 py-3',
+        'bg-background',
         isInternal && 'bg-violet-50/30 dark:bg-violet-950/10',
       )}
     >
@@ -365,7 +402,7 @@ export const BlockReplyInput = memo(function BlockReplyInput({
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDownStandard}
+          onKeyDown={handleKeyDown}
           placeholder={isInternal ? 'Write an internal note…' : 'Reply…'}
           className={cn(
             'min-h-[56px] max-h-[120px] resize-none text-sm',
@@ -379,7 +416,7 @@ export const BlockReplyInput = memo(function BlockReplyInput({
           size="sm"
           className="h-8 shrink-0 gap-1.5 px-3"
           disabled={!content.trim() || isPending}
-          onClick={handleSendStandard}
+          onClick={handleSend}
         >
           <SendIcon className="h-3.5 w-3.5" />
           {isInternal ? 'Note' : 'Send'}

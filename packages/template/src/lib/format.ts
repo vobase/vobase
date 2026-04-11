@@ -35,3 +35,15 @@ export function formatDate(
     return '';
   }
 }
+
+/** Short date + time (e.g. "Apr 10, 03:45 PM") */
+export function formatDateTime(date: Date | string | number | undefined) {
+  if (!date) return '';
+  return formatDate(date, {
+    month: 'short',
+    day: 'numeric',
+    year: undefined,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}

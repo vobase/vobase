@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   ArrowLeftIcon,
-  BotIcon,
   BrainIcon,
   CalendarIcon,
   ChevronRightIcon,
@@ -23,6 +22,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { aiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -38,31 +38,19 @@ interface Contact {
   updatedAt: string;
 }
 
-interface TimelineMessage {
-  interactionId: string;
-  id: string;
-  content: string;
-  senderType: string;
-  messageType: string;
-  createdAt: string;
-}
-
-interface TimelineInteraction {
+interface TimelineConversation {
   id: string;
   status: string;
-  mode: string;
   outcome: string | null;
-  autonomyLevel: string;
   reopenCount: number;
-  agentId: string;
+  onHold: boolean;
+  priority: number | null;
+  assignee: string | null;
   channelInstanceId: string;
   channelType: string;
   channelLabel: string;
   startedAt: string;
   resolvedAt: string | null;
-  lastMessageAt: string | null;
-  title: string | null;
-  recentMessages: TimelineMessage[];
 }
 
 // ─── Data fetchers ───────────────────────────────────────────────────
@@ -75,16 +63,16 @@ async function fetchContact(id: string): Promise<Contact> {
 
 async function fetchContactTimeline(
   contactId: string,
-): Promise<TimelineInteraction[]> {
+): Promise<TimelineConversation[]> {
   const res = await aiClient.contacts[':id'].timeline.$get({
     param: { id: contactId },
     query: { limit: '50' },
   });
   if (!res.ok) return [];
   const data = (await res.json()) as unknown as {
-    interactions: TimelineInteraction[];
+    conversations: TimelineConversation[];
   };
-  return data.interactions;
+  return data.conversations;
 }
 
 async function fetchWorkingMemory(contactId: string): Promise<string | null> {
@@ -152,15 +140,6 @@ function formatDate(dateStr: string): string {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  });
-}
-
-function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   });
 }
 
@@ -279,29 +258,35 @@ function TimelineTab({ contactId }: { contactId: string }) {
     return (
       <div className="rounded-lg border bg-muted/20 py-8 text-center">
         <MessageSquareIcon className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
-        <p className="text-sm text-muted-foreground">No interactions yet.</p>
+        <p className="text-sm text-muted-foreground">No conversations yet.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      {timeline.map((interaction) => (
-        <InteractionCard key={interaction.id} interaction={interaction} />
+      {timeline.map((conv) => (
+        <ConversationCard
+          key={conv.id}
+          conversation={conv}
+          contactId={contactId}
+        />
       ))}
     </div>
   );
 }
 
-function InteractionCard({
-  interaction,
+function ConversationCard({
+  conversation,
+  contactId,
 }: {
-  interaction: TimelineInteraction;
+  conversation: TimelineConversation;
+  contactId: string;
 }) {
-  const channel = getChannelConfig(interaction.channelType);
+  const channel = getChannelConfig(conversation.channelType);
   const ChannelIcon = channel.icon;
-  const duration = interaction.resolvedAt
-    ? formatDuration(interaction.startedAt, interaction.resolvedAt)
+  const duration = conversation.resolvedAt
+    ? formatDuration(conversation.startedAt, conversation.resolvedAt)
     : null;
 
   return (
@@ -319,16 +304,16 @@ function InteractionCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">
-              {interaction.title ?? `${interaction.channelLabel} interaction`}
+              {`${conversation.channelLabel} conversation`}
             </span>
-            {interaction.reopenCount > 0 && (
+            {conversation.reopenCount > 0 && (
               <span className="text-[10px] text-muted-foreground">
-                reopened {interaction.reopenCount}x
+                reopened {conversation.reopenCount}x
               </span>
             )}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>{formatDateTime(interaction.startedAt)}</span>
+            <span>{formatDateTime(conversation.startedAt)}</span>
             {duration && (
               <>
                 <span>&middot;</span>
@@ -336,64 +321,31 @@ function InteractionCard({
               </>
             )}
             <span>&middot;</span>
-            <span className="capitalize">{interaction.channelType}</span>
+            <span className="capitalize">{conversation.channelType}</span>
           </div>
         </div>
 
         {/* Right side: badges */}
         <div className="flex shrink-0 items-center gap-1.5">
-          {interaction.mode !== 'ai' && (
-            <Badge variant="outline" className="text-[10px] capitalize">
-              {interaction.mode}
-            </Badge>
-          )}
           <Badge
-            variant={statusVariant(interaction.status)}
+            variant={statusVariant(conversation.status)}
             className="text-[10px] capitalize"
           >
-            {interaction.status}
+            {conversation.status}
           </Badge>
-          {interaction.outcome && interaction.status === 'resolved' && (
+          {conversation.outcome && conversation.status === 'resolved' && (
             <Badge variant="secondary" className="text-[10px] capitalize">
-              {interaction.outcome.replace(/_/g, ' ')}
+              {conversation.outcome.replace(/_/g, ' ')}
             </Badge>
           )}
         </div>
       </div>
 
-      {/* Recent messages preview */}
-      {interaction.recentMessages.length > 0 && (
-        <div className="border-t px-4 py-2.5">
-          <div className="space-y-1.5">
-            {interaction.recentMessages.map((msg) => (
-              <div key={msg.id} className="flex items-start gap-2">
-                <div className="mt-0.5 shrink-0">
-                  {msg.senderType === 'agent' ? (
-                    <BotIcon className="h-3 w-3 text-primary/60" />
-                  ) : (
-                    <UserIcon className="h-3 w-3 text-muted-foreground" />
-                  )}
-                </div>
-                <p className="min-w-0 text-xs text-muted-foreground line-clamp-1">
-                  {msg.content}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Footer: agent + autonomy */}
-      <div className="flex items-center justify-between border-t px-4 py-2 text-[11px] text-muted-foreground">
-        <div className="flex items-center gap-3">
-          <span>Agent: {interaction.agentId}</span>
-          <span className="capitalize">
-            {interaction.autonomyLevel?.replace(/_/g, ' ') ?? 'in progress'}
-          </span>
-        </div>
+      {/* Footer */}
+      <div className="flex items-center justify-end border-t px-4 py-2 text-[11px] text-muted-foreground">
         <Link
-          to="/interactions/$interactionId"
-          params={{ interactionId: interaction.id }}
+          to="/inbox/$contactId"
+          params={{ contactId }}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
         >
           Open &rarr;
@@ -437,7 +389,7 @@ function MemoryTab({ contactId }: { contactId: string }) {
             No memory data for this contact yet.
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Memory is built from interactions with AI agents.
+            Memory is built from conversations with AI agents.
           </p>
         </div>
       )}

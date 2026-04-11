@@ -1,7 +1,6 @@
 import {
   ActionBarPrimitive,
   AuiIf,
-  ComposerPrimitive,
   ErrorPrimitive,
   MessagePrimitive,
   SuggestionPrimitive,
@@ -11,13 +10,11 @@ import {
 } from '@assistant-ui/react';
 import {
   ArrowDownIcon,
-  ArrowUpIcon,
   CheckIcon,
   CopyIcon,
   DownloadIcon,
   LoaderIcon,
   LockIcon,
-  SquareIcon,
 } from 'lucide-react';
 import type { FC } from 'react';
 
@@ -37,33 +34,6 @@ import { cn } from '@/lib/utils';
 import { useStaffChatStore } from '@/stores/staff-chat-store';
 
 // ─── Full Thread (with composer) ────────────────────────────────────
-
-export const Thread: FC = () => {
-  return (
-    <ThreadPrimitive.Root
-      className="aui-root aui-thread-root @container flex h-full flex-col bg-background text-sm"
-      style={{ ['--thread-max-width' as string]: '44rem' }}
-    >
-      <ThreadPrimitive.Viewport
-        turnAnchor="top"
-        className="thin-scrollbar relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
-      >
-        <AuiIf condition={(s) => s.thread.isEmpty}>
-          <ThreadWelcome />
-        </AuiIf>
-
-        <ThreadPrimitive.Messages>
-          {() => <ThreadMessage />}
-        </ThreadPrimitive.Messages>
-
-        <ThreadPrimitive.ViewportFooter className="sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
-          <ThreadScrollToBottom />
-          <Composer />
-        </ThreadPrimitive.ViewportFooter>
-      </ThreadPrimitive.Viewport>
-    </ThreadPrimitive.Root>
-  );
-};
 
 // ─── Messages-only Thread (no composer) ─────────────────────────────
 
@@ -183,12 +153,12 @@ const ActivityEventMessage: FC = () => {
 
 const ThreadTypingIndicator: FC = () => {
   const ctx = useVobaseThread();
-  if (!ctx?.interactionId) return null;
+  if (!ctx?.conversationId) return null;
 
   return (
     <div className="mx-auto w-full max-w-(--thread-max-width) px-4">
       <TypingIndicator
-        interactionId={ctx.interactionId}
+        conversationId={ctx.conversationId}
         isAiThinking={ctx.isAiThinking}
         excludeUserId={ctx.currentUserId}
       />
@@ -247,58 +217,6 @@ const ThreadWelcome: FC = () => {
 };
 
 // ─── Composer ────────────────────────────────────────────────────────
-
-const Composer: FC = () => {
-  return (
-    <ComposerPrimitive.Root className="relative flex w-full flex-col">
-      <div className="flex w-full flex-col gap-2 rounded-xl border bg-background px-1 pt-2 transition-shadow focus-within:border-ring/75 focus-within:ring-2 focus-within:ring-ring/20">
-        <ComposerPrimitive.Input
-          placeholder="Send a message..."
-          className="mb-1 max-h-32 min-h-10 w-full resize-none bg-transparent px-4 pt-2 pb-3 text-sm outline-none placeholder:text-muted-foreground/80"
-          rows={1}
-          autoFocus
-          aria-label="Message input"
-        />
-        <ComposerAction />
-      </div>
-    </ComposerPrimitive.Root>
-  );
-};
-
-const ComposerAction: FC = () => {
-  return (
-    <div className="relative mx-2 mb-2 flex items-center justify-end">
-      <AuiIf condition={(s) => !s.thread.isRunning}>
-        <ComposerPrimitive.Send asChild>
-          <TooltipIconButton
-            tooltip="Send message"
-            side="bottom"
-            type="button"
-            variant="default"
-            size="icon"
-            className="size-8 rounded-full"
-            aria-label="Send message"
-          >
-            <ArrowUpIcon className="size-4" />
-          </TooltipIconButton>
-        </ComposerPrimitive.Send>
-      </AuiIf>
-      <AuiIf condition={(s) => s.thread.isRunning}>
-        <ComposerPrimitive.Cancel asChild>
-          <Button
-            type="button"
-            variant="default"
-            size="icon"
-            className="size-8 rounded-full"
-            aria-label="Stop generating"
-          >
-            <SquareIcon className="size-3 fill-current" />
-          </Button>
-        </ComposerPrimitive.Cancel>
-      </AuiIf>
-    </div>
-  );
-};
 
 /** ToolFallback wrapped with vertical spacing between consecutive tool calls */
 const ToolFallbackWithSpacing: ToolCallMessagePartComponent = (props) => (

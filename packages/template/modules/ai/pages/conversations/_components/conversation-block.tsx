@@ -1,20 +1,19 @@
 import {
-  BotIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   EllipsisIcon,
+  PauseIcon,
+  PlayIcon,
   XCircleIcon,
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
 import {
   AssigneeBadge,
-  ChannelBadge,
-  ModeBadge,
   PriorityBadge,
   StatusBadge,
-} from '@/components/interaction-badges';
+} from '@/components/conversation-badges';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -23,7 +22,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Separator } from '@/components/ui/separator';
 import { isTimelineVisibleEvent } from '@/lib/activity-helpers';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -31,7 +29,7 @@ import { ActivityMessage } from './activity-message';
 import { EmailMessage } from './email-message';
 import { IncomingMessage } from './incoming-message';
 import { OutgoingMessage } from './outgoing-message';
-import type { MessageRow, SenderInfo, TimelineInteractionFull } from './types';
+import type { MessageRow, SenderInfo, TimelineConversationFull } from './types';
 
 // ─── Channel accent colors ────────────────────────────────────────────
 
@@ -56,20 +54,21 @@ interface ReplyToMessage {
 
 // ─── Props ────────────────────────────────────────────────────────────
 
-interface InteractionBlockProps {
-  interaction: TimelineInteractionFull;
+interface ConversationBlockProps {
+  conversation: TimelineConversationFull;
   messages: MessageRow[];
   senderMap: Map<string, SenderInfo>;
   isExpanded: boolean;
   currentUserId?: string;
+  agents?: Array<{ id: string; name: string }>;
+  teamMembers?: Array<{ id: string; name: string }>;
   onToggle: () => void;
-  onUpdateInteraction: (body: {
+  onUpdateConversation: (body: {
     status?: string;
-    mode?: string;
     priority?: string | null;
     assignee?: string | null;
+    onHold?: boolean;
   }) => void;
-  onHandback: () => void;
   onSendReply: (
     content: string,
     isInternal: boolean,
@@ -80,24 +79,25 @@ interface InteractionBlockProps {
 
 // ─── Component ────────────────────────────────────────────────────────
 
-export const InteractionBlock = memo(function InteractionBlock({
-  interaction,
+export const ConversationBlock = memo(function ConversationBlock({
+  conversation,
   messages,
   senderMap,
   isExpanded,
   currentUserId,
+  agents = [],
+  teamMembers = [],
   onToggle,
-  onUpdateInteraction,
-  onHandback,
+  onUpdateConversation,
   onSendReply: _onSendReply,
   onRetryMessage,
-}: InteractionBlockProps) {
+}: ConversationBlockProps) {
   const [showAll, setShowAll] = useState(false);
   const [_replyTo, setReplyTo] = useState<ReplyToMessage | null>(null);
 
   const isTerminal =
-    interaction.status === 'resolved' || interaction.status === 'failed';
-  const accentClass = CHANNEL_LINE_ACTIVE[interaction.channelType];
+    conversation.status === 'resolved' || conversation.status === 'failed';
+  const accentClass = CHANNEL_LINE_ACTIVE[conversation.channelType];
 
   // Filter and sort messages — same logic as MessageTimeline
   const visibleMessages = useMemo(
@@ -106,7 +106,10 @@ export const InteractionBlock = memo(function InteractionBlock({
         .filter(
           (msg) =>
             msg.messageType !== 'activity' ||
-            isTimelineVisibleEvent(msg.content),
+            isTimelineVisibleEvent(
+              (msg.contentData as Record<string, unknown>)
+                ?.eventType as string ?? msg.content,
+            ),
         )
         .sort(
           (a, b) =>
@@ -132,19 +135,19 @@ export const InteractionBlock = memo(function InteractionBlock({
   );
 
   // Date range label in header
-  const startLabel = formatDate(interaction.startedAt, {
+  const startLabel = formatDate(conversation.startedAt, {
     month: 'short',
     day: 'numeric',
   });
-  const endLabel = interaction.resolvedAt
-    ? formatDate(interaction.resolvedAt, { month: 'short', day: 'numeric' })
+  const endLabel = conversation.resolvedAt
+    ? formatDate(conversation.resolvedAt, { month: 'short', day: 'numeric' })
     : null;
   const dateRange =
     endLabel && endLabel !== startLabel
       ? `${startLabel} – ${endLabel}`
       : startLabel;
 
-  const title = interaction.channelLabel ?? 'Interaction';
+  const title = conversation.channelLabel ?? 'Conversation';
 
   const handleReplyClick = (
     messageId: string,
@@ -165,102 +168,94 @@ export const InteractionBlock = memo(function InteractionBlock({
       />
 
       <div className="rounded-lg border bg-card overflow-hidden">
-        {/* Header Row 1 — always visible, full row click toggles */}
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/40 transition-colors"
-        >
-          {isExpanded ? (
-            <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          )}
-          <ChannelBadge type={interaction.channelType} />
-          <span className="flex-1 text-sm font-medium truncate">{title}</span>
-          <StatusBadge status={interaction.status} />
-          <span className="text-xs text-muted-foreground shrink-0">
-            {dateRange}
-          </span>
-        </button>
-
-        {/* Header Row 2 — active interactions only, stopPropagation prevents toggle */}
-        {!isTerminal && (
-          // biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation container, not interactive itself
-          // biome-ignore lint/a11y/noStaticElementInteractions: stopPropagation container only
-          <div
-            className="flex items-center gap-1 border-t px-3 py-1.5"
-            onClick={(e) => e.stopPropagation()}
+        {/* Header — single row with toggle, title, actions */}
+        <div className="flex items-center gap-1.5 px-3 py-2">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex items-center gap-1.5 min-w-0 flex-1 text-left hover:opacity-80 transition-opacity"
           >
-            <ModeBadge
-              mode={interaction.mode}
-              variant="field"
-              onSelect={(v) =>
-                onUpdateInteraction({
-                  mode: v as 'ai' | 'supervised' | 'human' | 'held',
-                })
-              }
-            />
-            <PriorityBadge
-              priority={interaction.priority}
-              variant="field"
-              onSelect={(v) =>
-                onUpdateInteraction({
-                  priority: v as 'low' | 'normal' | 'high' | 'urgent' | null,
-                })
-              }
-            />
-            <Separator orientation="vertical" className="h-4 mx-0.5" />
-            <AssigneeBadge
-              assignee={interaction.assignee}
-              isMe={!!currentUserId && interaction.assignee === currentUserId}
-              variant="field"
-              onAssign={() =>
-                onUpdateInteraction({ assignee: currentUserId ?? null })
-              }
-              onUnassign={() => onUpdateInteraction({ assignee: null })}
-            />
-            <div className="flex-1" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
-                  <EllipsisIcon className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={() => onUpdateInteraction({ status: 'resolved' })}
-                  className="gap-2 text-sm"
-                >
-                  <CheckIcon className="h-3.5 w-3.5" />
-                  Mark resolved
-                </DropdownMenuItem>
-                {(interaction.mode === 'human' ||
-                  interaction.mode === 'supervised' ||
-                  interaction.mode === 'held') && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={onHandback}
-                      className="gap-2 text-sm"
-                    >
-                      <BotIcon className="h-3.5 w-3.5 text-violet-500" />
-                      Hand back to AI
-                    </DropdownMenuItem>
-                  </>
+            {isExpanded ? (
+              <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+            <span className="text-sm font-medium truncate">{title}</span>
+            <StatusBadge status={conversation.status} />
+            <span className="text-xs text-muted-foreground shrink-0">
+              {dateRange}
+            </span>
+          </button>
+
+          {/* Inline actions for active conversations */}
+          {!isTerminal && (
+            <div
+              className="flex items-center gap-0.5 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              role="toolbar"
+              aria-label="Conversation actions"
+            >
+              <AssigneeBadge
+                assignee={conversation.assignee}
+                variant="field"
+                onSelect={(v) => onUpdateConversation({ assignee: v })}
+                agents={agents}
+                teamMembers={teamMembers}
+              />
+              <PriorityBadge
+                priority={conversation.priority}
+                variant="field"
+                onSelect={(v) =>
+                  onUpdateConversation({
+                    priority: v as 'low' | 'normal' | 'high' | 'urgent' | null,
+                  })
+                }
+              />
+              <Button
+                variant={conversation.onHold ? 'secondary' : 'ghost'}
+                size="sm"
+                className={cn(
+                  'h-7 gap-1.5 text-xs',
+                  conversation.onHold && 'text-amber-600 dark:text-amber-400',
                 )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="gap-2 text-xs text-destructive focus:text-destructive"
-                  onClick={() => onUpdateInteraction({ status: 'failed' })}
-                >
-                  <XCircleIcon className="h-3.5 w-3.5" />
-                  Kill interaction
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
+                onClick={() =>
+                  onUpdateConversation({ onHold: !conversation.onHold })
+                }
+              >
+                {conversation.onHold ? (
+                  <PlayIcon className="h-3 w-3" />
+                ) : (
+                  <PauseIcon className="h-3 w-3" />
+                )}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <EllipsisIcon className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    onClick={() => onUpdateConversation({ status: 'resolved' })}
+                    className="gap-2 text-sm"
+                  >
+                    <CheckIcon className="h-3.5 w-3.5" />
+                    Mark resolved
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="gap-2 text-xs text-destructive focus:text-destructive"
+                    onClick={() => onUpdateConversation({ status: 'failed' })}
+                  >
+                    <XCircleIcon className="h-3.5 w-3.5" />
+                    Kill conversation
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+        </div>
 
         {/* Body */}
         {isExpanded ? (
@@ -283,7 +278,7 @@ export const InteractionBlock = memo(function InteractionBlock({
                 message={msg}
                 senderMap={senderMap}
                 currentUserId={currentUserId}
-                channelType={interaction.channelType}
+                channelType={conversation.channelType}
                 onRetry={onRetryMessage}
                 onReplyClick={handleReplyClick}
               />
@@ -315,7 +310,7 @@ export const InteractionBlock = memo(function InteractionBlock({
 
 // ─── Message dispatcher ───────────────────────────────────────────────
 
-const BlockMessageItem = memo(function BlockMessageItem({
+export const BlockMessageItem = memo(function BlockMessageItem({
   message,
   senderMap,
   currentUserId,

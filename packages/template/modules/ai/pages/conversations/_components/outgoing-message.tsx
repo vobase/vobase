@@ -1,4 +1,9 @@
-import { BotIcon, CornerUpLeftIcon, ShieldCheckIcon, UserIcon } from 'lucide-react';
+import {
+  BotIcon,
+  CornerUpLeftIcon,
+  ShieldCheckIcon,
+  UserIcon,
+} from 'lucide-react';
 import { memo } from 'react';
 
 import {
@@ -6,7 +11,7 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
-import { ChannelBadge } from '@/components/interaction-badges';
+import { ChannelBadge } from '@/components/conversation-badges';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { formatRelativeTime } from '@/lib/format';
@@ -20,7 +25,11 @@ interface OutgoingMessageProps {
   message: MessageRow;
   sender?: SenderInfo;
   onRetry?: (messageId: string) => void;
-  onReplyClick?: (messageId: string, senderName: string, contentPreview: string) => void;
+  onReplyClick?: (
+    messageId: string,
+    senderName: string,
+    contentPreview: string,
+  ) => void;
   className?: string;
   /** When "right", renders right-aligned (current staff's own messages). */
   align?: 'left' | 'right';
@@ -114,13 +123,18 @@ export const OutgoingMessage = memo(function OutgoingMessage({
     </Avatar>
   );
 
-  const contentPreview = (interactive?.body?.text ?? message.content).slice(0, 100);
+  const contentPreview = (interactive?.body?.text ?? message.content).slice(
+    0,
+    100,
+  );
 
   const meta = (
-    <div className={cn(
-      'flex items-center gap-1.5 text-xs text-muted-foreground',
-      align === 'right' && 'justify-end',
-    )}>
+    <div
+      className={cn(
+        'flex items-center gap-1.5 text-xs text-muted-foreground',
+        align === 'right' && 'justify-end',
+      )}
+    >
       <span
         className={cn(
           'font-medium',

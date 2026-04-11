@@ -20,24 +20,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChannelBadge,
   ContactBadge,
-  ModeBadge,
   PriorityIcon,
-} from '@/components/interaction-badges';
+} from '@/components/conversation-badges';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useInteractionQuality } from '@/hooks/use-interaction-quality';
+import { useConversationQuality } from '@/hooks/use-conversation-quality';
 import { aiClient } from '@/lib/api-client';
 import { formatRelativeTimeShort } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
-interface InteractionRow {
+interface ConversationRow {
   id: string;
   status: string;
-  mode: string | null;
+  assignee: string | null;
+  onHold: boolean;
   priority: string | null;
   contactId: string | null;
   contactName: string | null;
@@ -46,8 +46,6 @@ interface InteractionRow {
   channelType: string | null;
   createdAt: string;
   updatedAt: string;
-  hasPendingEscalation: boolean;
-  waitingSince: string | null;
   unreadCount: number;
   lastMessageContent: string | null;
   lastMessageAt: string | null;
@@ -56,14 +54,14 @@ interface InteractionRow {
 }
 
 interface TabCounts {
-  attention: number;
-  ai: number;
+  active: number;
+  onHold: number;
   done: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function signalPreview(row: InteractionRow): string | null {
+function signalPreview(row: ConversationRow): string | null {
   const { lastMessageContent, lastMessageType } = row;
   if (!lastMessageContent && !lastMessageType) return null;
 
@@ -74,9 +72,9 @@ function signalPreview(row: InteractionRow): string | null {
       case 'handler.changed':
         return 'Mode changed';
       case 'session.completed':
-        return 'Interaction resolved';
+        return 'Conversation resolved';
       case 'session.failed':
-        return 'Interaction failed';
+        return 'Conversation failed';
       case 'guardrail.block':
         return 'Message blocked by guardrail';
       case 'message.delivery_failed':
@@ -98,58 +96,56 @@ function signalPreview(row: InteractionRow): string | null {
 
 // ─── Data fetchers ────────────────────────────────────────────────────
 
-async function fetchAttention(): Promise<InteractionRow[]> {
-  const res = await aiClient.interactions.attention.$get({
+async function fetchActive(): Promise<ConversationRow[]> {
+  const res = await aiClient.conversations.active.$get({
     query: { limit: '50' },
   });
-  if (!res.ok) throw new Error('Failed to fetch attention interactions');
-  return res.json() as unknown as Promise<InteractionRow[]>;
+  if (!res.ok) throw new Error('Failed to fetch active conversations');
+  return res.json() as unknown as Promise<ConversationRow[]>;
 }
 
-async function fetchAiActive(): Promise<InteractionRow[]> {
-  const res = await aiClient.interactions['ai-active'].$get({
+async function fetchOnHold(): Promise<ConversationRow[]> {
+  const res = await aiClient.conversations['on-hold'].$get({
     query: { limit: '50' },
   });
-  if (!res.ok) throw new Error('Failed to fetch AI active interactions');
-  return res.json() as unknown as Promise<InteractionRow[]>;
+  if (!res.ok) throw new Error('Failed to fetch on-hold conversations');
+  return res.json() as unknown as Promise<ConversationRow[]>;
 }
 
-async function fetchResolved(): Promise<InteractionRow[]> {
-  const res = await aiClient.interactions.resolved.$get({
+async function fetchResolved(): Promise<ConversationRow[]> {
+  const res = await aiClient.conversations.resolved.$get({
     query: { limit: '50' },
   });
-  if (!res.ok) throw new Error('Failed to fetch resolved interactions');
-  return res.json() as unknown as Promise<InteractionRow[]>;
+  if (!res.ok) throw new Error('Failed to fetch resolved conversations');
+  return res.json() as unknown as Promise<ConversationRow[]>;
 }
 
 async function fetchCounts(): Promise<TabCounts> {
-  const res = await aiClient.interactions.counts.$get();
-  if (!res.ok) throw new Error('Failed to fetch interaction counts');
+  const res = await aiClient.conversations.counts.$get();
+  if (!res.ok) throw new Error('Failed to fetch conversation counts');
   return res.json() as unknown as Promise<TabCounts>;
 }
 
-// ─── Interaction Row ─────────────────────────────────────────────────
+// ─── Conversation Row ─────────────────────────────────────────────────
 
 function InboxRow({
   row,
-  showMode,
   isFocused,
   quality,
 }: {
-  row: InteractionRow;
-  showMode?: boolean;
+  row: ConversationRow;
   isFocused?: boolean;
   quality?: { avgScore: number; count: number };
 }) {
-  const { interactionId: selectedId } = useParams({ strict: false });
+  const { conversationId: selectedId } = useParams({ strict: false });
   const isSelected = row.id === selectedId;
   const preview = signalPreview(row);
-  const timeRef = row.waitingSince ?? row.updatedAt;
+  const timeRef = row.updatedAt;
 
   return (
     <Link
-      to="/interactions/$interactionId"
-      params={{ interactionId: row.id }}
+      to="/conversations/$conversationId"
+      params={{ conversationId: row.id }}
       className={cn(
         'group flex items-start gap-2.5 px-3 py-2.5 transition-colors relative border-l-2',
         isSelected
@@ -165,9 +161,6 @@ function InboxRow({
           <PriorityIcon priority={row.priority} />
           <ChannelBadge type={row.channelType} variant="icon" />
           <ContactBadge name={row.contactName} contactId={row.contactId} />
-          {row.hasPendingEscalation && (
-            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
-          )}
           {quality && (
             <QualityBadge avgScore={quality.avgScore} count={quality.count} />
           )}
@@ -202,9 +195,6 @@ function InboxRow({
               </span>
             )}
           </div>
-        )}
-        {showMode && row.mode && (
-          <ModeBadge mode={row.mode} variant="muted" className="mt-0.5" />
         )}
       </div>
 
@@ -253,21 +243,19 @@ function InboxRowSkeleton() {
   );
 }
 
-// ─── Interaction List ────────────────────────────────────────────────
+// ─── Conversation List ────────────────────────────────────────────────
 
-function InteractionList({
+function ConversationList({
   rows,
   isPending,
-  showMode,
   focusedIndex,
   qualityMap,
   emptyIcon,
   emptyTitle,
   emptySubtitle,
 }: {
-  rows: InteractionRow[];
+  rows: ConversationRow[];
   isPending: boolean;
-  showMode?: boolean;
   focusedIndex: number;
   qualityMap: Record<string, { avgScore: number; count: number }>;
   emptyIcon: React.ReactNode;
@@ -303,7 +291,6 @@ function InteractionList({
         <InboxRow
           key={row.id}
           row={row}
-          showMode={showMode}
           isFocused={i === focusedIndex}
           quality={qualityMap[row.id]}
         />
@@ -314,17 +301,17 @@ function InteractionList({
 
 // ─── Empty State ─────────────────────────────────────────────────────
 
-function NoInteractionSelected() {
+function NoConversationSelected() {
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
         <SparklesIcon className="h-6 w-6 text-muted-foreground" />
       </div>
       <p className="text-sm font-medium text-foreground">
-        No interaction selected
+        No conversation selected
       </p>
       <p className="text-sm text-muted-foreground mt-1">
-        Select an interaction from the list to view it
+        Select a conversation from the list to view it
       </p>
     </div>
   );
@@ -332,39 +319,39 @@ function NoInteractionSelected() {
 
 // ─── Layout ───────────────────────────────────────────────────────────
 
-function InteractionsLayout() {
-  const { interactionId } = useParams({ strict: false });
-  const hasSelection = !!interactionId;
+function ConversationsLayout() {
+  const { conversationId } = useParams({ strict: false });
+  const hasSelection = !!conversationId;
   const navigate = useNavigate();
 
-  const [tab, setTab] = useState<'attention' | 'ai' | 'done'>('attention');
+  const [tab, setTab] = useState<'active' | 'on-hold' | 'done'>('active');
   const [search, setSearch] = useState('');
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const listPanelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // When navigating directly to an interaction, auto-select the correct tab
+  // When navigating directly to a conversation, auto-select the correct tab
   const tabInitRef = useRef(false);
   useEffect(() => {
-    if (!interactionId || tabInitRef.current) return;
+    if (!conversationId || tabInitRef.current) return;
     tabInitRef.current = true;
-    aiClient.interactions[':id']
-      .$get({ param: { id: interactionId } })
+    aiClient.conversations[':id']
+      .$get({ param: { id: conversationId } })
       .then(async (res) => {
         if (!res.ok) return;
         const conv = (await res.json()) as {
           status: string;
-          mode: string | null;
+          onHold: boolean;
         };
         if (conv.status === 'resolved' || conv.status === 'failed') {
           setTab('done');
-        } else if (conv.mode === 'ai') {
-          setTab('ai');
+        } else if (conv.onHold) {
+          setTab('on-hold');
         }
-        // else default 'attention' is correct for human/supervised/held
+        // else default 'active'
       })
       .catch(() => {});
-  }, [interactionId]);
+  }, [conversationId]);
 
   // Reset search + focus when tab changes
   const handleTabChange = useCallback((v: string) => {
@@ -374,43 +361,43 @@ function InteractionsLayout() {
   }, []);
 
   const { data: counts } = useQuery({
-    queryKey: ['interactions-counts'],
+    queryKey: ['conversations-counts'],
     queryFn: fetchCounts,
     refetchInterval: 60000,
   });
 
   // Fetch active tab data
-  const { data: attentionData, isPending: attentionPending } = useQuery({
-    queryKey: ['interactions-attention'],
-    queryFn: fetchAttention,
+  const { data: activeData, isPending: activePending } = useQuery({
+    queryKey: ['conversations-active'],
+    queryFn: fetchActive,
     refetchInterval: 60000,
-    enabled: tab === 'attention',
+    enabled: tab === 'active',
   });
-  const { data: aiData, isPending: aiPending } = useQuery({
-    queryKey: ['interactions-ai-active'],
-    queryFn: fetchAiActive,
+  const { data: onHoldData, isPending: onHoldPending } = useQuery({
+    queryKey: ['conversations-on-hold'],
+    queryFn: fetchOnHold,
     refetchInterval: 60000,
-    enabled: tab === 'ai',
+    enabled: tab === 'on-hold',
   });
   const { data: resolvedData, isPending: resolvedPending } = useQuery({
-    queryKey: ['interactions-resolved'],
+    queryKey: ['conversations-resolved'],
     queryFn: fetchResolved,
     refetchInterval: 60000,
     enabled: tab === 'done',
   });
 
   const rawRows =
-    tab === 'attention'
-      ? (attentionData ?? [])
-      : tab === 'ai'
-        ? (aiData ?? [])
+    tab === 'active'
+      ? (activeData ?? [])
+      : tab === 'on-hold'
+        ? (onHoldData ?? [])
         : (resolvedData ?? []);
 
   const isPending =
-    tab === 'attention'
-      ? attentionPending
-      : tab === 'ai'
-        ? aiPending
+    tab === 'active'
+      ? activePending
+      : tab === 'on-hold'
+        ? onHoldPending
         : resolvedPending;
 
   // Client-side filter by contact name and signal preview
@@ -459,8 +446,8 @@ function InteractionsLayout() {
         const row = filteredRows[focusedIndex];
         if (row) {
           navigate({
-            to: '/interactions/$interactionId',
-            params: { interactionId: row.id },
+            to: '/conversations/$conversationId',
+            params: { conversationId: row.id },
           });
         }
       } else if (e.key === 'Escape') {
@@ -475,35 +462,33 @@ function InteractionsLayout() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [filteredRows, focusedIndex, navigate]);
 
-  const qualityMap = useInteractionQuality(filteredRows.map((r) => r.id));
-
-  const showMode = tab === 'attention';
+  const qualityMap = useConversationQuality(filteredRows.map((r) => r.id));
 
   const emptyProps =
-    tab === 'attention'
+    tab === 'active'
       ? {
-          emptyIcon: (
-            <CheckCircleIcon className="h-5 w-5 text-muted-foreground" />
-          ),
-          emptyTitle: search ? 'No results' : 'All clear',
+          emptyIcon: <BotIcon className="h-5 w-5 text-muted-foreground" />,
+          emptyTitle: search ? 'No results' : 'No active conversations',
           emptySubtitle: search
-            ? 'No interactions match your search'
-            : 'No interactions need attention',
+            ? 'No conversations match your search'
+            : 'No active conversations right now',
         }
-      : tab === 'ai'
+      : tab === 'on-hold'
         ? {
-            emptyIcon: <BotIcon className="h-5 w-5 text-muted-foreground" />,
-            emptyTitle: search ? 'No results' : 'No active interactions',
+            emptyIcon: (
+              <CheckCircleIcon className="h-5 w-5 text-muted-foreground" />
+            ),
+            emptyTitle: search ? 'No results' : 'Nothing on hold',
             emptySubtitle: search
-              ? 'No interactions match your search'
-              : 'AI is not handling any interactions right now',
+              ? 'No conversations match your search'
+              : 'No conversations are currently on hold',
           }
         : {
             emptyIcon: <InboxIcon className="h-5 w-5 text-muted-foreground" />,
             emptyTitle: search ? 'No results' : 'Nothing resolved yet',
             emptySubtitle: search
-              ? 'No interactions match your search'
-              : 'Resolved interactions will appear here',
+              ? 'No conversations match your search'
+              : 'Resolved conversations will appear here',
           };
 
   return (
@@ -529,7 +514,7 @@ function InteractionsLayout() {
                 setSearch(e.target.value);
                 setFocusedIndex(-1);
               }}
-              placeholder="Search interactions…"
+              placeholder="Search conversations…"
               className="w-full rounded-md border border-input bg-transparent py-1.5 pl-8 pr-7 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {search && (
@@ -554,25 +539,25 @@ function InteractionsLayout() {
         >
           <div className="px-3 pt-2 shrink-0">
             <TabsList className="w-full">
-              <TabsTrigger value="attention" className="flex-1 text-sm gap-1.5">
-                Attention
-                {counts?.attention ? (
-                  <Badge
-                    variant="destructive"
-                    className="h-4 min-w-4 px-1 text-xs font-bold"
-                  >
-                    {counts.attention > 99 ? '99+' : counts.attention}
-                  </Badge>
-                ) : null}
-              </TabsTrigger>
-              <TabsTrigger value="ai" className="flex-1 text-sm gap-1.5">
-                AI
-                {counts?.ai ? (
+              <TabsTrigger value="active" className="flex-1 text-sm gap-1.5">
+                Active
+                {counts?.active ? (
                   <Badge
                     variant="secondary"
                     className="h-4 min-w-4 px-1 text-xs font-bold"
                   >
-                    {counts.ai > 99 ? '99+' : counts.ai}
+                    {counts.active > 99 ? '99+' : counts.active}
+                  </Badge>
+                ) : null}
+              </TabsTrigger>
+              <TabsTrigger value="on-hold" className="flex-1 text-sm gap-1.5">
+                On Hold
+                {counts?.onHold ? (
+                  <Badge
+                    variant="secondary"
+                    className="h-4 min-w-4 px-1 text-xs font-bold"
+                  >
+                    {counts.onHold > 99 ? '99+' : counts.onHold}
                   </Badge>
                 ) : null}
               </TabsTrigger>
@@ -582,17 +567,16 @@ function InteractionsLayout() {
             </TabsList>
           </div>
 
-          {(['attention', 'ai', 'done'] as const).map((v) => (
+          {(['active', 'on-hold', 'done'] as const).map((v) => (
             <TabsContent
               key={v}
               value={v}
               className="min-h-0 flex-1 mt-0 pt-2 overflow-hidden"
             >
               <ScrollArea className="h-full">
-                <InteractionList
+                <ConversationList
                   rows={filteredRows}
                   isPending={isPending}
-                  showMode={showMode}
                   focusedIndex={focusedIndex}
                   qualityMap={qualityMap}
                   {...emptyProps}
@@ -611,15 +595,15 @@ function InteractionsLayout() {
           !hasSelection ? 'hidden lg:flex lg:flex-col' : 'flex flex-col',
         )}
       >
-        {hasSelection ? <Outlet /> : <NoInteractionSelected />}
+        {hasSelection ? <Outlet /> : <NoConversationSelected />}
       </div>
     </div>
   );
 }
 
-export const Route = createFileRoute('/_app/interactions')({
+export const Route = createFileRoute('/_app/conversations')({
   beforeLoad: () => {
     throw redirect({ to: '/inbox' });
   },
-  component: InteractionsLayout,
+  component: ConversationsLayout,
 });

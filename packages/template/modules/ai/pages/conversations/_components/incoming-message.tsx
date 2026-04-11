@@ -6,7 +6,7 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
-import { ChannelBadge } from '@/components/interaction-badges';
+import { ChannelBadge } from '@/components/conversation-badges';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatRelativeTime } from '@/lib/format';
 import { cn } from '@/lib/utils';

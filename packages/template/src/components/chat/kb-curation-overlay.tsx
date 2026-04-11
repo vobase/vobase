@@ -32,7 +32,7 @@ export function KbCurationOverlay({ messageId }: KbCurationOverlayProps) {
 }
 
 /**
- * Toggle button for KB curation mode in interaction header.
+ * Toggle button for KB curation mode in conversation header.
  */
 export function KbCurationToggle() {
   const isActive = useStaffChatStore((s) => s.kbCurationActive);

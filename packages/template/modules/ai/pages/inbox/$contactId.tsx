@@ -7,16 +7,19 @@ import {
 } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import {
+  CheckIcon,
   ChevronDownIcon,
   CircleAlertIcon,
   PanelRightIcon,
+  PauseIcon,
+  PlayIcon,
   PlusIcon,
   UserIcon,
   XCircleIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ChannelBadge } from '@/components/interaction-badges';
+import { AssigneeBadge, ChannelBadge } from '@/components/conversation-badges';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,29 +34,24 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isTimelineVisibleEvent } from '@/lib/activity-helpers';
 import { aiClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
 import { formatRelativeTime } from '@/lib/format';
 import { extractStaffName } from '@/lib/normalize-message';
 import { useInboxDetailStore } from '@/stores/inbox-detail-store';
-import { BlockReplyInput } from '../interactions/_components/block-reply-input';
-import { InteractionBlock } from '../interactions/_components/interaction-block';
-import { MessageTimeline } from '../interactions/_components/message-timeline';
+import { BlockReplyInput } from '../conversations/_components/block-reply-input';
+import {
+  BlockMessageItem,
+  ConversationBlock,
+} from '../conversations/_components/conversation-block';
 import type {
   MessageRow,
   SenderInfo,
-  TimelineInteraction,
-  TimelineInteractionFull,
-} from '../interactions/_components/types';
+  TimelineConversationFull,
+} from '../conversations/_components/types';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -61,7 +59,7 @@ interface TimelinePage {
   messages: MessageRow[];
   hasMore: boolean;
   nextCursor?: string | null;
-  interactions: TimelineInteractionFull[];
+  conversations: TimelineConversationFull[];
   channels: { id: string; type: string; label: string | null }[];
 }
 
@@ -105,9 +103,9 @@ async function fetchTimelinePage(
     query,
   });
   if (!res.ok)
-    return { messages: [], hasMore: false, interactions: [], channels: [] };
+    return { messages: [], hasMore: false, conversations: [], channels: [] };
   const data = await res.json();
-  return data as TimelinePage;
+  return data as unknown as TimelinePage;
 }
 
 async function markContactRead(contactId: string): Promise<void> {
@@ -141,12 +139,12 @@ async function fetchAgents(): Promise<AgentInfo[]> {
 }
 
 async function sendReply(
-  interactionId: string,
+  conversationId: string,
   content: string,
   isInternal = false,
 ): Promise<unknown> {
-  const res = await aiClient.interactions[':id'].reply.$post(
-    { param: { id: interactionId } },
+  const res = await aiClient.conversations[':id'].reply.$post(
+    { param: { id: conversationId } },
     {
       init: {
         body: JSON.stringify({ content, isInternal }),
@@ -158,13 +156,13 @@ async function sendReply(
   return res.json();
 }
 
-async function createNewInteraction(
+async function createNewConversation(
   contactId: string,
   channelInstanceId: string,
   content: string,
   isInternal: boolean,
-): Promise<{ interactionId: string; messageId: string }> {
-  const res = await aiClient.contacts[':id']['new-interaction'].$post(
+): Promise<{ conversationId: string; messageId: string }> {
+  const res = await aiClient.contacts[':id']['new-conversation'].$post(
     { param: { id: contactId } },
     {
       init: {
@@ -173,23 +171,23 @@ async function createNewInteraction(
       },
     },
   );
-  if (!res.ok) throw new Error('Failed to create interaction');
+  if (!res.ok) throw new Error('Failed to create conversation');
   return res.json() as Promise<{
-    interactionId: string;
+    conversationId: string;
     messageId: string;
   }>;
 }
 
-async function updateInteraction(
+async function updateConversation(
   id: string,
   body: {
     status?: 'resolved' | 'failed';
-    mode?: 'held' | 'ai' | 'supervised' | 'human';
     priority?: 'low' | 'normal' | 'high' | 'urgent' | null;
     assignee?: string | null;
+    onHold?: boolean;
   },
 ): Promise<unknown> {
-  const res = await aiClient.interactions[':id'].$patch(
+  const res = await aiClient.conversations[':id'].$patch(
     { param: { id } },
     {
       init: {
@@ -198,7 +196,7 @@ async function updateInteraction(
       },
     },
   );
-  if (!res.ok) throw new Error('Failed to update interaction');
+  if (!res.ok) throw new Error('Failed to update conversation');
   return res.json();
 }
 
@@ -343,13 +341,11 @@ function InboxDetailPage() {
   // ── Zustand store ──────────────────────────────────────────────────
   const store = useInboxDetailStore();
   const {
-    expandedInteractionIds,
-    viewMode,
-    selectedChannelId,
+    expandedConversationIds,
+    selectedTabChannelId,
     toggleBlock,
     setDefaultExpansion,
-    setViewMode,
-    selectChannel,
+    selectTabChannel,
   } = store;
 
   // Switch contact atomically when URL changes
@@ -369,12 +365,7 @@ function InboxDetailPage() {
     queryFn: () => fetchContact(contactId),
   });
 
-  const {
-    data: timelineData,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
+  const { data: timelineData, hasNextPage } = useInfiniteQuery({
     queryKey: ['contact-timeline', contactId],
     queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
       fetchTimelinePage(contactId, pageParam),
@@ -396,8 +387,8 @@ function InboxDetailPage() {
     [timelineData],
   );
 
-  const allInteractions = useMemo(
-    () => timelineData?.pages[0]?.interactions ?? [],
+  const allConversations = useMemo(
+    () => timelineData?.pages[0]?.conversations ?? [],
     [timelineData],
   );
 
@@ -406,91 +397,137 @@ function InboxDetailPage() {
     [timelineData],
   );
 
+  // Auto-select first channel tab when channels load (sorted by most recent activity)
+  const autoSelectedTabRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (channels.length > 0 && autoSelectedTabRef.current !== contactId) {
+      autoSelectedTabRef.current = contactId;
+      // Sort channels by most recent conversation activity
+      const channelActivity = new Map<string, number>();
+      for (const conv of allConversations) {
+        const t = new Date(conv.startedAt).getTime();
+        const current = channelActivity.get(conv.channelInstanceId) ?? 0;
+        if (t > current) channelActivity.set(conv.channelInstanceId, t);
+      }
+      const sorted = [...channels].sort(
+        (a, b) =>
+          (channelActivity.get(b.id) ?? 0) - (channelActivity.get(a.id) ?? 0),
+      );
+      selectTabChannel(sorted[0]?.id ?? null);
+    }
+  }, [channels, contactId, allConversations, selectTabChannel]);
+
   // Chronological sort for threads view
-  const sortedInteractions = useMemo(
+  const sortedConversations = useMemo(
     () =>
-      [...allInteractions].sort(
+      [...allConversations].sort(
         (a, b) =>
           new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
       ),
-    [allInteractions],
+    [allConversations],
   );
 
-  // Group messages by interactionId for per-block rendering
-  const messagesByInteraction = useMemo(() => {
+  // Filter conversations by selected channel tab (null = "All")
+  const filteredConversations = useMemo(() => {
+    if (!selectedTabChannelId) return sortedConversations;
+    return sortedConversations.filter(
+      (i) => i.channelInstanceId === selectedTabChannelId,
+    );
+  }, [sortedConversations, selectedTabChannelId]);
+
+  // Group messages by conversationId for per-block rendering
+  const messagesByConversation = useMemo(() => {
     const map = new Map<string, MessageRow[]>();
     for (const msg of allMessages) {
-      const list = map.get(msg.interactionId) ?? [];
+      const list = map.get(msg.conversationId) ?? [];
       list.push(msg);
-      map.set(msg.interactionId, list);
+      map.set(msg.conversationId, list);
     }
     return map;
   }, [allMessages]);
 
-  // Timeline interactions (base type) for MessageTimeline in timeline view
-  const timelineInteractions: TimelineInteraction[] = useMemo(
-    () =>
-      allInteractions.map((i) => ({
-        id: i.id,
-        status: i.status,
-        outcome: i.outcome,
-        startedAt: i.startedAt,
-        resolvedAt: i.resolvedAt,
-        reopenCount: i.reopenCount,
-        mode: i.mode,
-      })),
-    [allInteractions],
-  );
+  // Active conversation for the selected channel tab (at most one per channel instance)
+  const activeChannelConversation = useMemo(() => {
+    if (!selectedTabChannelId) return null;
+    return (
+      filteredConversations.find(
+        (i) => i.status === 'active' || i.status === 'resolving',
+      ) ?? null
+    );
+  }, [filteredConversations, selectedTabChannelId]);
 
-  // Map interactionId → channelType (for MessageTimeline segment coloring)
-  const interactionChannelMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const i of allInteractions) {
-      map.set(i.id, i.channelType);
+  // Flat message list for channel tab view — all messages across conversations, chronological,
+  // with conversation boundary info attached
+  const channelFlatMessages = useMemo(() => {
+    if (!selectedTabChannelId) return [];
+    const msgs: Array<MessageRow & { _conversationId: string }> = [];
+    for (const conv of filteredConversations) {
+      const conversationMsgs = messagesByConversation.get(conv.id) ?? [];
+      for (const msg of conversationMsgs) {
+        msgs.push({ ...msg, _conversationId: conv.id });
+      }
     }
-    return map;
-  }, [allInteractions]);
+    return msgs.sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+  }, [selectedTabChannelId, filteredConversations, messagesByConversation]);
 
-  const allTerminal = useMemo(
-    () =>
-      allInteractions.length > 0 &&
-      allInteractions.every(
-        (i) => i.status === 'resolved' || i.status === 'failed',
-      ),
-    [allInteractions],
-  );
+  // Compute conversation boundary positions for dividers
+  const conversationBoundaries = useMemo(() => {
+    const boundaries = new Set<string>();
+    let lastConversationId: string | null = null;
+    for (const msg of channelFlatMessages) {
+      if (lastConversationId && msg._conversationId !== lastConversationId) {
+        boundaries.add(msg.id); // This message starts a new conversation
+      }
+      lastConversationId = msg._conversationId;
+    }
+    return boundaries;
+  }, [channelFlatMessages]);
 
-  // Selected channel for new-message flow
+  // Selected channel for new-message flow (derived from tab selection)
   const selectedChannel = useMemo(
     () =>
-      channels.find((c) => c.id === selectedChannelId) ?? channels[0] ?? null,
-    [channels, selectedChannelId],
+      channels.find((c) => c.id === selectedTabChannelId) ??
+      channels[0] ??
+      null,
+    [channels, selectedTabChannelId],
   );
+
+  // ── Scroll to bottom on channel tab switch ─────────────────────────
+  const channelScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (channelScrollRef.current && selectedTabChannelId) {
+      channelScrollRef.current.scrollTop =
+        channelScrollRef.current.scrollHeight;
+    }
+  }, [selectedTabChannelId, channelFlatMessages.length]);
 
   // ── Effects ────────────────────────────────────────────────────────
 
-  // Set default expansion once per contact when interactions first load
+  // Set default expansion once per contact when conversations first load
   const defaultExpansionContactRef = useRef<string | null>(null);
   useEffect(() => {
     if (
-      allInteractions.length > 0 &&
+      allConversations.length > 0 &&
       defaultExpansionContactRef.current !== contactId
     ) {
       defaultExpansionContactRef.current = contactId;
-      setDefaultExpansion(allInteractions);
+      setDefaultExpansion(allConversations);
     }
-  }, [allInteractions, contactId, setDefaultExpansion]);
+  }, [allConversations, contactId, setDefaultExpansion]);
 
   // Scroll to first active block on initial load (threads view)
   const hasScrolledRef = useRef(false);
   useEffect(() => {
-    if (hasScrolledRef.current || sortedInteractions.length === 0) return;
+    if (hasScrolledRef.current || sortedConversations.length === 0) return;
     hasScrolledRef.current = true;
-    const firstActive = sortedInteractions.find((i) => i.status === 'active');
+    const firstActive = sortedConversations.find((i) => i.status === 'active');
     if (!firstActive) return;
     const el = document.getElementById(`block-${firstActive.id}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [sortedInteractions]);
+  }, [sortedConversations]);
 
   // Mark contact as read
   const lastMsgId = allMessages[allMessages.length - 1]?.id;
@@ -530,7 +567,7 @@ function InboxDetailPage() {
   // ── Sidebar visible block tracking ────────────────────────────────
   const [visibleBlockId, setVisibleBlockId] = useState<string | null>(null);
   useEffect(() => {
-    if (sortedInteractions.length === 0) return;
+    if (sortedConversations.length === 0) return;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -542,16 +579,16 @@ function InboxDetailPage() {
       },
       { threshold: 0.3 },
     );
-    for (const interaction of sortedInteractions) {
-      const el = document.getElementById(`block-${interaction.id}`);
+    for (const conv of sortedConversations) {
+      const el = document.getElementById(`block-${conv.id}`);
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
-  }, [sortedInteractions]);
+  }, [sortedConversations]);
 
-  const scrollToBlock = useCallback((interactionId: string) => {
+  const scrollToBlock = useCallback((conversationId: string) => {
     document
-      .getElementById(`block-${interactionId}`)
+      .getElementById(`block-${conversationId}`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
@@ -560,63 +597,52 @@ function InboxDetailPage() {
     queryClient.invalidateQueries({
       queryKey: ['contact-timeline', contactId],
     });
-    queryClient.invalidateQueries({ queryKey: ['interactions-attention'] });
-    queryClient.invalidateQueries({ queryKey: ['interactions-active'] });
-    queryClient.invalidateQueries({ queryKey: ['interactions-resolved'] });
-    queryClient.invalidateQueries({ queryKey: ['interactions-counts'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-active'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-resolved'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-counts'] });
   }, [queryClient, contactId]);
 
-  const updateInteractionMutation = useMutation({
+  const updateConversationMutation = useMutation({
     mutationFn: ({
       id,
       body,
     }: {
       id: string;
-      body: Parameters<typeof updateInteraction>[1];
-    }) => updateInteraction(id, body),
-    onSuccess: invalidateAll,
-  });
-
-  const handbackMutation = useMutation({
-    mutationFn: async (interactionId: string) => {
-      const res = await aiClient.interactions[':id'].handback.$post({
-        param: { id: interactionId },
-      });
-      if (!res.ok) throw new Error('Failed to hand back');
-      return res.json();
-    },
+      body: Parameters<typeof updateConversation>[1];
+    }) => updateConversation(id, body),
     onSuccess: invalidateAll,
   });
 
   const replyMutation = useMutation({
     mutationFn: ({
-      interactionId,
+      conversationId,
       content,
       isInternal,
     }: {
-      interactionId: string;
+      conversationId: string;
       content: string;
       isInternal: boolean;
       replyToMessageId?: string;
-    }) => sendReply(interactionId, content, isInternal),
+    }) => sendReply(conversationId, content, isInternal),
     onSuccess: invalidateAll,
   });
 
   const retryMutation = useMutation({
     mutationFn: ({
-      interactionId,
+      conversationId,
       messageId,
     }: {
-      interactionId: string;
+      conversationId: string;
       messageId: string;
     }) =>
-      aiClient.interactions[':id'].messages[':mid'].retry.$post({
-        param: { id: interactionId, mid: messageId },
+      aiClient.conversations[':id'].messages[':mid'].retry.$post({
+        param: { id: conversationId, mid: messageId },
       }),
     onSuccess: invalidateAll,
   });
 
-  const newInteractionMutation = useMutation({
+  const newConversationMutation = useMutation({
     mutationFn: ({
       channelInstanceId,
       content,
@@ -626,7 +652,7 @@ function InboxDetailPage() {
       content: string;
       isInternal: boolean;
     }) =>
-      createNewInteraction(contactId, channelInstanceId, content, isInternal),
+      createNewConversation(contactId, channelInstanceId, content, isInternal),
     onSuccess: invalidateAll,
   });
 
@@ -674,77 +700,284 @@ function InboxDetailPage() {
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              {channels.map((ch) => (
-                <ChannelBadge key={ch.id} type={ch.type} variant="badge" />
-              ))}
               {contact && (
                 <Link
                   to="/contacts/$contactId"
                   params={{ contactId: contact.id }}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-1"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Profile
                 </Link>
               )}
             </div>
           </div>
-
-          {/* Threads | Timeline toggle */}
-          <div className="mt-2 flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setViewMode('threads')}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                viewMode === 'threads'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-            >
-              Threads
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('timeline')}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                viewMode === 'timeline'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-            >
-              Timeline
-            </button>
-          </div>
         </div>
 
-        {/* ─── Threads view ─── */}
-        {viewMode === 'threads' && (
+        {/* ─── Channel tabs ─── */}
+        {channels.length > 1 && (
+          <div className="border-b bg-background px-4">
+            <div className="flex items-center gap-0.5 -mb-px">
+              {channels
+                .slice()
+                .sort((a, b) => {
+                  const aTime = Math.max(
+                    ...allConversations
+                      .filter((i) => i.channelInstanceId === a.id)
+                      .map((i) => new Date(i.startedAt).getTime()),
+                    0,
+                  );
+                  const bTime = Math.max(
+                    ...allConversations
+                      .filter((i) => i.channelInstanceId === b.id)
+                      .map((i) => new Date(i.startedAt).getTime()),
+                    0,
+                  );
+                  return bTime - aTime;
+                })
+                .map((ch) => (
+                  <button
+                    key={ch.id}
+                    type="button"
+                    onClick={() => selectTabChannel(ch.id)}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                      selectedTabChannelId === ch.id
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
+                    }`}
+                  >
+                    <ChannelBadge type={ch.type} variant="icon" />
+                    {ch.label ?? ch.type}
+                  </button>
+                ))}
+              <button
+                type="button"
+                onClick={() => selectTabChannel(null)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                  selectedTabChannelId === null
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
+                }`}
+              >
+                All
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Content area ─── */}
+        {selectedTabChannelId ? (
+          /* ── Channel tab: flat message timeline ── */
+          <div className="flex flex-1 flex-col min-h-0">
+            {/* Conversation action bar — always visible on channel tabs, disabled when no active conversation */}
+            {selectedTabChannelId && (
+              <div className={`flex items-center gap-2 border-b px-4 py-1.5 bg-muted/20 ${!activeChannelConversation ? 'opacity-50 pointer-events-none' : ''}`}>
+                <AssigneeBadge
+                  assignee={activeChannelConversation?.assignee ?? null}
+                  variant="field"
+                  onSelect={(v) =>
+                    activeChannelConversation &&
+                    updateConversationMutation.mutate({
+                      id: activeChannelConversation.id,
+                      body: { assignee: v },
+                    })
+                  }
+                  agents={agents}
+                />
+                <div className="flex-1" />
+                <Button
+                  variant={
+                    activeChannelConversation?.onHold ? 'secondary' : 'ghost'
+                  }
+                  size="sm"
+                  disabled={!activeChannelConversation}
+                  className={`h-7 gap-1.5 text-xs ${activeChannelConversation?.onHold ? 'text-amber-600 dark:text-amber-400' : ''}`}
+                  onClick={() =>
+                    activeChannelConversation &&
+                    updateConversationMutation.mutate({
+                      id: activeChannelConversation.id,
+                      body: { onHold: !activeChannelConversation.onHold },
+                    })
+                  }
+                >
+                  {activeChannelConversation?.onHold ? (
+                    <>
+                      <PlayIcon className="h-3 w-3" />
+                      Resume
+                    </>
+                  ) : (
+                    <>
+                      <PauseIcon className="h-3 w-3" />
+                      Hold
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={!activeChannelConversation}
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() =>
+                    activeChannelConversation &&
+                    updateConversationMutation.mutate({
+                      id: activeChannelConversation.id,
+                      body: { status: 'resolved' },
+                    })
+                  }
+                >
+                  <CheckIcon className="h-3 w-3" />
+                  Resolve
+                </Button>
+              </div>
+            )}
+
+            {/* Flat message stream */}
+            <div ref={channelScrollRef} className="flex-1 overflow-y-auto">
+              <div className="px-4 py-4 flex flex-col gap-3">
+                {channelFlatMessages
+                  .filter(
+                    (msg) =>
+                      msg.messageType !== 'activity' ||
+                      isTimelineVisibleEvent(
+                        (msg.contentData as Record<string, unknown>)
+                          ?.eventType as string ?? msg.content,
+                      ),
+                  )
+                  .map((msg, idx, arr) => {
+                    // Date divider: show at start of each new day
+                    const msgDate = new Date(msg.createdAt).toDateString();
+                    const prevDate =
+                      idx > 0
+                        ? new Date(arr[idx - 1].createdAt).toDateString()
+                        : null;
+                    const showDateDivider = idx === 0 || msgDate !== prevDate;
+
+                    return (
+                    <div key={msg.id}>
+                      {/* Date divider */}
+                      {showDateDivider && (
+                        <div className="flex items-center gap-3 py-2 mb-1">
+                          <div className="flex-1 border-t" />
+                          <span className="text-[10px] text-muted-foreground/50 font-medium">
+                            {new Date(msg.createdAt).toLocaleDateString(
+                              undefined,
+                              {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                              },
+                            )}
+                          </span>
+                          <div className="flex-1 border-t" />
+                        </div>
+                      )}
+                      {/* Thread boundary divider */}
+                      {conversationBoundaries.has(msg.id) && (
+                        <div className="flex items-center gap-3 py-3 mb-3">
+                          <div className="flex-1 border-t border-dashed" />
+                          <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                            New conversation
+                          </span>
+                          <div className="flex-1 border-t border-dashed" />
+                        </div>
+                      )}
+                      <BlockMessageItem
+                        message={msg}
+                        senderMap={senderMap}
+                        currentUserId={session?.user?.id}
+                        channelType={
+                          filteredConversations[0]?.channelType ?? 'web'
+                        }
+                        onRetry={(messageId) => {
+                          retryMutation.mutate({
+                            conversationId: msg._conversationId,
+                            messageId,
+                          });
+                        }}
+                      />
+                    </div>
+                    );
+                  })}
+
+                {contactLoading && (
+                  <div className="space-y-3">
+                    <Skeleton className="h-10 w-full rounded-lg" />
+                    <Skeleton className="h-10 w-full rounded-lg" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Reply input — active conversation or new conversation */}
+            <div className="border-t px-4 py-2 bg-background">
+              {activeChannelConversation ? (
+                <BlockReplyInput
+                  channelType={activeChannelConversation.channelType}
+                  onSend={(content, isInternal) =>
+                    replyMutation.mutate({
+                      conversationId: activeChannelConversation.id,
+                      content,
+                      isInternal,
+                    })
+                  }
+                  isPending={replyMutation.isPending}
+                  error={replyMutation.isError ? 'Failed to send reply' : null}
+                />
+              ) : selectedChannel ? (
+                <>
+                  <p className="text-xs text-muted-foreground italic mb-1.5">
+                    No active conversation — sending will start a new one.
+                  </p>
+                  <BlockReplyInput
+                    channelType={selectedChannel.type}
+                    onSend={(content, isInternal) =>
+                      newConversationMutation.mutate({
+                        channelInstanceId: selectedTabChannelId,
+                        content,
+                        isInternal,
+                      })
+                    }
+                    isPending={newConversationMutation.isPending}
+                    error={
+                      newConversationMutation.isError
+                        ? 'Failed to start conversation'
+                        : null
+                    }
+                  />
+                </>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          /* ── "All" tab: block view ── */
           <div className="flex-1 overflow-y-auto">
             <div className="px-4 py-4 flex flex-col gap-4">
-              {sortedInteractions.map((interaction) => {
-                const msgs = messagesByInteraction.get(interaction.id) ?? [];
+              {sortedConversations.map((conv) => {
+                const msgs = messagesByConversation.get(conv.id) ?? [];
                 return (
                   <div
-                    key={interaction.id}
-                    id={`block-${interaction.id}`}
-                    data-block-id={interaction.id}
+                    key={conv.id}
+                    id={`block-${conv.id}`}
+                    data-block-id={conv.id}
                   >
-                    <InteractionBlock
-                      interaction={interaction}
+                    <ConversationBlock
+                      conversation={conv}
                       messages={msgs}
                       senderMap={senderMap}
-                      isExpanded={expandedInteractionIds.has(interaction.id)}
+                      isExpanded={expandedConversationIds.has(conv.id)}
                       currentUserId={session?.user?.id}
-                      onToggle={() => toggleBlock(interaction.id)}
-                      onUpdateInteraction={(body) =>
-                        updateInteractionMutation.mutate({
-                          id: interaction.id,
-                          body: body as Parameters<typeof updateInteraction>[1],
+                      agents={agents}
+                      onToggle={() => toggleBlock(conv.id)}
+                      onUpdateConversation={(body) =>
+                        updateConversationMutation.mutate({
+                          id: conv.id,
+                          body: body as Parameters<
+                            typeof updateConversation
+                          >[1],
                         })
                       }
-                      onHandback={() => handbackMutation.mutate(interaction.id)}
                       onSendReply={(content, isInternal, replyToMessageId) =>
                         replyMutation.mutate({
-                          interactionId: interaction.id,
+                          conversationId: conv.id,
                           content,
                           isInternal,
                           replyToMessageId,
@@ -752,7 +985,7 @@ function InboxDetailPage() {
                       }
                       onRetryMessage={(messageId) =>
                         retryMutation.mutate({
-                          interactionId: interaction.id,
+                          conversationId: conv.id,
                           messageId,
                         })
                       }
@@ -761,7 +994,6 @@ function InboxDetailPage() {
                 );
               })}
 
-              {/* Loading skeleton */}
               {contactLoading && (
                 <div className="space-y-3 px-1">
                   <Skeleton className="h-10 w-full rounded-lg" />
@@ -769,88 +1001,15 @@ function InboxDetailPage() {
                 </div>
               )}
 
-              {/* New message flow — all terminal */}
-              {allTerminal && selectedChannel && (
-                <div className="border-t pt-4">
-                  {channels.length > 1 && (
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                      <span className="text-xs text-muted-foreground">
-                        Send on:
-                      </span>
-                      <Select
-                        value={selectedChannelId ?? ''}
-                        onValueChange={selectChannel}
-                      >
-                        <SelectTrigger className="h-7 w-auto text-xs gap-1.5">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {channels.map((ch) => (
-                            <SelectItem
-                              key={ch.id}
-                              value={ch.id}
-                              className="text-xs"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <ChannelBadge type={ch.type} variant="icon" />
-                                {ch.label ?? ch.type}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground italic px-1 mb-2">
-                    This will start a new interaction.
-                  </p>
-                  <BlockReplyInput
-                    channelType={selectedChannel.type}
-                    interactionTitle={selectedChannel.label ?? undefined}
-                    onSend={(content, isInternal) =>
-                      newInteractionMutation.mutate({
-                        channelInstanceId: selectedChannel.id,
-                        content,
-                        isInternal,
-                      })
-                    }
-                    isPending={newInteractionMutation.isPending}
-                    error={
-                      newInteractionMutation.isError
-                        ? 'Failed to start interaction'
-                        : null
-                    }
-                  />
-                </div>
-              )}
-
               {/* All failed alert */}
-              {allInteractions.length > 0 &&
-                allInteractions.every((i) => i.status === 'failed') && (
+              {allConversations.length > 0 &&
+                allConversations.every((i) => i.status === 'failed') && (
                   <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
                     <CircleAlertIcon className="h-4 w-4 shrink-0" />
-                    All interactions for this contact have failed.
+                    All conversations for this contact have failed.
                   </div>
                 )}
             </div>
-          </div>
-        )}
-
-        {/* ─── Timeline view (read-only audit) ─── */}
-        {viewMode === 'timeline' && (
-          <div className="flex-1 overflow-hidden">
-            <MessageTimeline
-              key={contactId}
-              messages={allMessages}
-              senderMap={senderMap}
-              hasMore={!!hasNextPage}
-              isFetchingMore={isFetchingNextPage}
-              onLoadMore={() => fetchNextPage()}
-              timelineInteractions={timelineInteractions}
-              interactionChannelMap={interactionChannelMap}
-              currentUserId={session?.user?.id}
-              isMultiChannel={channels.length > 1}
-            />
           </div>
         )}
       </div>
@@ -923,51 +1082,48 @@ function InboxDetailPage() {
 
                 <Separator />
 
-                {/* Interactions list */}
+                {/* Conversations list */}
                 <Collapsible defaultOpen>
                   <CollapsibleTrigger className="flex w-full items-center justify-between group">
                     <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Interactions ({allInteractions.length})
+                      Conversations ({allConversations.length})
                     </p>
                     <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-2 space-y-1">
-                    {sortedInteractions.map((interaction) => (
+                    {sortedConversations.map((conv) => (
                       <button
-                        key={interaction.id}
+                        key={conv.id}
                         type="button"
-                        onClick={() => scrollToBlock(interaction.id)}
+                        onClick={() => scrollToBlock(conv.id)}
                         className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
-                          interaction.id === visibleBlockId
+                          conv.id === visibleBlockId
                             ? 'bg-primary/10'
                             : 'hover:bg-muted/50'
                         }`}
                       >
                         <ChannelBadge
-                          type={interaction.channelType}
+                          type={conv.channelType}
                           variant="icon"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             <Badge
                               variant={
-                                interaction.status === 'active'
+                                conv.status === 'active'
                                   ? 'default'
-                                  : interaction.status === 'failed'
+                                  : conv.status === 'failed'
                                     ? 'destructive'
                                     : 'secondary'
                               }
                               className="h-4 px-1 text-[10px]"
                             >
-                              {interaction.status}
+                              {conv.status}
                             </Badge>
-                            <span className="text-xs text-muted-foreground capitalize">
-                              {interaction.mode}
-                            </span>
                           </div>
                         </div>
                         <span className="text-[10px] text-muted-foreground shrink-0">
-                          {formatRelativeTime(interaction.startedAt)}
+                          {formatRelativeTime(conv.startedAt)}
                         </span>
                       </button>
                     ))}

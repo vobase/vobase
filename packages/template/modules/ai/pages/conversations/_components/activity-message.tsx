@@ -9,11 +9,15 @@ interface ActivityMessageProps {
 }
 
 export function ActivityMessage({ message, className }: ActivityMessageProps) {
+  const eventType =
+    (message.contentData as Record<string, unknown>)?.eventType as
+      | string
+      | undefined;
   const description = activityDescription({
-    content: message.content,
+    content: eventType ?? message.content,
     contentData: message.contentData,
   });
-  const icon = activityIcon(message.content);
+  const icon = activityIcon(eventType ?? message.content);
 
   return (
     <div className={cn('flex items-center justify-center py-0.5', className)}>

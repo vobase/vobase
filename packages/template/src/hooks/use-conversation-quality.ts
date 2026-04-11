@@ -7,28 +7,28 @@ interface QualityScore {
   count: number;
 }
 
-async function fetchInteractionScores(
+async function fetchConversationScores(
   ids: string[],
 ): Promise<Record<string, QualityScore>> {
   if (ids.length === 0) return {};
-  const res = await aiClient.evals['interaction-scores'].$get({
-    query: { interactionIds: ids.join(',') },
+  const res = await aiClient.evals['conversation-scores'].$get({
+    query: { conversationIds: ids.join(',') },
   });
   if (!res.ok) return {};
   return res.json();
 }
 
 /**
- * Batch-fetch quality scores for a list of interaction IDs.
- * Returns a Map for O(1) lookup per interaction.
+ * Batch-fetch quality scores for a list of conversation IDs.
+ * Returns a Map for O(1) lookup per conversation.
  */
-export function useInteractionQuality(interactionIds: string[]) {
-  const sorted = [...interactionIds].sort();
+export function useConversationQuality(conversationIds: string[]) {
+  const sorted = [...conversationIds].sort();
   const key = sorted.join(',');
 
   const { data } = useQuery({
-    queryKey: ['interaction-quality', key],
-    queryFn: () => fetchInteractionScores(sorted),
+    queryKey: ['conversation-quality', key],
+    queryFn: () => fetchConversationScores(sorted),
     enabled: sorted.length > 0,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,

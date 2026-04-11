@@ -8,11 +8,11 @@ import { hasStaffPrefix } from '@/lib/normalize-message';
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface StartResponse {
-  interactionId: string;
+  conversationId: string;
   agentId: string | null;
 }
 
-interface InteractionMessages {
+interface ConversationMessages {
   id: string;
   title: string | null;
   agentId: string | null;
@@ -24,7 +24,7 @@ interface InteractionMessages {
   }>;
 }
 
-function isStaffReply(m: InteractionMessages['messages'][number]): boolean {
+function isStaffReply(m: ConversationMessages['messages'][number]): boolean {
   return (
     m.role === 'assistant' &&
     m.parts.some((p) => p.type === 'text' && hasStaffPrefix(p.text ?? ''))
@@ -37,7 +37,7 @@ function isStaffReply(m: InteractionMessages['messages'][number]): boolean {
  * so useChat doesn't merge them into one turn.
  */
 export function preparePublicMessages(
-  messages: InteractionMessages['messages'],
+  messages: ConversationMessages['messages'],
 ): UIMessage[] {
   const result: UIMessage[] = [];
   let prevStaff = false;
@@ -70,7 +70,7 @@ export function preparePublicMessages(
 }
 
 interface UsePublicChatResult {
-  interactionId: string | null;
+  conversationId: string | null;
   initialMessages: UIMessage[];
   loading: boolean;
   error: string | null;
@@ -81,12 +81,15 @@ interface UsePublicChatResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function getStoredInteractionId(channelRoutingId: string): string | null {
-  return localStorage.getItem(`vobase-interaction-${channelRoutingId}`);
+function getStoredConversationId(channelRoutingId: string): string | null {
+  return localStorage.getItem(`vobase-conversation-${channelRoutingId}`);
 }
 
-function storeInteractionId(channelRoutingId: string, interactionId: string) {
-  localStorage.setItem(`vobase-interaction-${channelRoutingId}`, interactionId);
+function storeConversationId(channelRoutingId: string, conversationId: string) {
+  localStorage.setItem(
+    `vobase-conversation-${channelRoutingId}`,
+    conversationId,
+  );
 }
 
 /**
@@ -103,7 +106,7 @@ async function ensureAnonymousSession(): Promise<void> {
 // ─── Hook ─────────────────────────────────────────────────────────────
 
 export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
-  const [interactionId, setInteractionId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [errorRetryable, setErrorRetryable] = useState(true);
@@ -118,23 +121,23 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       // Sign in anonymously if no session exists
       await ensureAnonymousSession();
 
-      const storedId = getStoredInteractionId(channelRoutingId);
+      const storedId = getStoredConversationId(channelRoutingId);
 
-      // Try to resume existing interaction
+      // Try to resume existing conversation
       if (storedId) {
         try {
-          const res = await aiClient.chat[':channelRoutingId'].interactions[
-            ':interactionId'
+          const res = await aiClient.chat[':channelRoutingId'].conversations[
+            ':conversationId'
           ].$get({
             param: {
               channelRoutingId,
-              interactionId: storedId,
+              conversationId: storedId,
             },
           });
           if (res.ok) {
-            const data = (await res.json()) as InteractionMessages;
+            const data = (await res.json()) as ConversationMessages;
             const uiMessages = preparePublicMessages(data.messages);
-            setInteractionId(data.id);
+            setConversationId(data.id);
             setInitialMessages(uiMessages);
             setLoading(false);
             return;
@@ -144,7 +147,7 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
         }
       }
 
-      // Start new interaction
+      // Start new conversation
       const startRes = await aiClient.chat[':channelRoutingId'].start.$post({
         param: { channelRoutingId },
       });
@@ -165,8 +168,8 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       }
 
       const startData = (await startRes.json()) as StartResponse;
-      storeInteractionId(channelRoutingId, startData.interactionId);
-      setInteractionId(startData.interactionId);
+      storeConversationId(channelRoutingId, startData.conversationId);
+      setConversationId(startData.conversationId);
       setLoading(false);
     } catch {
       setError('Failed to connect to chat');
@@ -198,8 +201,8 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       }
 
       const data = (await res.json()) as StartResponse;
-      storeInteractionId(channelRoutingId, data.interactionId);
-      setInteractionId(data.interactionId);
+      storeConversationId(channelRoutingId, data.conversationId);
+      setConversationId(data.conversationId);
       setInitialMessages([]);
       setLoading(false);
     } catch {
@@ -214,7 +217,7 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
   }, [initChat]);
 
   return {
-    interactionId,
+    conversationId,
     initialMessages,
     loading,
     error,

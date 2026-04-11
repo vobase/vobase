@@ -13,13 +13,13 @@ import {
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { isTimelineVisibleEvent } from '@/lib/activity-helpers';
 import { formatDate, formatRelativeTime } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { ActivityMessage } from './activity-message';
 import { IncomingMessage } from './incoming-message';
 import { OutgoingMessage } from './outgoing-message';
-import type { MessageRow, SenderInfo, TimelineInteraction } from './types';
+import type { MessageRow, SenderInfo, TimelineConversation } from './types';
 
 // ─── Channel border colors ──────────────────────────────────────────
 
@@ -44,29 +44,29 @@ function DateSeparator({ date }: { date: string }) {
   );
 }
 
-// ─── Interaction outcome footer ─────────────────────────────────────
+// ─── Conversation outcome footer ─────────────────────────────────────
 
 function outcomeLabel(outcome: string | null): string {
   if (!outcome) return 'Resolved';
   return outcome.replaceAll('_', ' ').replace(/^\w/, (c) => c.toUpperCase());
 }
 
-function InteractionOutcome({
-  interaction,
+function ConversationOutcome({
+  conversation,
 }: {
-  interaction: TimelineInteraction;
+  conversation: TimelineConversation;
 }) {
   const icon =
-    interaction.status === 'failed' ? (
+    conversation.status === 'failed' ? (
       <XCircleIcon className="h-3 w-3 text-destructive" />
     ) : (
       <CheckCircle2Icon className="h-3 w-3 text-emerald-500" />
     );
 
   const label =
-    interaction.status === 'failed'
+    conversation.status === 'failed'
       ? 'Failed'
-      : outcomeLabel(interaction.outcome);
+      : outcomeLabel(conversation.outcome);
 
   return (
     <div className="flex items-center gap-3">
@@ -76,9 +76,9 @@ function InteractionOutcome({
         <span className="text-xs font-medium text-muted-foreground">
           {label}
         </span>
-        {interaction.resolvedAt && (
+        {conversation.resolvedAt && (
           <span className="text-xs text-muted-foreground/60 ml-1">
-            · {formatRelativeTime(interaction.resolvedAt)}
+            · {formatRelativeTime(conversation.resolvedAt)}
           </span>
         )}
       </div>
@@ -96,16 +96,16 @@ interface MessageTimelineProps {
   isFetchingMore: boolean;
   onLoadMore: () => void;
   onRetryMessage?: (messageId: string) => void;
-  /** When set, renders interaction boundary dividers between interactions. */
-  timelineInteractions?: TimelineInteraction[];
-  /** The interaction the user navigated from — used for scroll anchor. */
-  currentInteractionId?: string;
-  /** Called when the topmost visible interaction changes (scroll tracking). */
-  onInteractionChange?: (interactionId: string) => void;
-  /** Maps interactionId → channelType for segment coloring. */
-  interactionChannelMap?: Map<string, string>;
-  /** The currently active (sticky) interaction — gets colored border. */
-  activeInteractionId?: string;
+  /** When set, renders conversation boundary dividers between conversations. */
+  timelineConversations?: TimelineConversation[];
+  /** The conversation the user navigated from — used for scroll anchor. */
+  currentConversationId?: string;
+  /** Called when the topmost visible conversation changes (scroll tracking). */
+  onConversationChange?: (conversationId: string) => void;
+  /** Maps conversationId → channelType for segment coloring. */
+  conversationChannelMap?: Map<string, string>;
+  /** The currently active (sticky) conversation — gets colored border. */
+  activeConversationId?: string;
   /** Current logged-in user ID — their messages align right (WhatsApp style). */
   currentUserId?: string;
   /** When true, shows channel badge on each message (multi-channel contacts). */
@@ -121,11 +121,11 @@ export const MessageTimeline = memo(function MessageTimeline({
   isFetchingMore,
   onLoadMore,
   onRetryMessage,
-  timelineInteractions,
-  currentInteractionId,
-  onInteractionChange,
-  interactionChannelMap,
-  activeInteractionId,
+  timelineConversations,
+  currentConversationId,
+  onConversationChange,
+  conversationChannelMap,
+  activeConversationId,
   currentUserId,
   isMultiChannel,
 }: MessageTimelineProps) {
@@ -137,8 +137,8 @@ export const MessageTimeline = memo(function MessageTimeline({
   const stateRef = useRef({ hasMore, isFetchingMore, onLoadMore });
   stateRef.current = { hasMore, isFetchingMore, onLoadMore };
 
-  const onInteractionChangeRef = useRef(onInteractionChange);
-  onInteractionChangeRef.current = onInteractionChange;
+  const onConversationChangeRef = useRef(onConversationChange);
+  onConversationChangeRef.current = onConversationChange;
 
   useEffect(() => {
     const sentinel = topSentinelRef.current;
@@ -157,17 +157,17 @@ export const MessageTimeline = memo(function MessageTimeline({
     return () => observer.disconnect();
   }, []);
 
-  // Auto-scroll to current interaction's first message on initial load
+  // Auto-scroll to current conversation's first message on initial load
   useEffect(() => {
     if (hasScrolledRef.current || !currentAnchorRef.current) return;
     hasScrolledRef.current = true;
     currentAnchorRef.current.scrollIntoView({ block: 'start' });
-  }, [messages.length]);
+  }, []);
 
-  // Track which interaction is at the top of the scroll area via scroll events.
+  // Track which conversation is at the top of the scroll area via scroll events.
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-attach when messages change
   useEffect(() => {
-    if (!onInteractionChangeRef.current) return;
+    if (!onConversationChangeRef.current) return;
 
     const el = topSentinelRef.current;
     if (!el) return;
@@ -186,7 +186,7 @@ export const MessageTimeline = memo(function MessageTimeline({
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         const sentinels = scrollEl.querySelectorAll<HTMLElement>(
-          '[data-interaction-sentinel]',
+          '[data-conversation-sentinel]',
         );
         if (sentinels.length === 0) return;
 
@@ -196,14 +196,14 @@ export const MessageTimeline = memo(function MessageTimeline({
 
         // Pinned to very bottom — activate last sentinel, but only when
         // there's meaningful scroll range (>50px). Avoids locking to the
-        // last interaction when all content fits on screen.
-        const atBottom =
-          scrollMax > 50 && scrollMax - scrollEl.scrollTop < 8;
+        // last conversation when all content fits on screen.
+        const atBottom = scrollMax > 50 && scrollMax - scrollEl.scrollTop < 8;
         if (atBottom) {
           const lastId =
-            sentinels[sentinels.length - 1].dataset.interactionSentinel ?? null;
+            sentinels[sentinels.length - 1].dataset.conversationSentinel ??
+            null;
           if (lastId) {
-            onInteractionChangeRef.current?.(lastId);
+            onConversationChangeRef.current?.(lastId);
             return;
           }
         }
@@ -211,10 +211,9 @@ export const MessageTimeline = memo(function MessageTimeline({
         // Fixed focal line at 1/3 of viewport — natural reading position.
         // Edge cases handled by atBottom (above) and lastVisibleId fallback.
         // When content fits on screen (no scroll), use 85% to default to
-        // the most recent interaction.
-        const focalLine = scrollMax > 0
-          ? containerHeight * 0.33
-          : containerHeight * 0.85;
+        // the most recent conversation.
+        const focalLine =
+          scrollMax > 0 ? containerHeight * 0.33 : containerHeight * 0.85;
 
         let activeId: string | null = null;
         let lastVisibleId: string | null = null;
@@ -222,10 +221,10 @@ export const MessageTimeline = memo(function MessageTimeline({
         for (const s of sentinels) {
           const top = s.getBoundingClientRect().top - containerTop;
           if (top <= focalLine) {
-            activeId = s.dataset.interactionSentinel ?? null;
+            activeId = s.dataset.conversationSentinel ?? null;
           }
           if (top < containerHeight) {
-            lastVisibleId = s.dataset.interactionSentinel ?? null;
+            lastVisibleId = s.dataset.conversationSentinel ?? null;
           }
         }
 
@@ -234,11 +233,11 @@ export const MessageTimeline = memo(function MessageTimeline({
         }
 
         if (!activeId && sentinels.length > 0) {
-          activeId = sentinels[0].dataset.interactionSentinel ?? null;
+          activeId = sentinels[0].dataset.conversationSentinel ?? null;
         }
 
         if (activeId) {
-          onInteractionChangeRef.current?.(activeId);
+          onConversationChangeRef.current?.(activeId);
         }
       });
     };
@@ -257,7 +256,10 @@ export const MessageTimeline = memo(function MessageTimeline({
         .filter(
           (msg) =>
             msg.messageType !== 'activity' ||
-            isTimelineVisibleEvent(msg.content),
+            isTimelineVisibleEvent(
+              (msg.contentData as Record<string, unknown>)
+                ?.eventType as string ?? msg.content,
+            ),
         )
         .sort(
           (a, b) =>
@@ -266,77 +268,80 @@ export const MessageTimeline = memo(function MessageTimeline({
     [messages],
   );
 
-  // Build interaction map for lookups
-  const interactionMap = useMemo(() => {
-    if (!timelineInteractions) return null;
-    const map = new Map<string, TimelineInteraction>();
-    for (const ti of timelineInteractions) {
+  // Build conversation map for lookups
+  const conversationMap = useMemo(() => {
+    if (!timelineConversations) return null;
+    const map = new Map<string, TimelineConversation>();
+    for (const ti of timelineConversations) {
       map.set(ti.id, ti);
     }
     return map;
-  }, [timelineInteractions]);
+  }, [timelineConversations]);
 
-  // Build interaction groups: each interaction becomes a bordered box
+  // Build conversation groups: each conversation becomes a bordered box
   // containing all its messages (with date separators inline).
-  type InteractionGroup = {
-    interactionId: string;
-    interaction: TimelineInteraction | null;
+  type ConversationGroup = {
+    conversationId: string;
+    conversation: TimelineConversation | null;
     channelType: string | undefined;
-    /** Date separator to render before the bordered box (first date of this interaction). */
+    /** Date separator to render before the bordered box (first date of this conversation). */
     leadingDate: string | null;
-    items: Array<{ type: 'date'; date: string } | { type: 'msg'; msg: MessageRow }>;
+    items: Array<
+      { type: 'date'; date: string } | { type: 'msg'; msg: MessageRow }
+    >;
     isScrollAnchor: boolean;
     isTerminal: boolean;
   };
 
   const groups = useMemo(() => {
-    const result: InteractionGroup[] = [];
-    const seenInteractions = new Set<string>();
+    const result: ConversationGroup[] = [];
+    const seenConversations = new Set<string>();
     let lastDate = '';
 
-    // Group messages by interaction (preserving order)
-    let currentGroup: InteractionGroup | null = null;
+    // Group messages by conversation (preserving order)
+    let currentGroup: ConversationGroup | null = null;
 
     for (const msg of sorted) {
       const msgDate = new Date(msg.createdAt).toDateString();
-      const isNewInteraction = !currentGroup || msg.interactionId !== currentGroup.interactionId;
+      const isNewConversation =
+        !currentGroup || msg.conversationId !== currentGroup.conversationId;
 
-      if (isNewInteraction) {
-        const interaction = interactionMap?.get(msg.interactionId) ?? null;
-        const isFirst = !seenInteractions.has(msg.interactionId);
-        seenInteractions.add(msg.interactionId);
+      if (isNewConversation) {
+        const conversation = conversationMap?.get(msg.conversationId) ?? null;
+        const isFirst = !seenConversations.has(msg.conversationId);
+        seenConversations.add(msg.conversationId);
 
         const needsDate = msgDate !== lastDate;
         if (needsDate) lastDate = msgDate;
 
         currentGroup = {
-          interactionId: msg.interactionId,
-          interaction,
-          channelType: interactionChannelMap?.get(msg.interactionId),
+          conversationId: msg.conversationId,
+          conversation,
+          channelType: conversationChannelMap?.get(msg.conversationId),
           leadingDate: needsDate ? msg.createdAt : null,
           items: [],
           isScrollAnchor:
-            !!currentInteractionId &&
-            msg.interactionId === currentInteractionId &&
+            !!currentConversationId &&
+            msg.conversationId === currentConversationId &&
             isFirst,
           isTerminal:
-            interaction?.status === 'resolved' ||
-            interaction?.status === 'failed',
+            conversation?.status === 'resolved' ||
+            conversation?.status === 'failed',
         };
         result.push(currentGroup);
       } else {
-        // Same interaction — inline date separator if date changed
+        // Same conversation — inline date separator if date changed
         if (msgDate !== lastDate) {
-          currentGroup!.items.push({ type: 'date', date: msg.createdAt });
+          currentGroup?.items.push({ type: 'date', date: msg.createdAt });
           lastDate = msgDate;
         }
       }
 
-      currentGroup!.items.push({ type: 'msg', msg });
+      currentGroup?.items.push({ type: 'msg', msg });
     }
 
     return result;
-  }, [sorted, interactionMap, currentInteractionId, interactionChannelMap]);
+  }, [sorted, conversationMap, currentConversationId, conversationChannelMap]);
 
   return (
     <Conversation className="h-full">
@@ -367,21 +372,21 @@ export const MessageTimeline = memo(function MessageTimeline({
           <ConversationEmptyState
             icon={<MessageSquareIcon className="size-6" />}
             title="No messages yet"
-            description="Messages will appear here when the interaction starts"
+            description="Messages will appear here when the conversation starts"
           />
         )}
 
         {groups.map((group) => {
-          const isActive = group.interactionId === activeInteractionId;
+          const isActive = group.conversationId === activeConversationId;
           const activeLine = group.channelType
             ? CHANNEL_LINE_ACTIVE[group.channelType]
             : undefined;
 
           return (
-            <div key={`ix-${group.interactionId}`}>
+            <div key={`ix-${group.conversationId}`}>
               {/* Scroll sentinel */}
               <div
-                data-interaction-sentinel={group.interactionId}
+                data-conversation-sentinel={group.conversationId}
                 className="h-0"
               />
               {/* Scroll anchor for initial load */}
@@ -389,15 +394,13 @@ export const MessageTimeline = memo(function MessageTimeline({
                 <div ref={currentAnchorRef} className="h-0" />
               )}
 
-              {/* Interaction segment with positioned vertical line */}
+              {/* Conversation segment with positioned vertical line */}
               <div className="relative pl-4">
                 {/* Vertical line — positioned to start/end at divider centerlines */}
                 <div
                   className={cn(
                     'absolute left-0 w-0.5 rounded-full transition-colors duration-150',
-                    isActive && activeLine
-                      ? activeLine
-                      : 'bg-border',
+                    isActive && activeLine ? activeLine : 'bg-border',
                   )}
                   style={{
                     top: group.leadingDate ? '0.5rem' : 0,
@@ -410,7 +413,11 @@ export const MessageTimeline = memo(function MessageTimeline({
                   <div className="mb-4 flex items-center gap-3">
                     <div className="h-px flex-1 bg-border" />
                     <span className="text-xs font-medium text-muted-foreground">
-                      {formatDate(group.leadingDate, { weekday: 'long', month: 'short', day: 'numeric' })}
+                      {formatDate(group.leadingDate, {
+                        weekday: 'long',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
                     </span>
                     <div className="h-px flex-1 bg-border" />
                   </div>
@@ -437,9 +444,9 @@ export const MessageTimeline = memo(function MessageTimeline({
                 </div>
 
                 {/* Outcome footer */}
-                {group.isTerminal && group.interaction && (
+                {group.isTerminal && group.conversation && (
                   <div className="mt-4">
-                    <InteractionOutcome interaction={group.interaction} />
+                    <ConversationOutcome conversation={group.conversation} />
                   </div>
                 )}
               </div>

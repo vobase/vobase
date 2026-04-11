@@ -1,6 +1,6 @@
 /**
  * Reciprocal Rank Fusion (RRF) scoring utility.
- * Shared by knowledge-base hybrid search and interaction memory retrieval.
+ * Shared by knowledge-base hybrid search and conversation memory retrieval.
  *
  * RRF merges multiple ranked lists into a single score:
  *   score(doc) = Σ 1/(k + rank_i)

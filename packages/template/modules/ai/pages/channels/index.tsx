@@ -480,7 +480,7 @@ function ChannelCard({
   routing,
   instance,
   agentName,
-  activeInteractions,
+  activeConversations,
   onToggle,
   onDelete,
   isToggling,
@@ -488,7 +488,7 @@ function ChannelCard({
   routing: ChannelRouting;
   instance: ChannelInstance | undefined;
   agentName: string;
-  activeInteractions: number;
+  activeConversations: number;
   onToggle: () => void;
   onDelete: () => void;
   isToggling: boolean;
@@ -535,11 +535,11 @@ function ChannelCard({
                 <BotIcon className="h-3 w-3" />
                 {agentName}
               </span>
-              {activeInteractions > 0 && (
+              {activeConversations > 0 && (
                 <span className="flex items-center gap-1">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                  {activeInteractions} active{' '}
-                  {activeInteractions === 1 ? 'interaction' : 'interactions'}
+                  {activeConversations} active{' '}
+                  {activeConversations === 1 ? 'conversation' : 'conversations'}
                 </span>
               )}
             </div>
@@ -750,7 +750,7 @@ function DeleteChannelDialog({
           <AlertDialogTitle>Remove channel?</AlertDialogTitle>
           <AlertDialogDescription>
             This will disconnect <strong>{channelName}</strong> and remove all
-            its interaction history. Customers will no longer be able to reach
+            its conversation history. Customers will no longer be able to reach
             you through this channel.
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -806,12 +806,12 @@ function ChannelsPage() {
   });
 
   const { data: agents = [] } = useQuery({
-    queryKey: ['interactions-agents'],
+    queryKey: ['conversations-agents'],
     queryFn: fetchAgents,
   });
 
   const { data: channelStatusData } = useQuery({
-    queryKey: ['interactions-channel-status'],
+    queryKey: ['conversations-channel-status'],
     queryFn: fetchChannelStatus,
   });
 
@@ -868,7 +868,7 @@ function ChannelsPage() {
         routing: r,
         instance: instanceMap.get(r.channelInstanceId),
         agentName: agentMap.get(r.agentId) ?? 'Unknown Agent',
-        activeInteractions: sessionCountMap.get(r.channelInstanceId) ?? 0,
+        activeConversations: sessionCountMap.get(r.channelInstanceId) ?? 0,
       })),
     [routings, instanceMap, agentMap, sessionCountMap],
   );
@@ -882,7 +882,7 @@ function ChannelsPage() {
     queryClient.invalidateQueries({ queryKey: ['channel-instances'] });
     queryClient.invalidateQueries({ queryKey: ['channel-routings'] });
     queryClient.invalidateQueries({
-      queryKey: ['interactions-channel-status'],
+      queryKey: ['conversations-channel-status'],
     });
   }
 
@@ -1035,13 +1035,13 @@ function ChannelsPage() {
         {!isLoading && connectedChannels.length > 0 && (
           <div className="space-y-3">
             {connectedChannels.map(
-              ({ routing, instance, agentName, activeInteractions }) => (
+              ({ routing, instance, agentName, activeConversations }) => (
                 <ChannelCard
                   key={routing.id}
                   routing={routing}
                   instance={instance}
                   agentName={agentName}
-                  activeInteractions={activeInteractions}
+                  activeConversations={activeConversations}
                   isToggling={toggleMutation.isPending}
                   onToggle={() =>
                     toggleMutation.mutate({

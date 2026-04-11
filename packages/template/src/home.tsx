@@ -1,8 +1,6 @@
 import {
   useInfiniteQuery,
-  useMutation,
   useQuery,
-  useQueryClient,
 } from '@tanstack/react-query';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import {
@@ -14,7 +12,6 @@ import {
   Wrench,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type RealtimeStatus, useRealtimeStatus } from '@/hooks/use-realtime';
 import { aiClient } from '@/lib/api-client';
@@ -30,12 +27,6 @@ async function fetchDashboard() {
 async function fetchAgentMetrics() {
   const res = await aiClient.agents.metrics.$get();
   if (!res.ok) throw new Error('Agent metrics endpoint failed');
-  return res.json();
-}
-
-async function fetchAttention() {
-  const res = await aiClient.attention.$get();
-  if (!res.ok) throw new Error('Attention endpoint failed');
   return res.json();
 }
 
@@ -73,12 +64,6 @@ function relativeTime(dateStr: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h`;
   return `${Math.floor(hours / 24)}d`;
-}
-
-function waitingMinutes(dateStr: string): string {
-  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-  if (mins < 1) return '<1 min';
-  return `${mins} min`;
 }
 
 function successScoreColor(score: number): string {
@@ -150,7 +135,7 @@ function eventDescription(
       return (
         <>
           <span className={n}>{agent}</span>
-          <span className={v}> started an interaction with </span>
+          <span className={v}> started a conversation with </span>
           <span className={n}>{contact}</span>
         </>
       );
@@ -225,8 +210,7 @@ function eventDescription(
       return (
         <>
           <span className={n}>{contact}</span>
-          <span className={v}>'s session handed to </span>
-          <span className={n}>{data.mode ?? 'another mode'}</span>
+          <span className={v}>'s conversation reassigned</span>
         </>
       );
     case 'message.outbound_queued':
@@ -266,72 +250,32 @@ function eventDescription(
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function HomePage() {
-  const queryClient = useQueryClient();
-
   const dashboardQuery = useQuery({
-    queryKey: ['interactions-dashboard'],
+    queryKey: ['conversations-dashboard'],
     queryFn: fetchDashboard,
   });
 
   const metricsQuery = useQuery({
-    queryKey: ['interactions-metrics'],
+    queryKey: ['conversations-metrics'],
     queryFn: fetchAgentMetrics,
   });
 
-  const attentionQuery = useQuery({
-    queryKey: ['interactions-attention'],
-    queryFn: fetchAttention,
-  });
-
   const contactsQuery = useQuery({
-    queryKey: ['interactions-contacts'],
+    queryKey: ['conversations-contacts'],
     queryFn: fetchContacts,
   });
 
   const activityQuery = useInfiniteQuery({
-    queryKey: ['interactions-activity'],
+    queryKey: ['conversations-activity'],
     queryFn: fetchActivity,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
-  const reviewMutation = useMutation({
-    mutationFn: async (eventId: string) => {
-      const res = await aiClient.attention[':eventId'].review.$post({
-        param: { eventId },
-      });
-      if (!res.ok) throw new Error('Review failed');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['interactions-attention'] });
-      queryClient.invalidateQueries({ queryKey: ['interactions-dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['interactions-activity'] });
-    },
-  });
-
-  const dismissMutation = useMutation({
-    mutationFn: async (eventId: string) => {
-      const res = await aiClient.attention[':eventId'].dismiss.$post({
-        param: { eventId },
-      });
-      if (!res.ok) throw new Error('Dismiss failed');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['interactions-attention'] });
-      queryClient.invalidateQueries({ queryKey: ['interactions-dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['interactions-activity'] });
-    },
-  });
-
   const dashboard = dashboardQuery.data;
   const agents = metricsQuery.data?.agents ?? [];
-  const attentionItems = attentionQuery.data?.items ?? [];
-  const attentionCount = attentionQuery.data?.count ?? 0;
   const allEvents =
     activityQuery.data?.pages.flatMap((page) => page.events) ?? [];
-  const hasAttention = attentionCount > 0;
   const realtimeStatus = useRealtimeStatus();
 
   const agentNames = new Map(agents.map((a) => [a.agentId, a.name]));
@@ -374,11 +318,8 @@ function HomePage() {
         )}
       </div>
 
-      {/* ── Two-Column Layout ───────────────────────────────────── */}
-      <div
-        className={`grid gap-6 ${hasAttention ? 'lg:grid-cols-[1fr_42%]' : ''}`}
-      >
-        {/* Left: Activity Feed */}
+      {/* ── Activity Feed ───────────────────────────────────────── */}
+      <div>
         <div>
           <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             <RealtimeDot status={realtimeStatus} />
@@ -425,10 +366,10 @@ function HomePage() {
                         )}
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {event.interactionId ? (
+                        {eventContactId ? (
                           <Link
-                            to="/interactions/$interactionId"
-                            params={{ interactionId: event.interactionId }}
+                            to="/inbox/$contactId"
+                            params={{ contactId: eventContactId }}
                             className="hidden text-xs text-muted-foreground hover:text-foreground group-hover:inline"
                           >
                             View &rarr;
@@ -436,7 +377,7 @@ function HomePage() {
                         ) : null}
                         <span
                           className={
-                            event.interactionId ? 'group-hover:hidden' : ''
+                            eventContactId ? 'group-hover:hidden' : ''
                           }
                         >
                           {relativeTime(event.createdAt)}
@@ -461,90 +402,6 @@ function HomePage() {
             )}
           </div>
         </div>
-
-        {/* Right: Attention Queue */}
-        {hasAttention && (
-          <div className="rounded-xl bg-muted/30 p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Attention
-              </span>
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
-                {attentionCount}
-              </span>
-            </div>
-            <div className="flex flex-col gap-3">
-              {attentionQuery.isPending
-                ? ['b1', 'b2', 'b3'].map((k) => (
-                    <Skeleton key={k} className="h-28 rounded-xl" />
-                  ))
-                : attentionItems.map((item) => {
-                    const itemData = (item.contentData ??
-                      {}) as ActivityEventData;
-                    const itemContactId =
-                      (itemData.contactId as string | null) ?? null;
-                    const itemAgentId =
-                      (itemData.agentId as string | null) ?? null;
-                    const isEscalation = item.content === 'escalation.created';
-                    const borderColor = isEscalation
-                      ? 'border-l-blue-500'
-                      : 'border-l-destructive';
-                    const contactName =
-                      (itemContactId && contactNames.get(itemContactId)) ??
-                      itemContactId ??
-                      'Anonymous';
-                    const isPending =
-                      reviewMutation.isPending || dismissMutation.isPending;
-
-                    return (
-                      <div
-                        key={item.id}
-                        className={`rounded-xl border-l-[3px] bg-background p-4 ${borderColor}`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <span className="text-sm font-medium">
-                            {contactName}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            Waiting {waitingMinutes(item.createdAt)}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-sm text-muted-foreground">
-                          {item.channelType ?? 'web'} &middot;{' '}
-                          {(itemAgentId && agentNames.get(itemAgentId)) ??
-                            itemAgentId ??
-                            'Unknown agent'}
-                        </p>
-                        {itemData.reason && (
-                          <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                            {String(itemData.reason)}
-                          </p>
-                        )}
-                        <div className="mt-3 flex gap-2">
-                          <Button
-                            size="sm"
-                            className="h-7 text-sm"
-                            disabled={isPending}
-                            onClick={() => reviewMutation.mutate(item.id)}
-                          >
-                            Review
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-sm"
-                            disabled={isPending}
-                            onClick={() => dismissMutation.mutate(item.id)}
-                          >
-                            Dismiss
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Agent Row ───────────────────────────────────────────── */}
@@ -598,7 +455,7 @@ function HomePage() {
 
 export const Route = createFileRoute('/_app/')({
   beforeLoad: () => {
-    throw redirect({ to: '/interactions' });
+    throw redirect({ to: '/conversations' });
   },
   component: HomePage,
 });

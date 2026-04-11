@@ -1,6 +1,6 @@
 export interface MessageRow {
   id: string;
-  interactionId: string;
+  conversationId: string;
   messageType: string;
   contentType: string;
   content: string;
@@ -22,22 +22,20 @@ export interface SenderInfo {
   image?: string | null;
 }
 
-export interface TimelineInteraction {
+export interface TimelineConversation {
   id: string;
   status: string;
   outcome: string | null;
   startedAt: string;
   resolvedAt: string | null;
   reopenCount: number;
-  mode: string;
 }
 
-export interface TimelineInteractionFull extends TimelineInteraction {
+export interface TimelineConversationFull extends TimelineConversation {
   priority: string | null;
   assignee: string | null;
+  onHold: boolean;
   channelInstanceId: string;
   channelType: string;
   channelLabel: string | null;
-  hasPendingEscalation: boolean;
-  waitingSince: string | null;
 }

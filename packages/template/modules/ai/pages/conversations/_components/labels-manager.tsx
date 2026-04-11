@@ -23,7 +23,7 @@ interface Label {
 
 // ─── Component ───────────────────────────────────────────────────────
 
-export function LabelsManager({ interactionId }: { interactionId: string }) {
+export function LabelsManager({ conversationId }: { conversationId: string }) {
   const queryClient = useQueryClient();
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -37,12 +37,12 @@ export function LabelsManager({ interactionId }: { interactionId: string }) {
     },
   });
 
-  // Labels on this interaction
-  const { data: interactionLabels = [] } = useQuery({
-    queryKey: ['interaction-labels', interactionId],
+  // Labels on this conversation
+  const { data: conversationLabels = [] } = useQuery({
+    queryKey: ['conversation-labels', conversationId],
     queryFn: async () => {
-      const res = await aiClient.interactions[':id'].labels.$get({
-        param: { id: interactionId },
+      const res = await aiClient.conversations[':id'].labels.$get({
+        param: { id: conversationId },
       });
       if (!res.ok) return [];
       return res.json() as Promise<Label[]>;
@@ -51,22 +51,22 @@ export function LabelsManager({ interactionId }: { interactionId: string }) {
 
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({
-      queryKey: ['interaction-labels', interactionId],
+      queryKey: ['conversation-labels', conversationId],
     });
-    // Refresh interaction lists so label chips update
-    queryClient.invalidateQueries({ queryKey: ['interactions-attention'] });
-    queryClient.invalidateQueries({ queryKey: ['interactions-ai-active'] });
-    queryClient.invalidateQueries({ queryKey: ['interactions-resolved'] });
+    // Refresh conversation lists so label chips update
+    queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-ai-active'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-resolved'] });
     // Refresh timeline to show label activity event
     queryClient.invalidateQueries({
-      queryKey: ['interactions-messages', interactionId],
+      queryKey: ['conversations-messages', conversationId],
     });
-  }, [queryClient, interactionId]);
+  }, [queryClient, conversationId]);
 
   const addMutation = useMutation({
     mutationFn: async (labelId: string) => {
-      await aiClient.interactions[':id'].labels.$post(
-        { param: { id: interactionId } },
+      await aiClient.conversations[':id'].labels.$post(
+        { param: { id: conversationId } },
         {
           init: {
             body: JSON.stringify({ labelIds: [labelId] }),
@@ -80,14 +80,14 @@ export function LabelsManager({ interactionId }: { interactionId: string }) {
 
   const removeMutation = useMutation({
     mutationFn: async (labelId: string) => {
-      await aiClient.interactions[':id'].labels[':lid'].$delete({
-        param: { id: interactionId, lid: labelId },
+      await aiClient.conversations[':id'].labels[':lid'].$delete({
+        param: { id: conversationId, lid: labelId },
       });
     },
     onSuccess: invalidateAll,
   });
 
-  const assignedIds = new Set(interactionLabels.map((l) => l.id));
+  const assignedIds = new Set(conversationLabels.map((l) => l.id));
   const available = allLabels.filter((l) => !assignedIds.has(l.id));
 
   return (
@@ -98,7 +98,7 @@ export function LabelsManager({ interactionId }: { interactionId: string }) {
 
       {/* Assigned labels */}
       <div className="flex flex-wrap gap-1.5 mb-2">
-        {interactionLabels.map((label) => (
+        {conversationLabels.map((label) => (
           <Badge
             key={label.id}
             variant="secondary"

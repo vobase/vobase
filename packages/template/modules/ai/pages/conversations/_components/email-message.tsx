@@ -1,9 +1,5 @@
 import DOMPurify from 'dompurify';
-import {
-  ChevronDownIcon,
-  ChevronRightIcon,
-  FileIcon,
-} from 'lucide-react';
+import { ChevronDownIcon, ChevronRightIcon, FileIcon } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
 import { formatRelativeTime } from '@/lib/format';
@@ -27,7 +23,7 @@ interface EmailContentData {
   attachments?: EmailAttachment[];
 }
 
-export interface EmailMessageProps {
+interface EmailMessageProps {
   message: MessageRow;
   sender?: SenderInfo;
   className?: string;
@@ -120,11 +116,18 @@ export const EmailMessage = memo(function EmailMessage({
     };
   }, [data.htmlBody]);
 
-  const ccVisible = ccExpanded ? ccList : ccList.slice(0, CC_COLLAPSE_THRESHOLD);
+  const ccVisible = ccExpanded
+    ? ccList
+    : ccList.slice(0, CC_COLLAPSE_THRESHOLD);
   const hasCcOverflow = ccList.length > CC_COLLAPSE_THRESHOLD;
 
   return (
-    <div className={cn('rounded-lg border bg-background overflow-hidden', className)}>
+    <div
+      className={cn(
+        'rounded-lg border bg-background overflow-hidden',
+        className,
+      )}
+    >
       {/* Email header */}
       <div className="px-4 pt-3 pb-2 border-b space-y-1.5 bg-muted/30">
         {data.subject && (

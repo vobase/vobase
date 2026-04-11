@@ -131,10 +131,10 @@ const GetContactMemoryToolUI = makeAssistantToolUI({
   },
 });
 
-// ─── consult_human ───────────────────────────────────────────────────
+// ─── mention ─────────────────────────────────────────────────────────
 
-const ConsultHumanToolUI = makeAssistantToolUI({
-  toolName: 'consult_human',
+const MentionToolUI = makeAssistantToolUI({
+  toolName: 'mention',
   render: (props) => {
     if (props.status?.type === 'running') return <ToolFallback {...props} />;
 
@@ -142,27 +142,118 @@ const ConsultHumanToolUI = makeAssistantToolUI({
     const r = asRecord(props.result);
     if (!r) return <ToolFallback {...props} />;
 
-    const consultStatus = String(r.status ?? 'pending');
-    const choice =
-      consultStatus === 'error'
-        ? ('denied' as const)
-        : consultStatus === 'resolved'
-          ? ('approved' as const)
-          : undefined;
+    const target = asRecord(a?.target);
+    const targetLabel = target
+      ? `${String(target.type ?? '')} ${String(target.value ?? '')}`
+      : 'team';
 
     return (
       <ToolSpacing>
-        <ApprovalCard
-          id={String(r.consultationId ?? 'consult')}
-          title="Staff Consultation"
-          description={a?.reason ? String(a.reason) : undefined}
-          metadata={[
-            ...(a?.message
-              ? [{ key: 'message', value: String(a.message) }]
-              : []),
-            { key: 'status', value: consultStatus },
+        <ProgressTracker
+          id="mention"
+          steps={[
+            {
+              id: 'mention',
+              label: r.success
+                ? `Mentioned ${targetLabel}`
+                : String(r.message ?? 'Mention failed'),
+              description: a?.message ? String(a.message) : undefined,
+              status: r.success ? 'completed' : 'failed',
+            },
           ]}
-          choice={choice}
+        />
+      </ToolSpacing>
+    );
+  },
+});
+
+// ─── reassign ────────────────────────────────────────────────────────
+
+const ReassignToolUI = makeAssistantToolUI({
+  toolName: 'reassign',
+  render: (props) => {
+    if (props.status?.type === 'running') return <ToolFallback {...props} />;
+
+    const a = asRecord(props.args);
+    const r = asRecord(props.result);
+    if (!r) return <ToolFallback {...props} />;
+
+    return (
+      <ToolSpacing>
+        <ProgressTracker
+          id="reassign"
+          steps={[
+            {
+              id: 'reassign',
+              label: r.success
+                ? `Reassigned to ${String(a?.assignee ?? 'unknown')}`
+                : String(r.message ?? 'Reassign failed'),
+              description: a?.reason ? String(a.reason) : undefined,
+              status: r.success ? 'completed' : 'failed',
+            },
+          ]}
+        />
+      </ToolSpacing>
+    );
+  },
+});
+
+// ─── create_draft ─────────────────────────────────────────────────────
+
+const CreateDraftToolUI = makeAssistantToolUI({
+  toolName: 'create_draft',
+  render: (props) => {
+    if (props.status?.type === 'running') return <ToolFallback {...props} />;
+
+    const a = asRecord(props.args);
+    const r = asRecord(props.result);
+    if (!r) return <ToolFallback {...props} />;
+
+    return (
+      <ToolSpacing>
+        <ProgressTracker
+          id="create-draft"
+          steps={[
+            {
+              id: 'draft',
+              label: r.success ? 'Draft created for review' : 'Draft failed',
+              description: a?.content
+                ? String(a.content).slice(0, 120)
+                : undefined,
+              status: r.success ? 'completed' : 'failed',
+            },
+          ]}
+        />
+      </ToolSpacing>
+    );
+  },
+});
+
+// ─── hold ────────────────────────────────────────────────────────────
+
+const HoldToolUI = makeAssistantToolUI({
+  toolName: 'hold',
+  render: (props) => {
+    if (props.status?.type === 'running') return <ToolFallback {...props} />;
+
+    const a = asRecord(props.args);
+    const r = asRecord(props.result);
+    if (!r) return <ToolFallback {...props} />;
+
+    return (
+      <ToolSpacing>
+        <ProgressTracker
+          id="hold"
+          steps={[
+            {
+              id: 'hold',
+              label: r.success
+                ? 'Conversation placed on hold'
+                : String(r.message ?? 'Hold failed'),
+              description: a?.reason ? String(a.reason) : undefined,
+              status: r.success ? 'completed' : 'failed',
+            },
+          ]}
         />
       </ToolSpacing>
     );
@@ -342,10 +433,10 @@ const SendReminderToolUI = makeAssistantToolUI({
   },
 });
 
-// ─── escalate ────────────────────────────────────────────────────────
+// ─── resolve_conversation ────────────────────────────────────────────
 
-const EscalateToolUI = makeAssistantToolUI({
-  toolName: 'escalate',
+const ResolveConversationToolUI = makeAssistantToolUI({
+  toolName: 'resolve_conversation',
   render: (props) => {
     if (props.status?.type === 'running') return <ToolFallback {...props} />;
 
@@ -356,42 +447,11 @@ const EscalateToolUI = makeAssistantToolUI({
     return (
       <ToolSpacing>
         <ProgressTracker
-          id="escalate"
-          steps={[
-            {
-              id: 'mode-change',
-              label: r.success
-                ? `Mode set to ${String(a?.mode ?? 'unknown')}`
-                : String(r.message ?? 'Failed'),
-              description: a?.reason ? String(a.reason) : undefined,
-              status: r.success ? 'completed' : 'failed',
-            },
-          ]}
-        />
-      </ToolSpacing>
-    );
-  },
-});
-
-// ─── resolve_interaction ─────────────────────────────────────────────
-
-const ResolveInteractionToolUI = makeAssistantToolUI({
-  toolName: 'resolve_interaction',
-  render: (props) => {
-    if (props.status?.type === 'running') return <ToolFallback {...props} />;
-
-    const a = asRecord(props.args);
-    const r = asRecord(props.result);
-    if (!r) return <ToolFallback {...props} />;
-
-    return (
-      <ToolSpacing>
-        <ProgressTracker
-          id="interaction-resolve"
+          id="conversation-resolve"
           steps={[
             {
               id: 'resolve',
-              label: r.success ? 'Interaction resolved' : 'Resolution failed',
+              label: r.success ? 'Conversation resolved' : 'Resolution failed',
               description: a?.summary ? String(a.summary) : undefined,
               status: r.success ? 'completed' : 'failed',
             },
@@ -473,14 +533,16 @@ export function VobaseToolUIs() {
       <RetrieveContextToolUI />
       <GetContactInfoToolUI />
       <GetContactMemoryToolUI />
-      <ConsultHumanToolUI />
+      <MentionToolUI />
+      <ReassignToolUI />
+      <CreateDraftToolUI />
+      <HoldToolUI />
       <CheckAvailabilityToolUI />
       <BookSlotToolUI />
       <CancelBookingToolUI />
       <RescheduleBookingToolUI />
       <SendReminderToolUI />
-      <EscalateToolUI />
-      <ResolveInteractionToolUI />
+      <ResolveConversationToolUI />
       <NewTopicToolUI />
       <AgentHandoffToolUI />
     </>

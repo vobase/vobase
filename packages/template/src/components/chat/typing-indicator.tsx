@@ -5,7 +5,7 @@ import { Shimmer } from '@/components/ai-elements/shimmer';
 import { useStaffChatStore } from '@/stores/staff-chat-store';
 
 interface TypingIndicatorProps {
-  interactionId: string;
+  conversationId: string;
   /** For public chat: show "thinking" based on useChat status instead of SSE */
   isAiThinking?: boolean;
   /** Hide typing events from this user (the current staff user) */
@@ -28,7 +28,7 @@ function BouncingDots() {
  * Staff view: shows "[Name] is typing..." with bouncing dots from SSE-based typing events.
  */
 export function TypingIndicator({
-  interactionId,
+  conversationId,
   isAiThinking,
   excludeUserId,
 }: TypingIndicatorProps) {
@@ -45,20 +45,20 @@ export function TypingIndicator({
   // For staff view, use Zustand store for typing users
   return (
     <StaffTypingIndicator
-      interactionId={interactionId}
+      conversationId={conversationId}
       excludeUserId={excludeUserId}
     />
   );
 }
 
 function StaffTypingIndicator({
-  interactionId,
+  conversationId,
   excludeUserId,
 }: {
-  interactionId: string;
+  conversationId: string;
   excludeUserId?: string;
 }) {
-  const convMap = useStaffChatStore((s) => s.typingUsers.get(interactionId));
+  const convMap = useStaffChatStore((s) => s.typingUsers.get(conversationId));
 
   const names = useMemo(() => {
     if (!convMap) return [];

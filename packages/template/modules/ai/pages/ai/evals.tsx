@@ -41,6 +41,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { aiClient } from '@/lib/api-client';
+import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -48,15 +49,15 @@ import { cn } from '@/lib/utils';
 interface QualityOverview {
   avgScore: number | null;
   totalScores: number;
-  interactionsScored: number;
+  conversationsScored: number;
   feedback: { positive: number; negative: number };
   scorerBreakdown: Array<{
     scorerId: string;
     avgScore: number;
     count: number;
   }>;
-  worstInteractions: Array<{
-    interactionId: string;
+  worstConversations: Array<{
+    conversationId: string;
     avgScore: number;
     scoreCount: number;
     lastScored: string | null;
@@ -114,15 +115,6 @@ function scoreBg(score: number): string {
   if (pct >= 80) return 'bg-green-500';
   if (pct >= 60) return 'bg-yellow-500';
   return 'bg-red-500';
-}
-
-function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────
@@ -259,13 +251,13 @@ function QualityDashboard() {
           <CardHeader className="pb-1">
             <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <TrendingUpIcon className="h-3.5 w-3.5" />
-              Interactions Scored
+              Conversations Scored
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-semibold">
-                {overview.interactionsScored}
+                {overview.conversationsScored}
               </span>
               <span className="text-xs text-muted-foreground">
                 {overview.totalScores} total scores
@@ -318,11 +310,11 @@ function QualityDashboard() {
         </Card>
       </div>
 
-      {/* Worst interactions */}
-      {overview.worstInteractions.length > 0 && (
+      {/* Worst conversations */}
+      {overview.worstConversations.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium">
-            Interactions by Quality
+            Conversations by Quality
             <span className="ml-2 text-muted-foreground font-normal">
               lowest first
             </span>
@@ -332,7 +324,7 @@ function QualityDashboard() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Interaction
+                    Conversation
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                     Quality
@@ -346,22 +338,22 @@ function QualityDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {overview.worstInteractions.map((conv) => {
+                {overview.worstConversations.map((conv) => {
                   const pct = Math.round(conv.avgScore * 100);
                   return (
                     <tr
-                      key={conv.interactionId}
+                      key={conv.conversationId}
                       className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                     >
                       <td className="px-3 py-2.5">
                         <Link
-                          to="/interactions/$interactionId"
+                          to="/conversations/$conversationId"
                           params={{
-                            interactionId: conv.interactionId,
+                            conversationId: conv.conversationId,
                           }}
                           className="text-sm text-primary hover:underline font-mono"
                         >
-                          {conv.interactionId.slice(0, 8)}…
+                          {conv.conversationId.slice(0, 8)}…
                         </Link>
                       </td>
                       <td className="px-3 py-2.5">

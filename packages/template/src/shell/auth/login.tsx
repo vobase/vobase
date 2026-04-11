@@ -212,6 +212,37 @@ function LoginPage() {
             </Button>
           </form>
         )}
+        {import.meta.env.DEV && (
+          <>
+            <div className="flex items-center gap-3">
+              <Separator className="flex-1" />
+              <span className="text-xs text-muted-foreground">dev only</span>
+              <Separator className="flex-1" />
+            </div>
+            <Button
+              variant="outline"
+              className="w-full border-2 border-dashed border-yellow-500 bg-[repeating-linear-gradient(-45deg,transparent,transparent_8px,rgba(234,179,8,0.08)_8px,rgba(234,179,8,0.08)_16px)] text-yellow-600 hover:border-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-500 dark:border-yellow-600 dark:text-yellow-500 dark:hover:border-yellow-500"
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                const res = await fetch('/api/auth/dev-login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: 'admin@example.com' }),
+                });
+                setLoading(false);
+                if (!res.ok) {
+                  toast.error('Dev login failed.');
+                  return;
+                }
+                await router.invalidate();
+                navigate({ to: '/' });
+              }}
+            >
+              Sign in as Admin (dev)
+            </Button>
+          </>
+        )}
       </CardContent>
     </Card>
   );

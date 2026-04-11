@@ -15,11 +15,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  ChannelBadge,
-  ModeBadge,
-  PriorityIcon,
-} from '@/components/interaction-badges';
+import { ChannelBadge, PriorityIcon } from '@/components/conversation-badges';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,20 +34,19 @@ interface ContactRow {
   role: string;
   channels: string[];
   status: string;
-  mode: string;
+  assignee: string | null;
+  onHold: boolean;
   priority: string | null;
   unreadCount: number;
   lastMessageContent: string | null;
   lastMessageAt: string | null;
   lastMessageType: string | null;
-  hasPendingEscalation: boolean;
-  waitingSince: string | null;
   labels: { id: string; title: string; color: string | null }[];
 }
 
 interface TabCounts {
-  attention: number;
   active: number;
+  onHold: number;
   done: number;
 }
 
@@ -68,9 +63,9 @@ function messagePreview(row: ContactRow): string | null {
       case 'handler.changed':
         return 'Mode changed';
       case 'session.completed':
-        return 'Interaction resolved';
+        return 'Conversation resolved';
       case 'session.failed':
-        return 'Interaction failed';
+        return 'Conversation failed';
       case 'guardrail.block':
         return 'Message blocked by guardrail';
       case 'message.delivery_failed':
@@ -92,51 +87,49 @@ function messagePreview(row: ContactRow): string | null {
 
 // ─── Data fetchers ────────────────────────────────────────────────────
 
-async function fetchAttention(): Promise<ContactRow[]> {
-  const res = await aiClient.interactions.attention.$get({
-    query: { limit: '50' },
-  });
-  if (!res.ok) throw new Error('Failed to fetch attention contacts');
-  return res.json() as Promise<ContactRow[]>;
-}
-
 async function fetchActive(): Promise<ContactRow[]> {
-  const res = await aiClient.interactions.active.$get({
+  const res = await aiClient.conversations.active.$get({
     query: { limit: '50' },
   });
   if (!res.ok) throw new Error('Failed to fetch active contacts');
-  return res.json() as Promise<ContactRow[]>;
+  return res.json() as unknown as Promise<ContactRow[]>;
+}
+
+async function fetchOnHold(): Promise<ContactRow[]> {
+  const res = await aiClient.conversations['on-hold'].$get({
+    query: { limit: '50' },
+  });
+  if (!res.ok) throw new Error('Failed to fetch on-hold contacts');
+  return res.json() as unknown as Promise<ContactRow[]>;
 }
 
 async function fetchDone(): Promise<ContactRow[]> {
-  const res = await aiClient.interactions.resolved.$get({
+  const res = await aiClient.conversations.resolved.$get({
     query: { limit: '50' },
   });
   if (!res.ok) throw new Error('Failed to fetch resolved contacts');
-  return res.json() as Promise<ContactRow[]>;
+  return res.json() as unknown as Promise<ContactRow[]>;
 }
 
 async function fetchCounts(): Promise<TabCounts> {
-  const res = await aiClient.interactions.counts.$get();
+  const res = await aiClient.conversations.counts.$get();
   if (!res.ok) throw new Error('Failed to fetch counts');
-  return res.json() as Promise<TabCounts>;
+  return res.json() as unknown as Promise<TabCounts>;
 }
 
 // ─── Contact Row Component ──────────────────────────────────────────
 
 function ContactRowItem({
   row,
-  showMode,
   isFocused,
 }: {
   row: ContactRow;
-  showMode?: boolean;
   isFocused?: boolean;
 }) {
   const { contactId: selectedId } = useParams({ strict: false });
   const isSelected = row.id === selectedId;
   const preview = messagePreview(row);
-  const timeRef = row.waitingSince ?? row.lastMessageAt;
+  const timeRef = row.lastMessageAt;
   const displayName = row.name ?? row.phone ?? row.email ?? 'Unknown';
 
   return (
@@ -170,26 +163,22 @@ function ContactRowItem({
               {displayName}
             </span>
             {row.priority && <PriorityIcon priority={row.priority} />}
+            {row.assignee?.startsWith('agent:') && (
+              <span className="shrink-0 text-[10px] font-bold text-blue-500">
+                @
+              </span>
+            )}
           </div>
           <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
             {timeRef ? formatRelativeTimeShort(timeRef) : ''}
           </span>
         </div>
 
-        {/* Row 2: Channel badges + mode */}
+        {/* Row 2: Channel badges */}
         <div className="flex items-center gap-1.5">
           {row.channels.map((ch) => (
             <ChannelBadge key={ch} type={ch} variant="icon" />
           ))}
-          {showMode && row.mode && <ModeBadge mode={row.mode} variant="icon" />}
-          {row.hasPendingEscalation && (
-            <Badge
-              variant="destructive"
-              className="h-4 px-1 text-[10px] font-bold"
-            >
-              ESC
-            </Badge>
-          )}
         </div>
 
         {/* Row 3: Preview + unread count */}
@@ -284,7 +273,7 @@ function NoContactSelected() {
 // ─── Main component ─────────────────────────────────────────────────
 
 function InboxLayout() {
-  const [tab, setTab] = useState<'attention' | 'active' | 'done'>('attention');
+  const [tab, setTab] = useState<'active' | 'on-hold' | 'done'>('active');
   const [search, setSearch] = useState('');
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -300,42 +289,42 @@ function InboxLayout() {
   }, []);
 
   const { data: counts } = useQuery({
-    queryKey: ['interactions-counts'],
+    queryKey: ['conversations-counts'],
     queryFn: fetchCounts,
     refetchInterval: 60000,
   });
 
-  const { data: attentionData, isPending: attentionPending } = useQuery({
-    queryKey: ['interactions-attention'],
-    queryFn: fetchAttention,
-    refetchInterval: 60000,
-    enabled: tab === 'attention',
-  });
   const { data: activeData, isPending: activePending } = useQuery({
-    queryKey: ['interactions-active'],
+    queryKey: ['conversations-active'],
     queryFn: fetchActive,
     refetchInterval: 60000,
     enabled: tab === 'active',
   });
+  const { data: onHoldData, isPending: onHoldPending } = useQuery({
+    queryKey: ['conversations-on-hold'],
+    queryFn: fetchOnHold,
+    refetchInterval: 60000,
+    enabled: tab === 'on-hold',
+  });
   const { data: doneData, isPending: donePending } = useQuery({
-    queryKey: ['interactions-resolved'],
+    queryKey: ['conversations-resolved'],
     queryFn: fetchDone,
     refetchInterval: 60000,
     enabled: tab === 'done',
   });
 
   const rawRows =
-    tab === 'attention'
-      ? (attentionData ?? [])
-      : tab === 'active'
-        ? (activeData ?? [])
+    tab === 'active'
+      ? (activeData ?? [])
+      : tab === 'on-hold'
+        ? (onHoldData ?? [])
         : (doneData ?? []);
 
   const isPending =
-    tab === 'attention'
-      ? attentionPending
-      : tab === 'active'
-        ? activePending
+    tab === 'active'
+      ? activePending
+      : tab === 'on-hold'
+        ? onHoldPending
         : donePending;
 
   // Client-side filter by contact info + message preview
@@ -400,24 +389,22 @@ function InboxLayout() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [filteredRows, focusedIndex, navigate]);
 
-  const showMode = tab === 'attention';
-
   const emptyProps =
-    tab === 'attention'
+    tab === 'active'
       ? {
-          icon: <CheckCircleIcon className="h-5 w-5 text-muted-foreground" />,
-          title: search ? 'No results' : 'All clear',
+          icon: <BotIcon className="h-5 w-5 text-muted-foreground" />,
+          title: search ? 'No results' : 'No active contacts',
           subtitle: search
             ? 'No contacts match your search'
-            : 'No contacts need attention',
+            : 'No active conversations right now',
         }
-      : tab === 'active'
+      : tab === 'on-hold'
         ? {
-            icon: <BotIcon className="h-5 w-5 text-muted-foreground" />,
-            title: search ? 'No results' : 'No active contacts',
+            icon: <CheckCircleIcon className="h-5 w-5 text-muted-foreground" />,
+            title: search ? 'No results' : 'Nothing on hold',
             subtitle: search
               ? 'No contacts match your search'
-              : 'AI is not handling any interactions right now',
+              : 'No contacts are currently on hold',
           }
         : {
             icon: <InboxIcon className="h-5 w-5 text-muted-foreground" />,
@@ -474,17 +461,6 @@ function InboxLayout() {
         >
           <div className="px-3 pt-2 shrink-0">
             <TabsList className="w-full">
-              <TabsTrigger value="attention" className="flex-1 text-sm gap-1.5">
-                Attention
-                {counts?.attention ? (
-                  <Badge
-                    variant="destructive"
-                    className="h-4 min-w-4 px-1 text-xs font-bold"
-                  >
-                    {counts.attention > 99 ? '99+' : counts.attention}
-                  </Badge>
-                ) : null}
-              </TabsTrigger>
               <TabsTrigger value="active" className="flex-1 text-sm gap-1.5">
                 Active
                 {counts?.active ? (
@@ -496,13 +472,24 @@ function InboxLayout() {
                   </Badge>
                 ) : null}
               </TabsTrigger>
+              <TabsTrigger value="on-hold" className="flex-1 text-sm gap-1.5">
+                On Hold
+                {counts?.onHold ? (
+                  <Badge
+                    variant="secondary"
+                    className="h-4 min-w-4 px-1 text-xs font-bold"
+                  >
+                    {counts.onHold > 99 ? '99+' : counts.onHold}
+                  </Badge>
+                ) : null}
+              </TabsTrigger>
               <TabsTrigger value="done" className="flex-1 text-sm">
                 Done
               </TabsTrigger>
             </TabsList>
           </div>
 
-          {(['attention', 'active', 'done'] as const).map((v) => (
+          {(['active', 'on-hold', 'done'] as const).map((v) => (
             <TabsContent
               key={v}
               value={v}
@@ -519,7 +506,6 @@ function InboxLayout() {
                       <ContactRowItem
                         key={row.id}
                         row={row}
-                        showMode={showMode}
                         isFocused={idx === focusedIndex}
                       />
                     ))}

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-export type TooltipIconButtonProps = ComponentPropsWithRef<typeof Button> & {
+type TooltipIconButtonProps = ComponentPropsWithRef<typeof Button> & {
   tooltip: string;
   side?: 'top' | 'bottom' | 'left' | 'right';
 };

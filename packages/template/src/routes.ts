@@ -9,16 +9,20 @@ export const routes = rootRoute('root.tsx', [
   route('/chat/$channelRoutingId', 'chat.$channelRoutingId.tsx'),
   layout('auth', 'shell/auth/layout.tsx', [
     route('/login', 'shell/auth/login.tsx'),
+    route('/pending', 'shell/auth/pending.tsx'),
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'home.tsx'),
     route('/inbox', '../modules/ai/pages/inbox/index.tsx', [
-      route('/$contactId', '../modules/ai/pages/inbox/$contactId.tsx'),
-    ]),
-    route('/interactions', '../modules/ai/pages/interactions/index.tsx', [
       route(
-        '/$interactionId',
-        '../modules/ai/pages/interactions/$interactionId.tsx',
+        '/$contactId',
+        '../modules/ai/pages/inbox/$contactId.tsx',
+      ),
+    ]),
+    route('/conversations', '../modules/ai/pages/conversations/index.tsx', [
+      route(
+        '/$conversationId',
+        '../modules/ai/pages/conversations/$conversationId.tsx',
       ),
     ]),
     route('/contacts', '../modules/ai/pages/contacts/index.tsx'),

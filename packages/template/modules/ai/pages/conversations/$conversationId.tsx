@@ -7,9 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
-  BotIcon,
   CheckIcon,
-  ChevronDownIcon,
   CircleAlertIcon,
   EllipsisIcon,
   PanelRightIcon,
@@ -25,17 +23,10 @@ import {
 import {
   AssigneeBadge,
   ChannelBadge,
-  ModeBadge,
   PriorityBadge,
   StatusBadge,
-} from '@/components/interaction-badges';
-import { Badge } from '@/components/ui/badge';
+} from '@/components/conversation-badges';
 import { Button } from '@/components/ui/button';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,12 +51,12 @@ import { StaffComposer } from './_components/staff-composer';
 import type {
   MessageRow,
   SenderInfo,
-  TimelineInteraction,
+  TimelineConversation,
 } from './_components/types';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
-interface InteractionDetail {
+interface ConversationDetail {
   id: string;
   agentId: string | null;
   contactId: string | null;
@@ -77,7 +68,6 @@ interface InteractionDetail {
   createdAt: string;
   updatedAt: string;
   metadata: Record<string, unknown>;
-  mode: 'ai' | 'human' | 'supervised' | 'held' | null;
   assignee: string | null;
   priority: 'low' | 'normal' | 'high' | 'urgent' | null;
   outcome: string | null;
@@ -88,27 +78,14 @@ interface MessagesPage {
   messages: MessageRow[];
   hasMore: boolean;
   nextCursor?: string;
-  interactions?: TimelineInteraction[];
-  currentInteractionId?: string;
+  conversations?: TimelineConversation[];
+  currentConversationId?: string;
 }
 
 interface ChannelInstance {
   id: string;
   type: string;
   label: string;
-}
-
-interface Consultation {
-  id: string;
-  interactionId: string;
-  staffContactId: string;
-  channelType: string;
-  reason: string;
-  summary: string | null;
-  status: string;
-  requestedAt: string;
-  repliedAt: string | null;
-  timeoutMinutes: number;
 }
 
 interface Contact {
@@ -121,12 +98,12 @@ interface Contact {
 
 // ─── Data fetchers ───────────────────────────────────────────────────
 
-async function fetchInteraction(id: string): Promise<InteractionDetail> {
-  const res = await aiClient.interactions[':id'].$get({
+async function fetchConversation(id: string): Promise<ConversationDetail> {
+  const res = await aiClient.conversations[':id'].$get({
     param: { id },
   });
-  if (!res.ok) throw new Error('Interaction not found');
-  return res.json() as unknown as Promise<InteractionDetail>;
+  if (!res.ok) throw new Error('Conversation not found');
+  return res.json() as unknown as Promise<ConversationDetail>;
 }
 
 async function fetchMessagesPage(
@@ -135,37 +112,29 @@ async function fetchMessagesPage(
 ): Promise<MessagesPage> {
   const query: { limit: string; before?: string } = { limit: '50' };
   if (before) query.before = before;
-  const res = await aiClient.interactions[':id']['timeline-messages'].$get({
+  const res = await aiClient.conversations[':id']['timeline-messages'].$get({
     param: { id },
     query,
   });
   if (!res.ok) return { messages: [], hasMore: false };
-  const data = (await res.json()) as {
+  const data = (await res.json()) as unknown as {
     messages: MessageRow[];
     hasMore: boolean;
     nextCursor?: string;
-    interactions?: TimelineInteraction[];
-    currentInteractionId?: string;
+    conversations?: TimelineConversation[];
+    currentConversationId?: string;
   };
   return {
     messages: data.messages ?? [],
     hasMore: data.hasMore,
     nextCursor: data.nextCursor,
-    interactions: data.interactions,
-    currentInteractionId: data.currentInteractionId,
+    conversations: data.conversations,
+    currentConversationId: data.currentConversationId,
   };
 }
 
-async function markInteractionRead(id: string): Promise<void> {
-  await aiClient.interactions[':id'].read.$post({ param: { id } });
-}
-
-async function fetchConsultations(id: string): Promise<Consultation[]> {
-  const res = await aiClient.interactions[':id'].consultations.$get({
-    param: { id },
-  });
-  if (!res.ok) return [];
-  return res.json();
+async function markConversationRead(id: string): Promise<void> {
+  await aiClient.conversations[':id'].read.$post({ param: { id } });
 }
 
 async function fetchContact(id: string): Promise<Contact | null> {
@@ -195,16 +164,16 @@ async function fetchAgents(): Promise<AgentInfo[]> {
   return res.json() as unknown as Promise<AgentInfo[]>;
 }
 
-async function updateInteraction(
+async function updateConversation(
   id: string,
   body: {
     status?: 'resolved' | 'failed';
-    mode?: 'held' | 'ai' | 'supervised' | 'human';
     priority?: 'low' | 'normal' | 'high' | 'urgent' | null;
     assignee?: string | null;
+    onHold?: boolean;
   },
-): Promise<InteractionDetail> {
-  const res = await aiClient.interactions[':id'].$patch(
+): Promise<ConversationDetail> {
+  const res = await aiClient.conversations[':id'].$patch(
     { param: { id } },
     {
       init: {
@@ -213,17 +182,17 @@ async function updateInteraction(
       },
     },
   );
-  if (!res.ok) throw new Error('Failed to update interaction');
-  return res.json() as unknown as Promise<InteractionDetail>;
+  if (!res.ok) throw new Error('Failed to update conversation');
+  return res.json() as unknown as Promise<ConversationDetail>;
 }
 
 async function sendReply(
-  interactionId: string,
+  conversationId: string,
   content: string,
   isInternal = false,
 ): Promise<unknown> {
-  const res = await aiClient.interactions[':id'].reply.$post(
-    { param: { id: interactionId } },
+  const res = await aiClient.conversations[':id'].reply.$post(
+    { param: { id: conversationId } },
     {
       init: {
         body: JSON.stringify({ content, isInternal }),
@@ -233,48 +202,6 @@ async function sendReply(
   );
   if (!res.ok) throw new Error('Failed to send reply');
   return res.json();
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-
-function consultationStatusVariant(
-  status: string,
-): 'default' | 'secondary' | 'outline' | 'success' | 'destructive' {
-  if (status === 'pending') return 'outline';
-  if (status === 'replied') return 'success';
-  if (status === 'timeout') return 'destructive';
-  return 'secondary';
-}
-
-// ─── Consultation Card ───────────────────────────────────────────────
-
-function ConsultationCard({ consultation }: { consultation: Consultation }) {
-  return (
-    <div className="rounded-md border bg-background p-2.5">
-      <div className="flex items-center gap-2 mb-1.5">
-        <Badge
-          variant={consultationStatusVariant(consultation.status)}
-          className="text-xs capitalize h-4 px-1.5"
-        >
-          {consultation.status}
-        </Badge>
-        <span className="text-xs text-muted-foreground capitalize">
-          {consultation.channelType}
-        </span>
-        <span className="ml-auto text-xs text-muted-foreground">
-          {formatRelativeTime(consultation.requestedAt)}
-        </span>
-      </div>
-      <p className="text-sm text-foreground leading-relaxed">
-        {consultation.reason}
-      </p>
-      {consultation.summary && (
-        <p className="mt-1.5 text-sm text-muted-foreground italic leading-relaxed">
-          {consultation.summary}
-        </p>
-      )}
-    </div>
-  );
 }
 
 // ─── Sidebar Detail Row ─────────────────────────────────────────────
@@ -298,8 +225,8 @@ function SidebarRow({
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
-function InteractionDetailPage() {
-  const { interactionId } = Route.useParams();
+function ConversationDetailPage() {
+  const { conversationId } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
@@ -309,26 +236,26 @@ function InteractionDetailPage() {
   useEffect(() => {
     localStorage.setItem('conv-sidebar', sidebarOpen ? 'open' : 'closed');
   }, [sidebarOpen]);
-  useTypingListener(interactionId);
+  useTypingListener(conversationId);
   const {
-    data: interaction,
-    isLoading: interactionLoading,
-    isError: interactionError,
+    data: conversation,
+    isLoading: conversationLoading,
+    isError: conversationError,
   } = useQuery({
-    queryKey: ['interaction-detail', interactionId],
-    queryFn: () => fetchInteraction(interactionId),
+    queryKey: ['conversation-detail', conversationId],
+    queryFn: () => fetchConversation(conversationId),
   });
 
-  // Redirect to /inbox/:contactId#:interactionId
+  // Redirect to /inbox/:contactId#:conversationId
   useEffect(() => {
-    if (!interaction?.contactId) return;
+    if (!conversation?.contactId) return;
     navigate({
       to: '/inbox/$contactId',
-      params: { contactId: interaction.contactId },
-      hash: interactionId,
+      params: { contactId: conversation.contactId },
+      hash: conversationId,
       replace: true,
     });
-  }, [interaction?.contactId, interactionId, navigate]);
+  }, [conversation?.contactId, conversationId, navigate]);
 
   const {
     data: messagesInfiniteData,
@@ -336,12 +263,12 @@ function InteractionDetailPage() {
     fetchNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['interactions-messages', interactionId],
+    queryKey: ['conversations-messages', conversationId],
     queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
-      fetchMessagesPage(interactionId, pageParam),
+      fetchMessagesPage(conversationId, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (firstPage) => firstPage.nextCursor,
-    enabled: !!interaction,
+    enabled: !!conversation,
     placeholderData: keepPreviousData,
   });
 
@@ -351,36 +278,30 @@ function InteractionDetailPage() {
     [messagesInfiniteData],
   );
 
-  // Timeline interaction metadata (from the first page — same for all pages)
-  const timelineInteractions = messagesInfiniteData?.pages[0]?.interactions;
+  // Timeline conversation metadata (from the first page — same for all pages)
+  const timelineConversations = messagesInfiniteData?.pages[0]?.conversations;
   const timelineCurrentId =
-    messagesInfiniteData?.pages[0]?.currentInteractionId;
+    messagesInfiniteData?.pages[0]?.currentConversationId;
 
-  // Mark interaction as read when opened or when new messages arrive
+  // Mark conversation as read when opened or when new messages arrive
   const lastMsgId = allMessageRows[allMessageRows.length - 1]?.id;
   const hasMarkedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!lastMsgId || hasMarkedRef.current === lastMsgId) return;
     hasMarkedRef.current = lastMsgId;
-    markInteractionRead(interactionId).catch(() => {});
-  }, [interactionId, lastMsgId]);
-
-  const { data: consultations = [] } = useQuery({
-    queryKey: ['interactions-consultations', interactionId],
-    queryFn: () => fetchConsultations(interactionId),
-    enabled: !!interaction,
-  });
+    markConversationRead(conversationId).catch(() => {});
+  }, [conversationId, lastMsgId]);
 
   const { data: contact } = useQuery({
-    queryKey: ['contacts', interaction?.contactId],
-    queryFn: () => fetchContact(interaction?.contactId ?? ''),
-    enabled: !!interaction?.contactId,
+    queryKey: ['contacts', conversation?.contactId],
+    queryFn: () => fetchContact(conversation?.contactId ?? ''),
+    enabled: !!conversation?.contactId,
   });
 
   const { data: channelInstance } = useQuery({
-    queryKey: ['channel-instance', interaction?.channelInstanceId],
-    queryFn: () => fetchChannelInstance(interaction?.channelInstanceId ?? ''),
-    enabled: !!interaction?.channelInstanceId,
+    queryKey: ['channel-instance', conversation?.channelInstanceId],
+    queryFn: () => fetchChannelInstance(conversation?.channelInstanceId ?? ''),
+    enabled: !!conversation?.channelInstanceId,
   });
 
   const { data: agents = [] } = useQuery({
@@ -402,8 +323,8 @@ function InteractionDetailPage() {
     }
 
     // Contact
-    if (contact && interaction?.contactId) {
-      map.set(interaction.contactId, {
+    if (contact && conversation?.contactId) {
+      map.set(conversation.contactId, {
         name: contact.name ?? 'Customer',
       });
     }
@@ -424,68 +345,35 @@ function InteractionDetailPage() {
     }
 
     return map;
-  }, [session, contact, interaction?.contactId, agents, allMessageRows]);
+  }, [session, contact, conversation?.contactId, agents, allMessageRows]);
 
-  const invalidateInteractionQueries = useCallback(() => {
+  const invalidateConversationQueries = useCallback(() => {
     queryClient.invalidateQueries({
-      queryKey: ['interaction-detail', interactionId],
+      queryKey: ['conversation-detail', conversationId],
     });
-    queryClient.invalidateQueries({ queryKey: ['interactions-attention'] });
-    queryClient.invalidateQueries({ queryKey: ['interactions-ai-active'] });
-    queryClient.invalidateQueries({ queryKey: ['interactions-resolved'] });
-    queryClient.invalidateQueries({ queryKey: ['interactions-counts'] });
-  }, [queryClient, interactionId]);
+    queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-ai-active'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-resolved'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations-counts'] });
+  }, [queryClient, conversationId]);
 
   const updateMutation = useMutation({
-    mutationFn: (body: Parameters<typeof updateInteraction>[1]) =>
-      updateInteraction(interactionId, body),
-    onSuccess: invalidateInteractionQueries,
-  });
-
-  const handbackMutation = useMutation({
-    mutationFn: async () => {
-      const res = await aiClient.interactions[':id'].handback.$post({
-        param: { id: interactionId },
-      });
-      if (!res.ok) throw new Error('Failed to hand back');
-      return res.json();
-    },
-    onSuccess: invalidateInteractionQueries,
-  });
-
-  const [approveDraftError, setApproveDraftError] = useState<string | null>(
-    null,
-  );
-  const approveDraftMutation = useMutation({
-    mutationFn: async () => {
-      const res = await aiClient.interactions[':id']['approve-draft'].$post({
-        param: { id: interactionId },
-      });
-      if (res.status === 404) throw new Error('No draft to approve');
-      if (res.status === 409) throw new Error('Draft already approved');
-      if (!res.ok) throw new Error('Failed to approve draft');
-      return res.json();
-    },
-    onSuccess: () => {
-      setApproveDraftError(null);
-      invalidateInteractionQueries();
-    },
-    onError: (err: Error) => {
-      setApproveDraftError(err.message);
-    },
+    mutationFn: (body: Parameters<typeof updateConversation>[1]) =>
+      updateConversation(conversationId, body),
+    onSuccess: invalidateConversationQueries,
   });
 
   const invalidateMessages = useCallback(() => {
     queryClient.invalidateQueries({
-      queryKey: ['interactions-messages', interactionId],
+      queryKey: ['conversations-messages', conversationId],
     });
-  }, [queryClient, interactionId]);
+  }, [queryClient, conversationId]);
 
-  const { signalTyping } = useTypingSender(interactionId);
+  const { signalTyping } = useTypingSender(conversationId);
 
   const replyMutation = useMutation({
     mutationFn: (params: { text: string; internal: boolean }) =>
-      sendReply(interactionId, params.text, params.internal),
+      sendReply(conversationId, params.text, params.internal),
     onSuccess: invalidateMessages,
   });
 
@@ -498,16 +386,16 @@ function InteractionDetailPage() {
 
   const handleRetryMessage = useCallback(
     async (messageId: string) => {
-      await aiClient.interactions[':id'].messages[':mid'].retry.$post({
-        param: { id: interactionId, mid: messageId },
+      await aiClient.conversations[':id'].messages[':mid'].retry.$post({
+        param: { id: conversationId, mid: messageId },
       });
       invalidateMessages();
     },
-    [interactionId, invalidateMessages],
+    [conversationId, invalidateMessages],
   );
 
   // ── Loading ──
-  if (interactionLoading) {
+  if (conversationLoading) {
     return (
       <div className="flex h-full">
         <div className="flex flex-1 flex-col">
@@ -541,21 +429,21 @@ function InteractionDetailPage() {
   }
 
   // ── Error ──
-  if (interactionError || !interaction) {
+  if (conversationError || !conversation) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <p className="text-sm text-muted-foreground">Interaction not found</p>
+          <p className="text-sm text-muted-foreground">
+            Conversation not found
+          </p>
         </div>
       </div>
     );
   }
 
   const isTerminal =
-    interaction.status === 'resolved' || interaction.status === 'failed';
+    conversation.status === 'resolved' || conversation.status === 'failed';
   const canReply = !isTerminal;
-  const currentMode = interaction.mode ?? 'ai';
-  const isAssignedToMe = interaction.assignee === session?.user?.id;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -567,7 +455,7 @@ function InteractionDetailPage() {
           <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-1.5">
             <div className="flex items-center gap-2.5 min-w-0">
               <h1 className="text-base font-semibold truncate">
-                {contact?.name ?? interaction.contactId ?? 'Unknown'}
+                {contact?.name ?? conversation.contactId ?? 'Unknown'}
               </h1>
               {channelInstance && (
                 <ChannelBadge
@@ -577,30 +465,12 @@ function InteractionDetailPage() {
                 />
               )}
               <span className="text-xs text-muted-foreground shrink-0">
-                {formatRelativeTime(interaction.startedAt)}
+                {formatRelativeTime(conversation.startedAt)}
               </span>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
               <KbCurationToggle />
-              {/* Supervised: approve draft */}
-              {!isTerminal && interaction.mode === 'supervised' && (
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="h-7 gap-1.5 text-sm"
-                  disabled={approveDraftMutation.isPending}
-                  onClick={() => approveDraftMutation.mutate()}
-                >
-                  <CheckIcon className="h-3.5 w-3.5" />
-                  Approve
-                </Button>
-              )}
-              {approveDraftError && (
-                <span className="text-sm text-destructive">
-                  {approveDraftError}
-                </span>
-              )}
               {/* Overflow menu */}
               {!isTerminal && (
                 <DropdownMenu>
@@ -620,21 +490,6 @@ function InteractionDetailPage() {
                       <CheckIcon className="h-3.5 w-3.5" />
                       Mark resolved
                     </DropdownMenuItem>
-                    {(interaction.mode === 'human' ||
-                      interaction.mode === 'supervised' ||
-                      interaction.mode === 'held') && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          disabled={handbackMutation.isPending}
-                          onClick={() => handbackMutation.mutate()}
-                          className="gap-2 text-sm"
-                        >
-                          <BotIcon className="h-3.5 w-3.5 text-violet-500" />
-                          Hand back to AI
-                        </DropdownMenuItem>
-                      </>
-                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="gap-2 text-xs text-destructive focus:text-destructive"
@@ -644,7 +499,7 @@ function InteractionDetailPage() {
                       }
                     >
                       <XCircleIcon className="h-3.5 w-3.5" />
-                      Kill interaction
+                      Kill conversation
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -654,44 +509,26 @@ function InteractionDetailPage() {
 
           {/* Row 2: Property bar — Linear-style inline selectors */}
           <div className="flex items-center gap-1 px-4 pb-2.5">
-            <StatusBadge status={interaction.status} className="mr-1" />
+            <StatusBadge status={conversation.status} className="mr-1" />
 
             <Separator orientation="vertical" className="h-4 mx-1" />
 
-            <ModeBadge
-              mode={currentMode}
+            <AssigneeBadge
+              assignee={conversation.assignee}
               variant={isTerminal ? 'badge' : 'field'}
-              onSelect={(v) =>
-                updateMutation.mutate({
-                  mode: v as 'ai' | 'supervised' | 'human' | 'held',
-                })
-              }
+              onSelect={(v) => updateMutation.mutate({ assignee: v })}
               disabled={updateMutation.isPending}
+              agents={agents}
             />
 
             <PriorityBadge
-              priority={interaction.priority}
+              priority={conversation.priority}
               variant={isTerminal ? 'badge' : 'field'}
               onSelect={(v) =>
                 updateMutation.mutate({
                   priority: v as 'low' | 'normal' | 'high' | 'urgent' | null,
                 })
               }
-              disabled={updateMutation.isPending}
-            />
-
-            <Separator orientation="vertical" className="h-4 mx-1" />
-
-            <AssigneeBadge
-              assignee={interaction.assignee}
-              isMe={isAssignedToMe}
-              variant={isTerminal ? 'badge' : 'field'}
-              onAssign={() =>
-                updateMutation.mutate({
-                  assignee: session?.user?.id ?? null,
-                })
-              }
-              onUnassign={() => updateMutation.mutate({ assignee: null })}
               disabled={updateMutation.isPending}
             />
           </div>
@@ -706,8 +543,8 @@ function InteractionDetailPage() {
             isFetchingMore={isFetchingNextPage}
             onLoadMore={() => fetchNextPage()}
             onRetryMessage={handleRetryMessage}
-            timelineInteractions={timelineInteractions}
-            currentInteractionId={timelineCurrentId}
+            timelineConversations={timelineConversations}
+            currentConversationId={timelineCurrentId}
           />
         </div>
 
@@ -723,11 +560,11 @@ function InteractionDetailPage() {
           />
         )}
 
-        {/* Failed interaction alert */}
-        {interaction.status === 'failed' && (
+        {/* Failed conversation alert */}
+        {conversation.status === 'failed' && (
           <div className="flex items-center gap-2 border-t bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
             <CircleAlertIcon className="h-4 w-4 shrink-0" />
-            This interaction has failed and cannot be resumed.
+            This conversation has failed and cannot be resumed.
           </div>
         )}
       </div>
@@ -787,9 +624,9 @@ function InteractionDetailPage() {
                         </p>
                       </div>
                     </Link>
-                  ) : interaction.contactId ? (
+                  ) : conversation.contactId ? (
                     <p className="text-xs text-muted-foreground font-mono">
-                      {interaction.contactId}
+                      {conversation.contactId}
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">No contact</p>
@@ -799,7 +636,7 @@ function InteractionDetailPage() {
                 <Separator />
 
                 {/* Labels */}
-                <LabelsManager interactionId={interactionId} />
+                <LabelsManager conversationId={conversationId} />
 
                 <Separator />
 
@@ -810,7 +647,7 @@ function InteractionDetailPage() {
                   </p>
                   <div className="space-y-0.5">
                     <SidebarRow label="Agent">
-                      {interaction.agentId ?? '—'}
+                      {conversation.agentId ?? '—'}
                     </SidebarRow>
                     <SidebarRow label="Channel">
                       {channelInstance
@@ -818,51 +655,31 @@ function InteractionDetailPage() {
                         : '—'}
                     </SidebarRow>
                     <SidebarRow label="Started">
-                      {formatRelativeTime(interaction.startedAt)}
+                      {formatRelativeTime(conversation.startedAt)}
                     </SidebarRow>
-                    {interaction.resolvedAt && (
+                    {conversation.resolvedAt && (
                       <SidebarRow label="Resolved">
-                        {formatRelativeTime(interaction.resolvedAt)}
+                        {formatRelativeTime(conversation.resolvedAt)}
                       </SidebarRow>
                     )}
                     <SidebarRow label="Messages">
                       {String(allMessageRows.length)}
                       {hasNextPage ? '+' : ''}
                     </SidebarRow>
-                    {interaction.outcome && (
+                    {conversation.outcome && (
                       <SidebarRow label="Outcome">
                         <span className="capitalize">
-                          {interaction.outcome.replaceAll('_', ' ')}
+                          {conversation.outcome.replaceAll('_', ' ')}
                         </span>
                       </SidebarRow>
                     )}
                     <SidebarRow label="ID">
                       <span className="font-mono text-xs text-muted-foreground">
-                        {interaction.id}
+                        {conversation.id}
                       </span>
                     </SidebarRow>
                   </div>
                 </div>
-
-                {/* Consultations */}
-                {consultations.length > 0 && (
-                  <>
-                    <Separator />
-                    <Collapsible defaultOpen>
-                      <CollapsibleTrigger className="flex w-full items-center justify-between group">
-                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Escalations ({consultations.length})
-                        </p>
-                        <ChevronDownIcon className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2 space-y-2">
-                        {consultations.map((c) => (
-                          <ConsultationCard key={c.id} consultation={c} />
-                        ))}
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </>
-                )}
               </div>
             </ScrollArea>
           </>
@@ -872,6 +689,6 @@ function InteractionDetailPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/interactions/$interactionId')({
-  component: InteractionDetailPage,
+export const Route = createFileRoute('/_app/conversations/$conversationId')({
+  component: ConversationDetailPage,
 });

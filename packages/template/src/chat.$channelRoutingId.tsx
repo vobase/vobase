@@ -31,11 +31,11 @@ import { normalizeUIMessage } from '@/lib/normalize-message';
 
 function PublicChatView({
   channelRoutingId,
-  interactionId,
+  conversationId,
   initialMessages,
 }: {
   channelRoutingId: string;
-  interactionId: string;
+  conversationId: string;
   initialMessages: UIMessage[];
 }) {
   // SSE connection for realtime events — mounted here (after anonymous sign-in)
@@ -51,7 +51,7 @@ function PublicChatView({
   );
 
   const chatHelpers = useChat({
-    id: interactionId,
+    id: conversationId,
     transport,
     messages: initialMessages,
     onError: (error) => {
@@ -77,13 +77,14 @@ function PublicChatView({
   useEffect(() => {
     const unsubscribe = subscribeToPayloads((payload: RealtimePayload) => {
       if (
-        payload.table === 'interactions-messages' &&
-        payload.id === interactionId &&
+        payload.table === 'conversations-messages' &&
+        payload.id === conversationId &&
+        payload.action === 'insert' &&
         statusRef.current === 'ready'
       ) {
-        aiClient.chat[':channelRoutingId'].interactions[':interactionId']
+        aiClient.chat[':channelRoutingId'].conversations[':conversationId']
           .$get({
-            param: { channelRoutingId, interactionId },
+            param: { channelRoutingId, conversationId },
           })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
@@ -97,13 +98,13 @@ function PublicChatView({
       }
     });
     return unsubscribe;
-  }, [interactionId, channelRoutingId, setMessages]);
+  }, [conversationId, channelRoutingId, setMessages]);
 
-  useTypingListener(interactionId);
-  const { signalTyping } = useTypingSender(interactionId);
+  useTypingListener(conversationId);
+  const { signalTyping } = useTypingSender(conversationId);
   const { data: session } = authClient.useSession();
   const { feedbackMap, handleReact, handleDeleteFeedback } =
-    useFeedback(interactionId);
+    useFeedback(conversationId);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -114,7 +115,7 @@ function PublicChatView({
         currentUserId={session?.user?.id}
         onReact={handleReact}
         onDeleteFeedback={handleDeleteFeedback}
-        interactionId={interactionId}
+        conversationId={conversationId}
         isAiThinking={status === 'submitted' || status === 'streaming'}
       >
         <VobaseToolUIs />
@@ -132,7 +133,7 @@ function PublicChatView({
 function PublicChatPage() {
   const { channelRoutingId } = useParams({ from: '/chat/$channelRoutingId' });
   const {
-    interactionId,
+    conversationId,
     initialMessages,
     loading,
     error,
@@ -166,7 +167,7 @@ function PublicChatPage() {
     );
   }
 
-  if (!interactionId) return null;
+  if (!conversationId) return null;
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -177,7 +178,7 @@ function PublicChatPage() {
 
       <PublicChatView
         channelRoutingId={channelRoutingId}
-        interactionId={interactionId}
+        conversationId={conversationId}
         initialMessages={initialMessages}
       />
     </div>

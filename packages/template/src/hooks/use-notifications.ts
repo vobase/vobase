@@ -14,14 +14,14 @@ export function useEscalationNotifications() {
   const prevCountRef = useRef(-1);
 
   const { data: unreadCount = 0 } = useQuery({
-    queryKey: ['interactions-list', 'alerts'],
+    queryKey: ['conversations-list', 'alerts'],
     queryFn: async () => {
-      const res = await aiClient.interactions.$get({
+      const res = await aiClient.conversations.$get({
         query: { status: 'failed' },
       });
       if (!res.ok) return 0;
-      const interactions: unknown[] = await res.json();
-      return interactions.length;
+      const conversations: unknown[] = await res.json();
+      return conversations.length;
     },
     refetchInterval: 30_000,
   });
@@ -37,7 +37,7 @@ export function useEscalationNotifications() {
 
   const clearCount = () => {
     prevCountRef.current = 0;
-    queryClient.setQueryData(['interactions-sessions', 'alerts'], 0);
+    queryClient.setQueryData(['conversations-list', 'alerts'], 0);
   };
 
   return { unreadCount, clearCount };
