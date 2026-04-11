@@ -23,6 +23,7 @@ import {
   PriorityIcon,
 } from '@/components/conversation-badges';
 import { Badge } from '@/components/ui/badge';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -199,9 +200,11 @@ function InboxRow({
       </div>
 
       {/* Time */}
-      <span className="text-xs text-muted-foreground tabular-nums shrink-0 mt-0.5">
-        {formatRelativeTimeShort(timeRef)}
-      </span>
+      <RelativeTimeCard date={timeRef}>
+        <span className="text-xs text-muted-foreground tabular-nums shrink-0 mt-0.5">
+          {formatRelativeTimeShort(timeRef)}
+        </span>
+      </RelativeTimeCard>
     </Link>
   );
 }

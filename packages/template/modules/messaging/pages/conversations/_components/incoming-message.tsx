@@ -8,7 +8,7 @@ import {
 } from '@/components/ai-elements/message';
 import { ChannelBadge } from '@/components/conversation-badges';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { formatRelativeTime } from '@/lib/format';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { cn } from '@/lib/utils';
 import { MediaContent, parseMedia } from './media-content';
 import type { MessageRow, SenderInfo } from './types';
@@ -53,7 +53,7 @@ export const IncomingMessage = memo(function IncomingMessage({
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">{name}</span>
             {channelType && <ChannelBadge type={channelType} variant="icon" />}
-            <span>{formatRelativeTime(message.createdAt)}</span>
+            <RelativeTimeCard date={message.createdAt} />
             {onReplyClick && !isWithdrawn && (
               <button
                 type="button"

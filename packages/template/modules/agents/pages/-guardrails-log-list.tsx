@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { agentsClient } from '@/lib/api-client';
 
@@ -29,17 +30,6 @@ async function fetchLogs(
   });
   if (!res.ok) throw new Error('Failed to fetch moderation logs');
   return res.json();
-}
-
-function formatRelativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 export function GuardrailsLogList() {
@@ -79,7 +69,7 @@ export function GuardrailsLogList() {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <ShieldAlertIcon className="size-8 mb-3 opacity-40" />
-        <p className="text-sm">No content has been moderated yet</p>
+        <p>No content has been moderated yet</p>
       </div>
     );
   }
@@ -95,7 +85,6 @@ export function GuardrailsLogList() {
             <div className="flex items-center gap-2 flex-wrap">
               <Badge
                 variant={log.reason === 'blocklist' ? 'destructive' : 'default'}
-                className="text-xs"
               >
                 {log.reason === 'blocklist' ? 'Blocklist' : 'Max Length'}
               </Badge>
@@ -114,9 +103,7 @@ export function GuardrailsLogList() {
               </p>
             )}
           </div>
-          <span className="text-xs text-muted-foreground shrink-0">
-            {formatRelativeTime(log.createdAt)}
-          </span>
+          <RelativeTimeCard date={log.createdAt} className="text-xs shrink-0" />
         </div>
       ))}
 

@@ -2,7 +2,7 @@ import DOMPurify from 'dompurify';
 import { ChevronDownIcon, ChevronRightIcon, FileIcon } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
-import { formatRelativeTime } from '@/lib/format';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { cn } from '@/lib/utils';
 import type { MessageRow, SenderInfo } from './types';
 
@@ -175,9 +175,7 @@ export const EmailMessage = memo(function EmailMessage({
           <span className="text-[10px] text-muted-foreground">
             {sender?.name ?? 'Unknown'}
           </span>
-          <span className="text-[10px] text-muted-foreground">
-            {formatRelativeTime(message.createdAt)}
-          </span>
+          <RelativeTimeCard date={message.createdAt} />
         </div>
       </div>
 

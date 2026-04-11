@@ -9,6 +9,7 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchTasks, STATUS_VARIANT } from './-shared';
 
@@ -151,8 +152,8 @@ function AutomationDashboard() {
                   <span className="text-muted-foreground truncate">
                     {task.adapterId}
                   </span>
-                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                    {new Date(task.createdAt).toLocaleDateString()}
+                  <span className="ml-auto shrink-0">
+                    <RelativeTimeCard date={task.createdAt} />
                   </span>
                 </div>
               ))}

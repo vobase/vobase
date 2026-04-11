@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ChannelBadge, PriorityIcon } from '@/components/conversation-badges';
 import { Badge } from '@/components/ui/badge';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -169,9 +170,15 @@ function ContactRowItem({
               </span>
             )}
           </div>
-          <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-            {timeRef ? formatRelativeTimeShort(timeRef) : ''}
-          </span>
+          {timeRef ? (
+            <RelativeTimeCard date={timeRef}>
+              <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                {formatRelativeTimeShort(timeRef)}
+              </span>
+            </RelativeTimeCard>
+          ) : (
+            <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0" />
+          )}
         </div>
 
         {/* Row 2: Channel badges */}

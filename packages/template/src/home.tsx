@@ -9,6 +9,7 @@ import {
   Wrench,
 } from 'lucide-react';
 
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type RealtimeStatus, useRealtimeStatus } from '@/hooks/use-realtime';
 import { agentsClient, messagingClient } from '@/lib/api-client';
@@ -51,16 +52,6 @@ async function fetchContacts(): Promise<{ id: string; name: string | null }[]> {
 function formatResponseTime(ms: number): string {
   if (!ms) return '0.0s';
   return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
 }
 
 function successScoreColor(score: number): string {
@@ -375,7 +366,7 @@ function HomePage() {
                         <span
                           className={eventContactId ? 'group-hover:hidden' : ''}
                         >
-                          {relativeTime(event.createdAt)}
+                          <RelativeTimeCard date={event.createdAt} />
                         </span>
                       </span>
                     </div>

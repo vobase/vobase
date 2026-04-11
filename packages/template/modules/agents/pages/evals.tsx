@@ -35,13 +35,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Gauge,
+  GaugeIndicator,
+  GaugeRange,
+  GaugeTrack,
+  GaugeValueText,
+} from '@/components/ui/gauge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { agentsClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -103,18 +111,18 @@ function formatScorerLabel(id: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function scoreColor(score: number): string {
+function scoreRangeClass(score: number): string {
   const pct = score * 100;
   if (pct >= 80) return 'text-green-600 dark:text-green-400';
   if (pct >= 60) return 'text-yellow-600 dark:text-yellow-400';
   return 'text-red-600 dark:text-red-400';
 }
 
-function scoreBg(score: number): string {
+function scoreProgressClass(score: number): string {
   const pct = score * 100;
-  if (pct >= 80) return 'bg-green-500';
-  if (pct >= 60) return 'bg-yellow-500';
-  return 'bg-red-500';
+  if (pct >= 80) return '[&>[data-slot=progress-indicator]]:bg-green-500';
+  if (pct >= 60) return '[&>[data-slot=progress-indicator]]:bg-yellow-500';
+  return '[&>[data-slot=progress-indicator]]:bg-red-500';
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────
@@ -230,15 +238,22 @@ function QualityDashboard() {
           </CardHeader>
           <CardContent>
             {avgPct !== null ? (
-              <div className="flex items-baseline gap-1.5">
-                <span
-                  className={cn(
-                    'text-2xl font-semibold',
-                    scoreColor(overview.avgScore ?? 0),
-                  )}
+              <div className="flex items-center gap-3">
+                <Gauge
+                  value={avgPct}
+                  max={100}
+                  size={56}
+                  thickness={5}
+                  getValueText={(v) => `${v}%`}
                 >
-                  {avgPct}%
-                </span>
+                  <GaugeIndicator>
+                    <GaugeTrack />
+                    <GaugeRange
+                      className={scoreRangeClass(overview.avgScore ?? 0)}
+                    />
+                  </GaugeIndicator>
+                  <GaugeValueText className="text-sm font-semibold" />
+                </Gauge>
                 <span className="text-xs text-muted-foreground">average</span>
               </div>
             ) : (
@@ -358,19 +373,17 @@ function QualityDashboard() {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className={cn(
-                                'h-full rounded-full',
-                                scoreBg(conv.avgScore),
-                              )}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
+                          <Progress
+                            value={pct}
+                            className={cn(
+                              'h-1.5 w-16',
+                              scoreProgressClass(conv.avgScore),
+                            )}
+                          />
                           <span
                             className={cn(
                               'text-xs font-medium tabular-nums',
-                              scoreColor(conv.avgScore),
+                              scoreRangeClass(conv.avgScore),
                             )}
                           >
                             {pct}%
@@ -381,9 +394,11 @@ function QualityDashboard() {
                         {conv.scoreCount}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                        {conv.lastScored
-                          ? formatDateTime(conv.lastScored)
-                          : '—'}
+                        {conv.lastScored ? (
+                          <RelativeTimeCard date={conv.lastScored} />
+                        ) : (
+                          '—'
+                        )}
                       </td>
                     </tr>
                   );
@@ -423,25 +438,21 @@ function QualityDashboard() {
                       {scorer.count} scores
                     </p>
                   </div>
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span
-                      className={cn(
-                        'text-lg font-semibold tabular-nums',
-                        scoreColor(scorer.avgScore),
-                      )}
-                    >
-                      {pct}%
-                    </span>
-                    <div className="h-1 w-10 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={cn(
-                          'h-full rounded-full',
-                          scoreBg(scorer.avgScore),
-                        )}
-                        style={{ width: `${pct}%` }}
+                  <Gauge
+                    value={pct}
+                    max={100}
+                    size={48}
+                    thickness={4}
+                    getValueText={(v) => `${v}%`}
+                  >
+                    <GaugeIndicator>
+                      <GaugeTrack />
+                      <GaugeRange
+                        className={scoreRangeClass(scorer.avgScore)}
                       />
-                    </div>
-                  </div>
+                    </GaugeIndicator>
+                    <GaugeValueText className="text-xs font-semibold" />
+                  </Gauge>
                 </div>
               );
             })}
@@ -622,9 +633,7 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
                     LLM Judge
                   </Badge>
                   {scorer.enabled === false && (
-                    <Badge variant="secondary" className="text-xs">
-                      Disabled
-                    </Badge>
+                    <Badge variant="secondary">Disabled</Badge>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">

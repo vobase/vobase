@@ -11,9 +11,9 @@ import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { automationClient } from '@/lib/api-client';
-import { formatRelativeTime } from '@/lib/format';
 
 type PairingResult = {
   code: string;
@@ -306,7 +306,7 @@ function PairingPage() {
                     </p>
                     {session.pairedAt && (
                       <p className="text-xs text-muted-foreground">
-                        Paired {formatRelativeTime(session.pairedAt)}
+                        Paired <RelativeTimeCard date={session.pairedAt} />
                       </p>
                     )}
                   </div>

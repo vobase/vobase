@@ -13,8 +13,9 @@ import {
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
 import { Button } from '@/components/ui/button';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { isTimelineVisibleEvent } from '@/lib/activity-helpers';
-import { formatDate, formatRelativeTime } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { ActivityMessage } from './activity-message';
 import { IncomingMessage } from './incoming-message';
@@ -78,7 +79,7 @@ function ConversationOutcome({
         </span>
         {conversation.resolvedAt && (
           <span className="text-xs text-muted-foreground/60 ml-1">
-            · {formatRelativeTime(conversation.resolvedAt)}
+            · <RelativeTimeCard date={conversation.resolvedAt} />
           </span>
         )}
       </div>

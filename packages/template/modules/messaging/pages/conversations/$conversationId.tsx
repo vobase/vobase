@@ -34,6 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -43,7 +44,6 @@ import {
 } from '@/hooks/use-typing-indicator';
 import { agentsClient, messagingClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
-import { formatRelativeTime } from '@/lib/format';
 import { extractStaffName } from '@/lib/normalize-message';
 import { LabelsManager } from './_components/labels-manager';
 import { MessageTimeline } from './_components/message-timeline';
@@ -466,9 +466,7 @@ function ConversationDetailPage() {
                   className="shrink-0"
                 />
               )}
-              <span className="text-xs text-muted-foreground shrink-0">
-                {formatRelativeTime(conversation.startedAt)}
-              </span>
+              <RelativeTimeCard date={conversation.startedAt} />
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
@@ -657,11 +655,11 @@ function ConversationDetailPage() {
                         : '—'}
                     </SidebarRow>
                     <SidebarRow label="Started">
-                      {formatRelativeTime(conversation.startedAt)}
+                      <RelativeTimeCard date={conversation.startedAt} />
                     </SidebarRow>
                     {conversation.resolvedAt && (
                       <SidebarRow label="Resolved">
-                        {formatRelativeTime(conversation.resolvedAt)}
+                        <RelativeTimeCard date={conversation.resolvedAt} />
                       </SidebarRow>
                     )}
                     <SidebarRow label="Messages">

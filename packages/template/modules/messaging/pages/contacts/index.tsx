@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { useDataTable } from '@/hooks/use-data-table';
 import { messagingClient } from '@/lib/api-client';
 import { getSortingStateParser } from '@/lib/parsers';
@@ -188,11 +189,7 @@ const columns: ColumnDef<Contact>[] = [
     ),
     cell: ({ row }) => {
       const date = row.getValue('createdAt') as string;
-      return (
-        <span className="text-muted-foreground text-sm">
-          {new Date(date).toLocaleDateString()}
-        </span>
-      );
+      return <RelativeTimeCard date={date} />;
     },
     meta: { label: 'Created', variant: 'dateRange' },
     enableColumnFilter: true,
@@ -206,11 +203,7 @@ const columns: ColumnDef<Contact>[] = [
     ),
     cell: ({ row }) => {
       const date = row.getValue('updatedAt') as string;
-      return (
-        <span className="text-muted-foreground text-sm">
-          {new Date(date).toLocaleDateString()}
-        </span>
-      );
+      return <RelativeTimeCard date={date} />;
     },
     meta: { label: 'Updated' },
     enableSorting: true,

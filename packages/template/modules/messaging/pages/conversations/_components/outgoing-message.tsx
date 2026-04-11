@@ -14,7 +14,7 @@ import {
 import { ChannelBadge } from '@/components/conversation-badges';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { formatRelativeTime } from '@/lib/format';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { cn } from '@/lib/utils';
 import { DeliveryStatus } from './delivery-status';
 import { MediaContent, parseMedia } from './media-content';
@@ -152,7 +152,7 @@ export const OutgoingMessage = memo(function OutgoingMessage({
         </Badge>
       )}
       {channelType && <ChannelBadge type={channelType} variant="icon" />}
-      <span>{formatRelativeTime(message.createdAt)}</span>
+      <RelativeTimeCard date={message.createdAt} />
       <DeliveryStatus
         status={message.status}
         failureReason={message.failureReason}

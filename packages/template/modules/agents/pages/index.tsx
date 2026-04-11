@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Sheet,
@@ -139,7 +140,7 @@ function AgentDetailSheet({
                 <SheetTitle className="text-sm truncate">
                   {agent.name}
                 </SheetTitle>
-                <SheetDescription className="text-xs">
+                <SheetDescription>
                   {agent.model ?? 'Default model'}
                 </SheetDescription>
               </div>
@@ -176,7 +177,7 @@ function AgentDetailSheet({
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
                   {agent.tools?.map((tool) => (
-                    <Badge key={tool} variant="secondary" className="text-xs">
+                    <Badge key={tool} variant="secondary">
                       {tool}
                     </Badge>
                   ))}
@@ -243,8 +244,8 @@ function AgentDetailSheet({
                       <span className="truncate text-foreground">
                         {thread.title ?? 'Untitled'}
                       </span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {new Date(thread.createdAt).toLocaleDateString()}
+                      <span className="shrink-0">
+                        <RelativeTimeCard date={thread.createdAt} />
                       </span>
                     </div>
                   ))}

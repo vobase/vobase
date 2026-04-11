@@ -19,10 +19,10 @@ import remarkGfm from 'remark-gfm';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { agentsClient, messagingClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -135,14 +135,6 @@ function roleVariant(role: string): 'default' | 'secondary' | 'outline' {
   return 'secondary';
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 type Tab = 'overview' | 'timeline' | 'memory';
 
 // ─── Overview Tab ────────────────────────────────────────────────────
@@ -202,7 +194,9 @@ function OverviewTab({ contact }: { contact: Contact }) {
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted">
                 <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-              <span>Added {formatDate(contact.createdAt)}</span>
+              <span className="flex items-center gap-1">
+                Added <RelativeTimeCard date={contact.createdAt} />
+              </span>
             </div>
           </div>
 
@@ -313,7 +307,7 @@ function ConversationCard({
             )}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>{formatDateTime(conversation.startedAt)}</span>
+            <RelativeTimeCard date={conversation.startedAt} />
             {duration && (
               <>
                 <span>&middot;</span>
