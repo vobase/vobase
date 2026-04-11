@@ -11,10 +11,9 @@ import { configureTracing } from '../../mastra/lib/observability';
 import { aiRoutes } from './handlers';
 import {
   channelReplyJob,
-  consultationTimeoutJob,
+  conversationCleanupJob,
   deliverMessageJob,
   evalRunJob,
-  interactionCleanupJob,
   processInboundJob,
   resolvingTimeoutJob,
   sessionExpiryJob,
@@ -32,8 +31,7 @@ export const aiModule = defineModule({
     evalRunJob,
     deliverMessageJob,
     channelReplyJob,
-    consultationTimeoutJob,
-    interactionCleanupJob,
+    conversationCleanupJob,
     resolvingTimeoutJob,
     processInboundJob,
     sessionExpiryJob,
@@ -163,19 +161,9 @@ async function scheduleRecurringJobs(
 ): Promise<void> {
   await scheduler
     .add(
-      'ai:consultation-timeout',
+      'ai:conversation-cleanup',
       {},
-      { singletonKey: 'ai:consultation-timeout' },
-    )
-    .catch(() => {
-      // Ignore — job may already be registered
-    });
-
-  await scheduler
-    .add(
-      'ai:interaction-cleanup',
-      {},
-      { singletonKey: 'ai:interaction-cleanup' },
+      { singletonKey: 'ai:conversation-cleanup' },
     )
     .catch(() => {
       // Ignore — job may already be registered

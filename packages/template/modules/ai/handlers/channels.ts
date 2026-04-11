@@ -13,12 +13,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { getAgent } from '../../../mastra/agents';
-import {
-  channelInstances,
-  channelRoutings,
-  consultations,
-  interactions,
-} from '../schema';
+import { channelInstances, channelRoutings, conversations } from '../schema';
 
 const META_GRAPH_API = 'https://graph.facebook.com/v22.0';
 
@@ -412,7 +407,7 @@ export const channelsHandlers = new Hono()
     const ctx = getCtx(c);
     if (!ctx.user) throw unauthorized();
 
-    const { db, integrations, scheduler, channels } = ctx;
+    const { db, integrations } = ctx;
     const instanceId = c.req.param('id');
 
     const [existing] = await db
@@ -422,36 +417,36 @@ export const channelsHandlers = new Hono()
 
     if (!existing) throw notFound('Channel instance not found');
 
-    // M8: Prevent deletion if active interactions exist on channel routings bound to this instance
-    const activeInteractions = await db
-      .select({ id: interactions.id })
-      .from(interactions)
+    // Prevent deletion if active conversations exist on channel routings bound to this instance
+    const activeConversations = await db
+      .select({ id: conversations.id })
+      .from(conversations)
       .innerJoin(
         channelRoutings,
-        eq(interactions.channelRoutingId, channelRoutings.id),
+        eq(conversations.channelRoutingId, channelRoutings.id),
       )
       .where(
         and(
           eq(channelRoutings.channelInstanceId, instanceId),
-          eq(interactions.status, 'active'),
+          eq(conversations.status, 'active'),
         ),
       )
       .limit(1);
 
-    if (activeInteractions.length > 0) {
+    if (activeConversations.length > 0) {
       return c.json(
         {
           error: {
             code: 'CONFLICT',
             message:
-              'This channel has active interactions. Resolve or end them before removing.',
+              'This channel has active conversations. Resolve or end them before removing.',
           },
         },
         409,
       );
     }
 
-    // Clean up resolved interactions and channel routings before deleting instance (FK safety)
+    // Clean up resolved conversations and channel routings before deleting instance (FK safety)
     const relatedRoutingIds = (
       await db
         .select({ id: channelRoutings.id })
@@ -460,22 +455,19 @@ export const channelsHandlers = new Hono()
     ).map((r) => r.id);
 
     if (relatedRoutingIds.length > 0) {
-      // Batch: get all interaction IDs for these routings
-      const relatedInteractionIds = (
+      // Batch: get all conversation IDs for these routings
+      const relatedConversationIds = (
         await db
-          .select({ id: interactions.id })
-          .from(interactions)
-          .where(inArray(interactions.channelRoutingId, relatedRoutingIds))
+          .select({ id: conversations.id })
+          .from(conversations)
+          .where(inArray(conversations.channelRoutingId, relatedRoutingIds))
       ).map((r) => r.id);
 
-      // Batch: delete consultations → interactions → routings
-      if (relatedInteractionIds.length > 0) {
+      // Batch: delete conversations → routings
+      if (relatedConversationIds.length > 0) {
         await db
-          .delete(consultations)
-          .where(inArray(consultations.interactionId, relatedInteractionIds));
-        await db
-          .delete(interactions)
-          .where(inArray(interactions.id, relatedInteractionIds));
+          .delete(conversations)
+          .where(inArray(conversations.id, relatedConversationIds));
       }
       await db
         .delete(channelRoutings)
@@ -604,7 +596,7 @@ export const channelsHandlers = new Hono()
 
     return c.json(row);
   })
-  /** GET /channels/status — List channel instances with active interaction counts. */
+  /** GET /channels/status — List channel instances with active conversation counts. */
   .get('/channels/status', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
@@ -615,17 +607,17 @@ export const channelsHandlers = new Hono()
       .from(channelInstances)
       .orderBy(channelInstances.type);
 
-    const interactionCounts = await db
+    const conversationCounts = await db
       .select({
-        channelInstanceId: interactions.channelInstanceId,
+        channelInstanceId: conversations.channelInstanceId,
         count: count(),
       })
-      .from(interactions)
-      .where(eq(interactions.status, 'active'))
-      .groupBy(interactions.channelInstanceId);
+      .from(conversations)
+      .where(eq(conversations.status, 'active'))
+      .groupBy(conversations.channelInstanceId);
 
     const countMap = new Map(
-      interactionCounts.map((r) => [r.channelInstanceId, Number(r.count)]),
+      conversationCounts.map((r) => [r.channelInstanceId, Number(r.count)]),
     );
 
     const channels = instances.map((inst) => ({

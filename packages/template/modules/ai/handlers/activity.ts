@@ -13,7 +13,7 @@ const activityFilterSchema = z.object({
   type: z.string().optional(),
   channelType: z.string().optional(),
   contactId: z.string().optional(),
-  interactionId: z.string().optional(),
+  conversationId: z.string().optional(),
   timeFrom: z.string().optional(),
   timeTo: z.string().optional(),
   resolutionStatus: z.enum(['pending', 'reviewed', 'dismissed']).optional(),
@@ -50,8 +50,8 @@ export const activityHandlers = new Hono().get('/activity', async (c) => {
     conditions.push(
       sql`${messages.contentData}->>'contactId' = ${params.contactId}`,
     );
-  if (params.interactionId)
-    conditions.push(eq(messages.interactionId, params.interactionId));
+  if (params.conversationId)
+    conditions.push(eq(messages.conversationId, params.conversationId));
   if (params.resolutionStatus)
     conditions.push(eq(messages.resolutionStatus, params.resolutionStatus));
   if (params.timeFrom)

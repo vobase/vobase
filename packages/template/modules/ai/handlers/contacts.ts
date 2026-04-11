@@ -19,15 +19,15 @@ import { z } from 'zod';
 
 import { dataTableConfig } from '@/config/data-table';
 import { filterColumns } from '@/lib/filter-columns';
+import { createConversation } from '../lib/conversation';
 import { getModuleDeps } from '../lib/deps';
-import { createInteraction } from '../lib/interaction';
 import { insertMessage } from '../lib/messages';
 import {
   channelInstances,
   channelRoutings,
   contactLabels,
   contacts,
-  interactions,
+  conversations,
   labels,
   messages,
 } from '../schema';
@@ -357,7 +357,7 @@ export const contactsHandlers = new Hono()
 
     return c.json(row);
   })
-  // GET /:id/timeline — all messages for a contact across all channels/interactions, cursor-paginated
+  // GET /:id/timeline — all messages for a contact across all channels/conversations, cursor-paginated
   .get(
     '/:id/timeline',
     validator('query', (value) => {
@@ -383,38 +383,36 @@ export const contactsHandlers = new Hono()
 
       if (!contact) throw notFound('Contact not found');
 
-      // Fetch all interactions for this contact with channel info
-      const allInteractions = await db
+      // Fetch all conversations for this contact with channel info
+      const allConversations = await db
         .select({
-          id: interactions.id,
-          status: interactions.status,
-          outcome: interactions.outcome,
-          startedAt: interactions.startedAt,
-          resolvedAt: interactions.resolvedAt,
-          reopenCount: interactions.reopenCount,
-          mode: interactions.mode,
-          priority: interactions.priority,
-          assignee: interactions.assignee,
-          channelInstanceId: interactions.channelInstanceId,
+          id: conversations.id,
+          status: conversations.status,
+          outcome: conversations.outcome,
+          startedAt: conversations.startedAt,
+          resolvedAt: conversations.resolvedAt,
+          reopenCount: conversations.reopenCount,
+          onHold: conversations.onHold,
+          priority: conversations.priority,
+          assignee: conversations.assignee,
+          channelInstanceId: conversations.channelInstanceId,
           channelType: channelInstances.type,
           channelLabel: channelInstances.label,
-          hasPendingEscalation: interactions.hasPendingEscalation,
-          waitingSince: interactions.waitingSince,
         })
-        .from(interactions)
+        .from(conversations)
         .innerJoin(
           channelInstances,
-          eq(interactions.channelInstanceId, channelInstances.id),
+          eq(conversations.channelInstanceId, channelInstances.id),
         )
-        .where(eq(interactions.contactId, contactId))
-        .orderBy(asc(interactions.startedAt));
+        .where(eq(conversations.contactId, contactId))
+        .orderBy(asc(conversations.startedAt));
 
-      const interactionIds = allInteractions.map((i) => i.id);
+      const conversationIds = allConversations.map((i) => i.id);
 
-      // Fetch messages across all interactions with cursor pagination
+      // Fetch messages across all conversations with cursor pagination
       let messageRows: (typeof messages.$inferSelect)[] = [];
-      if (interactionIds.length > 0) {
-        const conditions = [inArray(messages.interactionId, interactionIds)];
+      if (conversationIds.length > 0) {
+        const conditions = [inArray(messages.conversationId, conversationIds)];
         if (before) {
           conditions.push(lt(messages.createdAt, new Date(before)));
         }
@@ -439,7 +437,7 @@ export const contactsHandlers = new Hono()
         string,
         { id: string; type: string; label: string | null }
       >();
-      for (const i of allInteractions) {
+      for (const i of allConversations) {
         if (!channelMap.has(i.channelInstanceId)) {
           channelMap.set(i.channelInstanceId, {
             id: i.channelInstanceId,
@@ -453,27 +451,25 @@ export const contactsHandlers = new Hono()
         messages: page.reverse(),
         hasMore,
         nextCursor,
-        interactions: allInteractions.map((i) => ({
+        conversations: allConversations.map((i) => ({
           id: i.id,
           status: i.status,
           outcome: i.outcome,
           startedAt: i.startedAt.toISOString(),
           resolvedAt: i.resolvedAt?.toISOString() ?? null,
           reopenCount: i.reopenCount,
-          mode: i.mode,
+          onHold: i.onHold,
           priority: i.priority,
           assignee: i.assignee,
           channelInstanceId: i.channelInstanceId,
           channelType: i.channelType,
           channelLabel: i.channelLabel,
-          hasPendingEscalation: i.hasPendingEscalation,
-          waitingSince: i.waitingSince?.toISOString() ?? null,
         })),
         channels: [...channelMap.values()],
       });
     },
   )
-  // POST /:id/mark-read — bulk mark all interactions for a contact as read
+  // POST /:id/mark-read — bulk mark all conversations for a contact as read
   .post('/:id/mark-read', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
@@ -482,20 +478,20 @@ export const contactsHandlers = new Hono()
     const { realtime } = getModuleDeps();
 
     const affected = await db
-      .update(interactions)
+      .update(conversations)
       .set({ unreadCount: 0, agentLastSeenAt: new Date() })
       .where(
         and(
-          eq(interactions.contactId, contactId),
-          sql`${interactions.unreadCount} > 0`,
+          eq(conversations.contactId, contactId),
+          sql`${conversations.unreadCount} > 0`,
         ),
       )
-      .returning({ id: interactions.id });
+      .returning({ id: conversations.id });
 
-    // Notify for each affected interaction
+    // Notify for each affected conversation
     for (const row of affected) {
       await realtime
-        .notify({ table: 'interactions', id: row.id, action: 'update' })
+        .notify({ table: 'conversations', id: row.id, action: 'update' })
         .catch(() => {});
     }
 
@@ -574,8 +570,8 @@ export const contactsHandlers = new Hono()
 
     return c.json({ ok: true });
   })
-  // POST /:id/new-interaction — create a new interaction + first message for a contact
-  .post('/:id/new-interaction', async (c) => {
+  // POST /:id/new-conversation — create a new conversation + first message for a contact
+  .post('/:id/new-conversation', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
@@ -599,8 +595,8 @@ export const contactsHandlers = new Hono()
 
     const { scheduler, realtime } = getModuleDeps();
 
-    // Create the interaction
-    const interaction = await createInteraction(
+    // Create the conversation
+    const conversation = await createConversation(
       { db, scheduler, realtime },
       {
         channelRoutingId: routing.id,
@@ -612,7 +608,7 @@ export const contactsHandlers = new Hono()
 
     // Insert the first message
     const message = await insertMessage(db, realtime, {
-      interactionId: interaction.id,
+      conversationId: conversation.id,
       messageType: 'outgoing',
       contentType: 'text',
       content: body.content,
@@ -622,7 +618,7 @@ export const contactsHandlers = new Hono()
     });
 
     return c.json(
-      { interactionId: interaction.id, messageId: message.id },
+      { conversationId: conversation.id, messageId: message.id },
       201,
     );
   });

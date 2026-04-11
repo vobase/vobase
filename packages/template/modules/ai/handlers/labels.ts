@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { getModuleDeps } from '../lib/deps';
 import { createActivityMessage } from '../lib/messages';
-import { interactionLabels, labels } from '../schema';
+import { conversationLabels, labels } from '../schema';
 
 const createLabelSchema = z.object({
   title: z.string().min(1).max(100),
@@ -56,26 +56,26 @@ export const labelsHandlers = new Hono()
     if (!deleted) return c.json({ error: 'Not found' }, 404);
     return c.json({ ok: true });
   })
-  // Interaction labels
-  .get('/interactions/:id/labels', async (c) => {
+  // Conversation labels
+  .get('/conversations/:id/labels', async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
     const rows = await db
       .select({ label: labels })
-      .from(interactionLabels)
-      .innerJoin(labels, eq(interactionLabels.labelId, labels.id))
-      .where(eq(interactionLabels.interactionId, c.req.param('id')));
+      .from(conversationLabels)
+      .innerJoin(labels, eq(conversationLabels.labelId, labels.id))
+      .where(eq(conversationLabels.conversationId, c.req.param('id')));
     return c.json(rows.map((r) => r.label));
   })
-  .post('/interactions/:id/labels', async (c) => {
+  .post('/conversations/:id/labels', async (c) => {
     const { db, user } = getCtx(c);
-    const interactionId = c.req.param('id');
+    const conversationId = c.req.param('id');
     const { labelIds } = addLabelsSchema.parse(await c.req.json());
     const values = labelIds.map((labelId) => ({
-      interactionId,
+      conversationId,
       labelId,
     }));
-    await db.insert(interactionLabels).values(values).onConflictDoNothing();
+    await db.insert(conversationLabels).values(values).onConflictDoNothing();
 
     // Record activity + notify for each label added
     const { realtime } = getModuleDeps();
@@ -87,7 +87,7 @@ export const labelsHandlers = new Hono()
 
     for (const labelId of labelIds) {
       await createActivityMessage(db, realtime, {
-        interactionId,
+        conversationId,
         eventType: 'label.added',
         actor: user?.id,
         actorType: 'user',
@@ -97,20 +97,20 @@ export const labelsHandlers = new Hono()
 
     await realtime
       .notify({
-        table: 'interaction-labels',
-        id: interactionId,
+        table: 'conversation-labels',
+        id: conversationId,
         action: 'insert',
       })
       .catch(() => {});
     await realtime
-      .notify({ table: 'interactions', id: interactionId, action: 'update' })
+      .notify({ table: 'conversations', id: conversationId, action: 'update' })
       .catch(() => {});
 
     return c.json({ ok: true });
   })
-  .delete('/interactions/:id/labels/:lid', async (c) => {
+  .delete('/conversations/:id/labels/:lid', async (c) => {
     const { db, user } = getCtx(c);
-    const interactionId = c.req.param('id');
+    const conversationId = c.req.param('id');
     const labelId = c.req.param('lid');
 
     // Get label title before deletion for the activity message
@@ -120,17 +120,17 @@ export const labelsHandlers = new Hono()
       .where(eq(labels.id, labelId));
 
     await db
-      .delete(interactionLabels)
+      .delete(conversationLabels)
       .where(
         and(
-          eq(interactionLabels.interactionId, interactionId),
-          eq(interactionLabels.labelId, labelId),
+          eq(conversationLabels.conversationId, conversationId),
+          eq(conversationLabels.labelId, labelId),
         ),
       );
 
     const { realtime } = getModuleDeps();
     await createActivityMessage(db, realtime, {
-      interactionId,
+      conversationId,
       eventType: 'label.removed',
       actor: user?.id,
       actorType: 'user',
@@ -139,13 +139,13 @@ export const labelsHandlers = new Hono()
 
     await realtime
       .notify({
-        table: 'interaction-labels',
-        id: interactionId,
+        table: 'conversation-labels',
+        id: conversationId,
         action: 'delete',
       })
       .catch(() => {});
     await realtime
-      .notify({ table: 'interactions', id: interactionId, action: 'update' })
+      .notify({ table: 'conversations', id: conversationId, action: 'update' })
       .catch(() => {});
 
     return c.json({ ok: true });

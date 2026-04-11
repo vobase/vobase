@@ -2,7 +2,7 @@ import { getCtx, unauthorized } from '@vobase/core';
 import { and, count, eq, gte, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
-import { interactions, messages } from '../schema';
+import { conversations, messages } from '../schema';
 
 export const dashboardHandlers = new Hono().get('/dashboard', async (c) => {
   const { db, user } = getCtx(c);
@@ -29,35 +29,35 @@ export const dashboardHandlers = new Hono().get('/dashboard', async (c) => {
       // Active sessions
       db
         .select({ count: count() })
-        .from(interactions)
-        .where(eq(interactions.status, 'active')),
+        .from(conversations)
+        .where(eq(conversations.status, 'active')),
 
       // Resolved today
       db
         .select({ count: count() })
-        .from(interactions)
+        .from(conversations)
         .where(
           and(
-            eq(interactions.status, 'resolved'),
-            gte(interactions.resolvedAt, todayStart),
+            eq(conversations.status, 'resolved'),
+            gte(conversations.resolvedAt, todayStart),
           ),
         ),
 
-      // Average response time (first outgoing message - interaction start)
+      // Average response time (first outgoing message - conversation start)
       db
         .select({
           avgMs: sql<number>`
               AVG(EXTRACT(EPOCH FROM (
-                (SELECT MIN(m.created_at) FROM interactions.messages m WHERE m.interaction_id = ${interactions.id} AND m.message_type = 'outgoing')
-                - ${interactions.startedAt}
+                (SELECT MIN(m.created_at) FROM conversations.messages m WHERE m.conversation_id = ${conversations.id} AND m.message_type = 'outgoing')
+                - ${conversations.startedAt}
               )) * 1000)
             `.as('avg_ms'),
         })
-        .from(interactions)
+        .from(conversations)
         .where(
           and(
-            eq(interactions.status, 'resolved'),
-            gte(interactions.resolvedAt, todayStart),
+            eq(conversations.status, 'resolved'),
+            gte(conversations.resolvedAt, todayStart),
           ),
         ),
     ]);
