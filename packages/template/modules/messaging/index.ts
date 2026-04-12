@@ -1,4 +1,9 @@
-import type { MessageReceivedEvent, ProvisionChannelData } from '@vobase/core';
+import type {
+  MessageReceivedEvent,
+  ProvisionChannelData,
+  ReactionEvent,
+  StatusUpdateEvent,
+} from '@vobase/core';
 import {
   createNanoid,
   createWhatsAppAdapter,
@@ -10,6 +15,7 @@ import { and, eq } from 'drizzle-orm';
 import { messagingRoutes } from './handlers';
 import { buildManagedTransport } from './handlers/channels';
 import {
+  channelHealthCheckJob,
   conversationCleanupJob,
   deliverMessageJob,
   processInboundJob,
@@ -18,6 +24,7 @@ import {
   setModuleDeps,
 } from './jobs';
 import { handleInboundMessage } from './lib/inbound';
+import { handleReaction, handleStatusUpdate } from './lib/status';
 import * as schema from './schema';
 import { channelInstances } from './schema';
 
@@ -31,6 +38,7 @@ export const messagingModule = defineModule({
     resolvingTimeoutJob,
     processInboundJob,
     sessionExpiryJob,
+    channelHealthCheckJob,
   ],
 
   async init(ctx) {
@@ -205,6 +213,26 @@ export const messagingModule = defineModule({
             });
         });
       });
+
+      ctx.channels.on('status_update', (event: StatusUpdateEvent) => {
+        handleStatusUpdate(event).catch((err) => {
+          logger.error('[messaging] handleStatusUpdate failed', {
+            messageId: event.messageId,
+            channel: event.channel,
+            error: err,
+          });
+        });
+      });
+
+      ctx.channels.on('reaction', (event: ReactionEvent) => {
+        handleReaction(event).catch((err) => {
+          logger.error('[messaging] handleReaction failed', {
+            messageId: event.messageId,
+            channel: event.channel,
+            error: err,
+          });
+        });
+      });
     }
 
     // Schedule recurring jobs
@@ -245,5 +273,11 @@ async function scheduleRecurringJobs(
     )
     .catch(() => {
       // Ignore — job may already be registered
+    });
+
+  await scheduler
+    .schedule('messaging:channel-health-check', '0 */6 * * *', {})
+    .catch(() => {
+      // Ignore — schedule may already exist
     });
 }
