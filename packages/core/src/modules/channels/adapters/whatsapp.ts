@@ -4,15 +4,16 @@ import type {
   ChannelAdapter,
   ChannelCapabilities,
   ChannelEvent,
-  ChannelMedia,
-  MessageReceivedEvent,
   OutboundMessage,
-  ReactionEvent,
   SendResult,
-  StatusUpdateEvent,
 } from '../../../contracts/channels';
 import type { HttpClient } from '../../../infra/http-client';
 import type { WhatsAppChannelConfig } from '../index';
+import {
+  parseWhatsAppMessages,
+  parseWhatsAppStatuses,
+} from './whatsapp-shared';
+import type { WhatsAppWebhookPayload } from './whatsapp-shared';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -23,83 +24,6 @@ export interface WhatsAppTemplate {
   category: string;
   status: string;
   components: unknown[];
-}
-
-interface WebhookPayload {
-  object: 'whatsapp_business_account';
-  entry: Array<{
-    id: string;
-    changes: Array<{
-      value: {
-        messaging_product: 'whatsapp';
-        metadata: { display_phone_number: string; phone_number_id: string };
-        contacts?: Array<{ profile: { name: string }; wa_id: string }>;
-        messages?: InboundMessage[];
-        statuses?: InboundStatus[];
-      };
-      field: 'messages';
-    }>;
-  }>;
-}
-
-interface InboundMessage {
-  from: string;
-  id: string;
-  timestamp: string;
-  type: string;
-  text?: { body: string };
-  image?: MediaInfo;
-  document?: MediaInfo & { filename?: string };
-  audio?: MediaInfo;
-  video?: MediaInfo;
-  sticker?: MediaInfo;
-  location?: {
-    latitude: number;
-    longitude: number;
-    name?: string;
-    address?: string;
-  };
-  contacts?: Array<{
-    name: { formatted_name: string; first_name?: string; last_name?: string };
-    phones?: Array<{ phone: string; type?: string }>;
-    emails?: Array<{ email: string; type?: string }>;
-  }>;
-  reaction?: { message_id: string; emoji: string };
-  interactive?: {
-    type: 'button_reply' | 'list_reply';
-    button_reply?: { id: string; title: string };
-    list_reply?: { id: string; title: string; description?: string };
-  };
-  button?: { text: string; payload: string };
-  context?: { id: string; forwarded?: boolean; frequently_forwarded?: boolean };
-  errors?: Array<{ code: number; title: string; details?: string }>;
-}
-
-interface MediaInfo {
-  id: string;
-  mime_type: string;
-  caption?: string;
-  filename?: string;
-}
-
-interface InboundStatus {
-  id: string;
-  status:
-    | 'sent'
-    | 'delivered'
-    | 'read'
-    | 'failed'
-    | 'deleted'
-    | 'warning'
-    | 'pending';
-  timestamp: string;
-  recipient_id: string;
-  errors?: Array<{
-    code: number;
-    title: string;
-    message?: string;
-    error_data?: { details?: string };
-  }>;
 }
 
 // ─── Error Class ─────────────────────────────────────────────────────
@@ -259,6 +183,44 @@ export function createWhatsAppAdapter(
 } {
   const { phoneNumberId, accessToken, appSecret } = config;
   const apiVersion = config.apiVersion ?? 'v22.0';
+  const transport = config.transport;
+
+  // ─── transportFetch closure ─────────────────────────────────
+
+  /**
+   * Centralized fetch that routes through the transport proxy when configured,
+   * or directly to the Meta Graph API otherwise. All outbound calls go through this.
+   */
+  async function transportFetch(
+    path: string,
+    init: RequestInit = {},
+  ): Promise<Response> {
+    const url = transport
+      ? `${transport.baseUrl}${path}`
+      : graphUrl(apiVersion, path);
+
+    // Sign the full URL pathname so it matches what the platform's
+    // verifyTenantSignature middleware sees via c.req.path.
+    const authHeaders = transport
+      ? transport.signRequest(init.method ?? 'GET', new URL(url).pathname)
+      : { Authorization: `Bearer ${accessToken}` };
+
+    const res = await fetch(url, {
+      ...init,
+      headers: { ...authHeaders, ...(init.headers as Record<string, string>) },
+    });
+
+    // Intercept proxy-layer errors before they reach parseGraphError
+    if (transport && (res.status === 502 || res.status === 503 || res.status === 504)) {
+      throw new WhatsAppApiError(
+        `Proxy error: ${res.status}`,
+        res.status,
+        0,
+      );
+    }
+
+    return res;
+  }
 
   // ─── graphFetch closure ───────────────────────────────────────
 
@@ -275,6 +237,23 @@ export function createWhatsAppAdapter(
     path: string,
     options: RequestInit = {},
   ): Promise<GraphApiResponse> {
+    // Transport mode: always use transportFetch (skip httpClient — its retry/circuit
+    // breaker is calibrated for direct Meta API, not the proxy hop)
+    if (transport) {
+      const res = await transportFetch(path, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers as Record<string, string>),
+        },
+      });
+      if (!res.ok) {
+        await parseGraphError(res);
+      }
+      return res.json() as Promise<GraphApiResponse>;
+    }
+
+    // Direct mode: existing behavior
     const url = graphUrl(apiVersion, path);
     const authHeaders = { Authorization: `Bearer ${accessToken}` };
 
@@ -337,11 +316,19 @@ export function createWhatsAppAdapter(
       const mediaUrl = meta.url as string;
       if (!mediaUrl) return null;
 
-      // Always use plain fetch for binary media downloads — httpClient parses
-      // the response body (JSON/text) which makes it unsuitable for binary data.
-      const binRes = await fetch(mediaUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      // Binary media download: in transport mode, the CDN URL requires Bearer auth
+      // that only the platform holds, so route through the media-download proxy endpoint.
+      // In direct mode, fetch the CDN URL with our own Bearer token.
+      let binRes: Response;
+      if (transport) {
+        const downloadUrl = `${transport.mediaDownloadUrl}?url=${encodeURIComponent(mediaUrl)}`;
+        const authHeaders = transport.signRequest('GET', new URL(downloadUrl).pathname);
+        binRes = await fetch(downloadUrl, { headers: authHeaders });
+      } else {
+        binRes = await fetch(mediaUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      }
       if (!binRes.ok) return null;
 
       const maxSize: number =
@@ -390,18 +377,15 @@ export function createWhatsAppAdapter(
    * restart — the outbox table's status column prevents duplicate sends
    * at the DB level, so this is a secondary performance optimization only.
    */
-  const recentlySentIds = new Set<string>();
   const sentTimestamps = new Map<string, number>();
 
   function addRecentlySent(waMessageId: string): void {
-    recentlySentIds.add(waMessageId);
     sentTimestamps.set(waMessageId, Date.now());
 
     // Lazy eviction
     const now = Date.now();
     for (const [id, ts] of sentTimestamps) {
       if (now - ts > EVICTION_TTL_MS) {
-        recentlySentIds.delete(id);
         sentTimestamps.delete(id);
       }
     }
@@ -411,7 +395,6 @@ export function createWhatsAppAdapter(
     const ts = sentTimestamps.get(waMessageId);
     if (!ts) return false;
     if (Date.now() - ts > EVICTION_TTL_MS) {
-      recentlySentIds.delete(waMessageId);
       sentTimestamps.delete(waMessageId);
       return false;
     }
@@ -421,6 +404,13 @@ export function createWhatsAppAdapter(
   // ─── Webhook verification ──────────────────────────────────────
 
   async function verifyWebhook(request: Request): Promise<boolean> {
+    // Transport mode: webhooks arrive via platform forwarding, which verifies
+    // X-Hub-Signature-256 before forwarding with X-Platform-Signature. The core
+    // webhook router in channels/index.ts verifies X-Platform-Signature BEFORE
+    // calling this method. This adapter MUST NOT be called without prior platform
+    // signature verification.
+    if (transport) return true;
+
     const signature = request.headers.get('x-hub-signature-256');
     if (!signature || signature.length === 0) return false;
     if (!signature.startsWith('sha256=')) return false;
@@ -471,320 +461,25 @@ export function createWhatsAppAdapter(
   // ─── Webhook parsing ───────────────────────────────────────────
 
   async function parseWebhook(request: Request): Promise<ChannelEvent[]> {
-    let payload: WebhookPayload;
+    let payload: WhatsAppWebhookPayload;
     try {
-      payload = (await request.clone().json()) as WebhookPayload;
+      payload = (await request.clone().json()) as WhatsAppWebhookPayload;
     } catch {
       return [];
     }
 
     if (payload.object !== 'whatsapp_business_account') return [];
 
-    const events: ChannelEvent[] = [];
+    // Parse messages with media download, then filter outbound echo dedup.
+    // isRecentlySent stays here — dedup is adapter-specific, not shared logic.
+    const messageEvents = await parseWhatsAppMessages(payload, downloadMedia);
+    const dedupedMessages = messageEvents.filter(
+      (e) => e.type !== 'message_received' || !isRecentlySent(e.messageId),
+    );
 
-    if (!payload.entry?.length) return events;
+    const statusEvents = parseWhatsAppStatuses(payload);
 
-    for (const entry of payload.entry) {
-      for (const change of entry.changes) {
-        const value = change.value;
-
-        // Build contact maps: name lookup (keyed by wa_id) and from→wa_id resolver.
-        // In 99% of cases msg.from === wa_id, but they can diverge (e.g. Brazilian 9th digit).
-        // We key contactMap by wa_id AND populate fromToWaId after seeing messages below.
-        const contactMap = new Map<string, string>();
-        const contacts = value.contacts ?? [];
-        for (const c of contacts) {
-          contactMap.set(c.wa_id, c.profile.name);
-        }
-        // Build from→wa_id map: contacts[i] corresponds to the message sender.
-        // When from !== wa_id, this lets us resolve the canonical wa_id.
-        const fromToWaId = new Map<string, string>();
-        for (const c of contacts) {
-          fromToWaId.set(c.wa_id, c.wa_id);
-        }
-        // Also key contactMap by msg.from for profile name lookup when from !== wa_id
-        for (const msg of value.messages ?? []) {
-          const contact =
-            contacts.find((c) => c.wa_id === msg.from) ?? contacts[0];
-          if (contact && contact.wa_id !== msg.from) {
-            contactMap.set(msg.from, contact.profile.name);
-            fromToWaId.set(msg.from, contact.wa_id);
-          }
-        }
-
-        // Parse messages
-        if (value.messages && value.messages.length > 0) {
-          for (const msg of value.messages) {
-            // Skip recently sent (dedup outbound echoes)
-            if (isRecentlySent(msg.id)) continue;
-
-            const event = await parseInboundMessage(
-              msg,
-              contactMap,
-              fromToWaId,
-            );
-            if (event) events.push(event);
-          }
-        }
-
-        // Parse statuses
-        if (value.statuses && value.statuses.length > 0) {
-          for (const status of value.statuses) {
-            const event = parseStatus(status);
-            events.push(event);
-          }
-        }
-      }
-    }
-
-    return events;
-  }
-
-  async function parseInboundMessage(
-    msg: InboundMessage,
-    contactMap: Map<string, string>,
-    fromToWaId: Map<string, string>,
-  ): Promise<ChannelEvent | null> {
-    const resolvedWaId = fromToWaId.get(msg.from) ?? msg.from;
-    const base = {
-      channel: 'whatsapp',
-      from: msg.from,
-      profileName:
-        contactMap.get(msg.from) || contactMap.get(resolvedWaId) || '',
-      messageId: msg.id,
-      timestamp: Number.parseInt(msg.timestamp, 10) * 1000,
-    };
-
-    // Base metadata: always include waId, conditionally include reply context
-    const baseMetadata: Record<string, unknown> = { waId: resolvedWaId };
-    if (msg.context?.id) {
-      baseMetadata.replyToMessageId = msg.context.id;
-    }
-
-    switch (msg.type) {
-      case 'text': {
-        return {
-          type: 'message_received',
-          ...base,
-          content: msg.text?.body ?? '',
-          messageType: 'text',
-          metadata: { ...baseMetadata },
-        } satisfies MessageReceivedEvent;
-      }
-
-      case 'image':
-      case 'document':
-      case 'audio':
-      case 'video': {
-        const mediaInfo =
-          msg[msg.type as 'image' | 'document' | 'audio' | 'video'];
-        let media: ChannelMedia[] | undefined;
-
-        if (mediaInfo?.id) {
-          const downloaded = await downloadMedia(mediaInfo.id, msg.type);
-          if (downloaded) {
-            media = [
-              {
-                type: msg.type as ChannelMedia['type'],
-                data: downloaded.data,
-                mimeType: downloaded.mimeType,
-                filename: mediaInfo.filename,
-              },
-            ];
-          }
-        }
-
-        return {
-          type: 'message_received',
-          ...base,
-          content: mediaInfo?.caption ?? '',
-          messageType: msg.type as MessageReceivedEvent['messageType'],
-          media,
-          metadata: { ...baseMetadata },
-        } satisfies MessageReceivedEvent;
-      }
-
-      case 'sticker': {
-        const stickerInfo = msg.sticker;
-        let media: ChannelMedia[] | undefined;
-
-        if (stickerInfo?.id) {
-          const downloaded = await downloadMedia(stickerInfo.id, 'sticker');
-          if (downloaded) {
-            media = [
-              {
-                type: 'image',
-                data: downloaded.data,
-                mimeType: downloaded.mimeType,
-              },
-            ];
-          }
-        }
-
-        return {
-          type: 'message_received',
-          ...base,
-          content: '',
-          messageType: 'image',
-          media,
-          metadata: { ...baseMetadata, sticker: true },
-        } satisfies MessageReceivedEvent;
-      }
-
-      case 'location': {
-        const loc = msg.location;
-        const parts: string[] = [];
-        if (loc?.name) parts.push(loc.name);
-        if (loc?.address) parts.push(loc.address);
-        if (loc) parts.push(`${loc.latitude}, ${loc.longitude}`);
-
-        return {
-          type: 'message_received',
-          ...base,
-          content: parts.join(' — ') || '',
-          messageType: 'unsupported',
-          metadata: {
-            ...baseMetadata,
-            ...(loc
-              ? {
-                  location: {
-                    latitude: loc.latitude,
-                    longitude: loc.longitude,
-                    name: loc.name,
-                    address: loc.address,
-                  },
-                }
-              : {}),
-          },
-        } satisfies MessageReceivedEvent;
-      }
-
-      case 'contacts': {
-        const contacts = msg.contacts;
-        const firstContact = contacts?.[0];
-        const content = firstContact?.name?.formatted_name ?? '';
-
-        return {
-          type: 'message_received',
-          ...base,
-          content,
-          messageType: 'unsupported',
-          metadata: { ...baseMetadata, ...(contacts ? { contacts } : {}) },
-        } satisfies MessageReceivedEvent;
-      }
-
-      case 'reaction': {
-        if (!msg.reaction) return null;
-        return {
-          type: 'reaction',
-          channel: 'whatsapp',
-          from: msg.from,
-          messageId: msg.reaction.message_id,
-          emoji: msg.reaction.emoji,
-          action: msg.reaction.emoji === '' ? 'remove' : 'add',
-          timestamp: base.timestamp,
-        } satisfies ReactionEvent;
-      }
-
-      case 'interactive': {
-        if (msg.interactive?.button_reply) {
-          return {
-            type: 'message_received',
-            ...base,
-            content: msg.interactive.button_reply.title,
-            messageType: 'button_reply',
-            metadata: {
-              ...baseMetadata,
-              buttonId: msg.interactive.button_reply.id,
-            },
-          } satisfies MessageReceivedEvent;
-        }
-        if (msg.interactive?.list_reply) {
-          return {
-            type: 'message_received',
-            ...base,
-            content: msg.interactive.list_reply.title,
-            messageType: 'list_reply',
-            metadata: {
-              ...baseMetadata,
-              listId: msg.interactive.list_reply.id,
-              description: msg.interactive.list_reply.description,
-            },
-          } satisfies MessageReceivedEvent;
-        }
-        return {
-          type: 'message_received',
-          ...base,
-          content: '',
-          messageType: 'unsupported',
-          metadata: { ...baseMetadata },
-        } satisfies MessageReceivedEvent;
-      }
-
-      case 'button': {
-        return {
-          type: 'message_received',
-          ...base,
-          content: msg.button?.text ?? '',
-          messageType: 'button_reply',
-          metadata: { ...baseMetadata, buttonPayload: msg.button?.payload },
-        } satisfies MessageReceivedEvent;
-      }
-
-      case 'errors': {
-        return {
-          type: 'message_received',
-          ...base,
-          content: '',
-          messageType: 'unsupported',
-          metadata: { ...baseMetadata, errors: msg.errors },
-        } satisfies MessageReceivedEvent;
-      }
-
-      default:
-        return {
-          type: 'message_received',
-          ...base,
-          content: '',
-          messageType: 'unsupported',
-          metadata: { ...baseMetadata },
-        } satisfies MessageReceivedEvent;
-    }
-  }
-
-  function parseStatus(status: InboundStatus): StatusUpdateEvent {
-    // Map provider-specific statuses to contract statuses:
-    // - deleted: message was delivered then user deleted it → 'delivered'
-    // - warning: non-fatal advisory → 'failed' (contract has no 'warning')
-    // - pending: equivalent to 'sent'
-    let mappedStatus: StatusUpdateEvent['status'];
-    switch (status.status) {
-      case 'deleted':
-        mappedStatus = 'delivered';
-        break;
-      case 'warning':
-        mappedStatus = 'failed';
-        break;
-      case 'pending':
-        mappedStatus = 'sent';
-        break;
-      default:
-        mappedStatus = status.status;
-    }
-
-    return {
-      type: 'status_update',
-      channel: 'whatsapp',
-      messageId: status.id,
-      status: mappedStatus,
-      timestamp: Number.parseInt(status.timestamp, 10) * 1000,
-      metadata: {
-        ...(status.errors?.length ? { errors: status.errors } : {}),
-        ...(status.status === 'deleted' ? { deleted: true } : {}),
-        ...(status.status === 'warning' ? { warning: true } : {}),
-        ...(status.status === 'pending' ? { pending: true } : {}),
-      },
-    };
+    return [...dedupedMessages, ...statusEvents];
   }
 
   // ─── Send ──────────────────────────────────────────────────────
@@ -949,14 +644,10 @@ export function createWhatsAppAdapter(
           item.filename ?? 'file',
         );
 
-        const uploadRes = await fetch(
-          graphUrl(apiVersion, `/${phoneNumberId}/media`),
-          {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}` },
-            body: form,
-          },
-        );
+        const uploadRes = await transportFetch(`/${phoneNumberId}/media`, {
+          method: 'POST',
+          body: form,
+        });
         if (!uploadRes.ok) {
           const body = await uploadRes.text();
           throw new WhatsAppApiError(
@@ -1100,6 +791,7 @@ export function createWhatsAppAdapter(
   return {
     name: 'whatsapp',
     inboundMode: 'push',
+    contactIdentifierField: 'phone',
     capabilities,
     verifyWebhook,
     parseWebhook,
@@ -1109,7 +801,7 @@ export function createWhatsAppAdapter(
     syncTemplates,
     extractInstanceIdentifier(payload: unknown): string | null {
       try {
-        const p = payload as WebhookPayload;
+        const p = payload as WhatsAppWebhookPayload;
         return (
           p?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id ?? null
         );

@@ -15,12 +15,32 @@ import { logger } from './logger';
  * Platform integration routes — stable contract for vobase-platform.
  * Only active when PLATFORM_HMAC_SECRET env var is set.
  *
- * FROZEN CONTRACT (v1) — these endpoints must not change shape:
+ * ═══════════════════════════════════════════════════════════════════
+ * PLATFORM ↔ TENANT CONTRACT (v1.1)
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * HMAC SIGNING CONVENTION:
+ *   Both directions use HMAC-SHA256 with the same per-tenant shared secret.
+ *   Tenant stores it as PLATFORM_HMAC_SECRET env var.
+ *   Platform stores it encrypted in the tenants table (hmacSecret column).
+ *
+ *   Platform → Tenant:
+ *     Header: X-Platform-Signature = hex(HMAC-SHA256(secret, rawBody))
+ *
+ *   Tenant → Platform:
+ *     Header: X-Platform-Signature = hex(HMAC-SHA256(secret, method+path))
+ *     Header: X-Tenant-Id = tenantId (immutable nanoid — identifies which secret to verify against)
+ *     Payload is method+path (e.g., "POST/api/managed-whatsapp/ch123/graph/12345/messages")
+ *     — works for JSON, FormData, binary, and GET requests.
+ *     Legacy body-based signing also accepted by platform during migration.
+ *     Uses PLATFORM_TENANT_ID env var (not slug — slugs are mutable).
+ *
+ * ─── PLATFORM → TENANT (frozen v1) ────────────────────────────────
  *
  * POST /api/integrations/:provider/configure
  *   Body: { config: Record<string, unknown>, label?: string, scopes?: string[], expiresInSeconds?: number }
  *   Provider param: /^[a-z0-9-]+$/
- *   Stores provider credentials in the integrations vault.
+ *   Stores provider credentials in the integrations vault. Upserts if authType='platform' exists.
  *
  * POST /api/integrations/token/update
  *   Body: { provider: string, accessToken: string, expiresInSeconds?: number }
@@ -28,20 +48,50 @@ import { logger } from './logger';
  *
  * POST /api/integrations/provision-channel
  *   Body: { type: string, label: string, source: 'platform' | 'sandbox', integrationId?: string, config?: Record<string, unknown> }
- *   Requires: onProvisionChannel callback in PlatformRoutesConfig.
  *   Success: { success: true, instanceId: string } (200)
- *   Callback error: { error: string } (502) — real error logged server-side.
- *   Not registered if callback not provided.
+ *   Callback error: { error: string } (502).
+ *
+ * POST /api/channels/webhook/:channelType/:instanceId?
+ *   Forwards inbound webhooks from external providers (WhatsApp, etc.).
+ *   Raw body preserved. Instance-ID enables per-channel routing.
  *
  * GET /api/auth/platform-callback?token=JWT
  *   Handled by platformAuth better-auth plugin (not in this file).
  *   Exchanges a platform-signed JWT for a tenant session.
  *
- * All POST endpoints require X-Platform-Signature (HMAC-SHA256).
+ * All endpoints require X-Platform-Signature. Returns 404 if PLATFORM_HMAC_SECRET unset.
+ *
+ * ─── TENANT → PLATFORM (v1.1) ─────────────────────────────────────
+ *
+ * Tenant calls platform to consume shared services. Platform verifies
+ * X-Platform-Signature + X-Tenant-Id (immutable nanoid), looking up the tenant's HMAC
+ * secret from the tenants table. Tenant signs with signPlatformRequest().
+ *
+ * GET /api/managed-whatsapp/channels
+ *   Lists available managed WhatsApp test numbers.
+ *   Response: { channels: [{ id, displayNumber, label, phoneNumberId, status }] }
+ *
+ * ALL /api/managed-whatsapp/:channelId/graph/*
+ *   Generic Graph API proxy. Forwards request to graph.facebook.com/v22.0/{path}
+ *   with platform-held Bearer token. Preserves method, query params, Content-Type, body.
+ *   HMAC signing: method+path (e.g., "POST/12345/messages").
+ *   Rate limited: 100 reqs/min/tenant.
+ *
+ * GET /api/managed-whatsapp/:channelId/media-download?url={cdnUrl}
+ *   Binary media download proxy. Validates Meta CDN domain allowlist.
+ *   Fetches with platform-held Bearer token, streams binary back.
+ *   Rate limited: 100 reqs/min/tenant.
+ *
+ * ═══════════════════════════════════════════════════════════════════
  */
 
 function getPlatformSecret(): string | null {
   return process.env.PLATFORM_HMAC_SECRET || null;
+}
+
+/** Sign a request body with HMAC-SHA256. Symmetric to verifyPlatformSignature. */
+export function signPlatformRequest(body: string, secret: string): string {
+  return createHmac('sha256', secret).update(body).digest('hex');
 }
 
 /** Verify X-Platform-Signature header against raw body using HMAC-SHA256. */

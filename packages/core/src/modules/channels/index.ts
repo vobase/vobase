@@ -34,12 +34,25 @@ function checkRateLimit(ip: string): boolean {
 
 // ─── Config ─────────────────────────────────────────────────────────
 
+export interface WhatsAppTransportConfig {
+  /** Base URL for Graph API proxy, e.g. "https://platform.example.com/api/managed-whatsapp/CHANNEL_ID/graph" */
+  baseUrl: string;
+  /** URL for binary media downloads, e.g. "https://platform.example.com/api/managed-whatsapp/CHANNEL_ID/media-download" */
+  mediaDownloadUrl: string;
+  /** Returns headers to include in proxied requests (HMAC signature + tenant ID).
+   * `path` is the full URL pathname (e.g., "/api/managed-whatsapp/ch123/graph/12345/messages")
+   * so it matches what the platform's verifyTenantSignature middleware verifies. */
+  signRequest: (method: string, path: string) => Record<string, string>;
+}
+
 export interface WhatsAppChannelConfig {
   phoneNumberId: string;
   accessToken: string;
   appSecret: string;
   apiVersion?: string;
   webhookVerifyToken?: string;
+  /** When set, routes all Graph API calls through a proxy instead of calling Meta directly. */
+  transport?: WhatsAppTransportConfig;
 }
 
 export interface EmailChannelConfig {
@@ -79,7 +92,9 @@ export function createChannelsModule(
   routes.post('/webhook/:channelType/:instanceId?', async (c) => {
     const channelType = c.req.param('channelType');
     const instanceId = c.req.param('instanceId');
-    const adapter = adapters.get(channelType);
+    const adapter =
+      (instanceId ? adapters.get(instanceId) : undefined) ??
+      adapters.get(channelType);
 
     logger.info('Webhook received', {
       channel: channelType,
@@ -231,7 +246,10 @@ export function createChannelsModule(
 
   routes.get('/webhook/:channelType/:instanceId?', (c) => {
     const channelType = c.req.param('channelType');
-    const adapter = adapters.get(channelType);
+    const instanceId = c.req.param('instanceId');
+    const adapter =
+      (instanceId ? adapters.get(instanceId) : undefined) ??
+      adapters.get(channelType);
 
     if (!adapter?.handleWebhookChallenge) {
       return c.json({ error: 'Not supported' }, 404);
@@ -260,3 +278,9 @@ export { ChannelEventEmitter } from './events';
 export { channelsLog, channelsSchema, channelsTemplates } from './schema';
 export type { ChannelSend, ChannelsService } from './service';
 export { createChannelsService } from './service';
+export {
+  parseWhatsAppMessages,
+  parseWhatsAppStatuses,
+  type MediaDownloader,
+  type WhatsAppWebhookPayload,
+} from './adapters/whatsapp-shared';

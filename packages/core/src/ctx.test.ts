@@ -41,6 +41,7 @@ const channels: ChannelsService = {
     return undefined;
   },
   registerAdapter() {},
+  unregisterAdapter() {},
   onProvision() {},
   async provision() {
     throw new Error('not implemented');

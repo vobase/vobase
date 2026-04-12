@@ -28,6 +28,8 @@ export interface ChannelsService {
   getAdapter(type: string): ChannelAdapter | undefined;
   /** Register a channel adapter at runtime (hot-reload). */
   registerAdapter(name: string, adapter: ChannelAdapter): void;
+  /** Unregister a channel adapter (e.g., on shared channel disconnect). */
+  unregisterAdapter(name: string): void;
   /** Register a handler for channel provisioning (called from module init). */
   onProvision(handler: ProvisionHandler): void;
   /** Invoke the registered provision handler. Throws if none registered. */
@@ -145,6 +147,11 @@ export function createChannelsService(
       adapters.set(name, adapter);
       channelSendCache.delete(name);
       logger.info(`Channel adapter registered (hot-reload): ${name}`);
+    },
+    unregisterAdapter(name: string) {
+      adapters.delete(name);
+      channelSendCache.delete(name);
+      logger.info(`Channel adapter unregistered: ${name}`);
     },
     onProvision(handler: ProvisionHandler) {
       provisionHandler = handler;

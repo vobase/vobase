@@ -1522,3 +1522,295 @@ describe('WhatsApp Adapter', () => {
     });
   });
 });
+
+// ─── Transport Mode Tests ───────────────────────────────────────────
+
+describe('WhatsApp Adapter (transport mode)', () => {
+  const signRequestCalls: Array<{ method: string; path: string }> = [];
+
+  const TRANSPORT_CONFIG = {
+    phoneNumberId: '123456789',
+    accessToken: '',
+    appSecret: '',
+    transport: {
+      baseUrl: 'https://proxy.example.com/graph',
+      mediaDownloadUrl: 'https://proxy.example.com/media-download',
+      signRequest: (method: string, path: string) => {
+        signRequestCalls.push({ method, path });
+        return {
+          'X-Platform-Signature': `sig-${method}-${path}`,
+          'X-Tenant-Id': 'tenant-123',
+        };
+      },
+    },
+  };
+
+  afterEach(() => {
+    signRequestCalls.length = 0;
+  });
+
+  describe('send routing', () => {
+    it('routes text messages through transport base URL', async () => {
+      let capturedUrl = '';
+      let capturedHeaders: Record<string, string> = {};
+      globalThis.fetch = (async (
+        input: string | URL | Request,
+        init?: RequestInit,
+      ) => {
+        capturedUrl = typeof input === 'string' ? input : input.toString();
+        capturedHeaders = (init?.headers ?? {}) as Record<string, string>;
+        return new Response(
+          JSON.stringify({ messages: [{ id: 'wamid.proxy1' }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const result = await adapter.send({ to: '6591234567', text: 'Hello proxy' });
+
+      expect(result.success).toBe(true);
+      expect(result.messageId).toBe('wamid.proxy1');
+      expect(capturedUrl).toBe(
+        'https://proxy.example.com/graph/123456789/messages',
+      );
+      // Should NOT have direct Bearer token
+      expect(capturedHeaders['Authorization']).toBeUndefined();
+      // Should have transport headers from signRequest
+      expect(capturedHeaders['X-Platform-Signature']).toBeDefined();
+      expect(capturedHeaders['X-Tenant-Id']).toBe('tenant-123');
+    });
+
+    it('invokes signRequest with correct method and path', async () => {
+      globalThis.fetch = (async () =>
+        new Response(
+          JSON.stringify({ messages: [{ id: 'wamid.1' }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      await adapter.send({ to: '6591234567', text: 'Test' });
+
+      expect(signRequestCalls).toHaveLength(1);
+      expect(signRequestCalls[0]).toEqual({
+        method: 'POST',
+        path: '/graph/123456789/messages',
+      });
+    });
+
+    it('routes template messages through transport', async () => {
+      let capturedUrl = '';
+      globalThis.fetch = (async (input: string | URL | Request) => {
+        capturedUrl = typeof input === 'string' ? input : input.toString();
+        return new Response(
+          JSON.stringify({ messages: [{ id: 'wamid.tmpl1' }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const result = await adapter.send({
+        to: '6591234567',
+        template: { name: 'hello', language: 'en' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(capturedUrl).toBe(
+        'https://proxy.example.com/graph/123456789/messages',
+      );
+    });
+
+    it('routes media upload (FormData) through transport URL', async () => {
+      const capturedUrls: string[] = [];
+      let callCount = 0;
+      globalThis.fetch = (async (input: string | URL | Request) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        capturedUrls.push(url);
+        callCount++;
+        if (callCount === 1) {
+          // Media upload response
+          return new Response(JSON.stringify({ id: 'media_uploaded_1' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        // Send message response
+        return new Response(
+          JSON.stringify({ messages: [{ id: 'wamid.media1' }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const result = await adapter.send({
+        to: '6591234567',
+        media: [
+          {
+            type: 'image',
+            mimeType: 'image/jpeg',
+            data: Buffer.from('fake-image-data'),
+            filename: 'test.jpg',
+          },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      // Media upload should go through proxy URL
+      expect(capturedUrls[0]).toBe(
+        'https://proxy.example.com/graph/123456789/media',
+      );
+      // Message send should also go through proxy
+      expect(capturedUrls[1]).toBe(
+        'https://proxy.example.com/graph/123456789/messages',
+      );
+    });
+  });
+
+  describe('media download', () => {
+    it('fetches metadata via proxy then binary via mediaDownloadUrl', async () => {
+      const capturedUrls: string[] = [];
+      globalThis.fetch = (async (input: string | URL | Request) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        capturedUrls.push(url);
+        if (url.includes('/graph/media_123')) {
+          // Metadata response
+          return new Response(
+            JSON.stringify({
+              url: 'https://lookaside.fbsbx.com/binary-media-data',
+              mime_type: 'image/jpeg',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        }
+        // Binary download response
+        return new Response(Buffer.from('fake-jpeg-bytes'), {
+          status: 200,
+          headers: { 'Content-Type': 'image/jpeg' },
+        });
+      }) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      // Access downloadMedia through parseWebhook with a media message
+      const payload = wrapPayload({
+        contacts: [{ profile: { name: 'Test' }, wa_id: '6591234567' }],
+        messages: [
+          {
+            from: '6591234567',
+            id: 'wamid.img1',
+            timestamp: '1700000000',
+            type: 'image',
+            image: { id: 'media_123', mime_type: 'image/jpeg' },
+          },
+        ],
+      });
+
+      const req = new Request('https://example.com/webhook', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const events = await adapter.parseWebhook?.(req);
+      expect(events?.length).toBeGreaterThanOrEqual(1);
+
+      // First call: metadata via proxy
+      expect(capturedUrls[0]).toBe(
+        'https://proxy.example.com/graph/media_123',
+      );
+      // Second call: binary via mediaDownloadUrl
+      expect(capturedUrls[1]).toContain(
+        'https://proxy.example.com/media-download?url=',
+      );
+      expect(capturedUrls[1]).toContain('lookaside.fbsbx.com');
+    });
+  });
+
+  describe('verifyWebhook', () => {
+    it('returns true when transport is configured (no-op)', async () => {
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const req = new Request('https://example.com/webhook', {
+        method: 'POST',
+        body: '{}',
+      });
+      expect(await adapter.verifyWebhook?.(req)).toBe(true);
+    });
+  });
+
+  describe('proxy errors', () => {
+    it('returns proxy error as SendResult on 502', async () => {
+      globalThis.fetch = (async () =>
+        new Response('Bad Gateway', { status: 502 })) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const result = await adapter.send({ to: '6591234567', text: 'Test' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Proxy error: 502');
+      // 5xx maps to server_error via errorToSendResult
+      expect(result.code).toBe('server_error');
+      expect(result.retryable).toBe(true);
+    });
+
+    it('returns proxy error as SendResult on 503', async () => {
+      globalThis.fetch = (async () =>
+        new Response('Service Unavailable', { status: 503 })) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const result = await adapter.send({ to: '6591234567', text: 'Test' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Proxy error: 503');
+      expect(result.retryable).toBe(true);
+    });
+
+    it('passes through Meta API errors (400) without proxy wrapping', async () => {
+      globalThis.fetch = (async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              message: 'Invalid recipient',
+              code: 131030,
+            },
+          }),
+          { status: 400 },
+        )) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const result = await adapter.send({ to: 'invalid', text: 'Test' });
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('invalid_recipient');
+    });
+  });
+
+  describe('contactIdentifierField', () => {
+    it('returns phone for transport mode adapter', () => {
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      expect(adapter.contactIdentifierField).toBe('phone');
+    });
+
+    it('returns phone for direct mode adapter', () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      expect(adapter.contactIdentifierField).toBe('phone');
+    });
+  });
+
+  describe('markAsRead and syncTemplates', () => {
+    it('routes markAsRead through transport', async () => {
+      let capturedUrl = '';
+      globalThis.fetch = (async (input: string | URL | Request) => {
+        capturedUrl = typeof input === 'string' ? input : input.toString();
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }) as unknown as typeof fetch;
+
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      await adapter.markAsRead('wamid.test123');
+
+      expect(capturedUrl).toBe(
+        'https://proxy.example.com/graph/123456789/messages',
+      );
+    });
+  });
+});

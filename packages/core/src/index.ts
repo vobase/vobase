@@ -76,6 +76,7 @@ export {
   isPlatformEnabled,
   type PlatformRoutesConfig,
   type ProvisionChannelData,
+  signPlatformRequest,
   verifyPlatformSignature,
 } from './infra/platform';
 // Queue
@@ -153,6 +154,7 @@ export {
   createChannelsModule,
   type EmailChannelConfig,
   type WhatsAppChannelConfig,
+  type WhatsAppTransportConfig,
 } from './modules/channels';
 export {
   createResendAdapter,
