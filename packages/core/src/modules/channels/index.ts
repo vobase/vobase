@@ -53,6 +53,10 @@ export interface WhatsAppChannelConfig {
   webhookVerifyToken?: string;
   /** When set, routes all Graph API calls through a proxy instead of calling Meta directly. */
   transport?: WhatsAppTransportConfig;
+  /** When the access token expires. Used by healthCheck() to warn before expiry (≤7 days). */
+  tokenExpiresAt?: Date;
+  /** App ID for webhook subscription management via registerWebhook/deregisterWebhook. */
+  appId?: string;
 }
 
 export interface EmailChannelConfig {
@@ -279,8 +283,16 @@ export { channelsLog, channelsSchema, channelsTemplates } from './schema';
 export type { ChannelSend, ChannelsService } from './service';
 export { createChannelsService } from './service';
 export {
+  normalizeBrazilPhone,
+  normalizeWhatsAppPhone,
+  parseWhatsAppContactUpdates,
+  parseWhatsAppEchoes,
   parseWhatsAppMessages,
   parseWhatsAppStatuses,
+  shouldUpdateStatus,
+  WA_STATUS_ORDER,
   type MediaDownloader,
+  type WhatsAppInboundMessage,
+  type WhatsAppMediaInfo,
   type WhatsAppWebhookPayload,
 } from './adapters/whatsapp-shared';

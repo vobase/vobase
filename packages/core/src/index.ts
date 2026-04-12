@@ -152,6 +152,8 @@ export {
 export {
   type ChannelsModuleConfig,
   createChannelsModule,
+  shouldUpdateStatus,
+  WA_STATUS_ORDER,
   type EmailChannelConfig,
   type WhatsAppChannelConfig,
   type WhatsAppTransportConfig,

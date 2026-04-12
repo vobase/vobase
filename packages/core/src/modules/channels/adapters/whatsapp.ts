@@ -6,12 +6,14 @@ import type {
   ChannelEvent,
   OutboundMessage,
   SendResult,
+  StatusUpdateEvent,
 } from '../../../contracts/channels';
 import type { HttpClient } from '../../../infra/http-client';
 import type { WhatsAppChannelConfig } from '../index';
 import {
   parseWhatsAppMessages,
   parseWhatsAppStatuses,
+  shouldUpdateStatus,
 } from './whatsapp-shared';
 import type { WhatsAppWebhookPayload } from './whatsapp-shared';
 
@@ -24,6 +26,21 @@ export interface WhatsAppTemplate {
   category: string;
   status: string;
   components: unknown[];
+}
+
+/** CTA URL interactive message type for pass-through to the Graph API. */
+export interface WhatsAppCtaUrlInteractive {
+  type: 'cta_url';
+  body: { text: string };
+  action: { name: 'cta_url'; parameters: { display_text: string; url: string } };
+}
+
+/** Input for creating a WhatsApp message template via the Graph API. */
+export interface CreateTemplateInput {
+  name: string;
+  language: string;
+  category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+  components: Array<{ type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS'; [key: string]: unknown }>;
 }
 
 // ─── Error Class ─────────────────────────────────────────────────────
@@ -54,6 +71,7 @@ export class WhatsAppApiError extends Error {
 
 const MAX_TEXT_LENGTH = 4096;
 const EVICTION_TTL_MS = 60_000;
+const MAX_MAP_SIZE = 10_000;
 const MEDIA_SIZE_LIMITS: Record<string, number> = {
   image: 5 * 1024 * 1024, // 5MB
   video: 16 * 1024 * 1024, // 16MB
@@ -180,6 +198,14 @@ export function createWhatsAppAdapter(
 ): ChannelAdapter & {
   markAsRead(messageId: string): Promise<void>;
   syncTemplates(): Promise<WhatsAppTemplate[]>;
+  healthCheck(): Promise<{ ok: boolean; error?: string }>;
+  tokenStatus(): { valid: boolean; expiresAt?: Date; daysRemaining?: number };
+  createTemplate(template: CreateTemplateInput): Promise<{ id: string; status: string }>;
+  deleteTemplate(name: string): Promise<void>;
+  getTemplate(name: string): Promise<WhatsAppTemplate | null>;
+  getMessagingTier(): Promise<{ tier: string; qualityRating: string }>;
+  registerWebhook(callbackUrl: string, verifyToken: string): Promise<void>;
+  deregisterWebhook(): Promise<void>;
 } {
   const { phoneNumberId, accessToken, appSecret } = config;
   const apiVersion = config.apiVersion ?? 'v22.0';
@@ -311,64 +337,72 @@ export function createWhatsAppAdapter(
     mediaId: string,
     mediaType?: string,
   ): Promise<{ data: Buffer; mimeType: string } | null> {
-    try {
-      const meta = await graphFetch(`/${mediaId}`);
-      const mediaUrl = meta.url as string;
-      if (!mediaUrl) return null;
+    const MAX_RETRIES = 2;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const meta = await graphFetch(`/${mediaId}`);
+        const mediaUrl = meta.url as string;
+        if (!mediaUrl) return null;
 
-      // Binary media download: in transport mode, the CDN URL requires Bearer auth
-      // that only the platform holds, so route through the media-download proxy endpoint.
-      // In direct mode, fetch the CDN URL with our own Bearer token.
-      let binRes: Response;
-      if (transport) {
-        const downloadUrl = `${transport.mediaDownloadUrl}?url=${encodeURIComponent(mediaUrl)}`;
-        const authHeaders = transport.signRequest('GET', new URL(downloadUrl).pathname);
-        binRes = await fetch(downloadUrl, { headers: authHeaders });
-      } else {
-        binRes = await fetch(mediaUrl, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-      }
-      if (!binRes.ok) return null;
+        // Binary media download: in transport mode, the CDN URL requires Bearer auth
+        // that only the platform holds, so route through the media-download proxy endpoint.
+        // In direct mode, fetch the CDN URL with our own Bearer token.
+        let binRes: Response;
+        if (transport) {
+          const downloadUrl = `${transport.mediaDownloadUrl}?url=${encodeURIComponent(mediaUrl)}`;
+          const authHeaders = transport.signRequest('GET', new URL(downloadUrl).pathname);
+          binRes = await fetch(downloadUrl, { headers: authHeaders });
+        } else {
+          binRes = await fetch(mediaUrl, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+        }
+        if (!binRes.ok) return null;
 
-      const maxSize: number =
-        (mediaType ? MEDIA_SIZE_LIMITS[mediaType] : undefined) ??
-        DEFAULT_MEDIA_SIZE_LIMIT;
+        const maxSize: number =
+          (mediaType ? MEDIA_SIZE_LIMITS[mediaType] : undefined) ??
+          DEFAULT_MEDIA_SIZE_LIMIT;
 
-      // Check content-length before downloading to enforce size limit
-      const contentLength = binRes.headers.get('content-length');
-      if (contentLength !== null) {
-        const size = Number.parseInt(contentLength, 10);
-        if (!Number.isNaN(size) && size > maxSize) {
+        // Check content-length before downloading to enforce size limit
+        const contentLength = binRes.headers.get('content-length');
+        if (contentLength !== null) {
+          const size = Number.parseInt(contentLength, 10);
+          if (!Number.isNaN(size) && size > maxSize) {
+            console.warn(
+              `[WhatsApp] downloadMedia skipped: content-length ${size} exceeds limit ${maxSize}`,
+              { mediaId, mediaType },
+            );
+            return null;
+          }
+        }
+
+        const arrayBuf = await binRes.arrayBuffer();
+
+        // Guard against oversized downloads when content-length was absent
+        if (arrayBuf.byteLength > maxSize) {
           console.warn(
-            `[WhatsApp] downloadMedia skipped: content-length ${size} exceeds limit ${maxSize}`,
+            `[WhatsApp] downloadMedia skipped: downloaded ${arrayBuf.byteLength} bytes exceeds limit ${maxSize}`,
             { mediaId, mediaType },
           );
           return null;
         }
+        return {
+          data: Buffer.from(arrayBuf),
+          mimeType:
+            meta.mime_type ??
+            binRes.headers.get('content-type') ??
+            'application/octet-stream',
+        };
+      } catch (error) {
+        if (attempt === MAX_RETRIES) {
+          console.error('[WhatsApp] downloadMedia failed after retries:', mediaId, error);
+          return null;
+        }
+        console.warn('[WhatsApp] downloadMedia retry:', { mediaId, attempt: attempt + 1 });
+        await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
       }
-
-      const arrayBuf = await binRes.arrayBuffer();
-
-      // Guard against oversized downloads when content-length was absent
-      if (arrayBuf.byteLength > maxSize) {
-        console.warn(
-          `[WhatsApp] downloadMedia skipped: downloaded ${arrayBuf.byteLength} bytes exceeds limit ${maxSize}`,
-          { mediaId, mediaType },
-        );
-        return null;
-      }
-      return {
-        data: Buffer.from(arrayBuf),
-        mimeType:
-          meta.mime_type ??
-          binRes.headers.get('content-type') ??
-          'application/octet-stream',
-      };
-    } catch (error) {
-      console.error('[WhatsApp] downloadMedia failed:', mediaId, error);
-      return null;
     }
+    return null;
   }
 
   /**
@@ -399,6 +433,72 @@ export function createWhatsAppAdapter(
       return false;
     }
     return true;
+  }
+
+  // ─── Status dedup (inbound status webhook deduplication) ──────────
+  // Tracks (messageId:status) -> timestamp for 60s TTL dedup.
+  // Distinct from sentTimestamps (which deduplicates outbound echo messages).
+  const statusDedup = new Map<string, number>();
+
+  let lastEviction = 0;
+  function evictStaleEntries(map: Map<string, number | { ts: number }>): void {
+    const now = Date.now();
+    if (now - lastEviction < 5_000) return; // evict at most every 5s
+    lastEviction = now;
+    for (const [k, v] of map) {
+      const ts = typeof v === 'number' ? v : v.ts;
+      if (now - ts > EVICTION_TTL_MS) map.delete(k);
+    }
+  }
+
+  function isStatusDuplicate(messageId: string, status: string): boolean {
+    const key = `${messageId}:${status}`;
+    const now = Date.now();
+
+    evictStaleEntries(statusDedup);
+
+    if (statusDedup.has(key)) return true; // duplicate within TTL
+
+    // Cap at maxSize: drop oldest when full
+    if (statusDedup.size >= MAX_MAP_SIZE) {
+      const firstKey = statusDedup.keys().next().value;
+      if (firstKey) statusDedup.delete(firstKey);
+    }
+
+    statusDedup.set(key, now);
+    return false;
+  }
+
+  // ─── Status high-water (out-of-order rejection) ────────────────────
+  // Performance optimization only — the authoritative ordering guard is the
+  // DB-level shouldUpdateStatus() check in the template's handleStatusUpdate.
+  // This in-memory map avoids a DB round-trip on the hot path but is volatile
+  // (lost on restart) and process-local (not safe for multi-instance).
+  const statusHighWater = new Map<string, { status: string; ts: number }>();
+
+  function getHighWater(messageId: string): string | null {
+    const entry = statusHighWater.get(messageId);
+    if (!entry) return null;
+    if (Date.now() - entry.ts > EVICTION_TTL_MS) {
+      statusHighWater.delete(messageId);
+      return null;
+    }
+    return entry.status;
+  }
+
+  function setHighWater(messageId: string, status: string): void {
+    if (statusHighWater.size >= MAX_MAP_SIZE) {
+      let oldestTs = Infinity;
+      let oldestKey = '';
+      for (const [k, v] of statusHighWater) {
+        if (v.ts < oldestTs) {
+          oldestTs = v.ts;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) statusHighWater.delete(oldestKey);
+    }
+    statusHighWater.set(messageId, { status, ts: Date.now() });
   }
 
   // ─── Webhook verification ──────────────────────────────────────
@@ -470,16 +570,124 @@ export function createWhatsAppAdapter(
 
     if (payload.object !== 'whatsapp_business_account') return [];
 
-    // Parse messages with media download, then filter outbound echo dedup.
-    // isRecentlySent stays here — dedup is adapter-specific, not shared logic.
-    const messageEvents = await parseWhatsAppMessages(payload, downloadMedia);
-    const dedupedMessages = messageEvents.filter(
+    // ── Parallel media pre-fetch ───────────────────────────────────────
+    // Scan payload to collect all media IDs, download in parallel via
+    // Promise.allSettled (with retry built into downloadMedia), then serve
+    // from cache — parseWhatsAppMessages makes no extra network calls.
+    const mediaFetchList: Array<{ msgId: string; mediaId: string; mediaType: string }> = [];
+    for (const entry of payload.entry) {
+      for (const change of entry.changes) {
+        for (const msg of change.value.messages ?? []) {
+          for (const mtype of ['image', 'document', 'audio', 'video', 'sticker'] as const) {
+            const mediaId = msg[mtype]?.id;
+            if (mediaId) {
+              mediaFetchList.push({ msgId: msg.id, mediaId, mediaType: mtype });
+              break; // one media type per message
+            }
+          }
+        }
+      }
+    }
+
+    const downloadSettled = await Promise.allSettled(
+      mediaFetchList.map(({ mediaId, mediaType }) => downloadMedia(mediaId, mediaType)),
+    );
+
+    // Build cache and track failures by mediaId
+    const mediaCache = new Map<string, { data: Buffer; mimeType: string } | null>();
+    const failedMediaIds = new Set<string>();
+    for (let i = 0; i < mediaFetchList.length; i++) {
+      const { mediaId } = mediaFetchList[i];
+      const settled = downloadSettled[i];
+      const value = settled.status === 'fulfilled' ? settled.value : null;
+      mediaCache.set(mediaId, value);
+      if (!value) failedMediaIds.add(mediaId);
+    }
+
+    // messageId -> mediaId for post-processing failure metadata
+    const msgToMediaId = new Map(mediaFetchList.map(({ msgId, mediaId }) => [msgId, mediaId]));
+
+    // Cached downloader: serves pre-fetched results, no extra network calls
+    const cachedDownloader = async (mediaId: string) => mediaCache.get(mediaId) ?? null;
+
+    const messageEvents = await parseWhatsAppMessages(payload, cachedDownloader);
+
+    // Post-process: add mediaDownloadFailed metadata where download failed
+    const processedMessages: ChannelEvent[] = [];
+    for (const e of messageEvents) {
+      if (e.type === 'message_received') {
+        const mediaId = msgToMediaId.get(e.messageId);
+        if (mediaId && failedMediaIds.has(mediaId)) {
+          processedMessages.push({
+            ...e,
+            metadata: { ...e.metadata, mediaDownloadFailed: true, failedMediaId: mediaId },
+          });
+          continue;
+        }
+      }
+      processedMessages.push(e);
+    }
+
+    // Outbound echo dedup filter (isRecentlySent is adapter-specific, not shared logic)
+    const dedupedMessages = processedMessages.filter(
       (e) => e.type !== 'message_received' || !isRecentlySent(e.messageId),
     );
 
     const statusEvents = parseWhatsAppStatuses(payload);
 
-    return [...dedupedMessages, ...statusEvents];
+    // Status dedup: drop identical (messageId, status) pairs within 60s TTL.
+    // Runs BEFORE ordering filter to prevent duplicates from corrupting the high-water mark.
+    const dedupedStatuses = statusEvents.filter((e) => {
+      if (e.type !== 'status_update') return true;
+      return !isStatusDuplicate(e.messageId, e.status);
+    });
+
+    // Status ordering: reject out-of-order updates using per-message high-water mark
+    const orderedStatuses = dedupedStatuses.filter((e) => {
+      if (e.type !== 'status_update') return true;
+      const current = getHighWater(e.messageId);
+      if (shouldUpdateStatus(current, e.status)) {
+        setHighWater(e.messageId, e.status);
+        return true;
+      }
+      console.warn('[whatsapp] Status out-of-order filtered', {
+        messageId: e.messageId,
+        current,
+        incoming: e.status,
+      });
+      return false;
+    });
+
+    // Template status updates: field='message_template_status_update'
+    // Emitted as StatusUpdateEvent with metadata.templateStatusUpdate=true.
+    // Bypass dedup/ordering — these are template-level events, not message delivery.
+    const templateStatusEvents: ChannelEvent[] = [];
+    for (const entry of payload.entry) {
+      for (const change of entry.changes) {
+        if (change.field !== 'message_template_status_update') continue;
+        const v = change.value as unknown as Record<string, unknown>;
+        const event = v.event as string | undefined;
+        const templateName = v.message_template_name as string | undefined;
+        const templateId = v.message_template_id as number | string | undefined;
+        if (!event || !templateName) continue;
+        const mappedStatus: StatusUpdateEvent['status'] =
+          event === 'REJECTED' || event === 'PAUSED' ? 'failed' : 'delivered';
+        templateStatusEvents.push({
+          type: 'status_update',
+          channel: 'whatsapp',
+          messageId: String(templateId ?? templateName),
+          status: mappedStatus,
+          timestamp: Date.now(),
+          metadata: {
+            templateStatusUpdate: true,
+            templateName,
+            templateStatus: event,
+          },
+        } satisfies StatusUpdateEvent);
+      }
+    }
+
+    return [...dedupedMessages, ...orderedStatuses, ...templateStatusEvents];
   }
 
   // ─── Send ──────────────────────────────────────────────────────
@@ -709,18 +917,22 @@ export function createWhatsAppAdapter(
     });
   }
 
+  // ─── WABA ID lookup (shared by template operations) ───────────────
+
+  let cachedWabaId: string | null = null;
+  async function getWabaId(): Promise<string> {
+    if (cachedWabaId) return cachedWabaId;
+    const phoneData = await graphFetch(`/${phoneNumberId}?fields=owner`);
+    const wabaId = phoneData.owner;
+    if (!wabaId) throw new Error('Could not determine WABA ID from phone number');
+    cachedWabaId = wabaId as string;
+    return cachedWabaId;
+  }
+
   // ─── Template sync ─────────────────────────────────────────────
 
   async function syncTemplates(): Promise<WhatsAppTemplate[]> {
-    // wabaId is the entry.id from webhooks, but for template sync
-    // we derive it from phoneNumberId by querying the phone number
-    const phoneData = await graphFetch(`/${phoneNumberId}?fields=owner`);
-    const wabaId = phoneData.owner;
-
-    if (!wabaId) {
-      throw new Error('Could not determine WABA ID from phone number');
-    }
-
+    const wabaId = await getWabaId();
     const data = await graphFetch(`/${wabaId}/message_templates?limit=100`);
 
     return (data.data ?? []).map((t) => {
@@ -734,6 +946,156 @@ export function createWhatsAppAdapter(
         components: tmpl.components,
       };
     });
+  }
+
+  // ─── Health check + token status ───────────────────────────────
+
+  async function healthCheck(): Promise<{ ok: boolean; error?: string }> {
+    if (transport) return { ok: true }; // managed by platform in transport mode
+
+    const now = new Date();
+    if (config.tokenExpiresAt) {
+      const expiresAt = config.tokenExpiresAt;
+      if (expiresAt <= now) return { ok: false, error: 'Token expired' };
+      const daysRemaining = Math.ceil(
+        (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (daysRemaining <= 7) {
+        return {
+          ok: true,
+          error: `Token expires in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`,
+        };
+      }
+      return { ok: true };
+    }
+
+    // No tokenExpiresAt: make a lightweight API call to verify token validity
+    try {
+      await graphFetch(`/${phoneNumberId}?fields=id`);
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof WhatsAppApiError && err.code === 190) {
+        return { ok: false, error: 'Invalid token' };
+      }
+      return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    }
+  }
+
+  function tokenStatus(): { valid: boolean; expiresAt?: Date; daysRemaining?: number } {
+    if (!config.tokenExpiresAt) return { valid: true };
+    const now = new Date();
+    const expiresAt = config.tokenExpiresAt;
+    const expired = expiresAt <= now;
+    const msRemaining = expiresAt.getTime() - now.getTime();
+    const daysRemaining = expired ? 0 : Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+    return { valid: !expired, expiresAt, daysRemaining };
+  }
+
+  // ─── Template CRUD (direct mode only) ─────────────────────────
+
+  const TEMPLATE_NAME_RE = /^[a-z0-9_]+$/;
+  const TEMPLATE_MAX_CHARS = 512;
+  const TEMPLATE_MAX_BUTTONS = 10;
+
+  async function createTemplate(
+    template: CreateTemplateInput,
+  ): Promise<{ id: string; status: string }> {
+    if (!TEMPLATE_NAME_RE.test(template.name)) {
+      throw new Error(
+        `Invalid template name "${template.name}": must match ^[a-z0-9_]+$`,
+      );
+    }
+    const bodyComponent = template.components.find((c) => c.type === 'BODY');
+    if (!bodyComponent) {
+      throw new Error('Template must have at least one BODY component');
+    }
+    const bodyText = (bodyComponent.text as string | undefined) ?? '';
+    if (bodyText.length > TEMPLATE_MAX_CHARS) {
+      throw new Error(
+        `Template body text (${bodyText.length} chars) exceeds maximum of ${TEMPLATE_MAX_CHARS}`,
+      );
+    }
+    const buttonsComponent = template.components.find((c) => c.type === 'BUTTONS');
+    if (buttonsComponent) {
+      const buttons = buttonsComponent.buttons;
+      if (Array.isArray(buttons) && buttons.length > TEMPLATE_MAX_BUTTONS) {
+        throw new Error(
+          `Template has ${buttons.length} buttons; maximum is ${TEMPLATE_MAX_BUTTONS}`,
+        );
+      }
+    }
+
+    const wabaId = await getWabaId();
+    const data = await graphFetch(`/${wabaId}/message_templates`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: template.name,
+        language: template.language,
+        category: template.category,
+        components: template.components,
+      }),
+    });
+    return { id: data.id as string, status: data.status as string };
+  }
+
+  async function deleteTemplate(name: string): Promise<void> {
+    const wabaId = await getWabaId();
+    await graphFetch(
+      `/${wabaId}/message_templates?name=${encodeURIComponent(name)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  async function getTemplate(name: string): Promise<WhatsAppTemplate | null> {
+    const wabaId = await getWabaId();
+    try {
+      const data = await graphFetch(
+        `/${wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=id,name,language,category,status,components`,
+      );
+      const templates = data.data as WhatsAppTemplate[] | undefined;
+      return templates?.[0] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ─── Messaging tier (direct mode only) ────────────────────────
+
+  async function getMessagingTier(): Promise<{ tier: string; qualityRating: string }> {
+    const data = await graphFetch(
+      `/${phoneNumberId}?fields=messaging_limit_tier,quality_rating`,
+    );
+    return {
+      tier: (data.messaging_limit_tier as string | undefined) ?? 'unknown',
+      qualityRating: (data.quality_rating as string | undefined) ?? 'unknown',
+    };
+  }
+
+  // ─── Webhook subscription (direct mode, requires appId) ────────
+
+  async function registerWebhook(callbackUrl: string, verifyToken: string): Promise<void> {
+    if (!config.appId) {
+      throw new Error('appId is required in WhatsAppChannelConfig to register webhooks');
+    }
+    await graphFetch(`/${config.appId}/subscriptions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        object: 'whatsapp_business_account',
+        callback_url: callbackUrl,
+        verify_token: verifyToken,
+        fields: 'messages',
+      }),
+    });
+  }
+
+  async function deregisterWebhook(): Promise<void> {
+    if (!config.appId) {
+      throw new Error('appId is required in WhatsAppChannelConfig to deregister webhooks');
+    }
+    await graphFetch(
+      `/${config.appId}/subscriptions?object=whatsapp_business_account`,
+      { method: 'DELETE' },
+    );
   }
 
   // ─── Error mapping ─────────────────────────────────────────────
@@ -799,6 +1161,14 @@ export function createWhatsAppAdapter(
     send,
     markAsRead,
     syncTemplates,
+    healthCheck,
+    tokenStatus,
+    createTemplate,
+    deleteTemplate,
+    getTemplate,
+    getMessagingTier,
+    registerWebhook,
+    deregisterWebhook,
     extractInstanceIdentifier(payload: unknown): string | null {
       try {
         const p = payload as WhatsAppWebhookPayload;
