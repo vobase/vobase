@@ -21,7 +21,13 @@ import type {
 import { logger } from '@vobase/core';
 import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 
-import { channelInstances, channelRoutings, conversations } from '../schema';
+import {
+  channelInstances,
+  channelRoutings,
+  contacts,
+  conversations,
+  messages,
+} from '../schema';
 import { getConstraints } from './channel-constraints';
 import { upsertSession } from './channel-sessions';
 import {
@@ -59,6 +65,12 @@ export async function handleInboundMessage(
 
   try {
     const channelInstanceId = event.channelInstanceId ?? event.channel;
+
+    // Echo: outbound message sent via WhatsApp Business app — record as staff-sent, skip inbound flow
+    if (event.metadata?.echo === true) {
+      await handleEchoMessage(deps, event, channelInstanceId);
+      return;
+    }
 
     // 1. Resolve or create contact
     const contact = await findOrCreateContact(db, event);
@@ -186,6 +198,81 @@ export async function handleInboundMessage(
       error: err,
     });
   }
+}
+
+/**
+ * Record an echoed outbound message (sent from WhatsApp Business app) as a staff outgoing message.
+ * Skips normal inbound flow — no conversation creation, no routing.
+ */
+async function handleEchoMessage(
+  deps: InboundDeps,
+  event: MessageReceivedEvent,
+  channelInstanceId: string,
+): Promise<void> {
+  const { db, realtime } = deps;
+
+  // Dedup + contact lookup in parallel (independent queries)
+  const [existingResult, contactResult] = await Promise.all([
+    event.messageId
+      ? db
+          .select({ id: messages.id })
+          .from(messages)
+          .where(eq(messages.externalMessageId, event.messageId))
+      : Promise.resolve([]),
+    db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(eq(contacts.phone, event.from)),
+  ]);
+
+  if (existingResult[0]) return;
+
+  const contact = contactResult[0];
+  if (!contact) {
+    logger.info('[messaging] echo: contact not found, skipping', {
+      from: event.from,
+      channelInstanceId,
+    });
+    return;
+  }
+
+  // Find active or resolving conversation for this contact + channel
+  const [conversation] = await db
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.contactId, contact.id),
+        eq(conversations.channelInstanceId, channelInstanceId),
+        inArray(conversations.status, ['active', 'resolving']),
+      ),
+    );
+
+  if (!conversation) {
+    logger.info('[messaging] echo: no active conversation, skipping', {
+      from: event.from,
+      channelInstanceId,
+    });
+    return;
+  }
+
+  await insertMessage(db, realtime, {
+    conversationId: conversation.id,
+    messageType: 'outgoing',
+    contentType: 'text',
+    content: event.content ?? '',
+    senderId: 'echo',
+    senderType: 'user',
+    externalMessageId: event.messageId ?? null,
+    channelType: channelInstanceId,
+    status: 'sent',
+  });
+
+  logger.info('[messaging] echo: recorded outbound', {
+    conversationId: conversation.id,
+    from: event.from,
+    messageId: event.messageId,
+  });
 }
 
 /**

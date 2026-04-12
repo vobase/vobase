@@ -1,5 +1,5 @@
 import { defineJob, logger } from '@vobase/core';
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { getModuleDeps } from './lib/deps';
@@ -166,5 +166,66 @@ export const sessionExpiryJob = defineJob(
     if (count > 0) {
       logger.info('[messaging] Expired channel sessions', { count });
     }
+  },
+);
+
+/**
+ * messaging:channel-health-check — Cron every 6 hours.
+ * Calls healthCheck() on each registered channel adapter; marks instances 'error' on failure.
+ */
+export const channelHealthCheckJob = defineJob(
+  'messaging:channel-health-check',
+  async () => {
+    const deps = getModuleDeps();
+
+    const instances = await deps.db
+      .select()
+      .from(channelInstances)
+      .where(inArray(channelInstances.status, ['active', 'error']));
+
+    await Promise.allSettled(
+      instances.map(async (instance) => {
+        const adapter =
+          deps.channels.getAdapter(instance.id) ??
+          deps.channels.getAdapter(instance.type);
+        if (!adapter?.healthCheck) return;
+
+        try {
+          const result = await adapter.healthCheck();
+          if (!result.ok) {
+            if (instance.status !== 'error') {
+              await deps.db
+                .update(channelInstances)
+                .set({ status: 'error' })
+                .where(eq(channelInstances.id, instance.id));
+            }
+            logger.warn('[messaging] Channel health check failed', {
+              instanceId: instance.id,
+              type: instance.type,
+              error: result.error,
+            });
+          } else if (instance.status === 'error') {
+            await deps.db
+              .update(channelInstances)
+              .set({ status: 'active' })
+              .where(eq(channelInstances.id, instance.id));
+            logger.info('[messaging] Channel recovered from error', {
+              instanceId: instance.id,
+              type: instance.type,
+            });
+          }
+        } catch (err) {
+          await deps.db
+            .update(channelInstances)
+            .set({ status: 'error' })
+            .where(eq(channelInstances.id, instance.id));
+          logger.error('[messaging] Channel health check error', {
+            instanceId: instance.id,
+            type: instance.type,
+            error: err,
+          });
+        }
+      }),
+    );
   },
 );
