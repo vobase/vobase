@@ -3,7 +3,8 @@ import { and, asc, eq, gte } from 'drizzle-orm';
 import { z } from 'zod';
 
 import type { ModuleDeps } from '../../../messaging/lib/deps';
-import { conversations, messages } from '../../../messaging/schema';
+import { messages } from '../../../messaging/schema';
+import { verifyConversationAccess } from './_verify-conversation';
 
 export const readConversationTool = createTool({
   id: 'read_conversation',
@@ -50,22 +51,12 @@ export const readConversationTool = createTool({
       return { success: false, message: 'No contact context available' };
     }
 
-    // Verify conversation belongs to this contact
-    const [conversation] = await deps.db
-      .select({ id: conversations.id, contactId: conversations.contactId })
-      .from(conversations)
-      .where(eq(conversations.id, input.conversationId));
-
-    if (!conversation) {
-      return { success: false, message: 'Conversation not found' };
-    }
-
-    if (conversation.contactId !== contactId) {
-      return {
-        success: false,
-        message: 'Access denied: conversation belongs to different contact',
-      };
-    }
+    const check = await verifyConversationAccess(
+      deps,
+      input.conversationId,
+      contactId,
+    );
+    if (!check.success) return check;
 
     const conditions = [eq(messages.conversationId, input.conversationId)];
     if (input.since) {
@@ -76,6 +67,7 @@ export const readConversationTool = createTool({
       .select({
         id: messages.id,
         senderId: messages.senderId,
+        senderType: messages.senderType,
         content: messages.content,
         contentType: messages.contentType,
         createdAt: messages.createdAt,
@@ -87,13 +79,20 @@ export const readConversationTool = createTool({
 
     return {
       success: true,
-      messages: rows.map((m) => ({
-        id: m.id,
-        from: m.senderId,
-        content: m.content,
-        contentType: m.contentType,
-        time: m.createdAt.toISOString(),
-      })),
+      messages: rows
+        .filter((m) => m.contentType !== 'system') // Hide system events from agent
+        .map((m) => ({
+          id: m.id,
+          from:
+            m.senderType === 'contact'
+              ? 'customer'
+              : m.senderType === 'agent'
+                ? 'you'
+                : m.senderId,
+          content: m.content,
+          contentType: m.contentType,
+          time: m.createdAt.toISOString(),
+        })),
     };
   },
 });

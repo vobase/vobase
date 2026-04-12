@@ -29,12 +29,16 @@ export async function resolveTarget(
     return target.value;
   }
 
-  // role: find first staff contact whose metadata.roles includes the value
+  // role: find first staff contact whose metadata contains the role/department
   const staffContacts = await db
     .select({ id: contacts.id, email: contacts.email, phone: contacts.phone })
     .from(contacts)
     .where(
-      sql`${contacts.role} = 'staff' AND ${contacts.metadata} @> ${JSON.stringify([target.value])}::jsonb`,
+      sql`${contacts.role} = 'staff' AND (
+        ${contacts.metadata} @> ${JSON.stringify([target.value])}::jsonb
+        OR ${contacts.metadata}->>'department' = ${target.value}
+        OR ${contacts.metadata}->>'role' = ${target.value}
+      )`,
     )
     .limit(1);
 
@@ -42,7 +46,7 @@ export async function resolveTarget(
 
   const staffContact = staffContacts[0];
 
-  // Look up authUser by email
+  // Look up authUser by email; fall back to contact ID if no auth user exists
   if (staffContact.email) {
     const [user] = await db
       .select({ id: authUser.id })
@@ -51,5 +55,6 @@ export async function resolveTarget(
     if (user) return user.id;
   }
 
-  return null;
+  // Staff contact exists but has no auth user — use contact ID as fallback
+  return staffContact.id;
 }

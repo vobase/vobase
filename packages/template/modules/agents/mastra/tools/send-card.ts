@@ -2,8 +2,8 @@
  * send_card — Mastra tool for sending structured interactive cards.
  *
  * Accepts a simplified flat schema (LLM-friendly), validates against
- * per-channel constraints, and builds a CardElement using local card primitives.
- * Returns an error string for agent self-correction on validation failures.
+ * per-channel constraints, builds a CardElement, and stores it as an
+ * outgoing message in the conversation.
  */
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
@@ -15,12 +15,19 @@ import {
   CardText,
 } from '../../../messaging/lib/card-serialization';
 import { getConstraints } from '../../../messaging/lib/channel-constraints';
+import { enqueueDelivery } from '../../../messaging/lib/delivery';
+import type { ModuleDeps } from '../../../messaging/lib/deps';
+import { insertMessage } from '../../../messaging/lib/messages';
+import { verifyConversationAccess } from './_verify-conversation';
 
 export const sendCardTool = createTool({
   id: 'send_card',
   description:
-    'Send an interactive card with optional buttons to the user. Use when you want to present structured information or interactive choices. The card can include a title, body text, and up to several reply buttons.',
+    'Send an interactive card with optional buttons to the customer. The card is stored as a message in the conversation. Use when you want to present structured information or interactive choices.',
   inputSchema: z.object({
+    conversationId: z
+      .string()
+      .describe('The conversation ID to send the card to'),
     title: z.string().optional().describe('Optional card title'),
     body: z.string().describe('Message text shown in the card body'),
     buttons: z
@@ -39,10 +46,32 @@ export const sendCardTool = createTool({
       .describe('Interactive reply buttons'),
   }),
   outputSchema: z.object({
-    card: z.unknown().optional().describe('CardElement on success'),
+    success: z.boolean(),
+    message: z.string(),
     error: z.string().optional().describe('Validation error — fix and retry'),
   }),
   execute: async (inputData, context) => {
+    const deps = context?.requestContext?.get('deps') as ModuleDeps | undefined;
+    if (!deps) return { success: false, message: 'No deps context available' };
+
+    const contactId = context?.requestContext?.get('contactId') as
+      | string
+      | undefined;
+    const agentId =
+      (context?.requestContext?.get('agentId') as string | undefined) ??
+      'agent';
+
+    if (!contactId) {
+      return { success: false, message: 'No contact context available' };
+    }
+
+    const check = await verifyConversationAccess(
+      deps,
+      inputData.conversationId,
+      contactId,
+    );
+    if (!check.success) return check;
+
     const channel =
       (context?.requestContext?.get('channel') as string | undefined) ?? 'web';
     const constraints = getConstraints(channel);
@@ -51,6 +80,8 @@ export const sendCardTool = createTool({
     // Validate body length
     if (body.length > constraints.maxBodyLength) {
       return {
+        success: false,
+        message: 'Validation failed',
         error: `${constraints.name} body must be ${constraints.maxBodyLength} characters or less, got ${body.length}. Shorten the message body.`,
       };
     }
@@ -62,6 +93,8 @@ export const sendCardTool = createTool({
       buttons.length > constraints.maxButtons
     ) {
       return {
+        success: false,
+        message: 'Validation failed',
         error: `${constraints.name} allows max ${constraints.maxButtons} buttons, got ${buttons.length}. Reduce button count.`,
       };
     }
@@ -71,16 +104,14 @@ export const sendCardTool = createTool({
       for (const btn of buttons) {
         if (btn.label.length > constraints.maxButtonLabelLength) {
           return {
+            success: false,
+            message: 'Validation failed',
             error: `${constraints.name} button labels must be ${constraints.maxButtonLabelLength} characters or less. Button "${btn.id}" label "${btn.label}" is ${btn.label.length} characters. Shorten it.`,
           };
         }
       }
     }
 
-    // Build CardElement using local card primitives.
-    // Button IDs use chat:${JSON.stringify(id)} to match the existing convention
-    // in buildInteractiveCard() (chat-cards.ts:72), ensuring the onAction handler
-    // in inbound.ts (which does JSON.parse(actionId.slice(5))) works as-is.
     const actionButtons = (buttons ?? []).map((btn) =>
       Button({
         id: `chat:${JSON.stringify(btn.id)}`,
@@ -96,6 +127,28 @@ export const sendCardTool = createTool({
       ],
     });
 
-    return { card };
+    // Store as an outgoing message in the conversation
+    const msg = await insertMessage(deps.db, deps.realtime, {
+      conversationId: inputData.conversationId,
+      messageType: 'outgoing',
+      contentType: 'interactive',
+      content: body,
+      contentData: { card },
+      status: 'queued',
+      senderId: agentId,
+      senderType: 'agent',
+    });
+
+    await enqueueDelivery(deps.scheduler, msg.id);
+
+    await deps.realtime
+      .notify({
+        table: 'conversations',
+        id: inputData.conversationId,
+        action: 'new-message',
+      })
+      .catch(() => {});
+
+    return { success: true, message: 'Card sent.' };
   },
 });

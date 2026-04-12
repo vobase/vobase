@@ -27,17 +27,35 @@ export const checkAvailabilityTool = createTool({
       }),
     ),
   }),
-  execute: async ({ service: _service, dateFrom }) => {
-    // Stub: generate mock slots starting from dateFrom
-    const base = new Date(dateFrom);
-    const slots = Array.from({ length: 6 }, (_, i) => {
-      const dt = new Date(base);
-      dt.setHours(9 + i * 1, 0, 0, 0);
-      return {
-        datetime: dt.toISOString(),
-        available: i % 3 !== 1, // mock pattern: every 3rd slot unavailable
-      };
-    });
+  execute: async ({ service: _service, dateFrom, dateTo }) => {
+    // Stub: generate realistic business-hour slots across the date range.
+    // Uses UTC hours directly so times display correctly regardless of server timezone.
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+    const slots: Array<{ datetime: string; available: boolean }> = [];
+    const businessHours = [9, 10, 11, 13, 14, 15, 16]; // 9am-11am, 1pm-4pm (lunch break 12-1)
+
+    const current = new Date(from);
+    current.setUTCHours(0, 0, 0, 0);
+    const end = new Date(to);
+    end.setUTCHours(23, 59, 59, 999);
+
+    while (current <= end && slots.length < 20) {
+      const dayOfWeek = current.getUTCDay();
+      // Skip weekends
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        for (const hour of businessHours) {
+          const dt = new Date(current);
+          dt.setUTCHours(hour, 0, 0, 0);
+          if (dt >= from && dt <= end) {
+            // Semi-random availability based on hour + day
+            const available = (hour + dayOfWeek) % 3 !== 0;
+            slots.push({ datetime: dt.toISOString(), available });
+          }
+        }
+      }
+      current.setUTCDate(current.getUTCDate() + 1);
+    }
 
     return { slots };
   },
