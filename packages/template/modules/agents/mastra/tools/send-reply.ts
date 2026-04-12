@@ -1,11 +1,10 @@
 import { createTool } from '@mastra/core/tools';
-import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { enqueueDelivery } from '../../../messaging/lib/delivery';
 import type { ModuleDeps } from '../../../messaging/lib/deps';
 import { insertMessage } from '../../../messaging/lib/messages';
-import { conversations } from '../../../messaging/schema';
+import { verifyConversationAccess } from './_verify-conversation';
 
 export const sendReplyTool = createTool({
   id: 'send_reply',
@@ -39,26 +38,12 @@ export const sendReplyTool = createTool({
       return { success: false, message: 'No contact context available' };
     }
 
-    // Verify conversation belongs to this contact
-    const [conversation] = await deps.db
-      .select({
-        id: conversations.id,
-        contactId: conversations.contactId,
-        channelInstanceId: conversations.channelInstanceId,
-      })
-      .from(conversations)
-      .where(eq(conversations.id, input.conversationId));
-
-    if (!conversation) {
-      return { success: false, message: 'Conversation not found' };
-    }
-
-    if (conversation.contactId !== contactId) {
-      return {
-        success: false,
-        message: 'Access denied: conversation belongs to different contact',
-      };
-    }
+    const check = await verifyConversationAccess(
+      deps,
+      input.conversationId,
+      contactId,
+    );
+    if (!check.success) return check;
 
     const msg = await insertMessage(deps.db, deps.realtime, {
       conversationId: input.conversationId,
