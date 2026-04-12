@@ -307,7 +307,12 @@ async function resolveChannelAdapter(
     .where(eq(channelInstances.id, channelInstanceId));
 
   if (!instance) return null;
-  return { type: instance.type, adapter: channels.getAdapter(instance.type) };
+  return {
+    type: instance.type,
+    adapter:
+      channels.getAdapter(channelInstanceId) ??
+      channels.getAdapter(instance.type),
+  };
 }
 
 // ─── Assignee routing ──────────────────────────────────────────────

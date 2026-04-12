@@ -13,15 +13,18 @@ import {
   CopyIcon,
   EllipsisVerticalIcon,
   GlobeIcon,
+  LinkIcon,
   MailIcon,
   MessageCircleIcon,
   MicIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
+  QrCodeIcon,
   TrashIcon,
   TriangleAlertIcon,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -106,6 +109,16 @@ interface ChannelsConfig {
   metaAppId: string | null;
   metaConfigId: string | null;
   platformUrl: string | null;
+}
+
+interface ManagedChannel {
+  id: string;
+  displayNumber: string;
+  phoneNumberId: string;
+  label: string;
+  status: string;
+  connected: boolean;
+  instanceId?: string;
 }
 
 // ─── Dialog mode ──────────────────────────────────────────────────────
@@ -249,6 +262,14 @@ async function fetchChannelsConfig(): Promise<ChannelsConfig> {
   if (!res.ok)
     return { metaAppId: null, metaConfigId: null, platformUrl: null };
   return res.json() as unknown as Promise<ChannelsConfig>;
+}
+
+async function fetchManagedAvailable(): Promise<ManagedChannel[]> {
+  // biome-ignore lint/style/noRestrictedGlobals: managed-available not yet in typed RPC client
+  const res = await fetch('/api/messaging/channels/managed-available');
+  if (!res.ok) return [];
+  const data = (await res.json()) as { channels: ManagedChannel[] };
+  return data.channels;
 }
 
 // ─── Connect Dialog ──────────────────────────────────────────────────
@@ -730,6 +751,7 @@ function AddChannelCard({
 
 function DeleteChannelDialog({
   channelName,
+  platformManaged,
   open,
   onOpenChange,
   onConfirm,
@@ -737,6 +759,7 @@ function DeleteChannelDialog({
   error,
 }: {
   channelName: string;
+  platformManaged: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
@@ -747,11 +770,23 @@ function DeleteChannelDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Remove channel?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {platformManaged ? 'Disconnect channel?' : 'Remove channel?'}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            This will disconnect <strong>{channelName}</strong> and remove all
-            its conversation history. Customers will no longer be able to reach
-            you through this channel.
+            {platformManaged ? (
+              <>
+                This will disconnect <strong>{channelName}</strong>. Existing
+                conversations will be preserved but no new messages will be
+                received.
+              </>
+            ) : (
+              <>
+                This will disconnect <strong>{channelName}</strong> and remove
+                all its conversation history. Customers will no longer be able
+                to reach you through this channel.
+              </>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (
@@ -782,6 +817,349 @@ function DeleteChannelDialog({
   );
 }
 
+// ─── Managed Connect Dialog ─────────────────────────────────────────────
+
+function ManagedConnectDialog({
+  channel,
+  agents,
+  open,
+  onOpenChange,
+  onConnected,
+}: {
+  channel: ManagedChannel | null;
+  agents: Agent[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConnected: () => void;
+}) {
+  const [routingName, setRoutingName] = useState('');
+  const [agentId, setAgentId] = useState('');
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on open
+  useEffect(() => {
+    if (open && channel) {
+      setRoutingName(`Managed WA ${channel.label}`);
+      setAgentId('');
+    }
+  }, [open]);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (!channel) throw new Error('No channel selected');
+      // biome-ignore lint/style/noRestrictedGlobals: managed-connect not yet in typed RPC client
+      const res = await fetch('/api/messaging/channels/managed-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          managedChannelId: channel.id,
+          displayNumber: channel.displayNumber,
+          phoneNumberId: channel.phoneNumberId,
+          label: channel.label,
+          agentId,
+          routingName,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: { message?: string };
+        };
+        throw new Error(
+          data.error?.message ?? 'Failed to connect managed channel',
+        );
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      onOpenChange(false);
+      onConnected();
+    },
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) mutation.reset();
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg p-2 bg-green-50 dark:bg-green-950/30">
+              <IconBrandWhatsapp className="h-6 w-6 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <DialogTitle>Connect Managed Number</DialogTitle>
+              <DialogDescription>
+                {channel?.displayNumber} — {channel?.label}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>Routing Name</Label>
+            <Input
+              value={routingName}
+              onChange={(e) => setRoutingName(e.target.value)}
+              placeholder="e.g. Shared WA - Booking"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>AI Agent</Label>
+            <Select value={agentId} onValueChange={setAgentId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose which AI handles this channel..." />
+              </SelectTrigger>
+              <SelectContent>
+                {agents.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {mutation.isError && (
+          <p className="text-xs text-destructive">{mutation.error.message}</p>
+        )}
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={mutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!routingName.trim() || !agentId || mutation.isPending}
+          >
+            {mutation.isPending ? 'Connecting...' : 'Connect'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── QR Code Dialog ────────────────────────────────────────────────────
+
+function QrCodeDialog({
+  channel,
+  open,
+  onOpenChange,
+}: {
+  channel: ManagedChannel | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const { copy, isCopied } = useCopyToClipboard();
+
+  const tenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG ?? '';
+  const digits = channel?.displayNumber.replace(/\D/g, '') ?? '';
+  const linkText = `/link ${tenantSlug} ${channel?.instanceId ?? ''}`;
+  const waLink = digits
+    ? `https://wa.me/${digits}?text=${encodeURIComponent(linkText)}`
+    : '';
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: generate QR when link changes
+  useEffect(() => {
+    if (!waLink) return;
+    QRCode.toDataURL(waLink, { width: 240, margin: 2 })
+      .then(setQrDataUrl)
+      .catch(() => {});
+  }, [waLink]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Scan to Link</DialogTitle>
+          <DialogDescription>
+            Scan this QR code with WhatsApp to link your number to this channel.
+            Or send the message manually.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-4 py-2">
+          {qrDataUrl ? (
+            <img
+              src={qrDataUrl}
+              alt="QR code"
+              className="rounded-lg border"
+              width={240}
+              height={240}
+            />
+          ) : (
+            <div className="h-60 w-60 rounded-lg border flex items-center justify-center bg-muted">
+              <QrCodeIcon className="h-12 w-12 text-muted-foreground" />
+            </div>
+          )}
+          <div className="w-full space-y-2">
+            <p className="text-xs text-muted-foreground text-center">
+              Or send this message to{' '}
+              <span className="font-mono font-medium text-foreground">
+                {channel?.displayNumber}
+              </span>
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono truncate">
+                {linkText}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => copy(linkText, { timeout: 2000 })}
+              >
+                {isCopied ? (
+                  <CheckIcon className="h-3.5 w-3.5" />
+                ) : (
+                  <CopyIcon className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </div>
+            {waLink && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5 text-xs"
+                onClick={() => window.open(waLink, '_blank')}
+              >
+                <LinkIcon className="h-3.5 w-3.5" />
+                Open in WhatsApp
+              </Button>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Managed Test Numbers Section ────────────────────────────────────────
+
+function ManagedTestNumbers({
+  agents,
+  onConnected,
+}: {
+  agents: Agent[];
+  onConnected: () => void;
+}) {
+  const [connectTarget, setConnectTarget] = useState<ManagedChannel | null>(
+    null,
+  );
+  const [qrTarget, setQrTarget] = useState<ManagedChannel | null>(null);
+
+  const { data: managedChannels = [], isLoading } = useQuery({
+    queryKey: ['channels-managed-available'],
+    queryFn: fetchManagedAvailable,
+  });
+
+  if (isLoading) return null;
+  if (managedChannels.length === 0) return null;
+
+  const available = managedChannels.filter((ch) => !ch.connected);
+  const connected = managedChannels.filter((ch) => ch.connected);
+
+  return (
+    <section>
+      <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">
+        Platform Managed
+      </h2>
+
+      <div className="space-y-3">
+        {connected.map((ch) => (
+          <Card key={ch.id} className="border-l-4 border-l-green-500">
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className="rounded-lg p-3 shrink-0 bg-green-50 dark:bg-green-950/30">
+                <IconBrandWhatsapp className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium truncate">
+                    {ch.displayNumber}
+                  </h3>
+                  <Badge variant="success" className="text-xs shrink-0">
+                    Connected
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    Managed
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{ch.label}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => setQrTarget(ch)}
+              >
+                <QrCodeIcon className="h-3.5 w-3.5" />
+                Show QR
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+
+        {available.map((ch) => (
+          <Card key={ch.id} className="border-l-4 border-l-muted-foreground/20">
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className="rounded-lg p-3 shrink-0 bg-green-50 dark:bg-green-950/30">
+                <IconBrandWhatsapp className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium truncate">
+                    {ch.displayNumber}
+                  </h3>
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    Available
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{ch.label}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => setConnectTarget(ch)}
+              >
+                <PlusIcon className="h-3.5 w-3.5" />
+                Connect
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <ManagedConnectDialog
+        channel={connectTarget}
+        agents={agents}
+        open={!!connectTarget}
+        onOpenChange={(open) => {
+          if (!open) setConnectTarget(null);
+        }}
+        onConnected={() => {
+          setConnectTarget(null);
+          onConnected();
+        }}
+      />
+
+      <QrCodeDialog
+        channel={qrTarget}
+        open={!!qrTarget}
+        onOpenChange={(open) => {
+          if (!open) setQrTarget(null);
+        }}
+      />
+    </section>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function ChannelsPage() {
@@ -793,6 +1171,7 @@ function ChannelsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{
     instanceId: string;
     name: string;
+    platformManaged: boolean;
   } | null>(null);
 
   const { data: instances = [], isLoading: instancesLoading } = useQuery({
@@ -864,12 +1243,18 @@ function ChannelsPage() {
 
   const connectedChannels = useMemo(
     () =>
-      routings.map((r) => ({
-        routing: r,
-        instance: instanceMap.get(r.channelInstanceId),
-        agentName: agentMap.get(r.agentId) ?? 'Unknown Agent',
-        activeConversations: sessionCountMap.get(r.channelInstanceId) ?? 0,
-      })),
+      routings
+        .filter((r) => {
+          // Exclude platform-managed channels — they show under "Platform Managed"
+          const inst = instanceMap.get(r.channelInstanceId);
+          return inst?.source !== 'platform';
+        })
+        .map((r) => ({
+          routing: r,
+          instance: instanceMap.get(r.channelInstanceId),
+          agentName: agentMap.get(r.agentId) ?? 'Unknown Agent',
+          activeConversations: sessionCountMap.get(r.channelInstanceId) ?? 0,
+        })),
     [routings, instanceMap, agentMap, sessionCountMap],
   );
 
@@ -878,12 +1263,15 @@ function ChannelsPage() {
     [instances, routingsByInstance],
   );
 
+  const platformUrl = import.meta.env.VITE_PLATFORM_URL as string | undefined;
+
   function invalidateAll() {
     queryClient.invalidateQueries({ queryKey: ['channel-instances'] });
     queryClient.invalidateQueries({ queryKey: ['channel-routings'] });
     queryClient.invalidateQueries({
       queryKey: ['conversations-channel-status'],
     });
+    queryClient.invalidateQueries({ queryKey: ['channels-managed-available'] });
   }
 
   async function handleAddChannel(type: string) {
@@ -1053,6 +1441,10 @@ function ChannelsPage() {
                     setDeleteTarget({
                       instanceId: routing.channelInstanceId,
                       name: routing.name,
+                      platformManaged:
+                        instance?.source === 'platform' &&
+                        !!(instance?.config as Record<string, unknown>)
+                          ?.managed,
                     })
                   }
                 />
@@ -1086,6 +1478,11 @@ function ChannelsPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* Shared Test Numbers */}
+      {platformUrl && (
+        <ManagedTestNumbers agents={agents} onConnected={invalidateAll} />
       )}
 
       {/* Add a Channel */}
@@ -1122,6 +1519,7 @@ function ChannelsPage() {
 
       <DeleteChannelDialog
         channelName={deleteTarget?.name ?? ''}
+        platformManaged={deleteTarget?.platformManaged ?? false}
         open={!!deleteTarget}
         onOpenChange={(open) => {
           if (!open) {

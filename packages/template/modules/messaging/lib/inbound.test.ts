@@ -104,6 +104,7 @@ const mockChannels: ChannelsService = {
     return adapterMap.get(type);
   },
   registerAdapter() {},
+  unregisterAdapter() {},
   onProvision() {},
   async provision() {
     throw new Error('not implemented');

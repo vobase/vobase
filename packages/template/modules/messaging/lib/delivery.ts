@@ -130,8 +130,12 @@ export async function processDelivery(
           .where(eq(channelInstances.id, conversation.channelInstanceId))
       : [];
     const resolvedType = instance?.type ?? channelType;
-    const adapter = channels.getAdapter(resolvedType);
-    const channelSend = channels.get(resolvedType);
+    const adapter =
+      channels.getAdapter(conversation.channelInstanceId) ??
+      channels.getAdapter(resolvedType);
+    const channelSend =
+      channels.get(conversation.channelInstanceId) ??
+      channels.get(resolvedType);
 
     let result: SendResult;
     const payload = (message.contentData ?? {}) as Record<string, unknown>;

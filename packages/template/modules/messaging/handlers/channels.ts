@@ -5,6 +5,7 @@ import {
   getCtx,
   logger,
   notFound,
+  signPlatformRequest,
   unauthorized,
   validation,
 } from '@vobase/core';
@@ -18,6 +19,26 @@ import { channelInstances, channelRoutings, conversations } from '../schema';
 const META_GRAPH_API = 'https://graph.facebook.com/v22.0';
 
 const generateId = createNanoid();
+
+/** Build transport config for a managed WhatsApp channel routed through the platform proxy. */
+export function buildManagedTransport(
+  platformUrl: string,
+  hmacSecret: string,
+  tenantId: string,
+  managedChannelId: string,
+) {
+  return {
+    baseUrl: `${platformUrl}/api/managed-whatsapp/${managedChannelId}/graph`,
+    mediaDownloadUrl: `${platformUrl}/api/managed-whatsapp/${managedChannelId}/media-download`,
+    signRequest: (method: string, path: string) => ({
+      'X-Platform-Signature': signPlatformRequest(
+        `${method}${path}`,
+        hmacSecret,
+      ),
+      'X-Tenant-Id': tenantId,
+    }),
+  };
+}
 
 const createChannelInstanceSchema = z.object({
   type: z.string().min(1),
@@ -70,6 +91,15 @@ const whatsappConnectSchema = z.object({
   agentId: z.string().optional(),
 });
 
+const managedConnectSchema = z.object({
+  managedChannelId: z.string().min(1),
+  displayNumber: z.string().min(1),
+  phoneNumberId: z.string().min(1),
+  label: z.string().min(1),
+  agentId: z.string().min(1),
+  routingName: z.string().min(1),
+});
+
 export const channelsHandlers = new Hono()
   /** GET /channels/config — Returns Meta config for frontend FB SDK. */
   .get('/channels/config', (c) => {
@@ -77,6 +107,178 @@ export const channelsHandlers = new Hono()
     const metaConfigId = process.env.META_CONFIG_ID ?? null;
     const platformUrl = process.env.PLATFORM_URL ?? null;
     return c.json({ metaAppId, metaConfigId, platformUrl });
+  })
+  /** GET /channels/managed-available — List available managed WhatsApp numbers from platform. */
+  .get('/channels/managed-available', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const platformUrl = process.env.PLATFORM_URL;
+    const hmacSecret = process.env.PLATFORM_HMAC_SECRET;
+
+    const tenantId = process.env.PLATFORM_TENANT_ID;
+
+    if (!platformUrl || !hmacSecret || !tenantId) {
+      return c.json({ channels: [] });
+    }
+    // Sign method+path per new HMAC convention (platform accepts both old body-based and new method+path)
+    const signature = signPlatformRequest(
+      'GET/api/managed-whatsapp/channels',
+      hmacSecret,
+    );
+
+    let platformChannels: Array<{
+      id: string;
+      displayNumber: string;
+      phoneNumberId: string;
+      label: string;
+      status: string;
+    }> = [];
+
+    try {
+      const res = await fetch(`${platformUrl}/api/managed-whatsapp/channels`, {
+        headers: {
+          'X-Platform-Signature': signature,
+          'X-Tenant-Id': tenantId,
+        },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          channels: typeof platformChannels;
+        };
+        platformChannels = data.channels;
+      } else {
+        logger.warn(
+          '[messaging] Failed to fetch managed channels from platform',
+          {
+            status: res.status,
+          },
+        );
+      }
+    } catch (err) {
+      logger.warn('[messaging] Error fetching managed channels from platform', {
+        error: err,
+      });
+    }
+
+    // Cross-reference with local instances to determine connected status
+    const localInstances = await db
+      .select()
+      .from(channelInstances)
+      .where(eq(channelInstances.source, 'platform'));
+
+    const connectedByManagedId = new Map<string, string>();
+    for (const inst of localInstances) {
+      const cfg = inst.config as Record<string, unknown>;
+      if (cfg?.managed && typeof cfg.managedChannelId === 'string') {
+        connectedByManagedId.set(cfg.managedChannelId, inst.id);
+      }
+    }
+
+    const channels = platformChannels.map((ch) => {
+      const instanceId = connectedByManagedId.get(ch.id);
+      return {
+        id: ch.id,
+        displayNumber: ch.displayNumber,
+        phoneNumberId: ch.phoneNumberId,
+        label: ch.label,
+        status: ch.status,
+        connected: !!instanceId,
+        ...(instanceId && { instanceId }),
+      };
+    });
+
+    return c.json({ channels });
+  })
+  /** POST /channels/managed-connect — Connect a managed platform WhatsApp number. */
+  .post('/channels/managed-connect', async (c) => {
+    const ctx = getCtx(c);
+    if (!ctx.user) throw unauthorized();
+
+    const body = managedConnectSchema.parse(await c.req.json());
+
+    const platformUrl = process.env.PLATFORM_URL;
+    const hmacSecret = process.env.PLATFORM_HMAC_SECRET;
+
+    const tenantId = process.env.PLATFORM_TENANT_ID;
+
+    if (!platformUrl || !hmacSecret || !tenantId) {
+      return c.json(
+        {
+          error: {
+            code: 'SERVER_ERROR',
+            message: 'Platform integration not configured',
+          },
+        },
+        500,
+      );
+    }
+
+    const agent = getAgent(body.agentId);
+    if (!agent)
+      throw validation({ agentId: `Agent '${body.agentId}' not found` });
+
+    const instanceId = generateId();
+
+    await ctx.db.transaction(async (tx) => {
+      // Check inside transaction to prevent race condition
+      const existing = await tx
+        .select()
+        .from(channelInstances)
+        .where(eq(channelInstances.source, 'platform'));
+
+      for (const inst of existing) {
+        const cfg = inst.config as Record<string, unknown>;
+        if (cfg?.managedChannelId === body.managedChannelId) {
+          throw conflict('This managed channel is already connected');
+        }
+      }
+
+      await tx.insert(channelInstances).values({
+        id: instanceId,
+        type: 'whatsapp',
+        source: 'platform',
+        label: body.label,
+        status: 'active',
+        config: {
+          managed: true,
+          managedChannelId: body.managedChannelId,
+          displayNumber: body.displayNumber,
+          phoneNumberId: body.phoneNumberId,
+        },
+      });
+
+      await tx.insert(channelRoutings).values({
+        name: body.routingName,
+        channelInstanceId: instanceId,
+        agentId: body.agentId,
+        assignmentPattern: 'direct',
+        config: {},
+      });
+    });
+
+    // Hot-register adapter under instanceId key with transport proxy
+    ctx.channels.registerAdapter(
+      instanceId,
+      createWhatsAppAdapter({
+        phoneNumberId: body.phoneNumberId,
+        accessToken: '',
+        appSecret: '',
+        transport: buildManagedTransport(
+          platformUrl,
+          hmacSecret,
+          tenantId,
+          body.managedChannelId,
+        ),
+      }),
+    );
+
+    logger.info('[messaging] Managed channel connected', {
+      instanceId,
+      managedChannelId: body.managedChannelId,
+    });
+
+    return c.json({ success: true, instanceId });
   })
   /** POST /channels/whatsapp/connect — Embedded Signup code exchange and channel setup. */
   .post('/channels/whatsapp/connect', async (c) => {
@@ -446,7 +648,12 @@ export const channelsHandlers = new Hono()
       );
     }
 
-    // Clean up resolved conversations and channel routings before deleting instance (FK safety)
+    const isManagedChannel =
+      existing.source === 'platform' &&
+      typeof existing.config === 'object' &&
+      existing.config !== null &&
+      (existing.config as Record<string, unknown>).managed === true;
+
     const relatedRoutingIds = (
       await db
         .select({ id: channelRoutings.id })
@@ -454,33 +661,48 @@ export const channelsHandlers = new Hono()
         .where(eq(channelRoutings.channelInstanceId, instanceId))
     ).map((r) => r.id);
 
-    if (relatedRoutingIds.length > 0) {
-      // Batch: get all conversation IDs for these routings
-      const relatedConversationIds = (
+    if (isManagedChannel) {
+      // Managed channels: delete routings, mark instance disconnected, preserve conversations
+      if (relatedRoutingIds.length > 0) {
         await db
-          .select({ id: conversations.id })
-          .from(conversations)
-          .where(inArray(conversations.channelRoutingId, relatedRoutingIds))
-      ).map((r) => r.id);
-
-      // Batch: delete conversations → routings
-      if (relatedConversationIds.length > 0) {
-        await db
-          .delete(conversations)
-          .where(inArray(conversations.id, relatedConversationIds));
+          .delete(channelRoutings)
+          .where(inArray(channelRoutings.id, relatedRoutingIds));
       }
       await db
-        .delete(channelRoutings)
-        .where(inArray(channelRoutings.id, relatedRoutingIds));
-    }
+        .update(channelInstances)
+        .set({ status: 'disconnected' })
+        .where(eq(channelInstances.id, instanceId));
 
-    await db
-      .delete(channelInstances)
-      .where(eq(channelInstances.id, instanceId));
+      // Unregister the proxy adapter so it stops processing webhooks
+      ctx.channels.unregisterAdapter(instanceId);
+    } else {
+      // Regular channels: clean up conversations → routings → instance
+      if (relatedRoutingIds.length > 0) {
+        const relatedConversationIds = (
+          await db
+            .select({ id: conversations.id })
+            .from(conversations)
+            .where(inArray(conversations.channelRoutingId, relatedRoutingIds))
+        ).map((r) => r.id);
 
-    // Disconnect the underlying integration if present
-    if (existing.integrationId) {
-      await integrations.disconnect(existing.integrationId);
+        if (relatedConversationIds.length > 0) {
+          await db
+            .delete(conversations)
+            .where(inArray(conversations.id, relatedConversationIds));
+        }
+        await db
+          .delete(channelRoutings)
+          .where(inArray(channelRoutings.id, relatedRoutingIds));
+      }
+
+      await db
+        .delete(channelInstances)
+        .where(eq(channelInstances.id, instanceId));
+
+      // Disconnect the underlying integration if present
+      if (existing.integrationId) {
+        await integrations.disconnect(existing.integrationId);
+      }
     }
 
     return c.json({ success: true });

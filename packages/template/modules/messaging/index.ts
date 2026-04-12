@@ -5,9 +5,10 @@ import {
   defineModule,
   logger,
 } from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { messagingRoutes } from './handlers';
+import { buildManagedTransport } from './handlers/channels';
 import {
   conversationCleanupJob,
   deliverMessageJob,
@@ -101,6 +102,66 @@ export const messagingModule = defineModule({
       logger.warn('[messaging] Failed to auto-create web channel instance', {
         error: err,
       });
+    }
+
+    // Auto-register proxy adapters for shared platform channels
+    const platformUrl = process.env.PLATFORM_URL;
+    const hmacSecret = process.env.PLATFORM_HMAC_SECRET;
+
+    if (!platformUrl || !hmacSecret) {
+      logger.warn(
+        '[messaging] PLATFORM_URL or PLATFORM_HMAC_SECRET not set — skipping managed channel adapter registration',
+      );
+    } else {
+      try {
+        const sharedInstances = await ctx.db
+          .select()
+          .from(channelInstances)
+          .where(
+            and(
+              eq(channelInstances.source, 'platform'),
+              eq(channelInstances.status, 'active'),
+            ),
+          );
+
+        const tenantId = process.env.PLATFORM_TENANT_ID ?? '';
+        let registeredCount = 0;
+
+        for (const instance of sharedInstances) {
+          const cfg = instance.config as Record<string, unknown>;
+          if (!cfg?.managed || typeof cfg.managedChannelId !== 'string')
+            continue;
+
+          const managedChannelId = cfg.managedChannelId;
+          const phoneNumberId = (cfg.phoneNumberId as string) ?? '';
+
+          ctx.channels.registerAdapter(
+            instance.id,
+            createWhatsAppAdapter({
+              phoneNumberId,
+              accessToken: '',
+              appSecret: '',
+              transport: buildManagedTransport(
+                platformUrl,
+                hmacSecret,
+                tenantId,
+                managedChannelId,
+              ),
+            }),
+          );
+          registeredCount++;
+        }
+
+        if (registeredCount > 0) {
+          logger.info('[messaging] Registered managed channel proxy adapters', {
+            count: registeredCount,
+          });
+        }
+      } catch (err) {
+        logger.warn('[messaging] Failed to register managed channel adapters', {
+          error: err,
+        });
+      }
     }
 
     // Log init complete with active channel instance count
