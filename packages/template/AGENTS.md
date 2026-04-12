@@ -65,7 +65,11 @@ better-auth sessions. User: `{ id, email, name, role, activeOrganizationId? }`. 
 
 ### Channels (messaging)
 
-Adapters (WhatsApp, Resend, SMTP) registered at boot via config. Outbound: `ctx.channels.email.send({ to, subject, html })`, `ctx.channels.whatsapp.send({ to, text })`. Send never throws — returns `{ success, messageId, error, retryable }`. Inbound: webhooks at `/api/channels/webhook/:channel` fire events. Listen via `ctx.channels.on('message_received', handler)` in init hook. Events: `message_received`, `status_update`, `reaction`. All sends logged to `channelsLog` table.
+Adapters (WhatsApp, Resend, SMTP) registered at boot via config. Outbound: `ctx.channels.email.send({ to, subject, html })`, `ctx.channels.whatsapp.send({ to, text })`. Send never throws — returns `{ success, messageId, error, retryable }`. Inbound: webhooks at `/api/channels/webhook/:channelType/:instanceId?` fire events. Listen via `ctx.channels.on('message_received', handler)` in init hook. Events: `message_received`, `status_update`, `reaction`. All sends logged to `channelsLog` table.
+
+Adapter resolution supports instance-ID keyed registration: `channels.getAdapter(instanceId) ?? channels.getAdapter(type)`. This enables multiple adapters of the same channel type (e.g., direct WhatsApp + shared proxy WhatsApp).
+
+Managed WhatsApp channels: `createWhatsAppAdapter` with a `transport` config routes all Graph API calls through the platform's generic proxy instead of calling Meta directly. Access tokens stay on the platform. Transport config: `{ baseUrl, mediaDownloadUrl, signRequest: (method, path) => headers }`. The platform provides a wildcard `ALL /:channelId/graph/*` endpoint and a `GET /:channelId/media-download` endpoint. HMAC signing uses `method+path` (not body) to support JSON, FormData, and binary requests. Managed channels have full feature parity with direct channels (media, reactions, read receipts, template sync).
 
 ### Storage
 
@@ -102,7 +106,7 @@ Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `v
 Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
 Auth tables: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`. Auth table map: `authTableMap` (object passed to better-auth's drizzle adapter — renamed from `authSchema`).
 PostgreSQL schemas: `authPgSchema`, `auditPgSchema`, `infraPgSchema` — pgSchema objects for core modules. Template modules define their own: `messagingPgSchema`, `agentsPgSchema`, `kbPgSchema`. Mastra's internal tables (threads, messages, observational memory, scorers) live in the `mastra` pgSchema, managed by Mastra's `PostgresStore` (configured via `schemaName: 'mastra'`).
-Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAuth callback (JWT verification, user upsert, account linking, session creation). Opt-in via `PLATFORM_HMAC_SECRET` env var.
+Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAuth callback (JWT verification, user upsert, account linking, session creation). Opt-in via `PLATFORM_HMAC_SECRET` env var. `signPlatformRequest(payload, secret)` — HMAC-SHA256 signing for tenant→platform requests (symmetric to `verifyPlatformSignature`). For managed WhatsApp, sign `method+path` (e.g., `signPlatformRequest('GET/api/...', secret)`).
 
 ### Config Shape
 
