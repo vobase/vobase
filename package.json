@@ -31,8 +31,8 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
-    "drizzle-kit": "1.0.0-beta.19",
-    "drizzle-orm": "1.0.0-beta.19",
+    "drizzle-kit": "1.0.0-beta.21",
+    "drizzle-orm": "1.0.0-beta.21",
     "nanoid": "^5.1.7"
   }
 }
