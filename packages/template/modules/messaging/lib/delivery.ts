@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { channelInstances, contacts, conversations, messages } from '../schema';
 import { checkWindow } from './channel-sessions';
 import { getModuleDeps } from './deps';
+import { createActivityMessage, insertMessage } from './messages';
 
 // ─── Circuit Breaker (per channel type, in-memory) ─────────────────
 
@@ -44,6 +45,16 @@ export function resetCircuit(channelType: string): void {
 // ─── Delivery Queue ────────────────────────────────────────────────
 
 const MAX_RETRIES = 5;
+
+// ─── Error Messages ────────────────────────────────────────────────
+
+const ERROR_MESSAGES: Record<string, string> = {
+  window_expired:
+    'Message could not be sent — the messaging window has closed.',
+  opted_out: 'Contact has opted out of messages.',
+  rate_limited: 'Message delayed — channel rate limit reached.',
+  invalid_recipient: 'Message failed — recipient phone number is invalid.',
+};
 
 export async function enqueueDelivery(
   scheduler: Scheduler,
@@ -138,7 +149,18 @@ export async function processDelivery(
       channels.get(resolvedType);
 
     let result: SendResult;
-    const payload = (message.contentData ?? {}) as Record<string, unknown>;
+    let payload = (message.contentData ?? {}) as Record<string, unknown>;
+
+    // Resolve {{name}}/{{first_name}}/{{phone}}/{{email}} placeholders in template parameters
+    if (payload.template) {
+      payload = {
+        ...payload,
+        template: resolveTemplateVariables(
+          payload.template as NonNullable<OutboundMessage['template']>,
+          contact,
+        ),
+      };
+    }
 
     // Check messaging window before sending (e.g. WhatsApp 24h window)
     if (adapter?.capabilities?.messagingWindow) {
@@ -273,6 +295,16 @@ export async function processDelivery(
       const reason =
         [result.code, result.error].filter(Boolean).join(': ') || 'Send failed';
 
+      // Insert human-readable error as a system activity message for known failure codes
+      if (result.code && Object.hasOwn(ERROR_MESSAGES, result.code)) {
+        const { realtime } = getModuleDeps();
+        await createActivityMessage(db, realtime, {
+          conversationId: message.conversationId,
+          eventType: 'delivery_error',
+          data: { code: result.code, humanMessage: ERROR_MESSAGES[result.code] },
+        }).catch(() => {});
+      }
+
       if (result.retryable === false) {
         await markFailed(db, messageId, reason, message.conversationId);
       } else {
@@ -321,6 +353,54 @@ export function resolveIdentifierField(
     default:
       return 'identifier';
   }
+}
+
+// ─── Template Variable Resolution ────────────────────────────────────
+
+interface ContactVariables {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
+function resolveVar(key: string, contact: ContactVariables): string | null {
+  switch (key) {
+    case 'first_name':
+      return contact.name?.split(' ')[0] ?? null;
+    case 'name':
+      return contact.name;
+    case 'phone':
+      return contact.phone;
+    case 'email':
+      return contact.email;
+    default:
+      return null;
+  }
+}
+
+function resolveText(text: string, contact: ContactVariables): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
+    const value = resolveVar(key, contact);
+    return value ?? match;
+  });
+}
+
+export function resolveTemplateVariables(
+  template: NonNullable<OutboundMessage['template']>,
+  contact: ContactVariables,
+): NonNullable<OutboundMessage['template']> {
+  return {
+    ...template,
+    parameters: template.parameters?.map((p) => resolveText(p, contact)),
+    components: template.components?.map((component) => ({
+      ...component,
+      parameters: (component.parameters ?? []).map((param) =>
+        param.type === 'text'
+          ? { ...param, text: resolveText(param.text, contact) }
+          : param,
+      ),
+    })),
+  };
 }
 
 // ─── Retry / Fail Helpers ──────────────────────────────────────────
