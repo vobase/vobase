@@ -378,7 +378,10 @@ export class VobaseMemoryStorage extends MemoryStorage {
       args.perPage === false ? Number.MAX_SAFE_INTEGER : (args.perPage ?? 40);
     const direction = args.orderBy?.direction ?? 'DESC';
 
-    const conditions = [inArray(messages.conversationId, threadIds)];
+    const conditions = [
+      inArray(messages.conversationId, threadIds),
+      eq(messages.private, false), // Exclude private/internal messages from recall
+    ];
 
     if (args.filter?.dateRange) {
       const { start, end, startExclusive, endExclusive } =
