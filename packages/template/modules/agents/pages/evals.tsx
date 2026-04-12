@@ -533,7 +533,7 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
         name: fd.get('name') as string,
         description: fd.get('description') as string,
         criteria: fd.get('criteria') as string,
-        model: (fd.get('model') as string) || 'gpt-4o-mini',
+        model: (fd.get('model') as string) || 'gpt-5.4-mini',
       });
     },
     [createMutation],
@@ -596,8 +596,8 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
                 <Input
                   id="scorer-model"
                   name="model"
-                  placeholder="gpt-4o-mini"
-                  defaultValue="gpt-4o-mini"
+                  placeholder="gpt-5.4-mini"
+                  defaultValue="gpt-5.4-mini"
                 />
                 <p className="text-xs text-muted-foreground">
                   The LLM model used as the judge

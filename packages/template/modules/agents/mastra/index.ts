@@ -158,7 +158,7 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
           name: (def.name as string) ?? '',
           description: (def.description as string) ?? '',
           criteria: (def.instructions as string) ?? '',
-          model: (metadata.model as string) ?? 'gpt-4o-mini',
+          model: (metadata.model as string) ?? 'gpt-5.4',
         });
         mastraInstance.addScorer(scorer);
       }
