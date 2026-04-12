@@ -38,7 +38,6 @@ COPY --from=build /app/tsconfig.json ./
 COPY --from=build /app/drizzle.config.ts ./
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/modules ./modules
-COPY --from=build /app/mastra ./mastra
 COPY --from=build /app/lib ./lib
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/src ./src
