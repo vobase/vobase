@@ -27,7 +27,7 @@ export interface WhatsAppWebhookPayload {
         messages?: WhatsAppInboundMessage[];
         statuses?: WhatsAppInboundStatus[];
       };
-      field: 'messages';
+      field: 'messages' | 'account_update' | 'message_template_status_update';
     }>;
   }>;
 }
@@ -63,6 +63,16 @@ export interface WhatsAppInboundMessage {
   button?: { text: string; payload: string };
   context?: { id: string; forwarded?: boolean; frequently_forwarded?: boolean };
   errors?: Array<{ code: number; title: string; details?: string }>;
+  referral?: {
+    source_url: string;
+    source_type: 'ad' | 'post';
+    source_id: string;
+    headline?: string;
+    body?: string;
+    media_type?: string;
+    media_url?: string;
+    ctwa_clid?: string;
+  };
 }
 
 export interface WhatsAppMediaInfo {
@@ -70,6 +80,10 @@ export interface WhatsAppMediaInfo {
   mime_type: string;
   caption?: string;
   filename?: string;
+  /** True for voice notes recorded in-app (audio type only). */
+  voice?: boolean;
+  /** True for animated stickers (sticker type only). */
+  animated?: boolean;
 }
 
 export interface WhatsAppInboundStatus {
@@ -102,6 +116,75 @@ export type MediaDownloader = (
   mediaType?: string,
 ) => Promise<{ data: Buffer; mimeType: string } | null>;
 
+// ─── Phone normalization ─────────────────────────────────────────────
+
+/**
+ * Normalise a Brazilian WhatsApp phone number to its canonical 13-digit form.
+ *
+ * WhatsApp Brazil numbers may arrive as either:
+ *   - 12-digit `55XXYYYYYYYY`  (no 9th digit after area code) — legacy landline-style
+ *   - 13-digit `55XX9YYYYYYYY` (canonical mobile form)
+ *
+ * The 13-digit form is the UNIQUE constraint key in the contacts table, so both
+ * forms must resolve to the same string.
+ *
+ * Non-Brazil numbers (don't start with `55` + 2-digit area + 8-digit local)
+ * are returned unchanged.
+ */
+export function normalizeBrazilPhone(phone: string): string {
+  // Already canonical: 55 + 2-digit area + 9 + 8-digit subscriber = 13 digits
+  if (/^55\d{2}9\d{8}$/.test(phone)) {
+    return phone;
+  }
+  // Legacy form: 55 + 2-digit area + 8-digit subscriber = 12 digits — insert 9
+  const m = phone.match(/^55(\d{2})(\d{8})$/);
+  if (m) {
+    return `55${m[1]}9${m[2]}`;
+  }
+  return phone;
+}
+
+/**
+ * Normalise any WhatsApp phone number.
+ * Currently applies Brazil-specific normalisation; other countries pass through.
+ */
+export function normalizeWhatsAppPhone(phone: string): string {
+  return normalizeBrazilPhone(phone);
+}
+
+// ─── Status ordering ─────────────────────────────────────────────────
+
+/**
+ * Numeric rank for each WhatsApp delivery status.
+ * Higher rank = further along the delivery pipeline.
+ * `failed` is rank 0 — it is always accepted regardless of order (see shouldUpdateStatus).
+ */
+export const WA_STATUS_ORDER: Record<string, number> = {
+  sent: 1,
+  delivered: 2,
+  read: 3,
+  failed: 0,
+};
+
+/**
+ * Decide whether an incoming status update should overwrite the current one.
+ *
+ * Rules:
+ * 1. `failed` is always accepted (terminal error, must record it).
+ * 2. Recovery from `failed` is always accepted (status resolved).
+ * 3. Otherwise, only accept if the incoming rank is strictly higher than current.
+ */
+export function shouldUpdateStatus(
+  current: string | null,
+  incoming: string,
+): boolean {
+  if (incoming === 'failed') return true;
+  if (current === 'failed') return true;
+  const incomingRank = WA_STATUS_ORDER[incoming] ?? -1;
+  const currentRank = current != null ? (WA_STATUS_ORDER[current] ?? -1) : -1;
+  return incomingRank > currentRank;
+}
+
 // ─── Internal helpers ────────────────────────────────────────────────
 
 async function parseInboundMessage(
@@ -110,12 +193,15 @@ async function parseInboundMessage(
   fromToWaId: Map<string, string>,
   downloadMedia: MediaDownloader | null | undefined,
 ): Promise<ChannelEvent | null> {
-  const resolvedWaId = fromToWaId.get(msg.from) ?? msg.from;
+  const normalizedFrom = normalizeWhatsAppPhone(msg.from);
+  const resolvedWaId = normalizeWhatsAppPhone(
+    fromToWaId.get(normalizedFrom) ?? normalizedFrom,
+  );
   const base = {
     channel: 'whatsapp',
-    from: msg.from,
+    from: normalizedFrom,
     profileName:
-      contactMap.get(msg.from) || contactMap.get(resolvedWaId) || '',
+      contactMap.get(normalizedFrom) || contactMap.get(resolvedWaId) || '',
     messageId: msg.id,
     timestamp: Number.parseInt(msg.timestamp, 10) * 1000,
   };
@@ -123,6 +209,9 @@ async function parseInboundMessage(
   const baseMetadata: Record<string, unknown> = { waId: resolvedWaId };
   if (msg.context?.id) {
     baseMetadata.replyToMessageId = msg.context.id;
+  }
+  if (msg.referral) {
+    baseMetadata.referral = msg.referral;
   }
 
   switch (msg.type) {
@@ -158,13 +247,18 @@ async function parseInboundMessage(
         }
       }
 
+      const mediaMetadata: Record<string, unknown> = { ...baseMetadata };
+      if (msg.type === 'audio' && msg.audio?.voice) {
+        mediaMetadata.voice = true;
+      }
+
       return {
         type: 'message_received',
         ...base,
         content: mediaInfo?.caption ?? '',
         messageType: msg.type as MessageReceivedEvent['messageType'],
         media,
-        metadata: { ...baseMetadata },
+        metadata: mediaMetadata,
       } satisfies MessageReceivedEvent;
     }
 
@@ -191,7 +285,11 @@ async function parseInboundMessage(
         content: '',
         messageType: 'image',
         media,
-        metadata: { ...baseMetadata, sticker: true },
+        metadata: {
+          ...baseMetadata,
+          sticker: true,
+          ...(stickerInfo?.animated ? { animated: true } : {}),
+        },
       } satisfies MessageReceivedEvent;
     }
 
@@ -429,6 +527,123 @@ export function parseWhatsAppStatuses(
       if (!value.statuses?.length) continue;
       for (const status of value.statuses) {
         events.push(parseInboundStatus(status));
+      }
+    }
+  }
+
+  return events;
+}
+
+/**
+ * Parse echo messages (outbound messages sent via the WhatsApp Business App)
+ * from a webhook payload.
+ *
+ * Echoes appear as inbound messages where `msg.from` matches the business's
+ * own `phone_number_id` (i.e. the message was sent by staff, not received from
+ * a contact). Each echo is returned as a `MessageReceivedEvent` with:
+ *   - `metadata.echo: true`
+ *   - `metadata.echoSource: 'business_app'`
+ *   - `metadata.direction: 'outbound'`
+ */
+export async function parseWhatsAppEchoes(
+  payload: WhatsAppWebhookPayload,
+  downloadMedia?: MediaDownloader | null,
+): Promise<ChannelEvent[]> {
+  if (payload.object !== 'whatsapp_business_account') return [];
+  if (!payload.entry?.length) return [];
+
+  const events: ChannelEvent[] = [];
+
+  for (const entry of payload.entry) {
+    for (const change of entry.changes) {
+      const value = change.value;
+      if (!value.messages?.length) continue;
+
+      const phoneNumberId = value.metadata.phone_number_id;
+
+      for (const msg of value.messages) {
+        // Echo: the message was sent by the business itself
+        if (msg.from !== phoneNumberId) continue;
+
+        const parsed = await parseInboundMessage(
+          msg,
+          new Map(),
+          new Map(),
+          downloadMedia,
+        );
+        if (!parsed) continue;
+
+        if (parsed.type === 'message_received') {
+          events.push({
+            ...parsed,
+            metadata: {
+              ...parsed.metadata,
+              echo: true,
+              echoSource: 'business_app',
+              direction: 'outbound',
+            },
+          });
+        } else {
+          events.push(parsed);
+        }
+      }
+    }
+  }
+
+  return events;
+}
+
+/**
+ * Parse WhatsApp contact-change events (SMB app state sync).
+ *
+ * WhatsApp Business App sends `field: 'account_update'` changes when contacts
+ * are added, edited, or removed. Each contact change is emitted as a
+ * `MessageReceivedEvent` with `metadata.contactUpdate` so it flows through the
+ * existing event pipeline without adding a new union member.
+ */
+export function parseWhatsAppContactUpdates(
+  payload: WhatsAppWebhookPayload,
+): ChannelEvent[] {
+  if (payload.object !== 'whatsapp_business_account') return [];
+  if (!payload.entry?.length) return [];
+
+  const events: ChannelEvent[] = [];
+
+  for (const entry of payload.entry) {
+    for (const change of entry.changes) {
+      if (change.field !== 'account_update') continue;
+
+      const value = change.value as unknown as {
+        phone_number?: string;
+        event?: string;
+        contacts?: Array<{
+          action?: string;
+          wa_id?: string;
+          profile?: { name?: string };
+        }>;
+      };
+
+      const rawContacts = value.contacts ?? [];
+      for (const contact of rawContacts) {
+        if (!contact.wa_id) continue; // skip contacts without a WhatsApp ID
+        const action =
+          (contact.action as 'add' | 'remove' | 'edit') ?? 'edit';
+        events.push({
+          type: 'message_received',
+          channel: 'whatsapp',
+          from: contact.wa_id,
+          profileName: contact.profile?.name ?? '',
+          messageId: `contact-update-${contact.wa_id ?? ''}-${Date.now()}`,
+          timestamp: Date.now(),
+          content: '',
+          messageType: 'unsupported',
+          metadata: {
+            contactUpdate: {
+              action,
+              contact,
+            },
+          },
+        } satisfies MessageReceivedEvent);
       }
     }
   }
