@@ -4,20 +4,36 @@ import { sendCardTool } from './send-card';
 
 type ToolOutput = { success: boolean; message: string; error?: string };
 
-// Mock deps that return a conversation matching the contact
-function mockDeps(contactId: string, conversationId: string) {
+// Mock deps that return a conversation matching the contact.
+// verifyConversationAccess does two select() calls: conversation, then channel instance.
+function mockDeps(
+  contactId: string,
+  conversationId: string,
+  channelType = 'web',
+) {
+  let selectCall = 0;
   return {
     db: {
-      select: () => ({
-        from: () => ({
-          where: () =>
-            Promise.resolve([
-              {
-                id: conversationId,
-                contactId,
-                channelInstanceId: 'ch-1',
-              },
-            ]),
+      select: () => {
+        const call = selectCall++;
+        return {
+          from: () => ({
+            where: () =>
+              call === 0
+                ? Promise.resolve([
+                    {
+                      id: conversationId,
+                      contactId,
+                      channelInstanceId: 'ch-1',
+                    },
+                  ])
+                : Promise.resolve([{ type: channelType }]),
+          }),
+        };
+      },
+      insert: () => ({
+        values: (msg: Record<string, unknown>) => ({
+          returning: () => Promise.resolve([{ id: 'msg-1', ...msg }]),
         }),
       }),
     },
@@ -46,7 +62,7 @@ function makeContext(overrides: Record<string, unknown> = {}, channel = 'web') {
     channel,
     contactId: 'contact-1',
     agentId: 'agent-1',
-    deps: mockDeps('contact-1', 'conv-1'),
+    deps: mockDeps('contact-1', 'conv-1', channel),
     ...overrides,
   };
   return {
@@ -136,34 +152,7 @@ describe('sendCardTool validation', () => {
 
 describe('sendCardTool success', () => {
   it('succeeds with valid input and stores message', async () => {
-    let insertedMessage: Record<string, unknown> | undefined;
-    const deps = {
-      db: {
-        select: () => ({
-          from: () => ({
-            where: () =>
-              Promise.resolve([
-                {
-                  id: 'conv-1',
-                  contactId: 'contact-1',
-                  channelInstanceId: 'ch-1',
-                },
-              ]),
-          }),
-        }),
-        insert: () => ({
-          values: (msg: Record<string, unknown>) => {
-            insertedMessage = msg;
-            return {
-              returning: () => Promise.resolve([{ id: 'msg-1', ...msg }]),
-            };
-          },
-        }),
-      },
-      realtime: { notify: () => Promise.resolve() },
-      scheduler: { add: () => Promise.resolve() },
-    };
-    const ctx = makeContext({ deps });
+    const ctx = makeContext();
     const result = (await sendCardTool.execute?.(
       {
         conversationId: 'conv-1',

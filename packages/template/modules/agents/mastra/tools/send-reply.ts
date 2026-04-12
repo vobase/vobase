@@ -50,6 +50,7 @@ export const sendReplyTool = createTool({
       messageType: 'outgoing',
       contentType: (input.contentType ?? 'text') as 'text',
       content: input.content,
+      channelType: check.channelType,
       status: 'queued',
       senderId: agentId,
       senderType: 'agent',

@@ -1,11 +1,12 @@
 import { eq } from 'drizzle-orm';
 
 import type { ModuleDeps } from '../../../messaging/lib/deps';
-import { conversations } from '../../../messaging/schema';
+import { channelInstances, conversations } from '../../../messaging/schema';
 
 /**
  * Verify a conversation exists and belongs to the given contact.
- * Returns the conversation row on success, or a { success, message } error object.
+ * Also resolves the channel type from the conversation's channel instance.
+ * Returns the conversation row + channelType on success, or a { success, message } error object.
  */
 export async function verifyConversationAccess(
   deps: ModuleDeps,
@@ -32,5 +33,15 @@ export async function verifyConversationAccess(
     };
   }
 
-  return { success: true as const, conversation };
+  // Resolve channel type from the conversation's channel instance
+  let channelType = 'web';
+  if (conversation.channelInstanceId) {
+    const [instance] = await deps.db
+      .select({ type: channelInstances.type })
+      .from(channelInstances)
+      .where(eq(channelInstances.id, conversation.channelInstanceId));
+    if (instance) channelType = instance.type;
+  }
+
+  return { success: true as const, conversation, channelType };
 }

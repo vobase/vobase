@@ -72,9 +72,7 @@ export const sendCardTool = createTool({
     );
     if (!check.success) return check;
 
-    const channel =
-      (context?.requestContext?.get('channel') as string | undefined) ?? 'web';
-    const constraints = getConstraints(channel);
+    const constraints = getConstraints(check.channelType);
     const { title, body, buttons } = inputData;
 
     // Validate body length
@@ -134,6 +132,7 @@ export const sendCardTool = createTool({
       contentType: 'interactive',
       content: body,
       contentData: { card },
+      channelType: check.channelType,
       status: 'queued',
       senderId: agentId,
       senderType: 'agent',
