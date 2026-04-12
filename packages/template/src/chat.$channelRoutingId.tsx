@@ -160,6 +160,14 @@ function PublicChatView({
             const textContent = extractText(msg.parts);
             if (!textContent) return null;
 
+            // Hide system/activity messages (e.g., conversation.created)
+            if (msg.role === 'system') return null;
+            if (
+              msg.role === 'assistant' &&
+              /^conversation\.\w+$/.test(textContent)
+            )
+              return null;
+
             const from = msg.role === 'user' ? 'user' : 'assistant';
             return (
               <Message key={msg.id} from={from}>

@@ -2,7 +2,7 @@ import { TZDate } from '@date-fns/tz';
 import type { VobaseDb } from '@vobase/core';
 import { getCtx, nextSequence, notFound, unauthorized } from '@vobase/core';
 import { format, getDay } from 'date-fns';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -506,7 +506,7 @@ export const chatHandlers = new Hono()
 
     if (!contact) throw unauthorized();
 
-    // Find the active conversation for this visitor + channel routing
+    // Find active or resolving conversation for this visitor + channel routing
     const [conversation] = await db
       .select()
       .from(conversations)
@@ -514,11 +514,26 @@ export const chatHandlers = new Hono()
         and(
           eq(conversations.channelRoutingId, channelRoutingId),
           eq(conversations.contactId, contact.id),
-          eq(conversations.status, 'active'),
         ),
-      );
+      )
+      .orderBy(desc(conversations.createdAt))
+      .limit(1);
 
-    if (!conversation) throw notFound('No active conversation');
+    if (
+      !conversation ||
+      conversation.status === 'resolved' ||
+      conversation.status === 'failed'
+    ) {
+      throw notFound('No active conversation');
+    }
+
+    // Reactivate resolving conversations on new inbound message
+    if (conversation.status === 'resolving') {
+      await db
+        .update(conversations)
+        .set({ status: 'active' })
+        .where(eq(conversations.id, conversation.id));
+    }
 
     // Check assignee + hold state
     if (!isAgentAssignee(conversation.assignee) || conversation.onHold) {
