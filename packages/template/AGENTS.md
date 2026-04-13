@@ -77,7 +77,7 @@ Virtual buckets via config. `ctx.storage.bucket('name').upload(key, data, opts)`
 
 ### Integrations
 
-Encrypted credential vault for external services. `ctx.integrations.getActive(provider)` returns decrypted config or null (ordered by `updatedAt` desc for deterministic results). `connect(provider, config, opts)`, `disconnect(id)`, `updateConfig(id, config, opts)`. Platform configure endpoint upserts: re-calling for the same provider updates instead of duplicating. AES-256-GCM, key from `BETTER_AUTH_SECRET`.
+Encrypted credential vault for external services. `ctx.integrations.getActive(provider)` returns decrypted config or null (ordered by `updatedAt` desc for deterministic results). `connect(provider, config, opts)`, `disconnect(id)`, `updateConfig(id, config, opts)`. AES-256-GCM, key from `BETTER_AUTH_SECRET`. Token refresh extensible via `setPlatformRefresh(fn)` — register a callback to delegate token refresh to an external service (e.g. platform token vault).
 
 ### Module Init Hook
 
@@ -106,7 +106,8 @@ Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `v
 Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
 Auth tables: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`. Auth table map: `authTableMap` (object passed to better-auth's drizzle adapter — renamed from `authSchema`).
 PostgreSQL schemas: `authPgSchema`, `auditPgSchema`, `infraPgSchema` — pgSchema objects for core modules. Template modules define their own: `messagingPgSchema`, `agentsPgSchema`, `kbPgSchema`. Mastra's internal tables (threads, messages, observational memory, scorers) live in the `mastra` pgSchema, managed by Mastra's `PostgresStore` (configured via `schemaName: 'mastra'`).
-Platform: `platformAuth({ hmacSecret })` — better-auth plugin for platform OAuth callback (JWT verification, user upsert, account linking, session creation). Opt-in via `PLATFORM_HMAC_SECRET` env var. `signPlatformRequest(payload, secret)` — HMAC-SHA256 signing for tenant→platform requests (symmetric to `verifyPlatformSignature`). For managed WhatsApp, sign `method+path` (e.g., `signPlatformRequest('GET/api/...', secret)`).
+HMAC: `signHmac(payload, secret)` — HMAC-SHA256 signing for outbound requests. `verifyHmacSignature(payload, signature, secret)` — timing-safe HMAC verification for inbound requests. For managed WhatsApp, sign `method+path` (e.g., `signHmac('GET/api/...', secret)`).
+Refresh: `setPlatformRefresh(fn)` — register a callback `(provider: string) => Promise<RefreshResult>` for delegating token refresh to an external service. `getPlatformRefresh()` — retrieve the registered callback. Platform-specific auth plugins (e.g. OAuth callback handler) should be registered via `extraPlugins` in the auth config.
 
 ### Config Shape
 

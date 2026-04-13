@@ -35,7 +35,7 @@ Core ships six built-in modules (`defineBuiltinModule`, `_` prefix):
 - `_integrations` — AES-256-GCM encrypted credential vault for external services
 - `_storage` — virtual bucket file storage, local/S3 adapters (opt-in)
 - `_channels` — multi-channel messaging: WhatsApp, Resend, SMTP adapters. Inbound webhooks + event emitter. (opt-in)
-- Platform integration support: `platformAuth()` better-auth plugin for OAuth handoff, `createPlatformIntegrationsRoutes()` for provider-agnostic credential forwarding
+- Extensibility hooks: `extraPlugins` for auth plugin injection, `setPlatformRefresh(fn)` for token refresh delegation, `signHmac` for HMAC-SHA256 signing
 
 Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, StorageAdapter, ModuleInitContext, Permission. Modules implement against these interfaces. Unconfigured services use throw-proxies.
 
@@ -47,7 +47,7 @@ Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, St
 - Routes mount under `/api/{module}`. MCP on `/mcp`.
 - Auth = better-auth sessions + `requireRole()` / `requirePermission()` / `requireOrg()` middlewares
 - Data = Drizzle + PostgreSQL, integer money, explicit status transitions, auditable mutations
-- Platform = opt-in multi-tenant integration via `PLATFORM_HMAC_SECRET`. `platformAuth()` plugin handles OAuth callback (JWT verify, user upsert, account linking, session creation). `createPlatformIntegrationsRoutes()` handles `POST /:provider/configure` and `POST /token/update` with HMAC signature verification.
+- Extensibility = core is platform-agnostic. Platform-specific code (auth plugins, push routes, refresh callbacks) lives in the template layer. Core provides generic hooks: `signHmac` for HMAC signing, `setPlatformRefresh(fn)` for token refresh delegation, `extraPlugins` for auth plugin injection.
 
 ## Template Development
 
@@ -106,8 +106,7 @@ These decisions were made deliberately. Do not revisit without discussion.
 - For any new feature, ask "is this genuinely blocking someone?" before building. Prefer simple, direct implementations over "nice-to-have from competitor research."
 - What goes in core vs template: core owns infrastructure primitives that every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. If an AI agent would need to modify it per-app, it belongs in template. If it's foundational plumbing, it belongs in core.
 - Template CLAUDE.md documents core's full public API so agents never need to read node_modules. Keep it accurate when core changes.
-- Platform auth lives inside better-auth as a plugin (`platformAuth()`), not as separate route middleware. This eliminates route ordering concerns (no need to mount before the catch-all) and uses `internalAdapter.createSession()` for native cookie signing.
-- The platform↔tenant contract is v1.1 (see `packages/core/src/infra/platform.ts` for full spec). Platform→tenant (frozen v1): `POST /api/integrations/:provider/configure`, `POST /api/integrations/token/update`, `POST /api/integrations/provision-channel`, `POST /api/channels/webhook/:provider/:instanceId?`. Tenant→platform (v1.1): `GET /api/managed-whatsapp/channels`, `POST /api/managed-whatsapp/:id/send`. Both directions use the same per-tenant HMAC secret. Platform→tenant signs with `X-Platform-Signature`. Tenant→platform signs with `X-Platform-Signature` + `X-Tenant-Id` (immutable nanoid from `PLATFORM_TENANT_ID` env var). Configure upserts: re-calling for the same provider updates the existing platform-managed integration instead of creating duplicates.
+- Core is platform-agnostic. All platform-specific code (auth plugin, push routes, refresh callback) lives in the template layer. Core provides generic extensibility: `signHmac` for HMAC signing, `setPlatformRefresh(fn)` for token refresh delegation, `extraPlugins` for auth plugin injection. Platform-specific auth plugins register via `extraPlugins` in the template's auth config.
 
 ## Agent Defaults
 

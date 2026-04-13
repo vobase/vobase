@@ -7,11 +7,6 @@ import { errorHandler } from './infra/errors';
 import { createHttpClient, type HttpClientOptions } from './infra/http-client';
 import { createWorker } from './infra/job';
 import { logger } from './infra/logger';
-import {
-  createPlatformIntegrationsRoutes,
-  isPlatformEnabled,
-  type PlatformRoutesConfig,
-} from './infra/platform';
 import { createScheduler } from './infra/queue';
 import { createRealtimeService } from './infra/realtime';
 import { createThrowProxy } from './infra/throw-proxy';
@@ -263,19 +258,6 @@ export async function createApp(config: CreateAppConfig) {
       }
     });
   });
-
-  // === Platform integration routes (token refresh, WhatsApp configure) ===
-  if (isPlatformEnabled()) {
-    const platformConfig: PlatformRoutesConfig = {
-      db,
-      integrationsService,
-      channels: channelsService,
-    };
-    base.route(
-      '/api/integrations',
-      createPlatformIntegrationsRoutes(platformConfig),
-    );
-  }
 
   // better-auth catch-all — platform auth callback is handled inside better-auth via platformAuth plugin
   base.on(['POST', 'GET'], '/api/auth/*', (c) =>

@@ -5,9 +5,17 @@ import type {
 } from '../../contracts/channels';
 import type { VobaseDb } from '../../db/client';
 import { logger } from '../../infra/logger';
-import type { ProvisionChannelData } from '../../infra/platform';
 import type { ChannelEventEmitter } from './events';
 import { channelsLog } from './schema';
+
+/** Data required to provision a new channel instance. */
+export interface ProvisionChannelData {
+  type: string;
+  label: string;
+  source: string;
+  integrationId?: string;
+  config?: Record<string, unknown>;
+}
 
 export interface ChannelSend {
   send(message: OutboundMessage): Promise<SendResult>;

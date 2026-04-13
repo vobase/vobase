@@ -71,14 +71,8 @@ export type { JobDefinition, JobHandler, WorkerOptions } from './infra/job';
 export { createWorker, defineJob } from './infra/job';
 // Logger
 export { logger } from './infra/logger';
-// Platform Integration
-export {
-  isPlatformEnabled,
-  type PlatformRoutesConfig,
-  type ProvisionChannelData,
-  signPlatformRequest,
-  verifyPlatformSignature,
-} from './infra/platform';
+// HMAC Signing
+export { signHmac } from './infra/webhooks';
 // Queue
 export {
   createScheduler,
@@ -131,10 +125,6 @@ export {
   requirePermission,
   requireRole,
 } from './modules/auth/permissions';
-export {
-  type PlatformAuthConfig,
-  platformAuth,
-} from './modules/auth/platform-plugin';
 // Auth Schema (tables managed by better-auth)
 export {
   authAccount,
@@ -168,18 +158,21 @@ export {
 } from './modules/channels/adapters/smtp';
 export { createWhatsAppAdapter } from './modules/channels/adapters/whatsapp';
 export { channelsLog, channelsTemplates } from './modules/channels/schema';
-export type { ChannelSend, ChannelsService } from './modules/channels/service';
+export type { ChannelSend, ChannelsService, ProvisionChannelData } from './modules/channels/service';
 // Built-in Modules: Integrations (replaces Credentials)
 export {
   createIntegrationsModule,
   integrationsTable,
 } from './modules/integrations';
 export {
+  getPlatformRefresh,
   getProviderRefreshFn,
   getRefreshMode,
+  type PlatformRefreshFn,
   type ProviderRefreshFn,
   type RefreshResult,
   registerProviderRefresh,
+  setPlatformRefresh,
 } from './modules/integrations/refresh';
 export type {
   ConnectOptions,

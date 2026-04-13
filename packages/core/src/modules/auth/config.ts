@@ -11,8 +11,6 @@ import type { BetterAuthPlugin, SocialProviders } from 'better-auth';
 import { anonymous, organization } from 'better-auth/plugins';
 import { emailOTP } from 'better-auth/plugins/email-otp';
 
-import { platformAuth } from './platform-plugin';
-
 /** Callback to deliver OTP codes (email, SMS, etc.). */
 export type SendVerificationOTP = (data: {
   email: string;
@@ -50,8 +48,7 @@ export interface AuthModuleConfig {
 
 /**
  * All plugins are always installed so the better-auth CLI generates complete
- * schema. platformAuth is the exception — it's env-gated because it adds
- * no tables, only routes.
+ * schema. Additional plugins can be injected via `extraPlugins` in config.
  */
 export function getAuthPlugins(config?: AuthModuleConfig): BetterAuthPlugin[] {
   const plugins: BetterAuthPlugin[] = [
@@ -84,16 +81,6 @@ export function getAuthPlugins(config?: AuthModuleConfig): BetterAuthPlugin[] {
       rateLimit: { window: 60, max: 1 },
     }) as BetterAuthPlugin,
   ];
-
-  const platformSecret = process.env.PLATFORM_HMAC_SECRET;
-  if (platformSecret) {
-    plugins.push(
-      platformAuth({
-        hmacSecret: platformSecret,
-        allowedEmailDomains: config?.allowedEmailDomains,
-      }) as BetterAuthPlugin,
-    );
-  }
 
   if (config?.extraPlugins) {
     plugins.push(...config.extraPlugins);
