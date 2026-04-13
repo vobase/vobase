@@ -5,7 +5,7 @@ import {
   getCtx,
   logger,
   notFound,
-  signPlatformRequest,
+  signHmac,
   unauthorized,
   validation,
 } from '@vobase/core';
@@ -31,7 +31,7 @@ export function buildManagedTransport(
     baseUrl: `${platformUrl}/api/managed-whatsapp/${managedChannelId}/graph`,
     mediaDownloadUrl: `${platformUrl}/api/managed-whatsapp/${managedChannelId}/media-download`,
     signRequest: (method: string, path: string) => ({
-      'X-Platform-Signature': signPlatformRequest(
+      'X-Platform-Signature': signHmac(
         `${method}${path}`,
         hmacSecret,
       ),
@@ -123,7 +123,7 @@ export const channelsHandlers = new Hono()
       return c.json({ channels: [] });
     }
     // Sign method+path per new HMAC convention (platform accepts both old body-based and new method+path)
-    const signature = signPlatformRequest(
+    const signature = signHmac(
       'GET/api/managed-whatsapp/channels',
       hmacSecret,
     );

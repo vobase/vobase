@@ -166,9 +166,9 @@ export function createChannelsModule(
 
     if (platformSig && !providerSig && process.env.PLATFORM_HMAC_SECRET) {
       // Platform-proxied webhook: no provider signature present, verify platform HMAC
-      const { verifyPlatformSignature } = await import('../../infra/platform');
+      const { verifyHmacSignature } = await import('../../infra/webhooks');
       const rawBody = await c.req.raw.clone().text();
-      isValid = verifyPlatformSignature(rawBody, platformSig);
+      isValid = verifyHmacSignature(rawBody, platformSig, process.env.PLATFORM_HMAC_SECRET!);
       viaPlatform = true;
     } else {
       // Direct webhook from provider (or has provider sig): verify with adapter

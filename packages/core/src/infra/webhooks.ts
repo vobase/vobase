@@ -55,6 +55,11 @@ export function verifyHmacSignature(
   }
 }
 
+/** Sign a payload with HMAC-SHA256. Symmetric to verifyHmacSignature. */
+export function signHmac(payload: string, secret: string): string {
+  return createHmac('sha256', secret).update(payload).digest('hex');
+}
+
 /**
  * Check whether a webhook has already been processed and record it if not.
  *
