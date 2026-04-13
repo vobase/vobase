@@ -77,6 +77,7 @@ interface ChannelInstance {
   label: string;
   source: string;
   status: string;
+  statusError: string | null;
   integrationId: string | null;
   config: Record<string, unknown>;
   createdAt: string;
@@ -102,6 +103,7 @@ interface ChannelStatus {
   type: string;
   label: string;
   status: string;
+  statusError: string | null;
   activeSessionCount: number;
 }
 
@@ -109,6 +111,7 @@ interface ChannelsConfig {
   metaAppId: string | null;
   metaConfigId: string | null;
   platformUrl: string | null;
+  webhookBaseUrl: string | null;
 }
 
 interface ManagedChannel {
@@ -260,7 +263,7 @@ async function fetchChannelStatus(): Promise<{ channels: ChannelStatus[] }> {
 async function fetchChannelsConfig(): Promise<ChannelsConfig> {
   const res = await messagingClient.channels.config.$get();
   if (!res.ok)
-    return { metaAppId: null, metaConfigId: null, platformUrl: null };
+    return { metaAppId: null, metaConfigId: null, platformUrl: null, webhookBaseUrl: null };
   return res.json() as unknown as Promise<ChannelsConfig>;
 }
 
@@ -504,6 +507,7 @@ function ChannelCard({
   activeConversations,
   onToggle,
   onDelete,
+  onReconnect,
   isToggling,
 }: {
   routing: ChannelRouting;
@@ -512,6 +516,7 @@ function ChannelCard({
   activeConversations: number;
   onToggle: () => void;
   onDelete: () => void;
+  onReconnect?: () => void;
   isToggling: boolean;
 }) {
   const type = instance?.type ?? 'web';
@@ -526,12 +531,28 @@ function ChannelCard({
     if (chatLink) copy(chatLink, { timeout: 2000 });
   }
 
+  // Single discriminated connection status — priority order matters
+  const connectionStatus: 'error' | 'disconnected' | 'no-credentials' | 'warning' | 'paused' | 'connected' =
+    instance?.status === 'error'
+      ? 'error'
+      : instance?.status === 'disconnected'
+        ? 'disconnected'
+        : instance && instance.source === 'self' && !instance.integrationId && instance.type !== 'web'
+          ? 'no-credentials'
+          : instance?.statusError
+            ? 'warning'
+            : routing.enabled
+              ? 'connected'
+              : 'paused';
+
+  const isHealthy = connectionStatus === 'connected' || connectionStatus === 'paused';
+
   return (
     <Card
       className={cn(
         'border-l-4 transition-colors',
         meta.borderColor,
-        !routing.enabled && 'opacity-60',
+        (connectionStatus === 'paused' || connectionStatus === 'disconnected' || connectionStatus === 'no-credentials') && 'opacity-60',
       )}
     >
       <CardContent className="flex items-start gap-4 py-4">
@@ -542,13 +563,41 @@ function ChannelCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-sm font-medium truncate">{routing.name}</h3>
-            <Badge
-              variant={routing.enabled ? 'success' : 'secondary'}
-              className="text-xs shrink-0"
-            >
-              {routing.enabled ? 'Connected' : 'Paused'}
-            </Badge>
+            {{
+              error: <Badge variant="destructive" className="text-xs shrink-0">Error</Badge>,
+              disconnected: <Badge variant="secondary" className="text-xs shrink-0">Disconnected</Badge>,
+              'no-credentials': (
+                <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400">
+                  No Credentials
+                </Badge>
+              ),
+              warning: (
+                <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400">
+                  Warning
+                </Badge>
+              ),
+              connected: <Badge variant="success" className="text-xs shrink-0">Connected</Badge>,
+              paused: <Badge variant="secondary" className="text-xs shrink-0">Paused</Badge>,
+            }[connectionStatus]}
           </div>
+
+          {connectionStatus === 'error' && (
+            <p className="text-xs text-destructive mb-1 flex items-start gap-1.5">
+              <TriangleAlertIcon className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>{instance?.statusError ?? 'Channel health check failed'}</span>
+            </p>
+          )}
+          {connectionStatus === 'warning' && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mb-1 flex items-start gap-1.5">
+              <TriangleAlertIcon className="h-3 w-3 mt-0.5 shrink-0" />
+              <span>{instance?.statusError}</span>
+            </p>
+          )}
+          {connectionStatus === 'no-credentials' && (
+            <p className="text-xs text-muted-foreground mb-1">
+              Connect via Embedded Signup or add credentials to activate this channel.
+            </p>
+          )}
 
           <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             <div className="flex items-center gap-3">
@@ -607,19 +656,27 @@ function ChannelCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onToggle} disabled={isToggling}>
-              {routing.enabled ? (
-                <>
-                  <PauseIcon className="h-4 w-4 mr-2" />
-                  Pause Channel
-                </>
-              ) : (
-                <>
-                  <PlayIcon className="h-4 w-4 mr-2" />
-                  Resume Channel
-                </>
-              )}
-            </DropdownMenuItem>
+            {onReconnect && !isHealthy && (
+              <DropdownMenuItem onClick={onReconnect}>
+                <LinkIcon className="h-4 w-4 mr-2" />
+                Reconnect
+              </DropdownMenuItem>
+            )}
+            {isHealthy && (
+              <DropdownMenuItem onClick={onToggle} disabled={isToggling}>
+                {routing.enabled ? (
+                  <>
+                    <PauseIcon className="h-4 w-4 mr-2" />
+                    Pause Channel
+                  </>
+                ) : (
+                  <>
+                    <PlayIcon className="h-4 w-4 mr-2" />
+                    Resume Channel
+                  </>
+                )}
+              </DropdownMenuItem>
+            )}
             {chatLink && (
               <DropdownMenuItem onClick={handleCopyLink}>
                 <CopyIcon className="h-4 w-4 mr-2" />
@@ -632,7 +689,7 @@ function ChannelCard({
               className="text-destructive focus:text-destructive"
             >
               <TrashIcon className="h-4 w-4 mr-2" />
-              Remove Channel
+              {isHealthy ? 'Remove Channel' : 'Disconnect'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1245,9 +1302,11 @@ function ChannelsPage() {
     () =>
       routings
         .filter((r) => {
-          // Exclude platform-managed channels — they show under "Platform Managed"
+          // Exclude platform-managed (shared test numbers) — they show under "Platform Managed"
           const inst = instanceMap.get(r.channelInstanceId);
-          return inst?.source !== 'platform';
+          if (!inst) return false;
+          const cfg = inst.config as Record<string, unknown>;
+          return !(inst.source === 'platform' && cfg?.managed === true);
         })
         .map((r) => ({
           routing: r,
@@ -1283,7 +1342,12 @@ function ChannelsPage() {
         const slug =
           import.meta.env.VITE_PLATFORM_TENANT_SLUG ||
           window.location.hostname.split('.')[0];
-        window.location.href = `${config.platformUrl}/api/oauth-proxy/whatsapp/connect?tenant=${slug}`;
+        const params = new URLSearchParams({ tenant: slug });
+        if (config.webhookBaseUrl) {
+          params.set('webhookUrl', `${config.webhookBaseUrl}/api/channels/webhook/whatsapp`);
+        }
+        params.set('redirectUrl', window.location.href);
+        window.location.href = `${config.platformUrl}/api/oauth-proxy/whatsapp/connect?${params}`;
         return;
       }
 
@@ -1446,6 +1510,11 @@ function ChannelsPage() {
                         !!(instance?.config as Record<string, unknown>)
                           ?.managed,
                     })
+                  }
+                  onReconnect={
+                    instance?.type === 'whatsapp'
+                      ? () => handleAddChannel('whatsapp')
+                      : undefined
                   }
                 />
               ),

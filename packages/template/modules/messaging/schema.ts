@@ -62,6 +62,7 @@ export const channelInstances = messagingPgSchema.table(
     source: text('source').notNull(),
     config: jsonb('config').default({}),
     status: text('status').notNull().default('active'),
+    statusError: text('status_error'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

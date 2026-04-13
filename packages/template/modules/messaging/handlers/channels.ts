@@ -106,7 +106,8 @@ export const channelsHandlers = new Hono()
     const metaAppId = process.env.META_APP_ID ?? null;
     const metaConfigId = process.env.META_CONFIG_ID ?? null;
     const platformUrl = process.env.PLATFORM_URL ?? null;
-    return c.json({ metaAppId, metaConfigId, platformUrl });
+    const webhookBaseUrl = process.env.WEBHOOK_BASE_URL || process.env.BETTER_AUTH_URL || null;
+    return c.json({ metaAppId, metaConfigId, platformUrl, webhookBaseUrl });
   })
   /** GET /channels/managed-available — List available managed WhatsApp numbers from platform. */
   .get('/channels/managed-available', async (c) => {
@@ -847,6 +848,7 @@ export const channelsHandlers = new Hono()
       type: inst.type,
       label: inst.label,
       status: inst.status,
+      statusError: inst.statusError,
       activeSessionCount: countMap.get(inst.id) ?? 0,
     }));
 

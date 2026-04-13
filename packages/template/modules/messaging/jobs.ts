@@ -192,32 +192,42 @@ export const channelHealthCheckJob = defineJob(
 
         try {
           const result = await adapter.healthCheck();
+          const newError = result.error ?? null;
+
           if (!result.ok) {
-            if (instance.status !== 'error') {
+            const errorMsg = newError ?? 'Health check failed';
+            if (instance.status !== 'error' || instance.statusError !== errorMsg) {
               await deps.db
                 .update(channelInstances)
-                .set({ status: 'error' })
+                .set({ status: 'error', statusError: errorMsg })
                 .where(eq(channelInstances.id, instance.id));
             }
             logger.warn('[messaging] Channel health check failed', {
               instanceId: instance.id,
               type: instance.type,
-              error: result.error,
+              error: newError,
             });
           } else if (instance.status === 'error') {
             await deps.db
               .update(channelInstances)
-              .set({ status: 'active' })
+              .set({ status: 'active', statusError: null })
               .where(eq(channelInstances.id, instance.id));
             logger.info('[messaging] Channel recovered from error', {
               instanceId: instance.id,
               type: instance.type,
             });
+          } else if (newError !== instance.statusError) {
+            // Sync warning text (set or clear) only when it actually changed
+            await deps.db
+              .update(channelInstances)
+              .set({ statusError: newError })
+              .where(eq(channelInstances.id, instance.id));
           }
         } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Unknown error';
           await deps.db
             .update(channelInstances)
-            .set({ status: 'error' })
+            .set({ status: 'error', statusError: errorMsg })
             .where(eq(channelInstances.id, instance.id));
           logger.error('[messaging] Channel health check error', {
             instanceId: instance.id,

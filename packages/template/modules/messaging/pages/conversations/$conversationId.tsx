@@ -38,6 +38,7 @@ import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
 import {
   useTypingListener,
   useTypingSender,
@@ -86,6 +87,9 @@ interface ChannelInstance {
   id: string;
   type: string;
   label: string;
+  status: string;
+  statusError: string | null;
+  config: Record<string, unknown> | null;
 }
 
 interface Contact {
@@ -204,6 +208,21 @@ async function sendReply(
   );
   if (!res.ok) throw new Error('Failed to send reply');
   return res.json();
+}
+
+// ─── Helpers ─────────────────────────────────────────────────���──────
+
+const MESSAGING_TIER_LABELS: Record<string, string> = {
+  TIER_50: '50 / day',
+  TIER_250: '250 / day',
+  TIER_1000: '1,000 / day',
+  TIER_10000: '10,000 / day',
+  TIER_100000: '100,000 / day',
+  UNLIMITED: 'Unlimited',
+};
+
+function formatMessagingTier(tier: string): string {
+  return MESSAGING_TIER_LABELS[tier] ?? tier;
 }
 
 // ─── Sidebar Detail Row ─────────────────────────────────────────────
@@ -336,6 +355,9 @@ function ConversationDetailPage() {
       map.set(agent.id, { name: agent.name });
     }
 
+    // Echo messages sent from WhatsApp Business App
+    map.set('echo', { name: 'WhatsApp Business App' });
+
     // Parse [Staff: Name] from message content for staff not in session
     for (const msg of allMessageRows) {
       if (msg.senderType === 'user' && !map.has(msg.senderId)) {
@@ -348,6 +370,26 @@ function ConversationDetailPage() {
 
     return map;
   }, [session, contact, conversation?.contactId, agents, allMessageRows]);
+
+  // Find referral attribution from the first inbound message that has one
+  const adReferral = useMemo(() => {
+    for (const msg of allMessageRows) {
+      if (
+        msg.senderType === 'user' ||
+        msg.senderType === 'agent' ||
+        msg.senderType === 'system'
+      )
+        continue;
+      const meta = (msg.contentData?.metadata ?? null) as Record<
+        string,
+        unknown
+      > | null;
+      if (!meta?.referral) continue;
+      const ref = meta.referral as Record<string, unknown>;
+      if (ref.headline || ref.source_url) return ref;
+    }
+    return null;
+  }, [allMessageRows]);
 
   const invalidateConversationQueries = useCallback(() => {
     queryClient.invalidateQueries({
@@ -534,6 +576,43 @@ function ConversationDetailPage() {
           </div>
         </div>
 
+        {/* Channel health banner */}
+        {channelInstance &&
+          (channelInstance.status === 'error' ||
+            channelInstance.status === 'disconnected') && (
+            <div className="flex items-center gap-2 border-b bg-destructive/5 px-4 py-2 text-sm text-destructive">
+              <CircleAlertIcon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">
+                {channelInstance.statusError ??
+                  (channelInstance.status === 'disconnected'
+                    ? 'Channel disconnected — messages cannot be sent or received.'
+                    : 'Channel error — messages may not be delivered.')}
+              </span>
+              <Link
+                to="/messaging/channels"
+                className="text-xs underline underline-offset-2 hover:text-destructive/80 shrink-0"
+              >
+                View Channels
+              </Link>
+            </div>
+          )}
+
+        {/* Channel warning banner (e.g. token expiring soon) */}
+        {channelInstance &&
+          channelInstance.status === 'active' &&
+          channelInstance.statusError && (
+            <div className="flex items-center gap-2 border-b bg-amber-50 dark:bg-amber-950/20 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+              <CircleAlertIcon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{channelInstance.statusError}</span>
+              <Link
+                to="/messaging/channels"
+                className="text-xs underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300 shrink-0"
+              >
+                View Channels
+              </Link>
+            </div>
+          )}
+
         {/* Message Timeline */}
         <div className="flex-1 overflow-hidden">
           <MessageTimeline
@@ -654,6 +733,13 @@ function ConversationDetailPage() {
                         ? channelInstance.label || channelInstance.type
                         : '—'}
                     </SidebarRow>
+                    {!!channelInstance?.config?.messagingTier && (
+                      <SidebarRow label="Msg Tier">
+                        {formatMessagingTier(
+                          String(channelInstance.config.messagingTier),
+                        )}
+                      </SidebarRow>
+                    )}
                     <SidebarRow label="Started">
                       <RelativeTimeCard date={conversation.startedAt} />
                     </SidebarRow>
@@ -680,6 +766,82 @@ function ConversationDetailPage() {
                     </SidebarRow>
                   </div>
                 </div>
+
+                {/* Ad / referral attribution */}
+                {adReferral && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                        Ad Attribution
+                      </p>
+                      <p className="text-sm font-medium leading-snug">
+                        {adReferral.headline
+                          ? `From ad: ${String(adReferral.headline)}`
+                          : 'From ad'}
+                      </p>
+                      {typeof adReferral.source_url === 'string' && (
+                        <a
+                          href={String(adReferral.source_url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 block text-xs text-muted-foreground underline underline-offset-2 truncate hover:text-foreground"
+                        >
+                          {String(adReferral.source_url)}
+                        </a>
+                      )}
+                      {typeof adReferral.source_type === 'string' && (
+                        <p className="mt-1 text-xs text-muted-foreground capitalize">
+                          {String(adReferral.source_type)}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Channel health warning */}
+                {channelInstance && channelInstance.status !== 'active' && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+                        Channel Health
+                      </p>
+                      <Status
+                        variant={
+                          channelInstance.status === 'error'
+                            ? 'error'
+                            : 'warning'
+                        }
+                        className="w-full justify-start"
+                      >
+                        <StatusIndicator />
+                        <StatusLabel>
+                          {channelInstance.status === 'disconnected'
+                            ? 'Channel disconnected'
+                            : channelInstance.status === 'error'
+                              ? 'Channel error'
+                              : channelInstance.status}
+                        </StatusLabel>
+                      </Status>
+                      {channelInstance.statusError && (
+                        <p className="mt-1.5 text-xs text-destructive">
+                          {channelInstance.statusError}
+                        </p>
+                      )}
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Outbound messages may not be delivered. Check the{' '}
+                        <Link
+                          to="/messaging/channels"
+                          className="underline underline-offset-2 hover:text-foreground"
+                        >
+                          Channels
+                        </Link>{' '}
+                        page to reconnect.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </ScrollArea>
           </>
