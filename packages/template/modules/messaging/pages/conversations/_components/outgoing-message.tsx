@@ -18,6 +18,7 @@ import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { cn } from '@/lib/utils';
 import { DeliveryStatus } from './delivery-status';
 import { MediaContent, parseMedia } from './media-content';
+import { MessageReactions } from './message-reactions';
 import { PrivateNoteWrapper } from './private-note-wrapper';
 import type { MessageRow, SenderInfo } from './types';
 
@@ -52,6 +53,7 @@ export const OutgoingMessage = memo(function OutgoingMessage({
   const isWithdrawn = message.withdrawn;
   const isPrivate = message.private;
   const isDraft = message.resolutionStatus === 'pending';
+  const isEcho = message.senderId === 'echo';
 
   const defaultLabel = isAgent
     ? 'Agent'
@@ -76,12 +78,60 @@ export const OutgoingMessage = memo(function OutgoingMessage({
     | undefined;
   const replyButtons = interactive?.action?.buttons;
 
+  // Extract template data from contentData if present
+  const template = message.contentData?.template as
+    | {
+        name?: string;
+        language?: { code?: string };
+        components?: Array<{
+          type: string;
+          parameters?: Array<{ type: string; text?: string }>;
+        }>;
+      }
+    | undefined;
+  const templateBodyParams = template?.components
+    ?.find((c) => c.type === 'body')
+    ?.parameters?.filter((p) => p.type === 'text' && p.text != null)
+    ?.map((p) => p.text as string);
+
   const content = (
     <MessageContent>
       {isWithdrawn ? (
         <span className="text-sm text-muted-foreground italic">
           Message withdrawn
         </span>
+      ) : template ? (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <Badge
+              variant="secondary"
+              className="h-4 px-1.5 text-[10px] font-medium"
+            >
+              Template
+            </Badge>
+            {template.name && (
+              <span className="text-xs text-muted-foreground font-mono">
+                {template.name}
+              </span>
+            )}
+          </div>
+          {message.content && (
+            <MessageResponse>{message.content}</MessageResponse>
+          )}
+          {templateBodyParams && templateBodyParams.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {templateBodyParams.map((param, i) => (
+                <span
+                  // biome-ignore lint/suspicious/noArrayIndexKey: template params are positional, no stable id
+                  key={i}
+                  className="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted/50"
+                >
+                  {param}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
         <>
           {(interactive?.body?.text ?? message.content) && (
@@ -171,10 +221,44 @@ export const OutgoingMessage = memo(function OutgoingMessage({
     </div>
   );
 
-  const body = isPrivate ? (
+  const isFailed = message.status === 'failed';
+
+  const bodyInner = isPrivate ? (
     <PrivateNoteWrapper>{content}</PrivateNoteWrapper>
   ) : (
     content
+  );
+
+  const body = isFailed ? (
+    <div className="border border-destructive/30 bg-destructive/5 rounded-lg p-3 flex flex-col gap-1">
+      {bodyInner}
+      {message.failureReason && (
+        <span className="text-xs text-destructive">
+          {message.failureReason}
+        </span>
+      )}
+    </div>
+  ) : (
+    bodyInner
+  );
+
+  const reactions = Array.isArray(message.contentData?.reactions) && (
+    <MessageReactions
+      reactions={
+        message.contentData.reactions as Array<{
+          from: string;
+          emoji: string;
+          action: string;
+          timestamp?: string;
+        }>
+      }
+    />
+  );
+
+  const echoAttribution = isEcho && (
+    <span className="text-xs text-muted-foreground">
+      Sent via WhatsApp Business App
+    </span>
   );
 
   if (align === 'right') {
@@ -184,6 +268,8 @@ export const OutgoingMessage = memo(function OutgoingMessage({
           <div className="flex flex-col items-end gap-1 min-w-0">
             {meta}
             {body}
+            {reactions}
+            {echoAttribution}
           </div>
           {avatar}
         </div>
@@ -198,6 +284,8 @@ export const OutgoingMessage = memo(function OutgoingMessage({
         <div className="flex flex-col gap-1 min-w-0">
           {meta}
           {body}
+          {reactions}
+          {echoAttribution}
         </div>
       </div>
     </Message>

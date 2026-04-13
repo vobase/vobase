@@ -1,4 +1,4 @@
-import { FileIcon } from 'lucide-react';
+import { FileIcon, ImageOffIcon, MicIcon } from 'lucide-react';
 import { useState } from 'react';
 
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -16,7 +16,10 @@ interface MediaItem {
 interface MediaContentProps {
   contentType: string;
   media: MediaItem[];
+  metadata?: Record<string, unknown> | null;
   className?: string;
+  /** When true, media download failed — show placeholder instead of broken image */
+  mediaDownloadFailed?: boolean;
 }
 
 function parseMedia(contentData: Record<string, unknown> | null): MediaItem[] {
@@ -31,16 +34,68 @@ function parseMedia(contentData: Record<string, unknown> | null): MediaItem[] {
   );
 }
 
+function parseContentMetadata(
+  contentData: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!contentData) return null;
+  const meta = contentData.metadata;
+  if (typeof meta !== 'object' || meta === null || Array.isArray(meta))
+    return null;
+  return meta as Record<string, unknown>;
+}
+
 // ─── Component ────────────────────────────────────────────────────────
 
 export function MediaContent({
   contentType,
   media,
+  metadata,
   className,
+  mediaDownloadFailed,
 }: MediaContentProps) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
+  // Show placeholder for failed media downloads
+  if (media.length === 0 && mediaDownloadFailed) {
+    const label =
+      contentType === 'video'
+        ? 'Video unavailable'
+        : contentType === 'audio'
+          ? 'Audio unavailable'
+          : contentType === 'document'
+            ? 'Document unavailable'
+            : 'Image unavailable';
+    return (
+      <div
+        className={cn(
+          'flex items-center gap-1.5 rounded-md border border-dashed bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground mt-1.5',
+          className,
+        )}
+      >
+        <ImageOffIcon className="h-3.5 w-3.5 shrink-0" />
+        <span>{label} — media could not be downloaded</span>
+      </div>
+    );
+  }
+
   if (media.length === 0) return null;
+
+  // ── Sticker ────────────────────────────────────────────────────────
+  if (contentType === 'image' && metadata?.sticker === true) {
+    return (
+      <div className={cn('mt-1.5', className)}>
+        {media.map((item, i) => (
+          <img
+            // biome-ignore lint/suspicious/noArrayIndexKey: media items have no stable id
+            key={i}
+            src={item.url}
+            alt="Sticker"
+            className="w-24 h-24 object-contain"
+          />
+        ))}
+      </div>
+    );
+  }
 
   // ── Image ──────────────────────────────────────────────────────────
   if (contentType === 'image') {
@@ -82,12 +137,34 @@ export function MediaContent({
     );
   }
 
-  // ── Audio / voice ──────────────────────────────────────────────────
+  // ── Voice note ─────────────────────────────────────────────────────
+  if (contentType === 'audio' && metadata?.voice === true) {
+    return (
+      <div className={cn('flex flex-col gap-1.5 mt-1.5', className)}>
+        {media.map((item) => (
+          <div key={item.url} className="flex flex-col gap-1">
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <MicIcon className="h-3 w-3" />
+              Voice message
+            </span>
+            {/* biome-ignore lint/a11y/useMediaCaption: captions not available for voice messages */}
+            <audio
+              controls
+              src={item.url}
+              className="h-8 max-w-[280px] w-full"
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── Audio ──────────────────────────────────────────────────────────
   if (contentType === 'audio') {
     return (
       <div className={cn('flex flex-col gap-1.5 mt-1.5', className)}>
         {media.map((item) => (
-          // biome-ignore lint/a11y/useMediaCaption: captions not available for user-uploaded voice messages
+          // biome-ignore lint/a11y/useMediaCaption: captions not available for user-uploaded audio messages
           <audio
             key={item.url}
             controls
@@ -145,6 +222,6 @@ export function MediaContent({
   return null;
 }
 
-// ─── Helper export ────────────────────────────────────────────────────
+// ─── Helper exports ───────────────────────────────────────────────────
 
-export { parseMedia };
+export { parseContentMetadata, parseMedia };

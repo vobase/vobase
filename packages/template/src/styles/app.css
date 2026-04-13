@@ -191,16 +191,18 @@
 .message-prose em {
   font-style: italic;
 }
+/* Tailwind preflight resets list styles; restore them for message prose.
+   Use doubled selector for specificity instead of !important. */
 .message-prose ul,
 .message-prose ol {
   padding-left: 1.25em;
   margin-top: 0.25em;
   margin-bottom: 0.25em;
 }
-.message-prose ul {
+.message-prose ul:not(.not-prose) {
   list-style-type: disc;
 }
-.message-prose ol {
+.message-prose ol:not(.not-prose) {
   list-style-type: decimal;
 }
 .message-prose li + li {

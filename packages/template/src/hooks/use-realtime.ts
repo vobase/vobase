@@ -82,6 +82,12 @@ export function useRealtimeInvalidation() {
       }
       // Broad invalidation for all other events
       queryClient.invalidateQueries({ queryKey: [payload.table] });
+
+      // conversations-messages events also invalidate contact-timeline
+      // (inbox view uses contact-timeline key, not conversations-messages)
+      if (payload.table === 'conversations-messages') {
+        queryClient.invalidateQueries({ queryKey: ['contact-timeline'] });
+      }
     });
 
     es.addEventListener('open', () => {

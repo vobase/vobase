@@ -10,7 +10,12 @@ import { ChannelBadge } from '@/components/conversation-badges';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { cn } from '@/lib/utils';
-import { MediaContent, parseMedia } from './media-content';
+import {
+  MediaContent,
+  parseContentMetadata,
+  parseMedia,
+} from './media-content';
+import { MessageReactions } from './message-reactions';
 import type { MessageRow, SenderInfo } from './types';
 
 interface IncomingMessageProps {
@@ -35,6 +40,13 @@ export const IncomingMessage = memo(function IncomingMessage({
 }: IncomingMessageProps) {
   const isWithdrawn = message.withdrawn;
   const name = sender?.name ?? 'Customer';
+
+  // WhatsApp sends single \n for line breaks; the markdown renderer needs \n\n
+  // for paragraph breaks. Only double lone \n — preserve existing \n\n sequences.
+  const displayContent =
+    channelType === 'whatsapp'
+      ? message.content.replace(/(?<!\n)\n(?!\n)/g, '\n\n')
+      : message.content;
 
   return (
     <Message from="assistant" className={cn('group', className)}>
@@ -67,23 +79,45 @@ export const IncomingMessage = memo(function IncomingMessage({
               </button>
             )}
           </div>
-          <MessageContent className={cn(isWithdrawn && 'opacity-50 italic')}>
+          <MessageContent
+            className={cn(
+              'rounded-lg bg-muted/50 px-3 py-2',
+              isWithdrawn && 'opacity-50 italic',
+            )}
+          >
             {isWithdrawn ? (
               <span className="text-sm text-muted-foreground italic">
                 Message withdrawn
               </span>
             ) : (
               <>
-                {message.content && (
-                  <MessageResponse>{message.content}</MessageResponse>
+                {displayContent && (
+                  <MessageResponse>{displayContent}</MessageResponse>
                 )}
                 <MediaContent
                   contentType={message.contentType}
                   media={parseMedia(message.contentData)}
+                  metadata={parseContentMetadata(message.contentData)}
+                  mediaDownloadFailed={
+                    !!parseContentMetadata(message.contentData)
+                      ?.mediaDownloadFailed
+                  }
                 />
               </>
             )}
           </MessageContent>
+          {Array.isArray(message.contentData?.reactions) && (
+            <MessageReactions
+              reactions={
+                message.contentData.reactions as Array<{
+                  from: string;
+                  emoji: string;
+                  action: string;
+                  timestamp?: string;
+                }>
+              }
+            />
+          )}
         </div>
       </div>
     </Message>

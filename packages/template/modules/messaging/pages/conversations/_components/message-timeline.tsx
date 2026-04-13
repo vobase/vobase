@@ -346,7 +346,7 @@ export const MessageTimeline = memo(function MessageTimeline({
 
   return (
     <Conversation className="h-full">
-      <ConversationContent className="gap-6 px-4 py-4">
+      <ConversationContent className="gap-10 px-4 py-4">
         {/* Load more sentinel */}
         <div ref={topSentinelRef} className="h-px shrink-0" />
 
@@ -425,7 +425,7 @@ export const MessageTimeline = memo(function MessageTimeline({
                 )}
 
                 {/* Messages with inline date separators */}
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-4">
                   {group.items.map((item) =>
                     item.type === 'date' ? (
                       <div key={`date-${item.date}`}>
