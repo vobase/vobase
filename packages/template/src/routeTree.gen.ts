@@ -24,12 +24,12 @@ import { Route as homeRouteImport } from './home'
 import { Route as IndexRouteImport } from './../modules/agents/pages/index'
 import { Route as LogsRouteImport } from './../modules/system/pages/logs'
 import { Route as ListRouteImport } from './../modules/system/pages/list'
-import { Route as ProfileRouteImport } from './shell/settings/profile'
-import { Route as NotificationsRouteImport } from './shell/settings/notifications'
-import { Route as DisplayRouteImport } from './shell/settings/display'
-import { Route as AppearanceRouteImport } from './shell/settings/appearance'
-import { Route as ApiKeysRouteImport } from './shell/settings/api-keys'
-import { Route as AccountRouteImport } from './shell/settings/account'
+import { Route as shellSettingsProfileRouteImport } from './shell/settings/profile'
+import { Route as shellSettingsNotificationsRouteImport } from './shell/settings/notifications'
+import { Route as shellSettingsDisplayRouteImport } from './shell/settings/display'
+import { Route as shellSettingsAppearanceRouteImport } from './shell/settings/appearance'
+import { Route as shellSettingsApiKeysRouteImport } from './shell/settings/api-keys'
+import { Route as shellSettingsAccountRouteImport } from './shell/settings/account'
 import { Route as LabelsRouteImport } from './../modules/messaging/pages/labels'
 import { Route as InboxRouteImport } from './../modules/messaging/pages/inbox'
 import { Route as SourcesRouteImport } from './../modules/knowledge-base/pages/sources'
@@ -41,6 +41,7 @@ import { Route as MemoryRouteImport } from './../modules/agents/pages/memory'
 import { Route as GuardrailsRouteImport } from './../modules/agents/pages/guardrails'
 import { Route as EvalsRouteImport } from './../modules/agents/pages/evals'
 import { Route as OrganizationsIndexRouteImport } from './../modules/system/pages/organizations/index'
+import { Route as TemplatesIndexRouteImport } from './../modules/messaging/pages/templates/index'
 import { Route as InboxIndexRouteImport } from './../modules/messaging/pages/inbox/index'
 import { Route as ConversationsIndexRouteImport } from './../modules/messaging/pages/conversations/index'
 import { Route as ContactsIndexRouteImport } from './../modules/messaging/pages/contacts/index'
@@ -129,32 +130,33 @@ const ListRoute = ListRouteImport.update({
   path: '/list',
   getParentRoute: () => DotDotModulesSystemPagesLayoutRoute,
 } as any)
-const ProfileRoute = ProfileRouteImport.update({
+const shellSettingsProfileRoute = shellSettingsProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const NotificationsRoute = NotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => shellSettingsLayoutRoute,
-} as any)
-const DisplayRoute = DisplayRouteImport.update({
+const shellSettingsNotificationsRoute =
+  shellSettingsNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => shellSettingsLayoutRoute,
+  } as any)
+const shellSettingsDisplayRoute = shellSettingsDisplayRouteImport.update({
   id: '/display',
   path: '/display',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const AppearanceRoute = AppearanceRouteImport.update({
+const shellSettingsAppearanceRoute = shellSettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const ApiKeysRoute = ApiKeysRouteImport.update({
+const shellSettingsApiKeysRoute = shellSettingsApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
   getParentRoute: () => shellSettingsLayoutRoute,
 } as any)
-const AccountRoute = AccountRouteImport.update({
+const shellSettingsAccountRoute = shellSettingsAccountRouteImport.update({
   id: '/account',
   path: '/account',
   getParentRoute: () => shellSettingsLayoutRoute,
@@ -213,6 +215,11 @@ const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
   id: '/organizations/',
   path: '/organizations/',
   getParentRoute: () => DotDotModulesSystemPagesLayoutRoute,
+} as any)
+const TemplatesIndexRoute = TemplatesIndexRouteImport.update({
+  id: '/templates/',
+  path: '/templates/',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
 const InboxIndexRoute = InboxIndexRouteImport.update({
   id: '/',
@@ -282,12 +289,12 @@ export interface FileRoutesByFullPath {
   '/knowledge-base/sources': typeof SourcesRoute
   '/messaging/inbox': typeof InboxRouteWithChildren
   '/messaging/labels': typeof LabelsRoute
-  '/settings/account': typeof AccountRoute
-  '/settings/api-keys': typeof ApiKeysRoute
-  '/settings/appearance': typeof AppearanceRoute
-  '/settings/display': typeof DisplayRoute
-  '/settings/notifications': typeof NotificationsRoute
-  '/settings/profile': typeof ProfileRoute
+  '/settings/account': typeof shellSettingsAccountRoute
+  '/settings/api-keys': typeof shellSettingsApiKeysRoute
+  '/settings/appearance': typeof shellSettingsAppearanceRoute
+  '/settings/display': typeof shellSettingsDisplayRoute
+  '/settings/notifications': typeof shellSettingsNotificationsRoute
+  '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
   '/agents/': typeof IndexRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByFullPath {
   '/messaging/contacts/': typeof ContactsIndexRoute
   '/messaging/conversations/': typeof ConversationsIndexRoute
   '/messaging/inbox/': typeof InboxIndexRoute
+  '/messaging/templates/': typeof TemplatesIndexRoute
   '/system/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -321,12 +329,12 @@ export interface FileRoutesByTo {
   '/knowledge-base/search': typeof SearchRoute
   '/knowledge-base/sources': typeof SourcesRoute
   '/messaging/labels': typeof LabelsRoute
-  '/settings/account': typeof AccountRoute
-  '/settings/api-keys': typeof ApiKeysRoute
-  '/settings/appearance': typeof AppearanceRoute
-  '/settings/display': typeof DisplayRoute
-  '/settings/notifications': typeof NotificationsRoute
-  '/settings/profile': typeof ProfileRoute
+  '/settings/account': typeof shellSettingsAccountRoute
+  '/settings/api-keys': typeof shellSettingsApiKeysRoute
+  '/settings/appearance': typeof shellSettingsAppearanceRoute
+  '/settings/display': typeof shellSettingsDisplayRoute
+  '/settings/notifications': typeof shellSettingsNotificationsRoute
+  '/settings/profile': typeof shellSettingsProfileRoute
   '/system/list': typeof ListRoute
   '/system/logs': typeof LogsRoute
   '/agents': typeof IndexRoute
@@ -339,6 +347,7 @@ export interface FileRoutesByTo {
   '/messaging/contacts': typeof ContactsIndexRoute
   '/messaging/conversations': typeof ConversationsIndexRoute
   '/messaging/inbox': typeof InboxIndexRoute
+  '/messaging/templates': typeof TemplatesIndexRoute
   '/system/organizations': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesById {
@@ -365,12 +374,12 @@ export interface FileRoutesById {
   '/_app/knowledge-base/sources': typeof SourcesRoute
   '/_app/messaging/inbox': typeof InboxRouteWithChildren
   '/_app/messaging/labels': typeof LabelsRoute
-  '/_app/settings/account': typeof AccountRoute
-  '/_app/settings/api-keys': typeof ApiKeysRoute
-  '/_app/settings/appearance': typeof AppearanceRoute
-  '/_app/settings/display': typeof DisplayRoute
-  '/_app/settings/notifications': typeof NotificationsRoute
-  '/_app/settings/profile': typeof ProfileRoute
+  '/_app/settings/account': typeof shellSettingsAccountRoute
+  '/_app/settings/api-keys': typeof shellSettingsApiKeysRoute
+  '/_app/settings/appearance': typeof shellSettingsAppearanceRoute
+  '/_app/settings/display': typeof shellSettingsDisplayRoute
+  '/_app/settings/notifications': typeof shellSettingsNotificationsRoute
+  '/_app/settings/profile': typeof shellSettingsProfileRoute
   '/_app/system/list': typeof ListRoute
   '/_app/system/logs': typeof LogsRoute
   '/_app/agents/': typeof IndexRoute
@@ -383,6 +392,7 @@ export interface FileRoutesById {
   '/_app/messaging/contacts/': typeof ContactsIndexRoute
   '/_app/messaging/conversations/': typeof ConversationsIndexRoute
   '/_app/messaging/inbox/': typeof InboxIndexRoute
+  '/_app/messaging/templates/': typeof TemplatesIndexRoute
   '/_app/system/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRouteTypes {
@@ -426,6 +436,7 @@ export interface FileRouteTypes {
     | '/messaging/contacts/'
     | '/messaging/conversations/'
     | '/messaging/inbox/'
+    | '/messaging/templates/'
     | '/system/organizations/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -465,6 +476,7 @@ export interface FileRouteTypes {
     | '/messaging/contacts'
     | '/messaging/conversations'
     | '/messaging/inbox'
+    | '/messaging/templates'
     | '/system/organizations'
   id:
     | '__root__'
@@ -508,6 +520,7 @@ export interface FileRouteTypes {
     | '/_app/messaging/contacts/'
     | '/_app/messaging/conversations/'
     | '/_app/messaging/inbox/'
+    | '/_app/messaging/templates/'
     | '/_app/system/organizations/'
   fileRoutesById: FileRoutesById
 }
@@ -628,42 +641,42 @@ declare module '@tanstack/react-router' {
       id: '/_app/settings/profile'
       path: '/profile'
       fullPath: '/settings/profile'
-      preLoaderRoute: typeof ProfileRouteImport
+      preLoaderRoute: typeof shellSettingsProfileRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/notifications': {
       id: '/_app/settings/notifications'
       path: '/notifications'
       fullPath: '/settings/notifications'
-      preLoaderRoute: typeof NotificationsRouteImport
+      preLoaderRoute: typeof shellSettingsNotificationsRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/display': {
       id: '/_app/settings/display'
       path: '/display'
       fullPath: '/settings/display'
-      preLoaderRoute: typeof DisplayRouteImport
+      preLoaderRoute: typeof shellSettingsDisplayRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/appearance': {
       id: '/_app/settings/appearance'
       path: '/appearance'
       fullPath: '/settings/appearance'
-      preLoaderRoute: typeof AppearanceRouteImport
+      preLoaderRoute: typeof shellSettingsAppearanceRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/api-keys': {
       id: '/_app/settings/api-keys'
       path: '/api-keys'
       fullPath: '/settings/api-keys'
-      preLoaderRoute: typeof ApiKeysRouteImport
+      preLoaderRoute: typeof shellSettingsApiKeysRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/settings/account': {
       id: '/_app/settings/account'
       path: '/account'
       fullPath: '/settings/account'
-      preLoaderRoute: typeof AccountRouteImport
+      preLoaderRoute: typeof shellSettingsAccountRouteImport
       parentRoute: typeof shellSettingsLayoutRoute
     }
     '/_app/messaging/labels': {
@@ -742,6 +755,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/system/organizations/'
       preLoaderRoute: typeof OrganizationsIndexRouteImport
       parentRoute: typeof DotDotModulesSystemPagesLayoutRoute
+    }
+    '/_app/messaging/templates/': {
+      id: '/_app/messaging/templates/'
+      path: '/templates'
+      fullPath: '/messaging/templates/'
+      preLoaderRoute: typeof TemplatesIndexRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
     '/_app/messaging/inbox/': {
       id: '/_app/messaging/inbox/'
@@ -887,6 +907,7 @@ interface DotDotModulesMessagingPagesLayoutRouteChildren {
   ChannelsIndexRoute: typeof ChannelsIndexRoute
   ContactsIndexRoute: typeof ContactsIndexRoute
   ConversationsIndexRoute: typeof ConversationsIndexRoute
+  TemplatesIndexRoute: typeof TemplatesIndexRoute
 }
 
 const DotDotModulesMessagingPagesLayoutRouteChildren: DotDotModulesMessagingPagesLayoutRouteChildren =
@@ -898,6 +919,7 @@ const DotDotModulesMessagingPagesLayoutRouteChildren: DotDotModulesMessagingPage
     ChannelsIndexRoute: ChannelsIndexRoute,
     ContactsIndexRoute: ContactsIndexRoute,
     ConversationsIndexRoute: ConversationsIndexRoute,
+    TemplatesIndexRoute: TemplatesIndexRoute,
   }
 
 const DotDotModulesMessagingPagesLayoutRouteWithChildren =
@@ -906,21 +928,21 @@ const DotDotModulesMessagingPagesLayoutRouteWithChildren =
   )
 
 interface shellSettingsLayoutRouteChildren {
-  AccountRoute: typeof AccountRoute
-  ApiKeysRoute: typeof ApiKeysRoute
-  AppearanceRoute: typeof AppearanceRoute
-  DisplayRoute: typeof DisplayRoute
-  NotificationsRoute: typeof NotificationsRoute
-  ProfileRoute: typeof ProfileRoute
+  shellSettingsAccountRoute: typeof shellSettingsAccountRoute
+  shellSettingsApiKeysRoute: typeof shellSettingsApiKeysRoute
+  shellSettingsAppearanceRoute: typeof shellSettingsAppearanceRoute
+  shellSettingsDisplayRoute: typeof shellSettingsDisplayRoute
+  shellSettingsNotificationsRoute: typeof shellSettingsNotificationsRoute
+  shellSettingsProfileRoute: typeof shellSettingsProfileRoute
 }
 
 const shellSettingsLayoutRouteChildren: shellSettingsLayoutRouteChildren = {
-  AccountRoute: AccountRoute,
-  ApiKeysRoute: ApiKeysRoute,
-  AppearanceRoute: AppearanceRoute,
-  DisplayRoute: DisplayRoute,
-  NotificationsRoute: NotificationsRoute,
-  ProfileRoute: ProfileRoute,
+  shellSettingsAccountRoute: shellSettingsAccountRoute,
+  shellSettingsApiKeysRoute: shellSettingsApiKeysRoute,
+  shellSettingsAppearanceRoute: shellSettingsAppearanceRoute,
+  shellSettingsDisplayRoute: shellSettingsDisplayRoute,
+  shellSettingsNotificationsRoute: shellSettingsNotificationsRoute,
+  shellSettingsProfileRoute: shellSettingsProfileRoute,
 }
 
 const shellSettingsLayoutRouteWithChildren =

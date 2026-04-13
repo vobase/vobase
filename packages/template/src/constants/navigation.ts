@@ -10,6 +10,7 @@ import {
   FileText,
   Globe,
   KeyIcon,
+  LayoutTemplateIcon,
   type LucideIcon,
   MessageSquareTextIcon,
   MonitorSmartphoneIcon,
@@ -85,6 +86,12 @@ export const navGroups: NavGroup[] = [
           'instances',
           'endpoints',
         ],
+      },
+      {
+        title: 'Templates',
+        url: '/messaging/templates',
+        icon: LayoutTemplateIcon,
+        keywords: ['whatsapp', 'message templates', 'approved', 'hsm'],
       },
       {
         title: 'Labels',
