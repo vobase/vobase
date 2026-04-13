@@ -19,7 +19,7 @@ import type {
   VobaseDb,
 } from '@vobase/core';
 import { logger } from '@vobase/core';
-import { and, desc, eq, gt, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 
 import {
   channelInstances,
@@ -64,7 +64,15 @@ export async function handleInboundMessage(
   const { db, scheduler, channels, realtime } = deps;
 
   try {
-    const channelInstanceId = event.channelInstanceId ?? event.channel;
+    let channelInstanceId = event.channelInstanceId ?? event.channel;
+
+    // Resolve external identifiers (e.g. Meta phone_number_id) to internal instance ID.
+    // When webhooks arrive without an instanceId URL param, extractInstanceIdentifier
+    // returns the phone_number_id which doesn't match our nanoid-based instance IDs.
+    const resolvedInstance = await resolveInstanceId(db, channelInstanceId);
+    if (resolvedInstance) {
+      channelInstanceId = resolvedInstance;
+    }
 
     // Echo: outbound message sent via WhatsApp Business app — record as staff-sent, skip inbound flow
     if (event.metadata?.echo === true) {
@@ -297,14 +305,23 @@ async function appendAndRoute(
   // Upload inbound media to storage
   const mediaResult = await uploadInboundMedia(storage, conversation.id, event);
 
-  // Store inbound message
-  if (event.content || mediaResult) {
+  // Determine content type: prefer uploaded media type, fall back to event's
+  // messageType (preserves 'image'/'video'/etc. even when media download fails)
+  const contentType =
+    mediaResult?.contentType ??
+    (MEDIA_TYPES.has(event.messageType) ? event.messageType : 'text');
+
+  // Store inbound message — always store media-type messages even without binary
+  if (event.content || mediaResult || MEDIA_TYPES.has(event.messageType)) {
     await insertMessage(db, realtime, {
       conversationId: conversation.id,
       messageType: 'incoming',
-      contentType: mediaResult?.contentType ?? 'text',
-      content: event.content || `[${mediaResult?.contentType ?? 'media'}]`,
-      contentData: mediaResult ? { media: mediaResult.media } : {},
+      contentType,
+      content: event.content || `[${contentType}]`,
+      contentData: {
+        ...(mediaResult ? { media: mediaResult.media } : {}),
+        ...(event.metadata ? { metadata: event.metadata } : {}),
+      },
       senderId: contactId,
       senderType: 'contact',
       channelType: channelInstanceId ?? 'web',
@@ -377,7 +394,50 @@ export async function handleInboundAction(
   }
 }
 
-// ─── Debounce ───────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────
+
+/** Media content types that should always be stored, even without binary data. */
+const MEDIA_TYPES = new Set(['image', 'video', 'audio', 'document', 'sticker']);
+
+/**
+ * Resolve an external identifier (e.g. Meta phone_number_id) to an internal channel instance ID.
+ * When webhooks arrive without an instanceId in the URL, extractInstanceIdentifier returns the
+ * provider's identifier (phone_number_id) which doesn't match our nanoid instance IDs.
+ * Returns the resolved instance ID, or null if the input already matches an existing instance.
+ */
+async function resolveInstanceId(
+  db: VobaseDb,
+  candidateId: string,
+): Promise<string | null> {
+  // Nanoid instance IDs are 12-char lowercase alphanumeric; Meta phone_number_id is numeric.
+  // Skip the direct-match query when the format is clearly a phone_number_id.
+  const isNanoidFormat = /^[a-z0-9]{12}$/.test(candidateId);
+
+  if (isNanoidFormat) {
+    const [direct] = await db
+      .select({ id: channelInstances.id })
+      .from(channelInstances)
+      .where(eq(channelInstances.id, candidateId))
+      .limit(1);
+
+    if (direct) return null; // Already a valid instance ID
+  }
+
+  // Look up by phoneNumberId stored in config JSON using SQL filter
+  const [match] = await db
+    .select({ id: channelInstances.id })
+    .from(channelInstances)
+    .where(
+      and(
+        eq(channelInstances.type, 'whatsapp'),
+        eq(channelInstances.status, 'active'),
+        sql`${channelInstances.config}->>'phoneNumberId' = ${candidateId}`,
+      ),
+    )
+    .limit(1);
+
+  return match?.id ?? null;
+}
 
 /** Resolve channel instance type + adapter in a single DB hit. Cached per call chain via caller. */
 async function resolveChannelAdapter(
@@ -455,7 +515,7 @@ async function routeByAssignee(
       trigger: 'inbound_message',
     },
     {
-      singletonKey: `agents:agent-wake:${agentId}:${conversation.contactId}`,
+      singletonKey: `agents:agent-wake:${agentId}:${conversation.id}`,
       startAfter: 2,
     },
   );
@@ -468,6 +528,7 @@ interface MediaUploadResult {
   media: Array<{
     type: string;
     url: string;
+    storageKey?: string;
     mimeType: string;
     filename?: string;
   }>;
@@ -499,6 +560,7 @@ async function uploadInboundMedia(
       uploaded.push({
         type: media.type,
         url,
+        storageKey: key,
         mimeType: media.mimeType,
         filename: media.filename,
       });

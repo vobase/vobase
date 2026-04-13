@@ -55,16 +55,46 @@ export const messagingModule = defineModule({
     // Register channel provisioning handler (called by platform routes)
     const generateId = createNanoid();
     ctx.channels.onProvision(async (data: ProvisionChannelData) => {
-      const instanceId = generateId();
-      await ctx.db.insert(channelInstances).values({
-        id: instanceId,
-        type: data.type,
-        label: data.label,
-        source: data.source,
-        integrationId: data.integrationId ?? null,
-        config: data.config ?? {},
-        status: 'active',
-      });
+      // Dedup: reuse existing active instance for same type + source
+      const [existing] = await ctx.db
+        .select()
+        .from(channelInstances)
+        .where(
+          and(
+            eq(channelInstances.type, data.type),
+            eq(channelInstances.source, data.source),
+            eq(channelInstances.status, 'active'),
+          ),
+        )
+        .limit(1);
+
+      let instanceId: string;
+      if (existing) {
+        instanceId = existing.id;
+        await ctx.db
+          .update(channelInstances)
+          .set({
+            label: data.label,
+            integrationId: data.integrationId ?? existing.integrationId,
+            config: data.config ?? existing.config,
+          })
+          .where(eq(channelInstances.id, instanceId));
+        logger.info('[messaging] Reused existing channel instance on provision', {
+          instanceId,
+          type: data.type,
+        });
+      } else {
+        instanceId = generateId();
+        await ctx.db.insert(channelInstances).values({
+          id: instanceId,
+          type: data.type,
+          label: data.label,
+          source: data.source,
+          integrationId: data.integrationId ?? null,
+          config: data.config ?? {},
+          status: 'active',
+        });
+      }
 
       // Hot-register the channel adapter from platform-stored credentials
       if (data.type === 'whatsapp') {
@@ -79,6 +109,24 @@ export const messagingModule = defineModule({
               '[messaging] WhatsApp integration missing required config fields',
             );
           } else {
+            // Store phoneNumberId on instance config so inbound webhook routing can
+            // resolve the Meta phone_number_id to this channel instance
+            const existingConfig = (
+              await ctx.db
+                .select({ config: channelInstances.config })
+                .from(channelInstances)
+                .where(eq(channelInstances.id, instanceId))
+            )[0]?.config as Record<string, unknown> | null;
+
+            if (!existingConfig?.phoneNumberId) {
+              await ctx.db
+                .update(channelInstances)
+                .set({
+                  config: { ...(existingConfig ?? {}), phoneNumberId },
+                })
+                .where(eq(channelInstances.id, instanceId));
+            }
+
             ctx.channels.registerAdapter(
               'whatsapp',
               createWhatsAppAdapter({ phoneNumberId, accessToken, appSecret }),

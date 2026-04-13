@@ -301,7 +301,10 @@ export async function processDelivery(
         await createActivityMessage(db, realtime, {
           conversationId: message.conversationId,
           eventType: 'delivery_error',
-          data: { code: result.code, humanMessage: ERROR_MESSAGES[result.code] },
+          data: {
+            code: result.code,
+            humanMessage: ERROR_MESSAGES[result.code],
+          },
         }).catch(() => {});
       }
 
