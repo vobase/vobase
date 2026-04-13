@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { logger } from '../../infra/logger';
 
 /**
  * Token refresh result from a provider.
@@ -135,73 +135,41 @@ export function getProviderRefreshFn(
   return providerRefreshFns.get(provider) ?? null;
 }
 
-// ─── Platform token refresh (dual-mode support) ────────────────────
+// ─── Platform refresh callback (single-consumer extensibility) ────
 
-/**
- * Fetch a fresh access token from the platform's token vault.
- * Used when the tenant doesn't have its own client credentials
- * and relies on the platform for token management.
- */
-export async function refreshViaPlat(
-  provider: string,
-  platformUrl: string,
-  platformSecret: string,
-): Promise<RefreshResult> {
-  const body = JSON.stringify({ provider });
-  const signature = createHmac('sha256', platformSecret)
-    .update(body)
-    .digest('hex');
+export type PlatformRefreshFn = (provider: string) => Promise<RefreshResult>;
+let platformRefreshFn: PlatformRefreshFn | null = null;
 
-  const tenantSlug = process.env.PLATFORM_TENANT_SLUG;
-  if (!tenantSlug) {
-    throw new Error(
-      'PLATFORM_TENANT_SLUG env var is required for platform token refresh',
-    );
-  }
+/** Set the platform refresh callback. Only one consumer (platform integration).
+ *  Last-write-wins (idempotent) — safe to call again during dev hot reload.
+ *  The callback is a closure that captures its own config (env vars, HTTP client, etc.)
+ *  at registration time. Core only passes the provider name. */
+export function setPlatformRefresh(fn: PlatformRefreshFn): void {
+  platformRefreshFn = fn;
+}
 
-  const res = await fetch(`${platformUrl}/api/oauth-proxy/token/refresh`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Platform-Signature': signature,
-      'X-Tenant-Slug': tenantSlug,
-    },
-    body,
-  });
-
-  if (!res.ok) {
-    const error = await res.text();
-    throw new Error(`Platform token refresh failed (${res.status}): ${error}`);
-  }
-
-  const data = (await res.json()) as {
-    accessToken: string;
-    expiresInSeconds?: number;
-  };
-  return {
-    accessToken: data.accessToken,
-    expiresInSeconds: data.expiresInSeconds,
-  };
+/** Get the registered platform refresh callback, or null. */
+export function getPlatformRefresh(): PlatformRefreshFn | null {
+  return platformRefreshFn;
 }
 
 /**
  * Determine the refresh mode for an integration:
  * - 'local': has clientId + clientSecret + refreshToken → refresh directly with provider
- * - 'platform': has PLATFORM_HMAC_SECRET + PLATFORM_URL → delegate to platform
+ * - 'platform': a platform refresh callback is registered via setPlatformRefresh()
  * - null: cannot refresh (no credentials available)
  */
 export function getRefreshMode(
   config: Record<string, unknown>,
 ): 'local' | 'platform' | null {
-  // Local mode: tenant has own credentials
   if (config.clientId && config.clientSecret && config.refreshToken) {
     return 'local';
   }
-
-  // Platform mode: tenant uses platform for token management
-  if (process.env.PLATFORM_HMAC_SECRET && process.env.PLATFORM_URL) {
+  if (platformRefreshFn) {
     return 'platform';
   }
-
+  if (process.env.PLATFORM_HMAC_SECRET && process.env.PLATFORM_URL) {
+    logger.warn('[integrations:refresh] Platform env vars set but no refresh callback registered via setPlatformRefresh()');
+  }
   return null;
 }

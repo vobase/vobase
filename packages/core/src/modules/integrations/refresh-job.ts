@@ -3,9 +3,9 @@ import { and, eq, isNotNull, lt } from 'drizzle-orm';
 import type { VobaseDb } from '../../db/client';
 import { logger } from '../../infra/logger';
 import {
+  getPlatformRefresh,
   getProviderRefreshFn,
   getRefreshMode,
-  refreshViaPlat,
 } from './refresh';
 import { integrationsTable } from './schema';
 import type { IntegrationsService } from './service';
@@ -19,7 +19,7 @@ const REFRESH_WINDOW_MS = 10 * 60 * 1000;
  *
  * Dual-mode logic:
  * - If integration config has clientId + clientSecret + refreshToken → refresh locally
- * - If PLATFORM_HMAC_SECRET is set → delegate to platform token vault
+ * - If a platform refresh callback is registered via setPlatformRefresh() → delegate to callback
  * - Otherwise → skip (cannot refresh, mark error if expired)
  */
 export async function refreshExpiringTokens(
@@ -109,15 +109,18 @@ export async function refreshExpiringTokens(
         });
         refreshed++;
       } else {
-        // Platform refresh: delegate to platform token vault
-        const platformUrl = process.env.PLATFORM_URL ?? '';
-        const platformSecret = process.env.PLATFORM_HMAC_SECRET ?? '';
+        // Platform refresh: delegate to registered callback
+        const platformRefresh = getPlatformRefresh();
+        if (!platformRefresh) {
+          logger.warn('[integrations:refresh] Platform mode but no refresh callback registered', {
+            id: integration.id,
+            provider: integration.provider,
+          });
+          skipped++;
+          continue;
+        }
 
-        const result = await refreshViaPlat(
-          integration.provider,
-          platformUrl,
-          platformSecret,
-        );
+        const result = await platformRefresh(integration.provider);
 
         const updatedConfig = { ...integration.config };
         updatedConfig.accessToken = result.accessToken;
@@ -131,7 +134,7 @@ export async function refreshExpiringTokens(
           markRefreshed: true,
         });
 
-        logger.info('[integrations:refresh] Token refreshed via platform', {
+        logger.info('[integrations:refresh] Token refreshed via platform callback', {
           id: integration.id,
           provider: integration.provider,
           expiresAt: expiresAt?.toISOString(),

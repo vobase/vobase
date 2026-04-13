@@ -35,11 +35,14 @@ export function createIntegrationsModule(db: VobaseDb) {
 }
 
 export {
+  getPlatformRefresh,
   getProviderRefreshFn,
   getRefreshMode,
+  type PlatformRefreshFn,
   type ProviderRefreshFn,
   type RefreshResult,
   registerProviderRefresh,
+  setPlatformRefresh,
 } from './refresh';
 export { integrationsSchema, integrationsTable } from './schema';
 export type {
