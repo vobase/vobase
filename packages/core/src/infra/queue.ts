@@ -81,8 +81,11 @@ async function buildBoss(connection: PGlite | string): Promise<PgBoss> {
     const pglite = getPgliteClient(connection);
     if (pglite) return new PgBoss({ db: buildPgliteAdapter(pglite) });
   }
-  // Postgres connection string
-  return new PgBoss(connection);
+  // Postgres connection string — configure pool for cloud-hosted databases
+  return new PgBoss({
+    connectionString: connection,
+    max: 5,
+  });
 }
 
 /** No-op scheduler returned when pg-boss fails to start. */

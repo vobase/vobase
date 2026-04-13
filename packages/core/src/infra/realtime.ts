@@ -87,7 +87,7 @@ async function createPostgresRealtime(
   const listenConn = postgres(databaseConfig, {
     max: 1,
     idle_timeout: 0,
-    connect_timeout: 10,
+    connect_timeout: 30,
   });
 
   await listenConn.listen(CHANNEL, (payload) => {

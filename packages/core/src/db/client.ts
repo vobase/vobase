@@ -19,7 +19,13 @@ export function createDatabase(dbPath: string): VobaseDb {
     // Lazy import bun:sql — only available in Bun runtime, not in Node/drizzle-kit
     const { SQL } = require('bun');
     const { drizzle: drizzleBunSql } = require('drizzle-orm/bun-sql');
-    const client = new SQL(dbPath);
+    const client = new SQL({
+      url: dbPath,
+      max: 20,
+      idleTimeout: 20,
+      maxLifetime: 1800,
+      connectionTimeout: 30,
+    });
     return drizzleBunSql({ client }) as unknown as VobaseDb;
   }
 
