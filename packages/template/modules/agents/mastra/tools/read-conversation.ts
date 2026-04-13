@@ -6,9 +6,28 @@ import type { ModuleDeps } from '../../../messaging/lib/deps';
 import { messages } from '../../../messaging/schema';
 import { verifyConversationAccess } from './_verify-conversation';
 
+/** Format non-text message content so the agent doesn't fixate on unviewable media. */
+function formatContentForAgent(content: string, contentType: string): string {
+  switch (contentType) {
+    case 'image':
+      return '(customer sent an image — already visible in your context above)';
+    case 'video':
+      return '(customer sent a video — not viewable, ask about the content if relevant)';
+    case 'audio':
+      return '(customer sent a voice message — not playable, ask them to summarize if relevant)';
+    case 'sticker':
+      return '(customer sent a sticker)';
+    case 'document':
+      return '(customer sent a document — not readable, ask them to describe what they need)';
+    default:
+      return content;
+  }
+}
+
 export const readConversationTool = createTool({
   id: 'read_conversation',
-  description: 'Read recent messages from a conversation',
+  description:
+    'Read messages from a conversation. Recent messages are automatically loaded into your context — use this tool to refresh, load older messages beyond the initial window, or read a different conversation.',
   inputSchema: z.object({
     conversationId: z.string().describe('The conversation ID to read'),
     limit: z
@@ -89,7 +108,7 @@ export const readConversationTool = createTool({
               : m.senderType === 'agent'
                 ? 'you'
                 : m.senderId,
-          content: m.content,
+          content: formatContentForAgent(m.content, m.contentType),
           contentType: m.contentType,
           time: m.createdAt.toISOString(),
         })),

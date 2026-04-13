@@ -8,6 +8,7 @@ import type { InputProcessorOrWorkflow } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 
 import type { ModuleDeps } from '../../../messaging/lib/deps';
+import { createConversationSyncProcessor } from './conversation-sync';
 import { createModerationProcessor } from './moderation';
 import { createModerationLogger } from './moderation-logger';
 
@@ -37,6 +38,7 @@ export function resolveInputProcessors({
   const contactId = requestContext.get('contactId') as string | undefined;
 
   return [
+    createConversationSyncProcessor(),
     createModerationProcessor(
       undefined,
       createModerationLogger(deps.db, {
