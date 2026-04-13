@@ -234,7 +234,7 @@ export const chatHandlers = new Hono()
         trigger: 'inbound_message' as const,
       },
       {
-        singletonKey: `agents:agent-wake:${agentId}:${contactId}`,
+        singletonKey: `agents:agent-wake:${agentId}:${conversationId}`,
         startAfter: 2,
       },
     );
@@ -580,7 +580,7 @@ export const chatHandlers = new Hono()
         trigger: 'inbound_message' as const,
       },
       {
-        singletonKey: `agents:agent-wake:${agentId}:${contact.id}`,
+        singletonKey: `agents:agent-wake:${agentId}:${conversation.id}`,
         startAfter: 2,
       },
     );

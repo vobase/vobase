@@ -151,7 +151,7 @@ export class VobaseMemoryStorage extends MemoryStorage {
   /**
    * Agent threads use a prefix convention to route storage to the delegate
    * PostgresStore instead of the conversations/messages tables.
-   * Format: agent-{agentId}-contact-{contactId}
+   * Format: agent-{agentId}-conv-{conversationId}
    */
   private isAgentThread(threadId: string): boolean {
     return threadId.startsWith('agent-');

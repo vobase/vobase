@@ -42,7 +42,7 @@ async function wakeAgent(
   params: WakeAgentParams,
 ): Promise<void> {
   await scheduler.add('agents:agent-wake', params, {
-    singletonKey: `agents:agent-wake:${params.agentId}:${params.contactId}`,
+    singletonKey: `agents:agent-wake:${params.agentId}:${params.conversationId}`,
     startAfter: 2,
   });
 }
@@ -60,7 +60,7 @@ export function iterationGuard({ iteration }: { iteration: number }) {
 /**
  * agents:agent-wake — Wake an agent for a conversation.
  * Debounced via singleton job key so rapid inbound messages produce one wake.
- * Thread ID uses agent-{agentId}-contact-{contactId} prefix, routing to
+ * Thread ID uses agent-{agentId}-conv-{conversationId} prefix, routing to
  * PostgresStore via VobaseMemoryStorage prefix rules (not the conversation thread).
  */
 export const agentWakeJob = defineJob('agents:agent-wake', async (data) => {
@@ -123,7 +123,7 @@ export const agentWakeJob = defineJob('agents:agent-wake', async (data) => {
   try {
     await registered.agent.generate([{ role: 'user', content: wakeMessage }], {
       memory: {
-        thread: `agent-${agentId}-contact-${contactId}`,
+        thread: `agent-${agentId}-conv-${conversationId}`,
         resource: `contact:${contactId}`,
       },
       maxSteps: 20,
