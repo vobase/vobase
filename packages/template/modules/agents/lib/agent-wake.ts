@@ -1,5 +1,4 @@
 import { RequestContext } from '@mastra/core/request-context';
-import type { Scheduler } from '@vobase/core';
 import { defineJob, logger } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -11,14 +10,6 @@ import { dynamicToolStep } from '../mastra/processors/dynamic-tools';
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Agent wake — schedule & handle agent-wake jobs
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-export interface WakeAgentParams {
-  agentId: string;
-  contactId: string;
-  conversationId: string;
-  trigger: 'inbound_message' | 'scheduled_followup' | 'supervisor' | 'manual';
-  payload?: Record<string, unknown>;
-}
 
 const wakeAgentSchema = z.object({
   agentId: z.string().min(1),
@@ -32,20 +23,6 @@ const wakeAgentSchema = z.object({
   ]),
   payload: z.record(z.string(), z.unknown()).optional(),
 });
-
-/**
- * Schedule an agent-wake job with a 2-second debounce.
- * Rapid consecutive calls (e.g. 5 messages in 1 second) collapse into a single wake.
- */
-async function wakeAgent(
-  scheduler: Scheduler,
-  params: WakeAgentParams,
-): Promise<void> {
-  await scheduler.add('agents:agent-wake', params, {
-    singletonKey: `agents:agent-wake:${params.agentId}:${params.conversationId}`,
-    startAfter: 2,
-  });
-}
 
 /** Iteration guard: inject wrap-up feedback at step 15+. */
 export function iterationGuard({ iteration }: { iteration: number }) {

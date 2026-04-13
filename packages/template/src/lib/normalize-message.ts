@@ -135,11 +135,6 @@ export function getMessageParts(
 const STAFF_REGEX = /^\[Staff:\s*(.+?)\]\s*/;
 const INTERNAL_REGEX = /^\[Internal\]/i;
 
-/** Check if text starts with [Staff: ...] prefix */
-function hasStaffPrefix(text: string): boolean {
-  return STAFF_REGEX.test(text);
-}
-
 /** Extract staff name from [Staff: Name] prefix, or null if not present. */
 export function extractStaffName(text: string): string | null {
   const match = text.match(STAFF_REGEX);

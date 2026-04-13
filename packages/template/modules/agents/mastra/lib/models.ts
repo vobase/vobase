@@ -14,7 +14,5 @@ export const models = {
   gemini_pro: 'google/gemini-3.1-pro-preview',
 } as const;
 
-type ModelId = (typeof models)[keyof typeof models];
-
 /** Embedding dimensions for text-embedding-3-small. */
 export const EMBEDDING_DIMENSIONS = 1536;

@@ -31,10 +31,7 @@ export function buildManagedTransport(
     baseUrl: `${platformUrl}/api/managed-whatsapp/${managedChannelId}/graph`,
     mediaDownloadUrl: `${platformUrl}/api/managed-whatsapp/${managedChannelId}/media-download`,
     signRequest: (method: string, path: string) => ({
-      'X-Platform-Signature': signHmac(
-        `${method}${path}`,
-        hmacSecret,
-      ),
+      'X-Platform-Signature': signHmac(`${method}${path}`, hmacSecret),
       'X-Tenant-Id': tenantId,
     }),
   };
@@ -106,7 +103,8 @@ export const channelsHandlers = new Hono()
     const metaAppId = process.env.META_APP_ID ?? null;
     const metaConfigId = process.env.META_CONFIG_ID ?? null;
     const platformUrl = process.env.PLATFORM_URL ?? null;
-    const webhookBaseUrl = process.env.WEBHOOK_BASE_URL || process.env.BETTER_AUTH_URL || null;
+    const webhookBaseUrl =
+      process.env.WEBHOOK_BASE_URL || process.env.BETTER_AUTH_URL || null;
     return c.json({ metaAppId, metaConfigId, platformUrl, webhookBaseUrl });
   })
   /** GET /channels/managed-available — List available managed WhatsApp numbers from platform. */
@@ -123,10 +121,7 @@ export const channelsHandlers = new Hono()
       return c.json({ channels: [] });
     }
     // Sign method+path per new HMAC convention (platform accepts both old body-based and new method+path)
-    const signature = signHmac(
-      'GET/api/managed-whatsapp/channels',
-      hmacSecret,
-    );
+    const signature = signHmac('GET/api/managed-whatsapp/channels', hmacSecret);
 
     let platformChannels: Array<{
       id: string;

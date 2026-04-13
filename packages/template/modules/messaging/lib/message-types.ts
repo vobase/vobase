@@ -17,6 +17,10 @@ export type ContentType =
   | 'interactive'
   | 'sticker'
   | 'email'
+  | 'reaction'
+  | 'button_reply'
+  | 'list_reply'
+  | 'unsupported'
   | 'system';
 export type ResolutionStatus = 'pending' | 'reviewed' | 'dismissed';
 

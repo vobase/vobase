@@ -196,7 +196,10 @@ export const channelHealthCheckJob = defineJob(
 
           if (!result.ok) {
             const errorMsg = newError ?? 'Health check failed';
-            if (instance.status !== 'error' || instance.statusError !== errorMsg) {
+            if (
+              instance.status !== 'error' ||
+              instance.statusError !== errorMsg
+            ) {
               await deps.db
                 .update(channelInstances)
                 .set({ status: 'error', statusError: errorMsg })

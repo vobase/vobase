@@ -38,11 +38,7 @@ export const whatsappSetupJob = defineJob(
       return;
     }
 
-    const {
-      accessToken,
-      wabaId,
-      phoneNumberId,
-    } = integration.config as {
+    const { accessToken, wabaId, phoneNumberId } = integration.config as {
       accessToken: string;
       wabaId: string;
       phoneNumberId: string;
@@ -76,9 +72,13 @@ export const whatsappSetupJob = defineJob(
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          ...(Object.keys(subBody).length > 0 && { 'Content-Type': 'application/json' }),
+          ...(Object.keys(subBody).length > 0 && {
+            'Content-Type': 'application/json',
+          }),
         },
-        ...(Object.keys(subBody).length > 0 && { body: JSON.stringify(subBody) }),
+        ...(Object.keys(subBody).length > 0 && {
+          body: JSON.stringify(subBody),
+        }),
       },
     );
     if (!subRes.ok) {

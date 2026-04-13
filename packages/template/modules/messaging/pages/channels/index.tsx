@@ -263,7 +263,12 @@ async function fetchChannelStatus(): Promise<{ channels: ChannelStatus[] }> {
 async function fetchChannelsConfig(): Promise<ChannelsConfig> {
   const res = await messagingClient.channels.config.$get();
   if (!res.ok)
-    return { metaAppId: null, metaConfigId: null, platformUrl: null, webhookBaseUrl: null };
+    return {
+      metaAppId: null,
+      metaConfigId: null,
+      platformUrl: null,
+      webhookBaseUrl: null,
+    };
   return res.json() as unknown as Promise<ChannelsConfig>;
 }
 
@@ -532,12 +537,21 @@ function ChannelCard({
   }
 
   // Single discriminated connection status — priority order matters
-  const connectionStatus: 'error' | 'disconnected' | 'no-credentials' | 'warning' | 'paused' | 'connected' =
+  const connectionStatus:
+    | 'error'
+    | 'disconnected'
+    | 'no-credentials'
+    | 'warning'
+    | 'paused'
+    | 'connected' =
     instance?.status === 'error'
       ? 'error'
       : instance?.status === 'disconnected'
         ? 'disconnected'
-        : instance && instance.source === 'self' && !instance.integrationId && instance.type !== 'web'
+        : instance &&
+            instance.source === 'self' &&
+            !instance.integrationId &&
+            instance.type !== 'web'
           ? 'no-credentials'
           : instance?.statusError
             ? 'warning'
@@ -545,14 +559,18 @@ function ChannelCard({
               ? 'connected'
               : 'paused';
 
-  const isHealthy = connectionStatus === 'connected' || connectionStatus === 'paused';
+  const isHealthy =
+    connectionStatus === 'connected' || connectionStatus === 'paused';
 
   return (
     <Card
       className={cn(
         'border-l-4 transition-colors',
         meta.borderColor,
-        (connectionStatus === 'paused' || connectionStatus === 'disconnected' || connectionStatus === 'no-credentials') && 'opacity-60',
+        (connectionStatus === 'paused' ||
+          connectionStatus === 'disconnected' ||
+          connectionStatus === 'no-credentials') &&
+          'opacity-60',
       )}
     >
       <CardContent className="flex items-start gap-4 py-4">
@@ -563,28 +581,54 @@ function ChannelCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-sm font-medium truncate">{routing.name}</h3>
-            {{
-              error: <Badge variant="destructive" className="text-xs shrink-0">Error</Badge>,
-              disconnected: <Badge variant="secondary" className="text-xs shrink-0">Disconnected</Badge>,
-              'no-credentials': (
-                <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400">
-                  No Credentials
-                </Badge>
-              ),
-              warning: (
-                <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400">
-                  Warning
-                </Badge>
-              ),
-              connected: <Badge variant="success" className="text-xs shrink-0">Connected</Badge>,
-              paused: <Badge variant="secondary" className="text-xs shrink-0">Paused</Badge>,
-            }[connectionStatus]}
+            {
+              {
+                error: (
+                  <Badge variant="destructive" className="text-xs shrink-0">
+                    Error
+                  </Badge>
+                ),
+                disconnected: (
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    Disconnected
+                  </Badge>
+                ),
+                'no-credentials': (
+                  <Badge
+                    variant="outline"
+                    className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400"
+                  >
+                    No Credentials
+                  </Badge>
+                ),
+                warning: (
+                  <Badge
+                    variant="outline"
+                    className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400"
+                  >
+                    Warning
+                  </Badge>
+                ),
+                connected: (
+                  <Badge variant="success" className="text-xs shrink-0">
+                    Connected
+                  </Badge>
+                ),
+                paused: (
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    Paused
+                  </Badge>
+                ),
+              }[connectionStatus]
+            }
           </div>
 
           {connectionStatus === 'error' && (
             <p className="text-xs text-destructive mb-1 flex items-start gap-1.5">
               <TriangleAlertIcon className="h-3 w-3 mt-0.5 shrink-0" />
-              <span>{instance?.statusError ?? 'Channel health check failed'}</span>
+              <span>
+                {instance?.statusError ?? 'Channel health check failed'}
+              </span>
             </p>
           )}
           {connectionStatus === 'warning' && (
@@ -595,7 +639,8 @@ function ChannelCard({
           )}
           {connectionStatus === 'no-credentials' && (
             <p className="text-xs text-muted-foreground mb-1">
-              Connect via Embedded Signup or add credentials to activate this channel.
+              Connect via Embedded Signup or add credentials to activate this
+              channel.
             </p>
           )}
 
@@ -1023,7 +1068,6 @@ function QrCodeDialog({
     ? `https://wa.me/${digits}?text=${encodeURIComponent(linkText)}`
     : '';
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: generate QR when link changes
   useEffect(() => {
     if (!waLink) return;
     QRCode.toDataURL(waLink, { width: 240, margin: 2 })
@@ -1344,7 +1388,10 @@ function ChannelsPage() {
           window.location.hostname.split('.')[0];
         const params = new URLSearchParams({ tenant: slug });
         if (config.webhookBaseUrl) {
-          params.set('webhookUrl', `${config.webhookBaseUrl}/api/channels/webhook/whatsapp`);
+          params.set(
+            'webhookUrl',
+            `${config.webhookBaseUrl}/api/channels/webhook/whatsapp`,
+          );
         }
         params.set('redirectUrl', window.location.href);
         window.location.href = `${config.platformUrl}/api/oauth-proxy/whatsapp/connect?${params}`;

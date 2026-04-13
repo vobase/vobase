@@ -79,10 +79,13 @@ export const messagingModule = defineModule({
             config: data.config ?? existing.config,
           })
           .where(eq(channelInstances.id, instanceId));
-        logger.info('[messaging] Reused existing channel instance on provision', {
-          instanceId,
-          type: data.type,
-        });
+        logger.info(
+          '[messaging] Reused existing channel instance on provision',
+          {
+            instanceId,
+            type: data.type,
+          },
+        );
       } else {
         instanceId = generateId();
         await ctx.db.insert(channelInstances).values({

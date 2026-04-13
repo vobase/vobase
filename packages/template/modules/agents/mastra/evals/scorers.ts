@@ -40,7 +40,3 @@ export function getScorerMeta() {
     };
   });
 }
-
-function getScorer(id: string) {
-  return scorers.find((s) => s.id === id);
-}

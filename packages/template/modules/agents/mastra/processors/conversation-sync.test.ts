@@ -18,24 +18,26 @@ function createMockMessageList() {
 }
 
 /** Minimal RequestContext mock. */
-function createMockRequestContext(
-  values: Record<string, unknown> = {},
-): { get: (key: string) => unknown } {
+function createMockRequestContext(values: Record<string, unknown> = {}): {
+  get: (key: string) => unknown;
+} {
   return {
     get: (key: string) => values[key],
   };
 }
 
 /** Build a message row matching the DB select shape. */
-function makeRow(overrides: Partial<{
-  id: string;
-  senderType: string;
-  content: string;
-  contentType: string;
-  contentData: Record<string, unknown>;
-  private: boolean;
-  createdAt: Date;
-}> = {}) {
+function makeRow(
+  overrides: Partial<{
+    id: string;
+    senderType: string;
+    content: string;
+    contentType: string;
+    contentData: Record<string, unknown>;
+    private: boolean;
+    createdAt: Date;
+  }> = {},
+) {
   return {
     id: overrides.id ?? 'msg-1',
     senderType: overrides.senderType ?? 'contact',
@@ -83,8 +85,7 @@ function createMockDeps(
 // biome-ignore lint/suspicious/noExplicitAny: test mock for Mastra processor args
 function makeArgs(overrides: Record<string, unknown> = {}): any {
   const messageList = overrides.messageList ?? createMockMessageList();
-  const requestContext =
-    overrides.requestContext ?? createMockRequestContext();
+  const requestContext = overrides.requestContext ?? createMockRequestContext();
   return {
     messages: [],
     messageList,
@@ -103,20 +104,20 @@ describe('ConversationSyncProcessor', () => {
   test('returns early when no conversationId in requestContext', async () => {
     const processor = createConversationSyncProcessor();
     const ml = createMockMessageList();
-    const result = await processor.processInput!(
+    const result = await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({ deps: createMockDeps() }),
       }),
     );
-    expect(result).toBe(ml);
+    expect(result as unknown).toBe(ml);
     expect(ml._added).toHaveLength(0);
   });
 
   test('returns early when no deps in requestContext', async () => {
     const processor = createConversationSyncProcessor();
     const ml = createMockMessageList();
-    const result = await processor.processInput!(
+    const result = await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -124,14 +125,14 @@ describe('ConversationSyncProcessor', () => {
         }),
       }),
     );
-    expect(result).toBe(ml);
+    expect(result as unknown).toBe(ml);
     expect(ml._added).toHaveLength(0);
   });
 
   test('returns early when conversation has no messages', async () => {
     const processor = createConversationSyncProcessor();
     const ml = createMockMessageList();
-    const result = await processor.processInput!(
+    const result = await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -140,18 +141,16 @@ describe('ConversationSyncProcessor', () => {
         }),
       }),
     );
-    expect(result).toBe(ml);
+    expect(result as unknown).toBe(ml);
     expect(ml._added).toHaveLength(0);
   });
 
   test('injects text messages as user role with source memory', async () => {
     const processor = createConversationSyncProcessor();
     const ml = createMockMessageList();
-    const rows = [
-      makeRow({ content: 'Hi there', senderType: 'contact' }),
-    ];
+    const rows = [makeRow({ content: 'Hi there', senderType: 'contact' })];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -172,11 +171,9 @@ describe('ConversationSyncProcessor', () => {
   test('maps agent sender to assistant role', async () => {
     const processor = createConversationSyncProcessor();
     const ml = createMockMessageList();
-    const rows = [
-      makeRow({ content: 'How can I help?', senderType: 'agent' }),
-    ];
+    const rows = [makeRow({ content: 'How can I help?', senderType: 'agent' })];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -195,11 +192,9 @@ describe('ConversationSyncProcessor', () => {
   test('prefixes staff echo messages with [Staff]', async () => {
     const processor = createConversationSyncProcessor();
     const ml = createMockMessageList();
-    const rows = [
-      makeRow({ content: 'Staff reply', senderType: 'user' }),
-    ];
+    const rows = [makeRow({ content: 'Staff reply', senderType: 'user' })];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -235,7 +230,7 @@ describe('ConversationSyncProcessor', () => {
       }),
     ];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -277,7 +272,7 @@ describe('ConversationSyncProcessor', () => {
       }),
     ];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -321,7 +316,7 @@ describe('ConversationSyncProcessor', () => {
       }),
     ];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -361,7 +356,7 @@ describe('ConversationSyncProcessor', () => {
       makeRow({ contentType: 'video', content: '[video]' }),
     ];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -410,7 +405,7 @@ describe('ConversationSyncProcessor', () => {
       makeRow({ content: 'Hello', senderType: 'contact' }),
     ];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -459,7 +454,7 @@ describe('ConversationSyncProcessor', () => {
     ];
 
     // No storage provided
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -486,7 +481,7 @@ describe('ConversationSyncProcessor', () => {
     // The limit is passed to the DB query — verified via the mock chain
     // We just verify the processor creates and runs without error
     const ml = createMockMessageList();
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({
@@ -518,7 +513,7 @@ describe('ConversationSyncProcessor', () => {
       }),
     ];
 
-    await processor.processInput!(
+    await processor.processInput?.(
       makeArgs({
         messageList: ml,
         requestContext: createMockRequestContext({

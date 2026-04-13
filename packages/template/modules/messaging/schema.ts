@@ -254,7 +254,7 @@ export const messages = messagingPgSchema.table(
     ),
     check(
       'messages_content_type_check',
-      sql`content_type IN ('text', 'image', 'document', 'audio', 'video', 'template', 'interactive', 'sticker', 'email', 'system')`,
+      sql`content_type IN ('text', 'image', 'document', 'audio', 'video', 'template', 'interactive', 'sticker', 'email', 'reaction', 'button_reply', 'list_reply', 'unsupported', 'system')`,
     ),
     check(
       'messages_sender_type_check',

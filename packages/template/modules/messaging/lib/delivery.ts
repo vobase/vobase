@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm';
 import { channelInstances, contacts, conversations, messages } from '../schema';
 import { checkWindow } from './channel-sessions';
 import { getModuleDeps } from './deps';
-import { createActivityMessage, insertMessage } from './messages';
+import { createActivityMessage } from './messages';
 
 // ─── Circuit Breaker (per channel type, in-memory) ─────────────────
 
