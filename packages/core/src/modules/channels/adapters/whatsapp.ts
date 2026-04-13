@@ -9,6 +9,7 @@ import type {
   StatusUpdateEvent,
 } from '../../../contracts/channels';
 import type { HttpClient } from '../../../infra/http-client';
+import { logger } from '../../../infra/logger';
 import type { WhatsAppChannelConfig } from '../index';
 import {
   parseWhatsAppMessages,
@@ -123,9 +124,12 @@ async function parseGraphError(res: Response): Promise<never> {
     try {
       const parsed = JSON.parse(body);
       if (parsed.error) {
-        const e = parsed.error;
+        const e =
+          typeof parsed.error === 'object' && parsed.error !== null
+            ? parsed.error
+            : { message: typeof parsed.error === 'string' ? parsed.error : undefined };
         throw new WhatsAppApiError(
-          e.message ?? `WhatsApp API error ${e.code}`,
+          e.message ?? `WhatsApp API ${res.status}: ${body.slice(0, 200)}`,
           res.status,
           e.code ?? 0,
           e.error_subcode,
@@ -199,6 +203,7 @@ export function createWhatsAppAdapter(
   markAsRead(messageId: string): Promise<void>;
   syncTemplates(): Promise<WhatsAppTemplate[]>;
   healthCheck(): Promise<{ ok: boolean; error?: string }>;
+  checkWebhookSubscription(): Promise<{ subscribed: boolean; callbackUrl?: string; error?: string }>;
   tokenStatus(): { valid: boolean; expiresAt?: Date; daysRemaining?: number };
   createTemplate(template: CreateTemplateInput): Promise<{ id: string; status: string }>;
   deleteTemplate(name: string): Promise<void>;
@@ -238,8 +243,9 @@ export function createWhatsAppAdapter(
 
     // Intercept proxy-layer errors before they reach parseGraphError
     if (transport && (res.status === 502 || res.status === 503 || res.status === 504)) {
+      const body = await res.text().catch(() => '');
       throw new WhatsAppApiError(
-        `Proxy error: ${res.status}`,
+        `Platform proxy ${res.status}: ${body.slice(0, 200) || 'no body'}`,
         res.status,
         0,
       );
@@ -340,28 +346,49 @@ export function createWhatsAppAdapter(
     const MAX_RETRIES = 2;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const meta = await graphFetch(`/${mediaId}`);
-        const mediaUrl = meta.url as string;
-        if (!mediaUrl) return null;
+        const maxSize: number =
+          (mediaType ? MEDIA_SIZE_LIMITS[mediaType] : undefined) ??
+          DEFAULT_MEDIA_SIZE_LIMIT;
 
-        // Binary media download: in transport mode, the CDN URL requires Bearer auth
-        // that only the platform holds, so route through the media-download proxy endpoint.
-        // In direct mode, fetch the CDN URL with our own Bearer token.
         let binRes: Response;
+        let mimeTypeHint: string | undefined;
+
         if (transport) {
-          const downloadUrl = `${transport.mediaDownloadUrl}?url=${encodeURIComponent(mediaUrl)}`;
-          const authHeaders = transport.signRequest('GET', new URL(downloadUrl).pathname);
+          // Transport mode: platform handles media resolution + download.
+          // The platform's media-download endpoint accepts either:
+          //   ?mediaId= (platform resolves CDN URL using its access token)
+          //   ?url= (pre-resolved CDN URL, for when graph proxy allows /{mediaId})
+          //
+          // Try graph proxy first for CDN URL resolution; if blocked (403),
+          // fall back to passing mediaId directly to media-download endpoint.
+          let downloadUrl: string;
+          try {
+            const meta = await graphFetch(`/${mediaId}`);
+            const mediaUrl = meta.url as string;
+            if (!mediaUrl) return null;
+            mimeTypeHint = meta.mime_type as string | undefined;
+            downloadUrl = `${transport.mediaDownloadUrl}?url=${encodeURIComponent(mediaUrl)}`;
+          } catch {
+            // Graph proxy blocked /{mediaId} — pass mediaId to media-download
+            downloadUrl = `${transport.mediaDownloadUrl}?mediaId=${encodeURIComponent(mediaId)}`;
+          }
+          const authHeaders = transport.signRequest(
+            'GET',
+            new URL(downloadUrl).pathname,
+          );
           binRes = await fetch(downloadUrl, { headers: authHeaders });
         } else {
+          // Direct mode: two-step — fetch metadata for CDN URL, then download binary
+          const meta = await graphFetch(`/${mediaId}`);
+          const mediaUrl = meta.url as string;
+          if (!mediaUrl) return null;
+          mimeTypeHint = meta.mime_type as string | undefined;
+
           binRes = await fetch(mediaUrl, {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
         }
         if (!binRes.ok) return null;
-
-        const maxSize: number =
-          (mediaType ? MEDIA_SIZE_LIMITS[mediaType] : undefined) ??
-          DEFAULT_MEDIA_SIZE_LIMIT;
 
         // Check content-length before downloading to enforce size limit
         const contentLength = binRes.headers.get('content-length');
@@ -389,7 +416,7 @@ export function createWhatsAppAdapter(
         return {
           data: Buffer.from(arrayBuf),
           mimeType:
-            meta.mime_type ??
+            mimeTypeHint ??
             binRes.headers.get('content-type') ??
             'application/octet-stream',
         };
@@ -950,6 +977,69 @@ export function createWhatsAppAdapter(
 
   // ─── Health check + token status ───────────────────────────────
 
+  async function checkWebhookSubscription(): Promise<{
+    subscribed: boolean;
+    callbackUrl?: string;
+    error?: string;
+  }> {
+    if (transport) return { subscribed: true }; // managed by platform
+    if (!config.appId) {
+      return { subscribed: true }; // can't check without appId, assume ok
+    }
+
+    try {
+      const data = await graphFetch(`/${config.appId}/subscriptions`);
+      const subscriptions = data.data as
+        | Array<{
+            object: string;
+            callback_url: string;
+            active: boolean;
+            fields: Array<{ name: string; version: string }>;
+          }>
+        | undefined;
+
+      const wabaSub = subscriptions?.find(
+        (s) => s.object === 'whatsapp_business_account',
+      );
+
+      if (!wabaSub) {
+        return {
+          subscribed: false,
+          error: 'Webhook not subscribed — no whatsapp_business_account subscription found on this app',
+        };
+      }
+
+      if (!wabaSub.active) {
+        return {
+          subscribed: false,
+          callbackUrl: wabaSub.callback_url,
+          error: 'Webhook subscription exists but is not active',
+        };
+      }
+
+      const hasMessages = wabaSub.fields?.some((f) => f.name === 'messages');
+      if (!hasMessages) {
+        return {
+          subscribed: false,
+          callbackUrl: wabaSub.callback_url,
+          error: 'Webhook subscription is missing the "messages" field',
+        };
+      }
+
+      return { subscribed: true, callbackUrl: wabaSub.callback_url };
+    } catch (err) {
+      // Don't fail the health check for subscription check errors — warn and move on
+      logger.warn('[WhatsApp] Could not verify webhook subscription', {
+        appId: config.appId,
+        error: err instanceof Error ? err.message : err,
+      });
+      return {
+        subscribed: true,
+        error: `Could not verify webhook subscription: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      };
+    }
+  }
+
   async function healthCheck(): Promise<{ ok: boolean; error?: string }> {
     if (transport) return { ok: true }; // managed by platform in transport mode
 
@@ -966,19 +1056,29 @@ export function createWhatsAppAdapter(
           error: `Token expires in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`,
         };
       }
-      return { ok: true };
+    } else {
+      // No tokenExpiresAt: make a lightweight API call to verify token validity
+      try {
+        await graphFetch(`/${phoneNumberId}?fields=id`);
+      } catch (err) {
+        if (err instanceof WhatsAppApiError && err.code === 190) {
+          return { ok: false, error: 'Invalid token' };
+        }
+        return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+      }
     }
 
-    // No tokenExpiresAt: make a lightweight API call to verify token validity
-    try {
-      await graphFetch(`/${phoneNumberId}?fields=id`);
-      return { ok: true };
-    } catch (err) {
-      if (err instanceof WhatsAppApiError && err.code === 190) {
-        return { ok: false, error: 'Invalid token' };
-      }
-      return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    // Token is valid — now check webhook subscription
+    const subCheck = await checkWebhookSubscription();
+    if (!subCheck.subscribed) {
+      return { ok: false, error: subCheck.error ?? 'Webhook not subscribed' };
     }
+    if (subCheck.error) {
+      // Warning-level (subscribed: true but with a note)
+      return { ok: true, error: subCheck.error };
+    }
+
+    return { ok: true };
   }
 
   function tokenStatus(): { valid: boolean; expiresAt?: Date; daysRemaining?: number } {
@@ -1162,6 +1262,7 @@ export function createWhatsAppAdapter(
     markAsRead,
     syncTemplates,
     healthCheck,
+    checkWebhookSubscription,
     tokenStatus,
     createTemplate,
     deleteTemplate,

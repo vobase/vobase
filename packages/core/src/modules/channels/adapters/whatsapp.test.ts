@@ -1744,7 +1744,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
       const result = await adapter.send({ to: '6591234567', text: 'Test' });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Proxy error: 502');
+      expect(result.error).toBe('Platform proxy 502: Bad Gateway');
       // 5xx maps to server_error via errorToSendResult
       expect(result.code).toBe('server_error');
       expect(result.retryable).toBe(true);
@@ -1758,7 +1758,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
       const result = await adapter.send({ to: '6591234567', text: 'Test' });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Proxy error: 503');
+      expect(result.error).toBe('Platform proxy 503: Service Unavailable');
       expect(result.retryable).toBe(true);
     });
 

@@ -194,6 +194,7 @@ For full error reference and retry strategies, see [references/error-codes.md](r
 - [Embedded Signup — WhatsApp onboarding flow](references/embedded-signup.md)
 - [Coexistence — Business App + Cloud API on same number](references/coexistence.md)
 - [Groups — Group chat management API](references/groups.md)
+- [Webhook Overrides — Per-WABA and per-phone callback URLs](references/webhook-overrides.md)
 
 ## Sources
 
