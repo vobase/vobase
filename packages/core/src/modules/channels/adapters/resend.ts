@@ -1,3 +1,8 @@
+/**
+ * Outbound-only email transport via Resend API.
+ * Not a conversational channel — no inbound webhook support.
+ * Used as a send transport for email notifications.
+ */
 import type {
   ChannelAdapter,
   ChannelCapabilities,

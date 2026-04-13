@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { MessageReceivedEvent } from '../../../contracts/channels';
+import type { MessageReceivedEvent } from '../../../../contracts/channels';
 import {
   normalizeBrazilPhone,
   normalizeWhatsAppPhone,
@@ -10,7 +10,7 @@ import {
   shouldUpdateStatus,
   WA_STATUS_ORDER,
   type WhatsAppWebhookPayload,
-} from './whatsapp-shared';
+} from './shared';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 

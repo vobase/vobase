@@ -295,4 +295,4 @@ export {
   type WhatsAppInboundMessage,
   type WhatsAppMediaInfo,
   type WhatsAppWebhookPayload,
-} from './adapters/whatsapp-shared';
+} from './adapters/whatsapp/shared';

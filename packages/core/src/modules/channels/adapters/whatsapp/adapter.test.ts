@@ -5,13 +5,13 @@ import type {
   MessageReceivedEvent,
   ReactionEvent,
   StatusUpdateEvent,
-} from '../../../contracts/channels';
+} from '../../../../contracts/channels';
 import {
   _chunkText,
   _ERROR_CODE_MAP,
   createWhatsAppAdapter,
   WhatsAppApiError,
-} from './whatsapp';
+} from './index';
 
 // ─── Test Helpers ────────────────────────────────────────────────────
 

@@ -11,7 +11,7 @@ import type {
   MessageReceivedEvent,
   ReactionEvent,
   StatusUpdateEvent,
-} from '../../../contracts/channels';
+} from '../../../../contracts/channels';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
