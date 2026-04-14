@@ -21,6 +21,11 @@ import { MediaContent, parseMedia } from './media-content';
 import { MessageReactions } from './message-reactions';
 import { PrivateNoteWrapper } from './private-note-wrapper';
 import type { MessageRow, SenderInfo } from './types';
+import {
+  isWhatsAppContent,
+  WhatsAppEchoAttribution,
+  WhatsAppOutgoingContent,
+} from './whatsapp-outgoing';
 
 interface OutgoingMessageProps {
   message: MessageRow;
@@ -66,33 +71,7 @@ export const OutgoingMessage = memo(function OutgoingMessage({
 
   const SenderIcon = isAgent ? BotIcon : isStaff ? UserIcon : ShieldCheckIcon;
 
-  // Extract interactive buttons from contentData if present
-  const interactive = message.contentData?.interactive as
-    | {
-        type: string;
-        body?: { text: string };
-        action?: {
-          buttons?: Array<{ reply: { id: string; title: string } }>;
-        };
-      }
-    | undefined;
-  const replyButtons = interactive?.action?.buttons;
-
-  // Extract template data from contentData if present
-  const template = message.contentData?.template as
-    | {
-        name?: string;
-        language?: { code?: string };
-        components?: Array<{
-          type: string;
-          parameters?: Array<{ type: string; text?: string }>;
-        }>;
-      }
-    | undefined;
-  const templateBodyParams = template?.components
-    ?.find((c) => c.type === 'body')
-    ?.parameters?.filter((p) => p.type === 'text' && p.text != null)
-    ?.map((p) => p.text as string);
+  const hasWhatsApp = isWhatsAppContent(message);
 
   const content = (
     <MessageContent>
@@ -100,56 +79,12 @@ export const OutgoingMessage = memo(function OutgoingMessage({
         <span className="text-sm text-muted-foreground italic">
           Message withdrawn
         </span>
-      ) : template ? (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5">
-            <Badge
-              variant="secondary"
-              className="h-4 px-1.5 text-[10px] font-medium"
-            >
-              Template
-            </Badge>
-            {template.name && (
-              <span className="text-xs text-muted-foreground font-mono">
-                {template.name}
-              </span>
-            )}
-          </div>
-          {message.content && (
-            <MessageResponse>{message.content}</MessageResponse>
-          )}
-          {templateBodyParams && templateBodyParams.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              {templateBodyParams.map((param, i) => (
-                <span
-                  // biome-ignore lint/suspicious/noArrayIndexKey: template params are positional, no stable id
-                  key={i}
-                  className="inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted/50"
-                >
-                  {param}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
+      ) : hasWhatsApp ? (
+        <WhatsAppOutgoingContent message={message} />
       ) : (
         <>
-          {(interactive?.body?.text ?? message.content) && (
-            <MessageResponse>
-              {interactive?.body?.text ?? message.content}
-            </MessageResponse>
-          )}
-          {replyButtons && replyButtons.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {replyButtons.map((btn) => (
-                <span
-                  key={btn.reply.id}
-                  className="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium text-primary"
-                >
-                  {btn.reply.title}
-                </span>
-              ))}
-            </div>
+          {message.content && (
+            <MessageResponse>{message.content}</MessageResponse>
           )}
           <MediaContent
             contentType={message.contentType}
@@ -173,10 +108,7 @@ export const OutgoingMessage = memo(function OutgoingMessage({
     </Avatar>
   );
 
-  const contentPreview = (interactive?.body?.text ?? message.content).slice(
-    0,
-    100,
-  );
+  const contentPreview = message.content.slice(0, 100);
 
   const meta = (
     <div
@@ -255,11 +187,7 @@ export const OutgoingMessage = memo(function OutgoingMessage({
     />
   );
 
-  const echoAttribution = isEcho && (
-    <span className="text-xs text-muted-foreground">
-      Sent via WhatsApp Business App
-    </span>
-  );
+  const echoAttribution = isEcho && <WhatsAppEchoAttribution />;
 
   if (align === 'right') {
     return (

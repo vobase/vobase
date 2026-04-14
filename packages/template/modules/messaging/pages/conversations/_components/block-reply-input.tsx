@@ -57,6 +57,10 @@ interface BlockReplyInputProps {
   error?: string | null;
   /** Pre-fill the composer with draft content (e.g. from agent.draft_created). */
   initialContent?: string;
+  /** Called when the user types (for typing indicators). */
+  onTyping?: () => void;
+  /** Compact variant for staff conversation detail page. */
+  variant?: 'full' | 'compact';
 }
 
 // ─── Email toolbar (must be inside <Plate> context) ───────────────────────────
@@ -369,6 +373,8 @@ const StandardReplyInput = memo(function StandardReplyInput({
   isPending = false,
   error,
   initialContent,
+  onTyping,
+  variant = 'full',
 }: BlockReplyInputProps) {
   const [content, setContent] = useState(initialContent ?? '');
   const [isInternal, setIsInternal] = useState(false);
@@ -387,10 +393,12 @@ const StandardReplyInput = memo(function StandardReplyInput({
     }
   }
 
+  const isCompact = variant === 'compact';
+
   return (
     <div
       className={cn(
-        'bg-background',
+        isCompact ? 'border-t bg-background px-4 py-3' : 'bg-background',
         isInternal && 'bg-violet-50/30 dark:bg-violet-950/10',
       )}
     >
@@ -401,9 +409,18 @@ const StandardReplyInput = memo(function StandardReplyInput({
       <div className="flex items-end gap-2">
         <Textarea
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => {
+            setContent(e.target.value);
+            if (onTyping && e.target.value.trim() && !isInternal) onTyping();
+          }}
           onKeyDown={handleKeyDown}
-          placeholder={isInternal ? 'Write an internal note…' : 'Reply…'}
+          placeholder={
+            isInternal
+              ? 'Write an internal note…'
+              : isCompact
+                ? 'Reply as staff…'
+                : 'Reply…'
+          }
           className={cn(
             'min-h-[56px] max-h-[120px] resize-none text-sm',
             isInternal &&
