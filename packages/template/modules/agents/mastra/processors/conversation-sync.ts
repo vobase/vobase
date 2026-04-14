@@ -110,8 +110,10 @@ async function rowToMessage(
     content: string;
     contentType: string;
     contentData: unknown;
+    caption: string | null;
   },
   storage: StorageService | undefined,
+  hasAgentContext: boolean,
 ): Promise<{ role: 'user' | 'assistant'; content: unknown } | null> {
   // Map sender type to role
   const role: 'user' | 'assistant' =
@@ -129,6 +131,12 @@ async function rowToMessage(
     case 'image': {
       const data = (row.contentData ?? {}) as Record<string, unknown>;
       const metadata = data.metadata as Record<string, unknown> | undefined;
+
+      // Caption-first: on subsequent wakes, use caption instead of raw image download
+      if (row.caption && hasAgentContext) {
+        return { role, content: `${staffPrefix}[Image] ${row.caption}` };
+      }
+
       // Media download failed — no binary to presign
       if (metadata?.mediaDownloadFailed || !(data.media as unknown[])?.[0]) {
         return {
@@ -144,18 +152,27 @@ async function rowToMessage(
     }
 
     case 'video':
+      if (row.caption) {
+        return { role, content: `${staffPrefix}${row.caption}` };
+      }
       return {
         role,
         content: `${staffPrefix}(customer sent a video — not viewable, ask about the content if relevant)`,
       };
 
     case 'audio':
+      if (row.caption) {
+        return { role, content: `${staffPrefix}${row.caption}` };
+      }
       return {
         role,
         content: `${staffPrefix}(customer sent a voice message — not playable, ask them to summarize if relevant)`,
       };
 
     case 'document':
+      if (row.caption) {
+        return { role, content: `${staffPrefix}[Document] ${row.caption}` };
+      }
       return {
         role,
         content: `${staffPrefix}(customer sent a document — not readable, ask them to describe what they need)`,
@@ -200,6 +217,7 @@ export function createConversationSyncProcessor(
           content: messages.content,
           contentType: messages.contentType,
           contentData: messages.contentData,
+          caption: messages.caption,
         })
         .from(messages)
         .where(
@@ -217,9 +235,12 @@ export function createConversationSyncProcessor(
 
       if (rows.length === 0) return messageList;
 
+      // Detect whether agent has prior context — if so, use captions instead of raw images
+      const hasAgentContext = rows.some((r) => r.senderType === 'agent');
+
       // Convert to AI SDK messages and inject with source 'memory'
       const results = await Promise.all(
-        rows.map((row) => rowToMessage(row, storage)),
+        rows.map((row) => rowToMessage(row, storage, hasAgentContext)),
       );
       const converted = results.filter(
         (m): m is NonNullable<typeof m> => m !== null,

@@ -6,19 +6,33 @@ import type { ModuleDeps } from '../../../messaging/lib/deps';
 import { messages } from '../../../messaging/schema';
 import { verifyConversationAccess } from './_verify-conversation';
 
-/** Format non-text message content so the agent doesn't fixate on unviewable media. */
-function formatContentForAgent(content: string, contentType: string): string {
+/** Format non-text message content, preferring captions when available. */
+function formatContentForAgent(
+  content: string,
+  contentType: string,
+  caption: string | null,
+): string {
   switch (contentType) {
     case 'image':
-      return '(customer sent an image — already visible in your context above)';
+      return caption
+        ? `[Image] ${caption}`
+        : '(customer sent an image — already visible in your context above)';
     case 'video':
-      return '(customer sent a video — not viewable, ask about the content if relevant)';
+      return (
+        caption ||
+        '(customer sent a video — not viewable, ask about the content if relevant)'
+      );
     case 'audio':
-      return '(customer sent a voice message — not playable, ask them to summarize if relevant)';
+      return (
+        caption ||
+        '(customer sent a voice message — not playable, ask them to summarize if relevant)'
+      );
     case 'sticker':
       return '(customer sent a sticker)';
     case 'document':
-      return '(customer sent a document — not readable, ask them to describe what they need)';
+      return caption
+        ? `[Document] ${caption}`
+        : '(customer sent a document — not readable, ask them to describe what they need)';
     default:
       return content;
   }
@@ -89,6 +103,7 @@ export const readConversationTool = createTool({
         senderType: messages.senderType,
         content: messages.content,
         contentType: messages.contentType,
+        caption: messages.caption,
         createdAt: messages.createdAt,
       })
       .from(messages)
@@ -108,7 +123,7 @@ export const readConversationTool = createTool({
               : m.senderType === 'agent'
                 ? 'you'
                 : m.senderId,
-          content: formatContentForAgent(m.content, m.contentType),
+          content: formatContentForAgent(m.content, m.contentType, m.caption),
           contentType: m.contentType,
           time: m.createdAt.toISOString(),
         })),
