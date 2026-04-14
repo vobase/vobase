@@ -7,9 +7,6 @@ interface InboxDetailState {
   // ── Channel selection (for "new message" flow when all conversations terminal) ──
   selectedChannelId: string | null;
 
-  // ── Tab channel selection (for channel tabs in detail view) ──
-  selectedTabChannelId: string | null;
-
   // ── Block expand/collapse ──
   expandedConversationIds: Set<string>;
 
@@ -19,9 +16,6 @@ interface InboxDetailState {
 
   /** Called from channel picker. */
   selectChannel: (channelId: string) => void;
-
-  /** Called when user switches channel tab in detail view. */
-  selectTabChannel: (channelId: string | null) => void;
 
   /** Toggle a block open/closed. */
   toggleBlock: (id: string) => void;
@@ -41,20 +35,16 @@ interface InboxDetailState {
 export const useInboxDetailStore = create<InboxDetailState>((set) => ({
   contactId: null,
   selectedChannelId: null,
-  selectedTabChannelId: null,
   expandedConversationIds: new Set(),
 
   switchContact: (contactId) =>
     set({
       contactId,
       selectedChannelId: null,
-      selectedTabChannelId: null,
       expandedConversationIds: new Set(),
     }),
 
   selectChannel: (channelId) => set({ selectedChannelId: channelId }),
-
-  selectTabChannel: (channelId) => set({ selectedTabChannelId: channelId }),
 
   toggleBlock: (id) =>
     set((state) => {

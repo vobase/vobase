@@ -13,6 +13,7 @@ import {
   SearchIcon,
   XIcon,
 } from 'lucide-react';
+import { parseAsStringLiteral, useQueryState } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ChannelBadge, PriorityIcon } from '@/components/conversation-badges';
@@ -137,6 +138,7 @@ function ContactRowItem({
     <Link
       to="/messaging/inbox/$contactId"
       params={{ contactId: row.id }}
+      search={(prev) => ({ ...prev })}
       className={cn(
         'group flex items-start gap-2.5 px-3 py-2.5 transition-colors relative border-l-2',
         isSelected
@@ -264,8 +266,13 @@ function EmptyState({
 
 // ─── Main layout ────────────────────────────────────────────────────
 
+const tabs = ['active', 'on-hold', 'done'] as const;
+
 function InboxLayout() {
-  const [tab, setTab] = useState<'active' | 'on-hold' | 'done'>('active');
+  const [tab, setTab] = useQueryState(
+    'tab',
+    parseAsStringLiteral(tabs).withDefault('active'),
+  );
   const [search, setSearch] = useState('');
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -274,11 +281,14 @@ function InboxLayout() {
   const { contactId } = useParams({ strict: false });
   const hasSelection = Boolean(contactId);
 
-  const handleTabChange = useCallback((v: string) => {
-    setTab(v as typeof tab);
-    setSearch('');
-    setFocusedIndex(-1);
-  }, []);
+  const handleTabChange = useCallback(
+    (v: string) => {
+      setTab(v as (typeof tabs)[number]);
+      setSearch('');
+      setFocusedIndex(-1);
+    },
+    [setTab],
+  );
 
   const { data: counts } = useQuery({
     queryKey: ['conversations-counts'],
@@ -365,6 +375,7 @@ function InboxLayout() {
           navigate({
             to: '/messaging/inbox/$contactId',
             params: { contactId: row.id },
+            search: (prev) => ({ ...prev }),
           });
         }
       } else if (e.key === 'Escape') {

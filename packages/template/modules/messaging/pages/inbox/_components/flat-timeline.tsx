@@ -19,7 +19,7 @@ interface FlatTimelineProps {
   filteredConversations: TimelineConversationFull[];
   activeChannelConversation: TimelineConversationFull | null;
   selectedChannel: { id: string; type: string; label: string | null } | null;
-  selectedTabChannelId: string;
+  channelId: string;
   senderMap: Map<string, SenderInfo>;
   currentUserId?: string;
   agents: Array<{ id: string; name: string }>;
@@ -49,7 +49,7 @@ export const FlatTimeline = memo(function FlatTimeline({
   filteredConversations,
   activeChannelConversation,
   selectedChannel,
-  selectedTabChannelId,
+  channelId,
   senderMap,
   currentUserId,
   agents,
@@ -199,7 +199,7 @@ export const FlatTimeline = memo(function FlatTimeline({
             <BlockReplyInput
               channelType={selectedChannel.type}
               onSend={(content, isInternal) =>
-                onNewConversation(selectedTabChannelId, content, isInternal)
+                onNewConversation(channelId, content, isInternal)
               }
               isPending={newConversationPending}
               error={

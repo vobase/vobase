@@ -12,14 +12,14 @@ interface Channel {
 interface ChannelTabBarProps {
   channels: Channel[];
   allConversations: TimelineConversationFull[];
-  selectedTabChannelId: string | null;
+  selectedChannelId: string | null;
   onSelectTab: (channelId: string | null) => void;
 }
 
 export const ChannelTabBar = memo(function ChannelTabBar({
   channels,
   allConversations,
-  selectedTabChannelId,
+  selectedChannelId,
   onSelectTab,
 }: ChannelTabBarProps) {
   const sortedChannels = useMemo(() => {
@@ -46,7 +46,7 @@ export const ChannelTabBar = memo(function ChannelTabBar({
             type="button"
             onClick={() => onSelectTab(ch.id)}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
-              selectedTabChannelId === ch.id
+              selectedChannelId === ch.id
                 ? 'border-primary text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
             }`}
@@ -59,7 +59,7 @@ export const ChannelTabBar = memo(function ChannelTabBar({
           type="button"
           onClick={() => onSelectTab(null)}
           className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
-            selectedTabChannelId === null
+            selectedChannelId === null
               ? 'border-primary text-foreground'
               : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30'
           }`}

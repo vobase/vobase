@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { parseAsString, useQueryState } from 'nuqs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,16 +27,23 @@ function InboxDetailPage() {
     localStorage.setItem('inbox-sidebar', sidebarOpen ? 'open' : 'closed');
   }, [sidebarOpen]);
 
+  // ── URL state (nuqs) ───────────────────────────────────────────────
+  const [channel, setChannel] = useQueryState(
+    'channel',
+    parseAsString.withOptions({ history: 'replace' }),
+  );
+  const [conversation, setConversation] = useQueryState(
+    'conversation',
+    parseAsString.withOptions({ history: 'replace' }),
+  );
+
   // ── Zustand store (individual selectors) ──────────────────────────
   const expandedConversationIds = useInboxDetailStore(
     (s) => s.expandedConversationIds,
   );
-  const selectedTabChannelId = useInboxDetailStore(
-    (s) => s.selectedTabChannelId,
-  );
   const toggleBlock = useInboxDetailStore((s) => s.toggleBlock);
   const setDefaultExpansion = useInboxDetailStore((s) => s.setDefaultExpansion);
-  const selectTabChannel = useInboxDetailStore((s) => s.selectTabChannel);
+  const expandBlock = useInboxDetailStore((s) => s.expandBlock);
   const switchContact = useInboxDetailStore((s) => s.switchContact);
   const storeContactId = useInboxDetailStore((s) => s.contactId);
 
@@ -64,7 +72,7 @@ function InboxDetailPage() {
     senderMap,
     hasNextPage,
     agents,
-  } = useInboxTimeline(contactId, selectedTabChannelId, session);
+  } = useInboxTimeline(contactId, channel, session);
 
   const {
     replyMutation,
@@ -88,19 +96,19 @@ function InboxDetailPage() {
         (a, b) =>
           (channelActivity.get(b.id) ?? 0) - (channelActivity.get(a.id) ?? 0),
       );
-      selectTabChannel(sorted[0]?.id ?? null);
+      setChannel(sorted[0]?.id ?? null);
     }
-  }, [channels, contactId, allConversations, selectTabChannel]);
+  }, [channels, contactId, allConversations, setChannel]);
 
   // ── Scroll to bottom on channel tab switch ─────────────────────────
   const channelScrollRef = useRef<HTMLDivElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on tab switch / new messages
   useEffect(() => {
-    if (channelScrollRef.current && selectedTabChannelId) {
+    if (channelScrollRef.current && channel) {
       channelScrollRef.current.scrollTop =
         channelScrollRef.current.scrollHeight;
     }
-  }, [selectedTabChannelId, channelFlatMessages.length]);
+  }, [channel, channelFlatMessages.length]);
 
   // ── Effects ────────────────────────────────────────────────────────
 
@@ -126,6 +134,21 @@ function InboxDetailPage() {
     const el = document.getElementById(`block-${firstActive.id}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [sortedConversations]);
+
+  // ── Deep-link to specific conversation via ?conversation= param ────
+  const conversationScrolledRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!conversation || conversationScrolledRef.current === conversation)
+      return;
+    if (sortedConversations.length === 0) return;
+    const el = document.getElementById(`block-${conversation}`);
+    if (el) {
+      conversationScrolledRef.current = conversation;
+      expandBlock(conversation);
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setConversation(null);
+    }
+  }, [conversation, sortedConversations, expandBlock, setConversation]);
 
   // Mark contact as read
   const lastMsgId = allMessages[allMessages.length - 1]?.id;
@@ -224,19 +247,19 @@ function InboxDetailPage() {
         <ChannelTabBar
           channels={channels}
           allConversations={allConversations}
-          selectedTabChannelId={selectedTabChannelId}
-          onSelectTab={selectTabChannel}
+          selectedChannelId={channel}
+          onSelectTab={setChannel}
         />
 
         {/* ─── Content area ─── */}
-        {selectedTabChannelId ? (
+        {channel ? (
           <FlatTimeline
             channelFlatMessages={channelFlatMessages}
             conversationBoundaries={conversationBoundaries}
             filteredConversations={filteredConversations}
             activeChannelConversation={activeChannelConversation}
             selectedChannel={selectedChannel}
-            selectedTabChannelId={selectedTabChannelId}
+            channelId={channel}
             senderMap={senderMap}
             currentUserId={session?.user?.id}
             agents={agents}
