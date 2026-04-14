@@ -1,5 +1,60 @@
 # @vobase/core
 
+## 0.32.1
+
+### Patch Changes
+
+- [`ad4bf1e`](https://github.com/vobase/vobase/commit/ad4bf1ed0851ed5cd17d48f8d32fd2cf8e034c4d) Thanks [@mdluo](https://github.com/mdluo)! - # Shorten default nanoid IDs from 12 to 8 characters
+
+  Reduced the default nanoid primary key length from 12 to 8 characters across all tables. Each Vobase project is single-tenant with relatively small data volumes, so 12 characters of entropy was unnecessarily long. 8 characters with a 36-char alphabet provides ~41 bits of entropy (~2.8 trillion possible IDs) — more than sufficient.
+
+  ## Changes
+
+  - `NANOID_LENGTH.DEFAULT`: 12 → 8
+  - `NANOID_LENGTH.SHORT`: 8 → 6
+  - `NANOID_LENGTH.LONG`: 16 → 12
+  - Updated all hardcoded `nanoid(12)` SQL in test fixtures to `nanoid(8)`
+
+  ## Migration Note
+
+  Existing databases need a `bun run db:push` (dev) or new migration (prod) to pick up the new column defaults. Existing rows with 12-char IDs remain valid — only newly inserted rows will use 8-char IDs.
+
+- [`3ead6c7`](https://github.com/vobase/vobase/commit/3ead6c70950ff742ca4f52a207551c7c187c1950) Thanks [@mdluo](https://github.com/mdluo)! - # WhatsApp Adapter Decomposition
+
+  Decomposed the monolithic `adapters/whatsapp.ts` (1287 lines, 6 concerns) into a focused `adapters/whatsapp/` directory with single-responsibility modules.
+
+  ## What Changed
+
+  The single `whatsapp.ts` file has been split into 6 modules using a factory composition pattern:
+
+  | Module          | Lines | Responsibility                                                                                                  |
+  | --------------- | ----- | --------------------------------------------------------------------------------------------------------------- |
+  | `types.ts`      | ~94   | Types, error class, constants (zero dependencies)                                                               |
+  | `api.ts`        | ~345  | `createApiClient()` factory: `transportFetch`, `graphFetch`, `downloadMedia` closures + stateless helpers       |
+  | `templates.ts`  | ~114  | `createTemplateOperations()` factory: sync, create, delete, get templates                                       |
+  | `management.ts` | ~192  | `createManagementOperations()` factory: health check, webhook subscription, token status, messaging tier        |
+  | `adapter.ts`    | ~546  | Main `createWhatsAppAdapter()` factory composing all siblings + dedup state, webhook verification, send methods |
+  | `index.ts`      | ~5    | Barrel re-exports                                                                                               |
+
+  `shared.ts` and test files moved into the directory with updated import paths.
+
+  ## Architecture
+
+  The decomposition uses **closure-based dependency injection** — each factory receives `graphFetch` and `config` as explicit parameters rather than relying on a monolithic closure scope. The adapter factory composes them:
+
+  ```typescript
+  const { graphFetch, downloadMedia } = createApiClient(config, httpClient);
+  const templateOps = createTemplateOperations(graphFetch, phoneNumberId);
+  const managementOps = createManagementOperations(config, graphFetch);
+  ```
+
+  ## Zero Breaking Changes
+
+  - All public exports from `@vobase/core` are unchanged
+  - The barrel `index.ts` provides transparent re-exports
+  - Test-only exports (`_chunkText`, `_ERROR_CODE_MAP`) preserved
+  - Resend and SMTP adapters annotated with JSDoc as outbound-only transports
+
 ## 0.32.0
 
 ### Minor Changes
