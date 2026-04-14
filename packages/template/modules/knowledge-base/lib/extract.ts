@@ -118,7 +118,7 @@ function hasOcrProvider(): boolean {
 // ---------------------------------------------------------------------------
 
 /** Resize (if needed) and encode to JPEG. Returns buffer + dimensions. */
-async function encodeToJpeg(
+export async function encodeToJpeg(
   input: sharp.Sharp,
 ): Promise<{ data: Buffer; width: number; height: number }> {
   const meta = await input.metadata();
