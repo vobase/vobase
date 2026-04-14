@@ -96,7 +96,7 @@ jobs:
           cd "$OUT"
 
           # Configure git with app token for HTTPS push
-          git init -b main
+          git init -b staging
           git config user.name "vobase[bot]"
           git config user.email "3131401+vobase[bot]@users.noreply.github.com"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/vobase/template.git"
@@ -105,4 +105,4 @@ jobs:
           git add -A
           SHORT_SHA="${COMMIT_SHA:0:8}"
           git commit -m "sync: update from vobase/vobase@${SHORT_SHA}"
-          git push --force origin main
+          git push --force origin staging
