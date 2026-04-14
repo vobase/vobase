@@ -54,15 +54,20 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   database: databaseUrl,
 
   storage: {
-    provider: { type: 'local', basePath: './data/files' },
+    provider: process.env.R2_BUCKET
+      ? {
+          type: 's3',
+          bucket: process.env.R2_BUCKET,
+          endpoint: process.env.R2_ENDPOINT!,
+          accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+        }
+      : { type: 'local', basePath: './data/files' },
     buckets: {
       uploads: { access: 'private' },
       'kb-documents': { access: 'private' },
       'chat-attachments': { access: 'private' },
     },
-    ...(process.env.PLATFORM_HMAC_SECRET && {
-      integrationProvider: 'cloudflare-r2',
-    }),
   },
   mcp: { enabled: true },
   trustedOrigins: ['http://localhost:5173', 'http://localhost:5174'],
