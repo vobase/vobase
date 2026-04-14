@@ -46,9 +46,10 @@ import {
 import { agentsClient, messagingClient } from '@/lib/api-client';
 import { authClient } from '@/lib/auth-client';
 import { extractStaffName } from '@/lib/normalize-message';
+import { invalidateConversationLists } from '../../lib/invalidate-conversations';
+import { BlockReplyInput } from './_components/block-reply-input';
 import { LabelsManager } from './_components/labels-manager';
 import { MessageTimeline } from './_components/message-timeline';
-import { StaffComposer } from './_components/staff-composer';
 import type {
   MessageRow,
   SenderInfo,
@@ -392,13 +393,7 @@ function ConversationDetailPage() {
   }, [allMessageRows]);
 
   const invalidateConversationQueries = useCallback(() => {
-    queryClient.invalidateQueries({
-      queryKey: ['conversation-detail', conversationId],
-    });
-    queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
-    queryClient.invalidateQueries({ queryKey: ['conversations-ai-active'] });
-    queryClient.invalidateQueries({ queryKey: ['conversations-resolved'] });
-    queryClient.invalidateQueries({ queryKey: ['conversations-counts'] });
+    invalidateConversationLists(queryClient, { conversationId });
   }, [queryClient, conversationId]);
 
   const updateMutation = useMutation({
@@ -631,8 +626,12 @@ function ConversationDetailPage() {
 
         {/* Reply input */}
         {canReply && (
-          <StaffComposer
-            onSend={handleSendReply}
+          <BlockReplyInput
+            channelType={channelInstance?.type ?? 'web'}
+            variant="compact"
+            onSend={(content, isInternal) =>
+              handleSendReply(content, isInternal)
+            }
             isPending={replyMutation.isPending}
             error={replyMutation.isError ? 'Failed to send' : null}
             onTyping={signalTyping}

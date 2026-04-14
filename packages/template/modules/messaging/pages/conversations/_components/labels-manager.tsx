@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { messagingClient } from '@/lib/api-client';
+import { invalidateConversationLists } from '../../../lib/invalidate-conversations';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -50,17 +51,7 @@ export function LabelsManager({ conversationId }: { conversationId: string }) {
   });
 
   const invalidateAll = useCallback(() => {
-    queryClient.invalidateQueries({
-      queryKey: ['conversation-labels', conversationId],
-    });
-    // Refresh conversation lists so label chips update
-    queryClient.invalidateQueries({ queryKey: ['conversations-attention'] });
-    queryClient.invalidateQueries({ queryKey: ['conversations-ai-active'] });
-    queryClient.invalidateQueries({ queryKey: ['conversations-resolved'] });
-    // Refresh timeline to show label activity event
-    queryClient.invalidateQueries({
-      queryKey: ['conversations-messages', conversationId],
-    });
+    invalidateConversationLists(queryClient, { conversationId });
   }, [queryClient, conversationId]);
 
   const addMutation = useMutation({
