@@ -313,7 +313,7 @@ async function appendAndRoute(
 
   // Store inbound message — always store media-type messages even without binary
   if (event.content || mediaResult || MEDIA_TYPES.has(event.messageType)) {
-    await insertMessage(db, realtime, {
+    const message = await insertMessage(db, realtime, {
       conversationId: conversation.id,
       messageType: 'incoming',
       contentType,
@@ -326,6 +326,31 @@ async function appendAndRoute(
       senderType: 'contact',
       channelType: channelInstanceId ?? 'web',
     });
+
+    // Schedule background captioning for media messages
+    // Audio/video get placeholder captions even without storageKey
+    const isMediaType = ['image', 'document', 'audio', 'video'].includes(
+      contentType,
+    );
+    if (
+      isMediaType &&
+      (mediaResult?.media?.[0]?.storageKey ||
+        contentType === 'audio' ||
+        contentType === 'video')
+    ) {
+      scheduler
+        .add(
+          'messaging:process-media-caption',
+          { messageId: message.id },
+          { retryLimit: 2, retryDelay: 5 },
+        )
+        .catch((err) => {
+          logger.error('[inbound] Failed to schedule media caption job', {
+            messageId: message.id,
+            error: err,
+          });
+        });
+    }
   }
 
   // Resolve channel info once for debounce + session upsert

@@ -6,12 +6,13 @@ import { getModuleDeps } from './lib/deps';
 
 export { setModuleDeps } from './lib/deps';
 
+import { getCaptionForContentType } from './lib/caption';
 import { expireSessions } from './lib/channel-sessions';
 import { resolveConversation } from './lib/conversation';
 import { processDelivery } from './lib/delivery';
 import { handleInboundMessage } from './lib/inbound';
 import { transition } from './lib/state-machine';
-import { channelInstances, conversations } from './schema';
+import { channelInstances, conversations, messages } from './schema';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Messaging jobs
@@ -168,6 +169,79 @@ export const sessionExpiryJob = defineJob(
     }
   },
 );
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Media captioning
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const mediaCaptionDataSchema = z.object({ messageId: z.string().min(1) });
+
+const FALLBACK_CAPTION =
+  '(media received — caption unavailable, use analyze_media tool to examine)';
+
+/**
+ * messaging:process-media-caption — Background captioning for inbound media.
+ * Downloads media from storage, generates a structured caption via vision/extraction,
+ * and writes it to the dedicated `caption` column on the messages table.
+ */
+export const processMediaCaptionJob = defineJob(
+  'messaging:process-media-caption',
+  async (data) => {
+    const { messageId } = mediaCaptionDataSchema.parse(data);
+    const deps = getModuleDeps();
+
+    // Load message row
+    const [row] = await deps.db
+      .select({
+        id: messages.id,
+        contentType: messages.contentType,
+        contentData: messages.contentData,
+        caption: messages.caption,
+      })
+      .from(messages)
+      .where(eq(messages.id, messageId));
+
+    if (!row) {
+      logger.warn('[caption] Message not found', { messageId });
+      return;
+    }
+
+    // Skip if already captioned
+    if (row.caption) return;
+
+    const contentData = (row.contentData ?? {}) as Record<string, unknown>;
+    const mediaArray =
+      (contentData.media as Array<{ storageKey?: string; mimeType: string }>) ??
+      [];
+    const firstMedia = mediaArray[0];
+
+    try {
+      const caption = await getCaptionForContentType(
+        row.contentType,
+        firstMedia?.storageKey,
+        firstMedia?.mimeType,
+        deps.storage,
+      );
+
+      await writeCaption(deps.db, messageId, caption || FALLBACK_CAPTION);
+    } catch (err) {
+      logger.error('[caption] Processing failed — writing fallback', {
+        messageId,
+        error: err,
+      });
+      await writeCaption(deps.db, messageId, FALLBACK_CAPTION);
+    }
+  },
+);
+
+/** Write caption to the dedicated column. */
+async function writeCaption(
+  db: ReturnType<typeof getModuleDeps>['db'],
+  messageId: string,
+  caption: string,
+): Promise<void> {
+  await db.update(messages).set({ caption }).where(eq(messages.id, messageId));
+}
 
 /**
  * messaging:channel-health-check — Cron every 6 hours.

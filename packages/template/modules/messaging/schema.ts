@@ -214,6 +214,7 @@ export const messages = messagingPgSchema.table(
     contentType: text('content_type').notNull(),
     content: text('content').notNull(),
     contentData: jsonb('content_data').default({}),
+    caption: text('caption'),
     mastraContent: jsonb('mastra_content'),
     status: text('status'),
     failureReason: text('failure_reason'),
