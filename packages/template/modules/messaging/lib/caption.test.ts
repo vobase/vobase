@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock, vi } from 'bun:test';
+import { describe, expect, it, vi } from 'bun:test';
 
 import { getCaptionForContentType } from './caption';
 

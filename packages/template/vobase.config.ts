@@ -2,6 +2,7 @@ import { type CreateAppConfig, createSmtpAdapter } from '@vobase/core';
 
 import { devAuth } from './modules/system/dev-auth-plugin';
 import { renderInvitationEmail, renderOtpEmail } from './modules/system/emails';
+import { platformAuth } from './modules/system/platform-auth-plugin';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
@@ -33,6 +34,22 @@ const smtpAdapter = smtpHost
 /** Server-side branding. See also: src/lib/branding.ts (client-side equivalent). */
 export const productName = process.env.VITE_PRODUCT_NAME || 'Vobase';
 
+const extraPlugins = [
+  ...(process.env.NODE_ENV !== 'production' ? [devAuth()] : []),
+  ...(process.env.PLATFORM_HMAC_SECRET
+    ? [
+        platformAuth({
+          hmacSecret: process.env.PLATFORM_HMAC_SECRET,
+          ...(process.env.VITE_ALLOWED_EMAIL_DOMAINS && {
+            allowedEmailDomains: process.env.VITE_ALLOWED_EMAIL_DOMAINS.split(
+              ',',
+            ).map((d) => d.trim()),
+          }),
+        }),
+      ]
+    : []),
+];
+
 const config: Omit<CreateAppConfig, 'modules'> = {
   database: databaseUrl,
 
@@ -60,9 +77,7 @@ const config: Omit<CreateAppConfig, 'modules'> = {
         ',',
       ).map((d) => d.trim()),
     }),
-    ...(process.env.NODE_ENV !== 'production' && {
-      extraPlugins: [devAuth()],
-    }),
+    ...(extraPlugins.length > 0 && { extraPlugins }),
     ...(smtpAdapter && {
       sendVerificationOTP: async ({ email, otp, type }) => {
         const html = await renderOtpEmail({ otp, type });

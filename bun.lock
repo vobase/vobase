@@ -23,7 +23,7 @@
     },
     "packages/core": {
       "name": "@vobase/core",
-      "version": "0.32.0",
+      "version": "0.32.1",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
         "jose": "^6.2.2",
@@ -106,6 +106,7 @@
         "embla-carousel-react": "^8.6.0",
         "hono": "^4.12.12",
         "input-otp": "^1.4.2",
+        "jose": "^6.2.2",
         "lodash.isequal": "^4.5.0",
         "lucide-react": "^1.8.0",
         "mammoth": "^1.12.0",
