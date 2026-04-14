@@ -111,7 +111,7 @@ function LoginPage() {
               variant="outline"
               className="w-full"
               onClick={() => {
-                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/google/initiate?tenant=${tenantSlug}`;
+                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/google/initiate?tenant=${tenantSlug}&redirect=${encodeURIComponent(window.location.origin)}`;
               }}
             >
               <svg
@@ -143,7 +143,7 @@ function LoginPage() {
               variant="outline"
               className="w-full"
               onClick={() => {
-                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/microsoft/initiate?tenant=${tenantSlug}`;
+                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/microsoft/initiate?tenant=${tenantSlug}&redirect=${encodeURIComponent(window.location.origin)}`;
               }}
             >
               <svg
