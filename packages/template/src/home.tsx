@@ -441,7 +441,7 @@ function HomePage() {
 
 export const Route = createFileRoute('/_app/')({
   beforeLoad: () => {
-    throw redirect({ to: '/messaging/conversations' });
+    throw redirect({ to: '/messaging/inbox' });
   },
   component: HomePage,
 });
