@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 
-import { companyName, productName } from '@/lib/branding';
+import { productName, vendorName } from '@/lib/branding';
 
 function AuthLayout() {
   return (
@@ -12,7 +12,7 @@ function AuthLayout() {
       </div>
       <Outlet />
       <p className="mt-8 text-xs text-muted-foreground">
-        &copy; {new Date().getFullYear()} {companyName}
+        &copy; {new Date().getFullYear()} {vendorName}
       </p>
     </div>
   );
