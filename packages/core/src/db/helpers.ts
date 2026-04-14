@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { text, timestamp } from 'drizzle-orm/pg-core';
 import { customAlphabet } from 'nanoid';
 
-export const NANOID_LENGTH = { SHORT: 8, DEFAULT: 12, LONG: 16 } as const;
+export const NANOID_LENGTH = { SHORT: 6, DEFAULT: 8, LONG: 12 } as const;
 export const NANOID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
 
 // Cache generators to avoid recreating

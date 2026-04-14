@@ -108,7 +108,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "metadata" TEXT
     );
     CREATE TABLE IF NOT EXISTS "audit"."audit_log" (
-      "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
+      "id" TEXT PRIMARY KEY DEFAULT nanoid(8) NOT NULL,
       "event" TEXT NOT NULL,
       "actor_id" TEXT,
       "actor_email" TEXT,
@@ -117,7 +117,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS "audit"."record_audits" (
-      "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
+      "id" TEXT PRIMARY KEY DEFAULT nanoid(8) NOT NULL,
       "table_name" TEXT NOT NULL,
       "record_id" TEXT NOT NULL,
       "old_data" TEXT,
@@ -126,7 +126,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS "infra"."sequences" (
-      "id" TEXT PRIMARY KEY DEFAULT nanoid(12) NOT NULL,
+      "id" TEXT PRIMARY KEY DEFAULT nanoid(8) NOT NULL,
       "prefix" TEXT NOT NULL UNIQUE,
       "current_value" INTEGER NOT NULL DEFAULT 0,
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -138,7 +138,7 @@ async function bootstrapDatabase(dir: string): Promise<void> {
       PRIMARY KEY ("id", "source")
     );
     CREATE TABLE IF NOT EXISTS "infra"."integrations" (
-      "id" TEXT PRIMARY KEY DEFAULT nanoid(12),
+      "id" TEXT PRIMARY KEY DEFAULT nanoid(8),
       "provider" TEXT NOT NULL,
       "auth_type" TEXT NOT NULL,
       "label" TEXT,

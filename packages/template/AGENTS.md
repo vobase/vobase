@@ -33,7 +33,7 @@ Name: lowercase alphanumeric + hyphens. Routes mount at `/api/{name}`.
 - Money: INTEGER cents, never float
 - Timestamps: `timestamp('col', { withTimezone: true }).defaultNow()`, UTC always
 - Status: TEXT with explicit transition logic, not arbitrary strings
-- IDs: `nanoidPrimaryKey()` (12 chars, lowercase alphanumeric)
+- IDs: `nanoidPrimaryKey()` (8 chars, lowercase alphanumeric)
 - Cross-module refs: plain text columns, no `.references()` across modules. Intra-module (same pgSchema) refs use `.references()` with appropriate `onDelete`
 - Status columns: TEXT with CHECK constraints enforcing valid values. Update both the CHECK constraint and application code when adding new status values
 

@@ -16,9 +16,9 @@ function getConfig(col: unknown): Record<string, unknown> {
 describe('nanoid helpers', () => {
   describe('NANOID_LENGTH constants', () => {
     it('should have SHORT, DEFAULT, and LONG lengths defined', () => {
-      expect(NANOID_LENGTH.SHORT).toBe(8);
-      expect(NANOID_LENGTH.DEFAULT).toBe(12);
-      expect(NANOID_LENGTH.LONG).toBe(16);
+      expect(NANOID_LENGTH.SHORT).toBe(6);
+      expect(NANOID_LENGTH.DEFAULT).toBe(8);
+      expect(NANOID_LENGTH.LONG).toBe(12);
     });
   });
 
@@ -34,9 +34,9 @@ describe('nanoid helpers', () => {
       const generateDefault = createNanoid(NANOID_LENGTH.DEFAULT);
       const generateLong = createNanoid(NANOID_LENGTH.LONG);
 
-      expect(generateShort().length).toBe(8);
-      expect(generateDefault().length).toBe(12);
-      expect(generateLong().length).toBe(16);
+      expect(generateShort().length).toBe(6);
+      expect(generateDefault().length).toBe(8);
+      expect(generateLong().length).toBe(12);
     });
 
     it('should generate IDs using only the alphabet', () => {
