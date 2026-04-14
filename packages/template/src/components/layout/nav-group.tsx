@@ -188,9 +188,11 @@ function SidebarMenuCollapsedDropdown({
 
 function checkIsActive(href: string, item: NavItem, mainNav = false) {
   const url = 'url' in item ? item.url : undefined;
+  const path = href.split('?')[0];
   return (
     href === url ||
-    href.split('?')[0] === url ||
+    path === url ||
+    (!!url && path.startsWith(`${url}/`)) ||
     !!item?.items?.filter((i) => i.url === href).length ||
     (mainNav &&
       href.split('/')[1] !== '' &&
