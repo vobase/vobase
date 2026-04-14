@@ -22,9 +22,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { isTimelineVisibleEvent } from '@/lib/activity-helpers';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { filterAndSortMessages } from '../../../lib/filter-sort-messages';
 import { ActivityMessage } from './activity-message';
 import { EmailMessage } from './email-message';
 import { IncomingMessage } from './incoming-message';
@@ -69,11 +69,6 @@ interface ConversationBlockProps {
     assignee?: string | null;
     onHold?: boolean;
   }) => void;
-  onSendReply: (
-    content: string,
-    isInternal: boolean,
-    replyToMessageId?: string,
-  ) => void;
   onRetryMessage: (messageId: string) => void;
 }
 
@@ -89,7 +84,6 @@ export const ConversationBlock = memo(function ConversationBlock({
   teamMembers = [],
   onToggle,
   onUpdateConversation,
-  onSendReply: _onSendReply,
   onRetryMessage,
 }: ConversationBlockProps) {
   const [showAll, setShowAll] = useState(false);
@@ -99,22 +93,8 @@ export const ConversationBlock = memo(function ConversationBlock({
     conversation.status === 'resolved' || conversation.status === 'failed';
   const accentClass = CHANNEL_LINE_ACTIVE[conversation.channelType];
 
-  // Filter and sort messages — same logic as MessageTimeline
   const visibleMessages = useMemo(
-    () =>
-      [...messages]
-        .filter(
-          (msg) =>
-            msg.messageType !== 'activity' ||
-            isTimelineVisibleEvent(
-              ((msg.contentData as Record<string, unknown>)
-                ?.eventType as string) ?? msg.content,
-            ),
-        )
-        .sort(
-          (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-        ),
+    () => filterAndSortMessages(messages),
     [messages],
   );
 

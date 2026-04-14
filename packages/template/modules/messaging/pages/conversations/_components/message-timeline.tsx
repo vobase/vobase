@@ -14,9 +14,9 @@ import {
 } from '@/components/ai-elements/conversation';
 import { Button } from '@/components/ui/button';
 import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { isTimelineVisibleEvent } from '@/lib/activity-helpers';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { filterAndSortMessages } from '../../../lib/filter-sort-messages';
 import { ActivityMessage } from './activity-message';
 import { IncomingMessage } from './incoming-message';
 import { OutgoingMessage } from './outgoing-message';
@@ -251,23 +251,7 @@ export const MessageTimeline = memo(function MessageTimeline({
     };
   }, [messages]);
 
-  const sorted = useMemo(
-    () =>
-      [...messages]
-        .filter(
-          (msg) =>
-            msg.messageType !== 'activity' ||
-            isTimelineVisibleEvent(
-              ((msg.contentData as Record<string, unknown>)
-                ?.eventType as string) ?? msg.content,
-            ),
-        )
-        .sort(
-          (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-        ),
-    [messages],
-  );
+  const sorted = useMemo(() => filterAndSortMessages(messages), [messages]);
 
   // Build conversation map for lookups
   const conversationMap = useMemo(() => {

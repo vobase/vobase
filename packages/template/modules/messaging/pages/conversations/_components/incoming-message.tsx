@@ -48,6 +48,8 @@ export const IncomingMessage = memo(function IncomingMessage({
       ? message.content.replace(/(?<!\n)\n(?!\n)/g, '\n\n')
       : message.content;
 
+  const contentMetadata = parseContentMetadata(message.contentData);
+
   return (
     <Message from="assistant" className={cn('group', className)}>
       <div className="flex items-end gap-2">
@@ -97,11 +99,8 @@ export const IncomingMessage = memo(function IncomingMessage({
                 <MediaContent
                   contentType={message.contentType}
                   media={parseMedia(message.contentData)}
-                  metadata={parseContentMetadata(message.contentData)}
-                  mediaDownloadFailed={
-                    !!parseContentMetadata(message.contentData)
-                      ?.mediaDownloadFailed
-                  }
+                  metadata={contentMetadata}
+                  mediaDownloadFailed={!!contentMetadata?.mediaDownloadFailed}
                 />
               </>
             )}
