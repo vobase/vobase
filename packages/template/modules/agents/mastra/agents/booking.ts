@@ -7,6 +7,7 @@ import { models } from '../lib/models';
 import { agentModel } from '../lib/provider';
 import { resolveInputProcessors } from '../processors';
 import {
+  analyzeMediaTool,
   bookSlotTool,
   cancelBookingTool,
   checkAvailabilityTool,
@@ -134,6 +135,7 @@ export const bookingAgent = new Agent({
   tools: {
     // Conversation tools — read/write messages via tools, not direct streaming
     read_conversation: readConversationTool,
+    analyze_media: analyzeMediaTool,
     send_reply: sendReplyTool,
     get_conversation_state: getConversationStateTool,
     list_my_conversations: listConversationsTool,

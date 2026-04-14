@@ -1,3 +1,4 @@
+export { analyzeMediaTool } from './analyze-media';
 export { bookSlotTool } from './book-slot';
 export { cancelBookingTool } from './cancel-booking';
 export { checkAvailabilityTool } from './check-availability';
