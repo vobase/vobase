@@ -4,7 +4,6 @@
  * Initialized lazily via initMastra() called from the AI module init hook,
  * after setAiModuleDeps() has wired the db and scheduler.
  */
-import { openai } from '@ai-sdk/openai';
 import { Mastra } from '@mastra/core';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
@@ -16,6 +15,7 @@ import { getMastraAgents } from './agents';
 import { buildCustomScorer } from './evals/custom-scorer-factory';
 import { scorers } from './evals/scorers';
 import { models } from './lib/models';
+import { agentModel, getEmbeddingModel } from './lib/provider';
 import { VobaseMemoryStorage } from './storage/vobase-memory';
 import {
   bookSlotTool,
@@ -96,7 +96,7 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
   memoryInstance = new Memory({
     storage: compositeStore,
     vector: pgVector,
-    embedder: openai.embedding('text-embedding-3-small'),
+    embedder: getEmbeddingModel(models.gpt_embedding),
     options: {
       lastMessages: 20,
       semanticRecall: {
@@ -109,7 +109,7 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
       },
       observationalMemory: {
         enabled: true,
-        model: models.gemini_flash,
+        model: agentModel(models.gpt_mini),
         scope: 'resource',
       },
     },

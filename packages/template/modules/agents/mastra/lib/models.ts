@@ -10,8 +10,8 @@ export const models = {
   gpt_standard: 'openai/gpt-5.4',
   claude_haiku: 'anthropic/claude-haiku-4-5',
   claude_sonnet: 'anthropic/claude-sonnet-4-6',
-  gemini_flash: 'google/gemini-3-flash-preview',
-  gemini_pro: 'google/gemini-3.1-pro-preview',
+  gemini_flash: 'gemini/gemini-3-flash-preview',
+  gemini_pro: 'gemini/gemini-3.1-pro-preview',
 } as const;
 
 /** Embedding dimensions for text-embedding-3-small. */
