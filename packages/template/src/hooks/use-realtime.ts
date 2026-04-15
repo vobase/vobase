@@ -87,6 +87,15 @@ export function useRealtimeInvalidation() {
       // (inbox view uses contact-timeline key, not conversations-messages)
       if (payload.table === 'conversations-messages') {
         queryClient.invalidateQueries({ queryKey: ['contact-timeline'] });
+        if (payload.id) {
+          queryClient.invalidateQueries({
+            queryKey: ['conversation-scores', payload.id],
+          });
+        } else {
+          queryClient.invalidateQueries({
+            queryKey: ['conversation-scores'],
+          });
+        }
       }
     });
 

@@ -1,6 +1,7 @@
 import {
   BotIcon,
   CornerUpLeftIcon,
+  LockIcon,
   ShieldCheckIcon,
   UserIcon,
 } from 'lucide-react';
@@ -11,6 +12,10 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
+import {
+  MessageQualityIndicator,
+  type MessageScoreGroup,
+} from '@/components/chat/message-quality';
 import { ChannelBadge } from '@/components/conversation-badges';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +24,6 @@ import { cn } from '@/lib/utils';
 import { DeliveryStatus } from './delivery-status';
 import { MediaContent, parseMedia } from './media-content';
 import { MessageReactions } from './message-reactions';
-import { PrivateNoteWrapper } from './private-note-wrapper';
 import type { MessageRow, SenderInfo } from './types';
 import {
   isWhatsAppContent,
@@ -41,6 +45,8 @@ interface OutgoingMessageProps {
   align?: 'left' | 'right';
   /** Channel type — shown as badge when contact uses multiple channels. */
   channelType?: string | null;
+  /** Quality scores to display below agent messages. */
+  scores?: MessageScoreGroup | null;
 }
 
 export const OutgoingMessage = memo(function OutgoingMessage({
@@ -51,6 +57,7 @@ export const OutgoingMessage = memo(function OutgoingMessage({
   className,
   align = 'left',
   channelType,
+  scores,
 }: OutgoingMessageProps) {
   const isAgent = message.senderType === 'agent';
   const isStaff = message.senderType === 'user';
@@ -71,10 +78,28 @@ export const OutgoingMessage = memo(function OutgoingMessage({
 
   const SenderIcon = isAgent ? BotIcon : isStaff ? UserIcon : ShieldCheckIcon;
 
+  const isFailed = message.status === 'failed';
   const hasWhatsApp = isWhatsAppContent(message);
 
+  const bubbleClass = cn(
+    'rounded-lg',
+    isPrivate ? 'px-2.5 py-1.5' : 'px-3 py-2',
+    isFailed && 'border border-destructive/30 bg-destructive/5',
+    !isFailed &&
+      isPrivate &&
+      'border border-violet-200 bg-violet-50/80 dark:border-violet-800 dark:bg-violet-950/30',
+    !isFailed && !isPrivate && isAgent && 'bg-primary/10',
+    !isFailed && !isPrivate && !isAgent && 'bg-muted/40',
+  );
+
   const content = (
-    <MessageContent>
+    <MessageContent className={bubbleClass}>
+      {isPrivate && (
+        <div className="flex items-center gap-1.5 text-xs font-medium text-violet-600 dark:text-violet-400">
+          <LockIcon className="size-3" />
+          Internal note
+        </div>
+      )}
       {isWithdrawn ? (
         <span className="text-sm text-muted-foreground italic">
           Message withdrawn
@@ -91,6 +116,11 @@ export const OutgoingMessage = memo(function OutgoingMessage({
             media={parseMedia(message.contentData)}
           />
         </>
+      )}
+      {isFailed && message.failureReason && (
+        <span className="text-xs text-destructive">
+          {message.failureReason}
+        </span>
       )}
     </MessageContent>
   );
@@ -153,27 +183,6 @@ export const OutgoingMessage = memo(function OutgoingMessage({
     </div>
   );
 
-  const isFailed = message.status === 'failed';
-
-  const bodyInner = isPrivate ? (
-    <PrivateNoteWrapper>{content}</PrivateNoteWrapper>
-  ) : (
-    content
-  );
-
-  const body = isFailed ? (
-    <div className="border border-destructive/30 bg-destructive/5 rounded-lg p-3 flex flex-col gap-1">
-      {bodyInner}
-      {message.failureReason && (
-        <span className="text-xs text-destructive">
-          {message.failureReason}
-        </span>
-      )}
-    </div>
-  ) : (
-    bodyInner
-  );
-
   const reactions = Array.isArray(message.contentData?.reactions) && (
     <MessageReactions
       reactions={
@@ -195,7 +204,7 @@ export const OutgoingMessage = memo(function OutgoingMessage({
         <div className="flex items-end gap-2 justify-end">
           <div className="flex flex-col items-end gap-1 min-w-0">
             {meta}
-            {body}
+            {content}
             {reactions}
             {echoAttribution}
           </div>
@@ -211,7 +220,10 @@ export const OutgoingMessage = memo(function OutgoingMessage({
         {avatar}
         <div className="flex flex-col gap-1 min-w-0">
           {meta}
-          {body}
+          {content}
+          {isAgent && scores && scores.scores.length > 0 && (
+            <MessageQualityIndicator group={scores} />
+          )}
           {reactions}
           {echoAttribution}
         </div>

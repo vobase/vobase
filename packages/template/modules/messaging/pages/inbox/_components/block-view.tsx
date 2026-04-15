@@ -1,6 +1,7 @@
 import { CircleAlertIcon } from 'lucide-react';
 import { memo } from 'react';
 
+import type { MessageScoreGroup } from '@/components/chat/message-quality';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConversationBlock } from '../../conversations/_components/conversation-block';
 import type {
@@ -29,6 +30,8 @@ interface BlockViewProps {
     },
   ) => void;
   onRetry: (conversationId: string, messageId: string) => void;
+  /** Quality scores per conversation. */
+  scoresMap?: Map<string, MessageScoreGroup>;
 }
 
 export const BlockView = memo(function BlockView({
@@ -43,6 +46,7 @@ export const BlockView = memo(function BlockView({
   onToggleBlock,
   onUpdateConversation,
   onRetry,
+  scoresMap,
 }: BlockViewProps) {
   return (
     <div className="flex-1 overflow-y-auto">
@@ -71,6 +75,7 @@ export const BlockView = memo(function BlockView({
                   )
                 }
                 onRetryMessage={(messageId) => onRetry(conv.id, messageId)}
+                scores={scoresMap?.get(conv.id)}
               />
             </div>
           );

@@ -1,6 +1,7 @@
 import { CheckIcon, PauseIcon, PlayIcon } from 'lucide-react';
 import { memo, type RefObject } from 'react';
 
+import type { MessageScoreGroup } from '@/components/chat/message-quality';
 import { AssigneeBadge } from '@/components/conversation-badges';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,6 +42,8 @@ interface FlatTimelineProps {
   replyError: boolean;
   newConversationPending: boolean;
   newConversationError: boolean;
+  /** Quality scores per conversation. */
+  scoresMap?: Map<string, MessageScoreGroup>;
 }
 
 export const FlatTimeline = memo(function FlatTimeline({
@@ -63,6 +66,7 @@ export const FlatTimeline = memo(function FlatTimeline({
   replyError,
   newConversationPending,
   newConversationError,
+  scoresMap,
 }: FlatTimelineProps) {
   return (
     <div className="flex flex-1 flex-col min-h-0">
@@ -123,7 +127,7 @@ export const FlatTimeline = memo(function FlatTimeline({
 
       {/* Flat message stream */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="px-4 py-4 flex flex-col gap-3">
+        <div className="px-4 py-4 flex flex-col gap-6">
           {filterAndSortMessages(channelFlatMessages).map((msg, idx, arr) => {
             const msgDate = new Date(msg.createdAt).toDateString();
             const prevDate =
@@ -160,12 +164,9 @@ export const FlatTimeline = memo(function FlatTimeline({
                   currentUserId={currentUserId}
                   channelType={filteredConversations[0]?.channelType ?? 'web'}
                   onRetry={(messageId) => {
-                    onRetry(
-                      (msg as MessageRow & { _conversationId: string })
-                        ._conversationId,
-                      messageId,
-                    );
+                    onRetry(msg._conversationId, messageId);
                   }}
+                  scores={scoresMap?.get(msg._conversationId)}
                 />
               </div>
             );

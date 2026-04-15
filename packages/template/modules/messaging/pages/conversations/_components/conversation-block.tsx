@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
+import type { MessageScoreGroup } from '@/components/chat/message-quality';
 import {
   AssigneeBadge,
   PriorityBadge,
@@ -70,6 +71,8 @@ interface ConversationBlockProps {
     onHold?: boolean;
   }) => void;
   onRetryMessage: (messageId: string) => void;
+  /** Quality scores for this conversation's agent messages. */
+  scores?: MessageScoreGroup | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────
@@ -85,6 +88,7 @@ export const ConversationBlock = memo(function ConversationBlock({
   onToggle,
   onUpdateConversation,
   onRetryMessage,
+  scores,
 }: ConversationBlockProps) {
   const [showAll, setShowAll] = useState(false);
   const [_replyTo, setReplyTo] = useState<ReplyToMessage | null>(null);
@@ -239,7 +243,7 @@ export const ConversationBlock = memo(function ConversationBlock({
 
         {/* Body */}
         {isExpanded ? (
-          <div className="border-t px-3 py-3 flex flex-col gap-4 animate-in fade-in-0 slide-in-from-top-1 duration-150">
+          <div className="border-t px-3 py-3 flex flex-col gap-6 animate-in fade-in-0 slide-in-from-top-1 duration-150">
             {exceedsThreshold && (
               <div className="flex justify-center">
                 <Button
@@ -261,6 +265,7 @@ export const ConversationBlock = memo(function ConversationBlock({
                 channelType={conversation.channelType}
                 onRetry={onRetryMessage}
                 onReplyClick={handleReplyClick}
+                scores={scores}
               />
             ))}
           </div>
@@ -297,6 +302,7 @@ export const BlockMessageItem = memo(function BlockMessageItem({
   channelType,
   onRetry,
   onReplyClick,
+  scores,
 }: {
   message: MessageRow;
   senderMap: Map<string, SenderInfo>;
@@ -308,6 +314,7 @@ export const BlockMessageItem = memo(function BlockMessageItem({
     senderName: string,
     contentPreview: string,
   ) => void;
+  scores?: MessageScoreGroup | null;
 }) {
   const sender = senderMap.get(message.senderId);
 
@@ -353,6 +360,7 @@ export const BlockMessageItem = memo(function BlockMessageItem({
       sender={sender}
       onRetry={onRetry}
       onReplyClick={onReplyClick}
+      scores={scores}
     />
   );
 });

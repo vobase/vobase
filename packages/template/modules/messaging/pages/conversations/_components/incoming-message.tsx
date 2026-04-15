@@ -83,7 +83,7 @@ export const IncomingMessage = memo(function IncomingMessage({
           </div>
           <MessageContent
             className={cn(
-              'rounded-lg bg-muted/50 px-3 py-2',
+              'rounded-lg bg-muted px-3 py-2',
               isWithdrawn && 'opacity-50 italic',
             )}
           >

@@ -2,7 +2,9 @@ import { isTimelineVisibleEvent } from '@/lib/activity-helpers';
 import type { MessageRow } from '../pages/conversations/_components/types';
 
 /** Filter out invisible activity events and sort by creation time (ascending). */
-export function filterAndSortMessages(messages: MessageRow[]): MessageRow[] {
+export function filterAndSortMessages<T extends MessageRow>(
+  messages: T[],
+): T[] {
   return [...messages]
     .filter(
       (msg) =>

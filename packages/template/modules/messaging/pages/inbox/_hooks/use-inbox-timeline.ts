@@ -128,10 +128,7 @@ export function useInboxTimeline(
   const selectedTabChannelId = useMemo(() => {
     if (channels.length === 0) return null;
     if (channelTabOverride === CHANNEL_TAB_ALL) return null;
-    if (
-      channelTabOverride &&
-      channels.some((c) => c.id === channelTabOverride)
-    )
+    if (channelTabOverride && channels.some((c) => c.id === channelTabOverride))
       return channelTabOverride;
     if (channels.length === 1) return channels[0].id;
     // Multi-channel, no valid override — pick most recently active

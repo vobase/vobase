@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { parseAsString, useQueryState } from 'nuqs';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { authClient } from '@/lib/auth-client';
@@ -9,6 +9,7 @@ import { BlockView } from './_components/block-view';
 import { ChannelTabBar } from './_components/channel-tab-bar';
 import { FlatTimeline } from './_components/flat-timeline';
 import { InboxSidebar } from './_components/inbox-sidebar';
+import { useConversationScores } from './_hooks/use-conversation-scores';
 import {
   markContactRead,
   useInboxMutations,
@@ -78,6 +79,16 @@ function InboxDetailPage() {
     newConversationMutation,
     retryMutation,
   } = useInboxMutations(contactId);
+
+  // Fetch quality scores only for visible conversations
+  const visibleConversationIds = useMemo(
+    () =>
+      (effectiveChannelId ? filteredConversations : allConversations).map(
+        (c) => c.id,
+      ),
+    [effectiveChannelId, filteredConversations, allConversations],
+  );
+  const scoresMap = useConversationScores(visibleConversationIds);
 
   // ── Scroll to bottom on channel tab switch ─────────────────────────
   const channelScrollRef = useRef<HTMLDivElement>(null);
@@ -271,6 +282,7 @@ function InboxDetailPage() {
             replyError={replyMutation.isError}
             newConversationPending={newConversationMutation.isPending}
             newConversationError={newConversationMutation.isError}
+            scoresMap={scoresMap}
           />
         ) : (
           <BlockView
@@ -292,6 +304,7 @@ function InboxDetailPage() {
                 messageId,
               })
             }
+            scoresMap={scoresMap}
           />
         )}
       </div>

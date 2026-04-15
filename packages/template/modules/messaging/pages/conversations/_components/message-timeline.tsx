@@ -12,6 +12,7 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
+import type { MessageScoreGroup } from '@/components/chat/message-quality';
 import { Button } from '@/components/ui/button';
 import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { formatDate } from '@/lib/format';
@@ -111,6 +112,8 @@ interface MessageTimelineProps {
   currentUserId?: string;
   /** When true, shows channel badge on each message (multi-channel contacts). */
   isMultiChannel?: boolean;
+  /** Quality scores per conversation ID for agent messages. */
+  scoresMap?: Map<string, MessageScoreGroup>;
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -129,6 +132,7 @@ export const MessageTimeline = memo(function MessageTimeline({
   activeConversationId,
   currentUserId,
   isMultiChannel,
+  scoresMap,
 }: MessageTimelineProps) {
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const currentAnchorRef = useRef<HTMLDivElement>(null);
@@ -409,7 +413,7 @@ export const MessageTimeline = memo(function MessageTimeline({
                 )}
 
                 {/* Messages with inline date separators */}
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-6">
                   {group.items.map((item) =>
                     item.type === 'date' ? (
                       <div key={`date-${item.date}`}>
@@ -423,6 +427,7 @@ export const MessageTimeline = memo(function MessageTimeline({
                         onRetry={onRetryMessage}
                         currentUserId={currentUserId}
                         isMultiChannel={isMultiChannel}
+                        scores={scoresMap?.get(item.msg.conversationId)}
                       />
                     ),
                   )}
@@ -452,12 +457,14 @@ const MessageItem = memo(function MessageItem({
   onRetry,
   currentUserId,
   isMultiChannel,
+  scores,
 }: {
   message: MessageRow;
   senderMap?: Map<string, SenderInfo>;
   onRetry?: (messageId: string) => void;
   currentUserId?: string;
   isMultiChannel?: boolean;
+  scores?: MessageScoreGroup | null;
 }) {
   const sender = senderMap?.get(message.senderId);
 
@@ -503,6 +510,7 @@ const MessageItem = memo(function MessageItem({
       sender={sender}
       onRetry={onRetry}
       channelType={channelType}
+      scores={scores}
     />
   );
 });
