@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 
 import { agentsClient, messagingClient } from '@/lib/api-client';
 import { extractStaffName } from '@/lib/normalize-message';
+import { CHANNEL_TAB_ALL } from '@/stores/inbox-detail-store';
 import type {
   MessageRow,
   SenderInfo,
@@ -70,7 +71,7 @@ async function fetchAgents(): Promise<AgentInfo[]> {
 
 export function useInboxTimeline(
   contactId: string,
-  selectedTabChannelId: string | null,
+  channelTabOverride: string | null,
   session: {
     user?: { id: string; name?: string; email: string; image?: string | null };
   } | null,
@@ -117,6 +118,34 @@ export function useInboxTimeline(
     () => timelineData?.pages[0]?.channels ?? [],
     [timelineData],
   );
+
+  // Resolve effective channel: validate override against current channels,
+  // fall back to single channel or most recently active.
+  // channelTabOverride values:
+  //   null  = no user selection yet → auto-select
+  //   CHANNEL_TAB_ALL = user explicitly chose "All" tab → null (show all)
+  //   string = user chose a specific channel
+  const selectedTabChannelId = useMemo(() => {
+    if (channels.length === 0) return null;
+    if (channelTabOverride === CHANNEL_TAB_ALL) return null;
+    if (
+      channelTabOverride &&
+      channels.some((c) => c.id === channelTabOverride)
+    )
+      return channelTabOverride;
+    if (channels.length === 1) return channels[0].id;
+    // Multi-channel, no valid override — pick most recently active
+    const activity = new Map<string, number>();
+    for (const conv of allConversations) {
+      const t = new Date(conv.startedAt).getTime();
+      const cur = activity.get(conv.channelInstanceId) ?? 0;
+      if (t > cur) activity.set(conv.channelInstanceId, t);
+    }
+    const sorted = [...channels].sort(
+      (a, b) => (activity.get(b.id) ?? 0) - (activity.get(a.id) ?? 0),
+    );
+    return sorted[0]?.id ?? null;
+  }, [channelTabOverride, channels, allConversations]);
 
   const sortedConversations = useMemo(
     () =>
@@ -220,6 +249,7 @@ export function useInboxTimeline(
     allMessages,
     allConversations,
     channels,
+    effectiveChannelId: selectedTabChannelId,
     sortedConversations,
     filteredConversations,
     messagesByConversation,

@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 
 import { ChannelBadge } from '@/components/conversation-badges';
+import { CHANNEL_TAB_ALL } from '@/stores/inbox-detail-store';
 import type { TimelineConversationFull } from '../../conversations/_components/types';
 
 interface Channel {
@@ -57,7 +58,7 @@ export const ChannelTabBar = memo(function ChannelTabBar({
         ))}
         <button
           type="button"
-          onClick={() => onSelectTab(null)}
+          onClick={() => onSelectTab(CHANNEL_TAB_ALL)}
           className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
             selectedChannelId === null
               ? 'border-primary text-foreground'

@@ -28,10 +28,6 @@ function InboxDetailPage() {
   }, [sidebarOpen]);
 
   // ── URL state (nuqs) ───────────────────────────────────────────────
-  const [channel, setChannel] = useQueryState(
-    'channel',
-    parseAsString.withOptions({ history: 'replace' }),
-  );
   const [conversation, setConversation] = useQueryState(
     'conversation',
     parseAsString.withOptions({ history: 'replace' }),
@@ -46,6 +42,8 @@ function InboxDetailPage() {
   const expandBlock = useInboxDetailStore((s) => s.expandBlock);
   const switchContact = useInboxDetailStore((s) => s.switchContact);
   const storeContactId = useInboxDetailStore((s) => s.contactId);
+  const channelTab = useInboxDetailStore((s) => s.channelTab);
+  const setChannelTab = useInboxDetailStore((s) => s.setChannelTab);
 
   // Switch contact atomically when URL changes
   useEffect(() => {
@@ -54,7 +52,6 @@ function InboxDetailPage() {
     }
   }, [contactId, storeContactId, switchContact]);
 
-  // ── Extracted hooks ───────────────────────────────────────────────
   const {
     contact,
     contactLoading,
@@ -62,6 +59,7 @@ function InboxDetailPage() {
     allMessages,
     allConversations,
     channels,
+    effectiveChannelId,
     sortedConversations,
     filteredConversations,
     messagesByConversation,
@@ -72,7 +70,7 @@ function InboxDetailPage() {
     senderMap,
     hasNextPage,
     agents,
-  } = useInboxTimeline(contactId, channel, session);
+  } = useInboxTimeline(contactId, channelTab, session);
 
   const {
     replyMutation,
@@ -81,34 +79,15 @@ function InboxDetailPage() {
     retryMutation,
   } = useInboxMutations(contactId);
 
-  // ── Auto-select first channel tab ─────────────────────────────────
-  const autoSelectedTabRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (channels.length > 0 && autoSelectedTabRef.current !== contactId) {
-      autoSelectedTabRef.current = contactId;
-      const channelActivity = new Map<string, number>();
-      for (const conv of allConversations) {
-        const t = new Date(conv.startedAt).getTime();
-        const current = channelActivity.get(conv.channelInstanceId) ?? 0;
-        if (t > current) channelActivity.set(conv.channelInstanceId, t);
-      }
-      const sorted = [...channels].sort(
-        (a, b) =>
-          (channelActivity.get(b.id) ?? 0) - (channelActivity.get(a.id) ?? 0),
-      );
-      setChannel(sorted[0]?.id ?? null);
-    }
-  }, [channels, contactId, allConversations, setChannel]);
-
   // ── Scroll to bottom on channel tab switch ─────────────────────────
   const channelScrollRef = useRef<HTMLDivElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on tab switch / new messages
   useEffect(() => {
-    if (channelScrollRef.current && channel) {
+    if (channelScrollRef.current && effectiveChannelId) {
       channelScrollRef.current.scrollTop =
         channelScrollRef.current.scrollHeight;
     }
-  }, [channel, channelFlatMessages.length]);
+  }, [effectiveChannelId, channelFlatMessages.length]);
 
   // ── Effects ────────────────────────────────────────────────────────
 
@@ -247,19 +226,19 @@ function InboxDetailPage() {
         <ChannelTabBar
           channels={channels}
           allConversations={allConversations}
-          selectedChannelId={channel}
-          onSelectTab={setChannel}
+          selectedChannelId={effectiveChannelId}
+          onSelectTab={setChannelTab}
         />
 
         {/* ─── Content area ─── */}
-        {channel ? (
+        {effectiveChannelId ? (
           <FlatTimeline
             channelFlatMessages={channelFlatMessages}
             conversationBoundaries={conversationBoundaries}
             filteredConversations={filteredConversations}
             activeChannelConversation={activeChannelConversation}
             selectedChannel={selectedChannel}
-            channelId={channel}
+            channelId={effectiveChannelId}
             senderMap={senderMap}
             currentUserId={session?.user?.id}
             agents={agents}
