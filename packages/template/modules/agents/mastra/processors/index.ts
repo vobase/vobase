@@ -8,13 +8,12 @@ import type { InputProcessorOrWorkflow } from '@mastra/core/processors';
 import type { RequestContext } from '@mastra/core/request-context';
 
 import type { ModuleDeps } from '../../../messaging/lib/deps';
-import { createConversationSyncProcessor } from './conversation-sync';
 import { createModerationProcessor } from './moderation';
 import { createModerationLogger } from './moderation-logger';
 
 /**
  * Dynamic input processors: moderation only.
- * Memory recall is now handled by Mastra Memory's built-in semantic recall + OM.
+ * ConversationSync replaced by workspace filesystem materialization.
  * Returns empty array in Studio context (no requestContext).
  */
 export function resolveInputProcessors({
@@ -28,7 +27,7 @@ export function resolveInputProcessors({
     | undefined;
   if (!conversationId) return [];
 
-  const deps = requestContext.get('deps') as ModuleDeps | undefined;
+  const deps = requestContext?.get?.('deps') as ModuleDeps | undefined;
   if (!deps) return [];
 
   const agentId =
@@ -38,7 +37,6 @@ export function resolveInputProcessors({
   const contactId = requestContext.get('contactId') as string | undefined;
 
   return [
-    createConversationSyncProcessor(),
     createModerationProcessor(
       undefined,
       createModerationLogger(deps.db, {

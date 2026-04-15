@@ -1,11 +1,41 @@
 import { nanoidPrimaryKey } from '@vobase/core/schema';
-import { index, pgSchema, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, pgSchema, text, timestamp, unique } from 'drizzle-orm/pg-core';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AI pgSchema — moderation
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export const agentsPgSchema = pgSchema('agents');
+
+/**
+ * WorkspaceFiles — virtual filesystem backing store for agent workspaces.
+ * Global files (AGENTS.md, SOUL.md, skills/) have agentId=null, contactId=null.
+ * Per-contact files (notes.md) are scoped by agentId + contactId.
+ */
+export const workspaceFiles = agentsPgSchema.table(
+  'workspace_files',
+  {
+    id: nanoidPrimaryKey(),
+    agentId: text('agent_id'), // null = global file
+    contactId: text('contact_id'), // null = non-contact-scoped
+    path: text('path').notNull(),
+    content: text('content').notNull(),
+    writtenBy: text('written_by'), // 'agent', 'admin', 'system', 'migration'
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique('workspace_files_scope_path_idx')
+      .on(table.agentId, table.contactId, table.path)
+      .nullsNotDistinct(),
+    index('workspace_files_agent_idx').on(table.agentId),
+    index('workspace_files_contact_idx').on(table.contactId),
+  ],
+);
 
 /**
  * ModerationLogs — records content blocked by the moderation guardrail.

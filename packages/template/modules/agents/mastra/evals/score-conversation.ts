@@ -8,8 +8,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { MastraScorer } from '@mastra/core/evals';
-import { logger } from '@vobase/core';
 import type { VobaseDb } from '@vobase/core';
+import { logger } from '@vobase/core';
 import { and, desc, eq, gte } from 'drizzle-orm';
 
 import { messages } from '../../../messaging/schema';

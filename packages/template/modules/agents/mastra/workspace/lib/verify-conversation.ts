@@ -1,7 +1,6 @@
+import type { ModuleDeps } from '@modules/messaging/lib/deps';
+import { channelInstances, conversations } from '@modules/messaging/schema';
 import { eq } from 'drizzle-orm';
-
-import type { ModuleDeps } from '../../../messaging/lib/deps';
-import { channelInstances, conversations } from '../../../messaging/schema';
 
 /**
  * Verify a conversation exists and belongs to the given contact.

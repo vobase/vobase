@@ -1,3 +1,4 @@
+import type { CardElement } from '@modules/messaging/lib/card-serialization';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useParams } from '@tanstack/react-router';
 import { ArrowUpIcon, Bot } from 'lucide-react';
@@ -20,7 +21,6 @@ import {
 } from '@/hooks/use-realtime';
 import { agentsClient } from '@/lib/api-client';
 import { extractText } from '@/lib/normalize-message';
-import type { CardElement } from '@modules/messaging/lib/card-serialization';
 
 // ─── Types ──────────────────────────────────────────────────────────
 

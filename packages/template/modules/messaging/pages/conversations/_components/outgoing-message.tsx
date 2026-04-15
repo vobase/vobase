@@ -1,3 +1,4 @@
+import type { CardElement } from '@modules/messaging/lib/card-serialization';
 import {
   BotIcon,
   CornerUpLeftIcon,
@@ -22,7 +23,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { cn } from '@/lib/utils';
-import type { CardElement } from '@modules/messaging/lib/card-serialization';
 import { DeliveryStatus } from './delivery-status';
 import { MediaContent, parseMedia } from './media-content';
 import { MessageReactions } from './message-reactions';

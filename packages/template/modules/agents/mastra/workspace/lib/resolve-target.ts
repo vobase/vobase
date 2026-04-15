@@ -1,8 +1,7 @@
+import { contacts } from '@modules/messaging/schema';
 import type { VobaseDb } from '@vobase/core';
 import { authUser } from '@vobase/core';
 import { eq, sql } from 'drizzle-orm';
-
-import { contacts } from '../../../messaging/schema';
 
 type TargetType = 'role' | 'user' | 'agent';
 
@@ -11,9 +10,19 @@ interface ResolveTargetInput {
   value: string;
 }
 
+/** Parse a "type:value" target spec string (e.g. "role:operations") into { type, value }. */
+export function parseTargetSpec(spec: string): ResolveTargetInput | null {
+  const colon = spec.indexOf(':');
+  if (colon === -1) return null;
+  const type = spec.slice(0, colon);
+  const value = spec.slice(colon + 1);
+  if (!['role', 'user', 'agent'].includes(type) || !value) return null;
+  return { type: type as TargetType, value };
+}
+
 /**
  * Resolve a target specifier to a concrete ID:
- * - role: query staff contacts where metadata.roles contains value, return userId from authUser
+ * - role: query staff contacts where metadata contains value, return userId from authUser
  * - user: return value as-is (already a userId)
  * - agent: return "agent:{value}"
  */

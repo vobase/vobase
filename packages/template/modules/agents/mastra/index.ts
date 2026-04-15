@@ -9,7 +9,6 @@ import { MastraCompositeStore } from '@mastra/core/storage';
 import { Memory } from '@mastra/memory';
 import { PgVector, PostgresStore } from '@mastra/pg';
 import type { VobaseDb } from '@vobase/core';
-import { z } from 'zod';
 
 import { getMastraAgents } from './agents';
 import { buildCustomScorer } from './evals/custom-scorer-factory';
@@ -17,39 +16,6 @@ import { scorers } from './evals/scorers';
 import { models } from './lib/models';
 import { agentModel, getEmbeddingModel } from './lib/provider';
 import { VobaseMemoryStorage } from './storage/vobase-memory';
-import {
-  bookSlotTool,
-  cancelBookingTool,
-  checkAvailabilityTool,
-  rescheduleBookingTool,
-  searchKnowledgeBaseTool,
-  sendReminderTool,
-} from './tools';
-
-/**
- * Working memory schema for the booking domain.
- * The agent updates this structured data via tool calls during a conversation.
- * Stored per-resource (contact) and persisted across threads.
- */
-const contactWorkingMemorySchema = z.object({
-  customerName: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().optional(),
-  preferredTimes: z.array(z.string()).optional(),
-  servicePreferences: z.array(z.string()).optional(),
-  bookingHistory: z
-    .array(
-      z.object({
-        date: z.string(),
-        service: z.string(),
-        status: z.enum(['completed', 'cancelled', 'no-show']),
-      }),
-    )
-    .optional(),
-  notes: z.string().optional(),
-  language: z.string().optional(),
-  lastConversationSummary: z.string().optional(),
-});
 
 let mastraInstance: Mastra | undefined;
 let memoryInstance: Memory | undefined;
@@ -98,17 +64,11 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
     vector: pgVector,
     embedder: getEmbeddingModel(models.gpt_embedding),
     options: {
-      lastMessages: 20,
-      semanticRecall: {
-        topK: 5,
-        messageRange: { before: 1, after: 1 },
-      },
-      workingMemory: {
-        enabled: true,
-        schema: contactWorkingMemorySchema,
-      },
+      lastMessages: false, // Agent reads conversation/messages.md instead
+      semanticRecall: false, // Agent uses vobase recall on demand
+      workingMemory: { enabled: false }, // Replaced by contact/notes.md
       observationalMemory: {
-        enabled: true,
+        enabled: true, // Essential: compresses agent reasoning thread
         model: agentModel(models.gpt_mini),
         scope: 'resource',
       },
@@ -117,14 +77,7 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
 
   mastraInstance = new Mastra({
     agents: getMastraAgents(),
-    tools: {
-      search_knowledge_base: searchKnowledgeBaseTool,
-      check_availability: checkAvailabilityTool,
-      book_slot: bookSlotTool,
-      cancel_booking: cancelBookingTool,
-      reschedule_booking: rescheduleBookingTool,
-      send_reminder: sendReminderTool,
-    },
+    tools: {},
     workflows: {},
     memory: { 'agent-memory': memoryInstance },
     storage: compositeStore,
