@@ -61,8 +61,10 @@ const updateScorerSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
-/** COALESCE(threadId, requestContext->>'conversationId') — resolves conversation ID from Mastra scorer data */
-const conversationIdSql = sql<string>`COALESCE(${mastraScorers.threadId}, ${mastraScorers.requestContext}->>'conversationId')`;
+/** Extract bare conversation ID from Mastra scorer data.
+ * threadId format is 'agent-{agentId}-conv-{conversationId}' — extract after 'conv-'.
+ * Falls back to requestContext->>'conversationId' if threadId has no match. */
+const conversationIdSql = sql<string>`COALESCE(SUBSTRING(${mastraScorers.threadId} FROM 'conv-(.+)$'), ${mastraScorers.requestContext}->>'conversationId')`;
 
 /**
  * Safely execute a query against mastra_scorers.
