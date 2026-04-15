@@ -79,11 +79,11 @@ export function MessageQualityIndicator({
         <p className="text-xs font-medium text-foreground mb-2">
           Quality Scores
         </p>
-        <div className="space-y-1.5">
+        <div className="space-y-3">
           {group.scores.map((s) => (
             <div key={s.scorerId} className="flex flex-col gap-0.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs font-medium text-muted-foreground">
                   {formatScorerLabel(s.scorerId)}
                 </span>
                 <span
@@ -99,7 +99,7 @@ export function MessageQualityIndicator({
                 />
               </div>
               {s.reason && (
-                <p className="text-[10px] text-muted-foreground leading-tight">
+                <p className="text-xs text-muted-foreground leading-snug">
                   {s.reason}
                 </p>
               )}
