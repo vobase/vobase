@@ -21,20 +21,9 @@ interface UsePublicChatResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function getStoredConversationId(channelRoutingId: string): string | null {
-  return localStorage.getItem(`vobase-conversation-${channelRoutingId}`);
-}
-
-function storeConversationId(channelRoutingId: string, conversationId: string) {
-  localStorage.setItem(
-    `vobase-conversation-${channelRoutingId}`,
-    conversationId,
-  );
-}
-
 /**
  * Ensure the visitor has an anonymous session.
- * If already signed in (anonymous or real), returns the existing session.
+ * If already signed in (anonymous or real), keeps the existing session.
  * Otherwise, signs in anonymously via better-auth.
  */
 async function ensureAnonymousSession(): Promise<void> {
@@ -45,6 +34,11 @@ async function ensureAnonymousSession(): Promise<void> {
 
 // ─── Hook ─────────────────────────────────────────────────────────────
 
+/**
+ * Manages the public chat lifecycle: session → start/resume conversation.
+ * No localStorage — the `/start` endpoint is idempotent: it returns the
+ * existing active conversation for the current session user, or creates one.
+ */
 export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,33 +51,8 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
     initRef.current = true;
 
     try {
-      // Sign in anonymously if no session exists
       await ensureAnonymousSession();
 
-      const storedId = getStoredConversationId(channelRoutingId);
-
-      // Try to resume existing conversation
-      if (storedId) {
-        try {
-          const res = await agentsClient.chat[
-            ':channelRoutingId'
-          ].conversations[':conversationId'].$get({
-            param: {
-              channelRoutingId,
-              conversationId: storedId,
-            },
-          });
-          if (res.ok) {
-            setConversationId(storedId);
-            setLoading(false);
-            return;
-          }
-        } catch {
-          // Failed to resume — start fresh
-        }
-      }
-
-      // Start new conversation
       const startRes = await agentsClient.chat[':channelRoutingId'].start.$post(
         {
           param: { channelRoutingId },
@@ -106,7 +75,6 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       }
 
       const startData = (await startRes.json()) as StartResponse;
-      storeConversationId(channelRoutingId, startData.conversationId);
       setConversationId(startData.conversationId);
       setLoading(false);
     } catch {
@@ -139,7 +107,6 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
       }
 
       const data = (await res.json()) as StartResponse;
-      storeConversationId(channelRoutingId, data.conversationId);
       setConversationId(data.conversationId);
       setLoading(false);
     } catch {

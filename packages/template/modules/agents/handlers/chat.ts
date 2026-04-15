@@ -70,20 +70,14 @@ async function upsertContact(
 ): Promise<string> {
   const identifier = `user:${opts.userId}`;
 
-  // Fast path: existing contact — just touch updatedAt, no sequence wasted
+  // Fast path: existing contact — no sequence wasted
   const existing = await db
     .select({ id: contacts.id })
     .from(contacts)
     .where(eq(contacts.identifier, identifier))
     .limit(1);
 
-  if (existing.length > 0) {
-    await db
-      .update(contacts)
-      .set({ updatedAt: new Date() })
-      .where(eq(contacts.identifier, identifier));
-    return existing[0].id;
-  }
+  if (existing.length > 0) return existing[0].id;
 
   // Slow path: new contact — generate visitor name then insert with
   // onConflictDoUpdate as a safety net against concurrent first-chat races
@@ -498,33 +492,49 @@ export const chatHandlers = new Hono()
     if (!user) throw unauthorized();
     const channelRoutingId = c.req.param('channelRoutingId');
 
-    // Resolve visitor contact from session
-    const [contact] = await db
-      .select({ id: contacts.id })
-      .from(contacts)
-      .where(eq(contacts.identifier, `user:${user.id}`));
-
-    if (!contact) throw unauthorized();
+    // Upsert visitor contact from session
+    const contactId = await upsertContact(db, { userId: user.id });
 
     // Find active or resolving conversation for this visitor + channel routing
-    const [conversation] = await db
+    let [conversation] = await db
       .select()
       .from(conversations)
       .where(
         and(
           eq(conversations.channelRoutingId, channelRoutingId),
-          eq(conversations.contactId, contact.id),
+          eq(conversations.contactId, contactId),
         ),
       )
       .orderBy(desc(conversations.createdAt))
       .limit(1);
 
+    // Auto-create conversation if none exists (e.g. session changed between page load and send)
     if (
       !conversation ||
       conversation.status === 'resolved' ||
       conversation.status === 'failed'
     ) {
-      throw notFound('No active conversation');
+      const [channelRouting] = await db
+        .select()
+        .from(channelRoutings)
+        .where(
+          and(
+            eq(channelRoutings.id, channelRoutingId),
+            eq(channelRoutings.enabled, true),
+          ),
+        );
+
+      if (!channelRouting) throw notFound('Channel routing not found');
+
+      conversation = await createConversation(
+        { db, scheduler, realtime },
+        {
+          channelRoutingId: channelRouting.id,
+          contactId,
+          agentId: channelRouting.agentId,
+          channelInstanceId: channelRouting.channelInstanceId,
+        },
+      );
     }
 
     // Reactivate resolving conversations on new inbound message
@@ -559,7 +569,7 @@ export const chatHandlers = new Hono()
       messageType: 'incoming',
       contentType: 'text',
       content: body.content,
-      senderId: contact.id,
+      senderId: contactId,
       senderType: 'contact',
       channelType: 'web',
     });
@@ -575,7 +585,7 @@ export const chatHandlers = new Hono()
       'agents:agent-wake',
       {
         agentId,
-        contactId: contact.id,
+        contactId,
         conversationId: conversation.id,
         trigger: 'inbound_message' as const,
       },
