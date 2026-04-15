@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { getModuleDeps } from '../../messaging/lib/deps';
 import { channelInstances, conversations } from '../../messaging/schema';
+import { scoreConversation } from '../mastra/evals/score-conversation';
 import { dynamicToolStep } from '../mastra/processors/dynamic-tools';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -98,6 +99,8 @@ export const agentWakeJob = defineJob('agents:agent-wake', async (data) => {
   rc.set('deps', deps);
 
   try {
+    const wakeStart = new Date();
+
     await registered.agent.generate([{ role: 'user', content: wakeMessage }], {
       memory: {
         thread: `agent-${agentId}-conv-${conversationId}`,
@@ -117,6 +120,16 @@ export const agentWakeJob = defineJob('agents:agent-wake', async (data) => {
       conversationId,
       durationMs: Date.now() - start,
     });
+
+    // Score the conversation with real messages (fire-and-forget)
+    scoreConversation({ db, conversationId, agentId, wakeStart }).catch(
+      (err) => {
+        logger.warn('[agent-wake] Scoring failed', {
+          conversationId,
+          error: err,
+        });
+      },
+    );
   } catch (err) {
     logger.error('[agent-wake] Agent generation failed', {
       trigger,

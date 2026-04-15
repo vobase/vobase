@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { memo } from 'react';
 
+import { CardRenderer } from '@/components/ai-elements/card-renderer';
 import {
   Message,
   MessageContent,
@@ -21,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { cn } from '@/lib/utils';
+import type { CardElement } from '@modules/messaging/lib/card-serialization';
 import { DeliveryStatus } from './delivery-status';
 import { MediaContent, parseMedia } from './media-content';
 import { MessageReactions } from './message-reactions';
@@ -106,6 +108,15 @@ export const OutgoingMessage = memo(function OutgoingMessage({
         </span>
       ) : hasWhatsApp ? (
         <WhatsAppOutgoingContent message={message} />
+      ) : message.contentType === 'interactive' &&
+        (message.contentData as Record<string, unknown>)?.card ? (
+        <CardRenderer
+          card={
+            (message.contentData as Record<string, unknown>).card as CardElement
+          }
+          readOnly
+          className="border-0 shadow-none p-0"
+        />
       ) : (
         <>
           {message.content && (

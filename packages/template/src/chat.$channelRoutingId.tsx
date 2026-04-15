@@ -3,6 +3,7 @@ import { createFileRoute, useParams } from '@tanstack/react-router';
 import { ArrowUpIcon, Bot } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { CardRenderer } from '@/components/ai-elements/card-renderer';
 import {
   Message,
   MessageContent,
@@ -19,6 +20,7 @@ import {
 } from '@/hooks/use-realtime';
 import { agentsClient } from '@/lib/api-client';
 import { extractText } from '@/lib/normalize-message';
+import type { CardElement } from '@modules/messaging/lib/card-serialization';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -158,12 +160,17 @@ function PublicChatView({
         <div className="mx-auto max-w-2xl space-y-4">
           {messages.map((msg) => {
             const textContent = extractText(msg.parts);
-            if (!textContent) return null;
+            const cardPart = msg.parts.find(
+              (p: { type: string }) => p.type === 'card',
+            ) as { type: string; card?: CardElement } | undefined;
+
+            if (!textContent && !cardPart) return null;
 
             // Hide system/activity messages (e.g., conversation.created)
             if (msg.role === 'system') return null;
             if (
               msg.role === 'assistant' &&
+              textContent &&
               /^conversation\.\w+$/.test(textContent)
             )
               return null;
@@ -172,10 +179,20 @@ function PublicChatView({
             return (
               <Message key={msg.id} from={from}>
                 <MessageContent>
-                  {from === 'assistant' ? (
+                  {from === 'assistant' && textContent ? (
                     <MessageResponse>{textContent}</MessageResponse>
-                  ) : (
+                  ) : textContent ? (
                     <p>{textContent}</p>
+                  ) : null}
+                  {cardPart?.card && (
+                    <CardRenderer
+                      card={cardPart.card}
+                      onAction={(_actionId, value) => {
+                        // Send the button label as a user message
+                        if (value && !isPending) sendMessage(value);
+                      }}
+                      className="border-0 shadow-none p-0"
+                    />
                   )}
                 </MessageContent>
               </Message>

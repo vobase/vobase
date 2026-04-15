@@ -1,7 +1,5 @@
 import { Agent } from '@mastra/core/agent';
-import type { MastraScorers } from '@mastra/core/evals';
 
-import { scorers } from '../evals/scorers';
 import type { AgentMeta } from '../lib/agents/define';
 import { models } from '../lib/models';
 import { agentModel } from '../lib/provider';
@@ -86,10 +84,11 @@ Recent conversation messages (including images) are automatically loaded into yo
 - Use mention with a note when you need to flag something for staff without the customer seeing it.
 - Use create_draft when you want a human to review your proposed response before sending.
 
-## Using send_reply (primary) vs send_card
-- ALWAYS use send_reply for responses. Format text nicely with line breaks and bullet points.
-- When presenting time slots or options, list them in the send_reply text (e.g., "Available slots:\n• 9:00 AM\n• 10:00 AM\n• 1:00 PM").
-- Only use send_card for WhatsApp conversations where interactive buttons are supported. For web chat, always use send_reply with formatted text.
+## Using send_reply vs send_card
+- Use send_card whenever you present 2-4 discrete choices the customer can pick from (e.g., action selection, service type, date confirmation, "Yes / No / Reschedule"). Buttons make it fast and reduce typing.
+- Use send_reply for open-ended responses, explanations, confirmations, summaries, and anything that isn't a set of clickable options.
+- You can combine both: send_reply with context first, then send_card with the options. Example: send_reply "I found 3 slots for Monday:" then send_card with buttons "9:00 AM", "10:00 AM", "1:00 PM".
+- Keep button labels short (under 20 characters). Maximum 3 buttons per card.
 
 ## What NOT to do
 - Never send empty replies.
@@ -157,10 +156,4 @@ export const bookingAgent = new Agent({
   },
   defaultOptions: { maxSteps: 20 },
   inputProcessors: resolveInputProcessors,
-  scorers: Object.fromEntries(
-    scorers.map((s) => [
-      s.id,
-      { scorer: s, sampling: { type: 'ratio' as const, rate: 1 } },
-    ]),
-  ) as MastraScorers,
 });

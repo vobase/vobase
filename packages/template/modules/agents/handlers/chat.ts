@@ -17,8 +17,8 @@ import {
   channelRoutings,
   contacts,
   conversations,
+  messages,
 } from '../../messaging/schema';
-import { getMemory } from '../mastra';
 import { getAgent } from '../mastra/agents';
 
 const chatSchema = z.object({
@@ -328,104 +328,68 @@ export const chatHandlers = new Hono()
 
     if (!contact || contact.id !== conversation.contactId) throw unauthorized();
 
-    // Load messages from Mastra Memory
-    try {
-      const memory = getMemory();
-      const result = await memory.recall({ threadId: conversationId });
-      const messages = (result?.messages ?? [])
-        .filter((m) => {
-          // Filter out internal notes from public chat history
-          const raw = m.content as unknown;
-          if (typeof raw === 'object' && raw !== null && 'metadata' in raw) {
-            const meta = (raw as { metadata?: { visibility?: string } })
-              .metadata;
-            if (meta?.visibility === 'internal') return false;
-          }
-          return true;
-        })
-        .map((m) => {
-          // Mastra v2 stores content as { format: 2, parts: [...], content: "text" }
-          const raw = m.content as unknown;
-          let parts: Array<{
-            type: string;
-            text?: string;
-            [key: string]: unknown;
-          }>;
+    // Load messages from messaging.messages — the source of truth for
+    // conversation content. Agents reply via tools (send_reply/send_card)
+    // which write here, not to Mastra memory.
+    const rows = await db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        contentType: messages.contentType,
+        contentData: messages.contentData,
+        messageType: messages.messageType,
+        senderType: messages.senderType,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.private, false),
+        ),
+      )
+      .orderBy(messages.createdAt);
 
-          if (
-            typeof raw === 'object' &&
-            raw !== null &&
-            'format' in raw &&
-            'parts' in raw
-          ) {
-            const v2 = raw as { parts: typeof parts; content?: string };
-            parts = v2.parts;
-          } else if (typeof raw === 'string') {
-            parts = [{ type: 'text', text: raw }];
-          } else if (Array.isArray(raw)) {
-            parts = raw;
-          } else {
-            parts = [{ type: 'text', text: '' }];
-          }
+    const chatMessages = rows
+      .filter((m) => m.contentType !== 'system')
+      .map((m) => {
+        const role =
+          m.senderType === 'contact'
+            ? 'user'
+            : m.senderType === 'agent'
+              ? 'assistant'
+              : 'system';
 
-          // Normalize tool parts from Mastra/v5 format to AI SDK v6 format
-          const normalizedParts = parts.map((p) => {
-            // Mastra native: { type: 'tool-call', toolName, args, result }
-            if (p.type === 'tool-call' && p.toolName) {
-              const hasResult = p.result !== undefined;
-              return {
-                type: `tool-${p.toolName as string}`,
-                toolCallId: p.toolCallId as string | undefined,
-                state: hasResult ? 'output-available' : 'input-available',
-                input: p.args,
-                ...(hasResult ? { output: p.result } : {}),
-              };
-            }
-            // AI SDK v5: { type: 'tool-invocation', toolInvocation: { toolName, state, args, result } }
-            if (p.type === 'tool-invocation' && p.toolInvocation) {
-              const inv = p.toolInvocation as {
-                toolName: string;
-                toolCallId?: string;
-                state: string;
-                args?: unknown;
-                result?: unknown;
-              };
-              const hasResult =
-                inv.state === 'result' || inv.result !== undefined;
-              return {
-                type: `tool-${inv.toolName}`,
-                toolCallId: inv.toolCallId,
-                state: hasResult ? 'output-available' : 'input-available',
-                input: inv.args,
-                ...(hasResult ? { output: inv.result } : {}),
-              };
-            }
-            return p;
-          });
+        const parts: Array<{
+          type: string;
+          text?: string;
+          card?: unknown;
+          [key: string]: unknown;
+        }> = [];
 
-          return {
-            id: m.id,
-            role: m.role,
-            parts: normalizedParts,
-            createdAt: m.createdAt ?? new Date().toISOString(),
-          };
-        });
+        if (m.contentType === 'interactive') {
+          // Interactive card — include both text and card structure
+          if (m.content) parts.push({ type: 'text', text: m.content });
+          const data = (m.contentData ?? {}) as Record<string, unknown>;
+          if (data.card) parts.push({ type: 'card', card: data.card });
+        } else if (m.content) {
+          parts.push({ type: 'text', text: m.content });
+        }
 
-      return c.json({
-        id: conversation.id,
-        title: null,
-        agentId: conversation.agentId,
-        messages,
+        return {
+          id: m.id,
+          role,
+          parts,
+          createdAt: m.createdAt?.toISOString() ?? new Date().toISOString(),
+        };
       });
-    } catch {
-      // Memory unavailable — return empty
-      return c.json({
-        id: conversation.id,
-        title: null,
-        agentId: conversation.agentId,
-        messages: [],
-      });
-    }
+
+    return c.json({
+      id: conversation.id,
+      title: null,
+      agentId: conversation.agentId,
+      messages: chatMessages,
+    });
   })
   /** POST /chat/:channelRoutingId/reset — Reset: resolve current conversation + start a new one. */
   .post('/chat/:channelRoutingId/reset', async (c) => {

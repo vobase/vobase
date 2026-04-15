@@ -103,7 +103,7 @@ function ActionsGroup({ el, groupKey, onAction, readOnly }: ActionsGroupProps) {
               onClick={() => {
                 if (isDisabled) return;
                 setClicked(true);
-                onAction?.(btn.id, btn.value);
+                onAction?.(btn.id, btn.value ?? btn.label);
               }}
               size="sm"
               type="button"
