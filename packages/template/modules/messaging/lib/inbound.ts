@@ -21,6 +21,7 @@ import type {
 import { logger } from '@vobase/core';
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 
+import { cancelWake } from '../../agents/lib/agent-wake';
 import {
   channelInstances,
   channelRoutings,
@@ -529,8 +530,9 @@ async function routeByAssignee(
     return;
   }
 
-  // Agent assignee — schedule agent-wake job (debounce handled by wakeAgent singleton)
+  // Agent assignee — cancel any running wake that hasn't taken action, then schedule new
   const agentId = conversation.assignee.replace('agent:', '');
+  cancelWake(conversation.id);
   await scheduler.add(
     'agents:agent-wake',
     {
@@ -541,7 +543,7 @@ async function routeByAssignee(
     },
     {
       singletonKey: `agents:agent-wake:${agentId}:${conversation.id}`,
-      startAfter: 2,
+      startAfter: 1,
     },
   );
 }

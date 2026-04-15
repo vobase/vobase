@@ -19,6 +19,7 @@ import {
   conversations,
   messages,
 } from '../../messaging/schema';
+import { cancelWake } from '../lib/agent-wake';
 import { getAgent } from '../mastra/agents';
 
 const chatSchema = z.object({
@@ -217,8 +218,11 @@ export const chatHandlers = new Hono()
       .notify({ table: 'conversations', id: conversationId, action: 'typing' })
       .catch(() => {});
 
-    // Schedule agent wake (debounced via singletonKey)
+    // Cancel any running wake that hasn't taken action yet, then schedule a new one.
+    // singletonKey deduplicates near-simultaneous HTTP requests. startAfter: 1
+    // gives the cancelled wake time to release its advisory lock.
     const agentId = body.agentId;
+    cancelWake(conversationId);
     await scheduler.add(
       'agents:agent-wake',
       {
@@ -229,7 +233,7 @@ export const chatHandlers = new Hono()
       },
       {
         singletonKey: `agents:agent-wake:${agentId}:${conversationId}`,
-        startAfter: 2,
+        startAfter: 1,
       },
     );
 
@@ -543,8 +547,9 @@ export const chatHandlers = new Hono()
       .notify({ table: 'conversations', id: conversation.id, action: 'typing' })
       .catch(() => {});
 
-    // Schedule agent wake
+    // Cancel any running wake that hasn't taken action yet, then schedule a new one
     const agentId = conversation.agentId;
+    cancelWake(conversation.id);
     await scheduler.add(
       'agents:agent-wake',
       {
@@ -555,7 +560,7 @@ export const chatHandlers = new Hono()
       },
       {
         singletonKey: `agents:agent-wake:${agentId}:${conversation.id}`,
-        startAfter: 2,
+        startAfter: 1,
       },
     );
 
