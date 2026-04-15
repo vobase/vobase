@@ -416,12 +416,12 @@ describe('handleInboundMessage — ai mode', () => {
     expect((replyJob?.data as { conversationId: string }).conversationId).toBe(
       'conv-ai',
     );
-    // wakeAgent uses 2-second debounce via singletonKey
+    // cancelWake + singletonKey dedup, 1s delay for advisory lock release
     expect(replyJob?.opts).toBeDefined();
     expect((replyJob?.opts as { singletonKey: string }).singletonKey).toContain(
       'agents:agent-wake:',
     );
-    expect((replyJob?.opts as { startAfter: number }).startAfter).toBe(2);
+    expect((replyJob?.opts as { startAfter: number }).startAfter).toBe(1);
   });
 });
 

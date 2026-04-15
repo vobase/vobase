@@ -93,6 +93,7 @@ export async function createTestDb(options?: {
       source TEXT NOT NULL CHECK (source IN ('env', 'self', 'platform', 'sandbox')),
       config JSONB DEFAULT '{}',
       status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disconnected', 'error')),
+      status_error TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -143,6 +144,7 @@ export async function createTestDb(options?: {
       content_type TEXT NOT NULL CHECK (content_type IN ('text', 'image', 'document', 'audio', 'video', 'template', 'interactive', 'sticker', 'email', 'system')),
       content TEXT NOT NULL,
       content_data JSONB DEFAULT '{}',
+      caption TEXT,
       mastra_content JSONB,
       status TEXT CHECK (status IS NULL OR status IN ('queued', 'sent', 'delivered', 'read', 'failed')),
       failure_reason TEXT,
