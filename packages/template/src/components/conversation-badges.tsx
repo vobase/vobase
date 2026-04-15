@@ -363,49 +363,6 @@ export function AssigneeBadge({
   );
 }
 
-// ─── Contact ─────────────────────────────────────────────────────────
-
-export function ContactBadge({
-  name,
-  contactId,
-  variant = 'badge',
-  className,
-}: {
-  name: string | null;
-  contactId: string | null;
-  variant?: 'badge' | 'link';
-  className?: string;
-}) {
-  const display = name ?? contactId ?? 'Unknown';
-
-  if (variant === 'link' && contactId) {
-    return (
-      <Link
-        to="/messaging/contacts/$contactId"
-        params={{ contactId }}
-        className={cn(
-          'inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:underline',
-          className,
-        )}
-      >
-        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10">
-          <UserIcon className="h-3 w-3 text-primary" />
-        </div>
-        {display}
-      </Link>
-    );
-  }
-
-  // badge (read-only text)
-  return (
-    <span
-      className={cn('text-sm font-medium text-foreground truncate', className)}
-    >
-      {display}
-    </span>
-  );
-}
-
 // ─── Resolution outcome ──────────────────────────────────────────────
 
 function _ResolutionBadge({ outcome }: { outcome: string | null }) {
