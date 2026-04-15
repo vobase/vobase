@@ -1,6 +1,8 @@
-import { ChevronDownIcon } from 'lucide-react';
-import { useState } from 'react';
-
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 export interface MessageScoreGroup {
@@ -22,7 +24,14 @@ function formatScorerLabel(id: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function scoreColor(score: number): string {
+function scoreBgColor(score: number): string {
+  const pct = score * 100;
+  if (pct >= 80) return 'bg-green-500';
+  if (pct >= 60) return 'bg-yellow-500';
+  return 'bg-red-500';
+}
+
+function scoreTextColor(score: number): string {
   const pct = score * 100;
   if (pct >= 80) return 'text-green-600 dark:text-green-400';
   if (pct >= 60) return 'text-yellow-600 dark:text-yellow-400';
@@ -34,55 +43,70 @@ export function MessageQualityIndicator({
 }: {
   group: MessageScoreGroup;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
   if (group.scores.length === 0) return null;
 
-  const hasReasons = group.scores.some((s) => s.reason);
+  const avg =
+    group.scores.reduce((sum, s) => sum + s.score, 0) / group.scores.length;
 
   return (
-    <div className="flex flex-col gap-0.5">
-      <button
-        type="button"
-        onClick={() => hasReasons && setExpanded(!expanded)}
-        className={cn(
-          'inline-flex items-center gap-1.5 text-xs text-muted-foreground',
-          hasReasons && 'cursor-pointer hover:text-foreground',
-        )}
-      >
-        {group.scores.map((s, i) => (
-          <span key={s.scorerId} className="inline-flex items-center gap-0.5">
-            {i > 0 && <span className="text-muted-foreground/40">·</span>}
-            <span>{formatScorerLabel(s.scorerId)}</span>
-            <span className={cn('font-medium', scoreColor(s.score))}>
-              {Math.round(s.score * 100)}%
-            </span>
-          </span>
-        ))}
-        {hasReasons && (
-          <ChevronDownIcon
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:bg-muted/60 transition-colors"
+        >
+          {group.scores.map((s) => (
+            <span
+              key={s.scorerId}
+              className={cn('size-2 rounded-full', scoreBgColor(s.score))}
+              title={`${formatScorerLabel(s.scorerId)}: ${Math.round(s.score * 100)}%`}
+            />
+          ))}
+          <span
             className={cn(
-              'h-3 w-3 transition-transform',
-              expanded && 'rotate-180',
+              'ml-0.5 text-[10px] font-medium',
+              scoreTextColor(avg),
             )}
-          />
-        )}
-      </button>
-
-      {expanded && (
-        <div className="ml-1 space-y-1 border-l-2 border-muted pl-2">
-          {group.scores
-            .filter((s) => s.reason)
-            .map((s) => (
-              <p key={s.scorerId} className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground/80">
-                  {formatScorerLabel(s.scorerId)}:
-                </span>{' '}
-                {s.reason}
-              </p>
-            ))}
+          >
+            {Math.round(avg * 100)}%
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-64 p-3 max-h-96 overflow-y-auto"
+      >
+        <p className="text-xs font-medium text-foreground mb-2">
+          Quality Scores
+        </p>
+        <div className="space-y-1.5">
+          {group.scores.map((s) => (
+            <div key={s.scorerId} className="flex flex-col gap-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">
+                  {formatScorerLabel(s.scorerId)}
+                </span>
+                <span
+                  className={cn('text-xs font-medium', scoreTextColor(s.score))}
+                >
+                  {Math.round(s.score * 100)}%
+                </span>
+              </div>
+              <div className="h-1 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={cn('h-full rounded-full', scoreBgColor(s.score))}
+                  style={{ width: `${Math.max(s.score * 100, 2)}%` }}
+                />
+              </div>
+              {s.reason && (
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  {s.reason}
+                </p>
+              )}
+            </div>
+          ))}
         </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
