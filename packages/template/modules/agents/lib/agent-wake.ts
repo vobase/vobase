@@ -251,13 +251,21 @@ async function runAgentWake(params: {
     onSideEffect,
   } = params;
 
-  // Resolve agent
-  const { getAgent } = await import('../mastra/agents');
-  const registered = getAgent(agentId);
-  if (!registered) {
-    logger.error('[agent-wake] Agent not found', { agentId });
+  // Resolve agent from DB
+  const { agentDefinitions } = await import('../schema');
+  const [agentDef] = await db
+    .select()
+    .from(agentDefinitions)
+    .where(
+      and(eq(agentDefinitions.id, agentId), eq(agentDefinitions.enabled, true)),
+    );
+  if (!agentDef) {
+    logger.error('[agent-wake] Agent not found or disabled', { agentId });
     return;
   }
+
+  const { resolveAgent } = await import('../mastra/agents');
+  const agent = resolveAgent(agentDef);
 
   // Resolve channel type from conversation
   const [conversation] = await db
@@ -308,7 +316,7 @@ async function runAgentWake(params: {
   try {
     const wakeStart = new Date();
 
-    await registered.agent.generate([{ role: 'user', content: wakeMessage }], {
+    await agent.generate([{ role: 'user', content: wakeMessage }], {
       memory: {
         thread: `agent-${agentId}-conv-${conversationId}`,
         resource: `contact:${contactId}`,

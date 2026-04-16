@@ -20,7 +20,7 @@ import {
   messages,
 } from '../../messaging/schema';
 import { cancelWake } from '../lib/agent-wake';
-import { getAgent } from '../mastra/agents';
+import { agentDefinitions } from '../schema';
 
 const chatSchema = z.object({
   conversationId: z.string().optional(),
@@ -106,8 +106,16 @@ export const chatHandlers = new Hono()
     const body = chatSchema.parse(await c.req.json());
 
     // Validate agent exists
-    const registered = getAgent(body.agentId);
-    if (!registered) throw notFound('Agent not found');
+    const [agentDef] = await db
+      .select()
+      .from(agentDefinitions)
+      .where(
+        and(
+          eq(agentDefinitions.id, body.agentId),
+          eq(agentDefinitions.enabled, true),
+        ),
+      );
+    if (!agentDef) throw notFound('Agent not found');
 
     // Resolve or create conversation
     let conversationId = body.conversationId;
@@ -148,7 +156,7 @@ export const chatHandlers = new Hono()
         [channelRouting] = await db
           .insert(channelRoutings)
           .values({
-            name: `${registered.meta.name} - Web`,
+            name: `${agentDef.name} - Web`,
             channelInstanceId: webInstance.id,
             agentId: body.agentId,
             assignmentPattern: 'direct',

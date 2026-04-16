@@ -5,9 +5,10 @@
  * vobase command, and provides dirty-file tracking for post-wake sync.
  */
 import { createTool } from '@mastra/core/tools';
-import { and, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { kbChunks, kbDocuments } from '../../../knowledge-base/schema';
 import { workspaceFiles } from '../../schema';
 import { buildRegistry, createVobaseCommand } from './commands';
 import { bookingCommands } from './commands/booking';
@@ -23,6 +24,14 @@ import {
   materializeState,
 } from './materializers';
 
+/** Convert a document title to a filesystem-safe slug. */
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 /**
  * Create an agent workspace: virtual FS + bash instance + dirty-file tracking.
  *
@@ -36,12 +45,15 @@ export async function createWorkspace(
   const fs = new InMemoryFs();
   const { db, contactId, conversationId, agentId } = ctx;
 
-  // Pre-populate global files from workspaceFiles table
+  // Pre-populate agent-scoped config files (AGENTS.md, SOUL.md) from workspaceFiles table
   const globalFiles = await db
     .select({ path: workspaceFiles.path, content: workspaceFiles.content })
     .from(workspaceFiles)
     .where(
-      and(isNull(workspaceFiles.agentId), isNull(workspaceFiles.contactId)),
+      and(
+        eq(workspaceFiles.agentId, agentId),
+        isNull(workspaceFiles.contactId),
+      ),
     );
 
   for (const file of globalFiles) {
@@ -87,6 +99,51 @@ export async function createWorkspace(
   fs.writeFileLazy('/workspace/knowledge/relevant.md', async () => {
     return materializeRelevant(db, conversationId);
   });
+
+  // Mount KB documents as lazy files in knowledge/ directory (ChromaFs pattern)
+  // Path tree loaded eagerly (lightweight), content loaded on demand
+  const kbDocs = await db
+    .select({
+      id: kbDocuments.id,
+      title: kbDocuments.title,
+      folder: kbDocuments.folder,
+      chunkCount: kbDocuments.chunkCount,
+    })
+    .from(kbDocuments)
+    .where(eq(kbDocuments.status, 'ready'));
+
+  if (kbDocs.length > 0) {
+    // Build knowledge index manifest (agent can `cat knowledge/.index` to see available docs)
+    const indexLines = kbDocs.map((doc) => {
+      const docPath = doc.folder
+        ? `${doc.folder}/${slugify(doc.title)}.md`
+        : `${slugify(doc.title)}.md`;
+      return `${docPath}  (${doc.chunkCount} chunks)`;
+    });
+    await fs.writeFile(
+      '/workspace/knowledge/.index',
+      `# Knowledge Base\n\n${indexLines.join('\n')}\n\nUse \`cat /workspace/knowledge/<path>\` to read a document.\nUse \`vobase search-kb <query>\` for semantic search across all documents.\n`,
+    );
+
+    // Register each doc as lazy file
+    for (const doc of kbDocs) {
+      const slug = slugify(doc.title);
+      const docPath = doc.folder
+        ? `/workspace/knowledge/${doc.folder}/${slug}.md`
+        : `/workspace/knowledge/${slug}.md`;
+
+      lazyPaths.add(docPath);
+      fs.writeFileLazy(docPath, async () => {
+        // Reassemble chunks in order (ChromaFs cat pattern)
+        const chunks = await db
+          .select({ content: kbChunks.content })
+          .from(kbChunks)
+          .where(eq(kbChunks.documentId, doc.id))
+          .orderBy(asc(kbChunks.chunkIndex));
+        return `# ${doc.title}\n\n${chunks.map((c) => c.content).join('\n\n')}`;
+      });
+    }
+  }
 
   // Build command registry and bash instance
   const registry = buildRegistry(

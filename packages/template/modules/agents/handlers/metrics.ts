@@ -3,13 +3,21 @@ import { and, count, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { conversations, messages } from '../../messaging/schema';
-import { listAgents } from '../mastra/agents';
+import { agentDefinitions } from '../schema';
 
 export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
   const { db, user } = getCtx(c);
   if (!user) throw unauthorized();
 
-  const agents = listAgents();
+  const agents = await db
+    .select({
+      id: agentDefinitions.id,
+      name: agentDefinitions.name,
+      model: agentDefinitions.model,
+      channels: agentDefinitions.channels,
+    })
+    .from(agentDefinitions)
+    .where(eq(agentDefinitions.enabled, true));
 
   // Active sessions per agent
   const activeCounts = await db
@@ -65,13 +73,13 @@ export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
   );
 
   const metrics = agents.map((a) => ({
-    agentId: a.meta.id,
-    name: a.meta.name,
-    model: a.meta.model,
-    channels: a.meta.channels ?? ['web'],
-    activeCount: activeMap.get(a.meta.id) ?? 0,
-    queuedCount: queuedMap.get(a.meta.id) ?? 0,
-    successScore: scoreMap.get(a.meta.id) ?? 0,
+    agentId: a.id,
+    name: a.name,
+    model: a.model,
+    channels: a.channels,
+    activeCount: activeMap.get(a.id) ?? 0,
+    queuedCount: queuedMap.get(a.id) ?? 0,
+    successScore: scoreMap.get(a.id) ?? 0,
   }));
 
   return c.json({ agents: metrics });

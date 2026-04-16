@@ -10,7 +10,6 @@ import { Memory } from '@mastra/memory';
 import { PgVector, PostgresStore } from '@mastra/pg';
 import type { VobaseDb } from '@vobase/core';
 
-import { getMastraAgents } from './agents';
 import { buildCustomScorer } from './evals/custom-scorer-factory';
 import { scorers } from './evals/scorers';
 import { models } from './lib/models';
@@ -76,20 +75,13 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
   });
 
   mastraInstance = new Mastra({
-    agents: getMastraAgents(),
+    agents: {},
     tools: {},
     workflows: {},
     memory: { 'agent-memory': memoryInstance },
     storage: compositeStore,
     scorers: Object.fromEntries(scorers.map((s) => [s.id, s])),
   });
-
-  // Wire memory to agents after Mastra init — agents are static singletons
-  // created before Mastra, so memory must be set post-init via __setMemory.
-  const agents = getMastraAgents();
-  for (const agent of Object.values(agents)) {
-    agent.__setMemory(memoryInstance);
-  }
 
   // Load published custom scorer definitions from Mastra storage and register
   // them on the instance so they participate in live scoring alongside code scorers.

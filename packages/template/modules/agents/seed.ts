@@ -7,7 +7,7 @@
 import type { VobaseDb } from '@vobase/core';
 
 import { seedWorkspaceFiles } from './mastra/workspace/seed-workspace';
-import { workspaceFiles } from './schema';
+import { agentDefinitions, workspaceFiles } from './schema';
 
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 
@@ -175,8 +175,32 @@ language: en
 export default async function seed(ctx: { db: VobaseDb }) {
   const { db } = ctx;
 
-  // Seed global workspace files (AGENTS.md, SOUL.md)
-  await seedWorkspaceFiles(db);
+  // Seed agent definition
+  const [agent] = await db
+    .insert(agentDefinitions)
+    .values({
+      id: AGENT_ID,
+      name: 'Booking Assistant',
+      model: 'openai/gpt-5.4',
+      channels: ['whatsapp', 'web'],
+      mode: 'full-auto',
+      suggestions: [
+        'I need to book an appointment',
+        'Can I reschedule my booking?',
+        'I want to cancel my appointment',
+        'What times are available next week?',
+      ],
+    })
+    .onConflictDoUpdate({
+      target: agentDefinitions.id,
+      set: { updatedAt: new Date() },
+    })
+    .returning({ id: agentDefinitions.id });
+
+  console.log(`${green('✓')} Seeded agent definition: ${agent.id}`);
+
+  // Seed workspace files (AGENTS.md, SOUL.md) scoped to this agent
+  await seedWorkspaceFiles(db, agent.id);
   console.log(`${green('✓')} Seeded workspace files (AGENTS.md, SOUL.md)`);
 
   // Seed per-contact agent notes
@@ -184,7 +208,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     await db
       .insert(workspaceFiles)
       .values({
-        agentId: AGENT_ID,
+        agentId: agent.id,
         contactId: note.contactId,
         path: 'contact/notes.md',
         content: note.content,

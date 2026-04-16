@@ -26,31 +26,39 @@ const PROVIDER_ENDPOINTS: Record<
   },
 };
 
+const providerCache = new Map<string, ReturnType<typeof createOpenAI>>();
+
 /**
  * Create an AI SDK OpenAI-compatible provider for a given model.
  * Bifrost: single gateway. Local dev: per-provider endpoint routing.
+ * Cached per model prefix so HTTP keep-alive pools are shared across agents.
  */
 function createProviderForModel(modelId: string) {
   const bifrostKey = process.env.BIFROST_API_KEY;
+  const cacheKey = bifrostKey ? 'bifrost' : (modelId.split('/')[0] ?? '');
+  const cached = providerCache.get(cacheKey);
+  if (cached) return cached;
+
+  let provider: ReturnType<typeof createOpenAI>;
   if (bifrostKey) {
-    return createOpenAI({
+    provider = createOpenAI({
       baseURL: process.env.BIFROST_URL,
       apiKey: bifrostKey,
     });
+  } else {
+    const providerName = modelId.split('/')[0];
+    const endpoint = providerName
+      ? PROVIDER_ENDPOINTS[providerName]
+      : undefined;
+    const apiKey = endpoint ? process.env[endpoint.apiKeyEnv] : undefined;
+    provider =
+      endpoint && apiKey
+        ? createOpenAI({ baseURL: endpoint.baseURL, apiKey })
+        : createOpenAI();
   }
 
-  // Local dev: resolve provider-specific OpenAI-compatible endpoint
-  const providerName = modelId.split('/')[0];
-  const endpoint = PROVIDER_ENDPOINTS[providerName];
-  if (endpoint) {
-    const apiKey = process.env[endpoint.apiKeyEnv];
-    if (apiKey) {
-      return createOpenAI({ baseURL: endpoint.baseURL, apiKey });
-    }
-  }
-
-  // Fallback: default OpenAI
-  return createOpenAI();
+  providerCache.set(cacheKey, provider);
+  return provider;
 }
 
 /**

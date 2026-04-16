@@ -1,5 +1,4 @@
 import type { VobaseDb } from '@vobase/core';
-import { sql } from 'drizzle-orm';
 
 import { workspaceFiles } from '../../schema';
 
@@ -10,6 +9,7 @@ import { workspaceFiles } from '../../schema';
 export const AGENTS_MD = `# Agent Operating Manual
 
 ## Workspace Layout
+\`\`\`
 /workspace/
   AGENTS.md          — This file (read-only)
   SOUL.md            — Business identity (read-only)
@@ -23,8 +23,10 @@ export const AGENTS_MD = `# Agent Operating Manual
   conversation/
     messages.md      — Recent messages (read-only)
     state.md         — Conversation metadata (read-only)
+\`\`\`
 
 ## CLI Commands
+\`\`\`
 vobase reply <message>              — Send a reply to the customer
 vobase card <body> --buttons "a,b,c" — Send interactive card with buttons
 vobase resolve [--reason R]         — Mark conversation resolved
@@ -43,6 +45,7 @@ vobase search-kb <query>            — Search knowledge base
 vobase analyze-media <messageId>    — Analyze image/document in detail
 vobase list-conversations [--status] — List contact's conversations
 vobase recall <query>               — Search past conversation history
+\`\`\`
 
 ## Shell Escaping
 Arguments are processed by a bash interpreter. Escape these characters:
@@ -127,17 +130,24 @@ Basement parking at Block 5 — first 2 hours free with reception validation. MR
 // Seed function — idempotent upsert of global workspace files
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const GLOBAL_FILES = [
+const AGENT_FILES = [
   { path: 'AGENTS.md', content: AGENTS_MD },
   { path: 'SOUL.md', content: SOUL_MD },
 ] as const;
 
-export async function seedWorkspaceFiles(db: VobaseDb): Promise<void> {
-  for (const file of GLOBAL_FILES) {
+/**
+ * Seed workspace files (AGENTS.md, SOUL.md) for an agent.
+ * Files are scoped per-agent via the agentId column.
+ */
+export async function seedWorkspaceFiles(
+  db: VobaseDb,
+  agentId: string,
+): Promise<void> {
+  for (const file of AGENT_FILES) {
     await db
       .insert(workspaceFiles)
       .values({
-        agentId: null,
+        agentId,
         contactId: null,
         path: file.path,
         content: file.content,
@@ -149,7 +159,6 @@ export async function seedWorkspaceFiles(db: VobaseDb): Promise<void> {
           workspaceFiles.contactId,
           workspaceFiles.path,
         ],
-        targetWhere: sql`agent_id IS NULL AND contact_id IS NULL`,
         set: { content: file.content, updatedAt: new Date() },
       });
   }

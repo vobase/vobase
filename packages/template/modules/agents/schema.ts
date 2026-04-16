@@ -1,11 +1,58 @@
 import { nanoidPrimaryKey } from '@vobase/core/schema';
-import { index, pgSchema, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+  boolean,
+  check,
+  index,
+  pgSchema,
+  text,
+  timestamp,
+  unique,
+} from 'drizzle-orm/pg-core';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// AI pgSchema — moderation
+// AI pgSchema
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export const agentsPgSchema = pgSchema('agents');
+
+/**
+ * AgentDefinitions — DB-driven agent registry.
+ * Each row defines an agent that can be instantiated dynamically at wake time.
+ * Behavioral config (AGENTS.md, SOUL.md) lives in workspace_files scoped by agentId.
+ */
+export const agentDefinitions = agentsPgSchema.table(
+  'agent_definitions',
+  {
+    id: nanoidPrimaryKey(),
+    name: text('name').notNull(),
+    model: text('model').notNull(), // provider/model format: 'openai/gpt-5.4'
+    channels: text('channels')
+      .array()
+      .notNull()
+      .default(sql`ARRAY['web']::text[]`),
+    mode: text('mode').notNull().default('full-auto'), // 'full-auto' | 'qualify-then-handoff'
+    suggestions: text('suggestions')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    enabled: boolean('enabled').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('agent_definitions_enabled_idx').on(table.enabled),
+    check(
+      'agent_definitions_mode_check',
+      sql`mode IN ('full-auto', 'qualify-then-handoff')`,
+    ),
+  ],
+);
 
 /**
  * WorkspaceFiles — virtual filesystem backing store for agent workspaces.

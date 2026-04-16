@@ -180,23 +180,20 @@ export function formatBookings(
  */
 export async function loadWorkspaceFile(
   db: VobaseDb,
-  agentId: string | null,
+  agentId: string,
   contactId: string | null,
   path: string,
 ): Promise<string | null> {
-  const conditions = [eq(workspaceFiles.path, path)];
-
-  if (agentId) {
-    conditions.push(eq(workspaceFiles.agentId, agentId));
-  }
-  if (contactId) {
-    conditions.push(eq(workspaceFiles.contactId, contactId));
-  }
-
   const rows = await db
     .select({ content: workspaceFiles.content })
     .from(workspaceFiles)
-    .where(and(...conditions))
+    .where(
+      and(
+        eq(workspaceFiles.agentId, agentId),
+        eq(workspaceFiles.path, path),
+        contactId ? eq(workspaceFiles.contactId, contactId) : undefined,
+      ),
+    )
     .limit(1);
 
   return rows.length > 0 ? rows[0].content : null;

@@ -13,7 +13,7 @@ import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { getAgent } from '../../agents/mastra/agents';
+import { agentDefinitions } from '../../agents/schema';
 import { channelInstances, channelRoutings, conversations } from '../schema';
 
 const META_GRAPH_API = 'https://graph.facebook.com/v22.0';
@@ -210,8 +210,16 @@ export const channelsHandlers = new Hono()
       );
     }
 
-    const agent = getAgent(body.agentId);
-    if (!agent)
+    const [agentRow] = await ctx.db
+      .select({ id: agentDefinitions.id })
+      .from(agentDefinitions)
+      .where(
+        and(
+          eq(agentDefinitions.id, body.agentId),
+          eq(agentDefinitions.enabled, true),
+        ),
+      );
+    if (!agentRow)
       throw validation({ agentId: `Agent '${body.agentId}' not found` });
 
     const instanceId = generateId();
@@ -305,8 +313,16 @@ export const channelsHandlers = new Hono()
 
     // Validate agent if provided
     if (body.agentId) {
-      const registered = getAgent(body.agentId);
-      if (!registered)
+      const [agentCheck] = await ctx.db
+        .select({ id: agentDefinitions.id })
+        .from(agentDefinitions)
+        .where(
+          and(
+            eq(agentDefinitions.id, body.agentId),
+            eq(agentDefinitions.enabled, true),
+          ),
+        );
+      if (!agentCheck)
         throw validation({ agentId: `Agent '${body.agentId}' not found` });
     }
 
@@ -727,8 +743,16 @@ export const channelsHandlers = new Hono()
     if (existingRouting)
       throw conflict('Channel instance already has a routing configured');
 
-    const agent = getAgent(body.agentId);
-    if (!agent) throw validation({ agentId: 'Agent not found' });
+    const [agentCheck] = await db
+      .select({ id: agentDefinitions.id })
+      .from(agentDefinitions)
+      .where(
+        and(
+          eq(agentDefinitions.id, body.agentId),
+          eq(agentDefinitions.enabled, true),
+        ),
+      );
+    if (!agentCheck) throw validation({ agentId: 'Agent not found' });
 
     const [row] = await db
       .insert(channelRoutings)
@@ -763,8 +787,16 @@ export const channelsHandlers = new Hono()
     const body = createEndpointSchema.parse(await c.req.json());
 
     // Validate agent exists
-    const registered = getAgent(body.agentId);
-    if (!registered)
+    const [agentCheck] = await db
+      .select({ id: agentDefinitions.id })
+      .from(agentDefinitions)
+      .where(
+        and(
+          eq(agentDefinitions.id, body.agentId),
+          eq(agentDefinitions.enabled, true),
+        ),
+      );
+    if (!agentCheck)
       throw validation({ agentId: `Agent '${body.agentId}' not found` });
 
     const [row] = await db
