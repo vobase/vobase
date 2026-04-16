@@ -15,13 +15,16 @@
 
 import { faker } from '@faker-js/faker';
 import type { VobaseDb } from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import { channelsTemplates } from '@vobase/core';
 
 import {
+  broadcastRecipients,
+  broadcasts,
   channelInstances,
   channelInstanceTeams,
   channelRoutings,
   channelSessions,
+  contactAttributeDefinitions,
   contactLabels,
   contacts,
   conversationLabels,
@@ -558,7 +561,7 @@ const SEED_CONTACTS = [
     email: 'david@clinic.sg',
     name: 'David Lim',
     role: 'staff' as const,
-    metadata: { department: 'operations' },
+    attributes: { department: 'operations' },
   },
   {
     id: 'c-staff-eve',
@@ -566,7 +569,7 @@ const SEED_CONTACTS = [
     email: 'eve@clinic.sg',
     name: 'Eve Chen',
     role: 'staff' as const,
-    metadata: { department: 'management' },
+    attributes: { department: 'management' },
   },
   {
     id: 'c-staff-frank',
@@ -574,7 +577,7 @@ const SEED_CONTACTS = [
     email: 'frank@clinic.sg',
     name: 'Frank Ng',
     role: 'staff' as const,
-    metadata: { department: 'clinical' },
+    attributes: { department: 'clinical' },
   },
   // Customers (12) — intentionally named so we can create multi-conversation timelines
   {
@@ -583,7 +586,7 @@ const SEED_CONTACTS = [
     email: 'alice@example.com',
     name: 'Alice Tan',
     role: 'customer' as const,
-    metadata: { source: 'whatsapp' },
+    attributes: { source: 'whatsapp' },
   },
   {
     id: 'c-bob',
@@ -591,7 +594,7 @@ const SEED_CONTACTS = [
     email: 'bob@example.com',
     name: 'Bob Wong',
     role: 'customer' as const,
-    metadata: { source: 'web' },
+    attributes: { source: 'web' },
   },
   {
     id: 'c-charlie',
@@ -599,7 +602,7 @@ const SEED_CONTACTS = [
     email: 'charlie@example.com',
     name: 'Charlie Lee',
     role: 'customer' as const,
-    metadata: { source: 'referral' },
+    attributes: { source: 'referral' },
   },
   {
     id: 'c-diana',
@@ -607,7 +610,7 @@ const SEED_CONTACTS = [
     email: 'diana@example.com',
     name: 'Diana Goh',
     role: 'customer' as const,
-    metadata: { source: 'whatsapp' },
+    attributes: { source: 'whatsapp' },
   },
   {
     id: 'c-edward',
@@ -615,7 +618,7 @@ const SEED_CONTACTS = [
     email: 'edward@example.com',
     name: 'Edward Lim',
     role: 'customer' as const,
-    metadata: { source: 'web' },
+    attributes: { source: 'web' },
   },
   {
     id: 'c-fiona',
@@ -623,7 +626,7 @@ const SEED_CONTACTS = [
     email: 'fiona@example.com',
     name: 'Fiona Yap',
     role: 'customer' as const,
-    metadata: { source: 'walk-in' },
+    attributes: { source: 'walk-in' },
   },
   {
     id: 'c-george',
@@ -631,7 +634,7 @@ const SEED_CONTACTS = [
     email: 'george@example.com',
     name: 'George Ong',
     role: 'customer' as const,
-    metadata: { source: 'whatsapp' },
+    attributes: { source: 'whatsapp' },
   },
   {
     id: 'c-hannah',
@@ -639,7 +642,7 @@ const SEED_CONTACTS = [
     email: 'hannah@example.com',
     name: 'Hannah Koh',
     role: 'customer' as const,
-    metadata: { source: 'web' },
+    attributes: { source: 'web' },
   },
   {
     id: 'c-ivan',
@@ -647,7 +650,7 @@ const SEED_CONTACTS = [
     email: 'ivan@example.com',
     name: 'Ivan Chua',
     role: 'customer' as const,
-    metadata: { source: 'referral' },
+    attributes: { source: 'referral' },
   },
   {
     id: 'c-jenny',
@@ -655,7 +658,7 @@ const SEED_CONTACTS = [
     email: 'jenny@example.com',
     name: 'Jenny Sim',
     role: 'customer' as const,
-    metadata: { source: 'whatsapp' },
+    attributes: { source: 'whatsapp' },
   },
   {
     id: 'c-kenny',
@@ -663,7 +666,7 @@ const SEED_CONTACTS = [
     email: 'kenny@example.com',
     name: 'Kenny Ng',
     role: 'customer' as const,
-    metadata: { source: 'web' },
+    attributes: { source: 'web' },
   },
   {
     id: 'c-lily',
@@ -671,7 +674,7 @@ const SEED_CONTACTS = [
     email: 'lily@example.com',
     name: 'Lily Ho',
     role: 'customer' as const,
-    metadata: { source: 'walk-in' },
+    attributes: { source: 'walk-in' },
   },
   // Leads (5)
   {
@@ -680,7 +683,7 @@ const SEED_CONTACTS = [
     email: 'mark@example.com',
     name: 'Mark Teo',
     role: 'lead' as const,
-    metadata: { source: 'google-ads', campaign: 'q2-booking' },
+    attributes: { source: 'google-ads', campaign: 'q2-booking' },
   },
   {
     id: 'c-lead-nina',
@@ -688,7 +691,7 @@ const SEED_CONTACTS = [
     email: 'nina@example.com',
     name: 'Nina Loh',
     role: 'lead' as const,
-    metadata: { source: 'facebook', campaign: 'wellness' },
+    attributes: { source: 'facebook', campaign: 'wellness' },
   },
   {
     id: 'c-lead-oscar',
@@ -696,7 +699,7 @@ const SEED_CONTACTS = [
     email: 'oscar@example.com',
     name: 'Oscar Pang',
     role: 'lead' as const,
-    metadata: { source: 'instagram', campaign: 'promo' },
+    attributes: { source: 'instagram', campaign: 'promo' },
   },
   {
     id: 'c-lead-paula',
@@ -704,7 +707,7 @@ const SEED_CONTACTS = [
     email: 'paula@example.com',
     name: 'Paula Quek',
     role: 'lead' as const,
-    metadata: { source: 'organic' },
+    attributes: { source: 'organic' },
   },
   {
     id: 'c-lead-ray',
@@ -712,11 +715,599 @@ const SEED_CONTACTS = [
     email: 'ray@example.com',
     name: 'Ray Soh',
     role: 'lead' as const,
-    metadata: { source: 'referral' },
+    attributes: { source: 'referral' },
   },
 ];
 
 const customers = SEED_CONTACTS.filter((c) => c.role === 'customer');
+
+// ─── Contact attribute definitions ──────────────────────────────────
+
+const SEED_ATTRIBUTE_DEFINITIONS = [
+  {
+    key: 'company',
+    label: 'Company',
+    type: 'text',
+    showInTable: true,
+    sortOrder: 0,
+  },
+  {
+    key: 'source',
+    label: 'Acquisition Source',
+    type: 'text',
+    showInTable: true,
+    sortOrder: 1,
+  },
+  {
+    key: 'notes',
+    label: 'Internal Notes',
+    type: 'text',
+    showInTable: false,
+    sortOrder: 2,
+  },
+  {
+    key: 'insurance_plan',
+    label: 'Insurance Plan',
+    type: 'text',
+    showInTable: true,
+    sortOrder: 3,
+  },
+  {
+    key: 'date_of_birth',
+    label: 'Date of Birth',
+    type: 'date',
+    showInTable: false,
+    sortOrder: 4,
+  },
+  {
+    key: 'visit_count',
+    label: 'Total Visits',
+    type: 'number',
+    showInTable: true,
+    sortOrder: 5,
+  },
+  {
+    key: 'preferred_doctor',
+    label: 'Preferred Doctor',
+    type: 'text',
+    showInTable: false,
+    sortOrder: 6,
+  },
+  {
+    key: 'is_corporate',
+    label: 'Corporate Account',
+    type: 'boolean',
+    showInTable: true,
+    sortOrder: 7,
+  },
+];
+
+// ─── WhatsApp message templates ─────────────────────────────────────
+
+const SEED_TEMPLATES = [
+  {
+    id: 'tmpl-appt-reminder',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1001',
+    name: 'appointment_reminder',
+    language: 'en',
+    category: 'UTILITY',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: 'Appointment Reminder' },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, this is a reminder that you have an appointment at {{2}} on {{3}}. Please arrive 10 minutes early and bring your ID. Reference: {{4}}.',
+      },
+      { type: 'FOOTER', text: 'Orchard Medical Centre' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Confirm' },
+          { type: 'QUICK_REPLY', text: 'Reschedule' },
+          { type: 'QUICK_REPLY', text: 'STOP' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(72),
+  },
+  {
+    id: 'tmpl-appt-confirm',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1002',
+    name: 'appointment_confirmation',
+    language: 'en',
+    category: 'UTILITY',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: 'Booking Confirmed ✓' },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, your appointment is confirmed!\n\n📅 Date: {{2}}\n🕐 Time: {{3}}\n📍 Location: {{4}}\n🔖 Reference: {{5}}\n\nBring your ID and any current medications list.',
+      },
+      { type: 'FOOTER', text: 'Orchard Medical Centre' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Add to Calendar' },
+          { type: 'QUICK_REPLY', text: 'Cancel Booking' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(72),
+  },
+  {
+    id: 'tmpl-appt-reschedule',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1006',
+    name: 'appointment_rescheduled',
+    language: 'en',
+    category: 'UTILITY',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: 'Appointment Rescheduled' },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, your appointment has been rescheduled.\n\n❌ Original: {{2}}\n✅ New date: {{3}} at {{4}}\n📍 {{5}}\n\nIf this does not work, reply and we will find another time.',
+      },
+      { type: 'FOOTER', text: 'Orchard Medical Centre' },
+    ]),
+    syncedAt: hoursAgo(96),
+  },
+  {
+    id: 'tmpl-lab-results',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1003',
+    name: 'lab_results_ready',
+    language: 'en',
+    category: 'UTILITY',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: 'Your Lab Results Are Ready' },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, your lab results from {{2}} are now available. Dr. {{3}} has reviewed them and would like to discuss the findings. Please book a follow-up at your earliest convenience.',
+      },
+      { type: 'FOOTER', text: 'Results are strictly confidential' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Book Follow-up' },
+          { type: 'QUICK_REPLY', text: 'STOP' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(48),
+  },
+  {
+    id: 'tmpl-screening-promo',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1004',
+    name: 'health_screening_promo',
+    language: 'en',
+    category: 'MARKETING',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: '🏥 Annual Health Screening' },
+      {
+        type: 'BODY',
+        text: "Hi {{1}}, it's time for your annual checkup! Book your Comprehensive Health Screening this {{2}} and get {{3}} off.\n\nIncludes blood panel, BMI, blood pressure, and cholesterol screening.\n\nOffer valid until {{4}}.",
+      },
+      { type: 'FOOTER', text: 'Orchard Medical Centre' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Book Now' },
+          { type: 'QUICK_REPLY', text: 'Learn More' },
+          { type: 'QUICK_REPLY', text: 'STOP' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(120),
+  },
+  {
+    id: 'tmpl-new-patient',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1005',
+    name: 'new_patient_welcome',
+    language: 'en',
+    category: 'MARKETING',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      {
+        type: 'HEADER',
+        format: 'TEXT',
+        text: 'Welcome to Orchard Medical Centre',
+      },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, welcome! As a new patient, enjoy 20% off your first consultation.\n\n🩺 General Consultations\n🔬 Health Screenings\n💊 Pharmacy\n👁️ Specialist Referrals\n\nUse code NEW20 when booking. Valid for 30 days.',
+      },
+      { type: 'FOOTER', text: 'Orchard Medical Centre · Block 5, #03-12' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Book Consultation' },
+          { type: 'QUICK_REPLY', text: 'STOP' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(240),
+  },
+  {
+    id: 'tmpl-corporate-wellness',
+    channel: 'whatsapp',
+    externalId: null,
+    name: 'corporate_wellness_package',
+    language: 'en',
+    category: 'MARKETING',
+    status: 'DRAFT',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: 'Corporate Wellness Programme' },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, we have a tailored wellness programme for {{2}} and your team.\n\n✅ Annual screenings for up to {{3}} employees\n✅ 15% group discount\n✅ Flexible scheduling across all branches\n✅ Digital health report per employee\n\nReply to schedule a call with our corporate team.',
+      },
+      { type: 'FOOTER', text: 'Orchard Medical Centre · Enterprise Solutions' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Get a Quote' },
+          { type: 'QUICK_REPLY', text: 'STOP' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(24),
+  },
+  {
+    id: 'tmpl-post-visit-survey',
+    channel: 'whatsapp',
+    externalId: null,
+    name: 'post_visit_survey',
+    language: 'en',
+    category: 'MARKETING',
+    status: 'PENDING',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: 'How Was Your Visit?' },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, thank you for visiting us on {{2}}. Your feedback helps us improve. How would you rate your experience with Dr. {{3}} today?',
+      },
+      { type: 'FOOTER', text: 'Your response is anonymous' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: '😊 Great' },
+          { type: 'QUICK_REPLY', text: '😐 Okay' },
+          { type: 'QUICK_REPLY', text: '😞 Poor' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(12),
+  },
+];
+
+// ─── Broadcasts ──────────────────────────────────────────────────────
+
+const SEED_BROADCASTS = [
+  // Completed: Q1 health screening campaign (sent 30 days ago)
+  {
+    id: 'bc-q1-screening',
+    name: 'Q1 Health Screening Campaign',
+    channelInstanceId: 'ci-wa-main',
+    templateId: 'tmpl-screening-promo',
+    templateName: 'health_screening_promo',
+    templateLanguage: 'en',
+    variableMapping: {
+      '1': 'name',
+      '2': 'March',
+      '3': '20%',
+      '4': '31 March 2026',
+    },
+    status: 'completed',
+    totalRecipients: 17,
+    sentCount: 16,
+    deliveredCount: 14,
+    readCount: 10,
+    failedCount: 1,
+    startedAt: hoursAgo(720),
+    completedAt: hoursAgo(719),
+    createdBy: 'seed-admin',
+  },
+  // Completed: New patient welcome (sent 2 months ago)
+  {
+    id: 'bc-new-patient-feb',
+    name: 'New Patient Welcome — February Leads',
+    channelInstanceId: 'ci-wa-main',
+    templateId: 'tmpl-new-patient',
+    templateName: 'new_patient_welcome',
+    templateLanguage: 'en',
+    variableMapping: { '1': 'name' },
+    status: 'completed',
+    totalRecipients: 5,
+    sentCount: 5,
+    deliveredCount: 5,
+    readCount: 3,
+    failedCount: 0,
+    startedAt: hoursAgo(1440),
+    completedAt: hoursAgo(1439),
+    createdBy: 'seed-admin',
+  },
+  // Scheduled: Q2 screening (launches in 2 days)
+  {
+    id: 'bc-q2-screening',
+    name: 'Q2 Health Screening Campaign',
+    channelInstanceId: 'ci-wa-main',
+    templateId: 'tmpl-screening-promo',
+    templateName: 'health_screening_promo',
+    templateLanguage: 'en',
+    variableMapping: {
+      '1': 'name',
+      '2': 'April',
+      '3': '25%',
+      '4': '30 April 2026',
+    },
+    status: 'scheduled',
+    scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+    timezone: 'Asia/Singapore',
+    totalRecipients: 14,
+    sentCount: 0,
+    deliveredCount: 0,
+    readCount: 0,
+    failedCount: 0,
+    createdBy: 'seed-admin',
+  },
+  // Paused: lab results batch (mid-send)
+  {
+    id: 'bc-lab-results-apr',
+    name: 'Lab Results Notification — April Batch',
+    channelInstanceId: 'ci-wa-main',
+    templateId: 'tmpl-lab-results',
+    templateName: 'lab_results_ready',
+    templateLanguage: 'en',
+    variableMapping: { '1': 'name', '2': 'date', '3': 'Dr. Tan' },
+    status: 'paused',
+    totalRecipients: 8,
+    sentCount: 3,
+    deliveredCount: 3,
+    readCount: 2,
+    failedCount: 0,
+    startedAt: hoursAgo(6),
+    createdBy: 'seed-admin',
+  },
+  // Failed: appointment reminders (API error mid-send)
+  {
+    id: 'bc-appt-reminders-mar',
+    name: 'March Appointment Reminders',
+    channelInstanceId: 'ci-wa-main',
+    templateId: 'tmpl-appt-reminder',
+    templateName: 'appointment_reminder',
+    templateLanguage: 'en',
+    variableMapping: {
+      '1': 'name',
+      '2': 'Orchard Medical Centre',
+      '3': 'date',
+      '4': 'reference',
+    },
+    status: 'failed',
+    totalRecipients: 12,
+    sentCount: 4,
+    deliveredCount: 3,
+    readCount: 1,
+    failedCount: 8,
+    startedAt: hoursAgo(360),
+    createdBy: 'seed-admin',
+  },
+  // Draft: corporate wellness outreach (being configured)
+  {
+    id: 'bc-corp-wellness-apr',
+    name: 'Corporate Wellness Outreach — April 2026',
+    channelInstanceId: 'ci-wa-main',
+    templateId: 'tmpl-corporate-wellness',
+    templateName: 'corporate_wellness_package',
+    templateLanguage: 'en',
+    variableMapping: { '1': 'name', '2': 'company', '3': '20' },
+    status: 'draft',
+    totalRecipients: 0,
+    sentCount: 0,
+    deliveredCount: 0,
+    readCount: 0,
+    failedCount: 0,
+    createdBy: 'seed-admin',
+  },
+];
+
+// ─── Broadcast recipients ────────────────────────────────────────────
+// Only for broadcasts that have been run or are in progress.
+
+type BroadcastRecipientSeed = {
+  id: string;
+  broadcastId: string;
+  contactId: string;
+  phone: string;
+  variables: Record<string, string>;
+  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped';
+  failureReason?: string;
+  sentAt?: Date;
+  deliveredAt?: Date;
+  readAt?: Date;
+};
+
+function buildRecipients(): BroadcastRecipientSeed[] {
+  const rows: BroadcastRecipientSeed[] = [];
+
+  // ── Q1 screening (completed) ─────────────────────────────────────
+  const q1Cases: Array<[string, string, BroadcastRecipientSeed['status']]> = [
+    ['c-alice', '+6581110001', 'read'],
+    ['c-bob', '+6581110002', 'read'],
+    ['c-charlie', '+6581110003', 'read'],
+    ['c-diana', '+6581110004', 'delivered'],
+    ['c-edward', '+6581110005', 'read'],
+    ['c-fiona', '+6581110006', 'delivered'],
+    ['c-george', '+6581110007', 'read'],
+    ['c-hannah', '+6581110008', 'delivered'],
+    ['c-ivan', '+6581110009', 'read'],
+    ['c-jenny', '+6581110010', 'read'],
+    ['c-kenny', '+6581110011', 'delivered'],
+    ['c-lily', '+6581110012', 'read'],
+    ['c-lead-mark', '+6581120001', 'failed'],
+    ['c-lead-nina', '+6581120002', 'read'],
+    ['c-lead-oscar', '+6581120003', 'read'],
+    ['c-lead-paula', '+6581120004', 'delivered'],
+    ['c-lead-ray', '+6581120005', 'delivered'],
+  ];
+  for (const [contactId, phone, status] of q1Cases) {
+    const sentAt = status !== 'failed' ? hoursAgo(718) : undefined;
+    const deliveredAt =
+      status === 'delivered' || status === 'read' ? hoursAgo(717) : undefined;
+    const readAt = status === 'read' ? hoursAgo(715) : undefined;
+    rows.push({
+      id: `br-q1-${contactId}`,
+      broadcastId: 'bc-q1-screening',
+      contactId,
+      phone,
+      variables: { '1': contactId.replace('c-', '').replace('lead-', '') },
+      status,
+      ...(status === 'failed' && {
+        failureReason:
+          'WhatsApp Cloud API error 131026: recipient not on WhatsApp',
+      }),
+      ...(sentAt && { sentAt }),
+      ...(deliveredAt && { deliveredAt }),
+      ...(readAt && { readAt }),
+    });
+  }
+
+  // ── New patient welcome (completed) ──────────────────────────────
+  const welcomeCases: Array<
+    [string, string, BroadcastRecipientSeed['status']]
+  > = [
+    ['c-lead-mark', '+6581120001', 'read'],
+    ['c-lead-nina', '+6581120002', 'read'],
+    ['c-lead-oscar', '+6581120003', 'read'],
+    ['c-lead-paula', '+6581120004', 'delivered'],
+    ['c-lead-ray', '+6581120005', 'delivered'],
+  ];
+  for (const [contactId, phone, status] of welcomeCases) {
+    const sentAt = hoursAgo(1439);
+    const deliveredAt =
+      status === 'delivered' || status === 'read' ? hoursAgo(1438) : undefined;
+    const readAt = status === 'read' ? hoursAgo(1436) : undefined;
+    rows.push({
+      id: `br-welcome-${contactId}`,
+      broadcastId: 'bc-new-patient-feb',
+      contactId,
+      phone,
+      variables: { '1': contactId.replace('c-lead-', '') },
+      status,
+      sentAt,
+      ...(deliveredAt && { deliveredAt }),
+      ...(readAt && { readAt }),
+    });
+  }
+
+  // ── Q2 screening (scheduled — queued recipients) ──────────────────
+  const q2Contacts: Array<[string, string]> = [
+    ['c-alice', '+6581110001'],
+    ['c-bob', '+6581110002'],
+    ['c-charlie', '+6581110003'],
+    ['c-diana', '+6581110004'],
+    ['c-edward', '+6581110005'],
+    ['c-fiona', '+6581110006'],
+    ['c-george', '+6581110007'],
+    ['c-hannah', '+6581110008'],
+    ['c-ivan', '+6581110009'],
+    ['c-jenny', '+6581110010'],
+    ['c-kenny', '+6581110011'],
+    ['c-lily', '+6581110012'],
+    ['c-lead-nina', '+6581120002'],
+    ['c-lead-ray', '+6581120005'],
+  ];
+  for (const [contactId, phone] of q2Contacts) {
+    rows.push({
+      id: `br-q2-${contactId}`,
+      broadcastId: 'bc-q2-screening',
+      contactId,
+      phone,
+      variables: { '1': contactId.replace('c-', '').replace('lead-', '') },
+      status: 'queued',
+    });
+  }
+
+  // ── Lab results (paused mid-send) ────────────────────────────────
+  const labCases: Array<[string, string, BroadcastRecipientSeed['status']]> = [
+    ['c-alice', '+6581110001', 'read'],
+    ['c-bob', '+6581110002', 'read'],
+    ['c-charlie', '+6581110003', 'delivered'],
+    ['c-diana', '+6581110004', 'queued'],
+    ['c-edward', '+6581110005', 'queued'],
+    ['c-fiona', '+6581110006', 'queued'],
+    ['c-george', '+6581110007', 'queued'],
+    ['c-hannah', '+6581110008', 'queued'],
+  ];
+  for (const [contactId, phone, status] of labCases) {
+    const sentAt =
+      status === 'read' || status === 'delivered' ? hoursAgo(5.5) : undefined;
+    const deliveredAt =
+      status === 'delivered' || status === 'read' ? hoursAgo(5) : undefined;
+    const readAt = status === 'read' ? hoursAgo(4) : undefined;
+    rows.push({
+      id: `br-lab-${contactId}`,
+      broadcastId: 'bc-lab-results-apr',
+      contactId,
+      phone,
+      variables: {
+        '1': contactId.replace('c-', ''),
+        '2': '14 April 2026',
+        '3': 'Tan',
+      },
+      status,
+      ...(sentAt && { sentAt }),
+      ...(deliveredAt && { deliveredAt }),
+      ...(readAt && { readAt }),
+    });
+  }
+
+  // ── March reminders (failed — API error at recipient 5) ───────────
+  const marCases: Array<[string, string, BroadcastRecipientSeed['status']]> = [
+    ['c-alice', '+6581110001', 'delivered'],
+    ['c-bob', '+6581110002', 'read'],
+    ['c-charlie', '+6581110003', 'delivered'],
+    ['c-diana', '+6581110004', 'delivered'],
+    ['c-edward', '+6581110005', 'failed'],
+    ['c-fiona', '+6581110006', 'failed'],
+    ['c-george', '+6581110007', 'failed'],
+    ['c-hannah', '+6581110008', 'failed'],
+    ['c-ivan', '+6581110009', 'failed'],
+    ['c-jenny', '+6581110010', 'failed'],
+    ['c-kenny', '+6581110011', 'failed'],
+    ['c-lily', '+6581110012', 'failed'],
+  ];
+  for (const [contactId, phone, status] of marCases) {
+    const wasSent = status === 'delivered' || status === 'read';
+    rows.push({
+      id: `br-mar-${contactId}`,
+      broadcastId: 'bc-appt-reminders-mar',
+      contactId,
+      phone,
+      variables: {
+        '1': contactId.replace('c-', ''),
+        '2': 'Orchard Medical Centre',
+        '3': '15 March 2026',
+        '4': 'BK-XXXX',
+      },
+      status,
+      ...(wasSent && { sentAt: hoursAgo(359) }),
+      ...(wasSent && { deliveredAt: hoursAgo(358) }),
+      ...(status === 'read' && { readAt: hoursAgo(356) }),
+      ...(status === 'failed' && {
+        failureReason: 'WhatsApp Cloud API error 130429: rate limit exceeded',
+      }),
+    });
+  }
+
+  return rows;
+}
 
 // ─── Channel instances & routings ───────────────────────────────────
 
@@ -1206,6 +1797,24 @@ export default async function seed(ctx: { db: VobaseDb }) {
   // ─── Contacts ────────────────────────────────────────────────────
   await db.insert(contacts).values(SEED_CONTACTS).onConflictDoNothing();
   console.log(`${green('✓')} Seeded ${SEED_CONTACTS.length} contacts`);
+
+  // ─── Contact Attribute Definitions ─────────────────────────────
+  await db
+    .insert(contactAttributeDefinitions)
+    .values(SEED_ATTRIBUTE_DEFINITIONS)
+    .onConflictDoNothing();
+  console.log(
+    `${green('✓')} Seeded ${SEED_ATTRIBUTE_DEFINITIONS.length} contact attribute definitions`,
+  );
+
+  // ─── WhatsApp Templates ──────────────────────────────────────────
+  await db
+    .insert(channelsTemplates)
+    .values(SEED_TEMPLATES)
+    .onConflictDoNothing();
+  console.log(
+    `${green('✓')} Seeded ${SEED_TEMPLATES.length} WhatsApp templates`,
+  );
 
   // ─── Channel Instances ───────────────────────────────────────────
   await db
@@ -1758,22 +2367,9 @@ export default async function seed(ctx: { db: VobaseDb }) {
       'Corporate wellness inquiry. Budget-conscious. Needs group booking for 20+ employees.',
   };
 
-  for (const [contactId, memory] of Object.entries(WORKING_MEMORIES)) {
-    await db
-      .update(contacts)
-      .set({
-        workingMemory: memory,
-        resourceMetadata: {
-          lastConversation: hoursAgo(
-            faker.number.int({ min: 1, max: 48 }),
-          ).toISOString(),
-          conversationCount: faker.number.int({ min: 1, max: 10 }),
-        },
-      })
-      .where(eq(contacts.id, contactId));
-  }
+  // Working memory and resourceMetadata columns have been dropped — skip seeding
   console.log(
-    `${green('✓')} Seeded working memory for ${Object.keys(WORKING_MEMORIES).length} contacts`,
+    `${green('✓')} Skipped working memory (disabled feature) for ${Object.keys(WORKING_MEMORIES).length} contacts`,
   );
 
   // ─── Reactions + Feedback ────────────────────────────────────────
@@ -1904,6 +2500,22 @@ export default async function seed(ctx: { db: VobaseDb }) {
   }
   console.log(
     `${green('✓')} Seeded ${seedLabels.length} labels, ${labelAssignments.length} conversation assignments, ${contactLabelRows.length} contact labels`,
+  );
+
+  // ─── Broadcasts ──────────────────────────────────────────────────
+  await db.insert(broadcasts).values(SEED_BROADCASTS).onConflictDoNothing();
+  console.log(`${green('✓')} Seeded ${SEED_BROADCASTS.length} broadcasts`);
+
+  // ─── Broadcast Recipients ─────────────────────────────────────────
+  const seedBroadcastRecipients = buildRecipients();
+  for (let i = 0; i < seedBroadcastRecipients.length; i += BATCH_SIZE) {
+    await db
+      .insert(broadcastRecipients)
+      .values(seedBroadcastRecipients.slice(i, i + BATCH_SIZE))
+      .onConflictDoNothing();
+  }
+  console.log(
+    `${green('✓')} Seeded ${seedBroadcastRecipients.length} broadcast recipients`,
   );
 
   // ─── Summary ─────────────────────────────────────────────────────

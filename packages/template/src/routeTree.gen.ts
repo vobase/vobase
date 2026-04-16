@@ -44,12 +44,15 @@ import { Route as OrganizationsIndexRouteImport } from './../modules/system/page
 import { Route as TemplatesIndexRouteImport } from './../modules/messaging/pages/templates/index'
 import { Route as InboxIndexRouteImport } from './../modules/messaging/pages/inbox/index'
 import { Route as ConversationsIndexRouteImport } from './../modules/messaging/pages/conversations/index'
+import { Route as ContactsAttributesRouteImport } from './../modules/messaging/pages/contacts/attributes'
 import { Route as ContactsIndexRouteImport } from './../modules/messaging/pages/contacts/index'
 import { Route as ChannelsIndexRouteImport } from './../modules/messaging/pages/channels/index'
+import { Route as BroadcastsIndexRouteImport } from './../modules/messaging/pages/broadcasts/index'
 import { Route as DocumentsIndexRouteImport } from './../modules/knowledge-base/pages/documents/index'
 import { Route as InboxContactIdRouteImport } from './../modules/messaging/pages/inbox/$contactId'
 import { Route as ConversationsConversationIdRouteImport } from './../modules/messaging/pages/conversations/$conversationId'
 import { Route as ContactsContactIdRouteImport } from './../modules/messaging/pages/contacts/$contactId'
+import { Route as BroadcastsBroadcastIdRouteImport } from './../modules/messaging/pages/broadcasts/$broadcastId'
 import { Route as DocumentsIdRouteImport } from './../modules/knowledge-base/pages/documents/$id'
 
 const shellAuthLayoutRoute = shellAuthLayoutRouteImport.update({
@@ -231,6 +234,11 @@ const ConversationsIndexRoute = ConversationsIndexRouteImport.update({
   path: '/conversations/',
   getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
+const ContactsAttributesRoute = ContactsAttributesRouteImport.update({
+  id: '/contacts/attributes',
+  path: '/contacts/attributes',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+} as any)
 const ContactsIndexRoute = ContactsIndexRouteImport.update({
   id: '/contacts/',
   path: '/contacts/',
@@ -239,6 +247,11 @@ const ContactsIndexRoute = ContactsIndexRouteImport.update({
 const ChannelsIndexRoute = ChannelsIndexRouteImport.update({
   id: '/channels/',
   path: '/channels/',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+} as any)
+const BroadcastsIndexRoute = BroadcastsIndexRouteImport.update({
+  id: '/broadcasts/',
+  path: '/broadcasts/',
   getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
 const DocumentsIndexRoute = DocumentsIndexRouteImport.update({
@@ -260,6 +273,11 @@ const ConversationsConversationIdRoute =
 const ContactsContactIdRoute = ContactsContactIdRouteImport.update({
   id: '/contacts/$contactId',
   path: '/contacts/$contactId',
+  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+} as any)
+const BroadcastsBroadcastIdRoute = BroadcastsBroadcastIdRouteImport.update({
+  id: '/broadcasts/$broadcastId',
+  path: '/broadcasts/$broadcastId',
   getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
 const DocumentsIdRoute = DocumentsIdRouteImport.update({
@@ -299,10 +317,13 @@ export interface FileRoutesByFullPath {
   '/system/logs': typeof LogsRoute
   '/agents/': typeof IndexRoute
   '/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/messaging/broadcasts/$broadcastId': typeof BroadcastsBroadcastIdRoute
+  '/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
   '/messaging/inbox/$contactId': typeof InboxContactIdRoute
   '/knowledge-base/documents/': typeof DocumentsIndexRoute
+  '/messaging/broadcasts/': typeof BroadcastsIndexRoute
   '/messaging/channels/': typeof ChannelsIndexRoute
   '/messaging/contacts/': typeof ContactsIndexRoute
   '/messaging/conversations/': typeof ConversationsIndexRoute
@@ -339,10 +360,13 @@ export interface FileRoutesByTo {
   '/system/logs': typeof LogsRoute
   '/agents': typeof IndexRoute
   '/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/messaging/broadcasts/$broadcastId': typeof BroadcastsBroadcastIdRoute
+  '/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
   '/messaging/inbox/$contactId': typeof InboxContactIdRoute
   '/knowledge-base/documents': typeof DocumentsIndexRoute
+  '/messaging/broadcasts': typeof BroadcastsIndexRoute
   '/messaging/channels': typeof ChannelsIndexRoute
   '/messaging/contacts': typeof ContactsIndexRoute
   '/messaging/conversations': typeof ConversationsIndexRoute
@@ -384,10 +408,13 @@ export interface FileRoutesById {
   '/_app/system/logs': typeof LogsRoute
   '/_app/agents/': typeof IndexRoute
   '/_app/knowledge-base/documents/$id': typeof DocumentsIdRoute
+  '/_app/messaging/broadcasts/$broadcastId': typeof BroadcastsBroadcastIdRoute
+  '/_app/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/_app/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/_app/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
   '/_app/messaging/inbox/$contactId': typeof InboxContactIdRoute
   '/_app/knowledge-base/documents/': typeof DocumentsIndexRoute
+  '/_app/messaging/broadcasts/': typeof BroadcastsIndexRoute
   '/_app/messaging/channels/': typeof ChannelsIndexRoute
   '/_app/messaging/contacts/': typeof ContactsIndexRoute
   '/_app/messaging/conversations/': typeof ConversationsIndexRoute
@@ -428,10 +455,13 @@ export interface FileRouteTypes {
     | '/system/logs'
     | '/agents/'
     | '/knowledge-base/documents/$id'
+    | '/messaging/broadcasts/$broadcastId'
+    | '/messaging/contacts/attributes'
     | '/messaging/contacts/$contactId'
     | '/messaging/conversations/$conversationId'
     | '/messaging/inbox/$contactId'
     | '/knowledge-base/documents/'
+    | '/messaging/broadcasts/'
     | '/messaging/channels/'
     | '/messaging/contacts/'
     | '/messaging/conversations/'
@@ -468,10 +498,13 @@ export interface FileRouteTypes {
     | '/system/logs'
     | '/agents'
     | '/knowledge-base/documents/$id'
+    | '/messaging/broadcasts/$broadcastId'
+    | '/messaging/contacts/attributes'
     | '/messaging/contacts/$contactId'
     | '/messaging/conversations/$conversationId'
     | '/messaging/inbox/$contactId'
     | '/knowledge-base/documents'
+    | '/messaging/broadcasts'
     | '/messaging/channels'
     | '/messaging/contacts'
     | '/messaging/conversations'
@@ -512,10 +545,13 @@ export interface FileRouteTypes {
     | '/_app/system/logs'
     | '/_app/agents/'
     | '/_app/knowledge-base/documents/$id'
+    | '/_app/messaging/broadcasts/$broadcastId'
+    | '/_app/messaging/contacts/attributes'
     | '/_app/messaging/contacts/$contactId'
     | '/_app/messaging/conversations/$conversationId'
     | '/_app/messaging/inbox/$contactId'
     | '/_app/knowledge-base/documents/'
+    | '/_app/messaging/broadcasts/'
     | '/_app/messaging/channels/'
     | '/_app/messaging/contacts/'
     | '/_app/messaging/conversations/'
@@ -791,6 +827,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChannelsIndexRouteImport
       parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
+    '/_app/messaging/broadcasts/': {
+      id: '/_app/messaging/broadcasts/'
+      path: '/broadcasts'
+      fullPath: '/messaging/broadcasts/'
+      preLoaderRoute: typeof BroadcastsIndexRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
     '/_app/knowledge-base/documents/': {
       id: '/_app/knowledge-base/documents/'
       path: '/documents'
@@ -812,11 +855,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConversationsConversationIdRouteImport
       parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
+    '/_app/messaging/contacts/attributes': {
+      id: '/_app/messaging/contacts/attributes'
+      path: '/contacts/attributes'
+      fullPath: '/messaging/contacts/attributes'
+      preLoaderRoute: typeof ContactsAttributesRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
     '/_app/messaging/contacts/$contactId': {
       id: '/_app/messaging/contacts/$contactId'
       path: '/contacts/$contactId'
       fullPath: '/messaging/contacts/$contactId'
       preLoaderRoute: typeof ContactsContactIdRouteImport
+      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+    }
+    '/_app/messaging/broadcasts/$broadcastId': {
+      id: '/_app/messaging/broadcasts/$broadcastId'
+      path: '/broadcasts/$broadcastId'
+      fullPath: '/messaging/broadcasts/$broadcastId'
+      preLoaderRoute: typeof BroadcastsBroadcastIdRouteImport
       parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
     '/_app/knowledge-base/documents/$id': {
@@ -902,8 +959,11 @@ const InboxRouteWithChildren = InboxRoute._addFileChildren(InboxRouteChildren)
 interface DotDotModulesMessagingPagesLayoutRouteChildren {
   InboxRoute: typeof InboxRouteWithChildren
   LabelsRoute: typeof LabelsRoute
+  BroadcastsBroadcastIdRoute: typeof BroadcastsBroadcastIdRoute
+  ContactsAttributesRoute: typeof ContactsAttributesRoute
   ContactsContactIdRoute: typeof ContactsContactIdRoute
   ConversationsConversationIdRoute: typeof ConversationsConversationIdRoute
+  BroadcastsIndexRoute: typeof BroadcastsIndexRoute
   ChannelsIndexRoute: typeof ChannelsIndexRoute
   ContactsIndexRoute: typeof ContactsIndexRoute
   ConversationsIndexRoute: typeof ConversationsIndexRoute
@@ -914,8 +974,11 @@ const DotDotModulesMessagingPagesLayoutRouteChildren: DotDotModulesMessagingPage
   {
     InboxRoute: InboxRouteWithChildren,
     LabelsRoute: LabelsRoute,
+    BroadcastsBroadcastIdRoute: BroadcastsBroadcastIdRoute,
+    ContactsAttributesRoute: ContactsAttributesRoute,
     ContactsContactIdRoute: ContactsContactIdRoute,
     ConversationsConversationIdRoute: ConversationsConversationIdRoute,
+    BroadcastsIndexRoute: BroadcastsIndexRoute,
     ChannelsIndexRoute: ChannelsIndexRoute,
     ContactsIndexRoute: ContactsIndexRoute,
     ConversationsIndexRoute: ConversationsIndexRoute,
