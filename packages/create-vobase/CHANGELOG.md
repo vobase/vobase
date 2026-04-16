@@ -1,5 +1,18 @@
 # create-vobase
 
+## 0.6.2
+
+### Patch Changes
+
+- [`91e5b70`](https://github.com/vobase/vobase/commit/91e5b701e1580f32d0172e9b9bcceb917f95f437) Thanks [@mdluo](https://github.com/mdluo)! - Migrate scaffolder from `.agents/skills` to `.claude/skills`
+
+  The repo moved agent skills from `.agents/skills/` to `.claude/skills/` and replaced `AGENTS.md` with `CLAUDE.md`. This updates the scaffolder to match:
+
+  - **Remove CLAUDE.md → AGENTS.md symlink** — scaffolded projects now have `CLAUDE.md` as the primary file, no symlink needed
+  - **Copy skills directly to `.claude/skills/`** — no intermediate `.agents/skills/` directory or symlinks
+  - **Clean up unused imports** — `readdirSync`, `rmSync`, `symlinkSync`, `relative` no longer needed
+  - **Update biome exclude** — `!.agents` → `!.claude` in generated `biome.json`
+
 ## 0.6.1
 
 ### Patch Changes
