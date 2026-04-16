@@ -1,0 +1,9 @@
+{"t":0,"agent":"af680ee","agent_type":"architect","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"af680ee","agent_type":"architect","event":"agent_stop","success":true,"duration_ms":41160}
+{"t":0,"agent":"system","event":"skill_invoked","skill_name":"oh-my-claudecode:cancel"}
+{"t":0,"agent":"a9f3d55","agent_type":"explore","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a9f3d55","agent_type":"explore","event":"agent_stop","success":true,"duration_ms":100613}
+{"t":0,"agent":"ac6f1eb","agent_type":"document-specialist","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a69506c","agent_type":"document-specialist","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"ac6f1eb","agent_type":"document-specialist","event":"agent_stop","success":true,"duration_ms":234755}
+{"t":0,"agent":"a69506c","agent_type":"document-specialist","event":"agent_stop","success":true,"duration_ms":313375}

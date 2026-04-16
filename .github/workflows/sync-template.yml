@@ -6,7 +6,7 @@ on:
     paths:
       - "packages/template/**"
       - "packages/create-vobase/**"
-      - ".agents/skills/**"
+      - ".claude/skills/**"
       - ".github/workflows/sync-template.yml"
   workflow_dispatch:
 

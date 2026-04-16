@@ -4,13 +4,10 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
-  rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, dirname, relative, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { $ } from 'bun';
 import { downloadTemplate } from 'giget';
 
@@ -66,33 +63,18 @@ if (monorepoRoot) {
   console.log(`${green('✓')} Downloaded template`);
 }
 
-// --- CLAUDE.md → AGENTS.md symlink ---
-const claudeMd = resolve(dest, 'CLAUDE.md');
-if (existsSync(claudeMd)) rmSync(claudeMd);
-symlinkSync('AGENTS.md', claudeMd);
-
 // --- Agent skills ---
-const agentsDir = resolve(dest, '.agents', 'skills');
 const claudeSkillsDir = resolve(dest, '.claude', 'skills');
 if (monorepoRoot) {
-  const srcSkills = resolve(monorepoRoot, '.agents/skills');
+  const srcSkills = resolve(monorepoRoot, '.claude/skills');
   if (existsSync(srcSkills)) {
-    cpSync(srcSkills, agentsDir, { recursive: true });
+    cpSync(srcSkills, claudeSkillsDir, { recursive: true });
   }
 } else {
-  await downloadTemplate('github:vobase/vobase/.agents/skills', {
-    dir: agentsDir,
+  await downloadTemplate('github:vobase/vobase/.claude/skills', {
+    dir: claudeSkillsDir,
     force: true,
   });
-}
-mkdirSync(claudeSkillsDir, { recursive: true });
-for (const skill of readdirSync(agentsDir)) {
-  if (skill.startsWith('.')) continue;
-  const target = relative(claudeSkillsDir, resolve(agentsDir, skill));
-  const link = resolve(claudeSkillsDir, skill);
-  if (!existsSync(link)) {
-    symlinkSync(target, link);
-  }
 }
 console.log(
   `${green('✓')} ${monorepoRoot ? 'Copied' : 'Downloaded'} agent skills`,
@@ -132,7 +114,7 @@ const biomePath = resolve(dest, 'biome.json');
         '**',
         '!dist',
         '!.omc',
-        '!.agents',
+        '!.claude',
         '!**/*.gen.ts',
         '!**/*.generated.ts',
         '!src/components/ai-elements',

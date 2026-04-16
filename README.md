@@ -465,8 +465,8 @@ my-app/
   vite.config.ts          ← Vite + TanStack Router + path aliases
   index.html
   server.ts               ← createApp() entry
-  AGENTS.md               ← project context and guardrails (CLAUDE.md symlinks here)
-  .agents/
+  CLAUDE.md               ← project context and guardrails
+  .claude/
     skills/
       integer-money/
         SKILL.md          ← core: all money as integer cents

@@ -465,8 +465,8 @@ my-app/
   vite.config.ts          ← Vite + TanStack Router + 路径别名
   index.html
   server.ts               ← createApp() 入口 + Mastra 初始化 + Studio 挂载
-  AGENTS.md               ← 项目上下文和约束
-  .agents/
+  CLAUDE.md               ← 项目上下文和约束
+  .claude/
     skills/
       integer-money/
         SKILL.md          ← 核心：所有金额为整数分

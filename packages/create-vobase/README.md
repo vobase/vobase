@@ -21,7 +21,7 @@ my-app/
   drizzle.config.ts   ← SQLite schema management
   modules/            ← your domain code goes here
   src/                ← frontend (React, shadcn/ui)
-  .agents/skills/     ← AI agent knowledge packs
+  .claude/skills/     ← AI agent knowledge packs
 ```
 
 Backend on `:3000`, frontend on `:5173`. Ships with a dashboard and audit log viewer.

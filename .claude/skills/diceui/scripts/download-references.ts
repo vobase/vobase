@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 /**
  * Downloads DiceUI component and utility documentation from GitHub.
- * Run with: bun run .agents/skills/diceui/scripts/download-references.ts
+ * Run with: bun run .claude/skills/diceui/scripts/download-references.ts
  *
  * Fetches MDX docs from:
  * - https://github.com/sadmann7/diceui/tree/main/docs/content/docs/components/radix
  * - https://github.com/sadmann7/diceui/tree/main/docs/content/docs/utilities
  *
- * Outputs markdown reference files to .agents/skills/diceui/references/
+ * Outputs markdown reference files to .claude/skills/diceui/references/
  */
 
 import { mkdirSync, writeFileSync } from "fs";

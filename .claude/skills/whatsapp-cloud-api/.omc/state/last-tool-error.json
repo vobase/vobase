@@ -1,0 +1,7 @@
+{
+  "tool_name": "WebFetch",
+  "tool_input_preview": "{\"url\":\"https://docs.wcapi.io/whatsapp-coexistence-embedded-signup-issues-causes-and-fixes\",\"prompt\":\"Extract error 131060 details and all other coexistence error codes, companion device visibility is...",
+  "error": "ECONNREFUSED",
+  "timestamp": "2026-03-16T03:50:11.999Z",
+  "retry_count": 6
+}

@@ -22,7 +22,7 @@ When calling `generate_screen_from_text` or `edit_screens`, always append to the
 ## Stitch retrieval
 
 1. Call `get_screen` to retrieve the design JSON (discover the Stitch MCP prefix via `list_tools` first).
-2. **HTML is the primary source.** Download `htmlCode.downloadUrl` to a **local temp file** before reading it. Use: `bash .agents/skills/react-components/scripts/fetch-stitch.sh "<url>" "temp/source.html"`. Then read the downloaded file with the Read tool.
+2. **HTML is the primary source.** Download `htmlCode.downloadUrl` to a **local temp file** before reading it. Use: `bash .claude/skills/react-components/scripts/fetch-stitch.sh "<url>" "temp/source.html"`. Then read the downloaded file with the Read tool.
 3. **CRITICAL: Always download HTML to disk first.** Never read Stitch HTML directly in the orchestrator's context — it's too large and wastes token budget. Download to `temp/<descriptive-name>.html` and have sub-agents read from disk. This applies to both orchestrators delegating work and sub-agents doing the conversion.
 4. **Do not use screenshots.** Never use the screenshot URL as a substitute for reading the HTML. Never ask another AI to describe a screenshot — the HTML contains the exact DOM, CSS tokens, text, and asset URLs. Screenshots lose fidelity and waste tokens on vision processing.
 
