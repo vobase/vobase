@@ -23,7 +23,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { messagingClient } from '@/lib/api-client';
-import { formatRelativeTimeShort } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -173,11 +172,10 @@ function ContactRowItem({
             )}
           </div>
           {timeRef ? (
-            <RelativeTimeCard date={timeRef}>
-              <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                {formatRelativeTimeShort(timeRef)}
-              </span>
-            </RelativeTimeCard>
+            <RelativeTimeCard
+              date={timeRef}
+              className="text-xs text-muted-foreground whitespace-nowrap shrink-0"
+            />
           ) : (
             <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0" />
           )}
