@@ -57,7 +57,10 @@ if (authRes.ok) {
 
   // Create default organization via direct DB insert (bypasses allowUserToCreateOrganization setting)
   const seedDb = createDatabase(dbUrl);
-  const orgName = process.env.VITE_PRODUCT_NAME || 'Vobase';
+  const orgName =
+    process.env.VITE_PLATFORM_TENANT_NAME ||
+    process.env.VITE_PRODUCT_NAME ||
+    'Vobase';
   const orgSlug =
     orgName
       .toLowerCase()
