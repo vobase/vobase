@@ -93,6 +93,9 @@ function PublicChatView({
       );
       return { previous };
     },
+    onSuccess: () => {
+      setSseTyping(true);
+    },
     onError: (_err, _content, context) => {
       if (context?.previous) {
         queryClient.setQueryData(
