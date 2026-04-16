@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import {
   MoreHorizontalIcon,
   PauseIcon,
@@ -159,7 +159,13 @@ function RuleCard({ rule }: { rule: AutomationRule }) {
     <div className="flex items-start justify-between gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <span className="truncate font-medium">{rule.name}</span>
+          <Link
+            to="/campaigns/rules/$ruleId"
+            params={{ ruleId: rule.id }}
+            className="truncate font-medium hover:underline"
+          >
+            {rule.name}
+          </Link>
           <Badge variant="outline" className="shrink-0 text-xs">
             {ruleTypeLabel(rule.type)}
           </Badge>
@@ -223,6 +229,11 @@ function RuleCard({ rule }: { rule: AutomationRule }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link to="/campaigns/rules/$ruleId" params={{ ruleId: rule.id }}>
+                View details
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"

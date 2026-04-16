@@ -55,6 +55,7 @@ import { Route as ConversationsConversationIdRouteImport } from './../modules/me
 import { Route as ContactsAttributesRouteImport } from './../modules/messaging/pages/contacts/attributes'
 import { Route as ContactsContactIdRouteImport } from './../modules/messaging/pages/contacts/$contactId'
 import { Route as CampaignsBroadcastsBroadcastIdRouteImport } from './../modules/messaging/pages/campaigns/broadcasts/$broadcastId'
+import { Route as CampaignsRulesRuleIdRouteImport } from './../modules/messaging/pages/campaigns/rules/$ruleId'
 import { Route as KbDotidRouteImport } from './../modules/agents/pages/kb.$id'
 import { Route as AgentIdDoteditorRouteImport } from './../modules/agents/pages/$agentId.editor'
 
@@ -295,6 +296,11 @@ const CampaignsBroadcastsBroadcastIdRoute =
     path: '/broadcasts/$broadcastId',
     getParentRoute: () => DotDotModulesCampaignsPagesLayoutRoute,
   } as any)
+const CampaignsRulesRuleIdRoute = CampaignsRulesRuleIdRouteImport.update({
+  id: '/rules/$ruleId',
+  path: '/rules/$ruleId',
+  getParentRoute: () => DotDotModulesCampaignsPagesLayoutRoute,
+} as any)
 const KbDotidRoute = KbDotidRouteImport.update({
   id: '/kb/$id',
   path: '/kb/$id',
@@ -340,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/agents/$agentId/editor': typeof AgentIdDoteditorRoute
   '/agents/kb/$id': typeof KbDotidRoute
   '/campaigns/broadcasts/$broadcastId': typeof CampaignsBroadcastsBroadcastIdRoute
+  '/campaigns/rules/$ruleId': typeof CampaignsRulesRuleIdRoute
   '/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
@@ -385,6 +392,7 @@ export interface FileRoutesByTo {
   '/agents/$agentId/editor': typeof AgentIdDoteditorRoute
   '/agents/kb/$id': typeof KbDotidRoute
   '/campaigns/broadcasts/$broadcastId': typeof CampaignsBroadcastsBroadcastIdRoute
+  '/campaigns/rules/$ruleId': typeof CampaignsRulesRuleIdRoute
   '/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
@@ -436,6 +444,7 @@ export interface FileRoutesById {
   '/_app/agents/$agentId/editor': typeof AgentIdDoteditorRoute
   '/_app/agents/kb/$id': typeof KbDotidRoute
   '/_app/campaigns/broadcasts/$broadcastId': typeof CampaignsBroadcastsBroadcastIdRoute
+  '/_app/campaigns/rules/$ruleId': typeof CampaignsRulesRuleIdRoute
   '/_app/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/_app/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/_app/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
@@ -486,6 +495,7 @@ export interface FileRouteTypes {
     | '/agents/$agentId/editor'
     | '/agents/kb/$id'
     | '/campaigns/broadcasts/$broadcastId'
+    | '/campaigns/rules/$ruleId'
     | '/messaging/contacts/$contactId'
     | '/messaging/contacts/attributes'
     | '/messaging/conversations/$conversationId'
@@ -531,6 +541,7 @@ export interface FileRouteTypes {
     | '/agents/$agentId/editor'
     | '/agents/kb/$id'
     | '/campaigns/broadcasts/$broadcastId'
+    | '/campaigns/rules/$ruleId'
     | '/messaging/contacts/$contactId'
     | '/messaging/contacts/attributes'
     | '/messaging/conversations/$conversationId'
@@ -581,6 +592,7 @@ export interface FileRouteTypes {
     | '/_app/agents/$agentId/editor'
     | '/_app/agents/kb/$id'
     | '/_app/campaigns/broadcasts/$broadcastId'
+    | '/_app/campaigns/rules/$ruleId'
     | '/_app/messaging/contacts/$contactId'
     | '/_app/messaging/contacts/attributes'
     | '/_app/messaging/conversations/$conversationId'
@@ -926,6 +938,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CampaignsBroadcastsBroadcastIdRouteImport
       parentRoute: typeof DotDotModulesCampaignsPagesLayoutRoute
     }
+    '/_app/campaigns/rules/$ruleId': {
+      id: '/_app/campaigns/rules/$ruleId'
+      path: '/rules/$ruleId'
+      fullPath: '/campaigns/rules/$ruleId'
+      preLoaderRoute: typeof CampaignsRulesRuleIdRouteImport
+      parentRoute: typeof DotDotModulesCampaignsPagesLayoutRoute
+    }
     '/_app/agents/kb/$id': {
       id: '/_app/agents/kb/$id'
       path: '/kb/$id'
@@ -1004,6 +1023,7 @@ interface DotDotModulesCampaignsPagesLayoutRouteChildren {
   CampaignsBroadcastsBroadcastIdRoute: typeof CampaignsBroadcastsBroadcastIdRoute
   CampaignsBroadcastsIndexRoute: typeof CampaignsBroadcastsIndexRoute
   CampaignsRulesIndexRoute: typeof CampaignsRulesIndexRoute
+  CampaignsRulesRuleIdRoute: typeof CampaignsRulesRuleIdRoute
 }
 
 const DotDotModulesCampaignsPagesLayoutRouteChildren: DotDotModulesCampaignsPagesLayoutRouteChildren =
@@ -1011,6 +1031,7 @@ const DotDotModulesCampaignsPagesLayoutRouteChildren: DotDotModulesCampaignsPage
     CampaignsBroadcastsBroadcastIdRoute: CampaignsBroadcastsBroadcastIdRoute,
     CampaignsBroadcastsIndexRoute: CampaignsBroadcastsIndexRoute,
     CampaignsRulesIndexRoute: CampaignsRulesIndexRoute,
+    CampaignsRulesRuleIdRoute: CampaignsRulesRuleIdRoute,
   }
 
 const DotDotModulesCampaignsPagesLayoutRouteWithChildren =
