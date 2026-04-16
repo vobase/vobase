@@ -22,7 +22,7 @@ export function parseTargetSpec(spec: string): ResolveTargetInput | null {
 
 /**
  * Resolve a target specifier to a concrete ID:
- * - role: query staff contacts where metadata contains value, return userId from authUser
+ * - role: query staff contacts where attributes contains value, return userId from authUser
  * - user: return value as-is (already a userId)
  * - agent: return "agent:{value}"
  */
@@ -44,9 +44,9 @@ export async function resolveTarget(
     .from(contacts)
     .where(
       sql`${contacts.role} = 'staff' AND (
-        ${contacts.metadata} @> ${JSON.stringify([target.value])}::jsonb
-        OR ${contacts.metadata}->>'department' = ${target.value}
-        OR ${contacts.metadata}->>'role' = ${target.value}
+        ${contacts.attributes} @> ${JSON.stringify([target.value])}::jsonb
+        OR ${contacts.attributes}->>'department' = ${target.value}
+        OR ${contacts.attributes}->>'role' = ${target.value}
       )`,
     )
     .limit(1);

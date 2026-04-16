@@ -30,9 +30,11 @@ export const contacts = messagingPgSchema.table(
     name: text('name'),
     identifier: text('identifier').unique(),
     role: text('role').notNull().default('customer'),
-    metadata: jsonb('metadata').default({}),
-    workingMemory: text('working_memory'),
-    resourceMetadata: jsonb('resource_metadata'),
+    attributes: jsonb('attributes').default({}),
+    marketingOptOut: boolean('marketing_opt_out').notNull().default(false),
+    marketingOptOutAt: timestamp('marketing_opt_out_at', {
+      withTimezone: true,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -46,6 +48,30 @@ export const contacts = messagingPgSchema.table(
     index('contacts_email_idx').on(table.email),
     index('contacts_role_idx').on(table.role),
     check('contacts_role_check', sql`role IN ('customer', 'lead', 'staff')`),
+  ],
+);
+
+// ─── Contact Attribute Definitions ──────────────────────────────────
+
+export const contactAttributeDefinitions = messagingPgSchema.table(
+  'contact_attribute_definitions',
+  {
+    id: nanoidPrimaryKey(),
+    key: text('key').notNull().unique(),
+    label: text('label').notNull(),
+    type: text('type').notNull().default('text'),
+    showInTable: boolean('show_in_table').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('contact_attr_defs_key_idx').on(table.key),
+    check(
+      'contact_attr_defs_type_check',
+      sql`type IN ('text', 'number', 'boolean', 'date')`,
+    ),
   ],
 );
 
@@ -489,4 +515,93 @@ export const channelInstanceTeams = messagingPgSchema.table(
       .defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.channelInstanceId, table.teamId] })],
+);
+
+// ─── Broadcasts ───────────────────────────────────────────────────
+
+export const broadcasts = messagingPgSchema.table(
+  'broadcasts',
+  {
+    id: nanoidPrimaryKey(),
+    name: text('name').notNull(),
+    channelInstanceId: text('channel_instance_id')
+      .notNull()
+      .references(() => channelInstances.id),
+    templateId: text('template_id').notNull(),
+    templateName: text('template_name').notNull(),
+    templateLanguage: text('template_language').notNull().default('en'),
+    variableMapping: jsonb('variable_mapping').default({}),
+    status: text('status').notNull().default('draft'),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+    timezone: text('timezone').default('UTC'),
+    totalRecipients: integer('total_recipients').notNull().default(0),
+    sentCount: integer('sent_count').notNull().default(0),
+    deliveredCount: integer('delivered_count').notNull().default(0),
+    readCount: integer('read_count').notNull().default(0),
+    failedCount: integer('failed_count').notNull().default(0),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('broadcasts_status_idx').on(table.status),
+    index('broadcasts_scheduled_idx')
+      .on(table.status, table.scheduledAt)
+      .where(sql`status = 'scheduled'`),
+    index('broadcasts_created_by_idx').on(table.createdBy),
+    check(
+      'broadcasts_status_check',
+      sql`status IN ('draft', 'scheduled', 'sending', 'paused', 'completed', 'failed', 'cancelled')`,
+    ),
+  ],
+);
+
+// ─── Broadcast Recipients ─────────────────────────────────────────
+
+export const broadcastRecipients = messagingPgSchema.table(
+  'broadcast_recipients',
+  {
+    id: nanoidPrimaryKey(),
+    broadcastId: text('broadcast_id')
+      .notNull()
+      .references(() => broadcasts.id, { onDelete: 'cascade' }),
+    contactId: text('contact_id')
+      .notNull()
+      .references(() => contacts.id),
+    phone: text('phone').notNull(),
+    variables: jsonb('variables').default({}),
+    status: text('status').notNull().default('queued'),
+    externalMessageId: text('external_message_id'),
+    failureReason: text('failure_reason'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('broadcast_recipients_broadcast_idx').on(table.broadcastId),
+    index('broadcast_recipients_contact_idx').on(table.contactId),
+    index('broadcast_recipients_status_idx').on(
+      table.broadcastId,
+      table.status,
+    ),
+    uniqueIndex('broadcast_recipients_unique').on(
+      table.broadcastId,
+      table.contactId,
+    ),
+    index('broadcast_recipients_external_msg_idx').on(table.externalMessageId),
+    check(
+      'broadcast_recipients_status_check',
+      sql`status IN ('queued', 'sent', 'delivered', 'read', 'failed', 'skipped')`,
+    ),
+  ],
 );

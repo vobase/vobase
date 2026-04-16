@@ -78,6 +78,8 @@ describe('formatProfile', () => {
       email: 'alice@example.com',
       role: 'customer',
       identifier: 'alice-tan',
+      attributes: { segment: 'returning-customer', tags: ['vip'] },
+      marketingOptOut: false,
       createdAt: new Date('2025-01-10T08:00:00Z'),
     });
 
@@ -87,7 +89,11 @@ describe('formatProfile', () => {
     expect(result).toContain('email: alice@example.com');
     expect(result).toContain('role: customer');
     expect(result).toContain('identifier: alice-tan');
+    expect(result).toContain('marketing_opt_out: no');
     expect(result).toContain('since: 2025-01-10T08:00:00.000Z');
+    expect(result).toContain('## Attributes');
+    expect(result).toContain('segment: returning-customer');
+    expect(result).toContain('tags: ["vip"]');
   });
 
   test('omits null fields', () => {
@@ -97,6 +103,8 @@ describe('formatProfile', () => {
       email: null,
       role: 'lead',
       identifier: null,
+      attributes: {},
+      marketingOptOut: true,
       createdAt: new Date('2025-01-10T08:00:00Z'),
     });
 

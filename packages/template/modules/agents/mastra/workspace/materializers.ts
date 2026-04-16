@@ -98,6 +98,8 @@ export async function materializeProfile(
       email: contacts.email,
       role: contacts.role,
       identifier: contacts.identifier,
+      attributes: contacts.attributes,
+      marketingOptOut: contacts.marketingOptOut,
       createdAt: contacts.createdAt,
     })
     .from(contacts)
@@ -117,6 +119,8 @@ export function formatProfile(row: {
   email: string | null;
   role: string;
   identifier: string | null;
+  attributes: unknown;
+  marketingOptOut: boolean;
   createdAt: Date;
 }): string {
   const lines = ['# Profile', ''];
@@ -125,7 +129,19 @@ export function formatProfile(row: {
   if (row.email) lines.push(`email: ${row.email}`);
   lines.push(`role: ${row.role}`);
   if (row.identifier) lines.push(`identifier: ${row.identifier}`);
+  lines.push(`marketing_opt_out: ${row.marketingOptOut ? 'yes' : 'no'}`);
   lines.push(`since: ${row.createdAt.toISOString()}`);
+
+  const attrs = row.attributes as Record<string, unknown> | null;
+  if (attrs && Object.keys(attrs).length > 0) {
+    lines.push('', '## Attributes');
+    for (const [key, value] of Object.entries(attrs)) {
+      lines.push(
+        `${key}: ${Array.isArray(value) ? JSON.stringify(value) : String(value)}`,
+      );
+    }
+  }
+
   return lines.join('\n');
 }
 

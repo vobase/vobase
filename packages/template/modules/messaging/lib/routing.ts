@@ -21,7 +21,7 @@ export async function findOrCreateContact(
       .values({
         name: event.profileName || undefined,
         role: 'customer',
-        metadata: {},
+        attributes: {},
       })
       .returning();
     return created;
@@ -33,7 +33,7 @@ export async function findOrCreateContact(
       phone: event.from,
       name: event.profileName || undefined,
       role: 'customer',
-      metadata: {},
+      attributes: {},
     })
     .onConflictDoUpdate({
       target: contacts.phone,

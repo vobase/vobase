@@ -118,8 +118,8 @@ function rowToStorageThread(row: ConversationRow): StorageThreadType {
 function rowToStorageResource(row: ContactRow): StorageResourceType {
   return {
     id: `contact:${row.id}`,
-    workingMemory: row.workingMemory ?? undefined,
-    metadata: (row.resourceMetadata as Record<string, unknown>) ?? {},
+    workingMemory: undefined,
+    metadata: {},
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -503,36 +503,25 @@ export class VobaseMemoryStorage extends MemoryStorage {
     resource: StorageResourceType;
   }): Promise<StorageResourceType> {
     const contactId = stripContactPrefix(resource.id);
+    // workingMemory and resourceMetadata columns have been dropped — no-op write
     const rows = await this.db
-      .update(contacts)
-      .set({
-        workingMemory: resource.workingMemory ?? null,
-        resourceMetadata:
-          (resource.metadata as Record<string, unknown>) ?? null,
-      })
+      .select()
+      .from(contacts)
       .where(eq(contacts.id, contactId))
-      .returning();
+      .limit(1);
     if (!rows[0]) throw new Error(`Contact ${contactId} not found`);
     return rowToStorageResource(rows[0]);
   }
 
   override async updateResource({
     resourceId,
-    workingMemory,
-    metadata,
   }: {
     resourceId: string;
     workingMemory?: string;
     metadata?: Record<string, unknown>;
   }): Promise<StorageResourceType> {
     const contactId = stripContactPrefix(resourceId);
-    const set: Record<string, unknown> = {};
-    if (workingMemory !== undefined) set.workingMemory = workingMemory;
-    if (metadata !== undefined) set.resourceMetadata = metadata;
-
-    if (Object.keys(set).length > 0) {
-      await this.db.update(contacts).set(set).where(eq(contacts.id, contactId));
-    }
+    // workingMemory and resourceMetadata columns have been dropped — no-op write
 
     const rows = await this.db
       .select()

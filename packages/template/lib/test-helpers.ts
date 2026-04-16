@@ -78,9 +78,9 @@ export async function createTestDb(options?: {
       name TEXT,
       identifier TEXT,
       role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'lead', 'staff')),
-      metadata JSONB DEFAULT '{}',
-      working_memory TEXT,
-      resource_metadata JSONB,
+      attributes JSONB DEFAULT '{}',
+      marketing_opt_out BOOLEAN NOT NULL DEFAULT FALSE,
+      marketing_opt_out_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -199,6 +199,55 @@ export async function createTestDb(options?: {
       label_id TEXT NOT NULL REFERENCES "messaging"."labels" (id) ON DELETE CASCADE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (contact_id, label_id)
+    );
+
+    CREATE TABLE "messaging"."broadcasts" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(8),
+      name TEXT NOT NULL,
+      channel_instance_id TEXT NOT NULL REFERENCES "messaging"."channel_instances" (id),
+      template_id TEXT NOT NULL,
+      template_name TEXT NOT NULL,
+      template_language TEXT NOT NULL DEFAULT 'en',
+      variable_mapping JSONB DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'sending', 'paused', 'completed', 'failed', 'cancelled')),
+      scheduled_at TIMESTAMPTZ,
+      timezone TEXT DEFAULT 'UTC',
+      total_recipients INTEGER NOT NULL DEFAULT 0,
+      sent_count INTEGER NOT NULL DEFAULT 0,
+      delivered_count INTEGER NOT NULL DEFAULT 0,
+      read_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      started_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ,
+      created_by TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE "messaging"."broadcast_recipients" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(8),
+      broadcast_id TEXT NOT NULL REFERENCES "messaging"."broadcasts" (id) ON DELETE CASCADE,
+      contact_id TEXT NOT NULL REFERENCES "messaging"."contacts" (id),
+      phone TEXT NOT NULL,
+      variables JSONB DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent', 'delivered', 'read', 'failed', 'skipped')),
+      external_message_id TEXT,
+      failure_reason TEXT,
+      sent_at TIMESTAMPTZ,
+      delivered_at TIMESTAMPTZ,
+      read_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (broadcast_id, contact_id)
+    );
+
+    CREATE TABLE "messaging"."contact_attribute_definitions" (
+      id TEXT PRIMARY KEY DEFAULT nanoid(8),
+      key TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'text' CHECK (type IN ('text', 'number', 'boolean', 'date')),
+      show_in_table BOOLEAN NOT NULL DEFAULT false,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE "messaging"."reactions" (

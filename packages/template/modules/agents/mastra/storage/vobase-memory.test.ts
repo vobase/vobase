@@ -322,7 +322,7 @@ describe('VobaseMemoryStorage', () => {
       expect(resource?.createdAt).toBeInstanceOf(Date);
     });
 
-    it('saveResource updates working memory on contact', async () => {
+    it('saveResource returns resource for existing contact (no-op write)', async () => {
       const resource = await storage.saveResource({
         resource: {
           id: `contact:${testContactId}`,
@@ -332,28 +332,18 @@ describe('VobaseMemoryStorage', () => {
           updatedAt: new Date(),
         },
       });
-      expect(resource.workingMemory).toBe(
-        '<working_memory>Test data</working_memory>',
-      );
-      expect(resource.metadata).toEqual({ key: 'value' });
-
-      // Verify persisted
-      const rows = await db
-        .select()
-        .from(contacts)
-        .where(eq(contacts.id, testContactId));
-      expect(rows[0]?.workingMemory).toBe(
-        '<working_memory>Test data</working_memory>',
-      );
-      expect(rows[0]?.resourceMetadata).toEqual({ key: 'value' });
+      // workingMemory and resourceMetadata columns dropped — always returns defaults
+      expect(resource.workingMemory).toBeUndefined();
+      expect(resource.metadata).toEqual({});
     });
 
-    it('updateResource updates specific fields', async () => {
+    it('updateResource returns resource (no-op write)', async () => {
       const resource = await storage.updateResource({
         resourceId: `contact:${testContactId}`,
         workingMemory: 'Updated memory',
       });
-      expect(resource.workingMemory).toBe('Updated memory');
+      // workingMemory column dropped — always returns undefined
+      expect(resource.workingMemory).toBeUndefined();
     });
 
     it('getResourceById returns null for unknown contact', async () => {
