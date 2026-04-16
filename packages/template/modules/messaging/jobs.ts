@@ -1,18 +1,24 @@
 import { defineJob, logger } from '@vobase/core';
-import { and, eq, inArray, lt } from 'drizzle-orm';
+import { and, eq, inArray, lt, lte } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { getModuleDeps } from './lib/deps';
 
 export { setModuleDeps } from './lib/deps';
 
+import { executeBroadcast } from './lib/broadcast-executor';
 import { getCaptionForContentType } from './lib/caption';
 import { expireSessions } from './lib/channel-sessions';
 import { resolveConversation } from './lib/conversation';
 import { processDelivery } from './lib/delivery';
 import { handleInboundMessage } from './lib/inbound';
 import { transition } from './lib/state-machine';
-import { channelInstances, conversations, messages } from './schema';
+import {
+  broadcasts,
+  channelInstances,
+  conversations,
+  messages,
+} from './schema';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Messaging jobs
@@ -314,5 +320,78 @@ export const channelHealthCheckJob = defineJob(
         }
       }),
     );
+  },
+);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Broadcast jobs
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const broadcastDataSchema = z.object({ broadcastId: z.string().min(1) });
+
+/**
+ * broadcast:execute — Process a broadcast: iterate recipients, send template messages in batches.
+ */
+export const broadcastExecuteJob = defineJob(
+  'broadcast:execute',
+  async (data) => {
+    const { broadcastId } = broadcastDataSchema.parse(data);
+    await executeBroadcast(broadcastId);
+  },
+);
+
+/**
+ * broadcast:check-scheduled — Cron every minute.
+ * Find scheduled broadcasts where scheduledAt <= now(), trigger execution.
+ */
+export const broadcastCheckScheduledJob = defineJob(
+  'broadcast:check-scheduled',
+  async () => {
+    const deps = getModuleDeps();
+    const now = new Date();
+
+    const due = await deps.db
+      .select({ id: broadcasts.id })
+      .from(broadcasts)
+      .where(
+        and(
+          eq(broadcasts.status, 'scheduled'),
+          lte(broadcasts.scheduledAt, now),
+        ),
+      );
+
+    for (const b of due) {
+      await deps.db
+        .update(broadcasts)
+        .set({ status: 'sending', startedAt: now })
+        .where(eq(broadcasts.id, b.id));
+
+      await deps.scheduler
+        .add('broadcast:execute', { broadcastId: b.id }, { singletonKey: b.id })
+        .catch((err) => {
+          logger.error('[broadcast] Failed to enqueue scheduled broadcast', {
+            broadcastId: b.id,
+            error: err,
+          });
+        });
+
+      logger.info('[broadcast] Triggered scheduled broadcast', {
+        broadcastId: b.id,
+      });
+    }
+  },
+);
+
+/**
+ * broadcast:retry-failed — Re-send queued recipients after a retry.
+ * The handler (POST /:id/retry-failed) already resets failed recipients
+ * to 'queued' and updates broadcast counters before enqueuing this job.
+ */
+export const broadcastRetryFailedJob = defineJob(
+  'broadcast:retry-failed',
+  async (data) => {
+    const { broadcastId } = broadcastDataSchema.parse(data);
+    await executeBroadcast(broadcastId);
+    logger.info('[broadcast] Retry execution finished', { broadcastId });
   },
 );

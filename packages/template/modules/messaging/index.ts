@@ -15,6 +15,9 @@ import { and, eq } from 'drizzle-orm';
 import { messagingRoutes } from './handlers';
 import { buildManagedTransport } from './handlers/channels';
 import {
+  broadcastCheckScheduledJob,
+  broadcastExecuteJob,
+  broadcastRetryFailedJob,
   channelHealthCheckJob,
   conversationCleanupJob,
   deliverMessageJob,
@@ -41,6 +44,9 @@ export const messagingModule = defineModule({
     processMediaCaptionJob,
     sessionExpiryJob,
     channelHealthCheckJob,
+    broadcastExecuteJob,
+    broadcastCheckScheduledJob,
+    broadcastRetryFailedJob,
   ],
 
   async init(ctx) {
@@ -330,6 +336,12 @@ async function scheduleRecurringJobs(
 
   await scheduler
     .schedule('messaging:channel-health-check', '0 */6 * * *', {})
+    .catch(() => {
+      // Ignore — schedule may already exist
+    });
+
+  await scheduler
+    .schedule('broadcast:check-scheduled', '* * * * *', {})
     .catch(() => {
       // Ignore — schedule may already exist
     });

@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 
 import { activityHandlers } from './handlers/activity';
+import { attributeDefinitionsHandlers } from './handlers/attribute-definitions';
+import { broadcastsHandlers } from './handlers/broadcasts';
 import { channelsHandlers } from './handlers/channels';
 import { contactsHandlers } from './handlers/contacts';
 import { conversationsDetailHandlers } from './handlers/conversations';
@@ -13,6 +15,8 @@ export const messagingRoutes = new Hono()
   .route('/', channelsHandlers)
   .route('/', activityHandlers)
   .route('/', templatesHandlers)
-  .route('/contacts', contactsHandlers);
+  .route('/contacts', contactsHandlers)
+  .route('/broadcasts', broadcastsHandlers)
+  .route('/attribute-definitions', attributeDefinitionsHandlers);
 
 export type MessagingRoutes = typeof messagingRoutes;

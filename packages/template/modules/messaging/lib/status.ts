@@ -1,8 +1,13 @@
-import type { ReactionEvent, StatusUpdateEvent } from '@vobase/core';
+import type {
+  ReactionEvent,
+  RealtimeService,
+  StatusUpdateEvent,
+  VobaseDb,
+} from '@vobase/core';
 import { logger, shouldUpdateStatus } from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
-import { messages } from '../schema';
+import { broadcastRecipients, broadcasts, messages } from '../schema';
 import { getModuleDeps } from './deps';
 import { insertMessage } from './messages';
 
@@ -21,10 +26,14 @@ export async function handleStatusUpdate(
     .where(eq(messages.externalMessageId, event.messageId));
 
   if (!message) {
-    logger.warn('[messaging] status_update: message not found', {
-      externalMessageId: event.messageId,
-      status: event.status,
-    });
+    // Fallback: check broadcast recipients
+    const handled = await handleBroadcastStatusUpdate(db, realtime, event);
+    if (!handled) {
+      logger.warn('[messaging] status_update: message not found', {
+        externalMessageId: event.messageId,
+        status: event.status,
+      });
+    }
     return;
   }
 
@@ -141,4 +150,90 @@ export async function handleReaction(event: ReactionEvent): Promise<void> {
     emoji: event.emoji,
     action: event.action,
   });
+}
+
+// ─── Broadcast Status Fallback ────────────────────────────────────
+
+const STATUS_ORDER: Record<string, number> = {
+  queued: 0,
+  sent: 1,
+  delivered: 2,
+  read: 3,
+  failed: 4,
+};
+
+async function handleBroadcastStatusUpdate(
+  db: VobaseDb,
+  realtime: RealtimeService,
+  event: StatusUpdateEvent,
+): Promise<boolean> {
+  const [recipient] = await db
+    .select({
+      id: broadcastRecipients.id,
+      broadcastId: broadcastRecipients.broadcastId,
+      status: broadcastRecipients.status,
+    })
+    .from(broadcastRecipients)
+    .where(eq(broadcastRecipients.externalMessageId, event.messageId))
+    .limit(1);
+
+  if (!recipient) return false;
+
+  // Only advance status (never go backwards), except failed always accepted
+  const currentOrder = STATUS_ORDER[recipient.status] ?? -1;
+  const newOrder = STATUS_ORDER[event.status] ?? -1;
+  if (event.status !== 'failed' && newOrder <= currentOrder) return true;
+
+  const now = new Date();
+  const updates: Record<string, unknown> = { status: event.status };
+  if (event.status === 'delivered') updates.deliveredAt = now;
+  if (event.status === 'read') {
+    updates.readAt = now;
+    if (!recipient.status || recipient.status === 'sent') {
+      updates.deliveredAt = now;
+    }
+  }
+
+  await db
+    .update(broadcastRecipients)
+    .set(updates)
+    .where(eq(broadcastRecipients.id, recipient.id));
+
+  // Atomically increment broadcast counters
+  if (event.status === 'delivered') {
+    await db
+      .update(broadcasts)
+      .set({ deliveredCount: sql`${broadcasts.deliveredCount} + 1` })
+      .where(eq(broadcasts.id, recipient.broadcastId));
+  } else if (event.status === 'read') {
+    // If skipping delivered → read, increment both counters
+    const skippedDelivered =
+      recipient.status === 'sent' || recipient.status === 'queued';
+    await db
+      .update(broadcasts)
+      .set({
+        readCount: sql`${broadcasts.readCount} + 1`,
+        ...(skippedDelivered && {
+          deliveredCount: sql`${broadcasts.deliveredCount} + 1`,
+        }),
+      })
+      .where(eq(broadcasts.id, recipient.broadcastId));
+  }
+
+  await realtime
+    .notify({
+      table: 'broadcasts',
+      id: recipient.broadcastId,
+      action: 'update',
+    })
+    .catch(() => {});
+
+  logger.info('[broadcast] status_update', {
+    recipientId: recipient.id,
+    broadcastId: recipient.broadcastId,
+    externalMessageId: event.messageId,
+    status: event.status,
+  });
+
+  return true;
 }

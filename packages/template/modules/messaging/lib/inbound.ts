@@ -23,6 +23,7 @@ import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 
 import { cancelWake } from '../../agents/lib/agent-wake';
 import {
+  broadcastRecipients,
   channelInstances,
   channelRoutings,
   contacts,
@@ -83,6 +84,31 @@ export async function handleInboundMessage(
 
     // 1. Resolve or create contact
     const contact = await findOrCreateContact(db, event);
+
+    // STOP keyword detection — auto-opt-out from marketing broadcasts
+    const STOP_KEYWORDS = ['stop', 'unsubscribe', 'opt out', 'cancel'];
+    if (
+      event.content &&
+      STOP_KEYWORDS.includes(event.content.trim().toLowerCase())
+    ) {
+      const isOptedOut = contact.marketingOptOut;
+      if (!isOptedOut) {
+        await deps.db
+          .update(contacts)
+          .set({
+            marketingOptOut: true,
+            marketingOptOutAt: new Date(),
+          })
+          .where(eq(contacts.id, contact.id));
+
+        logger.info('[messaging] Contact opted out via STOP keyword', {
+          contactId: contact.id,
+          phone: contact.phone,
+          keyword: event.content.trim(),
+        });
+      }
+      // Continue with normal inbound processing — don't return early
+    }
 
     // 3a. Check for existing active or resolving conversation
     const [existingConversation] = await db
@@ -192,6 +218,45 @@ export async function handleInboundMessage(
         channelInstanceId,
       },
     );
+
+    // Link broadcast origin for traceability
+    if (contact.phone) {
+      const recentBroadcast = await db
+        .select({
+          broadcastId: broadcastRecipients.broadcastId,
+        })
+        .from(broadcastRecipients)
+        .where(
+          and(
+            eq(broadcastRecipients.contactId, contact.id),
+            inArray(broadcastRecipients.status, ['sent', 'delivered']),
+            gt(
+              broadcastRecipients.sentAt,
+              new Date(Date.now() - 72 * 60 * 60 * 1000),
+            ),
+          ),
+        )
+        .orderBy(desc(broadcastRecipients.sentAt))
+        .limit(1);
+
+      if (recentBroadcast.length > 0) {
+        const currentMeta = (conversation.metadata ?? {}) as Record<
+          string,
+          unknown
+        >;
+        if (!currentMeta.broadcastId) {
+          await db
+            .update(conversations)
+            .set({
+              metadata: {
+                ...currentMeta,
+                broadcastId: recentBroadcast[0].broadcastId,
+              },
+            })
+            .where(eq(conversations.id, conversation.id));
+        }
+      }
+    }
 
     await appendAndRoute(
       deps,
