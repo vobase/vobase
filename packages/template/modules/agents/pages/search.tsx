@@ -181,6 +181,6 @@ function KnowledgeBaseSearch() {
   );
 }
 
-export const Route = createFileRoute('/_app/knowledge-base/search')({
+export const Route = createFileRoute('/_app/agents/search')({
   component: KnowledgeBaseSearch,
 });

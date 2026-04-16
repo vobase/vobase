@@ -53,6 +53,7 @@ export const kbDocuments = kbPgSchema.table(
   {
     id: nanoidPrimaryKey(),
     title: text('title').notNull(),
+    folder: text('folder'), // null = root level, e.g. 'policies', 'services'
     sourceType: text('source_type').notNull().default('upload'), // upload | crawl | google-drive | sharepoint
     sourceId: text('source_id').references(() => kbSources.id, {
       onDelete: 'set null',
@@ -74,6 +75,7 @@ export const kbDocuments = kbPgSchema.table(
   },
   (table) => [
     index('documents_source_id_idx').on(table.sourceId),
+    index('documents_folder_idx').on(table.folder),
     index('documents_pending_idx')
       .on(table.status)
       .where(sql`status IN ('pending', 'processing')`),

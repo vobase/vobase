@@ -235,6 +235,6 @@ function SourcesPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/knowledge-base/sources')({
+export const Route = createFileRoute('/_app/agents/sources')({
   component: SourcesPage,
 });

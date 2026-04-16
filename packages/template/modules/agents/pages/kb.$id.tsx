@@ -1,4 +1,14 @@
 import {
+  documentComponents,
+  documentPlugins,
+} from '@modules/knowledge-base/lib/plate-editor-config';
+import {
+  createParagraph,
+  NodeType,
+  type PlateValue,
+} from '@modules/knowledge-base/lib/plate-types';
+import { withBlockControls } from '@modules/knowledge-base/pages/components/-block-controls';
+import {
   Plate,
   PlateContent,
   useEditorRef,
@@ -13,16 +23,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
 import { knowledgeBaseClient } from '@/lib/api-client';
-import {
-  documentComponents,
-  documentPlugins,
-} from '../../lib/plate-editor-config';
-import {
-  createParagraph,
-  NodeType,
-  type PlateValue,
-} from '../../lib/plate-types';
-import { withBlockControls } from '../components/-block-controls';
 
 // ---------------------------------------------------------------------------
 // Controlled component map (top-level blocks get the exclude toggle)
@@ -41,7 +41,6 @@ const CONTROLLED_TYPES = new Set<string>([
   NodeType.HR,
   NodeType.UL,
   NodeType.OL,
-  // TABLE excluded — wrapping <table> in a <div> breaks HTML table rendering
 ]);
 
 const controlledComponents = Object.fromEntries(
@@ -87,7 +86,6 @@ const DOC_STATUS_LABEL: Record<string, string> = {
 
 type Doc = Awaited<ReturnType<typeof fetchDocument>>;
 
-/** Inner editor UI — must be rendered inside <Plate> to use editor hooks. */
 function ViewerContent({ doc }: { doc: Doc }) {
   const editor = useEditorRef();
   const [readOnly, setReadOnly] = useState(true);
@@ -118,11 +116,11 @@ function ViewerContent({ doc }: { doc: Doc }) {
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b px-6 py-3">
         <Link
-          to="/knowledge-base/documents"
+          to="/agents"
           className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
-          Documents
+          Agents
         </Link>
 
         <div className="h-4 w-px bg-border" />
@@ -166,7 +164,7 @@ function ViewerContent({ doc }: { doc: Doc }) {
                 onClick={() => saveMutation.mutate()}
                 disabled={saveMutation.isPending}
               >
-                {saveMutation.isPending ? 'Saving…' : 'Save'}
+                {saveMutation.isPending ? 'Saving...' : 'Save'}
               </Button>
             </>
           )}
@@ -194,15 +192,15 @@ function ViewerContent({ doc }: { doc: Doc }) {
       {/* Document info bar */}
       <div className="flex shrink-0 items-center gap-3 border-b bg-muted/30 px-6 py-1.5 text-xs text-muted-foreground">
         <span>{doc.mimeType}</span>
-        <span>·</span>
+        <span>&middot;</span>
         <span>
           {doc.chunkCount} {doc.chunkCount === 1 ? 'chunk' : 'chunks'}
         </span>
-        <span>·</span>
+        <span>&middot;</span>
         <span>{doc.sourceType}</span>
         {!readOnly && (
           <>
-            <span>·</span>
+            <span>&middot;</span>
             <span className="text-amber-600">
               Editing — hover blocks to toggle search inclusion
             </span>
@@ -215,7 +213,7 @@ function ViewerContent({ doc }: { doc: Doc }) {
         <div className="mx-auto max-w-3xl px-8 py-8">
           <PlateContent
             readOnly={readOnly}
-            className="outline-none"
+            className="outline-none text-sm leading-relaxed"
             aria-label="Document content"
           />
         </div>
@@ -224,7 +222,6 @@ function ViewerContent({ doc }: { doc: Doc }) {
   );
 }
 
-/** Plate editor wrapper — initialises editor once from doc content. */
 function DocumentViewer({ doc }: { doc: Doc }) {
   const initialValue = (doc.content as PlateValue | null) ?? [
     createParagraph(),
@@ -247,7 +244,7 @@ function DocumentViewer({ doc }: { doc: Doc }) {
 // Page component
 // ---------------------------------------------------------------------------
 
-function DocumentDetailPage() {
+function KbDocumentDetailPage() {
   const { id } = Route.useParams();
   const {
     data: doc,
@@ -274,10 +271,10 @@ function DocumentDetailPage() {
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <p className="text-sm font-medium">Document not found</p>
         <Link
-          to="/knowledge-base/documents"
+          to="/agents"
           className="mt-2 text-xs text-muted-foreground hover:text-foreground"
         >
-          Back to documents
+          Back to agents
         </Link>
       </div>
     );
@@ -286,6 +283,6 @@ function DocumentDetailPage() {
   return <DocumentViewer doc={doc} />;
 }
 
-export const Route = createFileRoute('/_app/knowledge-base/documents/$id')({
-  component: DocumentDetailPage,
+export const Route = createFileRoute('/_app/agents/kb/$id')({
+  component: KbDocumentDetailPage,
 });

@@ -1,20 +1,8 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
-
-import { PageLayout } from '@/components/layout/page-layout';
-
-function KnowledgeBaseLayout() {
-  return (
-    <PageLayout>
-      <Outlet />
-    </PageLayout>
-  );
-}
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/_app/knowledge-base')({
-  beforeLoad: ({ location }) => {
-    if (location.pathname === '/knowledge-base') {
-      throw redirect({ to: '/knowledge-base/search' });
-    }
+  beforeLoad: () => {
+    throw redirect({ to: '/agents' });
   },
-  component: KnowledgeBaseLayout,
+  component: () => null,
 });

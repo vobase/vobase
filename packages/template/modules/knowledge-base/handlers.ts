@@ -7,7 +7,7 @@ import {
   unauthorized,
   validation,
 } from '@vobase/core';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -182,6 +182,7 @@ export const knowledgeBaseRoutes = new Hono()
       .select({
         id: kbDocuments.id,
         title: kbDocuments.title,
+        folder: kbDocuments.folder,
         sourceType: kbDocuments.sourceType,
         sourceId: kbDocuments.sourceId,
         sourceUrl: kbDocuments.sourceUrl,
@@ -341,6 +342,57 @@ export const knowledgeBaseRoutes = new Hono()
     // Chunks cascade-delete via FK onDelete: 'cascade'
     await ctx.db.delete(kbDocuments).where(eq(kbDocuments.id, id));
     return c.json({ success: true });
+  })
+  .patch('/documents/:id', async (c) => {
+    const ctx = getCtx(c);
+    const id = c.req.param('id');
+    const metaSchema = z.object({
+      title: z.string().min(1).optional(),
+      folder: z.string().nullable().optional(),
+    });
+    const parsed = metaSchema.safeParse(await c.req.json());
+    if (!parsed.success) throw validation(parsed.error.flatten().fieldErrors);
+    const body = parsed.data;
+
+    const [doc] = await ctx.db
+      .update(kbDocuments)
+      .set({
+        ...(body.title !== undefined ? { title: body.title } : {}),
+        ...(body.folder !== undefined ? { folder: body.folder } : {}),
+      })
+      .where(eq(kbDocuments.id, id))
+      .returning();
+    if (!doc) throw notFound('Document not found');
+    return c.json(doc);
+  })
+  // Folders
+  .get('/folders', async (c) => {
+    const ctx = getCtx(c);
+    const rows = await ctx.db
+      .select({
+        folder: kbDocuments.folder,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(kbDocuments)
+      .groupBy(kbDocuments.folder)
+      .orderBy(kbDocuments.folder);
+    return c.json(rows);
+  })
+  .post('/folders/move', async (c) => {
+    const ctx = getCtx(c);
+    const moveSchema = z.object({
+      documentIds: z.array(z.string().min(1)),
+      folder: z.string().nullable(),
+    });
+    const parsed = moveSchema.safeParse(await c.req.json());
+    if (!parsed.success) throw validation(parsed.error.flatten().fieldErrors);
+    const body = parsed.data;
+
+    await ctx.db
+      .update(kbDocuments)
+      .set({ folder: body.folder })
+      .where(inArray(kbDocuments.id, body.documentIds));
+    return c.json({ ok: true });
   })
   // Search
   .post('/search', async (c) => {

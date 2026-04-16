@@ -42,7 +42,7 @@ function H1Element(props: PlateElementProps) {
   return (
     <PlateElement
       {...pe(props)}
-      className="mb-2 mt-6 text-2xl font-semibold tracking-tight first:mt-0"
+      className="mb-2 mt-5 text-lg font-semibold tracking-tight first:mt-0"
     />
   );
 }
@@ -51,7 +51,7 @@ function H2Element(props: PlateElementProps) {
   return (
     <PlateElement
       {...pe(props)}
-      className="mb-2 mt-5 text-xl font-semibold first:mt-0"
+      className="mb-1.5 mt-4 text-base font-semibold first:mt-0"
     />
   );
 }
@@ -60,7 +60,7 @@ function H3Element(props: PlateElementProps) {
   return (
     <PlateElement
       {...pe(props)}
-      className="mb-1 mt-4 text-lg font-medium first:mt-0"
+      className="mb-1 mt-3 text-sm font-semibold first:mt-0"
     />
   );
 }
@@ -69,7 +69,7 @@ function H4Element(props: PlateElementProps) {
   return (
     <PlateElement
       {...pe(props)}
-      className="mb-1 mt-3 text-base font-medium first:mt-0"
+      className="mb-1 mt-2 text-sm font-medium first:mt-0"
     />
   );
 }

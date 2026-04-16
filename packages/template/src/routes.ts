@@ -19,9 +19,7 @@ export const routes = rootRoute('root.tsx', [
     route('/automation', '../modules/automation/pages/layout.tsx', [
       physical('../modules/automation/pages/'),
     ]),
-    route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx', [
-      physical('../modules/knowledge-base/pages/'),
-    ]),
+    route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx'),
     route('/messaging', '../modules/messaging/pages/layout.tsx', [
       physical('../modules/messaging/pages/'),
     ]),

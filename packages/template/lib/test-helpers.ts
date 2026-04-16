@@ -281,6 +281,7 @@ export async function createTestDb(options?: {
       CREATE TABLE "kb"."documents" (
         id TEXT PRIMARY KEY DEFAULT nanoid(8),
         title TEXT NOT NULL,
+        folder TEXT,
         source_type TEXT NOT NULL DEFAULT 'upload',
         source_id TEXT REFERENCES "kb"."sources" (id) ON DELETE SET NULL,
         source_url TEXT,
