@@ -22,6 +22,7 @@ import { createConversation } from '../lib/conversation';
 import { getModuleDeps } from '../lib/deps';
 import { insertMessage } from '../lib/messages';
 import {
+  broadcastRecipients,
   channelInstances,
   channelRoutings,
   contactLabels,
@@ -40,7 +41,7 @@ const createSchema = z
     name: z.string().optional(),
     identifier: z.string().optional(),
     role: z.enum(['customer', 'lead', 'staff']).optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
+    attributes: z.record(z.string(), z.unknown()).optional(),
   })
   .refine((d) => d.phone !== undefined || d.email !== undefined, {
     message: 'At least phone or email is required',
@@ -52,7 +53,7 @@ const updateSchema = z.object({
   name: z.string().optional(),
   identifier: z.string().optional(),
   role: z.enum(['customer', 'lead', 'staff']).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  attributes: z.record(z.string(), z.unknown()).optional(),
 });
 
 const listQuerySchema = z.object({
@@ -263,7 +264,8 @@ export const contactsHandlers = new Hono()
   })
   // GET /search — exact match by phone or email (for staff routing)
   .get('/search', async (c) => {
-    const { db } = getCtx(c);
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
 
     const phone = c.req.query('phone');
     const email = c.req.query('email');
@@ -285,7 +287,8 @@ export const contactsHandlers = new Hono()
   })
   // GET /:id — get single contact
   .get('/:id', async (c) => {
-    const { db } = getCtx(c);
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
     const id = c.req.param('id');
 
     const [row] = await db.select().from(contacts).where(eq(contacts.id, id));
@@ -296,7 +299,8 @@ export const contactsHandlers = new Hono()
   })
   // POST / — create contact
   .post('/', async (c) => {
-    const { db } = getCtx(c);
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
 
     const body = await c.req.json();
     const parsed = createSchema.safeParse(body);
@@ -314,7 +318,7 @@ export const contactsHandlers = new Hono()
         name: data.name,
         identifier: data.identifier,
         role: data.role ?? 'customer',
-        metadata: data.metadata ?? {},
+        attributes: data.attributes ?? {},
       })
       .returning();
 
@@ -322,7 +326,8 @@ export const contactsHandlers = new Hono()
   })
   // PATCH /:id — update contact
   .patch('/:id', async (c) => {
-    const { db } = getCtx(c);
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
     const id = c.req.param('id');
 
     const body = await c.req.json();
@@ -348,7 +353,7 @@ export const contactsHandlers = new Hono()
         ...(data.name !== undefined && { name: data.name }),
         ...(data.identifier !== undefined && { identifier: data.identifier }),
         ...(data.role !== undefined && { role: data.role }),
-        ...(data.metadata !== undefined && { metadata: data.metadata }),
+        ...(data.attributes !== undefined && { attributes: data.attributes }),
         updatedAt: new Date(),
       })
       .where(eq(contacts.id, id))
@@ -568,6 +573,69 @@ export const contactsHandlers = new Hono()
       );
 
     return c.json({ ok: true });
+  })
+  // DELETE /:id — delete contact (only if no active conversations)
+  .delete('/:id', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+    const id = c.req.param('id');
+
+    const [[existing], [{ activeCount }]] = await Promise.all([
+      db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, id)),
+      db
+        .select({ activeCount: count() })
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.contactId, id),
+            inArray(conversations.status, ['active', 'resolving']),
+          ),
+        ),
+    ]);
+
+    if (!existing) throw notFound('Contact not found');
+
+    if (activeCount > 0) {
+      throw validation({
+        id: `Cannot delete contact with ${activeCount} active conversation(s). Resolve them first.`,
+      });
+    }
+
+    // Clean up referencing rows before deleting the contact
+    await db
+      .delete(broadcastRecipients)
+      .where(eq(broadcastRecipients.contactId, id));
+    await db.delete(contactLabels).where(eq(contactLabels.contactId, id));
+
+    await db.delete(contacts).where(eq(contacts.id, id));
+
+    return c.json({ ok: true });
+  })
+  // PUT /:id/marketing-opt-out — toggle marketing opt-out
+  .put('/:id/marketing-opt-out', async (c) => {
+    const { db, user } = getCtx(c);
+    if (!user) throw unauthorized();
+
+    const id = c.req.param('id');
+    const body = z.object({ optOut: z.boolean() }).parse(await c.req.json());
+
+    const [existing] = await db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(eq(contacts.id, id));
+
+    if (!existing) throw notFound('Contact not found');
+
+    const [row] = await db
+      .update(contacts)
+      .set({
+        marketingOptOut: body.optOut,
+        marketingOptOutAt: body.optOut ? new Date() : null,
+      })
+      .where(eq(contacts.id, id))
+      .returning();
+
+    return c.json(row);
   })
   // POST /:id/new-conversation — create a new conversation + first message for a contact
   .post('/:id/new-conversation', async (c) => {
