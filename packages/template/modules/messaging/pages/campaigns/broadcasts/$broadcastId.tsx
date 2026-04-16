@@ -554,7 +554,7 @@ function BroadcastDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
       toast.success('Broadcast deleted');
-      navigate({ to: '/messaging/broadcasts' });
+      navigate({ to: '/campaigns/broadcasts' });
     },
     onError: (error) => {
       toast.error(error.message);
@@ -664,7 +664,7 @@ function BroadcastDetailPage() {
       {/* Back link */}
       <div>
         <Link
-          to="/messaging/broadcasts"
+          to="/campaigns/broadcasts"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeftIcon className="size-3.5" />
@@ -1517,7 +1517,7 @@ function BroadcastDetailPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/messaging/broadcasts/$broadcastId')(
+export const Route = createFileRoute('/_app/campaigns/broadcasts/$broadcastId')(
   {
     component: BroadcastDetailPage,
   },

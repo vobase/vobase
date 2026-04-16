@@ -101,7 +101,7 @@ function BroadcastsPage() {
     onSuccess: (broadcast) => {
       queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
       navigate({
-        to: '/messaging/broadcasts/$broadcastId',
+        to: '/campaigns/broadcasts/$broadcastId',
         params: { broadcastId: broadcast.id },
       });
     },
@@ -180,7 +180,7 @@ function BroadcastsPage() {
                 <TableRow key={b.id} className="cursor-pointer">
                   <TableCell>
                     <Link
-                      to="/messaging/broadcasts/$broadcastId"
+                      to="/campaigns/broadcasts/$broadcastId"
                       params={{ broadcastId: b.id }}
                       className="font-medium hover:underline"
                     >
@@ -221,6 +221,6 @@ function BroadcastsPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/messaging/broadcasts/')({
+export const Route = createFileRoute('/_app/campaigns/broadcasts/')({
   component: BroadcastsPage,
 });

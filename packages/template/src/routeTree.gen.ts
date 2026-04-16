@@ -20,6 +20,7 @@ import { Route as DotDotModulesMessagingPagesLayoutRouteImport } from './../modu
 import { Route as DotDotModulesKnowledgeBasePagesLayoutRouteImport } from './../modules/knowledge-base/pages/layout'
 import { Route as DotDotModulesAutomationPagesLayoutRouteImport } from './../modules/automation/pages/layout'
 import { Route as DotDotModulesAgentsPagesLayoutRouteImport } from './../modules/agents/pages/layout'
+import { Route as DotDotModulesCampaignsPagesLayoutRouteImport } from './../modules/messaging/pages/campaigns/layout'
 import { Route as homeRouteImport } from './home'
 import { Route as IndexRouteImport } from './../modules/agents/pages/index'
 import { Route as LogsRouteImport } from './../modules/system/pages/logs'
@@ -46,13 +47,14 @@ import { Route as InboxIndexRouteImport } from './../modules/messaging/pages/inb
 import { Route as ConversationsIndexRouteImport } from './../modules/messaging/pages/conversations/index'
 import { Route as ContactsIndexRouteImport } from './../modules/messaging/pages/contacts/index'
 import { Route as ChannelsIndexRouteImport } from './../modules/messaging/pages/channels/index'
-import { Route as BroadcastsIndexRouteImport } from './../modules/messaging/pages/broadcasts/index'
+import { Route as CampaignsBroadcastsIndexRouteImport } from './../modules/messaging/pages/campaigns/broadcasts/index'
+import { Route as CampaignsRulesIndexRouteImport } from './../modules/messaging/pages/campaigns/rules/index'
 import { Route as AgentIdDotindexRouteImport } from './../modules/agents/pages/$agentId.index'
 import { Route as InboxContactIdRouteImport } from './../modules/messaging/pages/inbox/$contactId'
 import { Route as ConversationsConversationIdRouteImport } from './../modules/messaging/pages/conversations/$conversationId'
 import { Route as ContactsAttributesRouteImport } from './../modules/messaging/pages/contacts/attributes'
 import { Route as ContactsContactIdRouteImport } from './../modules/messaging/pages/contacts/$contactId'
-import { Route as BroadcastsBroadcastIdRouteImport } from './../modules/messaging/pages/broadcasts/$broadcastId'
+import { Route as CampaignsBroadcastsBroadcastIdRouteImport } from './../modules/messaging/pages/campaigns/broadcasts/$broadcastId'
 import { Route as KbDotidRouteImport } from './../modules/agents/pages/kb.$id'
 import { Route as AgentIdDoteditorRouteImport } from './../modules/agents/pages/$agentId.editor'
 
@@ -112,6 +114,12 @@ const DotDotModulesAgentsPagesLayoutRoute =
   DotDotModulesAgentsPagesLayoutRouteImport.update({
     id: '/agents',
     path: '/agents',
+    getParentRoute: () => shellAppLayoutRoute,
+  } as any)
+const DotDotModulesCampaignsPagesLayoutRoute =
+  DotDotModulesCampaignsPagesLayoutRouteImport.update({
+    id: '/campaigns',
+    path: '/campaigns',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
 const homeRoute = homeRouteImport.update({
@@ -245,10 +253,15 @@ const ChannelsIndexRoute = ChannelsIndexRouteImport.update({
   path: '/channels/',
   getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
-const BroadcastsIndexRoute = BroadcastsIndexRouteImport.update({
+const CampaignsBroadcastsIndexRoute = CampaignsBroadcastsIndexRouteImport.update({
   id: '/broadcasts/',
   path: '/broadcasts/',
-  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
+  getParentRoute: () => DotDotModulesCampaignsPagesLayoutRoute,
+} as any)
+const CampaignsRulesIndexRoute = CampaignsRulesIndexRouteImport.update({
+  id: '/rules/',
+  path: '/rules/',
+  getParentRoute: () => DotDotModulesCampaignsPagesLayoutRoute,
 } as any)
 const AgentIdDotindexRoute = AgentIdDotindexRouteImport.update({
   id: '/',
@@ -276,11 +289,12 @@ const ContactsContactIdRoute = ContactsContactIdRouteImport.update({
   path: '/contacts/$contactId',
   getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
 } as any)
-const BroadcastsBroadcastIdRoute = BroadcastsBroadcastIdRouteImport.update({
-  id: '/broadcasts/$broadcastId',
-  path: '/broadcasts/$broadcastId',
-  getParentRoute: () => DotDotModulesMessagingPagesLayoutRoute,
-} as any)
+const CampaignsBroadcastsBroadcastIdRoute =
+  CampaignsBroadcastsBroadcastIdRouteImport.update({
+    id: '/broadcasts/$broadcastId',
+    path: '/broadcasts/$broadcastId',
+    getParentRoute: () => DotDotModulesCampaignsPagesLayoutRoute,
+  } as any)
 const KbDotidRoute = KbDotidRouteImport.update({
   id: '/kb/$id',
   path: '/kb/$id',
@@ -296,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/': typeof homeRoute
   '/agents': typeof DotDotModulesAgentsPagesLayoutRouteWithChildren
   '/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
+  '/campaigns': typeof DotDotModulesCampaignsPagesLayoutRouteWithChildren
   '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRoute
   '/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/settings': typeof shellSettingsLayoutRouteWithChildren
@@ -324,13 +339,14 @@ export interface FileRoutesByFullPath {
   '/agents/': typeof IndexRoute
   '/agents/$agentId/editor': typeof AgentIdDoteditorRoute
   '/agents/kb/$id': typeof KbDotidRoute
-  '/messaging/broadcasts/$broadcastId': typeof BroadcastsBroadcastIdRoute
+  '/campaigns/broadcasts/$broadcastId': typeof CampaignsBroadcastsBroadcastIdRoute
   '/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
   '/messaging/inbox/$contactId': typeof InboxContactIdRoute
   '/agents/$agentId/': typeof AgentIdDotindexRoute
-  '/messaging/broadcasts/': typeof BroadcastsIndexRoute
+  '/campaigns/broadcasts/': typeof CampaignsBroadcastsIndexRoute
+  '/campaigns/rules/': typeof CampaignsRulesIndexRoute
   '/messaging/channels/': typeof ChannelsIndexRoute
   '/messaging/contacts/': typeof ContactsIndexRoute
   '/messaging/conversations/': typeof ConversationsIndexRoute
@@ -341,6 +357,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof homeRoute
   '/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
+  '/campaigns': typeof DotDotModulesCampaignsPagesLayoutRouteWithChildren
   '/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRoute
   '/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/settings': typeof shellSettingsLayoutRouteWithChildren
@@ -367,13 +384,14 @@ export interface FileRoutesByTo {
   '/agents': typeof IndexRoute
   '/agents/$agentId/editor': typeof AgentIdDoteditorRoute
   '/agents/kb/$id': typeof KbDotidRoute
-  '/messaging/broadcasts/$broadcastId': typeof BroadcastsBroadcastIdRoute
+  '/campaigns/broadcasts/$broadcastId': typeof CampaignsBroadcastsBroadcastIdRoute
   '/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
   '/messaging/inbox/$contactId': typeof InboxContactIdRoute
   '/agents/$agentId': typeof AgentIdDotindexRoute
-  '/messaging/broadcasts': typeof BroadcastsIndexRoute
+  '/campaigns/broadcasts': typeof CampaignsBroadcastsIndexRoute
+  '/campaigns/rules': typeof CampaignsRulesIndexRoute
   '/messaging/channels': typeof ChannelsIndexRoute
   '/messaging/contacts': typeof ContactsIndexRoute
   '/messaging/conversations': typeof ConversationsIndexRoute
@@ -388,6 +406,7 @@ export interface FileRoutesById {
   '/_app/': typeof homeRoute
   '/_app/agents': typeof DotDotModulesAgentsPagesLayoutRouteWithChildren
   '/_app/automation': typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
+  '/_app/campaigns': typeof DotDotModulesCampaignsPagesLayoutRouteWithChildren
   '/_app/knowledge-base': typeof DotDotModulesKnowledgeBasePagesLayoutRoute
   '/_app/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/_app/settings': typeof shellSettingsLayoutRouteWithChildren
@@ -416,13 +435,14 @@ export interface FileRoutesById {
   '/_app/agents/': typeof IndexRoute
   '/_app/agents/$agentId/editor': typeof AgentIdDoteditorRoute
   '/_app/agents/kb/$id': typeof KbDotidRoute
-  '/_app/messaging/broadcasts/$broadcastId': typeof BroadcastsBroadcastIdRoute
+  '/_app/campaigns/broadcasts/$broadcastId': typeof CampaignsBroadcastsBroadcastIdRoute
   '/_app/messaging/contacts/$contactId': typeof ContactsContactIdRoute
   '/_app/messaging/contacts/attributes': typeof ContactsAttributesRoute
   '/_app/messaging/conversations/$conversationId': typeof ConversationsConversationIdRoute
   '/_app/messaging/inbox/$contactId': typeof InboxContactIdRoute
   '/_app/agents/$agentId/': typeof AgentIdDotindexRoute
-  '/_app/messaging/broadcasts/': typeof BroadcastsIndexRoute
+  '/_app/campaigns/broadcasts/': typeof CampaignsBroadcastsIndexRoute
+  '/_app/campaigns/rules/': typeof CampaignsRulesIndexRoute
   '/_app/messaging/channels/': typeof ChannelsIndexRoute
   '/_app/messaging/contacts/': typeof ContactsIndexRoute
   '/_app/messaging/conversations/': typeof ConversationsIndexRoute
@@ -436,6 +456,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agents'
     | '/automation'
+    | '/campaigns'
     | '/knowledge-base'
     | '/messaging'
     | '/settings'
@@ -464,13 +485,14 @@ export interface FileRouteTypes {
     | '/agents/'
     | '/agents/$agentId/editor'
     | '/agents/kb/$id'
-    | '/messaging/broadcasts/$broadcastId'
+    | '/campaigns/broadcasts/$broadcastId'
     | '/messaging/contacts/$contactId'
     | '/messaging/contacts/attributes'
     | '/messaging/conversations/$conversationId'
     | '/messaging/inbox/$contactId'
     | '/agents/$agentId/'
-    | '/messaging/broadcasts/'
+    | '/campaigns/broadcasts/'
+    | '/campaigns/rules/'
     | '/messaging/channels/'
     | '/messaging/contacts/'
     | '/messaging/conversations/'
@@ -481,6 +503,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/automation'
+    | '/campaigns'
     | '/knowledge-base'
     | '/messaging'
     | '/settings'
@@ -507,13 +530,14 @@ export interface FileRouteTypes {
     | '/agents'
     | '/agents/$agentId/editor'
     | '/agents/kb/$id'
-    | '/messaging/broadcasts/$broadcastId'
+    | '/campaigns/broadcasts/$broadcastId'
     | '/messaging/contacts/$contactId'
     | '/messaging/contacts/attributes'
     | '/messaging/conversations/$conversationId'
     | '/messaging/inbox/$contactId'
     | '/agents/$agentId'
-    | '/messaging/broadcasts'
+    | '/campaigns/broadcasts'
+    | '/campaigns/rules'
     | '/messaging/channels'
     | '/messaging/contacts'
     | '/messaging/conversations'
@@ -527,6 +551,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/agents'
     | '/_app/automation'
+    | '/_app/campaigns'
     | '/_app/knowledge-base'
     | '/_app/messaging'
     | '/_app/settings'
@@ -555,13 +580,14 @@ export interface FileRouteTypes {
     | '/_app/agents/'
     | '/_app/agents/$agentId/editor'
     | '/_app/agents/kb/$id'
-    | '/_app/messaging/broadcasts/$broadcastId'
+    | '/_app/campaigns/broadcasts/$broadcastId'
     | '/_app/messaging/contacts/$contactId'
     | '/_app/messaging/contacts/attributes'
     | '/_app/messaging/conversations/$conversationId'
     | '/_app/messaging/inbox/$contactId'
     | '/_app/agents/$agentId/'
-    | '/_app/messaging/broadcasts/'
+    | '/_app/campaigns/broadcasts/'
+    | '/_app/campaigns/rules/'
     | '/_app/messaging/channels/'
     | '/_app/messaging/contacts/'
     | '/_app/messaging/conversations/'
@@ -653,6 +679,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents'
       preLoaderRoute: typeof DotDotModulesAgentsPagesLayoutRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_app/campaigns': {
+      id: '/_app/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof DotDotModulesCampaignsPagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
     '/_app/': {
@@ -837,12 +870,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChannelsIndexRouteImport
       parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
-    '/_app/messaging/broadcasts/': {
-      id: '/_app/messaging/broadcasts/'
+    '/_app/campaigns/broadcasts/': {
+      id: '/_app/campaigns/broadcasts/'
       path: '/broadcasts'
-      fullPath: '/messaging/broadcasts/'
-      preLoaderRoute: typeof BroadcastsIndexRouteImport
-      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+      fullPath: '/campaigns/broadcasts/'
+      preLoaderRoute: typeof CampaignsBroadcastsIndexRouteImport
+      parentRoute: typeof DotDotModulesCampaignsPagesLayoutRoute
+    }
+    '/_app/campaigns/rules/': {
+      id: '/_app/campaigns/rules/'
+      path: '/rules'
+      fullPath: '/campaigns/rules/'
+      preLoaderRoute: typeof CampaignsRulesIndexRouteImport
+      parentRoute: typeof DotDotModulesCampaignsPagesLayoutRoute
     }
     '/_app/agents/$agentId/': {
       id: '/_app/agents/$agentId/'
@@ -879,12 +919,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactsContactIdRouteImport
       parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
     }
-    '/_app/messaging/broadcasts/$broadcastId': {
-      id: '/_app/messaging/broadcasts/$broadcastId'
+    '/_app/campaigns/broadcasts/$broadcastId': {
+      id: '/_app/campaigns/broadcasts/$broadcastId'
       path: '/broadcasts/$broadcastId'
-      fullPath: '/messaging/broadcasts/$broadcastId'
-      preLoaderRoute: typeof BroadcastsBroadcastIdRouteImport
-      parentRoute: typeof DotDotModulesMessagingPagesLayoutRoute
+      fullPath: '/campaigns/broadcasts/$broadcastId'
+      preLoaderRoute: typeof CampaignsBroadcastsBroadcastIdRouteImport
+      parentRoute: typeof DotDotModulesCampaignsPagesLayoutRoute
     }
     '/_app/agents/kb/$id': {
       id: '/_app/agents/kb/$id'
@@ -960,6 +1000,24 @@ const DotDotModulesAutomationPagesLayoutRouteWithChildren =
     DotDotModulesAutomationPagesLayoutRouteChildren,
   )
 
+interface DotDotModulesCampaignsPagesLayoutRouteChildren {
+  CampaignsBroadcastsBroadcastIdRoute: typeof CampaignsBroadcastsBroadcastIdRoute
+  CampaignsBroadcastsIndexRoute: typeof CampaignsBroadcastsIndexRoute
+  CampaignsRulesIndexRoute: typeof CampaignsRulesIndexRoute
+}
+
+const DotDotModulesCampaignsPagesLayoutRouteChildren: DotDotModulesCampaignsPagesLayoutRouteChildren =
+  {
+    CampaignsBroadcastsBroadcastIdRoute: CampaignsBroadcastsBroadcastIdRoute,
+    CampaignsBroadcastsIndexRoute: CampaignsBroadcastsIndexRoute,
+    CampaignsRulesIndexRoute: CampaignsRulesIndexRoute,
+  }
+
+const DotDotModulesCampaignsPagesLayoutRouteWithChildren =
+  DotDotModulesCampaignsPagesLayoutRoute._addFileChildren(
+    DotDotModulesCampaignsPagesLayoutRouteChildren,
+  )
+
 interface InboxRouteChildren {
   InboxContactIdRoute: typeof InboxContactIdRoute
   InboxIndexRoute: typeof InboxIndexRoute
@@ -975,11 +1033,9 @@ const InboxRouteWithChildren = InboxRoute._addFileChildren(InboxRouteChildren)
 interface DotDotModulesMessagingPagesLayoutRouteChildren {
   InboxRoute: typeof InboxRouteWithChildren
   LabelsRoute: typeof LabelsRoute
-  BroadcastsBroadcastIdRoute: typeof BroadcastsBroadcastIdRoute
   ContactsContactIdRoute: typeof ContactsContactIdRoute
   ContactsAttributesRoute: typeof ContactsAttributesRoute
   ConversationsConversationIdRoute: typeof ConversationsConversationIdRoute
-  BroadcastsIndexRoute: typeof BroadcastsIndexRoute
   ChannelsIndexRoute: typeof ChannelsIndexRoute
   ContactsIndexRoute: typeof ContactsIndexRoute
   ConversationsIndexRoute: typeof ConversationsIndexRoute
@@ -990,11 +1046,9 @@ const DotDotModulesMessagingPagesLayoutRouteChildren: DotDotModulesMessagingPage
   {
     InboxRoute: InboxRouteWithChildren,
     LabelsRoute: LabelsRoute,
-    BroadcastsBroadcastIdRoute: BroadcastsBroadcastIdRoute,
     ContactsContactIdRoute: ContactsContactIdRoute,
     ContactsAttributesRoute: ContactsAttributesRoute,
     ConversationsConversationIdRoute: ConversationsConversationIdRoute,
-    BroadcastsIndexRoute: BroadcastsIndexRoute,
     ChannelsIndexRoute: ChannelsIndexRoute,
     ContactsIndexRoute: ContactsIndexRoute,
     ConversationsIndexRoute: ConversationsIndexRoute,
@@ -1049,6 +1103,7 @@ interface shellAppLayoutRouteChildren {
   homeRoute: typeof homeRoute
   DotDotModulesAgentsPagesLayoutRoute: typeof DotDotModulesAgentsPagesLayoutRouteWithChildren
   DotDotModulesAutomationPagesLayoutRoute: typeof DotDotModulesAutomationPagesLayoutRouteWithChildren
+  DotDotModulesCampaignsPagesLayoutRoute: typeof DotDotModulesCampaignsPagesLayoutRouteWithChildren
   DotDotModulesKnowledgeBasePagesLayoutRoute: typeof DotDotModulesKnowledgeBasePagesLayoutRoute
   DotDotModulesMessagingPagesLayoutRoute: typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   shellSettingsLayoutRoute: typeof shellSettingsLayoutRouteWithChildren
@@ -1061,6 +1116,8 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
     DotDotModulesAgentsPagesLayoutRouteWithChildren,
   DotDotModulesAutomationPagesLayoutRoute:
     DotDotModulesAutomationPagesLayoutRouteWithChildren,
+  DotDotModulesCampaignsPagesLayoutRoute:
+    DotDotModulesCampaignsPagesLayoutRouteWithChildren,
   DotDotModulesKnowledgeBasePagesLayoutRoute:
     DotDotModulesKnowledgeBasePagesLayoutRoute,
   DotDotModulesMessagingPagesLayoutRoute:

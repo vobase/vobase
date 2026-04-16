@@ -20,6 +20,7 @@ import {
   ShieldCheckIcon,
   TagIcon,
   UserIcon,
+  ZapIcon,
 } from 'lucide-react';
 
 type BaseNavItem = {
@@ -87,12 +88,6 @@ export const navGroups: NavGroup[] = [
         keywords: ['people', 'customers', 'staff', 'phone', 'directory'],
       },
       {
-        title: 'Broadcasts',
-        url: '/messaging/broadcasts',
-        icon: MegaphoneIcon,
-        keywords: ['broadcast', 'campaign', 'bulk', 'mass', 'whatsapp', 'send'],
-      },
-      {
         title: 'Templates',
         url: '/messaging/templates',
         icon: LayoutTemplateIcon,
@@ -103,6 +98,30 @@ export const navGroups: NavGroup[] = [
         url: '/messaging/labels',
         icon: TagIcon,
         keywords: ['tags', 'categories', 'organization', 'labels'],
+      },
+    ],
+  },
+  {
+    title: 'Campaigns',
+    items: [
+      {
+        title: 'Broadcasts',
+        url: '/campaigns/broadcasts',
+        icon: MegaphoneIcon,
+        keywords: ['broadcast', 'bulk', 'mass', 'whatsapp', 'send'],
+      },
+      {
+        title: 'Rules',
+        url: '/campaigns/rules',
+        icon: ZapIcon,
+        keywords: [
+          'automation',
+          'rules',
+          'recurring',
+          'sequence',
+          'trigger',
+          'campaign',
+        ],
       },
     ],
   },
