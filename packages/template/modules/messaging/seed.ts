@@ -15,9 +15,17 @@
 
 import { faker } from '@faker-js/faker';
 import type { VobaseDb } from '@vobase/core';
-import { channelsTemplates } from '@vobase/core';
+import {
+  authMember,
+  authOrganization,
+  authUser,
+  channelsTemplates,
+} from '@vobase/core';
+import { eq } from 'drizzle-orm';
 
 import {
+  automationRuleSteps,
+  automationRules,
   broadcastRecipients,
   broadcasts,
   channelInstances,
@@ -683,7 +691,11 @@ const SEED_CONTACTS = [
     email: 'mark@example.com',
     name: 'Mark Teo',
     role: 'lead' as const,
-    attributes: { source: 'google-ads', campaign: 'q2-booking' },
+    attributes: {
+      source: 'google-ads',
+      campaign: 'q2-booking',
+      segment: 'lunch_crowd',
+    },
   },
   {
     id: 'c-lead-nina',
@@ -691,7 +703,11 @@ const SEED_CONTACTS = [
     email: 'nina@example.com',
     name: 'Nina Loh',
     role: 'lead' as const,
-    attributes: { source: 'facebook', campaign: 'wellness' },
+    attributes: {
+      source: 'facebook',
+      campaign: 'wellness',
+      segment: 'happy_hour_crowd',
+    },
   },
   {
     id: 'c-lead-oscar',
@@ -699,7 +715,11 @@ const SEED_CONTACTS = [
     email: 'oscar@example.com',
     name: 'Oscar Pang',
     role: 'lead' as const,
-    attributes: { source: 'instagram', campaign: 'promo' },
+    attributes: {
+      source: 'instagram',
+      campaign: 'promo',
+      segment: 'lunch_crowd',
+    },
   },
   {
     id: 'c-lead-paula',
@@ -707,7 +727,11 @@ const SEED_CONTACTS = [
     email: 'paula@example.com',
     name: 'Paula Quek',
     role: 'lead' as const,
-    attributes: { source: 'organic' },
+    attributes: {
+      source: 'organic',
+      segment: 'high_roller',
+      lifetime_spend_cents: '185400',
+    },
   },
   {
     id: 'c-lead-ray',
@@ -715,7 +739,11 @@ const SEED_CONTACTS = [
     email: 'ray@example.com',
     name: 'Ray Soh',
     role: 'lead' as const,
-    attributes: { source: 'referral' },
+    attributes: {
+      source: 'referral',
+      segment: 'high_roller',
+      lifetime_spend_cents: '124900',
+    },
   },
 ];
 
@@ -779,6 +807,20 @@ const SEED_ATTRIBUTE_DEFINITIONS = [
     type: 'boolean',
     showInTable: true,
     sortOrder: 7,
+  },
+  {
+    key: 'segment',
+    label: 'Marketing Segment',
+    type: 'text',
+    showInTable: true,
+    sortOrder: 8,
+  },
+  {
+    key: 'lifetime_spend_cents',
+    label: 'Lifetime Spend (cents)',
+    type: 'number',
+    showInTable: false,
+    sortOrder: 9,
   },
 ];
 
@@ -985,6 +1027,86 @@ const SEED_TEMPLATES = [
     ]),
     syncedAt: hoursAgo(12),
   },
+  {
+    id: 'tmpl-lunch-crowd-promo',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1007',
+    name: 'weekday_lunch_promo',
+    language: 'en',
+    category: 'MARKETING',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: '🍜 Weekday Lunch Special' },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, the 2-course weekday lunch set ({{2}}) is back this week. Mon–Fri, 12:00–2:00 PM. Reserve ahead to skip the queue.',
+      },
+      { type: 'FOOTER', text: 'OrchardHealth · Appointment Reminder' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Book Now' },
+          { type: 'QUICK_REPLY', text: 'See Menu' },
+          { type: 'QUICK_REPLY', text: 'STOP' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(48),
+  },
+  {
+    id: 'tmpl-happy-hour-promo',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1008',
+    name: 'happy_hour_promo',
+    language: 'en',
+    category: 'MARKETING',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      { type: 'HEADER', format: 'TEXT', text: '🎉 Happy Hour Reminder' },
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}, join us for Happy Hour — Mon–Fri, 4:00–8:00 PM. {{2}} on selected items.',
+      },
+      { type: 'FOOTER', text: 'OrchardHealth · Wellness Promotions' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Reserve a Slot' },
+          { type: 'QUICK_REPLY', text: 'STOP' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(48),
+  },
+  {
+    id: 'tmpl-high-roller-invite',
+    channel: 'whatsapp',
+    externalId: 'wa-tmpl-1009',
+    name: 'vip_invite',
+    language: 'en',
+    category: 'MARKETING',
+    status: 'APPROVED',
+    components: JSON.stringify([
+      {
+        type: 'HEADER',
+        format: 'TEXT',
+        text: '✨ A private invitation for you',
+      },
+      {
+        type: 'BODY',
+        text: "Hi {{1}}, as one of our most valued clients we'd like to invite you to our exclusive event on {{2}}. Limited spots available.",
+      },
+      { type: 'FOOTER', text: 'RSVP required · By invitation only' },
+      {
+        type: 'BUTTONS',
+        buttons: [
+          { type: 'QUICK_REPLY', text: 'Reserve My Spot' },
+          { type: 'QUICK_REPLY', text: 'Not this time' },
+        ],
+      },
+    ]),
+    syncedAt: hoursAgo(48),
+  },
 ];
 
 // ─── Broadcasts ──────────────────────────────────────────────────────
@@ -1114,6 +1236,111 @@ const SEED_BROADCASTS = [
     readCount: 0,
     failedCount: 0,
     createdBy: 'seed-admin',
+  },
+];
+
+// ─── Automation rules ────────────────────────────────────────────────
+// Three segmented lead-nurture automations that fire on a recurring
+// cron schedule. Audience is resolved by the `segment` attribute.
+
+const SEED_AUTOMATION_RULES: (typeof automationRules.$inferInsert)[] = [
+  {
+    id: 'ar-lunch-crowd',
+    name: 'Lunch Crowd — Weekly Promo',
+    description:
+      'Every Monday morning, nudge the lunch-crowd lead list to book into the Mon–Fri 12–2 PM seatings.',
+    type: 'recurring' as const,
+    isActive: true,
+    audienceFilter: {
+      roles: ['lead' as const],
+      attributes: [{ key: 'segment', value: 'lunch_crowd', op: 'eq' as const }],
+      excludeOptedOut: true,
+    },
+    channelInstanceId: 'ci-wa-main',
+    schedule: '0 10 * * 1',
+    timezone: 'Asia/Singapore',
+    parameters: { setName: '2-course weekday set' },
+    parameterSchema: {
+      setName: { type: 'string', label: 'Set name' },
+    },
+    createdBy: 'seed-admin',
+  },
+  {
+    id: 'ar-happy-hour-crowd',
+    name: 'Happy Hour Crowd — Weekly Reminder',
+    description:
+      'Every Thursday afternoon, remind the happy-hour lead list about Mon–Fri 4–8 PM offers.',
+    type: 'recurring' as const,
+    isActive: true,
+    audienceFilter: {
+      roles: ['lead' as const],
+      attributes: [
+        { key: 'segment', value: 'happy_hour_crowd', op: 'eq' as const },
+      ],
+      excludeOptedOut: true,
+    },
+    channelInstanceId: 'ci-wa-main',
+    schedule: '0 15 * * 4',
+    timezone: 'Asia/Singapore',
+    parameters: { discount: '1-for-1 wellness packages' },
+    parameterSchema: {
+      discount: { type: 'string' as const, label: 'Offer text' },
+    },
+    createdBy: 'seed-admin',
+  },
+  {
+    id: 'ar-high-roller',
+    name: 'VIP — Monthly Exclusive Invite',
+    description:
+      'First of each month, invite high-value leads to an exclusive event.',
+    type: 'recurring' as const,
+    isActive: true,
+    audienceFilter: {
+      roles: ['lead' as const],
+      attributes: [
+        { key: 'segment', value: 'high_roller', op: 'eq' as const },
+        { key: 'lifetime_spend_cents', value: '100000', op: '>=' as const },
+      ],
+      excludeOptedOut: true,
+    },
+    channelInstanceId: 'ci-wa-main',
+    schedule: '0 11 1 * *',
+    timezone: 'Asia/Singapore',
+    parameters: { eventDate: 'Saturday 9 May, 7:30 PM' },
+    parameterSchema: {
+      eventDate: { type: 'string' as const, label: 'Next event date' },
+    },
+    createdBy: 'seed-admin',
+  },
+];
+
+const SEED_AUTOMATION_RULE_STEPS = [
+  {
+    ruleId: 'ar-lunch-crowd',
+    sequence: 1,
+    templateId: 'tmpl-lunch-crowd-promo',
+    templateName: 'weekday_lunch_promo',
+    templateLanguage: 'en',
+    variableMapping: { '1': 'name', '2': 'parameters.setName' },
+    isFinal: true,
+  },
+  {
+    ruleId: 'ar-happy-hour-crowd',
+    sequence: 1,
+    templateId: 'tmpl-happy-hour-promo',
+    templateName: 'happy_hour_promo',
+    templateLanguage: 'en',
+    variableMapping: { '1': 'name', '2': 'parameters.discount' },
+    isFinal: true,
+  },
+  {
+    ruleId: 'ar-high-roller',
+    sequence: 1,
+    templateId: 'tmpl-high-roller-invite',
+    templateName: 'vip_invite',
+    templateLanguage: 'en',
+    variableMapping: { '1': 'name', '2': 'parameters.eventDate' },
+    isFinal: true,
   },
 ];
 
@@ -1797,6 +2024,57 @@ export default async function seed(ctx: { db: VobaseDb }) {
   // ─── Contacts ────────────────────────────────────────────────────
   await db.insert(contacts).values(SEED_CONTACTS).onConflictDoNothing();
   console.log(`${green('✓')} Seeded ${SEED_CONTACTS.length} contacts`);
+
+  // ─── Staff authUsers + org membership ────────────────────────────
+  // Staff contacts are also auth users so they show up in the inbox
+  // assignee dropdown, and are attached to the admin's org so they are
+  // visible on /system/organizations. Platform provisioning can create a
+  // second org (e.g. slug:local), so we pick the one admin actually owns
+  // rather than "first row wins". Idempotent via email + member unique index.
+  const staffContacts = SEED_CONTACTS.filter((c) => c.role === 'staff');
+  const [defaultOrg] = await db
+    .select({ id: authOrganization.id })
+    .from(authMember)
+    .innerJoin(
+      authOrganization,
+      eq(authMember.organizationId, authOrganization.id),
+    )
+    .innerJoin(authUser, eq(authMember.userId, authUser.id))
+    .where(eq(authUser.email, 'admin@example.com'))
+    .limit(1);
+
+  for (const c of staffContacts) {
+    await db
+      .insert(authUser)
+      .values({
+        id: `u-${c.id}`,
+        name: c.name,
+        email: c.email,
+        emailVerified: true,
+        role: 'user',
+      })
+      .onConflictDoUpdate({
+        target: authUser.email,
+        set: { name: c.name, updatedAt: new Date() },
+      });
+
+    if (defaultOrg) {
+      await db
+        .insert(authMember)
+        .values({
+          id: `m-${c.id}`,
+          userId: `u-${c.id}`,
+          organizationId: defaultOrg.id,
+          role: 'member',
+        })
+        .onConflictDoNothing();
+    }
+  }
+  console.log(
+    `${green('✓')} Seeded ${staffContacts.length} staff authUsers${
+      defaultOrg ? ' + org members' : ' (no org found — skipped membership)'
+    }`,
+  );
 
   // ─── Contact Attribute Definitions ─────────────────────────────
   await db
@@ -2516,6 +2794,19 @@ export default async function seed(ctx: { db: VobaseDb }) {
   }
   console.log(
     `${green('✓')} Seeded ${seedBroadcastRecipients.length} broadcast recipients`,
+  );
+
+  // ─── Automation Rules ────────────────────────────────────────────
+  await db
+    .insert(automationRules)
+    .values(SEED_AUTOMATION_RULES)
+    .onConflictDoNothing();
+  await db
+    .insert(automationRuleSteps)
+    .values(SEED_AUTOMATION_RULE_STEPS)
+    .onConflictDoNothing();
+  console.log(
+    `${green('✓')} Seeded ${SEED_AUTOMATION_RULES.length} automation rules (${SEED_AUTOMATION_RULE_STEPS.length} steps)`,
   );
 
   // ─── Summary ─────────────────────────────────────────────────────
