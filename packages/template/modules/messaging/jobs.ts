@@ -6,6 +6,13 @@ import { getModuleDeps } from './lib/deps';
 
 export { setModuleDeps } from './lib/deps';
 
+import { advanceChasers } from './lib/automation-chaser';
+import {
+  evaluateDateRelativeRules,
+  evaluateRecurringRules,
+} from './lib/automation-engine';
+import { executeAutomationStep } from './lib/automation-executor';
+import { rescheduleDateRelativeRecipients } from './lib/automation-reschedule';
 import { executeBroadcast } from './lib/broadcast-executor';
 import { getCaptionForContentType } from './lib/caption';
 import { expireSessions } from './lib/channel-sessions';
@@ -393,5 +400,89 @@ export const broadcastRetryFailedJob = defineJob(
     const { broadcastId } = broadcastDataSchema.parse(data);
     await executeBroadcast(broadcastId);
     logger.info('[broadcast] Retry execution finished', { broadcastId });
+  },
+);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Automation jobs
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const automationExecuteStepDataSchema = z.object({
+  executionId: z.string().min(1),
+  stepSequence: z.number().int().min(1),
+});
+
+/**
+ * automation:evaluate-recurring — Cron every minute.
+ * Finds recurring rules whose nextFireAt has passed and fires step 1 against
+ * the resolved audience, enqueuing execute-step per execution.
+ */
+export const automationEvaluateRecurringJob = defineJob(
+  'automation:evaluate-recurring',
+  async () => {
+    const result = await evaluateRecurringRules(new Date());
+    if (result.rulesFired > 0) {
+      logger.info('[automation] Recurring evaluator finished', result);
+    }
+  },
+);
+
+/**
+ * automation:evaluate-date-relative — Cron every minute.
+ * Matches contacts whose date attribute + offsetDays equals today-in-rule-tz,
+ * respecting step.sendAtTime (HH:MM). Unique on (rule, contact, dateValue).
+ */
+export const automationEvaluateDateRelativeJob = defineJob(
+  'automation:evaluate-date-relative',
+  async () => {
+    const result = await evaluateDateRelativeRules(new Date());
+    if (result.rulesFired > 0) {
+      logger.info('[automation] Date-relative evaluator finished', result);
+    }
+  },
+);
+
+/**
+ * automation:advance-chasers — Cron every 5 minutes.
+ * Claims recipients whose nextStepAt has passed (and no reply), migrates
+ * them onto a fresh per-step execution, and enqueues execute-step.
+ */
+export const automationAdvanceChasersJob = defineJob(
+  'automation:advance-chasers',
+  async () => {
+    const result = await advanceChasers(new Date());
+    if (result.advanced > 0) {
+      logger.info('[automation] Chaser advancer finished', result);
+    }
+  },
+);
+
+/**
+ * automation:reschedule-check — Cron every hour.
+ * Cancels queued date-relative recipients whose contact's date attribute has
+ * changed since the recipient was created. The evaluate-date-relative job
+ * re-creates fresh recipients on the next matching tick.
+ */
+export const automationRescheduleCheckJob = defineJob(
+  'automation:reschedule-check',
+  async () => {
+    const result = await rescheduleDateRelativeRecipients();
+    if (result.cancelled > 0) {
+      logger.info('[automation] Reschedule check finished', result);
+    }
+  },
+);
+
+/**
+ * automation:execute-step — On-demand.
+ * Sends the specified step for `executionId`, routed through send-executor.
+ * Enqueued by the evaluators and the chaser advancer.
+ */
+export const automationExecuteStepJob = defineJob(
+  'automation:execute-step',
+  async (data) => {
+    const { executionId, stepSequence } =
+      automationExecuteStepDataSchema.parse(data);
+    await executeAutomationStep(executionId, stepSequence);
   },
 );

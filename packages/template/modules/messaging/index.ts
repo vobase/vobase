@@ -15,6 +15,11 @@ import { and, eq } from 'drizzle-orm';
 import { messagingRoutes } from './handlers';
 import { buildManagedTransport } from './handlers/channels';
 import {
+  automationAdvanceChasersJob,
+  automationEvaluateDateRelativeJob,
+  automationEvaluateRecurringJob,
+  automationExecuteStepJob,
+  automationRescheduleCheckJob,
   broadcastCheckScheduledJob,
   broadcastExecuteJob,
   broadcastRetryFailedJob,
@@ -27,6 +32,7 @@ import {
   sessionExpiryJob,
   setModuleDeps,
 } from './jobs';
+import { setResolverContext } from './lib/audience-resolvers';
 import { handleInboundMessage } from './lib/inbound';
 import { handleReaction, handleStatusUpdate } from './lib/status';
 import * as schema from './schema';
@@ -47,6 +53,11 @@ export const messagingModule = defineModule({
     broadcastExecuteJob,
     broadcastCheckScheduledJob,
     broadcastRetryFailedJob,
+    automationEvaluateRecurringJob,
+    automationEvaluateDateRelativeJob,
+    automationAdvanceChasersJob,
+    automationExecuteStepJob,
+    automationRescheduleCheckJob,
   ],
 
   async init(ctx) {
@@ -59,6 +70,13 @@ export const messagingModule = defineModule({
     };
 
     setModuleDeps(deps);
+
+    // Audience resolvers — projects can register custom audience-resolver
+    // functions keyed by name; rules reference them via
+    // `audienceResolverName`. Register resolvers from your app's module init
+    // (after this one) via `registerAudienceResolver(name, fn)`. The engine
+    // passes this init context to each resolver at evaluation time.
+    setResolverContext(ctx);
 
     // Register channel provisioning handler (called by platform routes)
     const generateId = createNanoid();
@@ -342,6 +360,30 @@ async function scheduleRecurringJobs(
 
   await scheduler
     .schedule('broadcast:check-scheduled', '* * * * *', {})
+    .catch(() => {
+      // Ignore — schedule may already exist
+    });
+
+  await scheduler
+    .schedule('automation:evaluate-recurring', '* * * * *', {})
+    .catch(() => {
+      // Ignore — schedule may already exist
+    });
+
+  await scheduler
+    .schedule('automation:evaluate-date-relative', '* * * * *', {})
+    .catch(() => {
+      // Ignore — schedule may already exist
+    });
+
+  await scheduler
+    .schedule('automation:advance-chasers', '*/5 * * * *', {})
+    .catch(() => {
+      // Ignore — schedule may already exist
+    });
+
+  await scheduler
+    .schedule('automation:reschedule-check', '0 * * * *', {})
     .catch(() => {
       // Ignore — schedule may already exist
     });

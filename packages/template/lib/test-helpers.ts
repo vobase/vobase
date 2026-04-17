@@ -25,7 +25,7 @@ const nanoidSql = readFileSync(
   'utf-8',
 );
 
-const TEMPLATE_SCHEMAS = ['messaging', 'agents', 'kb'] as const;
+const TEMPLATE_SCHEMAS = ['messaging', 'agents', 'kb', 'infra'] as const;
 
 let shared: PGlite | null = null;
 let nanoidInstalled = false;
@@ -52,6 +52,7 @@ export async function createTestDb(options?: {
   withVec?: boolean;
   withMemory?: boolean;
   withWorkflows?: boolean;
+  withAutomation?: boolean;
 }) {
   const pglite = await getSharedPGlite();
 
@@ -378,6 +379,97 @@ export async function createTestDb(options?: {
         matched_term TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+  }
+
+  if (options?.withAutomation) {
+    // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
+    await (pglite as any).exec(`
+      CREATE TABLE "infra"."channels_templates" (
+        id TEXT PRIMARY KEY DEFAULT nanoid(8),
+        channel TEXT NOT NULL,
+        external_id TEXT UNIQUE,
+        name TEXT NOT NULL,
+        language TEXT NOT NULL,
+        category TEXT,
+        status TEXT,
+        components TEXT,
+        synced_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX "channels_templates_channel_idx" ON "infra"."channels_templates" (channel);
+      CREATE INDEX "channels_templates_name_idx" ON "infra"."channels_templates" (name);
+
+      CREATE TABLE "messaging"."automation_rules" (
+        id TEXT PRIMARY KEY DEFAULT nanoid(8),
+        name TEXT NOT NULL,
+        description TEXT,
+        type TEXT NOT NULL CHECK (type IN ('recurring', 'date-relative')),
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        audience_filter JSONB NOT NULL DEFAULT '{}',
+        audience_resolver_name TEXT,
+        channel_instance_id TEXT NOT NULL REFERENCES "messaging"."channel_instances" (id) ON DELETE RESTRICT,
+        schedule TEXT,
+        date_attribute TEXT,
+        timezone TEXT NOT NULL DEFAULT 'UTC',
+        parameters JSONB NOT NULL DEFAULT '{}',
+        parameter_schema JSONB NOT NULL DEFAULT '{}',
+        last_fired_at TIMESTAMPTZ,
+        next_fire_at TIMESTAMPTZ,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE "messaging"."automation_rule_steps" (
+        id TEXT PRIMARY KEY DEFAULT nanoid(8),
+        rule_id TEXT NOT NULL REFERENCES "messaging"."automation_rules" (id) ON DELETE CASCADE,
+        sequence INTEGER NOT NULL,
+        offset_days INTEGER,
+        send_at_time TEXT,
+        delay_hours INTEGER,
+        template_id TEXT NOT NULL,
+        template_name TEXT NOT NULL,
+        template_language TEXT NOT NULL DEFAULT 'en',
+        variable_mapping JSONB NOT NULL DEFAULT '{}',
+        is_final BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (rule_id, sequence)
+      );
+      CREATE TABLE "messaging"."automation_executions" (
+        id TEXT PRIMARY KEY DEFAULT nanoid(8),
+        rule_id TEXT NOT NULL REFERENCES "messaging"."automation_rules" (id) ON DELETE CASCADE,
+        step_sequence INTEGER NOT NULL,
+        fired_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'completed', 'failed')),
+        total_recipients INTEGER NOT NULL DEFAULT 0,
+        sent_count INTEGER NOT NULL DEFAULT 0,
+        delivered_count INTEGER NOT NULL DEFAULT 0,
+        read_count INTEGER NOT NULL DEFAULT 0,
+        failed_count INTEGER NOT NULL DEFAULT 0,
+        skipped_count INTEGER NOT NULL DEFAULT 0,
+        completed_at TIMESTAMPTZ
+      );
+      CREATE TABLE "messaging"."automation_recipients" (
+        id TEXT PRIMARY KEY DEFAULT nanoid(8),
+        execution_id TEXT NOT NULL REFERENCES "messaging"."automation_executions" (id) ON DELETE CASCADE,
+        rule_id TEXT NOT NULL,
+        contact_id TEXT NOT NULL REFERENCES "messaging"."contacts" (id) ON DELETE RESTRICT,
+        phone TEXT NOT NULL,
+        variables JSONB NOT NULL DEFAULT '{}',
+        current_step INTEGER NOT NULL DEFAULT 1,
+        next_step_at TIMESTAMPTZ,
+        status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'sent', 'delivered', 'read', 'failed', 'skipped', 'replied', 'chaser_paused')),
+        external_message_id TEXT,
+        failure_reason TEXT,
+        date_value DATE,
+        sent_at TIMESTAMPTZ,
+        delivered_at TIMESTAMPTZ,
+        read_at TIMESTAMPTZ,
+        replied_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX "automation_recipients_status_next_step_idx" ON "messaging"."automation_recipients" (status, next_step_at);
+      CREATE UNIQUE INDEX "automation_recipients_rule_contact_date_unique" ON "messaging"."automation_recipients" (rule_id, contact_id, date_value) WHERE date_value IS NOT NULL;
     `);
   }
 
