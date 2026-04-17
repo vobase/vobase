@@ -5,7 +5,7 @@ import {
   unauthorized,
   validation,
 } from '@vobase/core';
-import { and, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -38,6 +38,9 @@ const listQuerySchema = z.object({
 const paginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(20),
   offset: z.coerce.number().int().min(0).default(0),
+  status: z.enum(['running', 'completed', 'failed']).optional(),
+  date_from: z.string().datetime({ offset: true }).optional(),
+  date_to: z.string().datetime({ offset: true }).optional(),
 });
 
 const recipientsQuerySchema = z.object({
@@ -219,9 +222,12 @@ export const automationHandlers = new Hono()
     const parsed = paginationQuerySchema.safeParse({
       limit: c.req.query('limit'),
       offset: c.req.query('offset'),
+      status: c.req.query('status'),
+      date_from: c.req.query('date_from'),
+      date_to: c.req.query('date_to'),
     });
     if (!parsed.success) throw validation(parsed.error.flatten().fieldErrors);
-    const { limit, offset } = parsed.data;
+    const { limit, offset, status, date_from, date_to } = parsed.data;
 
     const [rule] = await db
       .select({ id: automationRules.id })
@@ -230,7 +236,17 @@ export const automationHandlers = new Hono()
 
     if (!rule) throw notFound('Automation rule not found');
 
-    const condition = eq(automationExecutions.ruleId, id);
+    const conditions = [
+      eq(automationExecutions.ruleId, id),
+      ...(status ? [eq(automationExecutions.status, status)] : []),
+      ...(date_from
+        ? [gte(automationExecutions.firedAt, new Date(date_from))]
+        : []),
+      ...(date_to
+        ? [lte(automationExecutions.firedAt, new Date(date_to))]
+        : []),
+    ];
+    const condition = and(...conditions);
 
     const [rows, [{ total }]] = await Promise.all([
       db

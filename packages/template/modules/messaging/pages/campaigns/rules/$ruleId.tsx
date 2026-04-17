@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import type { ParameterSchemaT } from '@modules/messaging/lib/parameter-schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
@@ -9,7 +7,10 @@ import {
   PlayIcon,
   TrashIcon,
   UsersIcon,
+  XIcon,
 } from 'lucide-react';
+import { parseAsString, useQueryState } from 'nuqs';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -26,7 +27,16 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { RelativeTimeCard } from '@/components/ui/relative-time-card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
@@ -102,12 +112,24 @@ async function fetchRule(id: string): Promise<AutomationRule> {
   return res.json() as Promise<AutomationRule>;
 }
 
+interface ExecutionFilters {
+  status?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
 async function fetchExecutions(
   id: string,
+  filters: ExecutionFilters = {},
 ): Promise<{ data: Execution[]; total: number }> {
-  const res = await messagingClient.automation.rules[':id'].executions.$get({
-    param: { id },
-  });
+  const params = new URLSearchParams({ limit: '50', offset: '0' });
+  if (filters.status) params.set('status', filters.status);
+  if (filters.date_from) params.set('date_from', filters.date_from);
+  if (filters.date_to) params.set('date_to', filters.date_to);
+
+  const res = await fetch(
+    `/api/messaging/automation/rules/${id}/executions?${params.toString()}`,
+  );
   if (!res.ok) throw new Error('Failed to fetch executions');
   return res.json() as Promise<{ data: Execution[]; total: number }>;
 }
@@ -173,14 +195,39 @@ function RuleDetailPage() {
   const queryClient = useQueryClient();
   const [simulateOpen, setSimulateOpen] = useState(false);
 
+  const [execStatus, setExecStatus] = useQueryState(
+    'exec_status',
+    parseAsString.withDefault(''),
+  );
+  const [execFrom, setExecFrom] = useQueryState(
+    'exec_from',
+    parseAsString.withDefault(''),
+  );
+  const [execTo, setExecTo] = useQueryState(
+    'exec_to',
+    parseAsString.withDefault(''),
+  );
+
   const { data: rule, isLoading } = useQuery({
     queryKey: ['automation-rule', ruleId],
     queryFn: () => fetchRule(ruleId),
   });
 
+  const filters: ExecutionFilters = {
+    ...(execStatus && { status: execStatus }),
+    ...(execFrom && { date_from: new Date(execFrom).toISOString() }),
+    ...(execTo && { date_to: new Date(execTo).toISOString() }),
+  };
+
   const { data: executions } = useQuery({
-    queryKey: ['automation-rule-executions', ruleId],
-    queryFn: () => fetchExecutions(ruleId),
+    queryKey: [
+      'automation-rule-executions',
+      ruleId,
+      execStatus,
+      execFrom,
+      execTo,
+    ],
+    queryFn: () => fetchExecutions(ruleId, filters),
     enabled: !!rule,
   });
 
@@ -425,7 +472,66 @@ function RuleDetailPage() {
           {/* Execution history */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Execution history</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-base">Execution history</CardTitle>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Status
+                    </Label>
+                    <Select
+                      value={execStatus || 'all'}
+                      onValueChange={(v) =>
+                        void setExecStatus(v === 'all' ? '' : v)
+                      }
+                    >
+                      <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="running">Running</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">
+                      From
+                    </Label>
+                    <Input
+                      type="date"
+                      className="h-7 w-32 text-xs"
+                      value={execFrom}
+                      onChange={(e) => void setExecFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">To</Label>
+                    <Input
+                      type="date"
+                      className="h-7 w-32 text-xs"
+                      value={execTo}
+                      onChange={(e) => void setExecTo(e.target.value)}
+                    />
+                  </div>
+                  {(execStatus || execFrom || execTo) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => {
+                        void setExecStatus('');
+                        void setExecFrom('');
+                        void setExecTo('');
+                      }}
+                    >
+                      <XIcon className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {!executions || executions.data.length === 0 ? (
