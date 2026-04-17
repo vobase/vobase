@@ -43,6 +43,17 @@ const wakeAgentSchema = z.object({
   payload: z.record(z.string(), z.unknown()).optional(),
 });
 
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function fnv1a32(input: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h | 0; // coerce to signed 32-bit
+}
+
 // ─── Cancellable wake tracking ──────────────────────────────────────
 
 interface ActiveWake {
@@ -53,11 +64,10 @@ interface ActiveWake {
 /**
  * In-memory map of running wakes, keyed by conversationId.
  *
- * TODO: This is per-process — cancelWake() cannot abort wakes running on other
- * instances in a multi-instance deployment. The advisory lock and staleness
- * check still guarantee correctness, but the fast-cancel benefit is lost.
- * If scaling to multiple instances, consider a Postgres NOTIFY signal or
- * shared Redis flag to propagate cancellation cross-process.
+ * Note: scope is per-process. Cross-process cancellation would require a
+ * Postgres NOTIFY or shared-flag mechanism. Correctness is preserved in
+ * multi-instance deployments by the advisory lock + staleness check; only
+ * the fast-cancel optimization is lost.
  */
 const activeWakes = new Map<string, ActiveWake>();
 
@@ -183,9 +193,7 @@ export const agentWakeJob = defineJob('agents:agent-wake', async (data) => {
   // Concurrency guard: use a Postgres advisory lock to prevent concurrent
   // wakes for the same conversation. If another wake is already running, skip
   // — the running wake will see all messages via conversation/messages.md.
-  const lockKey = conversationId
-    .split('')
-    .reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) | 0, 0);
+  const lockKey = fnv1a32(conversationId);
   const lockRows = (await db.execute(
     sql`SELECT pg_try_advisory_lock(${lockKey}) AS acquired`,
   )) as unknown as Array<{ acquired: boolean }>;
