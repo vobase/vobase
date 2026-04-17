@@ -306,6 +306,7 @@ export const evalsHandlers = new Hono()
             reason: mastraScorers.reason,
             runId: mastraScorers.runId,
             createdAt: mastraScorers.createdAt,
+            requestContext: mastraScorers.requestContext,
           })
           .from(mastraScorers)
           .where(

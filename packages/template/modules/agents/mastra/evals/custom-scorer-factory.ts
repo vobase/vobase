@@ -1,5 +1,6 @@
 import { createScorer } from '@mastra/core/evals';
 
+import { coerce } from './coerce';
 import { customScorerId } from './types';
 
 interface CustomScorerRow {
@@ -8,10 +9,6 @@ interface CustomScorerRow {
   description: string;
   criteria: string;
   model: string;
-}
-
-function coerce(val: unknown): string {
-  return typeof val === 'string' ? val : JSON.stringify(val);
 }
 
 /**

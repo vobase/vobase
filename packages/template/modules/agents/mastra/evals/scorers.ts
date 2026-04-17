@@ -2,6 +2,7 @@ import { createScorer } from '@mastra/core/evals';
 
 import { models } from '../lib/models';
 import { agentModel } from '../lib/provider';
+import { coerce } from './coerce';
 
 /**
  * Scorer registry — conversation-aware eval scorers.
@@ -18,8 +19,31 @@ import { agentModel } from '../lib/provider';
 
 const judgeModel = agentModel(models.gpt_mini);
 
-function coerce(val: unknown): string {
-  return typeof val === 'string' ? val : JSON.stringify(val);
+interface KbSnippet {
+  documentTitle: string;
+  content: string;
+}
+
+function isKbSnippet(v: unknown): v is KbSnippet {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as { documentTitle?: unknown }).documentTitle === 'string' &&
+    typeof (v as { content?: unknown }).content === 'string'
+  );
+}
+
+/** Format KB snippets from requestContext for inclusion in a judge prompt. */
+function formatKbSnippets(run: { requestContext?: unknown }): string {
+  const ctx = run.requestContext;
+  const raw =
+    ctx && typeof ctx === 'object' && 'kbSnippets' in ctx
+      ? (ctx as { kbSnippets?: unknown }).kbSnippets
+      : undefined;
+  const snippets = Array.isArray(raw) ? raw.filter(isKbSnippet) : [];
+  if (snippets.length === 0)
+    return '(no relevant knowledge base snippets found)';
+  return snippets.map((s) => `- [${s.documentTitle}] ${s.content}`).join('\n');
 }
 
 // ─── Answer Relevancy ───────────────────────────────────────────────
@@ -28,13 +52,15 @@ const answerRelevancy = createScorer({
   id: 'answer-relevancy',
   name: 'Answer Relevancy',
   description:
-    'Evaluates whether the agent reply is relevant to the customer message.',
+    'Evaluates whether the agent reply is relevant to the customer message, informed by knowledge-base snippets.',
   judge: {
     model: judgeModel,
     instructions: `You are a balanced answer relevancy evaluator for a customer-facing agent.
 Evaluate whether the agent's reply addresses what the customer is asking for.
 Consider both direct answers and related context. Prioritize relevance over correctness.
-Recognize that responses can be partially relevant.`,
+Recognize that responses can be partially relevant.
+When knowledge base snippets are provided, use them as the ideal-answer reference —
+a reply that ignores an obviously relevant snippet is less relevant than one that uses it.`,
   },
 })
   .generateScore({
@@ -45,6 +71,11 @@ Recognize that responses can be partially relevant.`,
         '',
         `Customer message: ${coerce(run.input)}`,
         `Agent reply: ${coerce(run.output)}`,
+        '',
+        'Knowledge base snippets (reference material the agent had access to):',
+        formatKbSnippets(run),
+        '',
+        'If the snippets cover the question, a relevant reply should draw on them.',
         '',
         'Score 0.0 if the reply is completely irrelevant or off-topic.',
         'Score 0.5 if the reply is partially relevant or only addresses part of the question.',
@@ -58,9 +89,13 @@ Recognize that responses can be partially relevant.`,
       [
         `Customer message: ${coerce(run.input)}`,
         `Agent reply: ${coerce(run.output)}`,
+        '',
+        'Knowledge base snippets:',
+        formatKbSnippets(run),
+        '',
         `Score: ${score}`,
         '',
-        'Explain in 1-2 sentences why this score was given for relevancy.',
+        'Explain in 1-2 sentences why this score was given for relevancy, referencing the KB snippets if they were pertinent.',
       ].join('\n'),
   });
 

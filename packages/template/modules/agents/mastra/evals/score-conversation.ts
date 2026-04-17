@@ -8,6 +8,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { MastraScorer } from '@mastra/core/evals';
+import { hybridSearch } from '@modules/knowledge-base/lib/search';
 import type { VobaseDb } from '@vobase/core';
 import { logger } from '@vobase/core';
 import { and, desc, eq, gte } from 'drizzle-orm';
@@ -24,6 +25,8 @@ interface ConversationMessages {
   customerMessage: string;
   /** All agent replies sent during this wake (concatenated). */
   agentReply: string;
+  /** IDs of the agent messages scored in this wake (chronological). */
+  agentMessageIds: string[];
 }
 
 /**
@@ -53,7 +56,11 @@ async function extractConversationMessages(
 
   // Fetch agent replies sent during this wake
   const agentReplies = await db
-    .select({ content: messages.content, contentType: messages.contentType })
+    .select({
+      id: messages.id,
+      content: messages.content,
+      contentType: messages.contentType,
+    })
     .from(messages)
     .where(
       and(
@@ -74,7 +81,11 @@ async function extractConversationMessages(
 
   const agentReply = agentReplies.map((r) => r.content).join('\n\n');
 
-  return { customerMessage, agentReply };
+  return {
+    customerMessage,
+    agentReply,
+    agentMessageIds: agentReplies.map((r) => r.id),
+  };
 }
 
 // ─── Score persistence ──────────────────────────────────────────────
@@ -127,6 +138,19 @@ export async function scoreConversation(
     const runId = randomUUID();
     const threadId = `agent-${agentId}-conv-${conversationId}`;
 
+    // Pre-fetch KB snippets so scorers (answer-relevancy) can judge the reply
+    // against the authoritative reference material the agent had access to.
+    const kbSnippets = await hybridSearch(db, extracted.customerMessage, {
+      limit: 3,
+      mode: 'fast',
+    }).catch((err) => {
+      logger.debug('[scorer] KB search failed, continuing without snippets', {
+        conversationId,
+        error: err,
+      });
+      return [];
+    });
+
     // Resolve all scorers: code-based + custom from DB
     const allScorers: MastraScorer[] = [...scorers];
     try {
@@ -156,12 +180,15 @@ export async function scoreConversation(
       // Custom scorer resolution is best-effort
     }
 
-    // Run each scorer concurrently
+    // Run each scorer concurrently. kbSnippets is passed to the scorer via
+    // requestContext (not persisted); messageIds link this run's scores back
+    // to the specific agent messages so the UI can attach scores per-message.
     const results = await Promise.allSettled(
       allScorers.map(async (scorer) => {
         const result = await scorer.run({
           input: extracted.customerMessage,
           output: extracted.agentReply,
+          requestContext: { kbSnippets },
         });
 
         if (result && typeof result.score === 'number') {
@@ -182,7 +209,10 @@ export async function scoreConversation(
             entityType: 'AGENT',
             source: 'LIVE',
             threadId,
-            requestContext: { conversationId },
+            requestContext: {
+              conversationId,
+              messageIds: extracted.agentMessageIds,
+            },
           });
         }
 
