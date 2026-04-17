@@ -1,9 +1,10 @@
+import { useState } from 'react';
+
 import type { ParameterSchemaT } from '@modules/messaging/lib/parameter-schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeftIcon,
-  FlaskConicalIcon,
   PauseIcon,
   PlayIcon,
   TrashIcon,
@@ -40,6 +41,7 @@ import {
 import { messagingClient } from '@/lib/api-client';
 import { cronToHuman, ruleStatusVariant, ruleTypeLabel } from './_lib/helpers';
 import { ParameterEditor } from './_lib/parameter-editor';
+import { SimulateDialog } from './_lib/simulate-dialog';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -169,6 +171,7 @@ function RuleDetailPage() {
   const { ruleId } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [simulateOpen, setSimulateOpen] = useState(false);
 
   const { data: rule, isLoading } = useQuery({
     queryKey: ['automation-rule', ruleId],
@@ -337,15 +340,12 @@ function RuleDetailPage() {
               </Button>
             )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => toast.info('Deep simulate coming in v1.1')}
-            >
-              <FlaskConicalIcon className="size-3.5" />
-              Simulate
-            </Button>
+            <SimulateDialog
+              ruleId={ruleId}
+              ruleName={rule.name}
+              open={simulateOpen}
+              onOpenChange={setSimulateOpen}
+            />
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
