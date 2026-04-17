@@ -52,8 +52,22 @@ async function sendOutbound(
 
 // ─── reply ──────────────────────────────────────────────────────────
 
+/**
+ * LLMs routinely emit literal `\n` / `\t` escape sequences inside double-quoted
+ * shell args — bash does not interpret these, so they leak to the guest as raw
+ * backslash-n text. Translate the common ones back to their intended form.
+ */
+function unescapeAgentText(raw: string): string {
+  return raw
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\');
+}
+
 const reply: CommandHandler = async (positional, _flags, ctx) => {
-  const message = positional.join(' ').trim();
+  const message = unescapeAgentText(positional.join(' ')).trim();
   if (!message) return err('Usage: vobase reply <message>');
 
   const check = await verifyConversationAccess(
@@ -74,7 +88,7 @@ const reply: CommandHandler = async (positional, _flags, ctx) => {
 // ─── card ───────────────────────────────────────────────────────────
 
 const card: CommandHandler = async (positional, flags, ctx) => {
-  const body = positional.join(' ').trim();
+  const body = unescapeAgentText(positional.join(' ')).trim();
   if (!body)
     return err(
       'Usage: vobase card <body> [--title <title>] [--buttons "a,b,c"]',
