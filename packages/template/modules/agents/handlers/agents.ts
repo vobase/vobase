@@ -2,7 +2,6 @@ import {
   getCtx,
   logger,
   notFound,
-  requireRole,
   unauthorized,
   validation,
 } from '@vobase/core';
@@ -10,6 +9,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { requireAdmin } from '../../lib/require-admin';
 import { resolveAgent } from '../mastra/agents';
 import { seedWorkspaceFiles } from '../mastra/workspace/seed-workspace';
 import { agentDefinitions, workspaceFiles } from '../schema';
@@ -91,7 +91,7 @@ export const agentsHandlers = new Hono()
 
     return c.json(agent);
   })
-  .post('/agents', requireRole('admin'), async (c) => {
+  .post('/agents', requireAdmin(), async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
@@ -114,7 +114,7 @@ export const agentsHandlers = new Hono()
 
     return c.json(agent, 201);
   })
-  .patch('/agents/:id', requireRole('admin'), async (c) => {
+  .patch('/agents/:id', requireAdmin(), async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
@@ -139,7 +139,7 @@ export const agentsHandlers = new Hono()
     if (!agent) throw notFound('Agent not found');
     return c.json(agent);
   })
-  .delete('/agents/:id', requireRole('admin'), async (c) => {
+  .delete('/agents/:id', requireAdmin(), async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
 
@@ -245,7 +245,7 @@ export const agentsHandlers = new Hono()
     if (!file) throw notFound('File not found');
     return c.json(file);
   })
-  .put('/agents/:agentId/file', requireRole('admin'), async (c) => {
+  .put('/agents/:agentId/file', requireAdmin(), async (c) => {
     const { db, user } = getCtx(c);
     if (!user) throw unauthorized();
     const agentId = c.req.param('agentId');

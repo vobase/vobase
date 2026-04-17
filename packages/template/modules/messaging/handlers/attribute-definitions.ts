@@ -1,14 +1,9 @@
-import {
-  getCtx,
-  notFound,
-  requireRole,
-  unauthorized,
-  validation,
-} from '@vobase/core';
+import { getCtx, notFound, unauthorized, validation } from '@vobase/core';
 import { asc, eq, max } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { requireAdmin } from '../../lib/require-admin';
 import { contactAttributeDefinitions } from '../schema';
 
 // ─── Schemas ────────────────────────────────────────────────────────
@@ -36,7 +31,7 @@ const updateSchema = z.object({
 // ─── Handlers ───────────────────────────────────────────────────────
 
 export const attributeDefinitionsHandlers = new Hono()
-  .use('*', requireRole('admin'))
+  .use('*', requireAdmin())
   /** GET / — List all attribute definitions, ordered by sortOrder. */
   .get('/', async (c) => {
     const { db, user } = getCtx(c);

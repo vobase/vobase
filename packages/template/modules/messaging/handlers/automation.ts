@@ -1,14 +1,9 @@
-import {
-  getCtx,
-  notFound,
-  requireRole,
-  unauthorized,
-  validation,
-} from '@vobase/core';
+import { getCtx, notFound, unauthorized, validation } from '@vobase/core';
 import { and, count, desc, eq, gte, lte } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { requireAdmin } from '../../lib/require-admin';
 import {
   audienceFilterSchema,
   buildAudienceWhereWithLabels,
@@ -138,7 +133,7 @@ function validateParameterValues(
 // ─── Handlers ───────────────────────────────────────────────────────
 
 export const automationHandlers = new Hono()
-  .use('*', requireRole('admin'))
+  .use('*', requireAdmin())
   // GET /rules — list with pagination
   .get('/rules', async (c) => {
     const { db, user } = getCtx(c);

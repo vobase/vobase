@@ -1,14 +1,9 @@
-import {
-  getCtx,
-  notFound,
-  requireRole,
-  unauthorized,
-  validation,
-} from '@vobase/core';
+import { getCtx, notFound, unauthorized, validation } from '@vobase/core';
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { requireAdmin } from '../../lib/require-admin';
 import {
   audienceFilterSchema,
   buildAudienceWhereWithLabels,
@@ -64,7 +59,7 @@ const scheduleSchema = z.object({
 // ─── Handlers ───────────────────────────────────────────────────────
 
 export const broadcastsHandlers = new Hono()
-  .use('*', requireRole('admin'))
+  .use('*', requireAdmin())
   // GET / — list broadcasts with pagination
   .get('/', async (c) => {
     const { db, user } = getCtx(c);
