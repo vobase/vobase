@@ -8,6 +8,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { RelativeTimeCard } from '@/components/ui/relative-time-card';
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
+
+type StatusVariant = 'default' | 'success' | 'error' | 'warning' | 'info';
+
+function docStatusVariant(status: string): StatusVariant {
+  if (status === 'ready') return 'success';
+  if (status === 'pending' || status === 'processing') return 'warning';
+  if (status === 'error' || status === 'failed') return 'error';
+  return 'default';
+}
 
 export type FileIconVariant = 'blue' | 'amber' | 'emerald' | 'violet';
 
@@ -30,6 +40,7 @@ interface FileRowProps {
   icon?: FileIconVariant;
   updatedAt: string;
   subtitle?: string;
+  status?: string;
   to?: string;
   linkParams?: Record<string, string>;
   linkSearch?: Record<string, string>;
@@ -41,6 +52,7 @@ export function FileRow({
   icon = 'blue',
   updatedAt,
   subtitle,
+  status,
   to,
   linkParams,
   linkSearch,
@@ -50,6 +62,15 @@ export function FileRow({
     <>
       <FileText className={`size-4 ${ICON_TEXT[icon]} shrink-0`} />
       <span className="text-sm truncate flex-1">{name}</span>
+      {status && (
+        <Status
+          variant={docStatusVariant(status)}
+          className="shrink-0 gap-1 px-1.5 py-0 text-[10px]"
+        >
+          <StatusIndicator className="size-1.5" />
+          <StatusLabel className="capitalize">{status}</StatusLabel>
+        </Status>
+      )}
       {subtitle && (
         <span className="text-xs text-muted-foreground shrink-0">
           {subtitle}
@@ -102,6 +123,7 @@ interface FileCardProps {
   icon?: FileIconVariant;
   updatedAt: string;
   subtitle?: string;
+  status?: string;
   to?: string;
   linkParams?: Record<string, string>;
 }
@@ -111,6 +133,7 @@ export function FileCard({
   icon = 'blue',
   updatedAt,
   subtitle,
+  status,
   to,
   linkParams,
 }: FileCardProps) {
@@ -122,7 +145,15 @@ export function FileCard({
         <FileText className={`size-5 ${ICON_TEXT[icon]}`} />
       </div>
       <div className="min-w-0">
-        <p className="font-medium text-sm truncate">{name}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-sm truncate">{name}</p>
+          {status && (
+            <Status variant={docStatusVariant(status)} className="shrink-0">
+              <StatusIndicator />
+              <StatusLabel className="capitalize text-xs">{status}</StatusLabel>
+            </Status>
+          )}
+        </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {subtitle && <span>{subtitle}</span>}
           <RelativeTimeCard date={updatedAt} />

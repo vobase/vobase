@@ -9,6 +9,7 @@ import {
   MoreVertical,
   Plus,
   Search,
+  Upload,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -160,6 +161,57 @@ function AgentsIndexPage() {
     },
   });
 
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const uploadMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      await Promise.all(
+        files.map(async (file) => {
+          const form = new FormData();
+          form.append('file', file);
+          // biome-ignore lint/style/noRestrictedGlobals: multipart upload — Hono RPC client does not support FormData
+          const res = await fetch('/api/knowledge-base/documents', {
+            method: 'POST',
+            credentials: 'include',
+            body: form,
+          });
+          if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            throw new Error(`Upload failed (${res.status}): ${body}`);
+          }
+        }),
+      );
+    },
+    onSuccess: () => {
+      setUploadError(null);
+      queryClient.invalidateQueries({ queryKey: ['kb-documents'] });
+      queryClient.invalidateQueries({ queryKey: ['kb-folders'] });
+    },
+    onError: (err) => {
+      setUploadError(err instanceof Error ? err.message : String(err));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await knowledgeBaseClient.documents[':id'].$delete({
+        param: { id },
+      });
+      if (!res.ok) throw new Error('Delete failed');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kb-documents'] });
+      queryClient.invalidateQueries({ queryKey: ['kb-folders'] });
+    },
+  });
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const fileList = e.target.files;
+    if (fileList && fileList.length > 0) {
+      uploadMutation.mutate(Array.from(fileList));
+    }
+    e.target.value = '';
+  }
+
   function toggleFolder(key: string) {
     setExpandedFolders((prev) => {
       const next = new Set(prev);
@@ -228,6 +280,30 @@ function AgentsIndexPage() {
             Knowledge Base
           </h2>
           <div className="flex items-center gap-2">
+            <input
+              id="kb-upload-input"
+              type="file"
+              multiple
+              style={{
+                position: 'absolute',
+                left: '-9999px',
+                width: 1,
+                height: 1,
+                opacity: 0,
+              }}
+              onChange={handleFileChange}
+              disabled={uploadMutation.isPending}
+            />
+            <label
+              htmlFor="kb-upload-input"
+              className={cn(
+                'inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground cursor-pointer',
+                uploadMutation.isPending && 'opacity-50 pointer-events-none',
+              )}
+            >
+              <Upload className="size-4" />
+              {uploadMutation.isPending ? 'Uploading...' : 'Upload'}
+            </label>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
               <Input
@@ -258,6 +334,10 @@ function AgentsIndexPage() {
           </div>
         </div>
 
+        {uploadError && (
+          <p className="mb-2 text-sm text-destructive">{uploadError}</p>
+        )}
+
         {documents.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4">
             No documents in the knowledge base yet.
@@ -280,6 +360,7 @@ function AgentsIndexPage() {
                         name={doc.title}
                         icon="amber"
                         updatedAt={doc.updatedAt}
+                        status={doc.status}
                         subtitle={
                           doc.chunkCount !== null
                             ? `${doc.chunkCount} chunks`
@@ -301,6 +382,7 @@ function AgentsIndexPage() {
                     name={doc.title}
                     icon="amber"
                     updatedAt={doc.updatedAt}
+                    status={doc.status}
                     subtitle={
                       doc.chunkCount !== null
                         ? `${doc.chunkCount} chunks`
@@ -350,6 +432,7 @@ function AgentsIndexPage() {
                           name={doc.title}
                           icon="amber"
                           updatedAt={doc.updatedAt}
+                          status={doc.status}
                           subtitle={
                             doc.chunkCount !== null
                               ? `${doc.chunkCount} chunks`
@@ -357,6 +440,14 @@ function AgentsIndexPage() {
                           }
                           to="/agents/kb/$id"
                           linkParams={{ id: doc.id }}
+                          menuItems={
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() => deleteMutation.mutate(doc.id)}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          }
                         />
                       ))}
                     </div>
@@ -371,6 +462,7 @@ function AgentsIndexPage() {
                 name={doc.title}
                 icon="amber"
                 updatedAt={doc.updatedAt}
+                status={doc.status}
                 subtitle={
                   doc.chunkCount !== null
                     ? `${doc.chunkCount} chunks`
@@ -378,6 +470,14 @@ function AgentsIndexPage() {
                 }
                 to="/agents/kb/$id"
                 linkParams={{ id: doc.id }}
+                menuItems={
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={() => deleteMutation.mutate(doc.id)}
+                  >
+                    Delete
+                  </DropdownMenuItem>
+                }
               />
             ))}
           </div>
