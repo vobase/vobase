@@ -4,9 +4,11 @@ import {
   MoreHorizontalIcon,
   PauseIcon,
   PlayIcon,
+  PlusIcon,
   TrashIcon,
   ZapIcon,
 } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +32,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
 import { messagingClient } from '@/lib/api-client';
 import { cronToHuman, ruleStatusVariant, ruleTypeLabel } from './_lib/helpers';
+import { PromptDialog } from './_lib/prompt-dialog';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -253,6 +256,8 @@ function RuleCard({ rule }: { rule: AutomationRule }) {
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function RulesPage() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   const { data, isLoading } = useQuery({
     queryKey: ['automation-rules'],
     queryFn: fetchRules,
@@ -270,6 +275,14 @@ function RulesPage() {
             attributes.
           </p>
         </div>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setDialogOpen(true)}
+        >
+          <PlusIcon className="size-3.5" />
+          New rule
+        </Button>
       </div>
 
       {isLoading ? (
@@ -285,8 +298,19 @@ function RulesPage() {
               <ZapIcon className="size-8" />
             </EmptyMedia>
             <EmptyTitle>No rules yet</EmptyTitle>
-            <EmptyDescription>Insert one via the API or DB.</EmptyDescription>
+            <EmptyDescription>
+              Describe a rule in plain language and let AI draft it for you.
+            </EmptyDescription>
           </EmptyHeader>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => setDialogOpen(true)}
+          >
+            <PlusIcon className="size-3.5" />
+            Create first rule
+          </Button>
         </Empty>
       ) : (
         <div className="space-y-2">
@@ -295,6 +319,8 @@ function RulesPage() {
           ))}
         </div>
       )}
+
+      <PromptDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }
