@@ -3,9 +3,9 @@ import { eq, sql } from 'drizzle-orm';
 import { cosineDistance } from 'drizzle-orm/sql/functions/vector';
 
 import { isAIConfigured } from '../../../lib/ai';
+import { embedQuery } from '../../../lib/embeddings';
 import { buildRankMap, computeRRFScores } from '../../../lib/search-utils';
 import { kbChunks, kbDocuments } from '../schema';
-import { embedQuery } from './embeddings';
 
 interface SearchResult {
   chunkId: string;

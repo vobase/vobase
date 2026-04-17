@@ -9,7 +9,7 @@ import type { PlateValue } from './plate-types';
 import { createParagraph, createText } from './plate-types';
 
 // Mock embeddings to return deterministic 4-dim vectors
-mock.module('./embeddings', () => ({
+mock.module('../../../lib/embeddings', () => ({
   embedChunks: async (texts: string[]) =>
     texts.map((_, i) => [i * 0.1, 1 - i * 0.1, 0.5, 0.5]),
   embedQuery: async (_query: string) => [0.9, 0.1, 0.5, 0.5],
@@ -136,9 +136,9 @@ describe('processDocument()', () => {
     await insertDoc('doc-7', 'Bad Doc');
 
     // Mock embedChunks to throw for this specific test
-    const origModule = await import('./embeddings');
+    const origModule = await import('../../../lib/embeddings');
     const origFn = origModule.embedChunks;
-    mock.module('./embeddings', () => ({
+    mock.module('../../../lib/embeddings', () => ({
       embedChunks: async () => {
         throw new Error('API key invalid');
       },
@@ -161,7 +161,7 @@ describe('processDocument()', () => {
     expect(doc?.metadata).toContain('API key invalid');
 
     // Restore original mock
-    mock.module('./embeddings', () => ({
+    mock.module('../../../lib/embeddings', () => ({
       embedChunks: origFn,
     }));
   });

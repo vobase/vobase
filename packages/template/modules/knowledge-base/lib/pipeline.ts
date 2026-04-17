@@ -1,9 +1,9 @@
 import type { VobaseDb } from '@vobase/core';
 import { eq } from 'drizzle-orm';
 
+import { embedChunks } from '../../../lib/embeddings';
 import { kbChunks, kbDocuments } from '../schema';
 import { blockChunk } from './chunker';
-import { embedChunks } from './embeddings';
 import type { PlateValue } from './plate-types';
 
 /**

@@ -11,6 +11,7 @@ import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import { embedChunks } from '../../lib/embeddings';
 import { createCrawlConnector } from './connectors/crawl';
 import {
   createGoogleDriveConnector,
@@ -25,7 +26,6 @@ import {
 import type { DocumentSource } from './connectors/types';
 import { KB_STORAGE_BUCKET } from './constants';
 import { blockChunk } from './lib/chunker';
-import { embedChunks } from './lib/embeddings';
 import { migrateExistingDocuments } from './lib/migrate-content';
 import { processDocument } from './lib/pipeline';
 import { markdownToPlate } from './lib/plate-deserialize';
