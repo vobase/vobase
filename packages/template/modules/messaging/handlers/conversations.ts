@@ -22,6 +22,7 @@ import { Hono } from 'hono';
 import { validator } from 'hono/validator';
 import { z } from 'zod';
 
+import { type InboxTab } from '../lib/activity-events';
 import { failConversation, resolveConversation } from '../lib/conversation';
 import { enqueueDelivery } from '../lib/delivery';
 import { getModuleDeps } from '../lib/deps';
@@ -74,7 +75,7 @@ async function withContactLabels<T extends { id: string }>(
 /** Get qualifying contact IDs for a tab. */
 async function getTabContactIds(
   db: VobaseDb,
-  tab: 'active' | 'on-hold' | 'done',
+  tab: InboxTab,
 ): Promise<string[]> {
   if (tab === 'active') {
     const rows = await db
@@ -132,7 +133,7 @@ async function getTabContactIds(
 /** Build contact-level aggregated rows for a tab. */
 async function buildContactRows(
   db: VobaseDb,
-  tab: 'active' | 'on-hold' | 'done',
+  tab: InboxTab,
   limit: number,
   offset: number,
   userId?: string,
