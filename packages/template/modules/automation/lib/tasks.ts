@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { automationTasks } from '../schema';
-import { getModuleDb, getModuleDeps } from './deps';
+import { getModuleDb, getModuleDeps } from './automation-deps';
 
 export const TASK_STATUSES = [
   'pending',

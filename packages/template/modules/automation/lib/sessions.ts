@@ -2,7 +2,7 @@ import { logger } from '@vobase/core';
 import { and, eq, gt, sql } from 'drizzle-orm';
 
 import { automationSessions } from '../schema';
-import { getModuleDb, getModuleDeps } from './deps';
+import { getModuleDb, getModuleDeps } from './automation-deps';
 import { unassignOrphanedTasks } from './tasks';
 
 /** Heartbeat staleness threshold — sessions without a heartbeat for this long are considered disconnected. */

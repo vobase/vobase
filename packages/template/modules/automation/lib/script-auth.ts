@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { createMiddleware } from 'hono/factory';
 
 import { automationSessions } from '../schema';
-import { getModuleDb, getModuleDeps } from './deps';
+import { getModuleDb, getModuleDeps } from './automation-deps';
 
 declare module 'hono' {
   interface ContextVariableMap {

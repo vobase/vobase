@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
-import type { ModuleDeps } from './deps';
-import { setModuleDeps } from './deps';
+import type { ModuleDeps } from './automation-deps';
+import { setModuleDeps } from './automation-deps';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 

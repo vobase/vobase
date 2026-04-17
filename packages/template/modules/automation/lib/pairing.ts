@@ -2,7 +2,7 @@ import { logger, notFound } from '@vobase/core';
 import { and, eq, gt } from 'drizzle-orm';
 
 import { automationPairingCodes, automationSessions } from '../schema';
-import { getModuleDb, getModuleDeps } from './deps';
+import { getModuleDb, getModuleDeps } from './automation-deps';
 
 /** API key TTL — 30 days. */
 const API_KEY_EXPIRES_IN_S = 30 * 24 * 60 * 60;
