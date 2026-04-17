@@ -26,7 +26,6 @@ interface ChannelConstraints {
   idleWindowMs: number;
 }
 
-/** @lintignore */
 export const CHANNEL_CONSTRAINTS: Record<string, ChannelConstraints> = {
   whatsapp: {
     maxButtons: 3,
