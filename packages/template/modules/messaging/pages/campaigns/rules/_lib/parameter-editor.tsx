@@ -20,6 +20,63 @@ interface ParameterEditorProps {
   onSave: (values: Record<string, unknown>) => Promise<void>;
 }
 
+const OPERATOR_LABELS: Record<string, string> = {
+  eq: '=',
+  '!=': '≠',
+  '>=': '≥',
+  '<=': '≤',
+  contains: 'contains',
+};
+
+interface StoredAudienceFilter {
+  roles?: string[];
+  labelIds?: string[];
+  attributes?: Array<{ key: string; value: string; op?: string }>;
+  excludeOptedOut?: boolean;
+}
+
+function isStoredAudienceFilter(v: unknown): v is StoredAudienceFilter {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function AudienceFilterPreview({ value }: { value: unknown }) {
+  if (!isStoredAudienceFilter(value)) {
+    return (
+      <p className="text-muted-foreground rounded-md border bg-muted/40 px-3 py-2 text-sm">
+        —
+      </p>
+    );
+  }
+  const roles = value.roles ?? [];
+  const attributes = value.attributes ?? [];
+  const parts: string[] = [];
+  if (roles.length > 0) parts.push(`roles: ${roles.join(', ')}`);
+  if (value.excludeOptedOut) parts.push('exclude opted-out');
+
+  return (
+    <div className="flex flex-col gap-1 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+      {parts.length > 0 && (
+        <p className="text-muted-foreground">{parts.join(' · ')}</p>
+      )}
+      {attributes.length > 0 ? (
+        <ul className="flex flex-col gap-0.5 font-mono text-xs">
+          {attributes.map((attr, i) => (
+            <li key={`${attr.key}-${i.toString()}`}>
+              <span>{attr.key}</span>{' '}
+              <span className="text-muted-foreground">
+                {OPERATOR_LABELS[attr.op ?? 'eq'] ?? attr.op ?? '='}
+              </span>{' '}
+              <span>{attr.value}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        parts.length === 0 && <p className="text-muted-foreground">—</p>
+      )}
+    </div>
+  );
+}
+
 export function ParameterEditor({
   schema,
   values,
@@ -129,13 +186,22 @@ export function ParameterEditor({
           );
         }
 
-        if (entry.type === 'template' || entry.type === 'audience-filter') {
+        if (entry.type === 'template') {
           return (
             <div key={key} className="flex flex-col gap-1.5">
               <Label className="text-sm font-medium">{entry.label}</Label>
               <p className="text-muted-foreground rounded-md border bg-muted/40 px-3 py-2 text-sm font-mono">
                 {val !== undefined && val !== null ? String(val) : '—'}
               </p>
+            </div>
+          );
+        }
+
+        if (entry.type === 'audience-filter') {
+          return (
+            <div key={key} className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium">{entry.label}</Label>
+              <AudienceFilterPreview value={val} />
             </div>
           );
         }

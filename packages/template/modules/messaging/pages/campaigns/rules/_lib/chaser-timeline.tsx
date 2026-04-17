@@ -90,7 +90,7 @@ export function ChaserTimeline({ result }: ChaserTimelineProps) {
               </div>
 
               {/* Content */}
-              <div className={`flex flex-col gap-1 pb-4 ${isLast ? '' : ''}`}>
+              <div className="flex flex-col gap-1 pb-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-medium">
                     {step.templateName}

@@ -65,74 +65,50 @@ async function fetchRules(): Promise<{
 
 // ─── Rule card ────────────────────────────────────────────────────────
 
+type RulesCache = { data: AutomationRule[]; total: number };
+
+function useOptimisticRuleToggle(
+  ruleId: string,
+  endpoint: 'pause' | 'resume',
+  targetActive: boolean,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await messagingClient.automation.rules[':id'][endpoint].$post(
+        { param: { id: ruleId } },
+      );
+      if (!res.ok) throw new Error(`Failed to ${endpoint} rule`);
+      return res.json();
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['automation-rules'] });
+      const prev = queryClient.getQueryData<RulesCache>(['automation-rules']);
+      if (prev) {
+        queryClient.setQueryData<RulesCache>(['automation-rules'], {
+          ...prev,
+          data: prev.data.map((r) =>
+            r.id === ruleId ? { ...r, isActive: targetActive } : r,
+          ),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['automation-rules'], ctx.prev);
+      toast.error(`Failed to ${endpoint} rule`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
+    },
+  });
+}
+
 function RuleCard({ rule }: { rule: AutomationRule }) {
   const queryClient = useQueryClient();
 
-  const pauseMutation = useMutation({
-    mutationFn: async () => {
-      const res = await messagingClient.automation.rules[':id'].pause.$post({
-        param: { id: rule.id },
-      });
-      if (!res.ok) throw new Error('Failed to pause rule');
-      return res.json();
-    },
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['automation-rules'] });
-      const prev = queryClient.getQueryData<{
-        data: AutomationRule[];
-        total: number;
-      }>(['automation-rules']);
-      if (prev) {
-        queryClient.setQueryData(['automation-rules'], {
-          ...prev,
-          data: prev.data.map((r) =>
-            r.id === rule.id ? { ...r, isActive: false } : r,
-          ),
-        });
-      }
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(['automation-rules'], ctx.prev);
-      toast.error('Failed to pause rule');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
-    },
-  });
-
-  const resumeMutation = useMutation({
-    mutationFn: async () => {
-      const res = await messagingClient.automation.rules[':id'].resume.$post({
-        param: { id: rule.id },
-      });
-      if (!res.ok) throw new Error('Failed to resume rule');
-      return res.json();
-    },
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['automation-rules'] });
-      const prev = queryClient.getQueryData<{
-        data: AutomationRule[];
-        total: number;
-      }>(['automation-rules']);
-      if (prev) {
-        queryClient.setQueryData(['automation-rules'], {
-          ...prev,
-          data: prev.data.map((r) =>
-            r.id === rule.id ? { ...r, isActive: true } : r,
-          ),
-        });
-      }
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(['automation-rules'], ctx.prev);
-      toast.error('Failed to resume rule');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
-    },
-  });
+  const pauseMutation = useOptimisticRuleToggle(rule.id, 'pause', false);
+  const resumeMutation = useOptimisticRuleToggle(rule.id, 'resume', true);
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -163,7 +139,7 @@ function RuleCard({ rule }: { rule: AutomationRule }) {
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
           <Link
-            to="/campaigns/rules/$ruleId"
+            to="/messaging/campaigns/rules/$ruleId"
             params={{ ruleId: rule.id }}
             className="truncate font-medium hover:underline"
           >
@@ -233,7 +209,10 @@ function RuleCard({ rule }: { rule: AutomationRule }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem asChild>
-              <Link to="/campaigns/rules/$ruleId" params={{ ruleId: rule.id }}>
+              <Link
+                to="/messaging/campaigns/rules/$ruleId"
+                params={{ ruleId: rule.id }}
+              >
                 View details
               </Link>
             </DropdownMenuItem>
@@ -325,6 +304,6 @@ function RulesPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/campaigns/rules/')({
+export const Route = createFileRoute('/_app/messaging/campaigns/rules/')({
   component: RulesPage,
 });

@@ -19,37 +19,11 @@ export const routes = rootRoute('root.tsx', [
     route('/automation', '../modules/automation/pages/layout.tsx', [
       physical('../modules/automation/pages/'),
     ]),
-    // Campaigns: broadcasts + rules (physical scan of messaging/pages/campaigns/)
-    route('/campaigns', '../modules/messaging/pages/campaigns/layout.tsx', [
-      physical('../modules/messaging/pages/campaigns/'),
+    route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx', [
+      physical('../modules/knowledge-base/pages/'),
     ]),
-    route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx'),
-    // Messaging: explicit routes excluding campaigns/ subdir to avoid double-registration
     route('/messaging', '../modules/messaging/pages/layout.tsx', [
-      route('/labels', '../modules/messaging/pages/labels.tsx'),
-      route('/inbox', '../modules/messaging/pages/inbox.tsx', [
-        route('/', '../modules/messaging/pages/inbox/index.tsx'),
-        route('/$contactId', '../modules/messaging/pages/inbox/$contactId.tsx'),
-      ]),
-      route('/templates', '../modules/messaging/pages/templates/index.tsx'),
-      route(
-        '/conversations',
-        '../modules/messaging/pages/conversations/index.tsx',
-      ),
-      route(
-        '/conversations/$conversationId',
-        '../modules/messaging/pages/conversations/$conversationId.tsx',
-      ),
-      route('/contacts', '../modules/messaging/pages/contacts/index.tsx'),
-      route(
-        '/contacts/attributes',
-        '../modules/messaging/pages/contacts/attributes.tsx',
-      ),
-      route(
-        '/contacts/$contactId',
-        '../modules/messaging/pages/contacts/$contactId.tsx',
-      ),
-      route('/channels', '../modules/messaging/pages/channels/index.tsx'),
+      physical('../modules/messaging/pages/'),
     ]),
     route('/system', '../modules/system/pages/layout.tsx', [
       physical('../modules/system/pages/'),

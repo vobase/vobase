@@ -6,7 +6,6 @@ import {
   BuildingIcon,
   CableIcon,
   Contact,
-  Globe,
   KeyIcon,
   LayoutTemplateIcon,
   type LucideIcon,
@@ -16,7 +15,6 @@ import {
   PaletteIcon,
   RadioIcon,
   ScrollText,
-  Search,
   ShieldCheckIcon,
   TagIcon,
   UserIcon,
@@ -88,12 +86,6 @@ export const navGroups: NavGroup[] = [
         keywords: ['people', 'customers', 'staff', 'phone', 'directory'],
       },
       {
-        title: 'Templates',
-        url: '/messaging/templates',
-        icon: LayoutTemplateIcon,
-        keywords: ['whatsapp', 'message templates', 'approved', 'hsm'],
-      },
-      {
         title: 'Labels',
         url: '/messaging/labels',
         icon: TagIcon,
@@ -106,13 +98,13 @@ export const navGroups: NavGroup[] = [
     items: [
       {
         title: 'Broadcasts',
-        url: '/campaigns/broadcasts',
+        url: '/messaging/campaigns/broadcasts',
         icon: MegaphoneIcon,
         keywords: ['broadcast', 'bulk', 'mass', 'whatsapp', 'send'],
       },
       {
         title: 'Rules',
-        url: '/campaigns/rules',
+        url: '/messaging/campaigns/rules',
         icon: ZapIcon,
         keywords: [
           'automation',
@@ -122,6 +114,12 @@ export const navGroups: NavGroup[] = [
           'trigger',
           'campaign',
         ],
+      },
+      {
+        title: 'Templates',
+        url: '/messaging/templates',
+        icon: LayoutTemplateIcon,
+        keywords: ['whatsapp', 'message templates', 'approved', 'hsm'],
       },
     ],
   },
@@ -141,18 +139,6 @@ export const navGroups: NavGroup[] = [
           'documents',
           'kb',
         ],
-      },
-      {
-        title: 'Sources',
-        url: '/agents/sources',
-        icon: Globe,
-        keywords: ['connectors', 'google drive', 'sharepoint', 'crawl', 'sync'],
-      },
-      {
-        title: 'Search',
-        url: '/agents/search',
-        icon: Search,
-        keywords: ['find', 'query', 'semantic', 'rag'],
       },
       {
         title: 'Evals',

@@ -49,7 +49,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { messagingClient } from '@/lib/api-client';
-import { cronToHuman, ruleStatusVariant, ruleTypeLabel } from './_lib/helpers';
+import {
+  cronToHuman,
+  executionStatusVariant,
+  ruleStatusVariant,
+  ruleTypeLabel,
+} from './_lib/helpers';
 import { ParameterEditor } from './_lib/parameter-editor';
 import { SimulateDialog } from './_lib/simulate-dialog';
 
@@ -122,6 +127,8 @@ async function fetchExecutions(
   id: string,
   filters: ExecutionFilters = {},
 ): Promise<{ data: Execution[]; total: number }> {
+  // Raw fetch: the /rules/:id/executions handler parses query via safeParse
+  // (not zValidator), so the Hono RPC client doesn't surface query params.
   const params = new URLSearchParams({ limit: '50', offset: '0' });
   if (filters.status) params.set('status', filters.status);
   if (filters.date_from) params.set('date_from', filters.date_from);
@@ -142,17 +149,6 @@ async function fetchAudiencePreview(id: string): Promise<AudiencePreview> {
   });
   if (!res.ok) throw new Error('Failed to fetch audience preview');
   return res.json() as Promise<AudiencePreview>;
-}
-
-// ─── Execution status helpers ─────────────────────────────────────────
-
-function executionStatusVariant(
-  status: string,
-): 'default' | 'success' | 'error' | 'warning' | 'info' {
-  if (status === 'completed') return 'success';
-  if (status === 'failed') return 'error';
-  if (status === 'running') return 'info';
-  return 'default';
 }
 
 // ─── Step card ────────────────────────────────────────────────────────
@@ -277,7 +273,7 @@ function RuleDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
-      navigate({ to: '/campaigns/rules' });
+      navigate({ to: '/messaging/campaigns/rules' });
     },
     onError: () => toast.error('Failed to delete rule'),
   });
@@ -335,7 +331,7 @@ function RuleDetailPage() {
       {/* Header */}
       <div className="flex flex-col gap-3">
         <Link
-          to="/campaigns/rules"
+          to="/messaging/campaigns/rules"
           className="text-muted-foreground flex w-fit items-center gap-1.5 text-sm hover:text-foreground"
         >
           <ArrowLeftIcon className="size-3.5" />
@@ -686,6 +682,8 @@ function RuleDetailPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/campaigns/rules/$ruleId')({
-  component: RuleDetailPage,
-});
+export const Route = createFileRoute('/_app/messaging/campaigns/rules/$ruleId')(
+  {
+    component: RuleDetailPage,
+  },
+);

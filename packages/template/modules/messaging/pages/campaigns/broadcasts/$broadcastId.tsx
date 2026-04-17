@@ -132,10 +132,21 @@ interface AudiencePreview {
   }>;
 }
 
+type AttributeOperator = 'eq' | '!=' | '>=' | '<=' | 'contains';
+
+const ATTRIBUTE_OPERATORS: Array<{ value: AttributeOperator; label: string }> =
+  [
+    { value: 'eq', label: '=' },
+    { value: '!=', label: '≠' },
+    { value: '>=', label: '≥' },
+    { value: '<=', label: '≤' },
+    { value: 'contains', label: 'contains' },
+  ];
+
 interface AudienceFilter {
   roles: string[];
   labelIds: string[];
-  attributes: Array<{ key: string; value: string }>;
+  attributes: Array<{ key: string; value: string; op?: AttributeOperator }>;
   excludeOptedOut: boolean;
 }
 
@@ -554,7 +565,7 @@ function BroadcastDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
       toast.success('Broadcast deleted');
-      navigate({ to: '/campaigns/broadcasts' });
+      navigate({ to: '/messaging/campaigns/broadcasts' });
     },
     onError: (error) => {
       toast.error(error.message);
@@ -664,7 +675,7 @@ function BroadcastDetailPage() {
       {/* Back link */}
       <div>
         <Link
-          to="/campaigns/broadcasts"
+          to="/messaging/campaigns/broadcasts"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeftIcon className="size-3.5" />
@@ -1087,6 +1098,30 @@ function BroadcastDetailPage() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            <Select
+                              value={attr.op ?? 'eq'}
+                              onValueChange={(op) =>
+                                setAudienceFilter((prev) => ({
+                                  ...prev,
+                                  attributes: prev.attributes.map((a, i) =>
+                                    i === idx
+                                      ? { ...a, op: op as AttributeOperator }
+                                      : a,
+                                  ),
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="w-24 h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {ATTRIBUTE_OPERATORS.map((op) => (
+                                  <SelectItem key={op.value} value={op.value}>
+                                    {op.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <Input
                               value={attr.value}
                               onChange={(e) =>
@@ -1131,6 +1166,7 @@ function BroadcastDetailPage() {
                                 {
                                   key: attrDefs[0]?.key ?? '',
                                   value: '',
+                                  op: 'eq',
                                 },
                               ],
                             }))
@@ -1517,8 +1553,8 @@ function BroadcastDetailPage() {
   );
 }
 
-export const Route = createFileRoute('/_app/campaigns/broadcasts/$broadcastId')(
-  {
-    component: BroadcastDetailPage,
-  },
-);
+export const Route = createFileRoute(
+  '/_app/messaging/campaigns/broadcasts/$broadcastId',
+)({
+  component: BroadcastDetailPage,
+});

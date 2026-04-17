@@ -16,24 +16,54 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { messagingClient } from '@/lib/api-client';
-import { cronToHuman, ruleTypeLabel } from './helpers';
+import {
+  cronToHuman,
+  formatTimeOfDay,
+  humanizeKey,
+  ruleTypeLabel,
+} from './helpers';
 import { ParameterEditor } from './parameter-editor';
 import { type ApprovedTemplate, TemplateResolver } from './template-resolver';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-function audienceFilterSummary(filter: AudienceFilter | undefined): string {
-  if (!filter) return 'All contacts';
-  const parts: string[] = [];
-  if (filter.roles?.length) parts.push(`Roles: ${filter.roles.join(', ')}`);
-  if (filter.labelIds?.length) parts.push(`${filter.labelIds.length} label(s)`);
+const ROLE_LABELS: Record<string, string> = {
+  customer: 'Customers',
+  lead: 'Leads',
+  staff: 'Staff',
+};
+
+const OP_LABELS: Record<string, string> = {
+  eq: 'is',
+  '!=': 'is not',
+  '>=': 'is at least',
+  '<=': 'is at most',
+  contains: 'contains',
+};
+
+function audienceFilterSentence(filter: AudienceFilter | undefined): string {
+  if (!filter) return 'Everyone in your contacts';
+
+  const subject = filter.roles?.length
+    ? filter.roles.map((r) => ROLE_LABELS[r] ?? humanizeKey(r)).join(' and ')
+    : 'All contacts';
+
+  const clauses: string[] = [];
+  if (filter.labelIds?.length) {
+    const n = filter.labelIds.length;
+    clauses.push(`tagged with ${n} label${n === 1 ? '' : 's'}`);
+  }
   if (filter.attributes?.length) {
-    for (const a of filter.attributes) {
-      parts.push(`${a.key} ${a.op ?? '='} ${a.value}`);
+    for (const attr of filter.attributes) {
+      const op = OP_LABELS[attr.op ?? 'eq'] ?? 'is';
+      clauses.push(`${humanizeKey(attr.key)} ${op} "${attr.value}"`);
     }
   }
-  if (filter.excludeOptedOut) parts.push('exclude opted-out');
-  return parts.length ? parts.join(' · ') : 'All contacts (exclude opted-out)';
+
+  const base = clauses.length
+    ? `${subject} where ${clauses.join(', ')}`
+    : subject;
+  return filter.excludeOptedOut ? `${base} — excluding opted-out` : base;
 }
 
 function hasAudienceConditions(filter: AudienceFilter | undefined): boolean {
@@ -43,6 +73,36 @@ function hasAudienceConditions(filter: AudienceFilter | undefined): boolean {
     (filter.labelIds?.length ?? 0) > 0 ||
     (filter.attributes?.length ?? 0) > 0
   );
+}
+
+function stepTiming(
+  step: DraftRule['steps'][number],
+  ruleType: string,
+): string {
+  if (step.delayHours != null) {
+    const h = step.delayHours;
+    const when =
+      h === 24
+        ? '1 day later'
+        : h % 24 === 0
+          ? `${h / 24} days later`
+          : `${h} hour${h === 1 ? '' : 's'} later`;
+    return `Follow up ${when} if no reply`;
+  }
+  if (ruleType === 'date-relative' && step.offsetDays != null) {
+    const abs = Math.abs(step.offsetDays);
+    const unit = abs === 1 ? 'day' : 'days';
+    const when =
+      step.offsetDays < 0
+        ? `${abs} ${unit} before`
+        : step.offsetDays > 0
+          ? `${abs} ${unit} after`
+          : 'On the day';
+    const at = step.sendAtTime ? ` at ${formatTimeOfDay(step.sendAtTime)}` : '';
+    return `${when}${at}`;
+  }
+  if (step.sendAtTime) return `At ${formatTimeOfDay(step.sendAtTime)}`;
+  return 'On schedule';
 }
 
 // ─── Data fetching ────────────────────────────────────────────────────
@@ -218,7 +278,7 @@ function Step2({ draft, approvedTemplates, onBack, onCreated }: Step2Props) {
     draft.type === 'recurring'
       ? cronToHuman(draft.schedule ?? null)
       : draft.dateAttribute
-        ? `On ${draft.dateAttribute}`
+        ? `Triggered by each contact's ${humanizeKey(draft.dateAttribute).toLowerCase()}`
         : '—';
 
   return (
@@ -239,49 +299,51 @@ function Step2({ draft, approvedTemplates, onBack, onCreated }: Step2Props) {
         )}
       </div>
 
-      {/* Schedule + audience summary */}
+      {/* When + who summary */}
       <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
         <div className="flex justify-between gap-4">
-          <span className="text-muted-foreground">Schedule</span>
-          <span className="font-mono text-xs">{scheduleLabel}</span>
+          <span className="text-muted-foreground">When it sends</span>
+          <span className="text-right">{scheduleLabel}</span>
         </div>
         <div className="mt-1.5 flex justify-between gap-4">
-          <span className="text-muted-foreground">Audience</span>
-          <span className="text-right text-xs">
-            {audienceFilterSummary(draft.audienceFilter)}
+          <span className="text-muted-foreground">Who receives it</span>
+          <span className="text-right">
+            {audienceFilterSentence(draft.audienceFilter)}
           </span>
         </div>
         {!hasConditions && (
           <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-            Add at least one audience condition before creating.
+            Please choose who should receive this before creating the rule.
           </p>
         )}
       </div>
 
-      {/* Steps + template resolver */}
+      {/* Messages + template resolver */}
       <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium">Steps ({draft.steps.length})</p>
-        {draft.steps.map((step) => (
+        <p className="text-sm font-medium">
+          {draft.steps.length === 1
+            ? 'Message'
+            : `Messages (${draft.steps.length} in sequence)`}
+        </p>
+        {draft.steps.map((step, idx) => (
           <div
             key={step.sequence}
             className="flex flex-col gap-2 rounded-lg border bg-card p-3"
           >
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground font-mono text-xs">
-                #{step.sequence}
+            <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+              <span className="font-medium">
+                {draft.steps.length > 1
+                  ? `Step ${idx + 1} of ${draft.steps.length}`
+                  : 'Send'}
               </span>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                {step.offsetDays != null && <span>Day +{step.offsetDays}</span>}
-                {step.delayHours != null && (
-                  <span>+{step.delayHours}h delay</span>
-                )}
-                {step.sendAtTime && <span>@ {step.sendAtTime}</span>}
-                {step.isFinal && (
-                  <Badge variant="outline" className="h-4 px-1 text-xs">
-                    final
-                  </Badge>
-                )}
-              </div>
+              <span className="text-xs text-muted-foreground">
+                — {stepTiming(step, draft.type)}
+              </span>
+              {step.isFinal && draft.steps.length > 1 && (
+                <span className="text-xs text-muted-foreground">
+                  (last message)
+                </span>
+              )}
             </div>
             <TemplateResolver
               stepSequence={step.sequence}
@@ -298,7 +360,7 @@ function Step2({ draft, approvedTemplates, onBack, onCreated }: Step2Props) {
       {draft.parameterSchema &&
         Object.keys(draft.parameterSchema).length > 0 && (
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium">Parameters</p>
+            <p className="text-sm font-medium">Settings you can tweak</p>
             <ParameterEditor
               schema={draft.parameterSchema}
               values={parameters}
@@ -359,7 +421,7 @@ export function PromptDialog({ open, onOpenChange }: PromptDialogProps) {
     onOpenChange(false);
     setPrompt('');
     setDraft(null);
-    navigate({ to: '/campaigns/rules/$ruleId', params: { ruleId } });
+    navigate({ to: '/messaging/campaigns/rules/$ruleId', params: { ruleId } });
   }
 
   function handleOpenChange(v: boolean) {
