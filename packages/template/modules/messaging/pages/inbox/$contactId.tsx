@@ -71,6 +71,8 @@ function InboxDetailPage() {
     senderMap,
     hasNextPage,
     agents,
+    teamMembers,
+    resolveName,
   } = useInboxTimeline(contactId, channelTab, session);
 
   const {
@@ -253,6 +255,8 @@ function InboxDetailPage() {
             senderMap={senderMap}
             currentUserId={session?.user?.id}
             agents={agents}
+            teamMembers={teamMembers}
+            resolveName={resolveName}
             contactLoading={contactLoading}
             scrollRef={channelScrollRef}
             onReply={(convId, content, isInternal) =>
@@ -293,6 +297,8 @@ function InboxDetailPage() {
             expandedConversationIds={expandedConversationIds}
             currentUserId={session?.user?.id}
             agents={agents}
+            teamMembers={teamMembers}
+            resolveName={resolveName}
             contactLoading={contactLoading}
             onToggleBlock={toggleBlock}
             onUpdateConversation={(convId, body) =>

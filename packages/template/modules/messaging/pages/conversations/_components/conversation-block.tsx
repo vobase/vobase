@@ -23,9 +23,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import type { ResolveParticipantName } from '@/lib/activity-helpers';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { filterAndSortMessages } from '../../../lib/filter-sort-messages';
+import type { ConversationScoresByMessage } from '../../inbox/_hooks/use-conversation-scores';
 import { ActivityMessage } from './activity-message';
 import { EmailMessage } from './email-message';
 import { IncomingMessage } from './incoming-message';
@@ -63,6 +65,7 @@ interface ConversationBlockProps {
   currentUserId?: string;
   agents?: Array<{ id: string; name: string }>;
   teamMembers?: Array<{ id: string; name: string }>;
+  resolveName?: ResolveParticipantName;
   onToggle: () => void;
   onUpdateConversation: (body: {
     status?: string;
@@ -71,8 +74,8 @@ interface ConversationBlockProps {
     onHold?: boolean;
   }) => void;
   onRetryMessage: (messageId: string) => void;
-  /** Quality scores for this conversation's agent messages. */
-  scores?: MessageScoreGroup | null;
+  /** Quality scores keyed by agent message ID for this conversation. */
+  scores?: ConversationScoresByMessage | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────
@@ -85,6 +88,7 @@ export const ConversationBlock = memo(function ConversationBlock({
   currentUserId,
   agents = [],
   teamMembers = [],
+  resolveName: resolveNameProp,
   onToggle,
   onUpdateConversation,
   onRetryMessage,
@@ -92,6 +96,17 @@ export const ConversationBlock = memo(function ConversationBlock({
 }: ConversationBlockProps) {
   const [showAll, setShowAll] = useState(false);
   const [_replyTo, setReplyTo] = useState<ReplyToMessage | null>(null);
+
+  const resolveName = useMemo<ResolveParticipantName>(() => {
+    if (resolveNameProp) return resolveNameProp;
+    const map = new Map<string, string>();
+    for (const m of teamMembers) map.set(m.id, m.name);
+    for (const a of agents) {
+      map.set(a.id, a.name);
+      map.set(`agent:${a.id}`, a.name);
+    }
+    return (id: string) => map.get(id);
+  }, [resolveNameProp, teamMembers, agents]);
 
   const isTerminal =
     conversation.status === 'resolved' || conversation.status === 'failed';
@@ -265,7 +280,8 @@ export const ConversationBlock = memo(function ConversationBlock({
                 channelType={conversation.channelType}
                 onRetry={onRetryMessage}
                 onReplyClick={handleReplyClick}
-                scores={scores}
+                scores={scores?.get(msg.id)}
+                resolveName={resolveName}
               />
             ))}
           </div>
@@ -303,6 +319,7 @@ export const BlockMessageItem = memo(function BlockMessageItem({
   onRetry,
   onReplyClick,
   scores,
+  resolveName,
 }: {
   message: MessageRow;
   senderMap: Map<string, SenderInfo>;
@@ -315,11 +332,12 @@ export const BlockMessageItem = memo(function BlockMessageItem({
     contentPreview: string,
   ) => void;
   scores?: MessageScoreGroup | null;
+  resolveName?: ResolveParticipantName;
 }) {
   const sender = senderMap.get(message.senderId);
 
   if (message.messageType === 'activity') {
-    return <ActivityMessage message={message} />;
+    return <ActivityMessage message={message} resolveName={resolveName} />;
   }
 
   // Email channel: use native email renderer for all non-activity messages

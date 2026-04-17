@@ -1,10 +1,10 @@
 import { CheckIcon, PauseIcon, PlayIcon } from 'lucide-react';
 import { memo, type RefObject } from 'react';
 
-import type { MessageScoreGroup } from '@/components/chat/message-quality';
 import { AssigneeBadge } from '@/components/conversation-badges';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { ResolveParticipantName } from '@/lib/activity-helpers';
 import { filterAndSortMessages } from '../../../lib/filter-sort-messages';
 import { BlockReplyInput } from '../../conversations/_components/block-reply-input';
 import { BlockMessageItem } from '../../conversations/_components/conversation-block';
@@ -13,6 +13,7 @@ import type {
   SenderInfo,
   TimelineConversationFull,
 } from '../../conversations/_components/types';
+import type { ConversationScoresByMessage } from '../_hooks/use-conversation-scores';
 
 interface FlatTimelineProps {
   channelFlatMessages: Array<MessageRow & { _conversationId: string }>;
@@ -24,6 +25,8 @@ interface FlatTimelineProps {
   senderMap: Map<string, SenderInfo>;
   currentUserId?: string;
   agents: Array<{ id: string; name: string }>;
+  teamMembers?: Array<{ id: string; name: string }>;
+  resolveName: ResolveParticipantName;
   contactLoading: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   onReply: (
@@ -42,8 +45,8 @@ interface FlatTimelineProps {
   replyError: boolean;
   newConversationPending: boolean;
   newConversationError: boolean;
-  /** Quality scores per conversation. */
-  scoresMap?: Map<string, MessageScoreGroup>;
+  /** Quality scores keyed by conversation → agent message ID. */
+  scoresMap?: Map<string, ConversationScoresByMessage>;
 }
 
 export const FlatTimeline = memo(function FlatTimeline({
@@ -56,6 +59,8 @@ export const FlatTimeline = memo(function FlatTimeline({
   senderMap,
   currentUserId,
   agents,
+  teamMembers = [],
+  resolveName,
   contactLoading,
   scrollRef,
   onReply,
@@ -82,6 +87,7 @@ export const FlatTimeline = memo(function FlatTimeline({
             onUpdateConversation(activeChannelConversation.id, { assignee: v })
           }
           agents={agents}
+          teamMembers={teamMembers}
         />
         <div className="flex-1" />
         <Button
@@ -166,7 +172,8 @@ export const FlatTimeline = memo(function FlatTimeline({
                   onRetry={(messageId) => {
                     onRetry(msg._conversationId, messageId);
                   }}
-                  scores={scoresMap?.get(msg._conversationId)}
+                  scores={scoresMap?.get(msg._conversationId)?.get(msg.id)}
+                  resolveName={resolveName}
                 />
               </div>
             );

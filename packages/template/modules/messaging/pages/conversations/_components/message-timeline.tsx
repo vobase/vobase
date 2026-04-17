@@ -18,6 +18,7 @@ import { RelativeTimeCard } from '@/components/ui/relative-time-card';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { filterAndSortMessages } from '../../../lib/filter-sort-messages';
+import type { ConversationScoresByMessage } from '../../inbox/_hooks/use-conversation-scores';
 import { ActivityMessage } from './activity-message';
 import { IncomingMessage } from './incoming-message';
 import { OutgoingMessage } from './outgoing-message';
@@ -112,8 +113,8 @@ interface MessageTimelineProps {
   currentUserId?: string;
   /** When true, shows channel badge on each message (multi-channel contacts). */
   isMultiChannel?: boolean;
-  /** Quality scores per conversation ID for agent messages. */
-  scoresMap?: Map<string, MessageScoreGroup>;
+  /** Quality scores keyed by conversation → message for agent messages. */
+  scoresMap?: Map<string, ConversationScoresByMessage>;
 }
 
 // ─── Component ───────────────────────────────────────────────────────
@@ -427,7 +428,9 @@ export const MessageTimeline = memo(function MessageTimeline({
                         onRetry={onRetryMessage}
                         currentUserId={currentUserId}
                         isMultiChannel={isMultiChannel}
-                        scores={scoresMap?.get(item.msg.conversationId)}
+                        scores={scoresMap
+                          ?.get(item.msg.conversationId)
+                          ?.get(item.msg.id)}
                       />
                     ),
                   )}

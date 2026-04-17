@@ -1,14 +1,15 @@
 import { CircleAlertIcon } from 'lucide-react';
 import { memo } from 'react';
 
-import type { MessageScoreGroup } from '@/components/chat/message-quality';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { ResolveParticipantName } from '@/lib/activity-helpers';
 import { ConversationBlock } from '../../conversations/_components/conversation-block';
 import type {
   MessageRow,
   SenderInfo,
   TimelineConversationFull,
 } from '../../conversations/_components/types';
+import type { ConversationScoresByMessage } from '../_hooks/use-conversation-scores';
 
 interface BlockViewProps {
   sortedConversations: TimelineConversationFull[];
@@ -18,6 +19,8 @@ interface BlockViewProps {
   expandedConversationIds: Set<string>;
   currentUserId?: string;
   agents: Array<{ id: string; name: string }>;
+  teamMembers?: Array<{ id: string; name: string }>;
+  resolveName: ResolveParticipantName;
   contactLoading: boolean;
   onToggleBlock: (conversationId: string) => void;
   onUpdateConversation: (
@@ -30,8 +33,8 @@ interface BlockViewProps {
     },
   ) => void;
   onRetry: (conversationId: string, messageId: string) => void;
-  /** Quality scores per conversation. */
-  scoresMap?: Map<string, MessageScoreGroup>;
+  /** Quality scores keyed by conversation → agent message ID. */
+  scoresMap?: Map<string, ConversationScoresByMessage>;
 }
 
 export const BlockView = memo(function BlockView({
@@ -42,6 +45,8 @@ export const BlockView = memo(function BlockView({
   expandedConversationIds,
   currentUserId,
   agents,
+  teamMembers = [],
+  resolveName,
   contactLoading,
   onToggleBlock,
   onUpdateConversation,
@@ -62,6 +67,8 @@ export const BlockView = memo(function BlockView({
                 isExpanded={expandedConversationIds.has(conv.id)}
                 currentUserId={currentUserId}
                 agents={agents}
+                teamMembers={teamMembers}
+                resolveName={resolveName}
                 onToggle={() => onToggleBlock(conv.id)}
                 onUpdateConversation={(body) =>
                   onUpdateConversation(

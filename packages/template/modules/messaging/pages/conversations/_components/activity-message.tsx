@@ -1,20 +1,32 @@
 import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { activityDescription, activityIcon } from '@/lib/activity-helpers';
+import {
+  activityDescription,
+  activityIcon,
+  type ResolveParticipantName,
+} from '@/lib/activity-helpers';
 import { cn } from '@/lib/utils';
 import type { MessageRow } from './types';
 
 interface ActivityMessageProps {
   message: MessageRow;
   className?: string;
+  resolveName?: ResolveParticipantName;
 }
 
-export function ActivityMessage({ message, className }: ActivityMessageProps) {
+export function ActivityMessage({
+  message,
+  className,
+  resolveName,
+}: ActivityMessageProps) {
   const eventType = (message.contentData as Record<string, unknown>)
     ?.eventType as string | undefined;
-  const description = activityDescription({
-    content: eventType ?? message.content,
-    contentData: message.contentData,
-  });
+  const description = activityDescription(
+    {
+      content: eventType ?? message.content,
+      contentData: message.contentData,
+    },
+    resolveName,
+  );
   const icon = activityIcon(eventType ?? message.content);
 
   return (

@@ -142,7 +142,7 @@ const ARRAY_SEPARATOR = ',';
 
 function useContactsSearchParams() {
   const [page] = useQueryState('page', parseAsInteger.withDefault(1));
-  const [perPage] = useQueryState('perPage', parseAsInteger.withDefault(10));
+  const [perPage] = useQueryState('perPage', parseAsInteger.withDefault(20));
   const [sort] = useQueryState(
     'sort',
     getSortingStateParser<Contact>().withDefault([
@@ -500,6 +500,7 @@ function ContactsPage() {
     initialState: {
       sorting: [{ id: 'createdAt', desc: true }],
       columnVisibility: { updatedAt: false },
+      pagination: { pageIndex: 0, pageSize: 20 },
     },
   });
 
