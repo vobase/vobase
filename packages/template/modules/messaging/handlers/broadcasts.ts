@@ -5,18 +5,17 @@ import {
   unauthorized,
   validation,
 } from '@vobase/core';
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
+import {
+  audienceFilterSchema,
+  buildAudienceWhereWithLabels,
+} from '../lib/audience-filter';
 import { parseAndCreateRecipients } from '../lib/broadcast-csv';
 import { getModuleDeps } from '../lib/deps';
-import {
-  broadcastRecipients,
-  broadcasts,
-  contactLabels,
-  contacts,
-} from '../schema';
+import { broadcastRecipients, broadcasts, contacts } from '../schema';
 
 // ─── Schemas ────────────────────────────────────────────────────────
 
@@ -61,69 +60,6 @@ const scheduleSchema = z.object({
   scheduledAt: z.string().datetime(),
   timezone: z.string().optional(),
 });
-
-const audienceFilterSchema = z.object({
-  roles: z.array(z.enum(['customer', 'lead', 'staff'])).optional(),
-  labelIds: z.array(z.string()).optional(),
-  attributes: z
-    .array(
-      z.object({
-        key: z.string(),
-        value: z.string(),
-      }),
-    )
-    .optional(),
-  excludeOptedOut: z.boolean().default(true),
-});
-
-/** Build WHERE conditions from audience filter criteria */
-function buildAudienceConditions(filter: z.infer<typeof audienceFilterSchema>) {
-  const conditions = [];
-
-  if (filter.roles && filter.roles.length > 0) {
-    conditions.push(
-      filter.roles.length === 1
-        ? eq(contacts.role, filter.roles[0])
-        : inArray(contacts.role, filter.roles),
-    );
-  }
-
-  // Must have a phone number for WhatsApp broadcasts
-  conditions.push(sql`${contacts.phone} IS NOT NULL`);
-
-  if (filter.excludeOptedOut) {
-    conditions.push(eq(contacts.marketingOptOut, false));
-  }
-
-  // Attribute filters via JSONB — use jsonb_extract_path_text to safely parameterize key
-  if (filter.attributes && filter.attributes.length > 0) {
-    for (const attr of filter.attributes) {
-      conditions.push(
-        sql`jsonb_extract_path_text(${contacts.attributes}, ${attr.key}) = ${attr.value}`,
-      );
-    }
-  }
-
-  return conditions.length > 0 ? and(...conditions) : undefined;
-}
-
-/** Build full WHERE including label subquery */
-function buildFullAudienceWhere(
-  db: ReturnType<typeof getCtx>['db'],
-  filter: z.infer<typeof audienceFilterSchema>,
-) {
-  const where = buildAudienceConditions(filter);
-  let labelCondition: ReturnType<typeof inArray> | undefined;
-  if (filter.labelIds && filter.labelIds.length > 0) {
-    const contactsWithLabels = db
-      .selectDistinct({ contactId: contactLabels.contactId })
-      .from(contactLabels)
-      .where(inArray(contactLabels.labelId, filter.labelIds));
-    labelCondition = inArray(contacts.id, contactsWithLabels);
-  }
-  if (where && labelCondition) return and(where, labelCondition);
-  return labelCondition ?? where;
-}
 
 // ─── Handlers ───────────────────────────────────────────────────────
 
@@ -510,7 +446,7 @@ export const broadcastsHandlers = new Hono()
       throw validation(parsed.error.flatten().fieldErrors);
     }
     const filter = parsed.data;
-    const fullWhere = buildFullAudienceWhere(db, filter);
+    const fullWhere = buildAudienceWhereWithLabels(db, filter);
 
     const [rows, [{ total }]] = await Promise.all([
       db
@@ -553,7 +489,7 @@ export const broadcastsHandlers = new Hono()
       throw validation(parsed.error.flatten().fieldErrors);
     }
     const filter = parsed.data;
-    const fullWhere = buildFullAudienceWhere(db, filter);
+    const fullWhere = buildAudienceWhereWithLabels(db, filter);
 
     // Fetch all matching contacts with phone numbers
     const matchingContacts = await db
