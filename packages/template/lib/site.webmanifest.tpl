@@ -1,6 +1,6 @@
 {
-  "name": "Voltade",
-  "short_name": "Voltade",
+  "name": "%VITE_PRODUCT_NAME% - %VITE_PLATFORM_TENANT_NAME%",
+  "short_name": "%VITE_PRODUCT_NAME%",
   "icons": [
     {
       "src": "/favicon-32x32.png",
