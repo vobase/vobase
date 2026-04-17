@@ -25,7 +25,7 @@ function AppLayout() {
     <SearchProvider>
       <SidebarProvider defaultOpen={defaultOpen}>
         <AppSidebar />
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <Outlet />
         </SidebarInset>
       </SidebarProvider>

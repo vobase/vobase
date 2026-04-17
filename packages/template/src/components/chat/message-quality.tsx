@@ -53,7 +53,7 @@ export function MessageQualityIndicator({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:bg-muted/60 transition-colors"
+          className="inline-flex w-fit self-start items-center gap-1 rounded-full px-1.5 py-0.5 hover:bg-muted/60 transition-colors"
         >
           {group.scores.map((s) => (
             <span
