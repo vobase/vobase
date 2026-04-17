@@ -7,7 +7,13 @@ import type {
 import { logger, shouldUpdateStatus } from '@vobase/core';
 import { eq, sql } from 'drizzle-orm';
 
-import { broadcastRecipients, broadcasts, messages } from '../schema';
+import {
+  automationExecutions,
+  automationRecipients,
+  broadcastRecipients,
+  broadcasts,
+  messages,
+} from '../schema';
 import { getModuleDeps } from './deps';
 import { insertMessage } from './messages';
 
@@ -26,9 +32,20 @@ export async function handleStatusUpdate(
     .where(eq(messages.externalMessageId, event.messageId));
 
   if (!message) {
-    // Fallback: check broadcast recipients
-    const handled = await handleBroadcastStatusUpdate(db, realtime, event);
-    if (!handled) {
+    // Layer 2: check broadcast recipients (messages wins if same externalMessageId exists in multiple tables)
+    const broadcastHandled = await handleBroadcastStatusUpdate(
+      db,
+      realtime,
+      event,
+    );
+    if (broadcastHandled) return;
+    // Layer 3: check automation recipients
+    const automationHandled = await handleAutomationStatusUpdate(
+      db,
+      realtime,
+      event,
+    );
+    if (!automationHandled) {
       logger.warn('[messaging] status_update: message not found', {
         externalMessageId: event.messageId,
         status: event.status,
@@ -185,7 +202,9 @@ async function handleBroadcastStatusUpdate(
   if (event.status !== 'failed' && newOrder <= currentOrder) return true;
 
   const now = new Date();
-  const updates: Record<string, unknown> = { status: event.status };
+  const updates: Partial<typeof broadcastRecipients.$inferInsert> = {
+    status: event.status,
+  };
   if (event.status === 'delivered') updates.deliveredAt = now;
   if (event.status === 'read') {
     updates.readAt = now;
@@ -231,6 +250,97 @@ async function handleBroadcastStatusUpdate(
   logger.info('[broadcast] status_update', {
     recipientId: recipient.id,
     broadcastId: recipient.broadcastId,
+    externalMessageId: event.messageId,
+    status: event.status,
+  });
+
+  return true;
+}
+
+// ─── Automation Status Fallback ───────────────────────────────────
+
+async function handleAutomationStatusUpdate(
+  db: VobaseDb,
+  realtime: RealtimeService,
+  event: StatusUpdateEvent,
+): Promise<boolean> {
+  const [recipient] = await db
+    .select({
+      id: automationRecipients.id,
+      executionId: automationRecipients.executionId,
+      status: automationRecipients.status,
+    })
+    .from(automationRecipients)
+    .where(eq(automationRecipients.externalMessageId, event.messageId))
+    .limit(1);
+
+  if (!recipient) return false;
+
+  const currentOrder = STATUS_ORDER[recipient.status] ?? -1;
+  const newOrder = STATUS_ORDER[event.status] ?? -1;
+  if (event.status !== 'failed' && newOrder <= currentOrder) return true;
+
+  const now = new Date();
+  const updates: Partial<typeof automationRecipients.$inferInsert> = {
+    status: event.status,
+  };
+  if (event.status === 'sent') updates.sentAt = now;
+  if (event.status === 'delivered') updates.deliveredAt = now;
+  if (event.status === 'read') {
+    updates.readAt = now;
+    if (recipient.status === 'sent' || recipient.status === 'queued') {
+      updates.deliveredAt = now;
+    }
+  }
+
+  await db
+    .update(automationRecipients)
+    .set(updates)
+    .where(eq(automationRecipients.id, recipient.id));
+
+  // Atomically increment execution counters — no read-modify-write
+  const skippedDelivered =
+    event.status === 'read' &&
+    (recipient.status === 'sent' || recipient.status === 'queued');
+
+  if (event.status === 'sent') {
+    await db
+      .update(automationExecutions)
+      .set({ sentCount: sql`${automationExecutions.sentCount} + 1` })
+      .where(eq(automationExecutions.id, recipient.executionId));
+  } else if (event.status === 'delivered') {
+    await db
+      .update(automationExecutions)
+      .set({ deliveredCount: sql`${automationExecutions.deliveredCount} + 1` })
+      .where(eq(automationExecutions.id, recipient.executionId));
+  } else if (event.status === 'read') {
+    await db
+      .update(automationExecutions)
+      .set({
+        readCount: sql`${automationExecutions.readCount} + 1`,
+        ...(skippedDelivered && {
+          deliveredCount: sql`${automationExecutions.deliveredCount} + 1`,
+        }),
+      })
+      .where(eq(automationExecutions.id, recipient.executionId));
+  } else if (event.status === 'failed') {
+    await db
+      .update(automationExecutions)
+      .set({ failedCount: sql`${automationExecutions.failedCount} + 1` })
+      .where(eq(automationExecutions.id, recipient.executionId));
+  }
+
+  await realtime
+    .notify({
+      table: 'automation-executions',
+      id: recipient.executionId,
+      action: 'update',
+    })
+    .catch(() => {});
+
+  logger.info('[automation] status_update', {
+    recipientId: recipient.id,
+    executionId: recipient.executionId,
     externalMessageId: event.messageId,
     status: event.status,
   });

@@ -12,6 +12,11 @@ import { eq } from 'drizzle-orm';
 
 import { createTestDb } from '../../../lib/test-helpers';
 import {
+  automationExecutions,
+  automationRecipients,
+  automationRules,
+  broadcastRecipients,
+  broadcasts,
   channelInstances,
   channelRoutings,
   channelSessions,
@@ -160,7 +165,7 @@ function makeEvent(
 let db: VobaseDb;
 
 beforeEach(async () => {
-  const result = await createTestDb();
+  const result = await createTestDb({ withAutomation: true });
   db = result.db;
   schedulerJobs.length = 0;
   uploadedFiles = [];
@@ -770,5 +775,213 @@ describe('handleInboundAction', () => {
     );
 
     expect(schedulerJobs).toHaveLength(0);
+  });
+});
+
+// ─── 10. Reply-link tiebreak ──────────────────────────────────────
+
+describe('reply-link tiebreak — automation vs broadcast', () => {
+  async function seedAutomationRecipient(opts: {
+    contactId: string;
+    phone: string;
+    sentAt: Date;
+    status?: string;
+  }) {
+    const [rule] = await db
+      .insert(automationRules)
+      .values({
+        name: 'Tiebreak Rule',
+        type: 'recurring',
+        channelInstanceId: 'ci-wa',
+        audienceFilter: {},
+        parameters: {},
+        parameterSchema: {},
+        timezone: 'UTC',
+        createdBy: 'system',
+      })
+      .returning();
+
+    const [execution] = await db
+      .insert(automationExecutions)
+      .values({ ruleId: rule.id, stepSequence: 1, status: 'running' })
+      .returning();
+
+    const [recipient] = await db
+      .insert(automationRecipients)
+      .values({
+        executionId: execution.id,
+        ruleId: rule.id,
+        contactId: opts.contactId,
+        phone: opts.phone,
+        variables: {},
+        status: opts.status ?? 'sent',
+        sentAt: opts.sentAt,
+      })
+      .returning();
+
+    return { rule, execution, recipient };
+  }
+
+  async function seedBroadcastRecipient(opts: {
+    contactId: string;
+    phone: string;
+    sentAt: Date;
+    status?: string;
+  }) {
+    const [broadcast] = await db
+      .insert(broadcasts)
+      .values({
+        name: 'Tiebreak Broadcast',
+        channelInstanceId: 'ci-wa',
+        templateId: 'tmpl',
+        templateName: 'T',
+        templateLanguage: 'en',
+        status: 'completed',
+        createdBy: 'system',
+      })
+      .returning();
+
+    const [recipient] = await db
+      .insert(broadcastRecipients)
+      .values({
+        broadcastId: broadcast.id,
+        contactId: opts.contactId,
+        phone: opts.phone,
+        variables: {},
+        status: opts.status ?? 'sent',
+        sentAt: opts.sentAt,
+      })
+      .returning();
+
+    return { broadcast, recipient };
+  }
+
+  it('automation-only: marks recipient replied and sets ruleId in metadata', async () => {
+    await db.insert(contacts).values({
+      id: 'tb-auto',
+      phone: '+6571111111',
+      role: 'customer',
+    });
+
+    const { automation: _a, recipient } = await seedAutomationRecipient({
+      contactId: 'tb-auto',
+      phone: '+6571111111',
+      sentAt: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1h ago
+    }).then((r) => ({ automation: r, recipient: r.recipient }));
+
+    await handleInboundMessage(
+      {
+        db,
+        scheduler: mockScheduler,
+        channels: mockChannels,
+        realtime: mockRealtime,
+        storage: mockStorage,
+      },
+      makeEvent({ from: '+6571111111', messageId: 'msg-tb-auto-1' }),
+    );
+
+    // Recipient marked replied
+    const [updated] = await db
+      .select({ status: automationRecipients.status })
+      .from(automationRecipients)
+      .where(eq(automationRecipients.id, recipient.id));
+    expect(updated.status).toBe('replied');
+
+    // Conversation metadata has ruleId
+    const convs = await db.select().from(conversations);
+    expect(convs).toHaveLength(1);
+    const meta = convs[0].metadata as Record<string, unknown>;
+    expect(meta.ruleId).toBeDefined();
+    expect(meta.broadcastId).toBeUndefined();
+  });
+
+  it('broadcast-only: existing behavior preserved — sets broadcastId in metadata', async () => {
+    await db.insert(contacts).values({
+      id: 'tb-broad',
+      phone: '+6572222222',
+      role: 'customer',
+    });
+
+    const { broadcast, recipient } = await seedBroadcastRecipient({
+      contactId: 'tb-broad',
+      phone: '+6572222222',
+      sentAt: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1h ago
+    });
+
+    await handleInboundMessage(
+      {
+        db,
+        scheduler: mockScheduler,
+        channels: mockChannels,
+        realtime: mockRealtime,
+        storage: mockStorage,
+      },
+      makeEvent({ from: '+6572222222', messageId: 'msg-tb-broad-1' }),
+    );
+
+    const convs = await db.select().from(conversations);
+    expect(convs).toHaveLength(1);
+    const meta = convs[0].metadata as Record<string, unknown>;
+    expect(meta.broadcastId).toBe(broadcast.id);
+    expect(meta.ruleId).toBeUndefined();
+
+    // Broadcast recipient status unchanged (no replied status on broadcasts)
+    const [brecip] = await db
+      .select({ status: broadcastRecipients.status })
+      .from(broadcastRecipients)
+      .where(eq(broadcastRecipients.id, recipient.id));
+    expect(brecip.status).toBe('sent');
+  });
+
+  it('both match — automation more recent wins; broadcast recipient untouched', async () => {
+    await db.insert(contacts).values({
+      id: 'tb-both',
+      phone: '+6573333333',
+      role: 'customer',
+    });
+
+    const { recipient: breadRecip } = await seedBroadcastRecipient({
+      contactId: 'tb-both',
+      phone: '+6573333333',
+      sentAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2h ago
+    });
+
+    const { recipient: autoRecip, rule } = await seedAutomationRecipient({
+      contactId: 'tb-both',
+      phone: '+6573333333',
+      sentAt: new Date(Date.now() - 30 * 60 * 1000), // 30m ago — more recent
+    });
+
+    await handleInboundMessage(
+      {
+        db,
+        scheduler: mockScheduler,
+        channels: mockChannels,
+        realtime: mockRealtime,
+        storage: mockStorage,
+      },
+      makeEvent({ from: '+6573333333', messageId: 'msg-tb-both-1' }),
+    );
+
+    // Automation wins — ruleId in metadata
+    const convs = await db.select().from(conversations);
+    expect(convs).toHaveLength(1);
+    const meta = convs[0].metadata as Record<string, unknown>;
+    expect(meta.ruleId).toBe(rule.id);
+    expect(meta.broadcastId).toBeUndefined();
+
+    // Automation recipient marked replied
+    const [ar] = await db
+      .select({ status: automationRecipients.status })
+      .from(automationRecipients)
+      .where(eq(automationRecipients.id, autoRecip.id));
+    expect(ar.status).toBe('replied');
+
+    // Broadcast recipient untouched
+    const [br] = await db
+      .select({ status: broadcastRecipients.status })
+      .from(broadcastRecipients)
+      .where(eq(broadcastRecipients.id, breadRecip.id));
+    expect(br.status).toBe('sent');
   });
 });

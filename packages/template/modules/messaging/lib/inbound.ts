@@ -23,6 +23,7 @@ import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 
 import { cancelWake } from '../../agents/lib/agent-wake';
 import {
+  automationRecipients,
   broadcastRecipients,
   channelInstances,
   channelRoutings,
@@ -219,43 +220,8 @@ export async function handleInboundMessage(
       },
     );
 
-    // Link broadcast origin for traceability
     if (contact.phone) {
-      const recentBroadcast = await db
-        .select({
-          broadcastId: broadcastRecipients.broadcastId,
-        })
-        .from(broadcastRecipients)
-        .where(
-          and(
-            eq(broadcastRecipients.contactId, contact.id),
-            inArray(broadcastRecipients.status, ['sent', 'delivered']),
-            gt(
-              broadcastRecipients.sentAt,
-              new Date(Date.now() - 72 * 60 * 60 * 1000),
-            ),
-          ),
-        )
-        .orderBy(desc(broadcastRecipients.sentAt))
-        .limit(1);
-
-      if (recentBroadcast.length > 0) {
-        const currentMeta = (conversation.metadata ?? {}) as Record<
-          string,
-          unknown
-        >;
-        if (!currentMeta.broadcastId) {
-          await db
-            .update(conversations)
-            .set({
-              metadata: {
-                ...currentMeta,
-                broadcastId: recentBroadcast[0].broadcastId,
-              },
-            })
-            .where(eq(conversations.id, conversation.id));
-        }
-      }
+      await linkCampaignOrigin(db, contact.id, conversation);
     }
 
     await appendAndRoute(
@@ -486,6 +452,97 @@ export async function handleInboundAction(
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Link a newly created conversation to the most recent outbound campaign
+ * (broadcast or automation) that reached the contact within 72h. On tie or
+ * broadcast-only, broadcast wins; otherwise most recent sentAt wins.
+ * Automation wins also flip the recipient row to `replied`.
+ */
+async function linkCampaignOrigin(
+  db: VobaseDb,
+  contactId: string,
+  conversation: { id: string; metadata: unknown },
+): Promise<void> {
+  const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
+  const now = new Date();
+
+  const [recentBroadcasts, recentAutomations] = await Promise.all([
+    db
+      .select({
+        id: broadcastRecipients.id,
+        broadcastId: broadcastRecipients.broadcastId,
+        sentAt: broadcastRecipients.sentAt,
+      })
+      .from(broadcastRecipients)
+      .where(
+        and(
+          eq(broadcastRecipients.contactId, contactId),
+          inArray(broadcastRecipients.status, ['sent', 'delivered']),
+          gt(broadcastRecipients.sentAt, cutoff),
+        ),
+      )
+      .orderBy(desc(broadcastRecipients.sentAt))
+      .limit(1),
+    db
+      .select({
+        id: automationRecipients.id,
+        ruleId: automationRecipients.ruleId,
+        sentAt: automationRecipients.sentAt,
+      })
+      .from(automationRecipients)
+      .where(
+        and(
+          eq(automationRecipients.contactId, contactId),
+          inArray(automationRecipients.status, ['sent', 'delivered']),
+          gt(automationRecipients.sentAt, cutoff),
+        ),
+      )
+      .orderBy(desc(automationRecipients.sentAt))
+      .limit(1),
+  ]);
+
+  const broadcastRow = recentBroadcasts[0];
+  const automationRow = recentAutomations[0];
+
+  let winner: 'broadcast' | 'automation' | null = null;
+  if (broadcastRow && automationRow) {
+    const bTime = broadcastRow.sentAt?.getTime() ?? 0;
+    const aTime = automationRow.sentAt?.getTime() ?? 0;
+    winner = aTime > bTime ? 'automation' : 'broadcast';
+  } else if (broadcastRow) {
+    winner = 'broadcast';
+  } else if (automationRow) {
+    winner = 'automation';
+  }
+
+  if (!winner) return;
+
+  const currentMeta = (conversation.metadata ?? {}) as Record<string, unknown>;
+  if (winner === 'automation' && automationRow) {
+    await Promise.all([
+      db
+        .update(automationRecipients)
+        .set({ status: 'replied', repliedAt: now })
+        .where(eq(automationRecipients.id, automationRow.id)),
+      db
+        .update(conversations)
+        .set({ metadata: { ...currentMeta, ruleId: automationRow.ruleId } })
+        .where(eq(conversations.id, conversation.id)),
+    ]);
+  } else if (
+    winner === 'broadcast' &&
+    broadcastRow &&
+    !currentMeta.broadcastId
+  ) {
+    await db
+      .update(conversations)
+      .set({
+        metadata: { ...currentMeta, broadcastId: broadcastRow.broadcastId },
+      })
+      .where(eq(conversations.id, conversation.id));
+  }
+}
 
 /** Media content types that should always be stored, even without binary data. */
 const MEDIA_TYPES = new Set(['image', 'video', 'audio', 'document', 'sticker']);
