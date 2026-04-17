@@ -42,6 +42,14 @@ import { insertMessage } from './messages';
 import { findOrCreateContact } from './routing';
 import { transition } from './state-machine';
 
+export const MARKETING_STOP_KEYWORDS = [
+  'stop',
+  'unsubscribe',
+  'opt out',
+  'cancel',
+] as const;
+export type MarketingStopKeyword = (typeof MARKETING_STOP_KEYWORDS)[number];
+
 interface InboundDeps {
   db: VobaseDb;
   scheduler: Scheduler;
@@ -87,10 +95,10 @@ export async function handleInboundMessage(
     const contact = await findOrCreateContact(db, event);
 
     // STOP keyword detection — auto-opt-out from marketing broadcasts
-    const STOP_KEYWORDS = ['stop', 'unsubscribe', 'opt out', 'cancel'];
+    const trimmed = event.content?.trim().toLowerCase();
     if (
-      event.content &&
-      STOP_KEYWORDS.includes(event.content.trim().toLowerCase())
+      trimmed &&
+      (MARKETING_STOP_KEYWORDS as readonly string[]).includes(trimmed)
     ) {
       const isOptedOut = contact.marketingOptOut;
       if (!isOptedOut) {

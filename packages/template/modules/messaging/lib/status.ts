@@ -171,12 +171,26 @@ export async function handleReaction(event: ReactionEvent): Promise<void> {
 
 // ─── Broadcast Status Fallback ────────────────────────────────────
 
-const STATUS_ORDER: Record<string, number> = {
+// Union of all delivery statuses across messages, broadcastRecipients, and automationRecipients tables.
+export type DeliveryStatus =
+  | 'queued'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed'
+  | 'skipped'
+  | 'replied'
+  | 'chaser_paused';
+
+const STATUS_ORDER: Record<DeliveryStatus, number> = {
   queued: 0,
   sent: 1,
   delivered: 2,
   read: 3,
   failed: 4,
+  skipped: 4, // terminal non-delivery — same weight as failed
+  replied: 3, // engagement outcome — same weight as read
+  chaser_paused: 1, // mid-progress pause — same weight as sent
 };
 
 async function handleBroadcastStatusUpdate(
@@ -197,8 +211,9 @@ async function handleBroadcastStatusUpdate(
   if (!recipient) return false;
 
   // Only advance status (never go backwards), except failed always accepted
-  const currentOrder = STATUS_ORDER[recipient.status] ?? -1;
-  const newOrder = STATUS_ORDER[event.status] ?? -1;
+  // as DeliveryStatus: status comes from DB as string; schema CHECK constraint guarantees valid values
+  const currentOrder = STATUS_ORDER[recipient.status as DeliveryStatus] ?? -1;
+  const newOrder = STATUS_ORDER[event.status as DeliveryStatus] ?? -1;
   if (event.status !== 'failed' && newOrder <= currentOrder) return true;
 
   const now = new Date();
@@ -276,8 +291,9 @@ async function handleAutomationStatusUpdate(
 
   if (!recipient) return false;
 
-  const currentOrder = STATUS_ORDER[recipient.status] ?? -1;
-  const newOrder = STATUS_ORDER[event.status] ?? -1;
+  // as DeliveryStatus: status comes from DB as string; schema CHECK constraint guarantees valid values
+  const currentOrder = STATUS_ORDER[recipient.status as DeliveryStatus] ?? -1;
+  const newOrder = STATUS_ORDER[event.status as DeliveryStatus] ?? -1;
   if (event.status !== 'failed' && newOrder <= currentOrder) return true;
 
   const now = new Date();
