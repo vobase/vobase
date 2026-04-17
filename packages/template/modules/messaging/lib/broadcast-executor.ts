@@ -1,51 +1,24 @@
-import type { OutboundMessage } from '@vobase/core';
 import { logger } from '@vobase/core';
 import { and, eq, sql } from 'drizzle-orm';
 
 import { broadcastRecipients, broadcasts, channelInstances } from '../schema';
-import {
-  isCircuitOpen,
-  recordCircuitFailure,
-  recordCircuitSuccess,
-} from './delivery';
 import { getModuleDeps } from './deps';
+import {
+  type BatchStats,
+  type CounterDelta,
+  executeSendBatch,
+  type FinalOutcome,
+  type HaltReason,
+  type SendRecipient,
+} from './send-executor';
 
-// ─── WhatsApp Error Translation ────────────────────────────────────
-
-export function translateWhatsAppError(code: string): string {
-  switch (code) {
-    case '131026':
-      return 'Invalid phone number';
-    case '130429':
-      return 'Rate limited';
-    case '131047':
-      return 'Message undeliverable';
-    case '131051':
-      return 'Unsupported message type';
-    case '131056':
-      return 'Rate limited (pair rate)';
-    case '132000':
-      return 'Template not found';
-    case '132012':
-      return 'Template parameter mismatch';
-    default:
-      return `WhatsApp error: ${code}`;
-  }
-}
-
-// ─── Broadcast Executor ────────────────────────────────────────────
-
+/** Execute a broadcast via the generic send-executor. */
 export async function executeBroadcast(
   broadcastId: string,
   options?: { batchSize?: number; delayMs?: number },
 ): Promise<void> {
-  const batchSize = options?.batchSize ?? 50;
-  const delayMs = options?.delayMs ?? 100;
+  const { db, scheduler, channels, realtime } = getModuleDeps();
 
-  const deps = getModuleDeps();
-  const { db, scheduler, channels, realtime } = deps;
-
-  // 1. Load broadcast and verify status is 'sending'
   const [broadcast] = await db
     .select()
     .from(broadcasts)
@@ -64,7 +37,6 @@ export async function executeBroadcast(
     return;
   }
 
-  // 2. Load channel instance and resolve adapter
   const [channelInstance] = await db
     .select()
     .from(channelInstances)
@@ -82,14 +54,84 @@ export async function executeBroadcast(
     return;
   }
 
-  // 3. Process recipients in batches (WHERE status='queued' is self-advancing)
-  while (true) {
-    // Check circuit breaker before each batch
-    if (isCircuitOpen('whatsapp')) {
-      logger.warn('[broadcast] Circuit open — pausing broadcast', {
-        broadcastId,
-      });
+  const channelType = channelInstance?.type ?? 'whatsapp';
 
+  await executeSendBatch({
+    adapter,
+    channelType,
+    batchSize: options?.batchSize,
+    batchDelayMs: options?.delayMs,
+    logContext: { broadcastId },
+
+    async loadBatch(_offset, limit) {
+      const rows = await db
+        .select()
+        .from(broadcastRecipients)
+        .where(
+          and(
+            eq(broadcastRecipients.broadcastId, broadcastId),
+            eq(broadcastRecipients.status, 'queued'),
+          ),
+        )
+        .limit(limit);
+
+      return rows.map<SendRecipient>((r) => ({
+        id: r.id,
+        phone: r.phone,
+        templateName: broadcast.templateName,
+        templateLanguage: broadcast.templateLanguage,
+        variables: (r.variables ?? {}) as Record<string, string>,
+      }));
+    },
+
+    async updateRecipient(recipient, result) {
+      if (result.success) {
+        await db
+          .update(broadcastRecipients)
+          .set({
+            status: 'sent',
+            externalMessageId: result.messageId ?? null,
+            sentAt: new Date(),
+          })
+          .where(eq(broadcastRecipients.id, recipient.id));
+      } else {
+        await db
+          .update(broadcastRecipients)
+          .set({
+            status: 'failed',
+            failureReason: result.error ?? 'Send failed',
+          })
+          .where(eq(broadcastRecipients.id, recipient.id));
+      }
+    },
+
+    async updateCounters(delta: CounterDelta) {
+      await db
+        .update(broadcasts)
+        .set({
+          sentCount: sql`${broadcasts.sentCount} + ${delta.sent}`,
+          failedCount: sql`${broadcasts.failedCount} + ${delta.failed}`,
+        })
+        .where(eq(broadcasts.id, broadcastId));
+    },
+
+    async checkHalt(): Promise<HaltReason | null> {
+      const [current] = await db
+        .select({ status: broadcasts.status })
+        .from(broadcasts)
+        .where(eq(broadcasts.id, broadcastId));
+      if (current?.status === 'cancelled') return 'cancelled';
+      if (current?.status === 'paused') return 'paused';
+      return null;
+    },
+
+    async onBatchComplete(_stats: BatchStats) {
+      await realtime
+        .notify({ table: 'broadcasts', id: broadcastId, action: 'update' })
+        .catch(() => {});
+    },
+
+    async onCircuitOpen() {
       await db
         .update(broadcasts)
         .set({ status: 'paused' })
@@ -100,172 +142,45 @@ export async function executeBroadcast(
         { broadcastId },
         { startAfter: new Date(Date.now() + 60_000).toISOString() },
       );
+    },
 
-      return;
-    }
+    async onFinalize(outcome: FinalOutcome) {
+      // Halted-cancelled broadcasts already carry status='cancelled' — leave them alone.
+      if (outcome === 'cancelled') return;
 
-    // Load next batch of queued recipients
-    const batch = await db
-      .select()
-      .from(broadcastRecipients)
-      .where(
-        and(
-          eq(broadcastRecipients.broadcastId, broadcastId),
-          eq(broadcastRecipients.status, 'queued'),
-        ),
-      )
-      .limit(batchSize);
+      const [finalCounts] = await db
+        .select({
+          sentCount: broadcasts.sentCount,
+          failedCount: broadcasts.failedCount,
+          totalRecipients: broadcasts.totalRecipients,
+        })
+        .from(broadcasts)
+        .where(eq(broadcasts.id, broadcastId));
 
-    if (batch.length === 0) break;
+      const completedAt = new Date();
+      const allFailed =
+        finalCounts &&
+        finalCounts.sentCount === 0 &&
+        finalCounts.failedCount > 0;
 
-    let batchSent = 0;
-    let batchFailed = 0;
+      await db
+        .update(broadcasts)
+        .set({
+          status: allFailed ? 'failed' : 'completed',
+          completedAt,
+        })
+        .where(eq(broadcasts.id, broadcastId));
 
-    // Send all messages in the batch concurrently
-    const results = await Promise.allSettled(
-      batch.map(async (recipient) => {
-        const variables = (recipient.variables ?? {}) as Record<string, string>;
+      await realtime
+        .notify({ table: 'broadcasts', id: broadcastId, action: 'update' })
+        .catch(() => {});
 
-        // Variables are stored as { "1": "value", "2": "value" } — sorted by key
-        const sortedValues = Object.keys(variables)
-          .sort((a, b) => Number(a) - Number(b))
-          .map((key) => variables[key]);
-
-        const outbound: OutboundMessage = {
-          to: recipient.phone,
-          template: {
-            name: broadcast.templateName,
-            language: broadcast.templateLanguage,
-            components:
-              sortedValues.length > 0
-                ? [
-                    {
-                      type: 'body',
-                      parameters: sortedValues.map((v) => ({
-                        type: 'text' as const,
-                        text: v,
-                      })),
-                    },
-                  ]
-                : [],
-          },
-        };
-
-        const result = await adapter.send(outbound);
-
-        if (result.success) {
-          recordCircuitSuccess('whatsapp');
-
-          await db
-            .update(broadcastRecipients)
-            .set({
-              status: 'sent',
-              externalMessageId: result.messageId ?? null,
-              sentAt: new Date(),
-            })
-            .where(eq(broadcastRecipients.id, recipient.id));
-
-          return 'sent' as const;
-        } else {
-          recordCircuitFailure('whatsapp');
-
-          const failureReason = result.code
-            ? translateWhatsAppError(result.code)
-            : (result.error ?? 'Send failed');
-
-          await db
-            .update(broadcastRecipients)
-            .set({
-              status: 'failed',
-              failureReason,
-            })
-            .where(eq(broadcastRecipients.id, recipient.id));
-
-          return 'failed' as const;
-        }
-      }),
-    );
-
-    // Tally results
-    for (const settled of results) {
-      if (settled.status === 'fulfilled') {
-        if (settled.value === 'sent') {
-          batchSent++;
-        } else {
-          batchFailed++;
-        }
-      } else {
-        // Promise itself rejected — count as failed
-        batchFailed++;
-        logger.error('[broadcast] Unexpected send error', {
-          broadcastId,
-          error: settled.reason,
-        });
-      }
-    }
-
-    // Atomically update broadcast counters
-    await db
-      .update(broadcasts)
-      .set({
-        sentCount: sql`${broadcasts.sentCount} + ${batchSent}`,
-        failedCount: sql`${broadcasts.failedCount} + ${batchFailed}`,
-      })
-      .where(eq(broadcasts.id, broadcastId));
-
-    // Notify realtime after each batch
-    await realtime
-      .notify({ table: 'broadcasts', id: broadcastId, action: 'update' })
-      .catch(() => {});
-
-    // Re-check broadcast status before continuing
-    const [current] = await db
-      .select({ status: broadcasts.status })
-      .from(broadcasts)
-      .where(eq(broadcasts.id, broadcastId));
-
-    if (current?.status === 'cancelled' || current?.status === 'paused') {
-      logger.info('[broadcast] Broadcast stopped mid-run', {
+      logger.info('[broadcast] Broadcast execution finished', {
         broadcastId,
-        status: current.status,
+        status: allFailed ? 'failed' : 'completed',
+        sent: finalCounts?.sentCount ?? 0,
+        failed: finalCounts?.failedCount ?? 0,
       });
-      return;
-    }
-
-    // Delay between batches
-    await Bun.sleep(delayMs);
-  }
-
-  // 4. Finalize broadcast status
-  const [finalCounts] = await db
-    .select({
-      sentCount: broadcasts.sentCount,
-      failedCount: broadcasts.failedCount,
-      totalRecipients: broadcasts.totalRecipients,
-    })
-    .from(broadcasts)
-    .where(eq(broadcasts.id, broadcastId));
-
-  const completedAt = new Date();
-  const allFailed =
-    finalCounts && finalCounts.sentCount === 0 && finalCounts.failedCount > 0;
-
-  await db
-    .update(broadcasts)
-    .set({
-      status: allFailed ? 'failed' : 'completed',
-      completedAt,
-    })
-    .where(eq(broadcasts.id, broadcastId));
-
-  await realtime
-    .notify({ table: 'broadcasts', id: broadcastId, action: 'update' })
-    .catch(() => {});
-
-  logger.info('[broadcast] Broadcast execution finished', {
-    broadcastId,
-    status: allFailed ? 'failed' : 'completed',
-    sent: finalCounts?.sentCount ?? 0,
-    failed: finalCounts?.failedCount ?? 0,
+    },
   });
 }
