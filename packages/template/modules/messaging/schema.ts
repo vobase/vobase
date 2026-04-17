@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -12,6 +13,8 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+
+import type { ParameterSchemaT } from './lib/parameter-schema';
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Conversations pgSchema — contacts, conversations, channels, messaging
@@ -602,6 +605,197 @@ export const broadcastRecipients = messagingPgSchema.table(
     check(
       'broadcast_recipients_status_check',
       sql`status IN ('queued', 'sent', 'delivered', 'read', 'failed', 'skipped')`,
+    ),
+  ],
+);
+
+// ─── Automation Rules ─────────────────────────────────────────────
+// Declarative rules that fire on recurring schedules or date-relative
+// attributes (e.g. birthdays, subscription expiry). Each firing produces
+// one automationExecutions row and one automationRecipients row per target
+// contact; chaser follow-up steps are driven by `currentStep` + `nextStepAt`.
+
+export const automationRules = messagingPgSchema.table(
+  'automation_rules',
+  {
+    id: nanoidPrimaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    type: text('type').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    audienceFilter: jsonb('audience_filter').notNull().default({}),
+    audienceResolverName: text('audience_resolver_name'),
+    channelInstanceId: text('channel_instance_id')
+      .notNull()
+      .references(() => channelInstances.id, { onDelete: 'restrict' }),
+    schedule: text('schedule'),
+    dateAttribute: text('date_attribute'),
+    timezone: text('timezone').notNull().default('UTC'),
+    parameters: jsonb('parameters').notNull().default({}),
+    parameterSchema: jsonb('parameter_schema')
+      .$type<ParameterSchemaT>()
+      .notNull()
+      .default({}),
+    lastFiredAt: timestamp('last_fired_at', { withTimezone: true }),
+    nextFireAt: timestamp('next_fire_at', { withTimezone: true }),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('automation_rules_active_next_fire_idx')
+      .on(table.isActive, table.nextFireAt)
+      .where(sql`is_active = true`),
+    index('automation_rules_type_idx').on(table.type),
+    index('automation_rules_channel_instance_idx').on(table.channelInstanceId),
+    check(
+      'automation_rules_type_check',
+      sql`type IN ('recurring', 'date-relative')`,
+    ),
+  ],
+);
+
+// ─── Automation Rule Steps ────────────────────────────────────────
+// Sequence 1 is the primary trigger (uses offsetDays/sendAtTime for
+// date-relative rules). Sequences 2+ are chasers that fire delayHours
+// after the prior step's send time.
+
+export const automationRuleSteps = messagingPgSchema.table(
+  'automation_rule_steps',
+  {
+    id: nanoidPrimaryKey(),
+    ruleId: text('rule_id')
+      .notNull()
+      .references(() => automationRules.id, { onDelete: 'cascade' }),
+    sequence: integer('sequence').notNull(),
+    offsetDays: integer('offset_days'),
+    sendAtTime: text('send_at_time'),
+    delayHours: integer('delay_hours'),
+    templateId: text('template_id').notNull(),
+    templateName: text('template_name').notNull(),
+    templateLanguage: text('template_language').notNull().default('en'),
+    variableMapping: jsonb('variable_mapping').notNull().default({}),
+    isFinal: boolean('is_final').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('automation_rule_steps_rule_sequence_unique').on(
+      table.ruleId,
+      table.sequence,
+    ),
+    index('automation_rule_steps_rule_idx').on(table.ruleId),
+    check(
+      'automation_rule_steps_send_at_time_format',
+      sql`send_at_time IS NULL OR send_at_time ~ '^([0-1][0-9]|2[0-3]):[0-5][0-9]$'`,
+    ),
+  ],
+);
+
+// ─── Automation Executions ────────────────────────────────────────
+// One row per firing of a rule step. A weekly rule running for a year
+// produces ~52 executions per step. Counter columns are updated atomically
+// by the send executor as each recipient progresses.
+
+export const automationExecutions = messagingPgSchema.table(
+  'automation_executions',
+  {
+    id: nanoidPrimaryKey(),
+    ruleId: text('rule_id')
+      .notNull()
+      .references(() => automationRules.id, { onDelete: 'cascade' }),
+    stepSequence: integer('step_sequence').notNull(),
+    firedAt: timestamp('fired_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    status: text('status').notNull().default('running'),
+    totalRecipients: integer('total_recipients').notNull().default(0),
+    sentCount: integer('sent_count').notNull().default(0),
+    deliveredCount: integer('delivered_count').notNull().default(0),
+    readCount: integer('read_count').notNull().default(0),
+    failedCount: integer('failed_count').notNull().default(0),
+    skippedCount: integer('skipped_count').notNull().default(0),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('automation_executions_rule_idx').on(table.ruleId),
+    index('automation_executions_status_idx').on(table.status),
+    index('automation_executions_fired_at_idx').on(table.firedAt),
+    check(
+      'automation_executions_status_check',
+      sql`status IN ('running', 'completed', 'failed')`,
+    ),
+  ],
+);
+
+// ─── Automation Recipients ────────────────────────────────────────
+// One row per contact targeted by an execution. `currentStep` + `nextStepAt`
+// drive the chaser advancement job (FOR UPDATE SKIP LOCKED on the
+// (status, nextStepAt) index hot-path).
+//
+// `dateValue` computation rule: for date-relative rules,
+//   dateValue = (contact.attributes->>rule.dateAttribute)::date AT TIME ZONE rule.timezone
+// — computed in the evaluator, stored at insert time, never recomputed.
+// For recurring rules `dateValue` is NULL.
+
+export const automationRecipients = messagingPgSchema.table(
+  'automation_recipients',
+  {
+    id: nanoidPrimaryKey(),
+    executionId: text('execution_id')
+      .notNull()
+      .references(() => automationExecutions.id, { onDelete: 'cascade' }),
+    ruleId: text('rule_id').notNull(),
+    contactId: text('contact_id')
+      .notNull()
+      .references(() => contacts.id, { onDelete: 'restrict' }),
+    phone: text('phone').notNull(),
+    variables: jsonb('variables').notNull().default({}),
+    currentStep: integer('current_step').notNull().default(1),
+    nextStepAt: timestamp('next_step_at', { withTimezone: true }),
+    status: text('status').notNull().default('queued'),
+    externalMessageId: text('external_message_id'),
+    failureReason: text('failure_reason'),
+    dateValue: date('date_value'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    repliedAt: timestamp('replied_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('automation_recipients_status_next_step_idx').on(
+      table.status,
+      table.nextStepAt,
+    ),
+    // Chaser-claim hot path — partial index on (next_step_at) for rows eligible to advance.
+    index('automation_recipients_chaser_claim_idx')
+      .on(table.nextStepAt)
+      .where(
+        sql`status IN ('sent', 'delivered', 'read') AND replied_at IS NULL`,
+      ),
+    // Executor batch loader — partial index for rows still queued within an execution.
+    index('automation_recipients_execution_queued_idx')
+      .on(table.executionId)
+      .where(sql`status = 'queued'`),
+    index('automation_recipients_rule_idx').on(table.ruleId),
+    index('automation_recipients_execution_idx').on(table.executionId),
+    index('automation_recipients_contact_idx').on(table.contactId),
+    index('automation_recipients_external_msg_idx').on(table.externalMessageId),
+    uniqueIndex('automation_recipients_rule_contact_date_unique')
+      .on(table.ruleId, table.contactId, table.dateValue)
+      .where(sql`date_value IS NOT NULL`),
+    check(
+      'automation_recipients_status_check',
+      sql`status IN ('queued', 'sent', 'delivered', 'read', 'failed', 'skipped', 'replied', 'chaser_paused')`,
     ),
   ],
 );

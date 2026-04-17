@@ -22,6 +22,7 @@ import { createConversation } from '../lib/conversation';
 import { getModuleDeps } from '../lib/deps';
 import { insertMessage } from '../lib/messages';
 import {
+  automationRecipients,
   broadcastRecipients,
   channelInstances,
   channelRoutings,
@@ -601,13 +602,17 @@ export const contactsHandlers = new Hono()
       });
     }
 
-    // Clean up referencing rows before deleting the contact
-    await db
-      .delete(broadcastRecipients)
-      .where(eq(broadcastRecipients.contactId, id));
-    await db.delete(contactLabels).where(eq(contactLabels.contactId, id));
-
-    await db.delete(contacts).where(eq(contacts.id, id));
+    // Clean up all referencing rows in a single transaction before deleting the contact
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(broadcastRecipients)
+        .where(eq(broadcastRecipients.contactId, id));
+      await tx
+        .delete(automationRecipients)
+        .where(eq(automationRecipients.contactId, id));
+      await tx.delete(contactLabels).where(eq(contactLabels.contactId, id));
+      await tx.delete(contacts).where(eq(contacts.id, id));
+    });
 
     return c.json({ ok: true });
   })

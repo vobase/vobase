@@ -5,14 +5,13 @@ import {
   unauthorized,
   validation,
 } from '@vobase/core';
-import { and, count, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, count, desc, eq, gte, lte } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
 import {
-  type AudienceFilter,
   audienceFilterSchema,
-  buildAudienceConditions,
+  buildAudienceWhereWithLabels,
 } from '../lib/audience-filter';
 import { parseRuleFromPrompt } from '../lib/automation-parse';
 import {
@@ -24,7 +23,6 @@ import {
   automationRecipients,
   automationRuleSteps,
   automationRules,
-  contactLabels,
   contacts,
 } from '../schema';
 
@@ -108,23 +106,6 @@ const patchStepsSchema = z.object({
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────
-
-function buildFullAudienceWhere(
-  db: ReturnType<typeof getCtx>['db'],
-  filter: AudienceFilter,
-) {
-  const where = buildAudienceConditions(filter);
-  let labelCondition: ReturnType<typeof inArray> | undefined;
-  if (filter.labelIds && filter.labelIds.length > 0) {
-    const sub = db
-      .selectDistinct({ contactId: contactLabels.contactId })
-      .from(contactLabels)
-      .where(inArray(contactLabels.labelId, filter.labelIds));
-    labelCondition = inArray(contacts.id, sub);
-  }
-  if (where && labelCondition) return and(where, labelCondition);
-  return labelCondition ?? where;
-}
 
 function validateParameterValues(
   parameters: Record<string, unknown>,
@@ -542,11 +523,11 @@ export const automationHandlers = new Hono()
       .orderBy(automationRuleSteps.sequence);
 
     const filterResult = audienceFilterSchema.safeParse(rule.audienceFilter);
-    const filter: AudienceFilter = filterResult.success
+    const filter = filterResult.success
       ? filterResult.data
-      : { excludeOptedOut: true as const };
+      : audienceFilterSchema.parse({});
 
-    const fullWhere = buildFullAudienceWhere(db, filter);
+    const fullWhere = buildAudienceWhereWithLabels(db, filter);
 
     const [samples, [{ total }]] = await Promise.all([
       db
@@ -592,9 +573,9 @@ export const automationHandlers = new Hono()
     const filterResult = audienceFilterSchema.safeParse(rule.audienceFilter);
     const filter = filterResult.success
       ? filterResult.data
-      : { excludeOptedOut: true as const };
+      : audienceFilterSchema.parse({});
 
-    const fullWhere = buildFullAudienceWhere(db, filter);
+    const fullWhere = buildAudienceWhereWithLabels(db, filter);
 
     const [samples, [{ total }]] = await Promise.all([
       db
