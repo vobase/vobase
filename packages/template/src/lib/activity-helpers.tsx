@@ -14,6 +14,10 @@ interface ActivityEvent {
   contentData: Record<string, unknown> | null;
 }
 
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' ? v : undefined;
+}
+
 /** Activity event types meaningful enough to show in the conversation timeline.
  *  Low-value events (message.read, message.outbound_queued, agent.tool_executed)
  *  are excluded — their info is already visible on message bubbles or redundant. */
@@ -43,8 +47,31 @@ export function isTimelineVisibleEvent(eventType: string): boolean {
   return TIMELINE_VISIBLE_EVENTS.has(eventType);
 }
 
+/** Resolver that turns a participant ID (authUser.id, `agent:{id}`) into a display name. */
+export type ResolveParticipantName = (id: string) => string | undefined;
+
+/** Format an assignee id as a display name, honouring agent prefixes and falling back to a short ID. */
+function formatAssignee(
+  id: string | undefined,
+  resolve?: ResolveParticipantName,
+): string {
+  if (!id) return 'unassigned';
+  if (id.startsWith('agent:')) {
+    const rest = id.slice(6);
+    const name = resolve?.(id) ?? resolve?.(rest);
+    return (
+      name ??
+      `${rest.charAt(0).toUpperCase()}${rest.slice(1).replace(/-/g, ' ')}`
+    );
+  }
+  return resolve?.(id) ?? id;
+}
+
 /** Human-readable description for an activity event */
-export function activityDescription(event: ActivityEvent): string {
+export function activityDescription(
+  event: ActivityEvent,
+  resolveName?: ResolveParticipantName,
+): string {
   const type = event.content;
   const data = event.contentData ?? {};
   switch (type) {
@@ -58,27 +85,31 @@ export function activityDescription(event: ActivityEvent): string {
     case 'conversation.failed':
       return 'Conversation failed';
     case 'conversation.claimed':
-      return `Assigned to ${(data.assignee as string) ?? 'staff'}`;
+      return `Assigned to ${formatAssignee(str(data.assignee), resolveName)}`;
     case 'conversation.unassigned':
       return 'Unassigned from staff';
     case 'escalation.created':
-      return `Escalated — ${(data.reason as string)?.slice(0, 60) ?? 'needs attention'}`;
-    case 'handler.changed':
-      return `Mode changed to ${(data.to as string) ?? 'unknown'}`;
+      return `Escalated — ${str(data.reason)?.slice(0, 60) ?? 'needs attention'}`;
+    case 'handler.changed': {
+      const to = str(data.to);
+      return to
+        ? `Assigned to ${formatAssignee(to, resolveName)}`
+        : 'Unassigned from staff';
+    }
     case 'agent.draft_generated':
       return 'Agent draft ready for review';
     case 'guardrail.block':
       return 'Message blocked by guardrail';
     case 'guardrail.warn':
-      return `Guardrail warning — ${(data.reason as string)?.slice(0, 60) ?? 'policy check'}`;
+      return `Guardrail warning — ${str(data.reason)?.slice(0, 60) ?? 'policy check'}`;
     case 'attention.reviewed':
       return 'Escalation reviewed';
     case 'attention.dismissed':
       return 'Escalation dismissed';
     case 'label.added':
-      return `Label added: ${(data.labelTitle as string) ?? 'unknown'}`;
+      return `Label added: ${str(data.labelTitle) ?? 'unknown'}`;
     case 'label.removed':
-      return `Label removed: ${(data.labelTitle as string) ?? 'unknown'}`;
+      return `Label removed: ${str(data.labelTitle) ?? 'unknown'}`;
     default:
       return type.replace(/\./g, ' ');
   }

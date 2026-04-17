@@ -5,6 +5,7 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
+import type { ResolveParticipantName } from '@/lib/activity-helpers';
 import { agentsClient, messagingClient } from '@/lib/api-client';
 import { extractStaffName } from '@/lib/normalize-message';
 import { CHANNEL_TAB_ALL } from '@/stores/inbox-detail-store';
@@ -67,6 +68,14 @@ async function fetchAgents(): Promise<AgentInfo[]> {
   return res.json() as Promise<AgentInfo[]>;
 }
 
+async function fetchTeamMembers(): Promise<
+  Array<{ id: string; name: string }>
+> {
+  const res = await messagingClient['team-members'].$get();
+  if (!res.ok) return [];
+  return (await res.json()) as Array<{ id: string; name: string }>;
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useInboxTimeline(
@@ -100,6 +109,12 @@ export function useInboxTimeline(
     queryKey: ['agents'],
     queryFn: fetchAgents,
     staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ['team-members'],
+    queryFn: fetchTeamMembers,
+    staleTime: 30_000,
   });
 
   // ── Derived data (11 useMemo) ──
@@ -214,6 +229,16 @@ export function useInboxTimeline(
     [channels, selectedTabChannelId],
   );
 
+  const resolveName = useMemo<ResolveParticipantName>(() => {
+    const map = new Map<string, string>();
+    for (const m of teamMembers) map.set(m.id, m.name);
+    for (const a of agents) {
+      map.set(a.id, a.name);
+      map.set(`agent:${a.id}`, a.name);
+    }
+    return (id: string) => map.get(id);
+  }, [teamMembers, agents]);
+
   const senderMap = useMemo(() => {
     const map = new Map<string, SenderInfo>();
     if (session?.user) {
@@ -257,5 +282,7 @@ export function useInboxTimeline(
     senderMap,
     hasNextPage,
     agents,
+    teamMembers,
+    resolveName,
   };
 }
