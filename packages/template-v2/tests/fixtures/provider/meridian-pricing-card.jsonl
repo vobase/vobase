@@ -1,0 +1,8 @@
+{"type":"message_start","message":{"id":"msg_01card01","type":"message","role":"assistant","model":"claude-sonnet-4-6","usage":{"input_tokens":1350,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01card1","name":"send_card","input":{}}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"type\":\"card\","}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"title\":\"Pricing Options\","}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"children\":[{\"type\":\"text\",\"content\":\"Plan A: $99/mo | Plan B: $199/mo\"}]}"}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":45}}
+{"type":"message_stop"}

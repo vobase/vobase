@@ -1,0 +1,9 @@
+node_modules/
+dist/
+drizzle/
+.env
+.env.local
+*.log
+.DS_Store
+.omc/
+

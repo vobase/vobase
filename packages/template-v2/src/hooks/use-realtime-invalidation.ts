@@ -1,0 +1,57 @@
+import { useQueryClient } from '@tanstack/react-query'
+import { useSse } from './use-sse'
+
+export interface RealtimePayload {
+  table: string
+  id?: string
+  action?: string
+}
+
+/**
+ * Subscribes to `/api/sse` and invalidates TanStack Query keys when the
+ * server pushes a pg NOTIFY payload. Mirrors the original template hook
+ * but simplified for Phase 2 (single `vobase_sse` channel).
+ */
+export function useRealtimeInvalidation(): void {
+  const queryClient = useQueryClient()
+
+  useSse((evt) => {
+    if (evt.event !== 'invalidate' || !evt.data) return
+
+    let payload: RealtimePayload
+    try {
+      payload = JSON.parse(evt.data) as RealtimePayload
+    } catch {
+      return
+    }
+
+    if (!payload.table) return
+
+    // Targeted invalidation: inbox conversations list + specific conversation
+    if (payload.table === 'conversations') {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      if (payload.id) {
+        queryClient.invalidateQueries({ queryKey: ['conversation', payload.id] })
+        queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })
+      }
+      return
+    }
+
+    // Agent session events: invalidate the affected conversation's messages
+    if (payload.table === 'agent-sessions' && payload.id) {
+      if (payload.action === 'message_update') return
+      queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      return
+    }
+
+    // Approval decisions
+    if (payload.table === 'approvals') {
+      queryClient.invalidateQueries({ queryKey: ['approvals'] })
+      return
+    }
+
+    // Broad fallback
+    queryClient.invalidateQueries({ queryKey: [payload.table] })
+  })
+}

@@ -1,0 +1,50 @@
+/**
+ * vobase.config.ts — registers all 6 modules in spec §4.3 order.
+ * Order matters for init dependency resolution:
+ * contacts → drive → inbox → agents → channel-web → channel-whatsapp
+ */
+
+import agents from './modules/agents/module'
+import channelWeb from './modules/channel-web/module'
+import channelWhatsapp from './modules/channel-whatsapp/module'
+import contacts from './modules/contacts/module'
+import drive from './modules/drive/module'
+import inbox from './modules/inbox/module'
+
+export default {
+  database: process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2',
+
+  /** LLM provider config — Anthropic is the Phase 2 critical-path provider. */
+  provider: {
+    default: (process.env.LLM_PROVIDER ?? 'anthropic') as 'anthropic' | 'openai' | 'gemini' | 'mock',
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+      model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6',
+    },
+    /** Stretch — Phase 2.5 */
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY ?? '',
+      model: process.env.OPENAI_MODEL ?? 'gpt-4o',
+    },
+    /** Stretch — Phase 2.5 */
+    gemini: {
+      apiKey: process.env.GOOGLE_API_KEY ?? '',
+      model: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
+    },
+  },
+
+  /** Channel config — web is always enabled; whatsapp is opt-in via env. */
+  channels: {
+    web: {
+      enabled: true,
+    },
+    whatsapp: {
+      enabled: !!(process.env.META_WA_TOKEN && process.env.META_WA_VERIFY_TOKEN),
+      token: process.env.META_WA_TOKEN ?? '',
+      verifyToken: process.env.META_WA_VERIFY_TOKEN ?? '',
+      phoneNumberId: process.env.META_WA_PHONE_NUMBER_ID ?? '',
+    },
+  },
+
+  modules: [contacts, drive, inbox, agents, channelWeb, channelWhatsapp],
+}

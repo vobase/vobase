@@ -1,0 +1,8 @@
+{"type":"message_start","message":{"id":"msg_01rej001","type":"message","role":"assistant","model":"claude-sonnet-4-6","usage":{"input_tokens":1420,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_01rej01","name":"reply","input":{}}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"text\":"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"I understand — our pricing list is currently being updated. Please contact sales@meridian.com for the latest rates.\""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"}"}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":38}}
+{"type":"message_stop"}

@@ -1,0 +1,210 @@
+/**
+ * Canonical `AgentEvent` union — spec §6.7.
+ *
+ * Every event flowing through `EventBus`, `ObserverBus`, and the `conversation_events`
+ * journal is one of these variants. The journal's write path lives exclusively in
+ * `modules/agents/service/journal.ts` (per spec §2.3 "one write path per domain").
+ */
+
+export type WakeTrigger =
+  | { trigger: 'inbound_message'; conversationId: string; messageIds: string[] }
+  | {
+      trigger: 'approval_resumed'
+      conversationId: string
+      approvalId: string
+      decision: 'approved' | 'rejected'
+      note?: string
+    }
+  | { trigger: 'supervisor'; conversationId: string; noteId: string; authorUserId: string }
+  | { trigger: 'scheduled_followup'; conversationId: string; reason: string; scheduledAt: Date; sourceWakeId?: string }
+  | { trigger: 'manual'; conversationId: string; reason: string; actorUserId: string }
+
+export type WakeTriggerKind = WakeTrigger['trigger']
+
+/** Task tag threaded through every LLM call — see `PluginContext.llmCall()`. */
+export type LlmTask =
+  | 'agent.turn'
+  | 'agent.compaction'
+  | 'scorer.answer_relevancy'
+  | 'scorer.faithfulness'
+  | 'moderation'
+  | 'memory.distill'
+  | 'learn.propose'
+  | 'drive.caption.image'
+  | 'drive.caption.video'
+  | 'drive.extract.pdf'
+  | 'intent.classify'
+
+export type AgentEndReason = 'complete' | 'blocked' | 'aborted' | 'error'
+
+interface BaseEvent {
+  ts: Date
+  /** Stable identifier for the specific wake that produced this event. */
+  wakeId: string
+  conversationId: string
+  tenantId: string
+  turnIndex: number
+}
+
+export type AgentStartEvent = BaseEvent & {
+  type: 'agent_start'
+  agentId: string
+  trigger: WakeTriggerKind
+  triggerPayload: WakeTrigger
+  systemHash: string
+}
+
+export type TurnStartEvent = BaseEvent & { type: 'turn_start' }
+export type TurnEndEvent = BaseEvent & {
+  type: 'turn_end'
+  tokensIn: number
+  tokensOut: number
+  costUsd: number
+}
+
+export type MessageStartEvent = BaseEvent & {
+  type: 'message_start'
+  messageId: string
+  role: 'assistant' | 'tool' | 'user' | 'system'
+}
+export type MessageUpdateEvent = BaseEvent & {
+  type: 'message_update'
+  messageId: string
+  delta: string
+}
+export type MessageEndEvent = BaseEvent & {
+  type: 'message_end'
+  messageId: string
+  role: 'assistant' | 'tool' | 'user' | 'system'
+  content: string
+  reasoning?: string
+  tokenCount?: number
+  finishReason?: string
+}
+
+export type ToolExecutionStartEvent = BaseEvent & {
+  type: 'tool_execution_start'
+  toolCallId: string
+  toolName: string
+  args: unknown
+}
+export type ToolExecutionUpdateEvent = BaseEvent & {
+  type: 'tool_execution_update'
+  toolCallId: string
+  update: unknown
+}
+export type ToolExecutionEndEvent = BaseEvent & {
+  type: 'tool_execution_end'
+  toolCallId: string
+  toolName: string
+  result: unknown
+  isError: boolean
+  latencyMs: number
+}
+
+export type LlmCallEvent = BaseEvent & {
+  type: 'llm_call'
+  task: LlmTask
+  model: string
+  provider: string
+  tokensIn: number
+  tokensOut: number
+  cacheReadTokens: number
+  costUsd: number
+  latencyMs: number
+  cacheHit: boolean
+}
+
+export type AgentEndEvent = BaseEvent & {
+  type: 'agent_end'
+  reason: AgentEndReason
+}
+
+export type ApprovalRequestedEvent = BaseEvent & {
+  type: 'approval_requested'
+  approvalId: string
+  toolName: string
+}
+export type ApprovalDecidedEvent = BaseEvent & {
+  type: 'approval_decided'
+  approvalId: string
+  decision: 'approved' | 'rejected'
+  decidedByUserId: string
+}
+
+export type InternalNoteAddedEvent = BaseEvent & {
+  type: 'internal_note_added'
+  noteId: string
+  authorType: 'agent' | 'staff' | 'system'
+}
+
+// ─── Channel + Scheduler events (Phase 2, plan §P2.0 / C1) ─────────────────
+// Note: tool_call_start/tool_call_end are intentionally absent — the existing
+// tool_execution_start/end cover this seam; renaming would collide with Phase 1
+// test fixtures. (C1 in plan §8 Revision History)
+
+export type ChannelInboundAgentEvent = BaseEvent & {
+  type: 'channel_inbound'
+  /** Channel that delivered the message (e.g. 'web', 'whatsapp'). */
+  channelType: string
+  /** Provider-assigned message ID — used for idempotent dedup. */
+  externalMessageId: string
+  /** Resolved contact ID if available at event emission time. */
+  contactId?: string
+}
+
+export type ChannelOutboundAgentEvent = BaseEvent & {
+  type: 'channel_outbound'
+  channelType: string
+  /** Tool that triggered the outbound dispatch (e.g. 'reply', 'send_card'). */
+  toolName: string
+  contactId: string
+}
+
+export type WakeScheduledEvent = BaseEvent & {
+  type: 'wake_scheduled'
+  trigger: WakeTriggerKind
+  scheduledAt: Date
+  /** Wake that scheduled this one (present for scheduled_followup chains). */
+  sourceWakeId?: string
+}
+
+export type LearningProposedEvent = BaseEvent & {
+  type: 'learning_proposed'
+  proposalId: string
+  scope: 'contact' | 'agent_memory' | 'agent_skill' | 'drive_doc'
+}
+export type LearningApprovedEvent = BaseEvent & {
+  type: 'learning_approved'
+  proposalId: string
+  writeId: string
+}
+export type LearningRejectedEvent = BaseEvent & {
+  type: 'learning_rejected'
+  proposalId: string
+  reason: string
+}
+
+export type AgentEvent =
+  | AgentStartEvent
+  | TurnStartEvent
+  | TurnEndEvent
+  | MessageStartEvent
+  | MessageUpdateEvent
+  | MessageEndEvent
+  | ToolExecutionStartEvent
+  | ToolExecutionUpdateEvent
+  | ToolExecutionEndEvent
+  | LlmCallEvent
+  | AgentEndEvent
+  | ApprovalRequestedEvent
+  | ApprovalDecidedEvent
+  | InternalNoteAddedEvent
+  | LearningProposedEvent
+  | LearningApprovedEvent
+  | LearningRejectedEvent
+  | ChannelInboundAgentEvent
+  | ChannelOutboundAgentEvent
+  | WakeScheduledEvent
+
+export type AgentEventType = AgentEvent['type']

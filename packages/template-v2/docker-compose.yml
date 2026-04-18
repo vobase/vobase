@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: vobase
+      POSTGRES_PASSWORD: vobase
+      POSTGRES_DB: vobase_v2
+    volumes:
+      - pgdata_v2:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vobase -d vobase_v2']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata_v2:

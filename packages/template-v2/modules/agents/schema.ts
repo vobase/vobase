@@ -1,0 +1,210 @@
+/**
+ * agents module schema — spec §5.3.
+ *
+ * Seven tables:
+ *   - `agent_definitions`
+ *   - `conversation_events` — the append-only journal (spec §2.3 single-write-path invariant)
+ *   - `active_wakes` — UNLOGGED ephemeral coordination
+ *   - `learned_skills`
+ *   - `learning_proposals`
+ *   - `agent_scores`
+ *   - `tenant_cost_daily`
+ *
+ * Cross-schema FKs to `inbox.conversations(id)`, `inbox.messages(id)`.
+ * `conversation_events.wake_id` carries the stable wake identifier so Phase 1
+ * audit/journal queries can scope by wake (plan §B3).
+ */
+
+import { agentsPgSchema } from '@server/db/pg-schemas'
+import { nanoidPrimaryKey } from '@vobase/core/schema'
+import { sql } from 'drizzle-orm'
+import {
+  bigint,
+  bigserial,
+  boolean,
+  check,
+  date,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  primaryKey,
+  real,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
+
+export const agentDefinitions = agentsPgSchema.table('agent_definitions', {
+  id: nanoidPrimaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  name: text('name').notNull(),
+  soulMd: text('soul_md').notNull().default(''),
+  model: text('model').notNull().default('claude-sonnet-4-6'),
+  maxSteps: integer('max_steps').default(20),
+  workingMemory: text('working_memory').notNull().default(''),
+  skillAllowlist: text('skill_allowlist').array(),
+  cardApprovalRequired: boolean('card_approval_required').notNull().default(true),
+  fileApprovalRequired: boolean('file_approval_required').notNull().default(true),
+  bookSlotApprovalRequired: boolean('book_slot_approval_required').notNull().default(true),
+  enabled: boolean('enabled').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+})
+
+export const conversationEvents = agentsPgSchema.table(
+  'conversation_events',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    /** Cross-schema FK to inbox.conversations(id); enforced post-push. */
+    conversationId: text('conversation_id').notNull(),
+    tenantId: text('tenant_id').notNull(),
+    /** Stable identifier per wake — queries use this for per-wake scoping (B3). */
+    wakeId: text('wake_id'),
+    turnIndex: integer('turn_index').notNull(),
+    ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
+    type: text('type').notNull(),
+    // hermes-shaped columns
+    role: text('role'),
+    content: text('content'),
+    toolCallId: text('tool_call_id'),
+    toolCalls: jsonb('tool_calls'),
+    toolName: text('tool_name'),
+    reasoning: text('reasoning'),
+    reasoningDetails: jsonb('reasoning_details'),
+    tokenCount: integer('token_count'),
+    finishReason: text('finish_reason'),
+    // task-tagged llm_call fields
+    llmTask: text('llm_task'),
+    tokensIn: integer('tokens_in'),
+    tokensOut: integer('tokens_out'),
+    cacheReadTokens: integer('cache_read_tokens'),
+    costUsd: numeric('cost_usd', { precision: 10, scale: 6 }),
+    latencyMs: integer('latency_ms'),
+    model: text('model'),
+    provider: text('provider'),
+    payload: jsonb('payload'),
+  },
+  (t) => [
+    index('idx_convev_conv').on(t.conversationId, t.ts),
+    index('idx_convev_type_ts').on(t.type, t.ts),
+    index('idx_convev_wake').on(t.wakeId).where(sql`${t.wakeId} IS NOT NULL`),
+    index('idx_convev_llm_task').on(t.llmTask, t.ts).where(sql`${t.llmTask} IS NOT NULL`),
+  ],
+)
+
+/**
+ * UNLOGGED table — ephemeral coordination, no WAL overhead.
+ * drizzle-kit doesn't yet emit `UNLOGGED`; `scripts/db-apply-extras.ts` runs
+ * `ALTER TABLE agents.active_wakes SET UNLOGGED` after push.
+ */
+export const activeWakes = agentsPgSchema.table('active_wakes', {
+  conversationId: text('conversation_id').primaryKey(),
+  workerId: text('worker_id').notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  debounceUntil: timestamp('debounce_until', { withTimezone: true }).notNull(),
+})
+
+export const learnedSkills = agentsPgSchema.table(
+  'learned_skills',
+  {
+    id: nanoidPrimaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    agentId: text('agent_id').references(() => agentDefinitions.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    body: text('body').notNull(),
+    tags: text('tags').array().notNull().default([]),
+    version: integer('version').default(1),
+    parentProposalId: text('parent_proposal_id'),
+    threatScanReport: jsonb('threat_scan_report'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex('uq_learned_skills_name').on(t.tenantId, t.agentId, t.name)],
+)
+
+export const learningProposals = agentsPgSchema.table(
+  'learning_proposals',
+  {
+    id: nanoidPrimaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    conversationId: text('conversation_id').notNull(),
+    /** Self-ref to conversation_events.id; enforced post-push. */
+    wakeEventId: bigint('wake_event_id', { mode: 'number' }),
+    scope: text('scope').notNull(),
+    action: text('action').notNull(),
+    target: text('target').notNull(),
+    body: text('body'),
+    rationale: text('rationale'),
+    confidence: real('confidence'),
+    status: text('status').notNull().default('pending'),
+    decidedByUserId: text('decided_by_user_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decidedNote: text('decided_note'),
+    approvedWriteId: text('approved_write_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('idx_proposals_status').on(t.tenantId, t.status, t.createdAt),
+    check('lp_scope_check', sql`scope IN ('contact','agent_memory','agent_skill','drive_doc')`),
+    check('lp_action_check', sql`action IN ('upsert','create','patch')`),
+    check('lp_status_check', sql`status IN ('pending','approved','rejected','superseded','auto_written')`),
+  ],
+)
+
+export const agentScores = agentsPgSchema.table(
+  'agent_scores',
+  {
+    id: nanoidPrimaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    conversationId: text('conversation_id').notNull(),
+    wakeTurnIndex: integer('wake_turn_index').notNull(),
+    scorer: text('scorer').notNull(),
+    score: real('score').notNull(),
+    rationale: text('rationale'),
+    model: text('model'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('idx_scores_conv').on(t.conversationId, t.wakeTurnIndex)],
+)
+
+export const tenantCostDaily = agentsPgSchema.table(
+  'tenant_cost_daily',
+  {
+    tenantId: text('tenant_id').notNull(),
+    date: date('date').notNull(),
+    llmTask: text('llm_task').notNull(),
+    tokensIn: bigint('tokens_in', { mode: 'number' }),
+    tokensOut: bigint('tokens_out', { mode: 'number' }),
+    cacheReadTokens: bigint('cache_read_tokens', { mode: 'number' }),
+    costUsd: numeric('cost_usd', { precision: 12, scale: 4 }),
+    callCount: integer('call_count'),
+  },
+  (t) => [primaryKey({ columns: [t.tenantId, t.date, t.llmTask] })],
+)
+
+/**
+ * Satellite table keyed to `_audit.auditLog.id` carrying per-wake scope so Phase 1
+ * integration tests can filter audit rows by wake (B3) without modifying the
+ * core-owned `_audit.auditLog` table (R6: "import `_audit` from `@vobase/core`,
+ * NOT reimplement"). The `auditObserver` writes both rows in the same transaction.
+ */
+export const auditWakeMap = agentsPgSchema.table(
+  'audit_wake_map',
+  {
+    auditLogId: text('audit_log_id').primaryKey(),
+    wakeId: text('wake_id').notNull(),
+    conversationId: text('conversation_id').notNull(),
+    eventType: text('event_type').notNull(),
+    tenantId: text('tenant_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('idx_audit_wake_map_wake').on(t.wakeId), index('idx_audit_wake_map_conv').on(t.conversationId)],
+)
