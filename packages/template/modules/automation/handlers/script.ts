@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { getModuleDb } from '../lib/deps';
+import { getModuleDb } from '../lib/automation-deps';
 import { scriptAuthMiddleware } from '../lib/script-auth';
 import { updateHeartbeat } from '../lib/sessions';
 import {

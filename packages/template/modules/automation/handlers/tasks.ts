@@ -9,7 +9,7 @@ import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { getModuleDb } from '../lib/deps';
+import { getModuleDb } from '../lib/automation-deps';
 import { cancelTask, createTask } from '../lib/tasks';
 import { automationSessions, automationTasks } from '../schema';
 

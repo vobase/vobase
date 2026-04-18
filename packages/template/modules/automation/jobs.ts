@@ -1,7 +1,7 @@
 import { defineJob, logger } from '@vobase/core';
 import { and, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 
-import { getModuleDb, getModuleDeps } from './lib/deps';
+import { getModuleDb, getModuleDeps } from './lib/automation-deps';
 import { HEARTBEAT_STALE_MS } from './lib/sessions';
 import { unassignOrphanedTasks } from './lib/tasks';
 import { automationSessions, automationTasks } from './schema';

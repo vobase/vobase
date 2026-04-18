@@ -2,7 +2,7 @@ import { defineModule, logger } from '@vobase/core';
 
 import { automationRoutes } from './handlers';
 import { sessionCleanupJob, taskTimeoutJob } from './jobs';
-import { setModuleDeps } from './lib/deps';
+import { setModuleDeps } from './lib/automation-deps';
 import * as schema from './schema';
 
 export const automationModule = defineModule({
