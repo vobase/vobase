@@ -1,0 +1,89 @@
+name: template-v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/template-v2/**'
+      - 'packages/core/**'
+      - '.github/workflows/template-v2.yml'
+  pull_request:
+    paths:
+      - 'packages/template-v2/**'
+      - 'packages/core/**'
+      - '.github/workflows/template-v2.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: vobase
+          POSTGRES_PASSWORD: vobase
+          POSTGRES_DB: vobase_v2
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U vobase -d vobase_v2"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://vobase:vobase@localhost:5433/vobase_v2
+      TEMPLATE_V2_DATABASE_URL: postgres://vobase:vobase@localhost:5433/vobase_v2
+      USE_RECORDED_FIXTURES: 'true'
+
+    defaults:
+      run:
+        working-directory: packages/template-v2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.12
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: .
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint (biome)
+        run: bun run lint
+
+      - name: Module shape lint
+        run: bun run check:shape
+
+      - name: DB reset (C1 — phase1 baseline)
+        run: bun run db:reset
+
+      - name: Test phase1 (green-thread integration)
+        run: bun test tests/phase1-green-thread.test.ts
+
+      - name: DB reset (C2 — phase2 clean slate)
+        run: bun run db:reset
+
+      - name: Test phase2 + unit (dogfood, modules, server)
+        run: bun test tests/phase2-dogfood.test.ts modules/ server/
+
+      - name: Frontend bundle lint
+        run: bun run check:bundle
+
+      - name: Deliberate-violation guard (check:shape must detect missing file)
+        run: |
+          mv modules/channel-web/jobs.ts /tmp/.jobs.ts.bak
+          if bun run check:shape; then
+            echo "::error::check:shape failed to detect deliberate missing file"
+            mv /tmp/.jobs.ts.bak modules/channel-web/jobs.ts
+            exit 1
+          fi
+          mv /tmp/.jobs.ts.bak modules/channel-web/jobs.ts
+          bun run check:shape
