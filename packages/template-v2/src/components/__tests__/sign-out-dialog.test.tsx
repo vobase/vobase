@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
+import * as realReactQuery from '@tanstack/react-query'
 import * as realRouter from '@tanstack/react-router'
 import { renderToStaticMarkup } from 'react-dom/server'
 
@@ -15,6 +16,11 @@ mock.module('@tanstack/react-router', () => ({
   ...realRouter,
   useNavigate: () => mock((_opts: unknown) => {}),
   useRouterState: () => '',
+}))
+
+mock.module('@tanstack/react-query', () => ({
+  ...realReactQuery,
+  useQueryClient: () => ({ clear: () => {} }),
 }))
 
 // AlertDialog uses Radix Portal which renders nothing in renderToStaticMarkup.

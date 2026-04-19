@@ -57,7 +57,8 @@ describe('TopHeader', () => {
     const router = makeRouter()
     await router.load()
     const html = renderToString(<RouterProvider router={router} />)
-    expect(html).toContain('aria-label="Search"')
+    expect(html).toContain('aria-label="Search (coming soon)"')
+    expect(html).toContain('disabled')
   })
 
   it('renders breadcrumb nav element', async () => {

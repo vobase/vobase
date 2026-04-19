@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   AlertDialog,
@@ -18,10 +19,16 @@ interface SignOutDialogProps {
 
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   async function handleConfirm() {
-    await authClient.signOut()
-    navigate({ to: '/auth/login' })
+    try {
+      await authClient.signOut({ fetchOptions: { credentials: 'include' } })
+    } catch {
+      // Ignore transport failures — we still want to clear local state + redirect.
+    }
+    queryClient.clear()
+    navigate({ to: '/auth/login', replace: true })
   }
 
   return (

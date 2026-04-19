@@ -114,8 +114,14 @@ export async function createInboundMessage(input: CreateInboundMessageInput): Pr
   return { conversation, message: row as Message, isNew: true }
 }
 
-export async function get(_id: string): Promise<Conversation> {
-  throw new Error('not-implemented-in-phase-2: inbox/conversations.get')
+export async function get(id: string): Promise<Conversation> {
+  const { conversations } = await import('@modules/inbox/schema')
+  const { eq } = await import('drizzle-orm')
+  const db = requireDb() as { select: Function }
+  const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1)
+  const row = rows[0]
+  if (!row) throw new Error(`conversation not found: ${id}`)
+  return row as Conversation
 }
 
 export async function sendText(_input: unknown): Promise<unknown> {

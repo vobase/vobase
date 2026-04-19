@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, Outlet, redirect, useRouterState } from '@tanstack/react-router'
 import { AppShell } from './components/layout/app-shell'
 import { useRealtimeInvalidation } from './hooks/use-realtime-invalidation'
+import { authClient } from './lib/auth-client'
 import { ApprovalsPage } from './pages/approvals'
 import LoginPage from './pages/auth/login'
 import PendingPage from './pages/auth/pending'
@@ -16,14 +17,28 @@ import NotificationsPage from './pages/settings/notifications'
 import ProfilePage from './pages/settings/profile'
 import { TestWebPage } from './pages/test-web'
 
+async function requireSession() {
+  const res = await authClient.getSession()
+  const session = (res as { data?: { session?: unknown } | null } | null)?.data?.session
+  if (!session) {
+    throw redirect({ to: '/auth/login' })
+  }
+}
+
 // Vite replaces import.meta.env.DEV with a boolean literal at build time, so the
 // branch and its import are dead-code-eliminated from production bundles.
 const IS_DEV = import.meta.env.DEV
 
 function RootLayout() {
   useRealtimeInvalidation()
-  // /test-web is a customer-facing chat widget; it renders without the staff AppShell chrome.
-  const isStandalone = useRouterState({ select: (s) => s.location.pathname.startsWith('/test-web') })
+  // /test-web is a customer-facing chat widget; /auth/* is pre-auth.
+  // Neither should render inside the staff AppShell chrome.
+  const isStandalone = useRouterState({
+    select: (s) => {
+      const p = s.location.pathname
+      return p.startsWith('/test-web') || p.startsWith('/auth/')
+    },
+  })
   if (isStandalone) return <Outlet />
   return (
     <AppShell>
@@ -50,6 +65,7 @@ const inboxParentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/inbox',
   component: InboxLayout,
+  beforeLoad: requireSession,
 })
 
 const inboxIndexRoute = createRoute({
@@ -68,6 +84,7 @@ const approvalsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/approvals',
   component: ApprovalsPage,
+  beforeLoad: requireSession,
 })
 
 // Settings routes
@@ -75,6 +92,7 @@ const settingsParentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
   component: SettingsLayout,
+  beforeLoad: requireSession,
 })
 
 const settingsIndexRoute = createRoute({

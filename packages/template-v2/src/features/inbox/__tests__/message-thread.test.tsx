@@ -33,7 +33,15 @@ mock.module('@/components/ai-elements/task', () => ({
 
 mock.module('@/components/card-actions', () => ({
   postCardReply: mock(() => Promise.resolve()),
-  CardActions: () => null,
+  CardActions: ({ buttons }: { buttons: Array<{ id: string; label: string }> }) => (
+    <div data-testid="card-actions">
+      {buttons.map((b) => (
+        <button key={b.id} type="button">
+          {b.label}
+        </button>
+      ))}
+    </div>
+  ),
 }))
 
 import { MessageThread } from '../message-thread'
@@ -89,16 +97,21 @@ describe('MessageThread', () => {
     expect(html).toContain('Choose plan')
   })
 
-  it('renders Suggestion chips for agent card actions', () => {
+  it('renders card action buttons via MessageCard (no duplicate Suggestion chip row)', () => {
     const html = renderToStaticMarkup(<MessageThread messages={[agentCardMsg]} />)
+    // Card action labels must appear exactly once (single button per action).
     expect(html).toContain('Basic')
     expect(html).toContain('Pro')
+    expect((html.match(/>Basic</g) ?? []).length).toBe(1)
+    expect((html.match(/>Pro</g) ?? []).length).toBe(1)
   })
 
-  it('does not render Suggestion chips for customer card messages', () => {
+  it('renders CardActions (not a separate Suggestions row) for customer card messages', () => {
     const customerCard: Message = { ...agentCardMsg, id: 'msg-3', role: 'customer' }
     const html = renderToStaticMarkup(<MessageThread messages={[customerCard]} />)
-    expect(html).not.toContain('<button')
+    // Customer cards still go through MessageCard → CardActions; they render buttons
+    // but never a separate Suggestions chip row above them.
+    expect(html).not.toContain('data-testid="suggestions"')
   })
 
   it('renders both card and text in the same thread', () => {

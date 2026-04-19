@@ -27,6 +27,14 @@ export async function get(id: string): Promise<Contact> {
   return row as Contact
 }
 
+export async function list(tenantId: string): Promise<Contact[]> {
+  const { contacts } = await import('@modules/contacts/schema')
+  const { eq } = await import('drizzle-orm')
+  const db = requireDb() as { select: Function }
+  const rows = (await db.select().from(contacts).where(eq(contacts.tenantId, tenantId))) as unknown[]
+  return rows as Contact[]
+}
+
 export async function getByPhone(tenantId: string, phone: string): Promise<Contact | null> {
   const { contacts } = await import('@modules/contacts/schema')
   const { eq, and } = await import('drizzle-orm')

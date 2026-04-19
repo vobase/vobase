@@ -2,10 +2,7 @@ import type { Message, MessageRole } from '@server/contracts/domain-types'
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation'
 import { Message as AiMessage, MessageContent, MessageResponse } from '@/components/ai-elements/message'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
-import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
-import type { ButtonElement } from '@/components/card-actions'
-import { postCardReply } from '@/components/card-actions'
 import { MessageCard } from '@/components/message-card'
 
 type UiRole = 'user' | 'assistant' | 'system'
@@ -30,35 +27,23 @@ function isTaskPayload(content: unknown): content is TaskPayload {
   return c.type === 'task' && typeof c.title === 'string' && Array.isArray(c.items)
 }
 
-interface CardAction {
-  id: string
-  label: string
-  value: string
-}
-
-function extractActions(msg: DisplayMessage): CardAction[] {
-  if (msg.role !== 'agent' || msg.kind !== 'card') return []
-  type CardContent = {
-    card?: { children?: Array<{ type: string; buttons?: ButtonElement[] }> }
-  }
-  const card = (msg.content as CardContent)?.card
-  if (!card?.children) return []
-  return card.children
-    .filter((c) => c.type === 'actions')
-    .flatMap((c) => (c.buttons ?? []).map((b) => ({ id: b.id, label: b.label, value: b.value })))
-}
-
 interface MessageThreadProps {
   messages: DisplayMessage[]
 }
 
 export function MessageThread({ messages }: MessageThreadProps) {
+  // Card action buttons are rendered by `MessageCard` (via `CardActions`), which POSTs
+  // the customer's selection and writes a `card_reply` back into the thread. We used
+  // to also render an ai-elements `<Suggestions>` chip row below every card from the
+  // same action list, producing a duplicate button group in the UI.
   return (
     <Conversation className="min-h-0 flex-1">
       <ConversationContent>
         {messages.map((msg) => {
-          const actions = extractActions(msg)
           const taskPayload = isTaskPayload(msg.content) ? msg.content : null
+          // Find the parent card message for a card_reply (so the reply bubble can
+          // show an inline "↳ <parent card title>" hint).
+          const parent = msg.kind === 'card_reply' ? messages.find((m) => m.id === msg.parentMessageId) : undefined
           return (
             <div key={msg.id} className="flex flex-col gap-2">
               <AiMessage from={toUiRole(msg.role)}>
@@ -82,28 +67,11 @@ export function MessageThread({ messages }: MessageThreadProps) {
                     {msg.kind === 'text' ? (
                       <MessageResponse>{String((msg.content as { text?: unknown })?.text ?? '')}</MessageResponse>
                     ) : (
-                      <MessageCard message={msg} />
+                      <MessageCard message={msg} parentMessage={parent} />
                     )}
                   </MessageContent>
                 )}
               </AiMessage>
-              {actions.length > 0 && (
-                <Suggestions>
-                  {actions.map((action) => (
-                    <Suggestion
-                      key={action.id}
-                      suggestion={action.label}
-                      onClick={() =>
-                        postCardReply({
-                          messageId: msg.id,
-                          buttonId: action.id,
-                          buttonValue: action.value,
-                        }).catch(() => undefined)
-                      }
-                    />
-                  ))}
-                </Suggestions>
-              )}
             </div>
           )
         })}

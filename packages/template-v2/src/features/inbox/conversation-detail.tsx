@@ -1,4 +1,4 @@
-import type { Conversation, Message } from '@server/contracts/domain-types'
+import type { Contact, Conversation, Message } from '@server/contracts/domain-types'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
@@ -16,6 +16,7 @@ import { Status } from '@/components/ui/status'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useReassign } from './api/use-reassign'
 import { Composer } from './composer'
+import { InlineApprovalBanner } from './inline-approval-banner'
 import { MessageThread } from './message-thread'
 
 async function fetchConversation(id: string): Promise<Conversation> {
@@ -34,6 +35,17 @@ async function fetchConversationList(): Promise<Array<{ id: string; contactId?: 
   const r = await fetch('/api/inbox/conversations')
   if (!r.ok) throw new Error(`fetch failed: ${r.status}`)
   return r.json()
+}
+
+async function fetchContact(id: string): Promise<Contact | null> {
+  const r = await fetch(`/api/contacts/${id}`)
+  if (!r.ok) return null
+  return r.json()
+}
+
+function deriveContactName(contact: Contact | null, fallback: string): string {
+  if (!contact) return fallback
+  return contact.displayName?.trim() || contact.email?.trim() || contact.phone?.trim() || fallback
 }
 
 const STAFF_OPTIONS = [
@@ -62,6 +74,14 @@ export function ConversationDetail() {
     queryFn: fetchConversationList,
   })
 
+  const { data: contact = null } = useQuery({
+    queryKey: ['contact', conv?.contactId],
+    queryFn: () => fetchContact(conv!.contactId),
+    enabled: Boolean(conv?.contactId),
+  })
+
+  const title = deriveContactName(contact, conv?.contactId ?? id)
+
   const reassign = useReassign(id)
 
   const idx = convList.findIndex((c) => c.id === id)
@@ -80,7 +100,7 @@ export function ConversationDetail() {
     <div className="flex h-full flex-col">
       <PaneHeader
         density="detail"
-        title={conv?.contactId ?? id}
+        title={title}
         meta={conv ? <Status variant={conv.status} label={conv.status} /> : undefined}
         actions={
           <div className="flex items-center gap-1">
@@ -127,6 +147,7 @@ export function ConversationDetail() {
           </div>
         }
       />
+      <InlineApprovalBanner conversationId={id} />
       <MessageThread messages={messages} />
       <Composer conversationId={id} />
     </div>

@@ -11,7 +11,7 @@ export function TopHeader() {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        <Button variant="ghost" size="icon" aria-label="Search" disabled>
+        <Button variant="ghost" size="icon" aria-label="Search (coming soon)" title="Search (coming soon)" disabled>
           <Search aria-hidden="true" />
         </Button>
         <ThemeSwitch />

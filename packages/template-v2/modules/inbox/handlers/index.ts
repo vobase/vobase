@@ -1,4 +1,4 @@
-import { list as listConversations } from '@modules/inbox/service/conversations'
+import { get as getConversation, list as listConversations } from '@modules/inbox/service/conversations'
 import { list as listMessages } from '@modules/inbox/service/messages'
 import { list as listApprovals } from '@modules/inbox/service/pending-approvals'
 import { Hono } from 'hono'
@@ -18,6 +18,15 @@ app.get('/conversations', async (c) => {
   const status = c.req.query('status')?.split(',').filter(Boolean)
   const rows = await listConversations(tenantId, status?.length ? { status } : undefined)
   return c.json(rows)
+})
+
+app.get('/conversations/:id', async (c) => {
+  try {
+    const row = await getConversation(c.req.param('id'))
+    return c.json(row)
+  } catch {
+    return c.json({ error: 'not_found' }, 404)
+  }
 })
 
 app.get('/conversations/:id/messages', async (c) => {

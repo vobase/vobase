@@ -3,6 +3,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { NuqsAdapter } from 'nuqs/adapters/tanstack-router'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { ThemeProvider } from './components/theme-provider'
 import { router } from './routes'
 import './styles/app.css'
 
@@ -16,11 +17,13 @@ const root = document.getElementById('root')
 if (root && !root.innerHTML) {
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <NuqsAdapter>
-          <RouterProvider router={router} />
-        </NuqsAdapter>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <NuqsAdapter>
+            <RouterProvider router={router} />
+          </NuqsAdapter>
+        </QueryClientProvider>
+      </ThemeProvider>
     </React.StrictMode>,
   )
 }

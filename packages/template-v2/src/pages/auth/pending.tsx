@@ -11,7 +11,25 @@ export default function PendingPage() {
   const { sendOtp, verifyOtp } = useEmailOtp()
 
   function handleComplete(otp: string) {
-    verifyOtp.mutate({ email, otp }, { onSuccess: () => navigate({ to: '/inbox' }) })
+    verifyOtp.mutate(
+      { email, otp },
+      {
+        onSuccess: (res) => {
+          // better-auth returns a structured payload that carries `error` on
+          // invalid/expired OTPs with a 200 response — treat that as a thrown error
+          // so the UI surfaces it instead of silently navigating.
+          if (res && typeof res === 'object' && 'error' in res && res.error) {
+            const message =
+              typeof res.error === 'object' && res.error !== null && 'message' in res.error
+                ? String((res.error as { message: unknown }).message)
+                : 'Invalid or expired code. Try again.'
+            verifyOtp.reset()
+            throw new Error(message)
+          }
+          navigate({ to: '/inbox' })
+        },
+      },
+    )
   }
 
   function handleResend() {

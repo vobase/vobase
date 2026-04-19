@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTheme } from '@/components/theme-provider'
-import { ThemeSwitch } from '@/components/theme-switch'
+import { THEME_OPTIONS, ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -11,6 +11,7 @@ import { appearanceSchema } from '@/features/settings/schemas'
 
 export default function AppearancePage() {
   const { theme } = useTheme()
+  const currentLabel = THEME_OPTIONS.find((o) => o.value === theme)?.label ?? 'System'
   const { mutate, isPending } = useSettingsSave('appearance', appearanceSchema)
 
   const form = useForm<AppearanceValues>({
@@ -32,7 +33,10 @@ export default function AppearancePage() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Theme</span>
-            <ThemeSwitch />
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{currentLabel}</span>
+              <ThemeSwitch />
+            </div>
           </div>
           <FormField
             control={form.control}

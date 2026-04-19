@@ -18,15 +18,19 @@ import {
   setJobQueue as setChannelWebJobs,
   setRealtime as setChannelWebRealtime,
 } from '@modules/channel-web/service/state'
+import contactsHandlers from '@modules/contacts/handlers'
+import { setDb as setContactsDb } from '@modules/contacts/service/contacts'
 import inboxHandlers from '@modules/inbox/handlers'
 import { setDb as setConversationsDb } from '@modules/inbox/service/conversations'
 import { setDb as setMessagesDb } from '@modules/inbox/service/messages'
 import { setDb as setNotesDb } from '@modules/inbox/service/notes'
 import { setDb as setPendingApprovalsDb } from '@modules/inbox/service/pending-approvals'
 import { setDb as setStaffOpsDb } from '@modules/inbox/service/staff-ops'
+import settingsHandlers from '@modules/settings/handlers'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { logger } from 'hono/logger'
 import type { Sql } from 'postgres'
 import { createAuth } from './auth'
 import sseRoute from './routes/sse'
@@ -40,18 +44,37 @@ export function createApp(db: unknown, sql?: Sql): Hono {
   setNotesDb(db)
   setPendingApprovalsDb(db)
   setStaffOpsDb(db)
+  setContactsDb(db)
   setLearningProposalsDb(db)
   setLearningNotifier(createLearningNotifier(db))
 
   const app = new Hono()
   app.use('*', cors())
+  app.use('*', logger())
   app.get('/health', (c) => c.json({ ok: true, phase: 3 }))
 
   const auth = createAuth(db as PostgresJsDatabase)
-  app.on(['GET', 'POST'], '/api/auth/**', (c) => auth.handler(c.req.raw))
+  app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
+
+  // Session guard for staff-facing API routes. Every request under these prefixes
+  // must carry a valid better-auth session cookie; inbound channel webhooks sign
+  // themselves with HMAC (separate trust model) and /api/sse authenticates inside
+  // its own handler, so both stay outside this gate.
+  async function requireSession(c: import('hono').Context, next: () => Promise<void>) {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers })
+    if (!session) return c.json({ error: 'unauthenticated' }, 401)
+    c.set('session', session)
+    return next()
+  }
+  app.use('/api/inbox/*', requireSession)
+  app.use('/api/agents/*', requireSession)
+  app.use('/api/contacts/*', requireSession)
+  app.use('/api/settings/*', requireSession)
 
   app.route('/api/inbox', inboxHandlers)
   app.route('/api/agents', agentsHandlers)
+  app.route('/api/contacts', contactsHandlers)
+  app.route('/api/settings', settingsHandlers)
   app.route('/api/sse', sseRoute)
 
   // Channel-web: dev-only. The inbound webhook's fallback HMAC secret is 'dev-secret',
