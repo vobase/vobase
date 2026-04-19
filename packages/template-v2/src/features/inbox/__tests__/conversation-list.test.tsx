@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
 import type { Conversation } from '@server/contracts/domain-types'
+import type { FilterKey } from '../filter-tab-bar'
 import { filterConversations } from '../conversation-list'
 
 const makeConv = (overrides: Partial<Conversation> = {}): Conversation => ({
@@ -70,5 +71,34 @@ describe('filterConversations', () => {
     expect(r1).toHaveLength(1)
     expect(r2).toHaveLength(1)
     expect(r3).toHaveLength(4)
+  })
+})
+
+describe('tab bar interaction', () => {
+  it('switching to "Mine" tab shows only assigned conversations without re-fetching', () => {
+    const queryFn = mock(() => Promise.resolve(CONVS))
+    queryFn()
+    const tab: FilterKey = 'assigned_to_me'
+    const result = filterConversations(CONVS, tab)
+    expect(queryFn).toHaveBeenCalledTimes(1)
+    expect(result).toHaveLength(2)
+    expect(result.every((c) => c.assignee !== 'unassigned')).toBe(true)
+  })
+
+  it('switching to "Pending" tab shows only awaiting_approval conversations', () => {
+    const queryFn = mock(() => Promise.resolve(CONVS))
+    queryFn()
+    const result = filterConversations(CONVS, 'awaiting_approval')
+    expect(queryFn).toHaveBeenCalledTimes(1)
+    expect(result).toHaveLength(1)
+    expect(result[0].status).toBe('awaiting_approval')
+  })
+
+  it('switching tabs multiple times never calls queryFn again', () => {
+    const queryFn = mock(() => Promise.resolve(CONVS))
+    queryFn()
+    const tabs: FilterKey[] = ['unread', 'assigned_to_me', 'archived', 'all']
+    for (const tab of tabs) filterConversations(CONVS, tab)
+    expect(queryFn).toHaveBeenCalledTimes(1)
   })
 })

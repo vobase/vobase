@@ -23,45 +23,41 @@ function ConversationRow({ conversation: conv, isSelected, isUnread, onClick }: 
       aria-selected={isSelected}
       onClick={onClick}
       className={cn(
-        'flex w-full cursor-default gap-2.5 p-4 text-left transition-colors',
+        'flex w-full cursor-default items-center gap-2 px-3 py-2 text-left transition-colors',
         'hover:bg-[var(--color-surface)]/70',
         isSelected && 'bg-[var(--color-surface-elevated)]',
         isUnread && !isSelected && 'bg-[var(--color-surface)]/50',
       )}
     >
-      <Avatar className="mt-1.5 size-7 shrink-0">
-        <AvatarFallback>{initials}</AvatarFallback>
+      <Avatar className="size-6 shrink-0">
+        <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
       </Avatar>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span
-            className={cn('flex-1 truncate text-[14px] tracking-tight text-[var(--color-fg)]', isBold && 'font-medium')}
+            className={cn('flex-1 truncate text-[13px] tracking-tight text-[var(--color-fg)]', isBold && 'font-medium')}
           >
             {conv.contactId}
           </span>
+          {hasAssignee && (
+            <AvatarGroup size={16} max={1}>
+              <Avatar className="size-4">
+                <AvatarFallback className="text-[9px]">{conv.assignee.slice(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+            </AvatarGroup>
+          )}
           <Status variant={conv.status} label="" className="shrink-0" />
           {conv.lastMessageAt && (
-            <span className="shrink-0 text-[12px] tracking-tight text-[var(--color-fg-muted)]">
+            <span className="shrink-0 text-[11px] text-[var(--color-fg-muted)]">
               <RelativeTimeCard date={new Date(conv.lastMessageAt)} />
             </span>
           )}
         </div>
 
-        <p className="line-clamp-2 text-[12px] leading-relaxed text-[var(--color-fg-muted)]">
+        <p className="line-clamp-1 text-[12px] text-[var(--color-fg-muted)]">
           {conv.compactionSummary ?? conv.channelInstanceId}
         </p>
-
-        {hasAssignee && (
-          <div className="mt-1 flex items-center gap-1.5">
-            <AvatarGroup size={20} max={3}>
-              <Avatar className="size-5">
-                <AvatarFallback>{conv.assignee.slice(0, 2).toUpperCase()}</AvatarFallback>
-              </Avatar>
-            </AvatarGroup>
-            <span className="truncate text-[12px] text-[var(--color-fg-muted)]">{conv.assignee}</span>
-          </div>
-        )}
       </div>
     </button>
   )

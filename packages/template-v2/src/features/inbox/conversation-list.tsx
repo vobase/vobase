@@ -7,7 +7,7 @@ import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { ConversationRow } from './conversation-row'
-import { FilterChips, type FilterKey } from './filter-chips'
+import { FilterTabBar, type FilterKey } from './filter-tab-bar'
 
 async function fetchConversations(): Promise<Conversation[]> {
   const r = await fetch('/api/inbox/conversations')
@@ -48,6 +48,17 @@ function ConversationList() {
 
   const filtered = useMemo(() => filterConversations(conversations, activeFilter), [conversations, activeFilter])
 
+  const counts = useMemo<Partial<Record<FilterKey, number>>>(
+    () => ({
+      all: conversations.length,
+      unread: conversations.filter((c) => c.status === 'active').length,
+      awaiting_approval: conversations.filter((c) => c.status === 'awaiting_approval').length,
+      assigned_to_me: conversations.filter((c) => c.assignee !== 'unassigned').length,
+      archived: conversations.filter((c) => c.status === 'archived').length,
+    }),
+    [conversations],
+  )
+
   const selectedIndex = filtered.findIndex((c) => c.id === selectedId)
 
   useKeyboardNav({
@@ -67,13 +78,13 @@ function ConversationList() {
       <PaneHeader
         title="Inbox"
         meta={`${filtered.length}/${conversations.length}`}
-        filters={<FilterChips active={activeFilter} onChange={setActiveFilter} />}
         actions={
           <Button size="icon-sm" variant="ghost" aria-label="Search">
             <Search className="size-4" />
           </Button>
         }
       />
+      <FilterTabBar value={activeFilter} onChange={setActiveFilter} counts={counts} />
       {filtered.map((conv) => (
         <ConversationRow
           key={conv.id}
