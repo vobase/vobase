@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
-import { renderToStaticMarkup } from 'react-dom/server'
 import * as realRouter from '@tanstack/react-router'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 const signInMock = mock(async (_args: { email: string; otp: string }) => ({
   data: { user: { email: 'user@example.com' } },
@@ -30,9 +30,7 @@ mock.module('@/features/auth/api/use-email-otp', () => ({
     verifyOtp: { mutate: mock(() => {}), isPending: false, error: null },
   }),
   sendOtpFn: mock(async () => {}),
-  verifyOtpFn: mock(async ({ email, otp }: { email: string; otp: string }) =>
-    signInMock({ email, otp }),
-  ),
+  verifyOtpFn: mock(async ({ email, otp }: { email: string; otp: string }) => signInMock({ email, otp })),
 }))
 
 import PendingPage from '../pending'

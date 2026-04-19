@@ -21,9 +21,7 @@ export function RecentLearningsPanel({ conversationId }: RecentLearningsPanelPro
             <span className="text-xs font-medium text-[var(--color-fg)]">{learning.scope}</span>
             <RelativeTimeCard date={new Date(learning.createdAt)} className="text-[11px] text-muted-foreground" />
           </div>
-          {learning.body && (
-            <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-fg-muted)]">{learning.body}</p>
-          )}
+          {learning.body && <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-fg-muted)]">{learning.body}</p>}
           <span className="text-[10px] text-[var(--color-fg-muted)]">{learning.status}</span>
         </li>
       ))}

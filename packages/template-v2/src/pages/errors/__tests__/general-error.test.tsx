@@ -6,9 +6,7 @@ import GeneralErrorPage from '../general-error'
 
 describe('GeneralErrorPage — render', () => {
   it('renders error message', () => {
-    const html = renderToStaticMarkup(
-      <GeneralErrorPage error={new Error('Something exploded')} />,
-    )
+    const html = renderToStaticMarkup(<GeneralErrorPage error={new Error('Something exploded')} />)
     expect(html).toContain('Something exploded')
   })
 

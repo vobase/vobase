@@ -20,10 +20,7 @@ export default function LoginPage() {
   })
 
   function onSubmit({ email }: FormValues) {
-    sendOtp.mutate(
-      { email },
-      { onSuccess: () => navigate({ to: '/auth/pending', search: { email } }) },
-    )
+    sendOtp.mutate({ email }, { onSuccess: () => navigate({ to: '/auth/pending', search: { email } }) })
   }
 
   return (
@@ -42,13 +39,7 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      autoFocus
-                      {...field}
-                    />
+                    <Input type="email" placeholder="you@example.com" autoComplete="email" autoFocus {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

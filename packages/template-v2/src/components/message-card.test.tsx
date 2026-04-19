@@ -2,7 +2,7 @@
  * MessageCard unit tests — render every CardElement variant via renderToString (no DOM needed).
  * Button-click payload test mocks globalThis.fetch and exercises postCardReply directly.
  */
-import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test'
+import { afterEach, describe, expect, it, mock } from 'bun:test'
 import type { Message } from '@server/contracts/domain-types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'

@@ -1,8 +1,8 @@
 import { Outlet } from '@tanstack/react-router'
 import { Bell, KeyRound, LayoutList, Monitor, Settings2, User } from 'lucide-react'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { SubNav } from '@/components/layout/sub-nav'
 import type { SubNavItem } from '@/components/layout/sub-nav'
+import { SubNav } from '@/components/layout/sub-nav'
 
 export const SETTINGS_NAV_ITEMS: SubNavItem[] = [
   { href: '/settings/profile', label: 'Profile', icon: <User /> },
@@ -14,10 +14,5 @@ export const SETTINGS_NAV_ITEMS: SubNavItem[] = [
 ]
 
 export default function SettingsLayout() {
-  return (
-    <ContentLayout
-      subNav={<SubNav items={SETTINGS_NAV_ITEMS} />}
-      content={<Outlet />}
-    />
-  )
+  return <ContentLayout subNav={<SubNav items={SETTINGS_NAV_ITEMS} />} content={<Outlet />} />
 }

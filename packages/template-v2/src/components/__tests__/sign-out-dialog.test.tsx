@@ -1,11 +1,14 @@
 import { describe, expect, it, mock } from 'bun:test'
-import { renderToStaticMarkup } from 'react-dom/server'
 import * as realRouter from '@tanstack/react-router'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 const signOutMock = mock(async () => {})
 
 mock.module('@/lib/auth-client', () => ({
-  authClient: { signOut: signOutMock, emailOtp: { sendVerificationOtp: mock(async () => {}), signIn: mock(async () => {}) } },
+  authClient: {
+    signOut: signOutMock,
+    emailOtp: { sendVerificationOtp: mock(async () => {}), signIn: mock(async () => {}) },
+  },
 }))
 
 mock.module('@tanstack/react-router', () => ({
@@ -26,7 +29,9 @@ mock.module('@/components/ui/alert-dialog', () => ({
   AlertDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDialogCancel: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
   AlertDialogAction: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>{children}</button>
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
   ),
 }))
 

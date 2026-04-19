@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { z } from 'zod'
 
 const fetchMock = mock(async (_url: string, _opts?: RequestInit): Promise<Response> => {
@@ -9,7 +9,7 @@ globalThis.fetch = fetchMock as unknown as typeof fetch
 
 import { postSettings } from '../use-settings-save'
 
-const schema = z.object({ displayName: z.string().optional() })
+const _schema = z.object({ displayName: z.string().optional() })
 
 describe('postSettings — happy path', () => {
   beforeEach(() => fetchMock.mockClear())
@@ -30,9 +30,7 @@ describe('postSettings — happy path', () => {
 
 describe('postSettings — error path', () => {
   beforeEach(() => {
-    fetchMock.mockImplementation(async () =>
-      new Response(JSON.stringify({ error: 'invalid_body' }), { status: 400 }),
-    )
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ error: 'invalid_body' }), { status: 400 }))
   })
 
   it('throws on non-ok response', async () => {

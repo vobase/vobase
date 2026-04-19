@@ -5,8 +5,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import { apiKeysSchema } from '@/features/settings/schemas'
 import type { ApiKeysValues } from '@/features/settings/schemas'
+import { apiKeysSchema } from '@/features/settings/schemas'
 
 export default function ApiKeysPage() {
   const { mutate, isPending } = useSettingsSave('api-keys', apiKeysSchema)
@@ -27,9 +27,7 @@ export default function ApiKeysPage() {
         <h2 className="text-lg font-semibold">API keys</h2>
         <p className="text-sm text-muted-foreground">Manage API keys for programmatic access.</p>
       </div>
-      <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-        No API keys yet.
-      </div>
+      <div className="rounded-lg border p-4 text-sm text-muted-foreground">No API keys yet.</div>
       <div>
         <h3 className="mb-3 text-sm font-medium">Create new key</h3>
         <Form {...form}>

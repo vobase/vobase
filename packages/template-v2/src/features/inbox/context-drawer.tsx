@@ -46,16 +46,36 @@ export function ContextDrawer({ conversationId }: ContextDrawerProps) {
         }
       />
       <div className="flex-1 divide-y divide-[var(--color-border-subtle)] overflow-y-auto">
-        <DrawerSection id="profile" label="Profile" collapsed={isCollapsed('profile')} onToggle={() => toggle('profile')}>
+        <DrawerSection
+          id="profile"
+          label="Profile"
+          collapsed={isCollapsed('profile')}
+          onToggle={() => toggle('profile')}
+        >
           <ProfilePanel conversationId={conversationId} />
         </DrawerSection>
-        <DrawerSection id="working-memory" label="Working Memory" collapsed={isCollapsed('working-memory')} onToggle={() => toggle('working-memory')}>
+        <DrawerSection
+          id="working-memory"
+          label="Working Memory"
+          collapsed={isCollapsed('working-memory')}
+          onToggle={() => toggle('working-memory')}
+        >
           <WorkingMemoryPanel conversationId={conversationId} />
         </DrawerSection>
-        <DrawerSection id="recent-learnings" label="Recent Learnings" collapsed={isCollapsed('recent-learnings')} onToggle={() => toggle('recent-learnings')}>
+        <DrawerSection
+          id="recent-learnings"
+          label="Recent Learnings"
+          collapsed={isCollapsed('recent-learnings')}
+          onToggle={() => toggle('recent-learnings')}
+        >
           <RecentLearningsPanel conversationId={conversationId} />
         </DrawerSection>
-        <DrawerSection id="pending-approvals" label="Pending Approvals" collapsed={isCollapsed('pending-approvals')} onToggle={() => toggle('pending-approvals')}>
+        <DrawerSection
+          id="pending-approvals"
+          label="Pending Approvals"
+          collapsed={isCollapsed('pending-approvals')}
+          onToggle={() => toggle('pending-approvals')}
+        >
           <PendingApprovalsPanel conversationId={conversationId} />
         </DrawerSection>
       </div>

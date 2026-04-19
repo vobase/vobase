@@ -3,8 +3,8 @@ import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import { notificationsSchema } from '@/features/settings/schemas'
 import type { NotificationsValues } from '@/features/settings/schemas'
+import { notificationsSchema } from '@/features/settings/schemas'
 
 export default function NotificationsPage() {
   const { mutate, isPending } = useSettingsSave('notifications', notificationsSchema)
@@ -36,7 +36,7 @@ export default function NotificationsPage() {
                   <input
                     type="checkbox"
                     checked={field.value ?? false}
-                    onChange={e => field.onChange(e.target.checked)}
+                    onChange={(e) => field.onChange(e.target.checked)}
                     className="h-4 w-4"
                   />
                 </FormControl>
@@ -53,7 +53,7 @@ export default function NotificationsPage() {
                   <input
                     type="checkbox"
                     checked={field.value ?? false}
-                    onChange={e => field.onChange(e.target.checked)}
+                    onChange={(e) => field.onChange(e.target.checked)}
                     className="h-4 w-4"
                   />
                 </FormControl>

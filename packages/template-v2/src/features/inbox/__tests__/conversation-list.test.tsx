@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 import type { Conversation } from '@server/contracts/domain-types'
-import type { FilterKey } from '../filter-tab-bar'
 import { filterConversations } from '../conversation-list'
+import type { FilterKey } from '../filter-tab-bar'
 
 const makeConv = (overrides: Partial<Conversation> = {}): Conversation => ({
   id: 'conv-1',

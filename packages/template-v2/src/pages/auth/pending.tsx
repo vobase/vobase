@@ -11,10 +11,7 @@ export default function PendingPage() {
   const { sendOtp, verifyOtp } = useEmailOtp()
 
   function handleComplete(otp: string) {
-    verifyOtp.mutate(
-      { email, otp },
-      { onSuccess: () => navigate({ to: '/inbox' }) },
-    )
+    verifyOtp.mutate({ email, otp }, { onSuccess: () => navigate({ to: '/inbox' }) })
   }
 
   function handleResend() {
@@ -31,11 +28,7 @@ export default function PendingPage() {
           </p>
         </div>
         <div className="flex justify-center">
-          <InputOTP
-            maxLength={OTP_LENGTH}
-            onComplete={handleComplete}
-            disabled={verifyOtp.isPending}
-          >
+          <InputOTP maxLength={OTP_LENGTH} onComplete={handleComplete} disabled={verifyOtp.isPending}>
             <InputOTPGroup>
               {Array.from({ length: OTP_LENGTH }, (_, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: OTP slots are stable by position
@@ -49,9 +42,7 @@ export default function PendingPage() {
             {verifyOtp.error instanceof Error ? verifyOtp.error.message : 'Invalid or expired code. Try again.'}
           </p>
         )}
-        {sendOtp.isSuccess && (
-          <p className="text-center text-sm text-muted-foreground">Code resent.</p>
-        )}
+        {sendOtp.isSuccess && <p className="text-center text-sm text-muted-foreground">Code resent.</p>}
         <p className="text-center text-sm text-muted-foreground">
           Didn&apos;t receive it?{' '}
           <button

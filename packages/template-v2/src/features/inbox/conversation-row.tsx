@@ -20,6 +20,7 @@ function ConversationRow({ conversation: conv, isSelected, isUnread, onClick }: 
   return (
     <button
       type="button"
+      role="option"
       aria-selected={isSelected}
       onClick={onClick}
       className={cn(

@@ -41,9 +41,7 @@ function FilterTabBar({ value, onChange, counts }: FilterTabBarProps) {
             className="h-7 rounded-full px-3 text-[12px] data-[state=on]:bg-[var(--color-accent)] data-[state=on]:text-white"
           >
             {label}
-            {counts?.[key] !== undefined && (
-              <span className="ml-1 text-[11px] opacity-70">({counts[key]})</span>
-            )}
+            {counts?.[key] !== undefined && <span className="ml-1 text-[11px] opacity-70">({counts[key]})</span>}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>

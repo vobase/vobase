@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import { accountSchema } from '@/features/settings/schemas'
 import type { AccountValues } from '@/features/settings/schemas'
+import { accountSchema } from '@/features/settings/schemas'
 
 export default function AccountPage() {
   const { mutate, isPending } = useSettingsSave('account', accountSchema)

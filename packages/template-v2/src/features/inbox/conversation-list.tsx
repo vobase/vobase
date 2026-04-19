@@ -7,7 +7,7 @@ import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { ConversationRow } from './conversation-row'
-import { FilterTabBar, type FilterKey } from './filter-tab-bar'
+import { type FilterKey, FilterTabBar } from './filter-tab-bar'
 
 async function fetchConversations(): Promise<Conversation[]> {
   const r = await fetch('/api/inbox/conversations')

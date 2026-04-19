@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import { displaySchema } from '@/features/settings/schemas'
 import type { DisplayValues } from '@/features/settings/schemas'
+import { displaySchema } from '@/features/settings/schemas'
 
 export default function DisplayPage() {
   const { mutate, isPending } = useSettingsSave('display', displaySchema)
@@ -58,7 +58,7 @@ export default function DisplayPage() {
                   <input
                     type="checkbox"
                     checked={field.value ?? false}
-                    onChange={e => field.onChange(e.target.checked)}
+                    onChange={(e) => field.onChange(e.target.checked)}
                     className="h-4 w-4"
                   />
                 </FormControl>

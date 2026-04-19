@@ -68,17 +68,13 @@ describe('ConversationRow', () => {
   })
 
   it('uses compact py-2 px-3 layout for ~44px height', () => {
-    const html = renderToStaticMarkup(
-      <ConversationRow conversation={base} isSelected={false} onClick={() => {}} />,
-    )
+    const html = renderToStaticMarkup(<ConversationRow conversation={base} isSelected={false} onClick={() => {}} />)
     expect(html).toContain('py-2')
     expect(html).toContain('px-3')
   })
 
   it('shows single-line preview via line-clamp-1', () => {
-    const html = renderToStaticMarkup(
-      <ConversationRow conversation={base} isSelected={false} onClick={() => {}} />,
-    )
+    const html = renderToStaticMarkup(<ConversationRow conversation={base} isSelected={false} onClick={() => {}} />)
     expect(html).toContain('line-clamp-1')
   })
 })

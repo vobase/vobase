@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import { profileSchema } from '@/features/settings/schemas'
 import type { ProfileValues } from '@/features/settings/schemas'
+import { profileSchema } from '@/features/settings/schemas'
 
 export default function ProfilePage() {
   const { mutate, isPending } = useSettingsSave('profile', profileSchema)
