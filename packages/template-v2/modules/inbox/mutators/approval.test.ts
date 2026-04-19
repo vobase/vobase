@@ -8,6 +8,7 @@
 
 import { beforeEach, describe, expect, it } from 'bun:test'
 import type { AgentStep, MutatorContext } from '@server/contracts/mutator'
+import type { ScopedDb } from '@server/contracts/scoped-db'
 import { approvalMutator } from './approval'
 
 type PendingRow = {
@@ -91,7 +92,7 @@ function makeCtx(opts: { cardApprovalRequired: boolean; agentId?: string; conver
     conversationId,
     wakeId: 'wake-test',
     ports: {} as MutatorContext['ports'],
-    db: makeMockDb({ cardApprovalRequired: opts.cardApprovalRequired, agentId, conversationId }),
+    db: makeMockDb({ cardApprovalRequired: opts.cardApprovalRequired, agentId, conversationId }) as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     realtime: { notify: () => {} },
     llmCall: async () => {

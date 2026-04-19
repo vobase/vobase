@@ -1,8 +1,9 @@
 /**
- * REAL Phase 2 — sole write path for inbox.messages (spec §2.3 one-write-path invariant).
- * Every message append also atomically journals a tool_execution_end event so the
- * messages table and conversation_events are never out of sync.
+ * Sole write path for inbox.messages (spec §2.3 one-write-path invariant).
+ * Every message append atomically journals a tool_execution_end event so the
+ * messages table and conversation_events stay in sync.
  */
+import type { OutboundToolName } from '@server/contracts/channel-event'
 import type { Message } from '@server/contracts/domain-types'
 
 let _db: unknown = null
@@ -116,105 +117,168 @@ async function journalToolEnd(
   )
 }
 
-export async function appendTextMessage(input: AppendTextMessageInput): Promise<Message> {
+interface AppendAgentMessageCtx {
+  conversationId: string
+  tenantId: string
+  wakeId: string
+  turnIndex: number
+  toolCallId: string
+}
+
+async function appendAgentMessage(
+  ctx: AppendAgentMessageCtx,
+  kind: 'text' | 'card' | 'image',
+  content: unknown,
+  toolName: OutboundToolName,
+  replyToMessageId?: string,
+): Promise<Message> {
   const db = requireDb()
   return db.transaction(async (tx) => {
     const msg = await insertMessageRow(tx as { insert: InsertFn }, {
-      conversationId: input.conversationId,
-      tenantId: input.tenantId,
+      conversationId: ctx.conversationId,
+      tenantId: ctx.tenantId,
       role: 'agent',
-      kind: 'text',
-      content: { text: input.text },
-      parentMessageId: input.replyToMessageId,
+      kind,
+      content,
+      parentMessageId: replyToMessageId,
     })
     await journalToolEnd(tx, {
-      conversationId: input.conversationId,
-      tenantId: input.tenantId,
-      wakeId: input.wakeId,
-      turnIndex: input.turnIndex,
-      toolCallId: input.toolCallId,
-      toolName: 'reply',
+      conversationId: ctx.conversationId,
+      tenantId: ctx.tenantId,
+      wakeId: ctx.wakeId,
+      turnIndex: ctx.turnIndex,
+      toolCallId: ctx.toolCallId,
+      toolName,
       messageId: msg.id,
     })
     return msg
   })
+}
+
+export async function appendTextMessage(input: AppendTextMessageInput): Promise<Message> {
+  return appendAgentMessage(input, 'text', { text: input.text }, 'reply', input.replyToMessageId)
 }
 
 export async function appendCardMessage(input: AppendCardMessageInput): Promise<Message> {
+  return appendAgentMessage(input, 'card', { card: input.card }, 'send_card', input.replyToMessageId)
+}
+
+export async function appendMediaMessage(input: AppendMediaMessageInput): Promise<Message> {
+  return appendAgentMessage(
+    input,
+    'image',
+    { driveFileId: input.driveFileId, caption: input.caption ?? null },
+    'send_file',
+  )
+}
+
+async function journalChannelInbound(
+  tx: unknown,
+  input: { conversationId: string; tenantId: string; messageId: string; turnIndex: number },
+): Promise<void> {
+  const { append } = await import('@modules/agents/service/journal')
+  // `card_reply:<id>` sentinel marks inbounds that did not arrive via a real
+  // wake. Phase-3 dogfood asserts on this prefix to filter card-reply events.
+  const wakeId = `card_reply:${input.messageId}`
+  await append(
+    {
+      conversationId: input.conversationId,
+      tenantId: input.tenantId,
+      wakeId,
+      turnIndex: input.turnIndex,
+      event: {
+        type: 'channel_inbound',
+        ts: new Date(),
+        wakeId,
+        conversationId: input.conversationId,
+        tenantId: input.tenantId,
+        turnIndex: input.turnIndex,
+        channelType: 'web',
+        externalMessageId: input.messageId,
+      },
+    },
+    tx,
+  )
+}
+
+export interface AppendCardReplyInput {
+  parentMessageId: string
+  buttonId: string
+  buttonValue: string
+  buttonLabel?: string
+}
+
+export async function appendCardReplyMessage(input: AppendCardReplyInput): Promise<Message> {
   const db = requireDb()
   return db.transaction(async (tx) => {
-    const msg = await insertMessageRow(tx as { insert: InsertFn }, {
-      conversationId: input.conversationId,
-      tenantId: input.tenantId,
-      role: 'agent',
-      kind: 'card',
-      content: { card: input.card },
-      parentMessageId: input.replyToMessageId,
+    const { messages } = await import('@modules/inbox/schema')
+    const { eq } = await import('drizzle-orm')
+    const txDb = tx as {
+      select: () => { from: (t: unknown) => { where: (c: unknown) => { limit: (n: number) => Promise<unknown[]> } } }
+    } & { insert: InsertFn }
+    const parentRows = await txDb.select().from(messages).where(eq(messages.id, input.parentMessageId)).limit(1)
+    const parent = parentRows[0] as Message | undefined
+    if (!parent) throw new Error(`inbox/messages: parent message ${input.parentMessageId} not found`)
+
+    const msg = await insertMessageRow(txDb, {
+      conversationId: parent.conversationId,
+      tenantId: parent.tenantId,
+      role: 'customer',
+      kind: 'card_reply',
+      content: {
+        buttonId: input.buttonId,
+        buttonValue: input.buttonValue,
+        buttonLabel: input.buttonLabel ?? null,
+      },
+      parentMessageId: input.parentMessageId,
     })
-    await journalToolEnd(tx, {
-      conversationId: input.conversationId,
-      tenantId: input.tenantId,
-      wakeId: input.wakeId,
-      turnIndex: input.turnIndex,
-      toolCallId: input.toolCallId,
-      toolName: 'send_card',
+    const { getLatestTurnIndex } = await import('@modules/agents/service/journal')
+    const turnIndex = await getLatestTurnIndex(parent.conversationId, tx)
+    await journalChannelInbound(tx, {
+      conversationId: parent.conversationId,
+      tenantId: parent.tenantId,
       messageId: msg.id,
+      turnIndex,
     })
     return msg
   })
 }
 
-export async function appendMediaMessage(input: AppendMediaMessageInput): Promise<Message> {
-  const db = requireDb()
-  return db.transaction(async (tx) => {
-    const msg = await insertMessageRow(tx as { insert: InsertFn }, {
-      conversationId: input.conversationId,
-      tenantId: input.tenantId,
-      role: 'agent',
-      kind: 'image',
-      content: { driveFileId: input.driveFileId, caption: input.caption ?? null },
-    })
-    await journalToolEnd(tx, {
-      conversationId: input.conversationId,
-      tenantId: input.tenantId,
-      wakeId: input.wakeId,
-      turnIndex: input.turnIndex,
-      toolCallId: input.toolCallId,
-      toolName: 'send_file',
-      messageId: msg.id,
-    })
-    return msg
-  })
+type ListableDb = {
+  select: () => {
+    from: (t: unknown) => {
+      where: (c: unknown) => { orderBy: (col: unknown) => { limit: (n: number) => Promise<unknown[]> } }
+    }
+  }
 }
 
 export async function list(conversationId: string, opts?: { limit?: number; since?: Date }): Promise<Message[]> {
   const { messages } = await import('@modules/inbox/schema')
   const { eq, and, gt, asc, desc } = await import('drizzle-orm')
-  const db = requireDb() as unknown as { select: Function }
+  const db = requireDb() as unknown as ListableDb
 
   const whereClause = opts?.since
     ? and(eq(messages.conversationId, conversationId), gt(messages.createdAt, opts.since))
     : eq(messages.conversationId, conversationId)
 
-  // `since` paginates forward from a cursor — take the next N oldest-first.
-  // Default is a conversation head fetch — take the newest N, then reverse so
-  // the UI renders chronologically without a second sort.
+  // `since` paginates forward: next N oldest-first. Default head-fetch takes
+  // newest N then reverses so the UI renders chronologically without a second sort.
   if (opts?.since) {
-    const rows = (await db
+    const rows = await db
       .select()
       .from(messages)
       .where(whereClause)
       .orderBy(asc(messages.createdAt))
-      .limit(opts.limit ?? 50)) as unknown[]
+      .limit(opts.limit ?? 50)
     return rows as Message[]
   }
 
-  const rows = (await db
+  const rows = await db
     .select()
     .from(messages)
     .where(whereClause)
     .orderBy(desc(messages.createdAt))
-    .limit(opts?.limit ?? 50)) as unknown[]
+    .limit(opts?.limit ?? 50)
 
   return (rows as Message[]).reverse()
 }

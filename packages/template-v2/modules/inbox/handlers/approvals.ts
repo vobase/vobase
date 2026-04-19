@@ -4,6 +4,7 @@ import {
   ApprovalNotPendingError,
   ConversationMissingError,
   decide,
+  persistRejectionNote,
 } from '@modules/inbox/service/pending-approvals'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -25,6 +26,13 @@ app.post('/:id', async (c) => {
   }
   try {
     const result = await decide(id, parsed.data)
+    // §13.1 staff-signal bridge: a rejection-with-note surfaces in the conversation
+    // timeline as an `internal_note` so detectStaffSignals() picks it up on the
+    // approval_resumed wake and memoryDistill can later materialise it as an
+    // anti-lesson. Best-effort — swallow so a note write can never block a decide.
+    if (parsed.data.decision === 'rejected' && parsed.data.note?.trim()) {
+      await persistRejectionNote(result.approval, parsed.data.decidedByUserId, parsed.data.note).catch(() => undefined)
+    }
     return c.json({
       ok: true,
       approvalId: result.approval.id,

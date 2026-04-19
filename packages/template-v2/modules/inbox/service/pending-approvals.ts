@@ -167,3 +167,23 @@ export async function decide(id: string, input: DecideInput): Promise<DecideResu
 
   return { approval, trigger, agentId, enqueued }
 }
+
+/**
+ * Staff-signal bridge: persist the rejection note as an internal note so it
+ * shows on the conversation timeline and `detectStaffSignals()` picks it up on
+ * the resumed wake. Best-effort — the caller swallows failures so a note write
+ * can never block a decide.
+ */
+export async function persistRejectionNote(
+  approval: PendingApproval,
+  decidedByUserId: string,
+  body: string,
+): Promise<void> {
+  const { addNote } = await import('./notes')
+  await addNote({
+    tenantId: approval.tenantId,
+    conversationId: approval.conversationId,
+    author: { kind: 'staff', id: decidedByUserId },
+    body: `Approval rejected: ${body}`,
+  })
+}

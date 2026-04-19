@@ -3,9 +3,15 @@
  * REAL: createConversation, insertPendingApproval, sendTextMessage, sendCardMessage,
  *       sendMediaMessage, createInboundMessage.
  */
-import type { InboxPort, SendCardInput, SendMediaInput, SendTextInput } from '@server/contracts/inbox-port'
+import type {
+  InboxPort,
+  SendCardInput,
+  SendCardReplyInput,
+  SendMediaInput,
+  SendTextInput,
+} from '@server/contracts/inbox-port'
 import { conversations, notes, pendingApprovals } from './service'
-import { appendCardMessage, appendMediaMessage, appendTextMessage } from './service/messages'
+import { appendCardMessage, appendCardReplyMessage, appendMediaMessage, appendTextMessage } from './service/messages'
 
 export function createInboxPort(): InboxPort {
   return {
@@ -29,6 +35,14 @@ export function createInboxPort(): InboxPort {
         toolCallId: input.toolCallId ?? `direct-${Date.now()}`,
         text: input.body,
         replyToMessageId: input.parentMessageId,
+      })
+    },
+    async sendCardReply(input: SendCardReplyInput) {
+      return appendCardReplyMessage({
+        parentMessageId: input.parentMessageId,
+        buttonId: input.buttonId,
+        buttonValue: input.buttonValue,
+        buttonLabel: input.buttonLabel,
       })
     },
     async sendCardMessage(input: SendCardInput) {
