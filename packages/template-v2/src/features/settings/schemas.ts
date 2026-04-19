@@ -13,5 +13,7 @@ export const accountSchema = z.object({
 export type ProfileValues = z.infer<typeof profileSchema>
 export type AccountValues = z.infer<typeof accountSchema>
 
-// SET-FORMS appends: appearanceSchema, notificationsSchema, displaySchema, apiKeysSchema
-// Export new schemas from this file and re-export below to keep one import surface.
+export * from './schemas/appearance'
+export * from './schemas/notifications'
+export * from './schemas/display'
+export * from './schemas/api-keys'

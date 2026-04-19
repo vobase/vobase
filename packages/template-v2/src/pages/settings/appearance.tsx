@@ -1,0 +1,66 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { ThemeSwitch } from '@/components/theme-switch'
+import { useTheme } from '@/components/theme-provider'
+import { Button } from '@/components/ui/button'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useSettingsSave } from '@/features/settings/api/use-settings-save'
+import { appearanceSchema } from '@/features/settings/schemas'
+import type { AppearanceValues } from '@/features/settings/schemas'
+
+export default function AppearancePage() {
+  const { theme } = useTheme()
+  const { mutate, isPending } = useSettingsSave('appearance', appearanceSchema)
+
+  const form = useForm<AppearanceValues>({
+    resolver: zodResolver(appearanceSchema),
+    defaultValues: { fontSize: 'md' },
+  })
+
+  async function onSubmit(values: AppearanceValues) {
+    await mutate({ ...values, theme })
+  }
+
+  return (
+    <div className="max-w-lg space-y-6 p-6">
+      <div>
+        <h2 className="text-lg font-semibold">Appearance</h2>
+        <p className="text-sm text-muted-foreground">Customize the look and feel of the app.</p>
+      </div>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Theme</span>
+            <ThemeSwitch />
+          </div>
+          <FormField
+            control={form.control}
+            name="fontSize"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Font size</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select size" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="sm">Small</SelectItem>
+                    <SelectItem value="md">Medium</SelectItem>
+                    <SelectItem value="lg">Large</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button type="submit" disabled={isPending}>
+            {isPending ? 'Saving…' : 'Save appearance'}
+          </Button>
+        </form>
+      </Form>
+    </div>
+  )
+}
