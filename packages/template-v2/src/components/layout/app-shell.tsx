@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Bot, CheckSquare, HardDrive, Inbox, Settings2, Users } from 'lucide-react'
+import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Settings2, Users } from 'lucide-react'
 import type * as React from 'react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Kbd } from '@/components/ui/kbd'
@@ -83,16 +83,31 @@ function AppShell({ children }: AppShellProps) {
             ))}
           </nav>
 
-          {/* User avatar with status dot */}
-          <div className="relative mt-auto">
-            <Avatar className="size-8">
-              <AvatarFallback className="bg-[var(--color-surface-elevated)] text-[10px] text-[var(--color-fg-muted)]">
-                U
-              </AvatarFallback>
-            </Avatar>
-            <span className="absolute -bottom-0.5 -right-0.5">
-              <Status variant="active" label="" className="gap-0" />
-            </span>
+          {/* Dev tools + user avatar pinned to the bottom */}
+          <div className="mt-auto flex flex-col items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  to="/test-web"
+                  aria-label="Web channel test client"
+                  className="flex size-10 items-center justify-center rounded-md text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-fg)]"
+                >
+                  <MessageCircle className="size-[18px]" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">Web channel test client</TooltipContent>
+            </Tooltip>
+
+            <div className="relative">
+              <Avatar className="size-8">
+                <AvatarFallback className="bg-[var(--color-surface-elevated)] text-[10px] text-[var(--color-fg-muted)]">
+                  U
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute -bottom-0.5 -right-0.5">
+                <Status variant="active" label="" className="gap-0" />
+              </span>
+            </div>
           </div>
         </aside>
 
