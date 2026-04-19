@@ -15,6 +15,13 @@
  *
  * Cost accounting: tokensIn/tokensOut from `usage`; costUsd derived from
  * per-million-token prices (defaults match public Claude Sonnet 4.6 pricing).
+ *
+ * Phase 3 (plan §P3.1): `bash` tool_use blocks emitted by the model flow
+ * through `translateAnthropicEvent` with no special-case path — the single
+ * `bash` AgentTool is forwarded via `LlmRequest.tools` from the harness
+ * (see `server/harness/agent-runner.ts`), and its tool_use/input_json_delta
+ * frames are aggregated into a `tool-call` `MockStreamEvent` by the existing
+ * translation pipeline. No provider-side schema change is required.
  */
 
 import type { LlmRequest } from '@server/contracts/plugin-context'
