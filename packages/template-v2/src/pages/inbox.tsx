@@ -5,6 +5,8 @@ import { useEffect, useRef } from 'react'
 import { ListDetailLayout } from '@/components/layout/list-detail-layout'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { ContextDrawer } from '@/features/inbox/context-drawer'
+import { ConversationList } from '@/features/inbox/conversation-list'
 
 async function fetchConversations() {
   const r = await fetch('/api/inbox/conversations')
@@ -12,15 +14,16 @@ async function fetchConversations() {
   return r.json() as Promise<Array<{ id: string }>>
 }
 
-// Placeholder until IL lands with <ConversationList />
-function ConversationListSlot() {
-  return <div className="p-4 text-xs text-[var(--color-fg-muted)]">Loading conversations…</div>
-}
-
 export function InboxLayout() {
   const navigate = useNavigate()
   const isConvSelected = useRouterState({
     select: (s) => /^\/inbox\/.+/.test(s.location.pathname),
+  })
+  const conversationId = useRouterState({
+    select: (s) => {
+      const match = /^\/inbox\/(.+)/.exec(s.location.pathname)
+      return match?.[1] ?? null
+    },
   })
   const { data: convs = [] } = useQuery({
     queryKey: ['conversations'],
@@ -39,8 +42,9 @@ export function InboxLayout() {
 
   return (
     <ListDetailLayout
-      list={<ConversationListSlot />}
+      list={<ConversationList />}
       detail={<Outlet />}
+      right={conversationId ? <ContextDrawer conversationId={conversationId} /> : undefined}
     />
   )
 }
