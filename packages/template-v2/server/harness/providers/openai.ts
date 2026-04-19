@@ -16,6 +16,7 @@
  * so the harness can swap providers without behavioural drift.
  */
 
+import { createHash } from 'node:crypto'
 import type { LlmRequest } from '@server/contracts/plugin-context'
 import type { LlmFinish, LlmProvider, LlmStreamChunk } from '@server/contracts/provider-port'
 
@@ -44,6 +45,7 @@ interface OpenAIUsage {
   prompt_tokens?: number
   completion_tokens?: number
   total_tokens?: number
+  prompt_tokens_details?: { cached_tokens?: number }
 }
 
 export function createOpenAIProvider(cfg: OpenAIProviderConfig): LlmProvider {
@@ -52,6 +54,16 @@ export function createOpenAIProvider(cfg: OpenAIProviderConfig): LlmProvider {
   const maxTokens = cfg.maxTokens ?? 4096
   const inputPrice = cfg.inputPricePerMTok ?? 2.5
   const outputPrice = cfg.outputPricePerMTok ?? 10
+
+  // Single-slot cache: the system prompt is the frozen wake snapshot, so the
+  // cache_key derived from it is identical across every LLM call within a wake.
+  const cacheKeyMemo = { system: '' as string | null, key: '' }
+  const cacheKeyFor = (system: string): string => {
+    if (cacheKeyMemo.system === system) return cacheKeyMemo.key
+    cacheKeyMemo.system = system
+    cacheKeyMemo.key = createHash('sha256').update(system).digest('hex').slice(0, 16)
+    return cacheKeyMemo.key
+  }
 
   return {
     name: 'openai',
@@ -66,6 +78,7 @@ export function createOpenAIProvider(cfg: OpenAIProviderConfig): LlmProvider {
         maxTokens,
         inputPrice,
         outputPrice,
+        cacheKeyFor,
       })
     },
   }
@@ -81,6 +94,7 @@ interface StreamArgs {
   maxTokens: number
   inputPrice: number
   outputPrice: number
+  cacheKeyFor?: (system: string) => string
 }
 
 export function buildOpenAIRequestBody(args: StreamArgs): Record<string, unknown> {
@@ -109,6 +123,17 @@ export function buildOpenAIRequestBody(args: StreamArgs): Record<string, unknown
     messages,
   }
   if (tools && tools.length > 0) body.tools = tools
+  // extra_body is forwarded by Bifrost; the upstream provider sees it as native.
+  if (args.request.system) {
+    const sys = args.request.system
+    const promptCacheKey = args.cacheKeyFor
+      ? args.cacheKeyFor(sys)
+      : createHash('sha256').update(sys).digest('hex').slice(0, 16)
+    body.extra_body = {
+      prompt_cache_key: promptCacheKey,
+      prompt_cache_retention: '24h',
+    }
+  }
   return body
 }
 
@@ -202,17 +227,21 @@ async function* runStream(args: StreamArgs): AsyncIterableIterator<LlmStreamChun
 
   const tokensIn = usage.prompt_tokens ?? 0
   const tokensOut = usage.completion_tokens ?? 0
-  const costUsd = (tokensIn * args.inputPrice) / 1_000_000 + (tokensOut * args.outputPrice) / 1_000_000
+  const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens ?? 0
+  const inputCostUsd = (tokensIn * args.inputPrice) / 1_000_000
+  const outputCostUsd = (tokensOut * args.outputPrice) / 1_000_000
 
   yield {
     type: 'finish',
     finishReason,
     tokensIn,
     tokensOut,
-    cacheReadTokens: 0,
-    costUsd,
+    cacheReadTokens,
+    costUsd: inputCostUsd + outputCostUsd,
+    inputCostUsd,
+    outputCostUsd,
     latencyMs: Date.now() - startedAt,
-    cacheHit: false,
+    cacheHit: cacheReadTokens > 0,
   }
 }
 

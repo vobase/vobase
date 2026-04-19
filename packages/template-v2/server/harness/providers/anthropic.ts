@@ -209,11 +209,11 @@ async function* runStream(args: StreamArgs): AsyncIterableIterator<LlmStreamChun
   const tokensOut = usage.output_tokens ?? 0
   const cacheReadTokens = usage.cache_read_input_tokens ?? 0
   const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0
-  const costUsd =
+  const inputCostUsd =
     (tokensIn * args.inputPrice) / 1_000_000 +
-    (tokensOut * args.outputPrice) / 1_000_000 +
     (cacheReadTokens * args.cacheReadPrice) / 1_000_000 +
     (cacheWriteTokens * args.cacheWritePrice) / 1_000_000
+  const outputCostUsd = (tokensOut * args.outputPrice) / 1_000_000
 
   yield {
     type: 'finish',
@@ -221,7 +221,9 @@ async function* runStream(args: StreamArgs): AsyncIterableIterator<LlmStreamChun
     tokensIn,
     tokensOut,
     cacheReadTokens,
-    costUsd,
+    costUsd: inputCostUsd + outputCostUsd,
+    inputCostUsd,
+    outputCostUsd,
     latencyMs: Date.now() - startedAt,
     cacheHit: cacheReadTokens > 0,
   }

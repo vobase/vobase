@@ -44,6 +44,10 @@ export type LlmFinish = {
   cacheReadTokens: number
   /** Estimated USD cost from the provider's billing metadata. */
   costUsd: number
+  /** Input portion of `costUsd` (when the provider can split it). */
+  inputCostUsd?: number
+  /** Output portion of `costUsd` (when the provider can split it). */
+  outputCostUsd?: number
   latencyMs: number
   cacheHit: boolean
 }
