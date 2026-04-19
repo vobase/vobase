@@ -63,3 +63,29 @@ export async function append(input: JournalAppendInput, tx?: Tx): Promise<void> 
     payload: (ev.payload as unknown) ?? null,
   })
 }
+
+/**
+ * Latest `turnIndex` observed for a conversation. Callers outside the agents
+ * module use this to stamp the right turn on out-of-band journal events (e.g.
+ * a card-reply inbound that didn't arrive via a real wake).
+ */
+export async function getLatestTurnIndex(conversationId: string, tx?: Tx): Promise<number> {
+  const { conversationEvents } = await import('@modules/agents/schema')
+  const { desc, eq } = await import('drizzle-orm')
+  type TurnIndexHandle = {
+    select: (c?: unknown) => {
+      from: (t: unknown) => {
+        where: (c: unknown) => { orderBy: (col: unknown) => { limit: (n: number) => Promise<unknown[]> } }
+      }
+    }
+  }
+  const handle = (tx as TurnIndexHandle | undefined) ?? (requireDb() as unknown as TurnIndexHandle)
+  const rows = await handle
+    .select({ turnIndex: conversationEvents.turnIndex })
+    .from(conversationEvents)
+    .where(eq(conversationEvents.conversationId, conversationId))
+    .orderBy(desc(conversationEvents.ts))
+    .limit(1)
+  const row = rows[0] as { turnIndex: number } | undefined
+  return row?.turnIndex ?? 0
+}

@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { AgentEvent } from '@server/contracts/event'
 import type { ObserverContext } from '@server/contracts/observer'
+import type { ScopedDb } from '@server/contracts/scoped-db'
 import { auditObserver } from './audit'
 
 function makeCtx(wakeId = 'wake-test-1'): ObserverContext {
@@ -15,7 +16,7 @@ function makeCtx(wakeId = 'wake-test-1'): ObserverContext {
     conversationId: 'conv1',
     wakeId,
     ports: {} as ObserverContext['ports'],
-    db: {},
+    db: {} as unknown as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     realtime: { notify: () => {} },
   }
@@ -152,7 +153,7 @@ describe('auditObserver', () => {
     for (const type of variants) {
       insertCallCount = 0
       const event = makeEvent(type)
-      const ctx = { ...makeCtx(), db: trackingDb }
+      const ctx = { ...makeCtx(), db: trackingDb as unknown as ScopedDb }
       const p = auditObserver.handle(event, ctx)
       if (p) await p.catch(() => {})
     }

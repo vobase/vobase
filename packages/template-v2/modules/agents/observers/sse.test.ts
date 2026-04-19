@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { AgentEvent } from '@server/contracts/event'
 import type { ObserverContext } from '@server/contracts/observer'
+import type { ScopedDb } from '@server/contracts/scoped-db'
 import { sseObserver } from './sse'
 
 function makeCtx(notifyFn: (p: { table: string; id?: string; action?: string }) => void): ObserverContext {
@@ -13,7 +14,7 @@ function makeCtx(notifyFn: (p: { table: string; id?: string; action?: string }) 
     conversationId: 'conv-sse-1',
     wakeId: 'wake-sse-1',
     ports: {} as ObserverContext['ports'],
-    db: {},
+    db: {} as unknown as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     realtime: { notify: notifyFn },
   }

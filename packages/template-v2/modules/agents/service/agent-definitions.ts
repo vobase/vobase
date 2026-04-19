@@ -1,8 +1,42 @@
 /**
  * REAL Phase 1 — reads from agents.agent_definitions.
  * Write methods are scaffold only (throw not-implemented-in-phase-1).
+ *
+ * Phase 3 (plan §P3.1): `BUILTIN_TOOL_NAMES` exposes the first-class tool
+ * slots the harness always surfaces — `bash` (virtual-workspace shell, see
+ * `server/harness/bash-tool.ts`) and `vobase` (skill-registered CLI
+ * dispatcher, see `server/workspace/vobase-cli/dispatcher.ts`). SOUL.md's
+ * tools-allowlist stays declarative: any tool whose name is in this constant
+ * is considered available to the agent without requiring an explicit entry
+ * in the per-agent `skillAllowlist` column.
  */
 import type { AgentDefinition } from '@server/contracts/domain-types'
+
+export const BUILTIN_TOOL_NAMES = ['bash', 'vobase'] as const
+export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number]
+
+/**
+ * Returns the effective allowlist for a loaded agent definition — union of the
+ * per-agent `skillAllowlist` and the always-on built-ins. Order is stable:
+ * built-ins first, then the per-agent entries in declaration order (dedup).
+ */
+export function resolveAllowedTools(def: Pick<AgentDefinition, 'skillAllowlist'>): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const name of BUILTIN_TOOL_NAMES) {
+    if (!seen.has(name)) {
+      seen.add(name)
+      out.push(name)
+    }
+  }
+  for (const name of def.skillAllowlist ?? []) {
+    if (!seen.has(name)) {
+      seen.add(name)
+      out.push(name)
+    }
+  }
+  return out
+}
 
 let _db: unknown = null
 

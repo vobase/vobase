@@ -1,82 +1,85 @@
 /**
- * memoryDistillObserver — post-wake summarisation stub. Spec §12.1 observer #5.
- *
- * Subscribes to all events during a wake to accumulate assistant messages, then
- * on `agent_end` computes a section diff and upserts the contact's working memory
- * via ContactsPort.upsertWorkingMemorySection.
- *
- * Phase 2 stub behaviour:
- *   - Buffers `message_end` (role=assistant) events per wakeId in-memory.
- *   - On `agent_end`, extracts a "Recent Interaction" section from accumulated
- *     assistant messages (no real LLM call — full `llmCall('memory.distill',…)`
- *     wiring is Phase 3).
- *   - Respects per-contact debounce: fires at most once per 10 min per contact.
- *   - Clears buffer on `agent_end` to prevent memory leaks across wakes.
- *
- * Factory pattern: caller injects `contactId` (wake-scoped); optionally injects
- * a real `llmDistill` fn for Phase 3 upgrade without changing the observer shape.
+ * memoryDistillObserver — post-wake summarisation + anti-lessons feedback loop.
+ * On `agent_end`: appends rejection reasons to the agent's `## Anti-lessons`
+ * section so the next turn sees them, then (when the per-contact debounce has
+ * elapsed) distills assistant messages into `ContactsPort` working-memory
+ * sections via `llmCall('memory.distill', …)` — or the deterministic stub
+ * when no provider is wired.
  */
 
-import type { AgentEvent } from '@server/contracts/event'
+import type { AgentEvent, LearningRejectedEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
+import type { PluginContext } from '@server/contracts/plugin-context'
+import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
+import { upsertMarkdownSection } from './learning-proposal'
 
 export interface MemoryDistillOpts {
   contactId: string
-  /**
-   * Optional real LLM distillation fn (Phase 3).
-   * If omitted, a deterministic stub is used — suitable for tests.
-   */
-  llmDistill?: (messages: string[], currentMemory: string) => Promise<Array<{ heading: string; body: string }>>
+  agentId?: string
+  /** When provided, the observer calls `llmCall('memory.distill', …)` instead of the deterministic stub. */
+  llmCall?: PluginContext['llmCall']
 }
 
 /** Module-level per-contact debounce map. Cleared on process restart (acceptable for Phase 2). */
 const lastDistillTs = new Map<string, number>()
 const DEBOUNCE_MS = 10 * 60 * 1000
 
-export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObserver {
-  const { contactId, llmDistill } = opts
+interface WakeBuffer {
+  assistantMessages: string[]
+  rejections: LearningRejectedEvent[]
+}
 
-  /** Per-wakeId buffer of assistant messages. */
-  const wakeMessages = new Map<string, string[]>()
+export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObserver {
+  const { contactId, agentId, llmCall } = opts
+
+  const wakeBuffer = new Map<string, WakeBuffer>()
 
   return {
     id: 'agents:memory-distill',
 
     async handle(event: AgentEvent, ctx: ObserverContext): Promise<void> {
-      // Accumulate assistant messages per wake.
+      const buf = wakeBuffer.get(event.wakeId) ?? { assistantMessages: [], rejections: [] }
+
       if (event.type === 'message_end' && event.role === 'assistant' && event.content.trim()) {
-        const buf = wakeMessages.get(event.wakeId) ?? []
-        buf.push(event.content.trim())
-        wakeMessages.set(event.wakeId, buf)
+        buf.assistantMessages.push(event.content.trim())
+        wakeBuffer.set(event.wakeId, buf)
+        return
+      }
+
+      if (event.type === 'learning_rejected') {
+        buf.rejections.push(event)
+        wakeBuffer.set(event.wakeId, buf)
         return
       }
 
       if (event.type !== 'agent_end') return
 
-      const msgs = wakeMessages.get(event.wakeId) ?? []
-      wakeMessages.delete(event.wakeId)
+      const state = wakeBuffer.get(event.wakeId) ?? buf
+      wakeBuffer.delete(event.wakeId)
 
-      if (msgs.length === 0) return
+      if (state.rejections.length > 0 && agentId) {
+        await writeAntiLessons(ctx, agentId, state.rejections).catch((err) =>
+          ctx.logger.warn({ err, agentId }, 'memory-distill: anti-lesson write failed'),
+        )
+      }
 
-      // Debounce: skip if this contact was distilled within the last 10 min.
+      if (state.assistantMessages.length === 0) return
+
       const lastTs = lastDistillTs.get(contactId) ?? 0
       const now = Date.now()
       if (now - lastTs < DEBOUNCE_MS) return
 
       try {
-        let sections: Array<{ heading: string; body: string }>
-
-        if (llmDistill) {
-          let currentMemory = ''
-          try {
-            currentMemory = await ctx.ports.contacts.readWorkingMemory(contactId)
-          } catch {
-            // empty is fine
-          }
-          sections = await llmDistill(msgs, currentMemory)
+        let sections: DistilledSection[]
+        if (llmCall) {
+          const currentMemory = await readMemorySafe(ctx, contactId)
+          sections = await callMemoryDistill(llmCall, {
+            messages: state.assistantMessages,
+            currentMemory,
+            atIso: event.ts.toISOString(),
+          })
         } else {
-          // Stub: extract last assistant turn as a dated "Recent Interaction" section.
-          sections = stubDistill(msgs, event.ts)
+          sections = stubDistill(state.assistantMessages, event.ts)
         }
 
         for (const { heading, body } of sections) {
@@ -91,8 +94,89 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
   }
 }
 
+async function readMemorySafe(ctx: ObserverContext, contactId: string): Promise<string> {
+  try {
+    return await ctx.ports.contacts.readWorkingMemory(contactId)
+  } catch {
+    return ''
+  }
+}
+
+async function writeAntiLessons(
+  ctx: ObserverContext,
+  agentId: string,
+  rejections: LearningRejectedEvent[],
+): Promise<void> {
+  const { agentDefinitions, learningProposals } = await import('@modules/agents/schema')
+  const { eq, inArray } = await import('drizzle-orm')
+
+  const proposalIds = rejections.map((r) => r.proposalId)
+
+  const [rows, agentRows] = (await Promise.all([
+    ctx.db
+      .select({
+        id: learningProposals.id,
+        target: learningProposals.target,
+        scope: learningProposals.scope,
+        decidedNote: learningProposals.decidedNote,
+        decidedAt: learningProposals.decidedAt,
+      })
+      .from(learningProposals)
+      .where(inArray(learningProposals.id, proposalIds)),
+    ctx.db.select().from(agentDefinitions).where(eq(agentDefinitions.id, agentId)).limit(1),
+  ])) as [
+    Array<{ id: string; target: string; scope: string; decidedNote: string | null; decidedAt: Date | null }>,
+    Array<{ workingMemory: string }>,
+  ]
+
+  if (rows.length === 0) return
+
+  const current = agentRows[0]?.workingMemory ?? ''
+
+  const existingBody = extractAntiLessonsBody(current)
+  const existingIds = extractAntiLessonProposalIds(existingBody)
+  const newEntries = rows
+    .filter((r) => !existingIds.has(r.id))
+    .map(
+      (r) =>
+        `- \`[${r.id}]\` **${r.scope}:${r.target}** — ${r.decidedNote ?? 'no reason given'} _(rejected ${(r.decidedAt ?? new Date()).toISOString()})_`,
+    )
+  if (newEntries.length === 0) return
+
+  const mergedBody = existingBody ? `${existingBody}\n${newEntries.join('\n')}` : newEntries.join('\n')
+  const next = upsertMarkdownSection(current, 'Anti-lessons', mergedBody)
+  await ctx.db.update(agentDefinitions).set({ workingMemory: next }).where(eq(agentDefinitions.id, agentId))
+}
+
+/** Each rendered line embeds `` `[<proposalId>]` `` so a repeat rejection is a no-op. */
+function extractAntiLessonProposalIds(body: string): Set<string> {
+  const ids = new Set<string>()
+  const marker = /`\[([^\]]+)\]`/g
+  for (const match of body.matchAll(marker)) {
+    if (match[1]) ids.add(match[1])
+  }
+  return ids
+}
+
+function extractAntiLessonsBody(memory: string): string {
+  const lines = memory.split('\n')
+  let inside = false
+  const body: string[] = []
+  for (const line of lines) {
+    if (/^##\s+Anti-lessons\s*$/i.test(line)) {
+      inside = true
+      continue
+    }
+    if (inside) {
+      if (/^##\s+/.test(line)) break
+      body.push(line)
+    }
+  }
+  return body.join('\n').trim()
+}
+
 /** Deterministic stub: creates a single "Recent Interaction" section from the last assistant message. */
-function stubDistill(messages: string[], ts: Date): Array<{ heading: string; body: string }> {
+function stubDistill(messages: string[], ts: Date): DistilledSection[] {
   const last = messages[messages.length - 1] ?? ''
   const preview = last.length > 200 ? `${last.slice(0, 200)}…` : last
   const dateStr = ts.toISOString().slice(0, 10)
