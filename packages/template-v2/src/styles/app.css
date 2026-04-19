@@ -6,23 +6,23 @@
 @source "../../modules/**/*.{ts,tsx}";
 @source "../../node_modules/streamdown/dist/*.js";
 
-/* ── Vobase Onyx — dark-only (PR-1; light override deferred to PR-2) ── */
+/* ── Vobase Onyx — Light palette (default) ── */
 :root {
-  /* Downstream contract: semantic tokens */
-  --color-bg: #0a0a0b;
-  --color-surface: #111113;
-  --color-surface-elevated: #17171a;
-  --color-surface-hover: #1c1c20;
-  --color-border: #26262b;
-  --color-border-subtle: #1f1f23;
-  --color-fg: #f2f2f3;
-  --color-fg-muted: #a0a0a8;
-  --color-fg-subtle: #6c6c75;
-  --color-accent: #3d7bff;
-  --color-success: #3ccb7f;
-  --color-warning: #f5a524;
-  --color-danger: #f25555;
-  --color-info: #a48bff;
+  /* Semantic color tokens — light mode */
+  --color-bg: oklch(0.98 0 0);
+  --color-surface: oklch(0.96 0 0);
+  --color-surface-elevated: oklch(1 0 0);
+  --color-surface-hover: oklch(0.94 0 0);
+  --color-border: oklch(0.88 0 0);
+  --color-border-subtle: oklch(0.92 0 0);
+  --color-fg: oklch(0.13 0 0);
+  --color-fg-muted: oklch(0.45 0 0);
+  --color-fg-subtle: oklch(0.62 0 0);
+  --color-accent: oklch(0.55 0.18 255);
+  --color-success: oklch(0.65 0.14 152);
+  --color-warning: oklch(0.72 0.15 60);
+  --color-danger: oklch(0.6 0.17 25);
+  --color-info: oklch(0.6 0.14 280);
 
   /* Spacing scale */
   --space-1: 4px;
@@ -70,6 +70,24 @@
   --radius: 0.375rem;
   --sidebar: var(--color-surface);
   --sidebar-border: var(--color-border-subtle);
+}
+
+/* ── Vobase Onyx — Dark palette ── */
+.dark {
+  --color-bg: #0a0a0b;
+  --color-surface: #111113;
+  --color-surface-elevated: #17171a;
+  --color-surface-hover: #1c1c20;
+  --color-border: #26262b;
+  --color-border-subtle: #1f1f23;
+  --color-fg: #f2f2f3;
+  --color-fg-muted: #a0a0a8;
+  --color-fg-subtle: #6c6c75;
+  --color-accent: #3d7bff;
+  --color-success: #3ccb7f;
+  --color-warning: #f5a524;
+  --color-danger: #f25555;
+  --color-info: #a48bff;
 }
 
 @theme inline {

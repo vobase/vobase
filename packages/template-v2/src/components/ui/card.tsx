@@ -62,4 +62,14 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-action"
+      className={cn("flex items-center gap-2", className)}
+      {...props}
+    />
+  )
+}
+
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, CardAction }

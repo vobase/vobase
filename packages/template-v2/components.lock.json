@@ -196,6 +196,113 @@
       "registry": "shadcn",
       "hand_written": true,
       "hand_written_reason": "shadcn registry unreachable from build sandbox; written to spec"
+    },
+    {
+      "component": "ai-elements/inline-citation",
+      "file": "src/components/ai-elements/inline-citation.tsx",
+      "source_url": "https://ai-elements.dev/r/inline-citation.json",
+      "sha256_of_installed_file": "614f58ffe4ade7da284f6624b66ad12ea1bb559796c8a8ef0eb227708bf6a9a6",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "ai-elements"
+    },
+    {
+      "component": "ai-elements/confirmation",
+      "file": "src/components/ai-elements/confirmation.tsx",
+      "source_url": "https://ai-elements.dev/r/confirmation.json",
+      "sha256_of_installed_file": "a52e00ccf4704bc20d8f778c06cc47ec7633c1f70bb5877e77562a89f1f180f8",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "ai-elements"
+    },
+    {
+      "component": "ai-elements/task",
+      "file": "src/components/ai-elements/task.tsx",
+      "source_url": "https://ai-elements.dev/r/task.json",
+      "sha256_of_installed_file": "1b566d9cda580442691acd5725a55c4c8e77edad3fe0181a51d3b222ae92a74c",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "ai-elements"
+    },
+    {
+      "component": "ai-elements/plan",
+      "file": "src/components/ai-elements/plan.tsx",
+      "source_url": "https://ai-elements.dev/r/plan.json",
+      "sha256_of_installed_file": "0185cc2068f8efa65959504375d48e1206186a99a767456bad63340d9eb43262",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "ai-elements"
+    },
+    {
+      "component": "ai-elements/code-block",
+      "file": "src/components/ai-elements/code-block.tsx",
+      "source_url": "https://ai-elements.dev/r/code-block.json",
+      "sha256_of_installed_file": "691ccd82abf8c573b7b1f9393527990fe26a3d6b98999597b98974054668d8e9",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "ai-elements"
+    },
+    {
+      "component": "ai-elements/tool",
+      "file": "src/components/ai-elements/tool.tsx",
+      "source_url": "https://ai-elements.dev/r/tool.json",
+      "sha256_of_installed_file": "4e920248cf250ca34dc2e77792922bd8e393e26f8ba81c0e100008a285b73878",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "ai-elements"
+    },
+    {
+      "component": "ai-elements/reasoning",
+      "file": "src/components/ai-elements/reasoning.tsx",
+      "source_url": "https://ai-elements.dev/r/reasoning.json",
+      "sha256_of_installed_file": "efe4d92ee54441133bcb2d45cb327551719bcfd95ffd13e840adb98eaa0e8b8a",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "ai-elements"
+    },
+    {
+      "component": "shadcn/carousel",
+      "file": "src/components/ui/carousel.tsx",
+      "source_url": "https://ui.shadcn.com/r/styles/new-york-v4/carousel.json",
+      "sha256_of_installed_file": "b7ea0dda3903d972c186f739e23da61f547bc83b5a0bf13b16856577846d5fc3",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "shadcn",
+      "note": "installed as transitive dep by ai-elements"
+    },
+    {
+      "component": "shadcn/input-otp",
+      "file": "src/components/ui/input-otp.tsx",
+      "source_url": "https://ui.shadcn.com/r/styles/new-york-v4/input-otp.json",
+      "sha256_of_installed_file": "3001209c3f9b364d84720c24dbd351d60d6f8aff5aedb855be5d9ad1ae5639d2",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "shadcn"
+    },
+    {
+      "component": "shadcn/label",
+      "file": "src/components/ui/label.tsx",
+      "source_url": "https://ui.shadcn.com/r/styles/new-york-v4/label.json",
+      "sha256_of_installed_file": "a476e41f08b9de5bd447de66a33d8bc2ad18f2fa6b96c064778bab4b6f439f4c",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "shadcn"
+    },
+    {
+      "component": "shadcn/form",
+      "file": "src/components/ui/form.tsx",
+      "source_url": "https://ui.shadcn.com/r/styles/new-york-v4/form.json",
+      "sha256_of_installed_file": "315b46bb75ab7d1c6061b5d750aa4bedf6e7a455e15e2d7f9182f053d5972b1e",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "shadcn"
+    },
+    {
+      "component": "shadcn/alert-dialog",
+      "file": "src/components/ui/alert-dialog.tsx",
+      "source_url": "https://ui.shadcn.com/r/styles/new-york-v4/alert-dialog.json",
+      "sha256_of_installed_file": "160251f86b7cffcd8a1e65073abebe6e573cbcb66ea6f8ceae8611d47ce064cb",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "shadcn"
+    },
+    {
+      "component": "diceui/toggle-group",
+      "file": "src/components/ui/toggle-group.tsx",
+      "source_url": "https://diceui.com/r/toggle-group.json",
+      "sha256_of_installed_file": "e67976135b4bb2ea74a61392037ad5b464e3036dda923c30269faf1fb485a137",
+      "install_timestamp": "2026-04-19T00:00:00.000Z",
+      "registry": "diceui",
+      "hand_written": true,
+      "hand_written_reason": "DiceUI registry URL not found (308 redirect not followed by shadcn CLI); written to spec using radix-ui ToggleGroup"
     }
   ],
   "allowed_overrides": [
