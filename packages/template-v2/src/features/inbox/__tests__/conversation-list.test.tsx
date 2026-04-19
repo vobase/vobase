@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
-import { filterConversations } from '../conversation-list'
 import type { Conversation } from '@server/contracts/domain-types'
+import { filterConversations } from '../conversation-list'
 
 const makeConv = (overrides: Partial<Conversation> = {}): Conversation => ({
   id: 'conv-1',
@@ -23,10 +23,10 @@ const makeConv = (overrides: Partial<Conversation> = {}): Conversation => ({
 })
 
 const CONVS: Conversation[] = [
-  makeConv({ id: '1', status: 'active',            assignee: 'unassigned' }),
-  makeConv({ id: '2', status: 'awaiting_approval', assignee: 'agent-1'   }),
-  makeConv({ id: '3', status: 'archived',          assignee: 'unassigned' }),
-  makeConv({ id: '4', status: 'resolved',          assignee: 'agent-2'   }),
+  makeConv({ id: '1', status: 'active', assignee: 'unassigned' }),
+  makeConv({ id: '2', status: 'awaiting_approval', assignee: 'agent-1' }),
+  makeConv({ id: '3', status: 'archived', assignee: 'unassigned' }),
+  makeConv({ id: '4', status: 'resolved', assignee: 'agent-2' }),
 ]
 
 describe('filterConversations', () => {
@@ -49,7 +49,7 @@ describe('filterConversations', () => {
   it('assigned_to_me filters assigned conversations', () => {
     const result = filterConversations(CONVS, 'assigned_to_me')
     expect(result).toHaveLength(2)
-    expect(result.map(c => c.id)).toEqual(['2', '4'])
+    expect(result.map((c) => c.id)).toEqual(['2', '4'])
   })
 
   it('archived filters by status', () => {

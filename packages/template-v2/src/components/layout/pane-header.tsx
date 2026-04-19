@@ -21,18 +21,12 @@ function PaneHeader({ title, meta, actions, filters, density = 'list', className
       )}
     >
       <span className="truncate text-sm font-semibold text-[var(--color-fg)]">{title}</span>
-      {meta && (
-        <span className="shrink-0 font-mono text-xs text-[var(--color-fg-muted)]">{meta}</span>
-      )}
-      {filters && (
-        <div className="flex shrink-0 items-center gap-1">{filters}</div>
-      )}
-      {actions && (
-        <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>
-      )}
+      {meta && <span className="shrink-0 font-mono text-xs text-[var(--color-fg-muted)]">{meta}</span>}
+      {filters && <div className="flex shrink-0 items-center gap-1">{filters}</div>}
+      {actions && <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>}
     </div>
   )
 }
 
-export { PaneHeader }
 export type { PaneHeaderProps }
+export { PaneHeader }

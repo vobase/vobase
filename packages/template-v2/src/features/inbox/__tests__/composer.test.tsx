@@ -1,5 +1,5 @@
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, mock } from 'bun:test'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { createKeyboardNavHandler } from '@/hooks/use-keyboard-nav'
 
 mock.module('../api/use-send-note', () => ({
@@ -52,9 +52,7 @@ describe('Composer - Cmd+Enter logic', () => {
 
   it('Cmd+Enter fires onSubmitComposer from non-TEXTAREA target', () => {
     const onSubmit = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-detail', onSubmitComposer: onSubmit })(
-      evt('Enter', { metaKey: true }),
-    )
+    createKeyboardNavHandler({ context: 'inbox-detail', onSubmitComposer: onSubmit })(evt('Enter', { metaKey: true }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 
@@ -69,7 +67,9 @@ describe('Composer - Cmd+Enter logic', () => {
   it('submitComposer is a no-op when text is empty', () => {
     const mutate = mock(() => {})
     const text = ''
-    const submit = () => { if (text.trim()) mutate(text.trim()) }
+    const submit = () => {
+      if (text.trim()) mutate(text.trim())
+    }
     submit()
     expect(mutate).not.toHaveBeenCalled()
   })
@@ -77,7 +77,9 @@ describe('Composer - Cmd+Enter logic', () => {
   it('submitComposer calls mutate with trimmed text', () => {
     const mutate = mock(() => {})
     const text = '  My note  '
-    const submit = () => { if (text.trim()) mutate(text.trim()) }
+    const submit = () => {
+      if (text.trim()) mutate(text.trim())
+    }
     submit()
     expect(mutate).toHaveBeenCalledWith('My note')
   })

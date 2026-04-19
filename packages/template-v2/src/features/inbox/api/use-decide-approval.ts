@@ -1,5 +1,5 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { PendingApproval } from '@server/contracts/domain-types'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 export async function fetchApprovals(): Promise<PendingApproval[]> {
   const r = await fetch('/api/inbox/approvals?status=pending')

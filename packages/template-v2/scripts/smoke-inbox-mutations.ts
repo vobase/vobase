@@ -31,7 +31,9 @@ function sse2sPromise(): { promise: Promise<void>; abort: AbortController } {
           }
         }
       })
-      .catch((e) => { if (e.name !== 'AbortError') reject(e) })
+      .catch((e) => {
+        if (e.name !== 'AbortError') reject(e)
+      })
   })
   return { promise, abort: ctrl }
 }

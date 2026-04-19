@@ -73,9 +73,7 @@ for (const override of lock.allowed_overrides) {
   if (!(await fileObj.exists())) continue
   const content = await fileObj.text()
   if (!content.includes(SENTINEL)) {
-    errors.push(
-      `${override.file}: listed in allowed_overrides but missing "${SENTINEL}" sentinel comment`,
-    )
+    errors.push(`${override.file}: listed in allowed_overrides but missing "${SENTINEL}" sentinel comment`)
   }
 }
 

@@ -58,10 +58,10 @@ export function useKeyboardNav(opts: UseKeyboardNavOptions) {
   }, [])
 
   return {
-    focusSearch:    useCallback(() => optsRef.current.onFocusSearch?.(),    []),
-    selectNext:     useCallback(() => optsRef.current.onSelectNext?.(),     []),
-    selectPrev:     useCallback(() => optsRef.current.onSelectPrev?.(),     []),
-    openSelected:   useCallback(() => optsRef.current.onOpenSelected?.(),   []),
+    focusSearch: useCallback(() => optsRef.current.onFocusSearch?.(), []),
+    selectNext: useCallback(() => optsRef.current.onSelectNext?.(), []),
+    selectPrev: useCallback(() => optsRef.current.onSelectPrev?.(), []),
+    openSelected: useCallback(() => optsRef.current.onOpenSelected?.(), []),
     clearSelection: useCallback(() => optsRef.current.onClearSelection?.(), []),
     submitComposer: useCallback(() => optsRef.current.onSubmitComposer?.(), []),
   }

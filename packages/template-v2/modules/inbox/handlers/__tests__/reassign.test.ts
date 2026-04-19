@@ -30,11 +30,7 @@ const fakeConv = {
 
 // ─── DB Stub builder ──────────────────────────────────────────────────────────
 
-function makeStaffOpsDb(
-  conv: unknown,
-  updatedConv: unknown,
-  notifyCalls: string[],
-) {
+function makeStaffOpsDb(conv: unknown, updatedConv: unknown, notifyCalls: string[]) {
   return {
     select: () => ({
       from: () => ({
@@ -76,9 +72,7 @@ describe('POST /conversations/:id/reassign', () => {
 
   beforeEach(() => {
     notifyCalls = []
-    setStaffOpsDb(
-      makeStaffOpsDb(fakeConv, { ...fakeConv, assignee: 'agent-bob' }, notifyCalls),
-    )
+    setStaffOpsDb(makeStaffOpsDb(fakeConv, { ...fakeConv, assignee: 'agent-bob' }, notifyCalls))
   })
 
   it('(a) rejects payload missing assignee with 400', async () => {
@@ -118,9 +112,7 @@ describe('POST /conversations/:id/reassign', () => {
   })
 
   it('(d) returns 403 when conversation belongs to different tenant', async () => {
-    setStaffOpsDb(
-      makeStaffOpsDb({ ...fakeConv, tenantId: OTHER_TENANT }, null, notifyCalls),
-    )
+    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, tenantId: OTHER_TENANT }, null, notifyCalls))
     const res = await POST(CONV_ID, { assignee: 'agent-bob' })
     expect(res.status).toBe(403)
   })

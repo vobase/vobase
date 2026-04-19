@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
 import type { Contact } from '@server/contracts/domain-types'
+import { useQuery } from '@tanstack/react-query'
 
 interface ProfilePanelProps {
   conversationId: string
@@ -24,9 +24,7 @@ export function ProfilePanel({ conversationId }: ProfilePanelProps) {
 
   return (
     <div className="p-4">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">
-        Profile
-      </p>
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">Profile</p>
       <dl className="space-y-2">
         <div>
           <dt className="text-xs text-[var(--color-fg-muted)]">Name</dt>

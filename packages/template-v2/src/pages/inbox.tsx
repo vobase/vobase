@@ -1,12 +1,12 @@
-import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { Inbox as InboxIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { ListDetailLayout } from '@/components/layout/list-detail-layout'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { ContextDrawer } from '@/features/inbox/context-drawer'
 import { ConversationList } from '@/features/inbox/conversation-list'
+import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 
 async function fetchConversations() {
   const r = await fetch('/api/inbox/conversations')

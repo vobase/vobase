@@ -34,7 +34,9 @@ if (existsSync(LEGACY_PAGE)) {
 if (existsSync(ROUTES_FILE)) {
   const routes = await Bun.file(ROUTES_FILE).text()
   if (_legacyRe.test(routes)) {
-    errors.push(`${ROUTES_FILE}: routes.ts still references conversation.$id — update to nested inbox routes (Parcel R)`)
+    errors.push(
+      `${ROUTES_FILE}: routes.ts still references conversation.$id — update to nested inbox routes (Parcel R)`,
+    )
   }
 }
 

@@ -1,6 +1,6 @@
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, mock } from 'bun:test'
 import type { Message } from '@server/contracts/domain-types'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 mock.module('@/components/ai-elements/conversation', () => ({
   Conversation: ({ children }: { children: React.ReactNode }) => <div data-testid="conversation">{children}</div>,
@@ -10,15 +10,11 @@ mock.module('@/components/ai-elements/conversation', () => ({
 mock.module('@/components/ai-elements/message', () => ({
   Message: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   MessageContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  MessageResponse: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="streamdown">{children}</div>
-  ),
+  MessageResponse: ({ children }: { children: React.ReactNode }) => <div data-testid="streamdown">{children}</div>,
 }))
 
 mock.module('@/components/ai-elements/suggestion', () => ({
-  Suggestion: ({ suggestion }: { suggestion: string }) => (
-    <button type="button">{suggestion}</button>
-  ),
+  Suggestion: ({ suggestion }: { suggestion: string }) => <button type="button">{suggestion}</button>,
   Suggestions: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 

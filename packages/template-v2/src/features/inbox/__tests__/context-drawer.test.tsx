@@ -1,15 +1,18 @@
-import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, mock, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 // Mock data hooks to avoid real fetch in SSR tests
 mock.module('@/features/inbox/profile-panel', () => ({
   ProfilePanel: ({ conversationId }: { conversationId: string }) => (
     <div data-testid="profile-panel" data-conv={conversationId}>
       <dl>
-        <dt>Name</dt><dd>—</dd>
-        <dt>Phone</dt><dd>—</dd>
-        <dt>Email</dt><dd>—</dd>
+        <dt>Name</dt>
+        <dd>—</dd>
+        <dt>Phone</dt>
+        <dd>—</dd>
+        <dt>Email</dt>
+        <dd>—</dd>
       </dl>
     </div>
   ),
@@ -26,9 +29,7 @@ mock.module('@/features/inbox/pending-approvals-panel', () => ({
 import { ContextDrawer } from '../context-drawer'
 
 function render(ui: React.ReactNode, searchParams = '') {
-  return renderToStaticMarkup(
-    <NuqsTestingAdapter searchParams={searchParams}>{ui}</NuqsTestingAdapter>,
-  )
+  return renderToStaticMarkup(<NuqsTestingAdapter searchParams={searchParams}>{ui}</NuqsTestingAdapter>)
 }
 
 describe('ContextDrawer', () => {

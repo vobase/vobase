@@ -12,8 +12,7 @@ const ROOT = join(import.meta.dir, '..')
 const SENTINEL = '// nav-tabs-ok:'
 
 // Detects mapping over nav/sidebar/route arrays to render tabs
-const AUTO_NAV_TABS_RE =
-  /\b(navItems|sidebarItems|navLinks|navigation|routeList|sidebarNav)\s*\.\s*map\s*\(/
+const AUTO_NAV_TABS_RE = /\b(navItems|sidebarItems|navLinks|navigation|routeList|sidebarNav)\s*\.\s*map\s*\(/
 
 // --- self-test ---
 const _tests = [
@@ -23,8 +22,7 @@ const _tests = [
   { src: 'filters.map(f => <Chip key={f}>', expect: false },
 ]
 for (const t of _tests) {
-  if (AUTO_NAV_TABS_RE.test(t.src) !== t.expect)
-    throw new Error(`check-no-auto-nav-tabs self-test failed: ${t.src}`)
+  if (AUTO_NAV_TABS_RE.test(t.src) !== t.expect) throw new Error(`check-no-auto-nav-tabs self-test failed: ${t.src}`)
 }
 
 // --- real scan ---

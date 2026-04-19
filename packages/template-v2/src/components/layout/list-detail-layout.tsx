@@ -1,5 +1,5 @@
-import type * as React from 'react'
 import { useQueryState } from 'nuqs'
+import type * as React from 'react'
 
 interface ListDetailLayoutProps {
   list: React.ReactNode
@@ -21,9 +21,7 @@ function ListDetailLayout({ list, detail, right, listWidth = 320 }: ListDetailLa
         {list}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        {detail}
-      </div>
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">{detail}</div>
 
       {right && ctx === 'open' && (
         <div className="flex w-[380px] shrink-0 flex-col overflow-y-auto border-l border-[var(--color-border-subtle)]">
@@ -34,5 +32,5 @@ function ListDetailLayout({ list, detail, right, listWidth = 320 }: ListDetailLa
   )
 }
 
-export { ListDetailLayout }
 export type { ListDetailLayoutProps }
+export { ListDetailLayout }

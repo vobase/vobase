@@ -13,8 +13,7 @@ const _tests = [
   { src: "const BASE_URL = import.meta.env.VITE_API_URL ?? '/api'", expect: false },
 ]
 for (const t of _tests) {
-  if (t.src.includes(STUB_FLAG) !== t.expect)
-    throw new Error(`check-no-stub-flag self-test failed: ${t.src}`)
+  if (t.src.includes(STUB_FLAG) !== t.expect) throw new Error(`check-no-stub-flag self-test failed: ${t.src}`)
 }
 
 // --- real scan ---

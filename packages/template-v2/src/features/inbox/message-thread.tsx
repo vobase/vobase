@@ -1,13 +1,6 @@
 import type { Message, MessageRole } from '@server/contracts/domain-types'
-import {
-  Conversation,
-  ConversationContent,
-} from '@/components/ai-elements/conversation'
-import {
-  Message as AiMessage,
-  MessageContent,
-  MessageResponse,
-} from '@/components/ai-elements/message'
+import { Conversation, ConversationContent } from '@/components/ai-elements/conversation'
+import { Message as AiMessage, MessageContent, MessageResponse } from '@/components/ai-elements/message'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import type { ButtonElement } from '@/components/card-actions'
 import { postCardReply } from '@/components/card-actions'
@@ -36,9 +29,7 @@ function extractActions(msg: Message): CardAction[] {
   if (!card?.children) return []
   return card.children
     .filter((c) => c.type === 'actions')
-    .flatMap((c) =>
-      (c.buttons ?? []).map((b) => ({ id: b.id, label: b.label, value: b.value })),
-    )
+    .flatMap((c) => (c.buttons ?? []).map((b) => ({ id: b.id, label: b.label, value: b.value })))
 }
 
 interface MessageThreadProps {
@@ -56,9 +47,7 @@ export function MessageThread({ messages }: MessageThreadProps) {
               <AiMessage from={toUiRole(msg.role)}>
                 <MessageContent>
                   {msg.kind === 'text' ? (
-                    <MessageResponse>
-                      {String((msg.content as { text?: unknown })?.text ?? '')}
-                    </MessageResponse>
+                    <MessageResponse>{String((msg.content as { text?: unknown })?.text ?? '')}</MessageResponse>
                   ) : (
                     <MessageCard message={msg} />
                   )}

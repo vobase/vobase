@@ -1,3 +1,4 @@
+import type { Conversation, Message } from '@server/contracts/domain-types'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
@@ -13,10 +14,9 @@ import {
 } from '@/components/ui/combobox'
 import { Status } from '@/components/ui/status'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import type { Conversation, Message } from '@server/contracts/domain-types'
+import { useReassign } from './api/use-reassign'
 import { Composer } from './composer'
 import { MessageThread } from './message-thread'
-import { useReassign } from './api/use-reassign'
 
 async function fetchConversation(id: string): Promise<Conversation> {
   const r = await fetch(`/api/inbox/conversations/${id}`)
@@ -68,8 +68,7 @@ export function ConversationDetail() {
   const hasPrev = idx > 0
   const hasNext = idx >= 0 && idx < convList.length - 1
 
-  const navigateTo = (targetId: string) =>
-    navigate({ to: '/inbox/$id', params: { id: targetId } })
+  const navigateTo = (targetId: string) => navigate({ to: '/inbox/$id', params: { id: targetId } })
 
   useKeyboardNav({
     context: 'inbox-detail',

@@ -1,9 +1,9 @@
+import type { Conversation } from '@server/contracts/domain-types'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { AvatarGroup } from '@/components/ui/avatar-group'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { Status } from '@/components/ui/status'
 import { cn } from '@/lib/utils'
-import type { Conversation } from '@server/contracts/domain-types'
 
 interface ConversationRowProps {
   conversation: Conversation
@@ -36,10 +36,7 @@ function ConversationRow({ conversation: conv, isSelected, isUnread, onClick }: 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span
-            className={cn(
-              'flex-1 truncate text-[14px] tracking-tight text-[var(--color-fg)]',
-              isBold && 'font-medium',
-            )}
+            className={cn('flex-1 truncate text-[14px] tracking-tight text-[var(--color-fg)]', isBold && 'font-medium')}
           >
             {conv.contactId}
           </span>
@@ -70,5 +67,5 @@ function ConversationRow({ conversation: conv, isSelected, isUnread, onClick }: 
   )
 }
 
-export { ConversationRow }
 export type { ConversationRowProps }
+export { ConversationRow }

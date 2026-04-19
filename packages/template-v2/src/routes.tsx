@@ -1,12 +1,8 @@
-import { Outlet, createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
 import { AppShell } from './components/layout/app-shell'
 import { useRealtimeInvalidation } from './hooks/use-realtime-invalidation'
-import {
-  ConversationDetailPlaceholder,
-  InboxEmptyState,
-  InboxLayout,
-} from './pages/inbox'
 import { ApprovalsPage } from './pages/approvals'
+import { ConversationDetailPlaceholder, InboxEmptyState, InboxLayout } from './pages/inbox'
 
 function RootLayout() {
   useRealtimeInvalidation()

@@ -1,6 +1,6 @@
-import * as React from 'react'
 import { Link } from '@tanstack/react-router'
 import { Bot, CheckSquare, HardDrive, Inbox, Settings2, Users } from 'lucide-react'
+import type * as React from 'react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Kbd } from '@/components/ui/kbd'
 import { Status } from '@/components/ui/status'
@@ -20,12 +20,12 @@ interface NavItemDef {
 }
 
 const NAV_ITEMS: NavItemDef[] = [
-  { icon: Inbox,       label: 'Inbox',     shortcut: '⌘1', to: '/inbox',    enabled: true  },
-  { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/approvals',enabled: false },
-  { icon: Users,       label: 'Contacts',  shortcut: '⌘3', to: '/contacts', enabled: false },
-  { icon: Bot,         label: 'Agents',    shortcut: '⌘4', to: '/agents',   enabled: false },
-  { icon: HardDrive,   label: 'Drive',     shortcut: '⌘5', to: '/drive',    enabled: false },
-  { icon: Settings2,   label: 'Settings',  shortcut: '⌘6', to: '/settings', enabled: false },
+  { icon: Inbox, label: 'Inbox', shortcut: '⌘1', to: '/inbox', enabled: true },
+  { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/approvals', enabled: false },
+  { icon: Users, label: 'Contacts', shortcut: '⌘3', to: '/contacts', enabled: false },
+  { icon: Bot, label: 'Agents', shortcut: '⌘4', to: '/agents', enabled: false },
+  { icon: HardDrive, label: 'Drive', shortcut: '⌘5', to: '/drive', enabled: false },
+  { icon: Settings2, label: 'Settings', shortcut: '⌘6', to: '/settings', enabled: false },
 ]
 
 function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
@@ -34,7 +34,10 @@ function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
     <Link
       to={to}
       aria-label={label}
-      className={cn(baseClass, 'text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-fg)]')}
+      className={cn(
+        baseClass,
+        'text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-fg)]',
+      )}
       activeProps={{ className: cn(baseClass, 'bg-[var(--color-surface-elevated)] text-[var(--color-fg)]') }}
     >
       <Icon className="size-[18px]" />
@@ -99,5 +102,5 @@ function AppShell({ children }: AppShellProps) {
   )
 }
 
-export { AppShell }
 export type { AppShellProps }
+export { AppShell }

@@ -1,5 +1,5 @@
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'bun:test'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { PaneHeader } from '../pane-header'
 
 describe('PaneHeader', () => {

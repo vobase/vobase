@@ -1,6 +1,6 @@
-import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, mock, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { PendingApproval } from '@server/contracts/domain-types'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 // Mock react-query and sonner BEFORE importing the component.
 // We do NOT mock use-decide-approval here so we can test the real functions below.
@@ -8,9 +8,7 @@ mock.module('@tanstack/react-query', () => ({
   useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
     if (String(queryKey[0]) === 'approvals') {
       return {
-        data: [
-          makePendingApproval({ id: 'a1', conversationId: 'conv_123', toolName: 'send_card' }),
-        ],
+        data: [makePendingApproval({ id: 'a1', conversationId: 'conv_123', toolName: 'send_card' })],
       }
     }
     return { data: [] }
@@ -43,7 +41,7 @@ function makePendingApproval(overrides: Partial<PendingApproval> = {}): PendingA
 
 // ─── Pure function tests (real implementations via globalThis.fetch) ───────────
 
-import { fetchApprovals, decideApproval } from '../api/use-decide-approval'
+import { decideApproval, fetchApprovals } from '../api/use-decide-approval'
 
 describe('fetchApprovals', () => {
   it('returns parsed JSON on 200', async () => {
@@ -58,9 +56,7 @@ describe('fetchApprovals', () => {
   })
 
   it('throws on non-200', async () => {
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response('error', { status: 500 })),
-    ) as unknown as typeof fetch
+    globalThis.fetch = mock(() => Promise.resolve(new Response('error', { status: 500 }))) as unknown as typeof fetch
 
     await expect(fetchApprovals()).rejects.toThrow('Failed to fetch approvals')
   })
@@ -114,9 +110,7 @@ describe('decideApproval — reject', () => {
   })
 
   it('throws on non-200', async () => {
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response('Conflict', { status: 409 })),
-    ) as unknown as typeof fetch
+    globalThis.fetch = mock(() => Promise.resolve(new Response('Conflict', { status: 409 }))) as unknown as typeof fetch
 
     await expect(
       decideApproval({ id: 'approval_rej', conversationId: 'conv_123', decision: 'rejected' }),

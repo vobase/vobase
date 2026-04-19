@@ -9,8 +9,7 @@ const HEX_RE = /(['"`]#[0-9a-fA-F]{3,8}['"`]|\[#[0-9a-fA-F]{3,8}\])/
 // Inline oklch() outside of comments
 const OKLCH_RE = /oklch\(/
 // Date formatting calls that bypass RelativeTimeCard
-const DATE_RENDERER_RE =
-  /\.(toLocaleDateString|toLocaleTimeString|toLocaleString)\(|formatDate\(|formatRelativeTime\(/
+const DATE_RENDERER_RE = /\.(toLocaleDateString|toLocaleTimeString|toLocaleString)\(|formatDate\(|formatRelativeTime\(/
 
 const DATE_EXEMPT = new Set([
   'src/components/ui/relative-time.tsx',
@@ -49,8 +48,7 @@ for (const file of glob.scanSync({ cwd: `${import.meta.dir}/..` })) {
 
     if (HEX_RE.test(raw)) violations.push({ file, line: i + 1, text: raw.trim() })
     else if (OKLCH_RE.test(raw)) violations.push({ file, line: i + 1, text: raw.trim() })
-    else if (!isDateExempt && DATE_RENDERER_RE.test(raw))
-      violations.push({ file, line: i + 1, text: raw.trim() })
+    else if (!isDateExempt && DATE_RENDERER_RE.test(raw)) violations.push({ file, line: i + 1, text: raw.trim() })
   }
 }
 

@@ -1,9 +1,9 @@
-import { useQueryState } from 'nuqs'
 import { X } from 'lucide-react'
+import { useQueryState } from 'nuqs'
 import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
-import { ProfilePanel } from './profile-panel'
 import { PendingApprovalsPanel } from './pending-approvals-panel'
+import { ProfilePanel } from './profile-panel'
 
 interface ContextDrawerProps {
   conversationId: string
@@ -18,12 +18,7 @@ export function ContextDrawer({ conversationId }: ContextDrawerProps) {
         title="Context"
         density="detail"
         actions={
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label="Close"
-            onClick={() => setCtx(null)}
-          >
+          <Button size="icon-sm" variant="ghost" aria-label="Close" onClick={() => setCtx(null)}>
             <X className="size-3.5" />
           </Button>
         }

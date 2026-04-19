@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import type { Conversation } from '@server/contracts/domain-types'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import type { Conversation } from '@server/contracts/domain-types'
 import { ConversationRow } from './conversation-row'
 import { FilterChips, type FilterKey } from './filter-chips'
 
@@ -17,11 +17,16 @@ async function fetchConversations(): Promise<Conversation[]> {
 
 export function filterConversations(convs: Conversation[], filter: FilterKey): Conversation[] {
   switch (filter) {
-    case 'unread':            return convs.filter(c => c.status === 'active')
-    case 'awaiting_approval': return convs.filter(c => c.status === 'awaiting_approval')
-    case 'assigned_to_me':   return convs.filter(c => c.assignee !== 'unassigned')
-    case 'archived':          return convs.filter(c => c.status === 'archived')
-    default:                  return convs
+    case 'unread':
+      return convs.filter((c) => c.status === 'active')
+    case 'awaiting_approval':
+      return convs.filter((c) => c.status === 'awaiting_approval')
+    case 'assigned_to_me':
+      return convs.filter((c) => c.assignee !== 'unassigned')
+    case 'archived':
+      return convs.filter((c) => c.status === 'archived')
+    default:
+      return convs
   }
 }
 
@@ -41,12 +46,9 @@ function ConversationList() {
     queryFn: fetchConversations,
   })
 
-  const filtered = useMemo(
-    () => filterConversations(conversations, activeFilter),
-    [conversations, activeFilter],
-  )
+  const filtered = useMemo(() => filterConversations(conversations, activeFilter), [conversations, activeFilter])
 
-  const selectedIndex = filtered.findIndex(c => c.id === selectedId)
+  const selectedIndex = filtered.findIndex((c) => c.id === selectedId)
 
   useKeyboardNav({
     context: 'inbox-list',
@@ -72,7 +74,7 @@ function ConversationList() {
           </Button>
         }
       />
-      {filtered.map(conv => (
+      {filtered.map((conv) => (
         <ConversationRow
           key={conv.id}
           conversation={conv}

@@ -9,20 +9,20 @@
 /* ── Vobase Onyx — dark-only (PR-1; light override deferred to PR-2) ── */
 :root {
   /* Downstream contract: semantic tokens */
-  --color-bg: #0A0A0B;
+  --color-bg: #0a0a0b;
   --color-surface: #111113;
-  --color-surface-elevated: #17171A;
-  --color-surface-hover: #1C1C20;
-  --color-border: #26262B;
-  --color-border-subtle: #1F1F23;
-  --color-fg: #F2F2F3;
-  --color-fg-muted: #A0A0A8;
-  --color-fg-subtle: #6C6C75;
-  --color-accent: #3D7BFF;
-  --color-success: #3CCB7F;
-  --color-warning: #F5A524;
-  --color-danger: #F25555;
-  --color-info: #A48BFF;
+  --color-surface-elevated: #17171a;
+  --color-surface-hover: #1c1c20;
+  --color-border: #26262b;
+  --color-border-subtle: #1f1f23;
+  --color-fg: #f2f2f3;
+  --color-fg-muted: #a0a0a8;
+  --color-fg-subtle: #6c6c75;
+  --color-accent: #3d7bff;
+  --color-success: #3ccb7f;
+  --color-warning: #f5a524;
+  --color-danger: #f25555;
+  --color-info: #a48bff;
 
   /* Spacing scale */
   --space-1: 4px;

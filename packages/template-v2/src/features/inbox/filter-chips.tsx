@@ -1,12 +1,7 @@
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { cn } from '@/lib/utils'
 import { ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 export type FilterKey = 'all' | 'unread' | 'awaiting_approval' | 'assigned_to_me' | 'archived'
 
@@ -66,5 +61,5 @@ function FilterChips({ active, onChange }: FilterChipsProps) {
   )
 }
 
-export { FilterChips }
 export type { FilterChipsProps }
+export { FilterChips }

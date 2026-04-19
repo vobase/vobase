@@ -1,9 +1,18 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.11/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/node_modules", "!**/dist", "!**/drizzle", "!**/.omc", "!**/db/current.sql"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/drizzle",
+      "!**/.omc",
+      "!**/db/current.sql",
+      "!src/components/ui",
+      "!src/components/ai-elements"
+    ]
   },
   "formatter": {
     "enabled": true,
