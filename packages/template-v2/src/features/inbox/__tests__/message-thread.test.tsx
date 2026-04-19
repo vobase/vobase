@@ -18,6 +18,19 @@ mock.module('@/components/ai-elements/suggestion', () => ({
   Suggestions: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+mock.module('@/components/ai-elements/reasoning', () => ({
+  Reasoning: ({ children }: { children: React.ReactNode }) => <div data-testid="reasoning">{children}</div>,
+  ReasoningTrigger: () => <button type="button">Thinking...</button>,
+  ReasoningContent: ({ children }: { children: string }) => <div data-testid="reasoning-content">{children}</div>,
+}))
+
+mock.module('@/components/ai-elements/task', () => ({
+  Task: ({ children }: { children: React.ReactNode }) => <div data-testid="task">{children}</div>,
+  TaskTrigger: ({ title }: { title: string }) => <div data-testid="task-trigger">{title}</div>,
+  TaskContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TaskItem: ({ children }: { children: React.ReactNode }) => <div data-testid="task-item">{children}</div>,
+}))
+
 mock.module('@/components/card-actions', () => ({
   postCardReply: mock(() => Promise.resolve()),
   CardActions: () => null,
@@ -92,5 +105,44 @@ describe('MessageThread', () => {
     const html = renderToStaticMarkup(<MessageThread messages={[textMsg, agentCardMsg]} />)
     expect(html).toContain('Hello world')
     expect(html).toContain('Choose plan')
+  })
+
+  it('renders Reasoning block when msg.reasoning is present on agent message', () => {
+    const reasoningMsg = {
+      ...textMsg,
+      id: 'msg-r1',
+      role: 'agent' as const,
+      reasoning: 'I thought about this carefully.',
+    }
+    const html = renderToStaticMarkup(<MessageThread messages={[reasoningMsg]} />)
+    expect(html).toContain('data-testid="reasoning"')
+    expect(html).toContain('I thought about this carefully.')
+  })
+
+  it('renders Task component for task-list content payload', () => {
+    const taskMsg: Message = {
+      id: 'msg-t1',
+      conversationId: 'conv-1',
+      tenantId: 'tenant-1',
+      role: 'agent',
+      kind: 'text',
+      content: {
+        type: 'task',
+        title: 'Processing your request',
+        items: [
+          { id: 'step-1', label: 'Search knowledge base' },
+          { id: 'step-2', label: 'Generate response' },
+        ],
+      },
+      parentMessageId: null,
+      channelExternalId: null,
+      status: null,
+      createdAt: new Date(),
+    }
+    const html = renderToStaticMarkup(<MessageThread messages={[taskMsg]} />)
+    expect(html).toContain('data-testid="task"')
+    expect(html).toContain('Processing your request')
+    expect(html).toContain('Search knowledge base')
+    expect(html).not.toContain('data-testid="streamdown"')
   })
 })

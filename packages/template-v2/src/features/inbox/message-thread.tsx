@@ -1,7 +1,9 @@
 import type { Message, MessageRole } from '@server/contracts/domain-types'
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation'
 import { Message as AiMessage, MessageContent, MessageResponse } from '@/components/ai-elements/message'
+import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
+import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
 import type { ButtonElement } from '@/components/card-actions'
 import { postCardReply } from '@/components/card-actions'
 import { MessageCard } from '@/components/message-card'
@@ -14,13 +16,27 @@ function toUiRole(role: MessageRole): UiRole {
   return 'system'
 }
 
+export type DisplayMessage = Message & { reasoning?: string | null }
+
+interface TaskPayload {
+  type: 'task'
+  title: string
+  items: Array<{ id: string; label: string }>
+}
+
+function isTaskPayload(content: unknown): content is TaskPayload {
+  if (typeof content !== 'object' || content === null) return false
+  const c = content as Record<string, unknown>
+  return c.type === 'task' && typeof c.title === 'string' && Array.isArray(c.items)
+}
+
 interface CardAction {
   id: string
   label: string
   value: string
 }
 
-function extractActions(msg: Message): CardAction[] {
+function extractActions(msg: DisplayMessage): CardAction[] {
   if (msg.role !== 'agent' || msg.kind !== 'card') return []
   type CardContent = {
     card?: { children?: Array<{ type: string; buttons?: ButtonElement[] }> }
@@ -33,7 +49,7 @@ function extractActions(msg: Message): CardAction[] {
 }
 
 interface MessageThreadProps {
-  messages: Message[]
+  messages: DisplayMessage[]
 }
 
 export function MessageThread({ messages }: MessageThreadProps) {
@@ -42,16 +58,34 @@ export function MessageThread({ messages }: MessageThreadProps) {
       <ConversationContent>
         {messages.map((msg) => {
           const actions = extractActions(msg)
+          const taskPayload = isTaskPayload(msg.content) ? msg.content : null
           return (
             <div key={msg.id} className="flex flex-col gap-2">
               <AiMessage from={toUiRole(msg.role)}>
-                <MessageContent>
-                  {msg.kind === 'text' ? (
-                    <MessageResponse>{String((msg.content as { text?: unknown })?.text ?? '')}</MessageResponse>
-                  ) : (
-                    <MessageCard message={msg} />
-                  )}
-                </MessageContent>
+                {msg.reasoning && (
+                  <Reasoning defaultOpen={false}>
+                    <ReasoningTrigger />
+                    <ReasoningContent>{msg.reasoning}</ReasoningContent>
+                  </Reasoning>
+                )}
+                {taskPayload ? (
+                  <Task>
+                    <TaskTrigger title={taskPayload.title} />
+                    <TaskContent>
+                      {taskPayload.items.map((item) => (
+                        <TaskItem key={item.id}>{item.label}</TaskItem>
+                      ))}
+                    </TaskContent>
+                  </Task>
+                ) : (
+                  <MessageContent>
+                    {msg.kind === 'text' ? (
+                      <MessageResponse>{String((msg.content as { text?: unknown })?.text ?? '')}</MessageResponse>
+                    ) : (
+                      <MessageCard message={msg} />
+                    )}
+                  </MessageContent>
+                )}
               </AiMessage>
               {actions.length > 0 && (
                 <Suggestions>
