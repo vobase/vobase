@@ -51,6 +51,12 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
+    // Learning proposal lifecycle (learning_proposed / learning_approved / learning_rejected)
+    if (payload.table === 'learning_proposals') {
+      queryClient.invalidateQueries({ queryKey: ['learnings'] })
+      return
+    }
+
     // Broad fallback
     queryClient.invalidateQueries({ queryKey: [payload.table] })
   })
