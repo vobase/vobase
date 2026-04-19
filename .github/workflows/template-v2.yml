@@ -77,6 +77,13 @@ jobs:
       - name: Test phase3 (dogfood integration)
         run: bun test tests/phase3-dogfood.test.ts
 
+      - name: Test phase4 (harness hardening)
+        run: bun test tests/phase4-harness-hardening.test.ts
+
+      - name: Phase4 live-smoke cache check (warning only)
+        run: echo "::warning::live-smoke cache check skipped in CI (no ANTHROPIC_API_KEY — nightly workflow runs with key)"
+        continue-on-error: true
+
       - name: Frontend bundle lint
         run: bun run check:bundle
 

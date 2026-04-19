@@ -18,6 +18,11 @@ const DEF: AgentDefinition = {
   enabled: true,
   createdAt: new Date(),
   updatedAt: new Date(),
+  maxOutputTokens: null,
+  maxInputTokens: null,
+  maxTurnsPerWake: null,
+  softCostCeilingUsd: null,
+  hardCostCeilingUsd: null,
 }
 
 async function seeded(): Promise<Bash> {

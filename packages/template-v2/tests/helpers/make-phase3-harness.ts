@@ -144,6 +144,11 @@ export function stubAgentDefinition(agentId: string, tenantId: string): AgentDef
     enabled: true,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
+    maxOutputTokens: null,
+    maxInputTokens: null,
+    maxTurnsPerWake: null,
+    softCostCeilingUsd: null,
+    hardCostCeilingUsd: null,
   }
 }
 
@@ -171,6 +176,9 @@ export function stubPhase3Ports(args: { tenantId: string; agentId: string; conta
     },
     async appendEvent(event): Promise<void> {
       appended.push(event)
+    },
+    async checkDailyCeiling() {
+      return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
     },
   }
 

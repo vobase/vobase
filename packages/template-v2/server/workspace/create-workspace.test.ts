@@ -20,6 +20,11 @@ const AGENT_DEFINITION: AgentDefinition = {
   enabled: true,
   createdAt: new Date(),
   updatedAt: new Date(),
+  maxOutputTokens: null,
+  maxInputTokens: null,
+  maxTurnsPerWake: null,
+  softCostCeilingUsd: null,
+  hardCostCeilingUsd: null,
 }
 
 function makeTenantFile(partial: Partial<DriveFile> & { path: string; extractedText: string }): DriveFile {
@@ -151,6 +156,9 @@ function makeAgentsStub(): AgentsPort {
       return AGENT_DEFINITION
     },
     async appendEvent() {},
+    async checkDailyCeiling() {
+      return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
+    },
   }
 }
 

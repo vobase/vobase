@@ -15,6 +15,7 @@ export const bookSlotTool: AgentTool<BookSlotInput, { slotId: string; confirmed:
   description: 'Book a calendar slot for the contact. Requires staff approval if agent.bookSlotApprovalRequired=true.',
   inputSchema: BookSlotInputSchema,
   requiresApproval: true,
+  parallelGroup: 'never',
 
   async execute(args, _ctx: ToolContext): Promise<ToolResult<{ slotId: string; confirmed: boolean }>> {
     const parsed = BookSlotInputSchema.safeParse(args)

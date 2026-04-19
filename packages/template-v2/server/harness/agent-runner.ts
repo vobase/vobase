@@ -13,33 +13,43 @@
 import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
 import { createWorkspaceSyncObserver } from '@modules/agents/observers/workspace-sync'
+import { getLastWakeTail } from '@modules/agents/service/journal'
+import type { AbortContext } from '@server/contracts/abort-context'
 import type { AgentsPort } from '@server/contracts/agents-port'
 import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { AgentDefinition } from '@server/contracts/domain-types'
 import type { DrivePort } from '@server/contracts/drive-port'
 import type {
+  AgentAbortedEvent,
   AgentEndEvent,
   AgentEvent,
   AgentStartEvent,
+  BudgetWarningEvent,
   LlmCallEvent,
   MessageEndEvent,
   MessageStartEvent,
   MessageUpdateEvent,
+  PreCompactionEvent,
+  SteerInjectedEvent,
   ToolExecutionEndEvent,
   ToolExecutionStartEvent,
   TurnEndEvent,
   TurnStartEvent,
   WakeTrigger,
 } from '@server/contracts/event'
+import type { BudgetState, IterationBudget } from '@server/contracts/iteration-budget'
 import type { AgentMutator, AgentStep, MutatorContext } from '@server/contracts/mutator'
 import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
 import type { AgentTool, CommandDef, EventBus, LlmRequest, PluginContext } from '@server/contracts/plugin-context'
 import type { LlmFinish, LlmProvider } from '@server/contracts/provider-port'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import { EventBus as DefaultEventBus } from '@server/runtime/event-bus'
+import { assessBudget, worstCaseDeltaExceeds } from '@server/runtime/iteration-budget-runtime'
 import { newWakeId } from '@server/runtime/llm-call'
 import { MutatorChain } from '@server/runtime/mutator-chain'
 import { ObserverBus } from '@server/runtime/observer-bus'
+import { makeResilientProvider } from '@server/runtime/resilient-provider'
+import type { SteerQueueHandle } from '@server/runtime/steer-queue'
 import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-workspace'
 import { DirtyTracker } from '@server/workspace/dirty-tracker'
 import { nanoid } from 'nanoid'
@@ -47,7 +57,9 @@ import { drainProviderTurn } from './agent-adapter'
 import { type BashToolArgs, makeBashTool } from './bash-tool'
 import { buildFrozenPrompt } from './frozen-prompt-builder'
 import { type MockStreamEvent, mockStream, type StreamFn } from './mock-stream'
+import { createRestartRecoveryContributor } from './restart-recovery'
 import { type CustomSideLoadMaterializer, collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
+import { TurnBudget } from './turn-budget'
 
 // ----- types ---------------------------------------------------------------
 
@@ -106,6 +118,12 @@ export interface BootWakeOpts {
    * deterministic stub and learning-proposal is not registered.
    */
   observerLlmCall?: PluginContext['llmCall']
+  /** Per-wake iteration and cost budget. */
+  iterationBudget?: IterationBudget
+  /** Abort coordination carrier — defaults to a fresh AbortController. */
+  abortCtx?: AbortContext
+  /** Inbound steer messages drained between turns. */
+  steerQueue?: SteerQueueHandle
 }
 
 export interface CapturedPrompt {
@@ -170,18 +188,30 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   const agentDefinition: AgentDefinition = await opts.ports.agents.getAgentDefinition(opts.agentId)
 
   // ---- Observer bus ------------------------------------------------------
+  // The harness path doesn't wire `inbox`, `caption`, or a raw `db` handle into
+  // observers (those are unit-test seams). Throw-on-access guards turn an
+  // accidental future use into an obvious crash instead of a confusing TypeError.
+  const unwiredPort = (name: string) =>
+    new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          throw new Error(`harness observer ctx: ${name}.${String(prop)} accessed but not wired`)
+        },
+      },
+    ) as never
   const observerCtx: ObserverContext = {
     tenantId: opts.tenantId,
     conversationId,
     wakeId,
     ports: {
-      inbox: null as never,
+      inbox: unwiredPort('ports.inbox'),
       contacts: opts.ports.contacts,
       drive: opts.ports.drive,
       agents: opts.ports.agents,
-      caption: null as never,
+      caption: unwiredPort('ports.caption'),
     },
-    db: null as never,
+    db: unwiredPort('db'),
     logger,
     realtime: { notify: () => undefined },
   }
@@ -242,12 +272,16 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     await workspace.innerFs.writeFile(w.path, w.content)
   }
 
+  const turnBudget = new TurnBudget()
+
   // Build the single bash tool (and allow mutator/tool-result hydration later).
   const bashTool = makeBashTool({
     bash: workspace.bash,
     innerWrite: async (path, content) => {
       await workspace.innerFs.writeFile(path, content)
     },
+    turnBudget,
+    onSpill: (ev) => events.publish(ev),
   })
   const toolIndex = new Map<string, AgentTool>()
   toolIndex.set('bash', bashTool as unknown as AgentTool)
@@ -258,14 +292,12 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   const capturedPrompts: CapturedPrompt[] = []
   const customSideLoad: CustomSideLoadMaterializer[] = []
 
-  // Plan §P3.1 — record bash commands issued during turn N so turn N+1's
-  // side-load can surface them in the trailing `## Last turn side-effects`
-  // block. `lastTurnBashCmds` is the frozen snapshot the materializer reads;
-  // `currentTurnBashCmds` accumulates while turn N is running and is rolled
-  // over at turn boundaries. See §2.2.
+  // Bash commands run in turn N appear in turn N+1's side-load (§2.2 frozen
+  // snapshot — mid-wake writes never affect the turn that produced them).
   let lastTurnBashCmds: string[] = []
   let currentTurnBashCmds: string[] = []
   customSideLoad.push(createBashHistoryMaterializer(() => lastTurnBashCmds))
+  customSideLoad.push(createRestartRecoveryContributor(conversationId, getLastWakeTail))
 
   // ---- Emit agent_start --------------------------------------------------
   const frozen0 = await buildFrozenPrompt({
@@ -292,15 +324,69 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   events.publish(startEvt)
 
   // ---- Turn loop ---------------------------------------------------------
-  const maxTurns = opts.maxTurns ?? 1
+  const maxTurns = opts.iterationBudget?.maxTurnsPerWake ?? opts.maxTurns ?? 1
   let endReason: AgentEndEvent['reason'] = 'complete'
+  const abortSignal = opts.abortCtx?.wakeAbort.signal
+  let pendingSteerText: string | null = null
+
+  let resilientTurnIndex = 0
+  const activeProvider = opts.provider
+    ? makeResilientProvider(opts.provider, {
+        events,
+        logger,
+        getScope: () => ({ tenantId: opts.tenantId, conversationId, wakeId, turnIndex: resilientTurnIndex }),
+      })
+    : undefined
+
+  let preCompactionEmitted = false
+
+  const budgetState: BudgetState = { turnsConsumed: 0, spentUsd: 0 }
+  // Per-input vs per-output token rates are tracked separately so the
+  // worst-case-delta check stays accurate when the model's output price diverges
+  // from input price (typical 4× spread for Anthropic). Providers that don't
+  // split cost fall back to a 50/50 split of `costUsd`.
+  let lastCostPerInputToken = 0
+  let lastCostPerOutputToken = 0
+  let budgetWarningSideLoad: string | null = null
+  if (opts.iterationBudget) {
+    customSideLoad.push({
+      kind: 'custom',
+      priority: 90,
+      contribute: () => budgetWarningSideLoad ?? '',
+    })
+  }
 
   for (let turnIndex = 0; turnIndex < maxTurns; turnIndex += 1) {
     const scope: WakeScope = { tenantId: opts.tenantId, conversationId, wakeId, turnIndex }
 
+    // Pre-turn worst-case delta: refuse if projected next-turn spend exceeds hard ceiling.
+    if (opts.iterationBudget && (lastCostPerInputToken > 0 || lastCostPerOutputToken > 0)) {
+      if (
+        worstCaseDeltaExceeds(opts.iterationBudget, budgetState.spentUsd, lastCostPerInputToken, lastCostPerOutputToken)
+      ) {
+        const worstCaseEvt: BudgetWarningEvent = {
+          ...baseEventFields(scope),
+          type: 'budget_warning',
+          phase: 'hard',
+          turnsConsumed: budgetState.turnsConsumed,
+          spentUsd: budgetState.spentUsd,
+        }
+        events.publish(worstCaseEvt)
+        endReason = 'blocked'
+        break
+      }
+    }
+
     // turn_start
     const turnStart: TurnStartEvent = { ...baseEventFields(scope), type: 'turn_start' }
     events.publish(turnStart)
+    turnBudget.reset()
+
+    if (turnIndex > 0 && !preCompactionEmitted) {
+      preCompactionEmitted = true
+      const preCompEvt: PreCompactionEvent = { ...baseEventFields(scope), type: 'pre_compaction' }
+      events.publish(preCompEvt)
+    }
 
     // Rebuild side-load FRESH each turn so mid-wake writes propagate (spec §2.2).
     const sideLoadBody = await collectSideLoad({
@@ -315,9 +401,21 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       customMaterializers: customSideLoad,
       bash: workspace.bash,
     })
-    const firstUserMessage = sideLoadBody
+    let firstUserMessage = sideLoadBody
       ? `${sideLoadBody}\n\n${renderTriggerMessage(trigger)}`
       : renderTriggerMessage(trigger)
+
+    // Inject steer text accumulated from the previous turn (before capturedPrompts snapshot).
+    if (pendingSteerText !== null) {
+      const steerEvt: SteerInjectedEvent = {
+        ...baseEventFields(scope),
+        type: 'steer_injected',
+        text: pendingSteerText,
+      }
+      events.publish(steerEvt)
+      firstUserMessage = `${pendingSteerText}\n\n${firstUserMessage}`
+      pendingSteerText = null
+    }
 
     // Frozen prompt is computed ONCE — reuse the turn-0 snapshot for subsequent turns.
     capturedPrompts.push({
@@ -326,19 +424,31 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       firstUserMessage,
     })
 
+    resilientTurnIndex = turnIndex
     const pending: MockStreamEvent[] = []
     let providerFinish: LlmFinish | undefined
-    if (opts.provider) {
+    let providerStreamAborted = false
+
+    if (activeProvider) {
       const req: LlmRequest = {
         model: opts.model ?? agentDefinition.model,
         system: frozen0.system,
         messages: [{ role: 'user', content: firstUserMessage }],
         tools: Array.from(toolIndex.values()),
         stream: true,
+        signal: abortSignal,
       }
-      const drained = await drainProviderTurn(opts.provider, req)
-      providerFinish = drained.finish
-      for (const ev of drained.events) pending.push(ev)
+      try {
+        const drained = await drainProviderTurn(activeProvider, req)
+        providerFinish = drained.finish
+        for (const ev of drained.events) pending.push(ev)
+      } catch (err) {
+        if (abortSignal?.aborted) {
+          providerStreamAborted = true
+        } else {
+          throw err
+        }
+      }
     } else if (opts.mockStreamFn) {
       const streamGen = opts.mockStreamFn()
       for await (const ev of streamGen) pending.push(ev)
@@ -346,8 +456,8 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       throw new Error('bootWake: either `provider` or `mockStreamFn` must be supplied')
     }
 
-    const providerName = opts.provider?.name ?? 'mock'
-    const modelId = opts.model ?? (opts.provider ? agentDefinition.model : 'mock-llm')
+    const providerName = activeProvider?.name ?? 'mock'
+    const modelId = opts.model ?? (activeProvider ? agentDefinition.model : 'mock-llm')
 
     // llm_call — mock path uses stable placeholders; provider path carries the
     // terminal `finish` chunk metadata (real tokens/cost/latency/cacheHit).
@@ -411,12 +521,20 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       Extract<MockStreamEvent, { type: 'tool-call' }>
     >
     let blocked: { reason: string } | null = null
+    let abortedAt: 'pre_tool' | 'in_tool' | 'post_tool' | null = null
+    if (providerStreamAborted || abortSignal?.aborted) {
+      abortedAt = 'pre_tool'
+    }
     for (const call of toolCalls) {
+      if (abortedAt !== null) break
+      if (abortSignal?.aborted) {
+        abortedAt = 'post_tool'
+        break
+      }
       const toolCallId = call.toolCallId ?? nanoid(10)
       const step: AgentStep = { toolCallId, toolName: call.toolName, args: call.args }
       const mutatorCtx: MutatorContext = {
         ...observerCtx,
-        db: null as never,
         llmCall: async () => {
           throw new Error('mutators must not llmCall in Phase 1')
         },
@@ -467,6 +585,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
             agentId: opts.agentId,
             turnIndex,
             toolCallId,
+            signal: abortSignal,
           })
           toolEnd = {
             ...baseEventFields(scope),
@@ -490,6 +609,9 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
         }
       }
       events.publish(toolEnd)
+      if (abortSignal?.aborted && abortedAt === null) {
+        abortedAt = 'in_tool'
+      }
     }
 
     // message_end
@@ -513,9 +635,75 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     }
     events.publish(turnEnd)
 
+    // Budget state update and post-turn assessment.
+    budgetState.turnsConsumed += 1
+    budgetState.spentUsd += llmEvt.costUsd
+    if (providerFinish?.inputCostUsd !== undefined && llmEvt.tokensIn > 0) {
+      lastCostPerInputToken = providerFinish.inputCostUsd / llmEvt.tokensIn
+    }
+    if (providerFinish?.outputCostUsd !== undefined && llmEvt.tokensOut > 0) {
+      lastCostPerOutputToken = providerFinish.outputCostUsd / llmEvt.tokensOut
+    }
+    if (
+      providerFinish?.inputCostUsd === undefined &&
+      providerFinish?.outputCostUsd === undefined &&
+      llmEvt.tokensIn + llmEvt.tokensOut > 0
+    ) {
+      // Provider didn't split — assume 50/50 so worst-case delta stays bounded.
+      const halfTotal = llmEvt.costUsd / 2
+      if (llmEvt.tokensIn > 0) lastCostPerInputToken = halfTotal / llmEvt.tokensIn
+      if (llmEvt.tokensOut > 0) lastCostPerOutputToken = halfTotal / llmEvt.tokensOut
+    }
+    if (!blocked && opts.iterationBudget) {
+      const budgetPhase = assessBudget(opts.iterationBudget, budgetState)
+      if (budgetPhase === 'hard') {
+        const hardEvt: BudgetWarningEvent = {
+          ...baseEventFields(scope),
+          type: 'budget_warning',
+          phase: 'hard',
+          turnsConsumed: budgetState.turnsConsumed,
+          spentUsd: budgetState.spentUsd,
+        }
+        events.publish(hardEvt)
+        blocked = { reason: 'budget.hard' }
+      } else if (budgetPhase === 'soft') {
+        const softEvt: BudgetWarningEvent = {
+          ...baseEventFields(scope),
+          type: 'budget_warning',
+          phase: 'soft',
+          turnsConsumed: budgetState.turnsConsumed,
+          spentUsd: budgetState.spentUsd,
+        }
+        events.publish(softEvt)
+        budgetWarningSideLoad = `⚠️ Approaching budget limit: ${budgetState.turnsConsumed} of ${opts.iterationBudget.maxTurnsPerWake} turns used. Please wrap up.`
+      } else {
+        budgetWarningSideLoad = null
+      }
+    }
+
     // Roll bash history: snapshot turn N → visible to turn N+1's side-load.
     lastTurnBashCmds = currentTurnBashCmds
     currentTurnBashCmds = []
+
+    // Drain steer queue — accumulated texts will be injected at the next turn's start.
+    if (opts.steerQueue) {
+      const steers = opts.steerQueue.drain()
+      if (steers.length > 0) {
+        pendingSteerText = steers.join('\n\n')
+      }
+    }
+
+    if (abortedAt !== null) {
+      const abortedEvt: AgentAbortedEvent = {
+        ...baseEventFields(scope),
+        type: 'agent_aborted',
+        reason: opts.abortCtx?.reason ?? 'external',
+        abortedAt,
+      }
+      events.publish(abortedEvt)
+      endReason = 'aborted'
+      break
+    }
 
     if (blocked) {
       endReason = 'blocked'
@@ -549,7 +737,6 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       const scope: WakeScope = { tenantId: opts.tenantId, conversationId, wakeId, turnIndex: 0 }
       const mutatorCtx: MutatorContext = {
         ...observerCtx,
-        db: null as never,
         llmCall: async () => {
           throw new Error('simulateToolCall: llmCall disallowed')
         },
@@ -638,7 +825,7 @@ function renderTriggerMessage(trigger: WakeTrigger): string {
   }
 }
 
-// ----- helper re-exports for Lane F ---------------------------------------
+// ----- helper re-exports ---------------------------------------------------
 
 export type { MockStreamEvent, StreamFn }
 export { mockStream }

@@ -21,6 +21,7 @@ export const subagentTool: AgentTool<SubagentInput, { summary: string }> = {
   description:
     'Spawn an isolated sub-agent with a restricted toolset to accomplish a focused goal. Max recursion depth: 1.',
   inputSchema: SubagentInputSchema,
+  parallelGroup: 'never',
 
   async execute(args, ctx: ToolContext): Promise<ToolResult<{ summary: string }>> {
     const parsed = SubagentInputSchema.safeParse(args)

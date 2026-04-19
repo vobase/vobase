@@ -71,6 +71,9 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
         event,
       })
     },
+    async checkDailyCeiling() {
+      return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
+    },
   }
 
   const contactsPort: ContactsPort = {

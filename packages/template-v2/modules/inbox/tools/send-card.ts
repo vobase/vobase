@@ -84,6 +84,7 @@ export type CardElement = z.infer<typeof CardElementSchema>
 
 export const sendCardTool: AgentTool<CardElement, { messageId: string }> = {
   name: 'send_card',
+  parallelGroup: 'never',
   description:
     'PREFERRED reply format — send a rich interactive card. Use this whenever the customer has options to choose, confirm, compare, or act on (pricing, plans, refund decisions, booking slots, yes/no with consequences, lists of 2+ choices, how-to with a CTA). Cards let the customer one-tap their next move instead of typing. Requires staff approval if agent.cardApprovalRequired=true. Fall back to `reply` only for pure acknowledgements and free-form questions.',
   inputSchema: CardElementSchema,

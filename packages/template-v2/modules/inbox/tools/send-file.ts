@@ -20,6 +20,7 @@ export const sendFileTool: AgentTool<SendFileInput, { messageId: string }> = {
   description: 'Send a drive file to the customer. Requires staff approval if agent.fileApprovalRequired=true.',
   inputSchema: SendFileInputSchema,
   requiresApproval: true,
+  parallelGroup: 'never',
 
   async execute(args, ctx: ToolContext): Promise<ToolResult<{ messageId: string }>> {
     const parsed = SendFileInputSchema.safeParse(args)

@@ -14,6 +14,7 @@ export const replyTool: AgentTool<ReplyInput, { messageId: string }> = {
   name: 'reply',
   description: 'Send a plain-text reply to the customer in this conversation.',
   inputSchema: ReplyInputSchema,
+  parallelGroup: 'never',
 
   async execute(args, ctx: ToolContext): Promise<ToolResult<{ messageId: string }>> {
     const parsed = ReplyInputSchema.safeParse(args)

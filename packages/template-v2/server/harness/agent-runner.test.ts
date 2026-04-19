@@ -24,6 +24,11 @@ const AGENT: AgentDefinition = {
   enabled: true,
   createdAt: new Date(),
   updatedAt: new Date(),
+  maxOutputTokens: null,
+  maxInputTokens: null,
+  maxTurnsPerWake: null,
+  softCostCeilingUsd: null,
+  hardCostCeilingUsd: null,
 }
 
 function emptyRegistrations(extra?: Partial<ModuleRegistrationsSnapshot>): ModuleRegistrationsSnapshot {
@@ -130,6 +135,9 @@ function emptyAgents(): AgentsPort {
       return AGENT
     },
     async appendEvent() {},
+    async checkDailyCeiling() {
+      return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
+    },
   }
 }
 
