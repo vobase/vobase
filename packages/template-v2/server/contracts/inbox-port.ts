@@ -123,6 +123,13 @@ export interface InsertPendingApprovalInput {
 /** Opaque transaction handle passed through from Drizzle. */
 export type Tx = unknown
 
+export interface SendCardReplyInput {
+  parentMessageId: string
+  buttonId: string
+  buttonValue: string
+  buttonLabel?: string
+}
+
 export interface InboxPort {
   // read
   getConversation(id: string): Promise<Conversation>
@@ -132,6 +139,7 @@ export interface InboxPort {
   createConversation(input: CreateConversationInput): Promise<Conversation>
   sendTextMessage(input: SendTextInput): Promise<Message>
   sendCardMessage(input: SendCardInput): Promise<Message>
+  sendCardReply(input: SendCardReplyInput): Promise<Message>
   sendImageMessage(input: SendImageInput): Promise<Message>
   sendMediaMessage(input: SendMediaInput): Promise<Message>
 

@@ -177,6 +177,43 @@ export interface LearningProposal {
 }
 
 /**
+ * Markdown section materialised under `agent_memory.working_memory` whenever a
+ * learning proposal is rejected. Spec §13.1 line 1774: anti-lessons live as a
+ * `## Anti-lessons` section (not a column), keyed by `<proposal target>:
+ * <decidedNote>`. Consumed by `learn.propose` LLM input + the system prompt
+ * rule that tells the agent "DO NOT re-propose these topics".
+ */
+export interface AgentMemoryAntiLessons {
+  /** Heading always equals `Anti-lessons`. */
+  readonly heading: 'Anti-lessons'
+  /** One entry per rejected proposal — appended on rejection, never mutated. */
+  entries: ReadonlyArray<{
+    /** The proposal's `target` field — what the LLM should not re-propose. */
+    target: string
+    /** The proposal scope so the rule applies only to matching scope next turn. */
+    scope: LearningScope
+    /** Staff's `decided_note` — the reason teaches the LLM why the topic was bad. */
+    note: string
+    /** ISO8601 stamp so the section can be age-weighted later. */
+    rejectedAt: string
+  }>
+}
+
+export type ModerationCategory = 'hate' | 'harassment' | 'violence' | 'sexual' | 'prompt_injection' | 'policy_violation'
+
+export interface AgentScore {
+  id: string
+  tenantId: string
+  conversationId: string
+  wakeTurnIndex: number
+  scorer: string
+  score: number
+  rationale: string | null
+  model: string | null
+  createdAt: Date
+}
+
+/**
  * The append-only journal row. One row per `AgentEvent` plus per-event columns that
  * slightly widen the event-union payload (hermes-shaped fields like reasoning,
  * tool_calls, finish_reason). See spec §5.3.

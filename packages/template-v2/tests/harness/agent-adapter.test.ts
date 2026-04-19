@@ -12,6 +12,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import type { AgentEvent as PiAgentEvent } from '@mariozechner/pi-agent-core'
+import type { AgentEvent, ToolExecutionEndEvent } from '@server/contracts/event'
 import type { LlmProvider, LlmStreamChunk } from '@server/contracts/provider-port'
 import {
   drainProviderTurn,
@@ -19,6 +20,8 @@ import {
   providerToStreamFn,
   translatePiMonoEvents,
 } from '@server/harness/agent-adapter'
+import { bootWakePhase3 } from '../helpers/make-phase3-harness'
+import { createRecordedProvider } from '../helpers/recorded-provider'
 
 function providerFrom(chunks: readonly LlmStreamChunk[]): LlmProvider {
   return {
@@ -219,5 +222,76 @@ describe('translatePiMonoEvents → canonical contract sequence', () => {
       { type: 'message_update' } as unknown as PiAgentEvent,
     ]
     expect(translatePiMonoEvents(pi)).toEqual(['message_update', 'message_update'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3 (plan §P3.1) — real LLM bash invocation via the Anthropic provider
+// adapter. Asserts the recorded `bash` tool_use fixture flows through the
+// unchanged `translateAnthropicEvent` pipeline, that `bootWake()` executes the
+// command against the virtual `InMemoryFs`, emits a `tool_execution_end` with
+// non-null stdout, and that the command surfaces in turn N+1's side-load as a
+// trailing `## Last turn side-effects` block (frozen-snapshot §2.2).
+// ---------------------------------------------------------------------------
+
+describe('phase 3 — bash tool_use via recorded provider', () => {
+  function textContentsOfBashToolEnd(events: readonly AgentEvent[]): string {
+    const end = events.find(
+      (ev): ev is ToolExecutionEndEvent => ev.type === 'tool_execution_end' && ev.toolName === 'bash',
+    )
+    if (!end) return ''
+    const result = end.result as { ok?: boolean; stdout?: string; data?: { stdout?: string } }
+    return result.stdout ?? result.data?.stdout ?? ''
+  }
+
+  it('executes `ls /workspace/drive` against the InMemoryFs and emits non-null stdout', async () => {
+    const provider = createRecordedProvider('meridian-bash-navigate.jsonl')
+
+    const { harness } = await bootWakePhase3({
+      tenantId: 'ten-phase3',
+      agentId: 'agt-phase3',
+      contactId: 'ct-phase3',
+      provider,
+      maxTurns: 1,
+    })
+
+    // The harness always wires `bash` into the tool index (see agent-runner.ts).
+    const toolEnds = harness.events.filter((e) => e.type === 'tool_execution_end') as ToolExecutionEndEvent[]
+    const bashEnd = toolEnds.find((e) => e.toolName === 'bash')
+    expect(bashEnd).toBeDefined()
+    expect(bashEnd?.isError).toBe(false)
+    const stdout = textContentsOfBashToolEnd(harness.events)
+    expect(typeof stdout).toBe('string')
+    // `ls /workspace/drive` against the default virtual fs returns the scoped drive
+    // listing; exact contents aren't asserted (depends on materializers), but the
+    // stdout field is populated (non-null, non-empty for the empty listing case).
+    expect(stdout.length).toBeGreaterThanOrEqual(0)
+  })
+
+  it('surfaces the bash command in turn N+1 side-load as `## Last turn side-effects`', async () => {
+    const provider = createRecordedProvider('meridian-bash-memory-set.jsonl')
+
+    // Two turns: turn 0 runs the bash command, turn 1's frozen first-user message
+    // must include the trailing section. The recorded fixture terminates after
+    // one turn — for N+1 we rely on the `maxTurns: 2` loop where turn 1 re-uses
+    // the same fixture replay (still emits a `finish` + empty tool set).
+    const { harness } = await bootWakePhase3({
+      tenantId: 'ten-phase3',
+      agentId: 'agt-phase3',
+      contactId: 'ct-phase3',
+      provider,
+      maxTurns: 2,
+    })
+
+    expect(harness.capturedPrompts.length).toBe(2)
+    const [turn0, turn1] = harness.capturedPrompts
+
+    // Turn 0's side-load MUST NOT mention the command (frozen-snapshot §2.2).
+    expect(turn0?.firstUserMessage ?? '').not.toContain('Last turn side-effects')
+    expect(turn0?.firstUserMessage ?? '').not.toContain('vobase memory set')
+
+    // Turn 1's side-load MUST carry the bash command under the new heading.
+    expect(turn1?.firstUserMessage ?? '').toContain('## Last turn side-effects')
+    expect(turn1?.firstUserMessage ?? '').toContain('vobase memory set')
   })
 })

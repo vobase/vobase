@@ -19,6 +19,14 @@
  * The runner keeps its hand-rolled state machine for the mock path (Phase 1
  * regression guard). The provider path flows through `drainProviderToMockStream`
  * inside the same state machine — event ordering is preserved unchanged.
+ *
+ * Phase 3 (plan §P3.1): the single `bash` AgentTool built in
+ * `server/harness/agent-runner.ts` is always present in `toolIndex` and is
+ * forwarded via `LlmRequest.tools` to the provider. That means the real
+ * Anthropic model sees `bash` in every request; `drainProviderTurn`
+ * aggregates the returned `tool_use` blocks (see `translateAnthropicEvent`
+ * in `providers/anthropic.ts`) into `MockStreamEvent` tool-call entries —
+ * no adapter-side schema change required.
  */
 
 import type { AgentEvent as PiAgentEvent, AgentTool as PiAgentTool } from '@mariozechner/pi-agent-core'

@@ -185,6 +185,28 @@ export type LearningRejectedEvent = BaseEvent & {
   reason: string
 }
 
+// ─── Moderation + scorer events (Phase 3, plan §P3.0) ─────────────────
+
+export type ModerationBlockedEvent = BaseEvent & {
+  type: 'moderation_blocked'
+  /** Tool call that triggered the block (matches approval_requested.toolName convention). */
+  toolName: string
+  toolCallId: string
+  /** Rule that fired — e.g. 'policy.refund_cap', 'threat.prompt_injection'. */
+  ruleId: string
+  reason: string
+}
+
+export type ScorerRecordedEvent = BaseEvent & {
+  type: 'scorer_recorded'
+  /** Matches `modules/agents/schema.ts agent_scores.scorer_id` (e.g. 'answer_relevancy'). */
+  scorerId: string
+  /** 0..1 range — enforced by the observer writing the row. */
+  score: number
+  /** Link back to the LLM call that produced the rating (scorer_recorded fires after the scorer's own `llm_call`). */
+  sourceLlmTask: LlmTask
+}
+
 export type AgentEvent =
   | AgentStartEvent
   | TurnStartEvent
@@ -203,6 +225,8 @@ export type AgentEvent =
   | LearningProposedEvent
   | LearningApprovedEvent
   | LearningRejectedEvent
+  | ModerationBlockedEvent
+  | ScorerRecordedEvent
   | ChannelInboundAgentEvent
   | ChannelOutboundAgentEvent
   | WakeScheduledEvent

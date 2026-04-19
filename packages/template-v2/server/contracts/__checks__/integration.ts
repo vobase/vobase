@@ -37,6 +37,8 @@ import type {
   ChannelInboundAgentEvent,
   ChannelOutboundAgentEvent,
   LlmTask,
+  ModerationBlockedEvent,
+  ScorerRecordedEvent,
   WakeScheduledEvent,
   WakeTrigger,
   WakeTriggerKind,
@@ -53,6 +55,7 @@ import type { AgentMutator, AgentStep, MutatorContext, MutatorDecision, StepResu
 import type { AgentObserver, Logger, ObserverContext } from '../observer'
 import type { AgentTool, CommandDef, EventBus, PluginContext, RealtimeService } from '../plugin-context'
 import type { LlmProvider, LlmStreamChunk } from '../provider-port'
+import type { Schema, ScopedDb, TenantScope } from '../scoped-db'
 import type {
   MaterializerCtx,
   MaterializerPhase,
@@ -91,6 +94,8 @@ type _EventTypes = AssertEqual<
   | 'learning_proposed'
   | 'learning_approved'
   | 'learning_rejected'
+  | 'moderation_blocked'
+  | 'scorer_recorded'
   | 'channel_inbound'
   | 'channel_outbound'
   | 'wake_scheduled'
@@ -134,6 +139,10 @@ export function assertAgentEventExhaustive(e: AgentEvent): string {
       return e.proposalId + e.writeId
     case 'learning_rejected':
       return e.reason
+    case 'moderation_blocked':
+      return e.toolName + e.ruleId
+    case 'scorer_recorded':
+      return e.scorerId + String(e.score) + e.sourceLlmTask
     case 'channel_inbound':
       return e.channelType + e.externalMessageId
     case 'channel_outbound':
@@ -181,6 +190,7 @@ type _RequiredInboxMethods =
   | 'insertPendingApproval'
   | 'beginCompaction'
   | 'createInboundMessage'
+  | 'sendCardReply'
 type _InboxKeys = AssertTrue<AssertEqual<keyof InboxPort, _RequiredInboxMethods>>
 
 type _RequiredContactsMethods =
@@ -481,6 +491,55 @@ const _wakeSched: _WakeSchEvt = {
   scheduledAt: new Date(Date.now() + 3600_000),
 }
 void _wakeSched
+
+// ---------------------------------------------------------------------------
+// Phase 3 new contracts (P3.0) — ScopedDb + two new event variants
+// ---------------------------------------------------------------------------
+
+// scoped-db.ts: ScopedDb refines PostgresJsDatabase<Schema>; the contracts
+// layer holds the Schema + TenantScope carrier names for downstream lanes.
+type _ScopedDbKeep = ScopedDb
+type _SchemaKeep = Schema
+type _TenantScopeKeep = TenantScope
+
+// MutatorContext.db is now ScopedDb (Phase 3 lift) — confirm structurally
+type _MutatorDbIsScopedDb = AssertTrue<AssertEqual<MutatorContext['db'], ScopedDb>>
+// ObserverContext.db and PluginContext.db also thread ScopedDb through
+type _ObserverDbIsScopedDb = AssertTrue<AssertEqual<ObserverContext['db'], ScopedDb>>
+type _PluginDbIsScopedDb = AssertTrue<AssertEqual<PluginContext['db'], ScopedDb>>
+
+// Moderation + scorer variant instantiation (type-only)
+type _ModBlockedEvt = ModerationBlockedEvent
+const _modBlocked: _ModBlockedEvt = {
+  type: 'moderation_blocked',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 0,
+  toolName: 'send_card',
+  toolCallId: 'tc1',
+  ruleId: 'policy.refund_cap',
+  reason: 'refund amount exceeds policy ceiling',
+}
+void _modBlocked
+
+type _ScorerRecEvt = ScorerRecordedEvent
+const _scorerRec: _ScorerRecEvt = {
+  type: 'scorer_recorded',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 0,
+  scorerId: 'answer_relevancy',
+  score: 0.82,
+  sourceLlmTask: 'scorer.answer_relevancy',
+}
+void _scorerRec
+
+const _tenantScopeSample: TenantScope = { tenantId: 't1' }
+void _tenantScopeSample
 
 // ---------------------------------------------------------------------------
 // Explicit re-exports so bundlers + type-only consumers see the surface

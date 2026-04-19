@@ -1,11 +1,10 @@
 /**
  * Factory that assembles a `PluginContext` for a single module's `init(ctx)`.
- * Spec §6.1 + plan §P1.1.
- *
- * This is the ONE place where runtime wiring meets contracts. The factory
- * exposes a `registrations` drain so the boot harness can collect what each
- * module asked for (tools, observers, mutators, materializers, etc.) and hand
- * them off to the wake runtime.
+ * Spec §6.1 + plan §P1.1. Phase 3 (plan §P3.0) threads a real `ScopedDb` —
+ * callers pass the drizzle handle from the module boot slot; the factory
+ * forwards it to every module's `init(ctx).db` unchanged. Existing
+ * `jobs`/`storage`/`events`/`realtime`/`llmCall` slots from Phase 2 P2.0
+ * stay wired as-is.
  */
 
 import type { LlmTask } from '@server/contracts/event'

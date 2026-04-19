@@ -7,6 +7,12 @@
  *
  * Items are priority-ordered DESCENDING (higher priority appears first) and
  * joined with `---` separators. Contributors that return `[]` are skipped.
+ *
+ * Phase 3 (plan §P3.1): `createBashHistoryMaterializer` records every `bash`
+ * command executed during the previous turn as a trailing `## Last turn
+ * side-effects` markdown section. The reader returns the snapshot fresh per
+ * turn (closure over the agent-runner buffer), so commands issued in turn N
+ * land in turn N+1's side-load — never the current turn's FROZEN prompt.
  */
 
 import type { SideLoadContributor, SideLoadCtx, SideLoadItem } from '@server/contracts/side-load'
@@ -75,4 +81,28 @@ export async function collectSideLoad(opts: CollectSideLoadOpts): Promise<string
 
   if (rendered.length === 0) return ''
   return rendered.join('\n\n---\n\n')
+}
+
+/**
+ * Phase 3 (plan §P3.1) — trailing `## Last turn side-effects` section.
+ *
+ * `getHistory()` is called ONCE per turn when the collector materializes.
+ * Callers (agent-runner) wire it to a mutable buffer they swap at turn
+ * boundaries, so turn N's recorded commands surface in turn N+1's side-load
+ * — never in turn N itself (preserves §2.2).
+ *
+ * Priority 0 keeps this block at the BOTTOM of the side-load when other
+ * contributors use the documented priority-1 baseline.
+ */
+export function createBashHistoryMaterializer(getHistory: () => readonly string[]): CustomSideLoadMaterializer {
+  return {
+    kind: 'custom',
+    priority: 0,
+    contribute: () => {
+      const hist = getHistory()
+      if (!hist || hist.length === 0) return ''
+      const lines = hist.map((cmd) => `- \`${cmd}\``).join('\n')
+      return `## Last turn side-effects\n\n${lines}`
+    },
+  }
 }

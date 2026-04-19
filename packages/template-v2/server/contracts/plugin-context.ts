@@ -16,6 +16,7 @@ import type { AgentEvent, LlmTask } from './event'
 import type { InboxPort, Tx } from './inbox-port'
 import type { AgentMutator } from './mutator'
 import type { AgentObserver, Logger } from './observer'
+import type { ScopedDb } from './scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from './side-load'
 import type { ToolResult } from './tool-result'
 
@@ -87,11 +88,10 @@ export interface LlmResult<T = string> {
 }
 
 /**
- * Scoped Drizzle DB handle — tenant-filtered at the handler layer. Kept `unknown`
- * at the contract surface so modules stay agnostic of the concrete driver (Lane B
- * refines to `PostgresJsDatabase<Schema>` in runtime).
+ * Scoped Drizzle DB handle — tenant-filtered at the handler layer. Phase 3
+ * lands the real primitive; see `./scoped-db.ts`.
  */
-export type ScopedDb = unknown
+export type { ScopedDb } from './scoped-db'
 
 /** pg-boss handle, namespaced per-module. */
 export type ScopedScheduler = unknown

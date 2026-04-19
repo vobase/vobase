@@ -10,6 +10,7 @@
  * Tool calls run through the mutator chain (approvalMutator etc.).
  */
 
+import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
 import { createWorkspaceSyncObserver } from '@modules/agents/observers/workspace-sync'
 import type { AgentsPort } from '@server/contracts/agents-port'
@@ -32,7 +33,7 @@ import type {
 } from '@server/contracts/event'
 import type { AgentMutator, AgentStep, MutatorContext } from '@server/contracts/mutator'
 import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
-import type { AgentTool, CommandDef, EventBus, LlmRequest } from '@server/contracts/plugin-context'
+import type { AgentTool, CommandDef, EventBus, LlmRequest, PluginContext } from '@server/contracts/plugin-context'
 import type { LlmFinish, LlmProvider } from '@server/contracts/provider-port'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import { EventBus as DefaultEventBus } from '@server/runtime/event-bus'
@@ -43,10 +44,10 @@ import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-
 import { DirtyTracker } from '@server/workspace/dirty-tracker'
 import { nanoid } from 'nanoid'
 import { drainProviderTurn } from './agent-adapter'
-import { makeBashTool } from './bash-tool'
+import { type BashToolArgs, makeBashTool } from './bash-tool'
 import { buildFrozenPrompt } from './frozen-prompt-builder'
 import { type MockStreamEvent, mockStream, type StreamFn } from './mock-stream'
-import { type CustomSideLoadMaterializer, collectSideLoad } from './side-load-collector'
+import { type CustomSideLoadMaterializer, collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
 
 // ----- types ---------------------------------------------------------------
 
@@ -99,6 +100,12 @@ export interface BootWakeOpts {
   conversationId?: string
   /** For the assertion-12 round-trip — runner writes these during a turn. */
   preWakeWrites?: ReadonlyArray<{ path: string; content: string }>
+  /**
+   * Per-wake LLM chokepoint threaded to reflection observers (memory-distill,
+   * learning-proposal). When omitted, memory-distill falls back to its
+   * deterministic stub and learning-proposal is not registered.
+   */
+  observerLlmCall?: PluginContext['llmCall']
 }
 
 export interface CapturedPrompt {
@@ -213,7 +220,22 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   observers.register(
     createWorkspaceSyncObserver({ fs: workspace.innerFs, tracker: dirtyTracker, contactId: opts.contactId }),
   )
-  observers.register(createMemoryDistillObserver({ contactId: opts.contactId }))
+  observers.register(
+    createMemoryDistillObserver({
+      contactId: opts.contactId,
+      agentId: opts.agentId,
+      llmCall: opts.observerLlmCall,
+    }),
+  )
+  if (opts.observerLlmCall) {
+    observers.register(
+      createLearningProposalObserver({
+        contactId: opts.contactId,
+        agentId: opts.agentId,
+        llmCall: opts.observerLlmCall,
+      }),
+    )
+  }
 
   // Apply any pre-wake writes the caller staged (test harness).
   for (const w of opts.preWakeWrites ?? []) {
@@ -235,6 +257,15 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   const mutators = new MutatorChain(opts.registrations.mutators)
   const capturedPrompts: CapturedPrompt[] = []
   const customSideLoad: CustomSideLoadMaterializer[] = []
+
+  // Plan §P3.1 — record bash commands issued during turn N so turn N+1's
+  // side-load can surface them in the trailing `## Last turn side-effects`
+  // block. `lastTurnBashCmds` is the frozen snapshot the materializer reads;
+  // `currentTurnBashCmds` accumulates while turn N is running and is rolled
+  // over at turn boundaries. See §2.2.
+  let lastTurnBashCmds: string[] = []
+  let currentTurnBashCmds: string[] = []
+  customSideLoad.push(createBashHistoryMaterializer(() => lastTurnBashCmds))
 
   // ---- Emit agent_start --------------------------------------------------
   const frozen0 = await buildFrozenPrompt({
@@ -400,6 +431,11 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       }
       const effectiveArgs = decision?.action === 'transform' ? decision.args : call.args
 
+      if (call.toolName === 'bash') {
+        const cmd = (effectiveArgs as Partial<BashToolArgs>)?.command
+        if (typeof cmd === 'string' && cmd.length > 0) currentTurnBashCmds.push(cmd)
+      }
+
       const toolStart: ToolExecutionStartEvent = {
         ...baseEventFields(scope),
         type: 'tool_execution_start',
@@ -476,6 +512,10 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       costUsd: 0,
     }
     events.publish(turnEnd)
+
+    // Roll bash history: snapshot turn N → visible to turn N+1's side-load.
+    lastTurnBashCmds = currentTurnBashCmds
+    currentTurnBashCmds = []
 
     if (blocked) {
       endReason = 'blocked'
