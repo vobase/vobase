@@ -13,7 +13,11 @@ export interface AuthorRefUser {
   kind: 'user'
   id: string
 }
-export type AuthorRef = AuthorRefAgent | AuthorRefUser
+export interface AuthorRefStaff {
+  kind: 'staff'
+  id: string
+}
+export type AuthorRef = AuthorRefAgent | AuthorRefUser | AuthorRefStaff
 
 export type AssigneeRef = AuthorRef | { kind: 'unassigned' }
 

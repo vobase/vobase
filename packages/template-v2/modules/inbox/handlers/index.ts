@@ -5,6 +5,7 @@ import { Hono } from 'hono'
 import approvals from './approvals'
 import notes from './notes'
 import reassign from './reassign'
+import reply from './reply'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
@@ -36,8 +37,9 @@ app.get('/approvals', async (c) => {
 // /api/inbox/approvals/* handler file lives here.
 app.route('/approvals', approvals)
 
-// Parcel SV: staff endpoints — /conversations/:id/notes and /conversations/:id/reassign
+// Parcel SV: staff endpoints — /conversations/:id/notes, /conversations/:id/reassign, /conversations/:id/reply
 app.route('/conversations', notes)
 app.route('/conversations', reassign)
+app.route('/conversations', reply)
 
 export default app

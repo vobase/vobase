@@ -154,6 +154,7 @@ export class WakeWorker {
     }
     const handler = (event: AgentEvent): void => {
       if (event.type !== 'tool_execution_end') return
+      if (event.toolName === 'staff_reply') return
       if (!OUTBOUND_TOOL_NAME_SET.has(event.toolName)) return
       void this.outbound.emit({
         conversationId,

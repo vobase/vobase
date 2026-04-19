@@ -11,7 +11,13 @@ import type {
   SendTextInput,
 } from '@server/contracts/inbox-port'
 import { conversations, notes, pendingApprovals } from './service'
-import { appendCardMessage, appendCardReplyMessage, appendMediaMessage, appendTextMessage } from './service/messages'
+import {
+  appendCardMessage,
+  appendCardReplyMessage,
+  appendMediaMessage,
+  appendStaffTextMessage,
+  appendTextMessage,
+} from './service/messages'
 
 export function createInboxPort(): InboxPort {
   return {
@@ -26,6 +32,14 @@ export function createInboxPort(): InboxPort {
       return conversations.create(input)
     },
     async sendTextMessage(input: SendTextInput) {
+      if (input.author.kind === 'staff') {
+        return appendStaffTextMessage({
+          conversationId: input.conversationId,
+          tenantId: input.tenantId,
+          staffUserId: input.author.id,
+          body: input.body,
+        })
+      }
       return appendTextMessage({
         conversationId: input.conversationId,
         tenantId: input.tenantId,

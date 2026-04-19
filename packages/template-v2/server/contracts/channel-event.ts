@@ -9,7 +9,7 @@
 import { z } from 'zod'
 
 /** Outbound-facing tool names — dispatchers, senders, and the wake worker all key off this list. */
-export const OUTBOUND_TOOL_NAMES = ['reply', 'send_card', 'send_file'] as const
+export const OUTBOUND_TOOL_NAMES = ['reply', 'send_card', 'send_file', 'staff_reply'] as const
 export type OutboundToolName = (typeof OUTBOUND_TOOL_NAMES)[number]
 export const OUTBOUND_TOOL_NAME_SET: ReadonlySet<string> = new Set(OUTBOUND_TOOL_NAMES)
 

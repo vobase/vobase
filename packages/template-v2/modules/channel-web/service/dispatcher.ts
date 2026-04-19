@@ -52,6 +52,17 @@ export async function dispatch(
       wakeId: event.wakeId,
     })
     messageId = msg.id
+  } else if (event.toolName === 'staff_reply') {
+    const payload = event.payload as { text: string; staffUserId?: string }
+    const staffAuthor = { kind: 'staff' as const, id: payload.staffUserId ?? `wake:${event.wakeId}` }
+    const msg = await inboxPort.sendTextMessage({
+      conversationId: event.conversationId,
+      tenantId: event.tenantId,
+      author: staffAuthor,
+      body: payload.text,
+      wakeId: event.wakeId,
+    })
+    messageId = msg.id
   } else {
     throw new Error(`channel-web/dispatcher: unknown toolName "${event.toolName}"`)
   }

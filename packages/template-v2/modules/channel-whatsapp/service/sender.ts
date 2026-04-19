@@ -76,5 +76,17 @@ export async function sendOutbound(
     return { success: true, messageId: res.messageId }
   }
 
+  if (event.toolName === 'staff_reply') {
+    const payload = event.payload as { text: string }
+    const res = await metaPost(config, 'messages', {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: recipientPhone,
+      type: 'text',
+      text: { body: payload.text, preview_url: false },
+    })
+    return { success: true, messageId: res.messageId }
+  }
+
   return { success: false, error: `unknown toolName "${event.toolName}"` }
 }

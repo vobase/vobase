@@ -35,7 +35,7 @@ export interface Conversation {
   updatedAt: Date
 }
 
-export type MessageRole = 'customer' | 'agent' | 'system'
+export type MessageRole = 'customer' | 'agent' | 'system' | 'staff'
 export type MessageKind = 'text' | 'image' | 'card' | 'card_reply'
 
 export interface Message {

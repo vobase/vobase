@@ -97,7 +97,7 @@ export const messages = inboxPgSchema.table(
     uniqueIndex('idx_msg_channel_ext')
       .on(t.tenantId, t.channelExternalId)
       .where(sql`${t.channelExternalId} IS NOT NULL`),
-    check('messages_role_check', sql`role IN ('customer','agent','system')`),
+    check('messages_role_check', sql`role IN ('customer','agent','system','staff')`),
     check('messages_kind_check', sql`kind IN ('text','image','card','card_reply')`),
   ],
 )

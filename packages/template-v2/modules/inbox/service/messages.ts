@@ -172,6 +172,38 @@ export async function appendMediaMessage(input: AppendMediaMessageInput): Promis
   )
 }
 
+export interface AppendStaffTextMessageInput {
+  conversationId: string
+  tenantId: string
+  staffUserId: string
+  body: string
+}
+
+export async function appendStaffTextMessage(input: AppendStaffTextMessageInput): Promise<Message> {
+  const db = requireDb()
+  const toolCallId = `staff_reply:${Date.now()}`
+  const wakeId = `staff_reply:${input.staffUserId}`
+  return db.transaction(async (tx) => {
+    const msg = await insertMessageRow(tx as { insert: InsertFn }, {
+      conversationId: input.conversationId,
+      tenantId: input.tenantId,
+      role: 'staff',
+      kind: 'text',
+      content: { text: input.body },
+    })
+    await journalToolEnd(tx, {
+      conversationId: input.conversationId,
+      tenantId: input.tenantId,
+      wakeId,
+      turnIndex: 0,
+      toolCallId,
+      toolName: 'staff_reply',
+      messageId: msg.id,
+    })
+    return msg
+  })
+}
+
 async function journalChannelInbound(
   tx: unknown,
   input: { conversationId: string; tenantId: string; messageId: string; turnIndex: number },
