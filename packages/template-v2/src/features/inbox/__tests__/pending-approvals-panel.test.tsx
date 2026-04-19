@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { PendingApproval } from '@server/contracts/domain-types'
+import * as realQuery from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-// Mock react-query and sonner BEFORE importing the component.
-// We do NOT mock use-decide-approval here so we can test the real functions below.
 mock.module('@tanstack/react-query', () => ({
+  ...realQuery,
   useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
     if (String(queryKey[0]) === 'approvals') {
       return {
@@ -14,7 +14,7 @@ mock.module('@tanstack/react-query', () => ({
     return { data: [] }
   },
   useMutation: () => ({ mutate: mock(() => {}), isPending: false }),
-  useQueryClient: () => ({ invalidateQueries: mock(() => {}) }),
+  useQueryClient: () => ({ invalidateQueries: mock(() => {}), getQueryData: mock(() => undefined) }),
 }))
 
 mock.module('sonner', () => ({ toast: { success: mock(() => {}) } }))

@@ -8,6 +8,7 @@ let mockResolved = 'light' as 'light' | 'dark'
 const setThemeMock = mock((_t: string) => {})
 
 mock.module('@/components/theme-provider', () => ({
+  ThemeProvider: ({ children }: { children: unknown }) => children,
   useTheme: () => ({ theme: mockTheme, setTheme: setThemeMock, resolvedTheme: mockResolved }),
 }))
 

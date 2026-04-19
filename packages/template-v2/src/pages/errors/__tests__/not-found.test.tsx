@@ -1,7 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
+import * as realRouter from '@tanstack/react-router'
 
 mock.module('@tanstack/react-router', () => ({
+  ...realRouter,
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
     <a href={to}>{children}</a>
   ),

@@ -6,6 +6,7 @@ mock.module('@/features/settings/api/use-settings-save', () => ({
 }))
 
 mock.module('@/components/theme-provider', () => ({
+  ThemeProvider: ({ children }: { children: unknown }) => children,
   useTheme: () => ({ theme: 'system', setTheme: mock(() => {}), resolvedTheme: 'light' }),
 }))
 

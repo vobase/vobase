@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
+import * as realRouter from '@tanstack/react-router'
 
 const signOutMock = mock(async () => {})
 
@@ -8,7 +9,8 @@ mock.module('@/lib/auth-client', () => ({
 }))
 
 mock.module('@tanstack/react-router', () => ({
-  useNavigate: () => mock(() => {}),
+  ...realRouter,
+  useNavigate: () => mock((_opts: unknown) => {}),
   useRouterState: () => '',
 }))
 

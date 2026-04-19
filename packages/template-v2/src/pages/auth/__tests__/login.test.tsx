@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
+import * as realRouter from '@tanstack/react-router'
 
 const sendVerificationOtpMock = mock(async (_args: { email: string; type: string }) => ({
   data: null,
@@ -14,6 +15,7 @@ mock.module('@/lib/auth-client', () => ({
 }))
 
 mock.module('@tanstack/react-router', () => ({
+  ...realRouter,
   useNavigate: () => mock((_opts: unknown) => {}),
   useRouterState: () => '',
 }))

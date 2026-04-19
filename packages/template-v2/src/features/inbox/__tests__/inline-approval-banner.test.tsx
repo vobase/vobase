@@ -1,8 +1,10 @@
 import { describe, expect, it, mock } from 'bun:test'
 import type { PendingApproval } from '@server/contracts/domain-types'
+import * as realQuery from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 mock.module('@tanstack/react-query', () => ({
+  ...realQuery,
   useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
     if (String(queryKey[0]) === 'approvals') {
       return {
@@ -12,7 +14,7 @@ mock.module('@tanstack/react-query', () => ({
     return { data: [] }
   },
   useMutation: () => ({ mutate: mock(() => {}), isPending: false }),
-  useQueryClient: () => ({ invalidateQueries: mock(() => {}) }),
+  useQueryClient: () => ({ invalidateQueries: mock(() => {}), getQueryData: mock(() => undefined) }),
 }))
 
 function makePendingApproval(overrides: Partial<PendingApproval> = {}): PendingApproval {
