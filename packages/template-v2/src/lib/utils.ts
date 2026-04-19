@@ -5,6 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** @deprecated use <RelativeTimeCard date={...} /> from @/components/ui/relative-time instead */
 export function formatRelativeTime(date: Date | string | null): string {
   if (!date) return '—'
   const d = typeof date === 'string' ? new Date(date) : date

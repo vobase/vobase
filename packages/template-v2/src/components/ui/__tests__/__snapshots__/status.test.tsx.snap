@@ -1,0 +1,25 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`Status renders variant active 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-success)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">active</span></span>"`;
+
+exports[`Status renders variant resolving 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-info)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">resolving</span></span>"`;
+
+exports[`Status renders variant resolved 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-fg-subtle)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">resolved</span></span>"`;
+
+exports[`Status renders variant compacted 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-fg-subtle)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">compacted</span></span>"`;
+
+exports[`Status renders variant archived 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-fg-subtle)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">archived</span></span>"`;
+
+exports[`Status renders variant awaiting_approval 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-warning)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">awaiting_approval</span></span>"`;
+
+exports[`Status renders variant failed 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-danger)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">failed</span></span>"`;
+
+exports[`Status renders variant success 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-success)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">success</span></span>"`;
+
+exports[`Status renders variant error 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-danger)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">error</span></span>"`;
+
+exports[`Status renders variant warning 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-warning)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">warning</span></span>"`;
+
+exports[`Status renders variant info 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-info)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">info</span></span>"`;
+
+exports[`Status renders variant neutral 1`] = `"<span class="inline-flex items-center gap-2 text-[var(--color-fg-muted)]"><span class="size-1.5 shrink-0 rounded-full bg-current"></span><span class="font-mono text-xs lowercase">neutral</span></span>"`;

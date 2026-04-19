@@ -1,70 +1,41 @@
+// shadcn-override-ok: hand-written CVA, no registry equivalent matches Status semantics
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Slot as SlotPrimitive } from 'radix-ui'
 import type * as React from 'react'
 import { cn } from '@/lib/utils'
 
-const statusVariants = cva(
-  'inline-flex w-fit shrink-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full border px-2.5 py-1 font-medium text-xs transition-colors',
-  {
-    variants: {
-      variant: {
-        default:
-          'border-transparent bg-muted text-muted-foreground **:data-[slot=status-indicator]:bg-muted-foreground',
-        success:
-          'border-green-500/20 bg-green-500/10 text-green-600 **:data-[slot=status-indicator]:bg-green-600 dark:text-green-400 **:data-[slot=status-indicator]:dark:bg-green-400',
-        error:
-          'border-destructive/20 bg-destructive/10 text-destructive **:data-[slot=status-indicator]:bg-destructive',
-        warning:
-          'border-orange-500/20 bg-orange-500/10 text-orange-600 **:data-[slot=status-indicator]:bg-orange-600 dark:text-orange-400 **:data-[slot=status-indicator]:dark:bg-orange-400',
-        info: 'border-blue-500/20 bg-blue-500/10 text-blue-600 **:data-[slot=status-indicator]:bg-blue-600 dark:text-blue-400 **:data-[slot=status-indicator]:dark:bg-blue-400',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
+const statusVariants = cva('inline-flex items-center gap-2', {
+  variants: {
+    variant: {
+      active:            'text-[var(--color-success)]',
+      resolving:         'text-[var(--color-info)]',
+      resolved:          'text-[var(--color-fg-subtle)]',
+      compacted:         'text-[var(--color-fg-subtle)]',
+      archived:          'text-[var(--color-fg-subtle)]',
+      awaiting_approval: 'text-[var(--color-warning)]',
+      failed:            'text-[var(--color-danger)]',
+      success:           'text-[var(--color-success)]',
+      error:             'text-[var(--color-danger)]',
+      warning:           'text-[var(--color-warning)]',
+      info:              'text-[var(--color-info)]',
+      neutral:           'text-[var(--color-fg-muted)]',
     },
   },
-)
+  defaultVariants: { variant: 'neutral' },
+})
 
-interface StatusProps extends VariantProps<typeof statusVariants>, React.ComponentProps<'div'> {
-  asChild?: boolean
+interface StatusProps extends VariantProps<typeof statusVariants> {
+  label: string
+  className?: string
 }
 
-function Status(props: StatusProps) {
-  const { className, variant = 'default', asChild, ...rootProps } = props
-
-  const RootPrimitive = asChild ? SlotPrimitive.Slot : 'div'
-
+function Status({ variant = 'neutral', label, className }: StatusProps) {
   return (
-    <RootPrimitive
-      data-slot="status"
-      data-variant={variant}
-      {...rootProps}
-      className={cn(statusVariants({ variant }), className)}
-    />
+    <span className={cn(statusVariants({ variant }), className)}>
+      <span className="size-1.5 shrink-0 rounded-full bg-current" />
+      <span className="font-mono text-xs lowercase">{label}</span>
+    </span>
   )
 }
 
-function StatusIndicator(props: React.ComponentProps<'div'>) {
-  const { className, ...indicatorProps } = props
-
-  return (
-    <div
-      data-slot="status-indicator"
-      {...indicatorProps}
-      className={cn(
-        'relative flex size-2 shrink-0 rounded-full',
-        'before:absolute before:inset-0 before:animate-ping before:rounded-full before:bg-inherit',
-        'after:absolute after:inset-[2px] after:rounded-full after:bg-inherit',
-        className,
-      )}
-    />
-  )
-}
-
-function StatusLabel(props: React.ComponentProps<'div'>) {
-  const { className, ...labelProps } = props
-
-  return <div data-slot="status-label" {...labelProps} className={cn('leading-none', className)} />
-}
-
-export { Status, StatusIndicator, StatusLabel, statusVariants }
+export { Status, statusVariants }
+export type { StatusProps }
