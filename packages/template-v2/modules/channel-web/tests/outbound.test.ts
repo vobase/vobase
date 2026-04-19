@@ -42,6 +42,9 @@ function makeInboxPort(): InboxPort {
       calls.push({ method: 'sendMediaMessage', data: input })
       return fakeMessage
     },
+    sendCardReply: async () => {
+      throw new Error('not-expected')
+    },
     getConversation: async () => {
       throw new Error('not-expected')
     },
