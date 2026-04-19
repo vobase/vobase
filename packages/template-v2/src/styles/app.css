@@ -1,72 +1,85 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
+
 @source "../../src/**/*.{ts,tsx}";
 @source "../../modules/**/*.{ts,tsx}";
+@source "../../node_modules/streamdown/dist/*.js";
 
+/* ── Vobase Onyx — dark-only (PR-1; light override deferred to PR-2) ── */
 :root {
-  --background: oklch(0.99 0.002 255);
-  --foreground: oklch(0.14 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.14 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.14 0 0);
-  --primary: oklch(0.2 0 0);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.96 0.003 255);
-  --secondary-foreground: oklch(0.2 0 0);
-  --muted: oklch(0.96 0.003 255);
-  --muted-foreground: oklch(0.54 0.01 255);
-  --accent: oklch(0.96 0.003 255);
-  --accent-foreground: oklch(0.2 0 0);
-  /* blue accent — single intentional color */
-  --blue: oklch(0.6 0.2 250);
-  --blue-fg: oklch(0.99 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.98 0 0);
-  --success: oklch(0.52 0.17 155);
-  --success-foreground: oklch(0.98 0 0);
-  --border: oklch(0.91 0.004 255);
-  --input: oklch(0.91 0.004 255);
-  --ring: oklch(0.7 0 0);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.975 0.003 255);
-  --sidebar-border: oklch(0.91 0.004 255);
-}
+  /* Downstream contract: semantic tokens */
+  --color-bg: #0A0A0B;
+  --color-surface: #111113;
+  --color-surface-elevated: #17171A;
+  --color-surface-hover: #1C1C20;
+  --color-border: #26262B;
+  --color-border-subtle: #1F1F23;
+  --color-fg: #F2F2F3;
+  --color-fg-muted: #A0A0A8;
+  --color-fg-subtle: #6C6C75;
+  --color-accent: #3D7BFF;
+  --color-success: #3CCB7F;
+  --color-warning: #F5A524;
+  --color-danger: #F25555;
+  --color-info: #A48BFF;
 
-.dark {
-  --background: oklch(0.12 0 0);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.14 0 0);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.14 0 0);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.95 0 0);
-  --primary-foreground: oklch(0.14 0 0);
-  --secondary: oklch(0.2 0 0);
-  --secondary-foreground: oklch(0.95 0 0);
-  --muted: oklch(0.2 0 0);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.2 0 0);
-  --accent-foreground: oklch(0.95 0 0);
-  --blue: oklch(0.65 0.18 250);
-  --blue-fg: oklch(0.12 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.98 0 0);
-  --success: oklch(0.52 0.17 155);
-  --success-foreground: oklch(0.98 0 0);
-  --border: oklch(0.24 0 0);
-  --input: oklch(0.24 0 0);
-  --ring: oklch(0.4 0 0);
-  --sidebar: oklch(0.11 0 0);
-  --sidebar-border: oklch(0.2 0 0);
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
+  /* Text scale */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 14px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  /* Fonts */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* shadcn compatibility (mapped from semantic tokens) */
+  --background: var(--color-bg);
+  --foreground: var(--color-fg);
+  --card: var(--color-surface-elevated);
+  --card-foreground: var(--color-fg);
+  --popover: var(--color-surface-elevated);
+  --popover-foreground: var(--color-fg);
+  --primary: var(--color-fg);
+  --primary-foreground: var(--color-bg);
+  --secondary: var(--color-surface);
+  --secondary-foreground: var(--color-fg-muted);
+  --muted: var(--color-surface);
+  --muted-foreground: var(--color-fg-muted);
+  --accent: var(--color-surface-hover);
+  --accent-foreground: var(--color-fg);
+  --destructive: var(--color-danger);
+  --destructive-foreground: var(--color-fg);
+  --border: var(--color-border-subtle);
+  --input: var(--color-surface);
+  --ring: var(--color-accent);
+  --radius: 0.375rem;
+  --sidebar: var(--color-surface);
+  --sidebar-border: var(--color-border-subtle);
 }
 
 @theme inline {
+  /* shadcn Tailwind utilities */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -75,21 +88,34 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-blue: var(--blue);
-  --color-blue-fg: var(--blue-fg);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-sidebar-border: var(--sidebar-border);
-  --radius-sm: calc(var(--radius) - 3px);
+
+  /* Vobase semantic utilities */
+  --color-surface: var(--color-surface);
+  --color-surface-elevated: var(--color-surface-elevated);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-border-subtle: var(--color-border-subtle);
+  --color-fg-muted: var(--color-fg-muted);
+  --color-fg-subtle: var(--color-fg-subtle);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-info: var(--color-info);
+
+  /* Radius utilities */
+  --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* Font utilities */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
 * {
@@ -100,7 +126,7 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--text-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
