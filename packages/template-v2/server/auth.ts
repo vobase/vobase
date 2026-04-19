@@ -2,7 +2,19 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP } from 'better-auth/plugins/email-otp'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import { authTableMap } from '@vobase/core'
+import {
+  authAccount,
+  authSession,
+  authUser,
+  authVerification,
+} from '@vobase/core'
+
+const authTableMap = {
+  user: authUser,
+  session: authSession,
+  account: authAccount,
+  verification: authVerification,
+}
 
 export function createAuth(db: PostgresJsDatabase) {
   return betterAuth({

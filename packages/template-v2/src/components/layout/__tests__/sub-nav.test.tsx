@@ -10,8 +10,16 @@ const items = [
 
 async function renderAt(path: string) {
   const rootRoute = createRootRoute({ component: () => <SubNav items={items} /> })
-  const profileRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings/profile', component: () => null })
-  const accountRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings/account', component: () => null })
+  const profileRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/settings/profile',
+    component: () => null,
+  })
+  const accountRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/settings/account',
+    component: () => null,
+  })
   const router = createRouter({
     routeTree: rootRoute.addChildren([profileRoute, accountRoute]),
     history: createMemoryHistory({ initialEntries: [path] }),

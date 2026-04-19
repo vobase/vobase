@@ -1,12 +1,7 @@
 import { CheckIcon, MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 type ThemeValue = 'light' | 'dark' | 'system'
 
@@ -34,11 +29,7 @@ export function ThemeSwitch({ defaultOpen }: ThemeSwitchProps = {}) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {THEME_OPTIONS.map(({ value, label, Icon }) => (
-          <DropdownMenuItem
-            key={value}
-            onSelect={() => setTheme(value)}
-            aria-label={`Switch to ${label} theme`}
-          >
+          <DropdownMenuItem key={value} onSelect={() => setTheme(value)} aria-label={`Switch to ${label} theme`}>
             <Icon aria-hidden="true" />
             <span>{label}</span>
             {theme === value && <CheckIcon className="ml-auto" aria-label="active" />}

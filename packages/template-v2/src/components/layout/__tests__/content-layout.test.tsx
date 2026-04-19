@@ -11,37 +11,25 @@ describe('ContentLayout', () => {
   })
 
   it('renders content slot', () => {
-    const html = renderToStaticMarkup(
-      <ContentLayout subNav={<div>nav</div>} content={<div>main-content</div>} />,
-    )
+    const html = renderToStaticMarkup(<ContentLayout subNav={<div>nav</div>} content={<div>main-content</div>} />)
     expect(html).toContain('main-content')
   })
 
   it('renders header slot when provided', () => {
     const html = renderToStaticMarkup(
-      <ContentLayout
-        header={<div>header-content</div>}
-        subNav={<div>nav</div>}
-        content={<div>main</div>}
-      />,
+      <ContentLayout header={<div>header-content</div>} subNav={<div>nav</div>} content={<div>main</div>} />,
     )
     expect(html).toContain('header-content')
   })
 
   it('omits header when not provided', () => {
-    const html = renderToStaticMarkup(
-      <ContentLayout subNav={<div>nav</div>} content={<div>main</div>} />,
-    )
+    const html = renderToStaticMarkup(<ContentLayout subNav={<div>nav</div>} content={<div>main</div>} />)
     expect(html).not.toContain('header-content')
   })
 
   it('renders secondaryStrip when provided', () => {
     const html = renderToStaticMarkup(
-      <ContentLayout
-        secondaryStrip={<span>strip-content</span>}
-        subNav={<div>nav</div>}
-        content={<div>main</div>}
-      />,
+      <ContentLayout secondaryStrip={<span>strip-content</span>} subNav={<div>nav</div>} content={<div>main</div>} />,
     )
     expect(html).toContain('strip-content')
   })
@@ -54,16 +42,12 @@ describe('ContentLayout', () => {
   })
 
   it('omits right slot when not provided', () => {
-    const html = renderToStaticMarkup(
-      <ContentLayout subNav={<div>nav</div>} content={<div>main</div>} />,
-    )
+    const html = renderToStaticMarkup(<ContentLayout subNav={<div>nav</div>} content={<div>main</div>} />)
     expect(html).not.toContain('right-content')
   })
 
   it('subNav column is 220px wide', () => {
-    const html = renderToStaticMarkup(
-      <ContentLayout subNav={<div>nav</div>} content={<div>main</div>} />,
-    )
+    const html = renderToStaticMarkup(<ContentLayout subNav={<div>nav</div>} content={<div>main</div>} />)
     expect(html).toContain('w-[220px]')
   })
 

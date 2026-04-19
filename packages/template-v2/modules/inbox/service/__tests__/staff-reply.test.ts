@@ -113,13 +113,9 @@ describe('sendStaffReply', () => {
     let capturedToolName: unknown
 
     setMessagesDb(
-      makeTransactionDb(
-        fakeMessage,
-        undefined,
-        (vals) => {
-          capturedToolName = journalToolName(vals)
-        },
-      ),
+      makeTransactionDb(fakeMessage, undefined, (vals) => {
+        capturedToolName = journalToolName(vals)
+      }),
     )
 
     const { sendStaffReply } = await import('../staff-reply')

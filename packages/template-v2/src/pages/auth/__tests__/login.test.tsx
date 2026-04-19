@@ -1,7 +1,10 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-const sendVerificationOtpMock = mock(async () => ({ data: null, error: null }))
+const sendVerificationOtpMock = mock(async (_args: { email: string; type: string }) => ({
+  data: null,
+  error: null,
+}))
 
 mock.module('@/lib/auth-client', () => ({
   authClient: {
@@ -11,7 +14,7 @@ mock.module('@/lib/auth-client', () => ({
 }))
 
 mock.module('@tanstack/react-router', () => ({
-  useNavigate: () => mock(() => {}),
+  useNavigate: () => mock((_opts: unknown) => {}),
   useRouterState: () => '',
 }))
 

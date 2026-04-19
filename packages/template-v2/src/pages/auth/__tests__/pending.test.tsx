@@ -1,8 +1,14 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-const signInMock = mock(async () => ({ data: { user: { email: 'user@example.com' } }, error: null }))
-const signInErrorMock = mock(async () => ({ data: null, error: { message: 'Invalid OTP' } }))
+const signInMock = mock(async (_args: { email: string; otp: string }) => ({
+  data: { user: { email: 'user@example.com' } },
+  error: null,
+}))
+const signInErrorMock = mock(async (_args: { email: string; otp: string }) => ({
+  data: null,
+  error: { message: 'Invalid OTP' },
+}))
 
 mock.module('@/lib/auth-client', () => ({
   authClient: {
@@ -12,7 +18,7 @@ mock.module('@/lib/auth-client', () => ({
 }))
 
 mock.module('@tanstack/react-router', () => ({
-  useNavigate: () => mock(() => {}),
+  useNavigate: () => mock((_opts: unknown) => {}),
   useRouterState: () => 'email=user%40example.com',
 }))
 
@@ -57,7 +63,8 @@ describe('verifyOtpFn — unit', () => {
   it('error case: returns error result on invalid otp', async () => {
     mock.module('@/lib/auth-client', () => ({
       authClient: {
-        emailOtp: { sendVerificationOtp: mock(async () => {}), signIn: signInErrorMock },
+        emailOtp: { sendVerificationOtp: mock(async () => {}) },
+        signIn: { emailOtp: signInErrorMock },
         signOut: mock(async () => {}),
       },
     }))

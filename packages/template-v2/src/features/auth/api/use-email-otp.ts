@@ -6,7 +6,7 @@ export async function sendOtpFn({ email }: { email: string }) {
 }
 
 export async function verifyOtpFn({ email, otp }: { email: string; otp: string }) {
-  return authClient.emailOtp.signIn({ email, otp })
+  return authClient.signIn.emailOtp({ email, otp })
 }
 
 export function useEmailOtp() {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { CheckIcon } from 'lucide-react'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { CheckIcon } from 'lucide-react'
 
 let mockTheme = 'system' as 'light' | 'dark' | 'system'
 let mockResolved = 'light' as 'light' | 'dark'

@@ -37,5 +37,5 @@ function SubNav({ items }: SubNavProps) {
   )
 }
 
-export type { SubNavProps, SubNavItem }
+export type { SubNavItem, SubNavProps }
 export { SubNav }

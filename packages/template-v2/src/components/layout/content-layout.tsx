@@ -18,14 +18,10 @@ function ContentLayout({ header, secondaryStrip, subNav, content, right }: Conte
         </div>
       )}
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="w-[220px] shrink-0 overflow-y-auto border-r border-[var(--color-border-subtle)]">
-          {subNav}
-        </div>
+        <div className="w-[220px] shrink-0 overflow-y-auto border-r border-[var(--color-border-subtle)]">{subNav}</div>
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">{content}</div>
         {right && (
-          <div className="w-[320px] shrink-0 overflow-y-auto border-l border-[var(--color-border-subtle)]">
-            {right}
-          </div>
+          <div className="w-[320px] shrink-0 overflow-y-auto border-l border-[var(--color-border-subtle)]">{right}</div>
         )}
       </div>
     </div>
