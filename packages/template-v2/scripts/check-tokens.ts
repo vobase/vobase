@@ -52,11 +52,66 @@ for (const file of glob.scanSync({ cwd: `${import.meta.dir}/..` })) {
   }
 }
 
-if (violations.length === 0) {
-  console.log('[check:tokens] ✓ No raw colors or date-renderer violations in src/')
-  process.exit(0)
+if (violations.length > 0) {
+  console.error('[check:tokens] ✗ Raw-color / date-renderer violations found:\n')
+  for (const v of violations) console.error(`  ${v.file}:${v.line}  ${v.text}`)
+  process.exit(1)
+}
+console.log('[check:tokens] ✓ No raw colors or date-renderer violations in src/')
+
+// --- two-palette coverage check ---
+const CSS_PATH = `${import.meta.dir}/../src/styles/app.css`
+const cssContent = await Bun.file(CSS_PATH).text()
+
+function extractPaletteTokens(css: string, selectorRe: RegExp): Set<string> {
+  const idx = css.search(selectorRe)
+  if (idx === -1) return new Set()
+  const blockStart = css.indexOf('{', idx)
+  if (blockStart === -1) return new Set()
+  let depth = 1
+  let pos = blockStart + 1
+  while (pos < css.length && depth > 0) {
+    if (css[pos] === '{') depth++
+    else if (css[pos] === '}') depth--
+    pos++
+  }
+  const block = css.slice(blockStart + 1, pos - 1)
+  const tokens = new Set<string>()
+  for (const m of block.matchAll(/--(color-[a-z0-9-]+)\s*:/g)) tokens.add(`--${m[1]}`)
+  return tokens
 }
 
-console.error('[check:tokens] ✗ Violations found:\n')
-for (const v of violations) console.error(`  ${v.file}:${v.line}  ${v.text}`)
-process.exit(1)
+const lightTokens = extractPaletteTokens(cssContent, /^:root\s*\{/m)
+const darkTokens = extractPaletteTokens(cssContent, /^\.dark\s*\{/m)
+// @theme inline tokens are mode-neutral (resolved by Tailwind at build time); treat as defined in both
+const themeInlineTokens = extractPaletteTokens(cssContent, /@theme\s+inline\s*\{/)
+for (const t of themeInlineTokens) {
+  lightTokens.add(t)
+  darkTokens.add(t)
+}
+
+// Collect all var(--color-*) references used in src/**
+const usedTokens = new Set<string>()
+const srcCssGlob = new Bun.Glob('src/**/*.{ts,tsx,css}')
+for (const file of srcCssGlob.scanSync({ cwd: `${import.meta.dir}/..` })) {
+  const content = await Bun.file(`${import.meta.dir}/../${file}`).text()
+  for (const m of content.matchAll(/var\(--(color-[a-z0-9-]+)\)/g)) usedTokens.add(`--${m[1]}`)
+}
+
+const paletteViolations: string[] = []
+for (const t of [...lightTokens].filter((t) => !darkTokens.has(t)))
+  paletteViolations.push(`  ${t}: in :root (light) but missing from .dark`)
+for (const t of [...darkTokens].filter((t) => !lightTokens.has(t)))
+  paletteViolations.push(`  ${t}: in .dark but missing from :root (light)`)
+for (const t of usedTokens) {
+  if (!lightTokens.has(t)) paletteViolations.push(`  ${t}: used in src/** but missing from :root (light)`)
+  if (!darkTokens.has(t)) paletteViolations.push(`  ${t}: used in src/** but missing from .dark`)
+}
+
+if (paletteViolations.length > 0) {
+  console.error('[check:tokens] ✗ Palette coverage violations:\n')
+  for (const v of paletteViolations) console.error(v)
+  process.exit(1)
+}
+console.log('[check:tokens] ✓ Both palettes cover all var(--color-*) token references')
+process.exit(0)

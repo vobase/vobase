@@ -17,6 +17,8 @@
     "db:studio": "drizzle-kit studio",
     "check:shape": "bun run scripts/check-module-shape.ts",
     "check:tokens": "bun run scripts/check-tokens.ts",
+    "check:no-raw-date": "bun run scripts/check-no-raw-date.ts",
+    "smoke:staff-reply": "bun run scripts/smoke-staff-reply.ts",
     "check:dead-routes": "bun run scripts/check-dead-routes.ts",
     "check:shadcn-overrides": "bun run scripts/check-shadcn-overrides.ts",
     "check:no-auto-nav-tabs": "bun run scripts/check-no-auto-nav-tabs.ts",
