@@ -2,20 +2,19 @@ import { createRootRoute, createRoute, createRouter, Outlet, redirect, useRouter
 import { AppShell } from './components/layout/app-shell'
 import { useRealtimeInvalidation } from './hooks/use-realtime-invalidation'
 import { ApprovalsPage } from './pages/approvals'
+import LoginPage from './pages/auth/login'
+import PendingPage from './pages/auth/pending'
+import GeneralErrorPage from './pages/errors/general-error'
+import NotFoundPage from './pages/errors/not-found'
 import { ConversationDetailPlaceholder, InboxEmptyState, InboxLayout } from './pages/inbox'
+import AccountPage from './pages/settings/account'
+import ApiKeysPage from './pages/settings/api-keys'
+import AppearancePage from './pages/settings/appearance'
+import DisplayPage from './pages/settings/display'
+import SettingsLayout from './pages/settings/layout'
+import NotificationsPage from './pages/settings/notifications'
+import ProfilePage from './pages/settings/profile'
 import { TestWebPage } from './pages/test-web'
-import {
-  AccountPlaceholder,
-  ApiKeysPlaceholder,
-  AppearancePlaceholder,
-  DisplayPlaceholder,
-  GeneralErrorPlaceholder,
-  LoginPlaceholder,
-  NotFoundPlaceholder,
-  NotificationsPlaceholder,
-  PendingPlaceholder,
-  ProfilePlaceholder,
-} from './routes/__slots__'
 
 // Vite replaces import.meta.env.DEV with a boolean literal at build time, so the
 // branch and its import are dead-code-eliminated from production bundles.
@@ -35,8 +34,8 @@ function RootLayout() {
 
 const rootRoute = createRootRoute({
   component: RootLayout,
-  notFoundComponent: NotFoundPlaceholder,
-  errorComponent: GeneralErrorPlaceholder,
+  notFoundComponent: NotFoundPage,
+  errorComponent: GeneralErrorPage,
 })
 
 const rootIndexRoute = createRoute({
@@ -75,6 +74,7 @@ const approvalsRoute = createRoute({
 const settingsParentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
+  component: SettingsLayout,
 })
 
 const settingsIndexRoute = createRoute({
@@ -88,37 +88,37 @@ const settingsIndexRoute = createRoute({
 const settingsProfileRoute = createRoute({
   getParentRoute: () => settingsParentRoute,
   path: '/profile',
-  component: ProfilePlaceholder,
+  component: ProfilePage,
 })
 
 const settingsAccountRoute = createRoute({
   getParentRoute: () => settingsParentRoute,
   path: '/account',
-  component: AccountPlaceholder,
+  component: AccountPage,
 })
 
 const settingsAppearanceRoute = createRoute({
   getParentRoute: () => settingsParentRoute,
   path: '/appearance',
-  component: AppearancePlaceholder,
+  component: AppearancePage,
 })
 
 const settingsNotificationsRoute = createRoute({
   getParentRoute: () => settingsParentRoute,
   path: '/notifications',
-  component: NotificationsPlaceholder,
+  component: NotificationsPage,
 })
 
 const settingsDisplayRoute = createRoute({
   getParentRoute: () => settingsParentRoute,
   path: '/display',
-  component: DisplayPlaceholder,
+  component: DisplayPage,
 })
 
 const settingsApiKeysRoute = createRoute({
   getParentRoute: () => settingsParentRoute,
   path: '/api-keys',
-  component: ApiKeysPlaceholder,
+  component: ApiKeysPage,
 })
 
 // Auth routes
@@ -130,13 +130,13 @@ const authParentRoute = createRoute({
 const authLoginRoute = createRoute({
   getParentRoute: () => authParentRoute,
   path: '/login',
-  component: LoginPlaceholder,
+  component: LoginPage,
 })
 
 const authPendingRoute = createRoute({
   getParentRoute: () => authParentRoute,
   path: '/pending',
-  component: PendingPlaceholder,
+  component: PendingPage,
 })
 
 // In prod builds Vite replaces `import.meta.env.DEV` with `false`, so the ternary
