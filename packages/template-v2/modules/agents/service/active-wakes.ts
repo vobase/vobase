@@ -1,5 +1,5 @@
 /**
- * `active_wakes` coordination primitive. Spec §Q9 + §8.5.
+ * `active_wakes` coordination primitive.
  *
  * The UNLOGGED `agents.active_wakes` table is the in-flight debounce record.
  * Every wake acquires a lease keyed by conversation_id; inbound messages that
@@ -8,8 +8,6 @@
  *
  * Operations are written as raw SQL so the driver stays drizzle-free —
  * callers pass in the `postgres.Sql` handle already on ctx.db.
- *
- * See the atomic-lease SQL in spec §8.5 ("Wake start").
  */
 
 export interface ActiveWakesDb {

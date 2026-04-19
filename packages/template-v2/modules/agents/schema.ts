@@ -1,9 +1,9 @@
 /**
- * agents module schema — spec §5.3.
+ * agents module schema.
  *
  * Seven tables:
  *   - `agent_definitions`
- *   - `conversation_events` — the append-only journal (spec §2.3 single-write-path invariant)
+ *   - `conversation_events` — the append-only journal (one-write-path invariant)
  *   - `active_wakes` — UNLOGGED ephemeral coordination
  *   - `learned_skills`
  *   - `learning_proposals`
@@ -11,8 +11,8 @@
  *   - `tenant_cost_daily`
  *
  * Cross-schema FKs to `inbox.conversations(id)`, `inbox.messages(id)`.
- * `conversation_events.wake_id` carries the stable wake identifier so Phase 1
- * audit/journal queries can scope by wake (plan §B3).
+ * `conversation_events.wake_id` carries the stable wake identifier so
+ * audit/journal queries can scope by wake.
  */
 
 import { agentsPgSchema } from '@server/db/pg-schemas'
@@ -67,7 +67,7 @@ export const conversationEvents = agentsPgSchema.table(
     /** Cross-schema FK to inbox.conversations(id); enforced post-push. */
     conversationId: text('conversation_id').notNull(),
     tenantId: text('tenant_id').notNull(),
-    /** Stable identifier per wake — queries use this for per-wake scoping (B3). */
+    /** Stable identifier per wake — queries use this for per-wake scoping. */
     wakeId: text('wake_id'),
     turnIndex: integer('turn_index').notNull(),
     ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
@@ -196,10 +196,10 @@ export const tenantCostDaily = agentsPgSchema.table(
 )
 
 /**
- * Satellite table keyed to `_audit.auditLog.id` carrying per-wake scope so Phase 1
- * integration tests can filter audit rows by wake (B3) without modifying the
- * core-owned `_audit.auditLog` table (R6: "import `_audit` from `@vobase/core`,
- * NOT reimplement"). The `auditObserver` writes both rows in the same transaction.
+ * Satellite table keyed to `_audit.auditLog.id` carrying per-wake scope so
+ * integration tests can filter audit rows by wake without modifying the
+ * core-owned `_audit.auditLog` table. The `auditObserver` writes both rows
+ * in the same transaction.
  */
 export const auditWakeMap = agentsPgSchema.table(
   'audit_wake_map',

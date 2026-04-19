@@ -1,11 +1,11 @@
 /**
- * P2.5 — Workspace materializers (dirty writeback) + memory distill stub.
+ * Workspace materializers (dirty writeback) + memory distill stub.
  *
- * Acceptance criteria from plan §P2.5:
+ * Acceptance criteria:
  *  1. Contact memory auto-write: pre-wake write to /workspace/contact/MEMORY.md
  *     → post-wake contacts.working_memory row updated.
  *  2. Drive write-blocking: /workspace/drive/pricing.md rejected (RO enforcer);
- *     /workspace/contact/drive/notes.md allowed (spec §3).
+ *     /workspace/contact/drive/notes.md allowed.
  *  3. Proposal flow: vobase drive propose CLI → learning_proposals row status=pending.
  *  4. Distill observer: seeded wake + mock distill fn → contacts row updated.
  *  5. Frozen-snapshot: mid-wake dirty writes appear in flush() but NOT in initialSnapshot.
@@ -90,7 +90,7 @@ describe('workspaceSyncObserver', () => {
 
 // ─── 2. Drive write-blocking (RO enforcer unit assertions) ───────────────────
 
-describe('RO enforcer (spec §3 unified drive rules)', () => {
+describe('RO enforcer (unified drive rules)', () => {
   test('/workspace/drive/pricing.md → rejected with EROFS hint', () => {
     const err = checkWriteAllowed('/workspace/drive/pricing.md')
     expect(err).not.toBeNull()
@@ -208,7 +208,7 @@ describe('memoryDistillObserver', () => {
 
 // ─── 5. Frozen-snapshot: buffer-level unit assertion ─────────────────────────
 
-describe('DirtyTracker frozen-snapshot invariant (§2.2)', () => {
+describe('DirtyTracker frozen-snapshot invariant', () => {
   test('write AFTER snapshot appears in flush() but not in initialSnapshot', async () => {
     const innerFs = new InMemoryFs()
 

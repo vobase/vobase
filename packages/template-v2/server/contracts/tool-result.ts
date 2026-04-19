@@ -1,5 +1,5 @@
 /**
- * Typed envelope returned by every AgentTool. Spec §6.8.
+ * Typed envelope returned by every AgentTool.
  *
  * Large results spill to `/workspace/tmp/tool-<callId>.txt`; the `persisted` marker
  * tells the LLM to `cat` the path for full content.

@@ -145,7 +145,7 @@ describe('POST /conversations/:id/notes', () => {
     expect(res.status).toBe(403)
   })
 
-  it('(e,f) idempotency + auth: PR-1 is session-less; no Idempotency-Key support. ADR §11: endpoints gated only by network reachability. Both harden in PR-2.', () => {
+  it('(e,f) idempotency + auth: PR-1 is session-less; no Idempotency-Key support. Endpoints gated only by network reachability. Both harden in PR-2.', () => {
     expect(true).toBe(true)
   })
 })

@@ -1,11 +1,5 @@
 /**
- * ContactsPort — spec §6.3. Identity + staff bindings.
- *
- * Phase 1 REAL methods (per plan §R4):
- *   - `get(id)`
- *   - `upsertByExternal(input)`
- *   - `resolveStaffByExternal(channelInstanceId, externalIdentifier)`
- * All other methods throw `not-implemented-in-phase-1` until Phase 2.
+ * ContactsPort — identity + staff bindings.
  */
 
 import type { Contact, StaffBinding } from './domain-types'

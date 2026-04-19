@@ -1,5 +1,5 @@
 /**
- * Test-only `mockStream(events)` factory — plan §P1.4 N2 + B4.
+ * Test-only `mockStream(events)` factory.
  *
  * Returns a `StreamFn`-compatible async generator producing pi-mono/agent
  * stream events. Consumed by `agent-runner.ts` to drive the harness's wake

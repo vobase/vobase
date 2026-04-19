@@ -1,6 +1,6 @@
 /**
  * Drive proposal service — `vobase drive propose` inserts a `learning_proposals` row
- * for tenant-drive documents that the agent cannot write directly (spec §6.4, §13).
+ * for tenant-drive documents that the agent cannot write directly.
  *
  * Scope routing: tenant-drive writes require staff approval (scope='drive_doc',
  * status='pending'). Contact-drive writes are free and go through workspaceSyncObserver.

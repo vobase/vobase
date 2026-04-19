@@ -1,5 +1,5 @@
 /**
- * Workspace factory — spec §7.1 + §7.2 + §7.4 + §7.5.
+ * Workspace factory.
  *
  * Assembles the `just-bash` `Bash` instance against an `InMemoryFs` wrapped in
  * `ScopedFs` (RO enforcer per plan B6). Eager-writes the frozen-zone files at
@@ -8,7 +8,7 @@
  * and `contact/bookings.md`.
  *
  * Principle: mid-wake writes persist to disk immediately but are invisible to
- * the current turn's frozen zone (§2.2). Lazy paths that are never `cat`ed stay
+ * the current turn's frozen zone (frozen-snapshot invariant). Lazy paths that are never `cat`ed stay
  * out of the snapshot and so cannot register as "dirty".
  */
 
@@ -25,7 +25,7 @@ import { MaterializerRegistry } from './materializer-registry'
 import { ScopedFs } from './ro-enforcer'
 import { createVobaseCommand } from './vobase-cli/dispatcher'
 
-/** Built-in BUSINESS.md fallback stub — spec §5.4 + §7.4 "BUSINESS.md fallback". */
+/** Built-in BUSINESS.md fallback stub — shown when no tenant drive row exists. */
 export const BUSINESS_MD_FALLBACK = `# Business Identity
 
 No business profile configured. Ask staff to create /BUSINESS.md in the drive.

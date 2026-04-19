@@ -1,11 +1,9 @@
 /**
- * ScopedDb — Phase-3 first-class drizzle handle. Spec §6.6 + plan §P3.0.
+ * ScopedDb — first-class drizzle handle for observers and mutators.
  *
- * Phase 1 + Phase 2 shipped `export type ScopedDb = unknown` as a placeholder
- * on `PluginContext.db` while `MutatorContext.db` stayed narrowed to `never`
- * (see `mutator.ts` header). Phase 3 lands the real primitive so observers and
- * mutators can persist state via the same drizzle handle the module services
- * already use, without re-deriving tenant-scoping at every call site.
+ * Observers and mutators can persist state via the same drizzle handle the
+ * module services already use, without re-deriving tenant-scoping at every
+ * call site.
  *
  * Design:
  * - `ScopedDb` is a named alias over `PostgresJsDatabase<Schema>`. The alias

@@ -2,7 +2,7 @@
  * POST /api/channel-web/outbound — internal endpoint called by the wake worker.
  *
  * TRANSPORT-ONLY: calls dispatcher which persists via InboxPort then pushes NOTIFY.
- * This handler MUST NOT write to the messages table directly (plan §P2.3, A3).
+ * This handler MUST NOT write to the messages table directly (transport-only rule).
  */
 import { ChannelOutboundEventSchema } from '@server/contracts/channel-event'
 import type { Context } from 'hono'

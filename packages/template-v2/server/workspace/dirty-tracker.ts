@@ -1,13 +1,12 @@
 /**
  * Dirty tracker — on `agent_end`, diffs the FS against the initial snapshot
  * captured at wake start, returns changed/added/deleted paths under writable
- * zones only. Spec §7.5 "also tracks dirty files".
+ * zones only.
  *
  * The harness is responsible for dispatching the diff to owning module services.
- * Plan §P1.4: "Does NOT call module services — returns the diff so the harness
- * can dispatch."
+ * Does NOT call module services — returns the diff so the harness can dispatch.
  *
- * P2.5: `flush()` extends `diff()` with per-scope categorisation so the
+ * `flush()` extends `diff()` with per-scope categorisation so the
  * `workspaceSyncObserver` can route each path to the correct service without
  * re-implementing the prefix logic.
  */

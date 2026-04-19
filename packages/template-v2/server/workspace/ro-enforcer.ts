@@ -1,13 +1,12 @@
 /**
- * Read-only enforcement for writable zone discipline (spec §7.3 + §9.3).
+ * Read-only enforcement for writable zone discipline.
  *
- * **Decision (plan B6)**: wrap `just-bash`'s `InMemoryFs` in a custom `ScopedFs`
- * that intercepts writes to RO paths. `OverlayFs({readOnly:true})` requires a real
- * root directory; our virtual workspace has none, so a write-intercepting wrapper
- * around `InMemoryFs` is the cleanest match. The wrapper throws a sanitized Error
- * whose message matches spec §7.3's EROFS text exactly, and `just-bash`'s built-in
- * commands surface that message via stderr + non-zero exit code when `echo > …`
- * redirects fail.
+ * Wraps `just-bash`'s `InMemoryFs` in a custom `ScopedFs` that intercepts writes
+ * to RO paths. `OverlayFs({readOnly:true})` requires a real root directory; our
+ * virtual workspace has none, so a write-intercepting wrapper around `InMemoryFs`
+ * is the cleanest match. The wrapper throws a sanitized Error whose message matches
+ * the expected EROFS text, and `just-bash`'s built-in commands surface that message
+ * via stderr + non-zero exit code when `echo > …` redirects fail.
  */
 import type { BufferEncoding, CpOptions, FileContent, FsStat, IFileSystem, MkdirOptions, RmOptions } from 'just-bash'
 
@@ -22,7 +21,7 @@ interface DirentEntry {
   isSymbolicLink: boolean
 }
 
-/** Spec §7.3 RO paths. Absolute-path prefixes or literal paths. */
+/** RO paths. Absolute-path prefixes or literal paths. */
 const READ_ONLY_PREFIXES: readonly string[] = ['/workspace/drive/', '/workspace/skills/', '/workspace/conversation/']
 
 const READ_ONLY_EXACT: ReadonlySet<string> = new Set([
@@ -44,7 +43,7 @@ export const WRITABLE_PREFIXES: readonly string[] = ['/workspace/contact/drive/'
 
 /** Returns `null` if write is allowed, otherwise the spec-exact error message. */
 export function checkWriteAllowed(path: string): string | null {
-  // Memory files get their own message (§7.3 second code block).
+  // Memory files get their own message.
   if (MEMORY_PATHS.has(path)) {
     return `bash: ${path}: use \`vobase memory set|append|remove\` to mutate memory safely.`
   }
@@ -75,7 +74,7 @@ export function checkWriteAllowed(path: string): string | null {
 }
 
 function renderRoError(path: string): string {
-  // Spec §7.3: the error MUST include the `vobase drive propose …` hint
+  // The error must include the `vobase drive propose …` hint
   // and should render the path as the agent wrote it.
   const scope = 'tenant'
   const rel = path.startsWith('/workspace/drive/')

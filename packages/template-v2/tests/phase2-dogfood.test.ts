@@ -5,7 +5,6 @@
  * resume (approve + reject) → SSE → frozen-snapshot invariant → idempotency.
  *
  * Uses recorded Anthropic fixtures (VCR-style) so CI is deterministic.
- * Plan §P2.7, §4.2.
  *
  * Preconditions:
  *   - Docker Postgres running on port 5433 (`docker compose up -d` in this dir)
@@ -444,7 +443,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     const h0 = hashes[0]!
     const h1 = hashes[1]!
 
-    // Frozen: system hash identical across both turns (spec §2.2)
+    // Frozen: system hash identical across both turns (frozen-snapshot invariant)
     expect(h1.systemHash).toBe(h0.systemHash)
 
     // Side-load rebuilt: firstUserMessage hash differs between turns

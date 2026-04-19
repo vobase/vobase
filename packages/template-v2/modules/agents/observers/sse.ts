@@ -3,7 +3,6 @@
  * live-tails via core's SSE endpoint.
  *
  * Matches the existing useRealtimeInvalidation() hook contract from packages/template/src/hooks.
- * Spec §12.1 #2.
  */
 
 import type { AgentEvent } from '@server/contracts/event'

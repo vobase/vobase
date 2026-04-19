@@ -1,9 +1,9 @@
 /**
- * Canonical `AgentEvent` union — spec §6.7.
+ * Canonical `AgentEvent` union.
  *
  * Every event flowing through `EventBus`, `ObserverBus`, and the `conversation_events`
  * journal is one of these variants. The journal's write path lives exclusively in
- * `modules/agents/service/journal.ts` (per spec §2.3 "one write path per domain").
+ * `modules/agents/service/journal.ts` (one write path per domain).
  */
 
 import type { ClassifiedErrorReason } from './classified-error'
@@ -140,10 +140,10 @@ export type InternalNoteAddedEvent = BaseEvent & {
   authorType: 'agent' | 'staff' | 'system'
 }
 
-// ─── Channel + Scheduler events (Phase 2, plan §P2.0 / C1) ─────────────────
+// ─── Channel + Scheduler events (Phase 2) ───────────────────────────────────
 // Note: tool_call_start/tool_call_end are intentionally absent — the existing
 // tool_execution_start/end cover this seam; renaming would collide with Phase 1
-// test fixtures. (C1 in plan §8 Revision History)
+// test fixtures.
 
 export type ChannelInboundAgentEvent = BaseEvent & {
   type: 'channel_inbound'
@@ -243,7 +243,7 @@ export type AgentAbortedEvent = BaseEvent & {
   abortedAt: 'pre_tool' | 'in_tool' | 'post_tool'
 }
 
-// ─── Moderation + scorer events (Phase 3, plan §P3.0) ─────────────────
+// ─── Moderation + scorer events (Phase 3) ───────────────────────────────────
 
 export type ModerationBlockedEvent = BaseEvent & {
   type: 'moderation_blocked'

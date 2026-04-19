@@ -1,5 +1,5 @@
 /**
- * Hand-written 8-line AsyncQueue per spec §12.2 (N1). NOT vendored from pi-mono.
+ * Hand-written 8-line AsyncQueue. NOT vendored from pi-mono.
  *
  * Backing structure for the per-observer queue in `observer-bus.ts`.
  * A slow observer's queue grows without backpressuring the bus itself or other

@@ -1,9 +1,9 @@
 /**
- * Wake-scheduler + wake-worker unit coverage. Plan §P2.4 acceptance.
+ * Wake-scheduler + wake-worker unit coverage.
  *
- * Exercises the five wake triggers (spec §16), the two-level debounce
- * (§Q9 pre-wake singleton + in-wake steer), approval-resume in both polarities
- * (§8.3), scheduled followup timing, and process-restart idempotency.
+ * Exercises the five wake triggers, the two-level debounce
+ * (pre-wake singleton + in-wake steer), approval-resume in both polarities,
+ * scheduled followup timing, and process-restart idempotency.
  *
  * Uses `createFakeWakeQueue` + `createInMemoryActiveWakes` + a stub `bootWake`
  * so the suite needs no running postgres pg-boss. The production seam (pg-boss

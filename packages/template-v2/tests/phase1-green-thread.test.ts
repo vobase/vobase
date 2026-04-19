@@ -3,8 +3,7 @@
  * end-to-end with zero real LLM calls, zero real channels, and the seeded
  * Meridian scenario.
  *
- * Plan §4 — 12 assertions across 14 it() blocks. Each assertion isolates ONE
- * concern so failure signals are clean.
+ * 14 it() blocks. Each assertion isolates ONE concern so failure signals are clean.
  *
  * Preconditions:
  *   - Docker Postgres running on port 5433 (`docker compose up -d` in this dir)
@@ -390,7 +389,7 @@ describe('Phase 1 green-thread wake', () => {
 
   // --- 12 --- B7/R9 — frozen-snapshot discipline round-trip
   //
-  // Proves BOTH halves of spec §2.2:
+  // Proves BOTH halves of the frozen-snapshot invariant:
   //   (a) frozen system prompt hash identical across turns even though side-load
   //       content changes turn-over-turn (writes don't leak into FROZEN)
   //   (b) side-load REBUILT per turn — contributors see per-turn state

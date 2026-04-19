@@ -1,10 +1,8 @@
 /**
  * Factory that assembles a `PluginContext` for a single module's `init(ctx)`.
- * Spec §6.1 + plan §P1.1. Phase 3 (plan §P3.0) threads a real `ScopedDb` —
- * callers pass the drizzle handle from the module boot slot; the factory
- * forwards it to every module's `init(ctx).db` unchanged. Existing
- * `jobs`/`storage`/`events`/`realtime`/`llmCall` slots from Phase 2 P2.0
- * stay wired as-is.
+ * Phase 3 threads a real `ScopedDb` — callers pass the drizzle handle from
+ * the module boot slot; the factory forwards it to every module's `init(ctx).db`
+ * unchanged.
  */
 
 import type { LlmTask } from '@server/contracts/event'

@@ -1,11 +1,6 @@
 /**
- * InboxPort — spec §6.2. Consumed by other modules. All writes flow through the
+ * InboxPort — consumed by other modules. All writes flow through the
  * `modules/inbox/service/` layer with transactional event-journal appends.
- *
- * Phase 1 REAL methods (per plan §R4):
- *   - `conversations.create(input)` (`createConversation`)
- *   - `pending-approvals.insert(input, tx)` (`insertPendingApproval`)
- * All other methods throw `not-implemented-in-phase-1` until Phase 2.
  */
 
 import type { Conversation, InternalNote, Message, PendingApproval } from './domain-types'
@@ -159,6 +154,6 @@ export interface InboxPort {
   // compaction
   beginCompaction(conversationId: string, summary: string): Promise<{ childConversationId: string }>
 
-  // inbound channel write path (spec §2.3 one-write-path)
+  // inbound channel write path (one-write-path discipline)
   createInboundMessage(input: CreateInboundMessageInput): Promise<CreateInboundMessageResult>
 }

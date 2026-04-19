@@ -1,9 +1,9 @@
 /**
- * Per-turn side-load zone — spec §6.9 + §7.4.
+ * Per-turn side-load zone.
  *
  * The harness concatenates priority-ordered items into each turn's FIRST user message.
  * Critical: mid-wake writes never leak into the current turn's FROZEN prompt — they
- * only surface in the NEXT turn's side-load zone. See spec §2.2.
+ * only surface in the NEXT turn's side-load zone (frozen-snapshot invariant).
  */
 
 export type SideLoadKind =
@@ -32,7 +32,7 @@ export interface SideLoadCtx {
 export type SideLoadContributor = (ctx: SideLoadCtx) => Promise<SideLoadItem[]>
 
 /**
- * Workspace materializer contract — spec §7.5.
+ * Workspace materializer contract.
  *
  * - `phase='frozen'`  → written once at `agent_start`; baked into system prompt.
  * - `phase='side-load'` → rebuilt each turn; concatenated into turn-1 user message.

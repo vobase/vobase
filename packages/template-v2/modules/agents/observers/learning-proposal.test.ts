@@ -1,5 +1,5 @@
 /**
- * learningProposalObserver — spec §13.1 observer tests.
+ * learningProposalObserver — observer tests.
  *
  * Asserts:
  *   - Fires exactly once per qualifying wake (agent_end gate)

@@ -1,7 +1,6 @@
 /**
- * scoped-db.test.ts — Phase-3 prelude proof. Plan §P3.0 acceptance criterion:
- * `ScopedDb` refines Drizzle's `PostgresJsDatabase<Schema>` without broadening
- * the public surface.
+ * scoped-db.test.ts — `ScopedDb` refines Drizzle's `PostgresJsDatabase<Schema>`
+ * without broadening the public surface.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -13,7 +12,7 @@ type AssertEqual<T, U> = [T] extends [U] ? ([U] extends [T] ? true : false) : fa
 type AssertTrue<T extends true> = T
 type AssertExtends<T, U> = [T] extends [U] ? true : false
 
-describe('ScopedDb contract (Phase-3 plan §P3.0 / spec §6.6)', () => {
+describe('ScopedDb contract', () => {
   it('ScopedDb is assignable to PostgresJsDatabase<Schema> (refines)', () => {
     type _Sub = AssertTrue<AssertExtends<ScopedDb, PostgresJsDatabase<Schema>>>
     const _sub: _Sub = true

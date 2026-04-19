@@ -1,6 +1,6 @@
 /**
  * Top-level seed entry point — orchestrates module seeds in dependency order:
- * contacts → drive → agents → inbox (spec §4.3).
+ * contacts → drive → agents → inbox.
  *
  * Idempotent: running twice produces no duplicate rows (ON CONFLICT DO NOTHING in each module seed).
  *

@@ -1,5 +1,5 @@
 /**
- * inbox module schema — spec §5.1.
+ * inbox module schema.
  *
  * Five tables:
  *   - `channel_instances` — per-tenant adapter instances (referenced by conversations)

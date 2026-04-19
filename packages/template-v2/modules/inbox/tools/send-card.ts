@@ -3,7 +3,7 @@ import type { AgentTool, ToolContext } from '@server/contracts/tool'
 import type { ToolResult } from '@server/contracts/tool-result'
 import { z } from 'zod'
 
-// Zod mirror of spec §10.1 CardElementSchema (TypeBox shape adopted 1:1)
+// Zod mirror of CardElementSchema (TypeBox shape adopted 1:1)
 const ButtonStyleSchema = z.enum(['primary', 'danger', 'default'])
 const TextStyleSchema = z.enum(['plain', 'bold', 'muted'])
 

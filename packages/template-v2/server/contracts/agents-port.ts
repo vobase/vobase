@@ -1,11 +1,5 @@
 /**
- * AgentsPort — what other modules call INTO `agents`. Derived from spec §5.3
- * cross-module reads + the minimum surface needed by Phase 1's green-thread wake.
- *
- * Phase 1 REAL methods (per plan §R4):
- *   - `getAgentDefinition(id)`
- *   - `appendEvent(event, tx?)` — sole write path for `agents.conversation_events` (§2.3)
- * All other methods throw `not-implemented-in-phase-1` until Phase 2.
+ * AgentsPort — what other modules call INTO `agents`.
  */
 
 import type { AgentDefinition } from './domain-types'
@@ -17,7 +11,7 @@ export interface AgentsPort {
   getAgentDefinition(id: string): Promise<AgentDefinition>
 
   /**
-   * The SOLE write path for `agents.conversation_events` (spec §2.3 + plan B5).
+   * The SOLE write path for `agents.conversation_events` (one-write-path discipline).
    * Every harness event, every observer-emitted event, flows through here.
    * Called inside the caller's transaction so domain mutation + journal land atomically.
    */

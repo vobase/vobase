@@ -1,5 +1,5 @@
 /**
- * CaptionPort — spec §6.5. Owned by the drive module; consumed by drive itself
+ * CaptionPort — owned by the drive module; consumed by drive itself
  * and by channel adapters for inbound media. Implementation wraps Gemini.
  */
 export interface CaptionPort {

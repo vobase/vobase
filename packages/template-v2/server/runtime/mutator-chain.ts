@@ -1,12 +1,12 @@
 /**
- * MutatorChain — spec §12.3. First-block-wins semantics.
+ * MutatorChain — first-block-wins semantics.
  *
  * `runBefore` walks mutators in registration order; first `{action:'block'}`
  * returned is the final decision. `{action:'transform'}` rewrites args for every
  * subsequent mutator AND for the tool execution itself.
  *
  * Phase 1 ships only one mutator (`approvalMutator`); Phase 2 adds `moderationMutator`
- * which stress-tests the ordering (plan §R10).
+ * which stress-tests the ordering.
  */
 import type { AgentMutator, AgentStep, MutatorContext, MutatorDecision, StepResult } from '@server/contracts/mutator'
 

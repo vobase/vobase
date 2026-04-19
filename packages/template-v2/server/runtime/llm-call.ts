@@ -1,6 +1,5 @@
 /**
  * `llmCall` chokepoint — THE single entry point for every LLM invocation.
- * Spec §2.3 + §6.1.
  *
  * Every call emits an `llm_call` event carrying task, model, provider, token
  * counts, cache hit ratio, cost, latency. This is how `agents.conversation_events`
@@ -123,7 +122,7 @@ export function mockProvider(opts?: {
  * Adapt a streaming `StreamingLlmProvider` (from `server/contracts/provider-port`,
  * used inside the harness turn loop) into the request-response `LlmProvider`
  * this chokepoint expects. Drains the streaming provider, concatenates text
- * deltas, and surfaces the terminal `finish` metadata unchanged. P2.1 §e.
+ * deltas, and surfaces the terminal `finish` metadata unchanged.
  */
 export function makeStreamingLlmProvider(streaming: StreamingLlmProvider): LlmProvider {
   return {

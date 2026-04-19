@@ -1,5 +1,5 @@
 /**
- * Phase-1 stubs for `vobase memory …` subcommands. Spec §9.2.
+ * Phase-1 stubs for `vobase memory …` subcommands.
  *
  * All verbs return exit code 0 with `"not-implemented in Phase 1"` so the
  * command is discoverable + lint-complete, but mutations are deferred to

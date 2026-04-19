@@ -3,11 +3,10 @@
  * Per-wake scoping via auditWakeMap.wakeId (B3). Does not modify core's auditLog schema (R6).
  *
  * R6: imports auditLog from @vobase/core — does NOT re-declare it.
- * Spec §12.1 #1.
  *
- * Phase 2 (plan §P2.0, A1d): audit_wake_map rows cover `channel_inbound`,
+ * Phase 2: audit_wake_map rows cover `channel_inbound`,
  * `channel_outbound`, `wake_scheduled`.
- * Phase 3 (plan §P3.0): audit_wake_map also covers the two new variants —
+ * Phase 3: audit_wake_map also covers the two new variants —
  * `moderation_blocked` and `scorer_recorded` — via the same generic handle()
  * (the switch-free fanout reads `event.type` at runtime, so new AgentEvent
  * variants are audited automatically without a code change).

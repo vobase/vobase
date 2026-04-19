@@ -1,14 +1,12 @@
 /**
- * R3 — compile-only integration gate. This file imports every export from every
+ * Compile-only integration gate. This file imports every export from every
  * contract file AND exercises every `AgentEvent` variant + every port method
  * signature in a type-only position.
  *
- * If any downstream lane needs a field that P1.0 didn't ship, `tsc` fails here
- * FIRST — before 5 lanes consume broken contracts.
+ * If a required field is missing, `tsc` fails here before consuming broken
+ * contracts downstream.
  *
  * This file has NO runtime code. It is pure type-level assertions.
- *
- * Plan §P1.0 acceptance: TSC pass over this file is the P1.0 merge gate.
  */
 
 /* eslint-disable @typescript-eslint/no-unused-vars */

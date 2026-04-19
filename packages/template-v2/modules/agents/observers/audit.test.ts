@@ -65,7 +65,7 @@ describe('auditObserver', () => {
     expect(details[1]).not.toBe(details[2])
   })
 
-  // ── Phase 2 new event variants (plan §P2.0, A1d) ────────────────────────
+  // ── Phase 2 new event variants ────────────────────────
   // The acceptance criterion: audit_wake_map rows populated for channel_inbound,
   // channel_outbound, and wake_scheduled. The generic handle() covers all AgentEvent
   // variants — these tests assert the new types are valid AgentEvent members and that

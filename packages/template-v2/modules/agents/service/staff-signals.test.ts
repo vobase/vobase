@@ -1,6 +1,6 @@
 /**
  * detectStaffSignals — pure-function scan over a wake's event stream.
- * Covers the four staff-signal shapes from spec §13.1.
+ * Covers the four staff-signal shapes.
  */
 
 import { describe, expect, it } from 'bun:test'

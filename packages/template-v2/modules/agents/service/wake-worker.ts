@@ -1,7 +1,6 @@
 /**
  * Wake worker — pg-boss consumer that turns a queued `AgentWakeJobPayload`
- * into a real bootWake invocation. Spec §8.2 (inbound path) + §8.3 (approval
- * path) + §16 (five triggers).
+ * into a real bootWake invocation.
  *
  * Responsibilities per job:
  *   1. Acquire the `active_wakes` lease. If another worker holds the lease,
@@ -80,7 +79,7 @@ export interface WakeWorkerDeps {
   ): Omit<BootWakeOpts, 'trigger' | 'tenantId' | 'agentId' | 'conversationId'> & { contactId: string }
   /** Stable worker id for lease acquisition. */
   workerId?: string
-  /** Debounce window for the lease. Default 30s (spec §8.5). */
+  /** Debounce window for the lease. Default 30s. */
   leaseDebounceMs?: number
 }
 

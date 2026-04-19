@@ -3,11 +3,11 @@
  * Post-`drizzle-kit push` extras:
  *   1. Cross-schema FKs that drizzle-kit can't express in the TypeScript DSL
  *      (inbox.conversations.contact_id → contacts.contacts.id, etc.)
- *   2. `SET UNLOGGED` on agents.active_wakes (ephemeral coordination per spec §Q9)
+ *   2. `SET UNLOGGED` on agents.active_wakes (ephemeral coordination table)
  *   3. `CREATE EXTENSION pg_trgm` + GIN index on drive.files
  *
  * Idempotent: every statement uses `IF NOT EXISTS` / `DO ... EXCEPTION` guards.
- * Run order (plan §R7): contacts → inbox → agents → drive.
+ * Run order: contacts → inbox → agents → drive.
  */
 import postgres from 'postgres'
 

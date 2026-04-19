@@ -31,7 +31,7 @@ export default defineModule({
     ctx.registerObserver(sseObserver)
 
     // Moderation + scorer are opt-in: gated by VOBASE_ENABLE_MODERATION=true so Phase-2
-    // dogfood fixture replays stay deterministic in CI (plan §P3.0).
+    // dogfood fixture replays stay deterministic in CI.
     if (process.env.VOBASE_ENABLE_MODERATION === 'true') {
       ctx.registerMutator(moderationMutator)
       ctx.registerObserver(

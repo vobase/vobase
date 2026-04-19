@@ -1,5 +1,5 @@
 /**
- * Staff-signal detection — plan §P3.2 + spec §13.1.
+ * Staff-signal detection.
  *
  * Pure function that scans a wake's event stream for the four staff-signal
  * shapes the learningProposalObserver cares about:
@@ -18,7 +18,7 @@
  * supervisor wake that also produces a staff note yields TWO signals, and the
  * observer feeds both into `learn.propose`.
  *
- * R1 discipline: imports the `WakeTrigger` / `InternalNote` types from
+ * Imports the `WakeTrigger` / `InternalNote` types from
  * `@server/contracts/domain-types.ts`, never via Drizzle `InferSelectModel`.
  */
 

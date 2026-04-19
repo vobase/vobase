@@ -1,5 +1,5 @@
 /**
- * pi-agent-core adapter — plan §P2.1, risk row 1.
+ * pi-agent-core adapter — Phase 2 critical path.
  *
  * Responsibilities:
  *
@@ -20,7 +20,7 @@
  * regression guard). The provider path flows through `drainProviderToMockStream`
  * inside the same state machine — event ordering is preserved unchanged.
  *
- * Phase 3 (plan §P3.1): the single `bash` AgentTool built in
+ * Phase 3: the single `bash` AgentTool built in
  * `server/harness/agent-runner.ts` is always present in `toolIndex` and is
  * forwarded via `LlmRequest.tools` to the provider. That means the real
  * Anthropic model sees `bash` in every request; `drainProviderTurn`

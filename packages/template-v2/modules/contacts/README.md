@@ -22,6 +22,6 @@ Owns tenant-scoped contact identity: phone/email lookup, working memory, segment
 - `service/contacts.upsertByExternal(input)` — upsert by phone or email
 - `service/contacts.resolveStaffByExternal(channelInstanceId, externalIdentifier)` — staff binding lookup
 
-## Spec reference
+## Schema
 
-See `v2-greenfield-spec.md` §5.2 for schema.
+See `schema.ts` for the full Drizzle schema (contacts module tables live in the `contacts` pgSchema).

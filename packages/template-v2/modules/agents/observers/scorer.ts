@@ -1,9 +1,9 @@
 /**
  * scorerObserver — fires `llmCall('scorer.answer_relevancy', ...)` + `llmCall('scorer.faithfulness', ...)`
- * on every `turn_end`, writing two rows to the existing `agent_scores` table (schema §5.3 / Phase 1).
- * Spec §12.1 observer #4. First writer on a table defined in Phase 1.
+ * on every `turn_end`, writing two rows to the existing `agent_scores` table (Phase 1).
+ * First writer on a table defined in Phase 1.
  *
- * Fire-and-forget discipline (§12.2): the observer runs in its own AsyncQueue on the observer bus,
+ * Fire-and-forget discipline: the observer runs in its own AsyncQueue on the observer bus,
  * so slow LLM calls here never backpressure the hot path or other observers.
  *
  * Factory: caller injects `llmCall` + optional `emit` so module.ts wires the real EventBus

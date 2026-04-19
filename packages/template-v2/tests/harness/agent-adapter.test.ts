@@ -1,5 +1,5 @@
 /**
- * pi-agent-core adapter — unit tests for P2.1 critical path.
+ * pi-agent-core adapter — unit tests.
  *
  * Scope (no DB, no real pi-mono lifecycle):
  *   - `drainProviderTurn` collects provider chunks into MockStreamEvents +
@@ -226,12 +226,12 @@ describe('translatePiMonoEvents → canonical contract sequence', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Phase 3 (plan §P3.1) — real LLM bash invocation via the Anthropic provider
-// adapter. Asserts the recorded `bash` tool_use fixture flows through the
-// unchanged `translateAnthropicEvent` pipeline, that `bootWake()` executes the
-// command against the virtual `InMemoryFs`, emits a `tool_execution_end` with
-// non-null stdout, and that the command surfaces in turn N+1's side-load as a
-// trailing `## Last turn side-effects` block (frozen-snapshot §2.2).
+// Real LLM bash invocation via the Anthropic provider adapter. Asserts the
+// recorded `bash` tool_use fixture flows through the unchanged
+// `translateAnthropicEvent` pipeline, that `bootWake()` executes the command
+// against the virtual `InMemoryFs`, emits a `tool_execution_end` with non-null
+// stdout, and that the command surfaces in turn N+1's side-load as a trailing
+// `## Last turn side-effects` block (frozen-snapshot invariant).
 // ---------------------------------------------------------------------------
 
 describe('phase 3 — bash tool_use via recorded provider', () => {
@@ -286,7 +286,7 @@ describe('phase 3 — bash tool_use via recorded provider', () => {
     expect(harness.capturedPrompts.length).toBe(2)
     const [turn0, turn1] = harness.capturedPrompts
 
-    // Turn 0's side-load MUST NOT mention the command (frozen-snapshot §2.2).
+    // Turn 0's side-load MUST NOT mention the command (frozen-snapshot invariant).
     expect(turn0?.firstUserMessage ?? '').not.toContain('Last turn side-effects')
     expect(turn0?.firstUserMessage ?? '').not.toContain('vobase memory set')
 

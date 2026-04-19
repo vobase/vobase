@@ -11,7 +11,7 @@ export interface SubagentRunInput {
 /**
  * Creates a depth-scoped subagent runner. Pass `depth=0` for top-level callers;
  * inner agents receive `createSubagentRunner(depth + 1)` to enforce max depth=1
- * (spec §9 — second-level subagent call errors synchronously).
+ * (second-level subagent call errors synchronously).
  */
 export function createSubagentRunner(depth = 0) {
   return async function runSubagentScoped(input: SubagentRunInput): Promise<ToolResult<{ summary: string }>> {

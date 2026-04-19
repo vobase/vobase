@@ -1,5 +1,5 @@
 /**
- * Phase-tagged materializer dispatch. Spec §7.5.
+ * Phase-tagged materializer dispatch.
  *
  * The workspace factory asks this registry for materializers by phase:
  *   - `frozen`   → eager writes baked into the system prompt (never re-read mid-wake)

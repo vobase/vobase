@@ -1,5 +1,5 @@
 /**
- * V2ChannelAdapter — a refinement of @vobase/core's ChannelAdapter. Plan §P2.0 (A1, A7).
+ * V2ChannelAdapter — a refinement of @vobase/core's ChannelAdapter.
  *
  * Design rules (A7):
  *   - NEVER override core's `send(message: OutboundMessage)` — that would produce a
@@ -22,8 +22,8 @@ export interface V2ChannelAdapter extends ChannelAdapter {
    * Dispatch a v2 outbound event to the underlying channel transport.
    *
    * Called by the outbound dispatcher AFTER InboxPort has persisted the message row
-   * (spec §2.3 one-write-path). This method is TRANSPORT-ONLY — it must not write
-   * to the `messages` table directly (plan §P2.3, A3).
+   * (one-write-path discipline). This method is TRANSPORT-ONLY — it must not write
+   * to the `messages` table directly.
    */
   sendOutboundEvent(event: ChannelOutboundEvent): Promise<SendResult>
 }

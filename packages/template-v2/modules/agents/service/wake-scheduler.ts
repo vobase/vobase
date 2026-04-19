@@ -1,15 +1,14 @@
 /**
- * Wake scheduler — translates the five canonical triggers (spec §16) into
- * queued wake jobs. Two responsibilities:
+ * Wake scheduler — translates the five canonical triggers into queued wake
+ * jobs. Two responsibilities:
  *
  *   1. **Pre-wake debounce** — inbound_message triggers collapse onto a single
  *      job per (agent, conversation) via `singletonKey` + a 1s `startAfter`
  *      window. Rapid bursts merge their `messageIds` into the pending job's
- *      payload (spec §Q9 step 1 "collapses bursts").
+ *      payload.
  *   2. **In-wake steer** — if a lease already exists in `agents.active_wakes`
  *      the inbound is forwarded via `pg_notify('wake:<worker>')` so the
- *      running worker can inject the message at the next tool boundary
- *      (spec §8.5 "Inbound while active").
+ *      running worker can inject the message at the next tool boundary.
  *
  * The scheduler does not run any agents itself; consumption lives in
  * `wake-worker.ts`.
@@ -31,7 +30,7 @@ export interface WakeSchedulerDeps {
   activeWakes: ActiveWakesStore
   notifier?: InProcessNotifier
   /**
-   * Debounce window for burst-collapse (§Q9). Production default 1000ms;
+   * Debounce window for burst-collapse. Production default 1000ms;
    * tests override to 0 to exercise immediate dispatch.
    */
   debounceMs?: number

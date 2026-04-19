@@ -1,8 +1,8 @@
 /**
- * `defineModule` — runtime module contract. Spec §Appendix A + §4.2.
+ * `defineModule` — runtime module contract.
  *
  * Validates the in-memory module shape at boot against `src/contracts/module-shape.ts`
- * (shared with `scripts/check-module-shape.ts` per R2 — no duplication between
+ * (shared with `scripts/check-module-shape.ts` — no duplication between
  * runtime enforcement and CI lint).
  */
 import type { PluginContext } from '@server/contracts/plugin-context'

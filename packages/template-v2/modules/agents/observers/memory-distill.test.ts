@@ -1,7 +1,7 @@
 /**
  * memoryDistillObserver tests.
  *
- * Focus: the spec §13.1 "anti-lessons" path — when a wake records
+ * Focus: the "anti-lessons" path — when a wake records
  * `learning_rejected` events, the observer appends/merges entries into the
  * agent's `## Anti-lessons` section on agent_end. Distillation path (LLM call
  * + contact working memory upsert) is covered through the debounce stub.

@@ -3,7 +3,8 @@
  * Drizzle schemas assert `InferSelectModel<typeof table> extends DomainType` so drift
  * surfaces at typecheck instead of in Phase 2 bug reports.
  *
- * Spec §5 is the source of truth for shape; this file is its typed mirror.
+ * Drizzle schemas assert `InferSelectModel<typeof table> extends DomainType` so drift
+ * surfaces at typecheck.
  */
 
 export type ConversationStatus =
@@ -183,10 +184,10 @@ export interface LearningProposal {
 
 /**
  * Markdown section materialised under `agent_memory.working_memory` whenever a
- * learning proposal is rejected. Spec §13.1 line 1774: anti-lessons live as a
- * `## Anti-lessons` section (not a column), keyed by `<proposal target>:
- * <decidedNote>`. Consumed by `learn.propose` LLM input + the system prompt
- * rule that tells the agent "DO NOT re-propose these topics".
+ * learning proposal is rejected. Anti-lessons live as a `## Anti-lessons` section
+ * (not a column), keyed by `<proposal target>: <decidedNote>`. Consumed by the
+ * `learn.propose` LLM input and the system prompt rule that tells the agent
+ * "DO NOT re-propose these topics".
  */
 export interface AgentMemoryAntiLessons {
   /** Heading always equals `Anti-lessons`. */
@@ -221,7 +222,7 @@ export interface AgentScore {
 /**
  * The append-only journal row. One row per `AgentEvent` plus per-event columns that
  * slightly widen the event-union payload (hermes-shaped fields like reasoning,
- * tool_calls, finish_reason). See spec §5.3.
+ * tool_calls, finish_reason).
  */
 export interface ConversationEvent {
   id: number

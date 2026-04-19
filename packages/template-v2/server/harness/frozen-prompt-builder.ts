@@ -1,5 +1,5 @@
 /**
- * Frozen prompt builder — spec §2.2 + §7.4. Plan N3.
+ * Frozen prompt builder.
  *
  * Computes the system prompt ONCE per wake from `AGENTS.md + SOUL.md +
  * MEMORY.md + BUSINESS.md + skills metadata`. SHA-256 hash over the rendered
@@ -48,8 +48,8 @@ async function safeRead(bash: Bash, path: string): Promise<string> {
 async function safeListSkills(bash: Bash): Promise<Array<{ name: string; description: string }>> {
   try {
     // Enumerate the directory tree via `ls` against the virtual FS. We want
-    // names + (if readable) the YAML frontmatter 'description' — but per spec
-    // §7.4 frozen zone carries ONLY the metadata line, not full bodies.
+    // names + (if readable) the YAML frontmatter 'description' — the frozen
+    // zone carries ONLY the metadata line, not full bodies.
     const names = await bash.fs.readdir('/workspace/skills')
     const out: Array<{ name: string; description: string }> = []
     for (const name of names) {

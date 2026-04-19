@@ -26,7 +26,7 @@ app.post('/:id', async (c) => {
   }
   try {
     const result = await decide(id, parsed.data)
-    // §13.1 staff-signal bridge: a rejection-with-note surfaces in the conversation
+    // Staff-signal bridge: a rejection-with-note surfaces in the conversation
     // timeline as an `internal_note` so detectStaffSignals() picks it up on the
     // approval_resumed wake and memoryDistill can later materialise it as an
     // anti-lesson. Best-effort — swallow so a note write can never block a decide.

@@ -7,7 +7,7 @@
  *
  * Cross-module note: channel_instances (inbox schema) are inserted here because
  * staff_channel_bindings has a FK to inbox.channel_instances and contacts seeds first
- * per spec §4.3. Both instances are keyed by stable nanoid constants exported below.
+ * in dependency order. Both instances are keyed by stable nanoid constants exported below.
  */
 
 // Stable nanoid constants — hardcoded so tests can import them as compile-time constants.

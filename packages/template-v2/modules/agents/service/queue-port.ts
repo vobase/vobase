@@ -1,6 +1,6 @@
 /**
  * Minimal queue contract for wake scheduling. Production binds this to pg-boss
- * (spec §16 — 5 wake triggers, §Q9 — pg-boss singletonKey + startAfter). Tests
+ * (5 wake triggers, pg-boss singletonKey + startAfter for debouncing). Tests
  * bind it to `createFakeWakeQueue()` below so unit coverage does not require a
  * running postgres pg-boss installation.
  *

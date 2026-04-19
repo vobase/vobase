@@ -2,13 +2,13 @@
  * REAL Phase 1 — reads from agents.agent_definitions.
  * Write methods are scaffold only (throw not-implemented-in-phase-1).
  *
- * Phase 3 (plan §P3.1): `BUILTIN_TOOL_NAMES` exposes the first-class tool
- * slots the harness always surfaces — `bash` (virtual-workspace shell, see
- * `server/harness/bash-tool.ts`) and `vobase` (skill-registered CLI
- * dispatcher, see `server/workspace/vobase-cli/dispatcher.ts`). SOUL.md's
- * tools-allowlist stays declarative: any tool whose name is in this constant
- * is considered available to the agent without requiring an explicit entry
- * in the per-agent `skillAllowlist` column.
+ * `BUILTIN_TOOL_NAMES` exposes the first-class tool slots the harness always
+ * surfaces — `bash` (virtual-workspace shell, see `server/harness/bash-tool.ts`)
+ * and `vobase` (skill-registered CLI dispatcher, see
+ * `server/workspace/vobase-cli/dispatcher.ts`). SOUL.md's tools-allowlist stays
+ * declarative: any tool whose name is in this constant is considered available to
+ * the agent without requiring an explicit entry in the per-agent `skillAllowlist`
+ * column.
  */
 import type { AgentDefinition } from '@server/contracts/domain-types'
 

@@ -1,5 +1,5 @@
 /**
- * Canonical channel event schemas — spec §14.
+ * Canonical channel event schemas.
  *
  * Both channel-web and channel-whatsapp parse their raw payloads into these shapes.
  * The scheduler and dispatcher key off these — without a shared shape each channel
@@ -50,7 +50,7 @@ export const ChannelOutboundEventSchema = z.object({
   conversationId: z.string(),
   /** Resolved contact ID for address lookup. */
   contactId: z.string(),
-  /** Wake that produced this outbound dispatch. Carried for audit_wake_map (A7). */
+  /** Wake that produced this outbound dispatch. Carried for audit_wake_map. */
   wakeId: z.string(),
   channelType: z.enum(['web', 'whatsapp']),
   /** Tool that triggered the send. */

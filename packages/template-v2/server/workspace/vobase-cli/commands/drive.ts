@@ -1,12 +1,9 @@
 /**
- * `vobase drive …` CLI verbs — spec §9.2 "Learning proposals" block.
+ * `vobase drive …` CLI verbs.
  *
  * Registered by the agents module's init() via ctx.registerCommand().
  * The dispatcher (vobase-cli/dispatcher.ts) longest-prefix matches `drive propose`
  * before the bare `drive` token, so the two-word name works without ambiguity.
- *
- * C4 (plan §8): this file is REQUIRED for the proposal acceptance criterion —
- * without `vobase drive propose`, the proposal-flow test cannot insert rows.
  *
  * Usage:
  *   vobase drive propose --path=/<path> --body="..." [--rationale="..."] [--confidence=0.7]

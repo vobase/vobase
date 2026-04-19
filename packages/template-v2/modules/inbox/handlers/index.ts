@@ -33,7 +33,7 @@ app.get('/approvals', async (c) => {
   return c.json(rows)
 })
 
-// Plan §P2.4 A2: /api/inbox/approvals/* is owned by Lane D; handler file lives here.
+// /api/inbox/approvals/* handler file lives here.
 app.route('/approvals', approvals)
 
 // Parcel SV: staff endpoints — /conversations/:id/notes and /conversations/:id/reassign

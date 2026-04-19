@@ -1,5 +1,5 @@
 /**
- * `vobase` CLI dispatcher — spec §9.4.
+ * `vobase` CLI dispatcher.
  *
  * Exposed to `just-bash` as a single custom command via `defineCommand('vobase', …)`.
  * The command routes argv to a module-contributed `CommandDef.execute(argv, ctx)`.

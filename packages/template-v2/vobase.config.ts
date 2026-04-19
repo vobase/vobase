@@ -1,5 +1,5 @@
 /**
- * vobase.config.ts — registers all 6 modules in spec §4.3 order.
+ * vobase.config.ts — registers all 6 modules in dependency order.
  * Order matters for init dependency resolution:
  * contacts → drive → inbox → agents → channel-web → channel-whatsapp
  */

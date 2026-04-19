@@ -1,12 +1,5 @@
 /**
- * DrivePort — spec §6.4. Unified file tree across tenant-scope (KB) and contact-scope.
- *
- * Phase 1 REAL methods (per plan §R4):
- *   - `getByPath(scope, path)`
- *   - `listFolder(scope, parentId)`
- *   - `readContent(id)`
- *   + BUSINESS.md lookup with built-in stub fallback (spec §5.4 + §7.4)
- * All other methods throw `not-implemented-in-phase-1` until Phase 2.
+ * DrivePort — unified file tree across tenant-scope (KB) and contact-scope.
  */
 
 import type { DriveFile } from './domain-types'

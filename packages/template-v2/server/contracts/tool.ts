@@ -1,12 +1,10 @@
 /**
- * Typed AgentTool envelope + ToolContext — plan §P2.0, §P2.2.
+ * Typed AgentTool envelope + ToolContext.
  *
  * `AgentTool<TArgs, TResult>` is the full generic form used by tool implementors
- * (see `modules/inbox/tools/` and `modules/agents/tools/`). The narrower stub in
- * `plugin-context.ts` is kept for PluginContext.registerTool() backward compat and
- * will be unified here in Phase 3.
+ * (see `modules/inbox/tools/` and `modules/agents/tools/`).
  *
- * P2.2 note: `ToolContext.approvalDecision` is the approval decision carrier — the
+ * `ToolContext.approvalDecision` is the approval decision carrier — the
  * harness populates it on wakes triggered by `approval_resumed` so the tool body
  * can read the staff decision without querying the DB.
  */
@@ -48,7 +46,7 @@ export interface AgentTool<TArgs = unknown, TResult = unknown> {
   outputSchema?: unknown
 
   /**
-   * When true, the approval mutator (P2.2) will intercept at `tool_execution_start`
+   * When true, the approval mutator will intercept at `tool_execution_start`
    * and block execution pending staff decision. Tool body is NOT called until the
    * approval_resumed wake injects the decision via `ctx.approvalDecision`.
    */

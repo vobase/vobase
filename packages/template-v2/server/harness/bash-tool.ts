@@ -1,5 +1,5 @@
 /**
- * Single typed `bash` AgentTool — the only tool the LLM sees (spec §9.3).
+ * Single typed `bash` AgentTool — the only tool the LLM sees.
  * Spill thresholds (L1/L2/L3) live in `turn-budget.ts`.
  * Commands that read /workspace/tmp/tool-*.txt bypass spill so the model can
  * pull its own previously-persisted output back without re-tripping the budget.

@@ -5,7 +5,7 @@
 import type { DriveFile } from '@server/contracts/domain-types'
 import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInput } from '@server/contracts/drive-port'
 
-/** Fallback content when /BUSINESS.md is absent from the drive (spec §5.4, §7.4). */
+/** Fallback content when /BUSINESS.md is absent from the drive. */
 export const BUSINESS_MD_FALLBACK = 'No business profile configured. Ask staff to create /BUSINESS.md in the drive.'
 
 let _db: unknown = null

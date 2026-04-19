@@ -1,9 +1,7 @@
 /**
- * LlmProvider contract — plan §P2.0, §P2.1.
+ * LlmProvider contract.
  *
  * Unifies Anthropic / OpenAI / Gemini streamFn signatures behind one interface.
- * Phase 2 critical path: Anthropic only. OpenAI + Gemini are stretch unit-tests.
- *
  * The harness consumes LlmProvider via `server/runtime/llm-call.ts`; individual
  * provider adapters live in `server/harness/providers/`.
  */

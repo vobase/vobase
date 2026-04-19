@@ -3,7 +3,7 @@
  * wired directly against drizzle for the dev server.
  *
  * Production will replace these with the full harness-driven wake-worker path
- * (spec §16). Dev ships a canned "stub agent" so the web channel can be
+ * (wake triggers). Dev ships a canned "stub agent" so the web channel can be
  * exercised end-to-end without an LLM key — and swaps to the real Anthropic
  * provider when one is present (see `runStubReply` below).
  */
@@ -66,7 +66,7 @@ interface DrizzleHandle {
 
 /**
  * Build a minimal InboxPort that delegates every write to the existing service
- * layer (spec §2.3 one-write-path). Reads use drizzle directly.
+ * layer (one-write-path). Reads use drizzle directly.
  */
 function buildInboxPort(db: DrizzleHandle): InboxPort {
   const stubToolCtx = () => ({

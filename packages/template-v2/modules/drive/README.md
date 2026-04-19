@@ -28,6 +28,6 @@ Unified file tree for tenant-scoped KB and contact-scoped drive. Owns `drive.fil
 
 `CAPTION_PROVIDER` env unset → stub returns `"[caption pending]"`.
 
-## Spec reference
+## Schema
 
-See `v2-greenfield-spec.md` §5.4 for schema, §7.4 for BUSINESS.md fallback.
+See `schema.ts` for the full Drizzle schema (drive module tables live in the `drive` pgSchema). The BUSINESS.md fallback stub lives in `server/workspace/create-workspace.ts`.

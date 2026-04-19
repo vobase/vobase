@@ -1,22 +1,16 @@
 /**
- * AgentMutator — block-or-transform hook at tool boundaries. Spec §6.6 + §12.3.
+ * AgentMutator — block-or-transform hook at tool boundaries.
  *
  * The chain is deterministic: `before` hooks run in registration order, first
  * `{action:'block'}` wins, `{action:'transform'}` rewrites args for subsequent
  * mutators + the tool execution itself.
  *
- * ## Phase-3 `ScopedDb` contract (plan §P3.0)
+ * `MutatorContext.db` is a `ScopedDb` (writable capability) so mutators can
+ * persist state through the same drizzle handle module services already use.
  *
- * Spec §6.6 defines MutatorContext with `readonly db: ScopedDb` (writable capability).
- * Phase 1 + Phase 2 shipped a NARROWER contract with `db: never` and `persistEvent`
- * as the only escape hatch. Phase 3 lands the real `ScopedDb` primitive (see
- * `./scoped-db.ts`) so moderation/learning/scorer mutators can persist state
- * through the same drizzle handle module services already use.
- *
- * `persistEvent` is PRESERVED unchanged — Phase-1 + Phase-2 approval gate wiring
+ * `persistEvent` is PRESERVED alongside `db` — the approval gate wiring
  * (`approvalMutator`) depends on it for the single-purpose event-emit path.
- * Mutators may use either escape hatch; removing `persistEvent` would break the
- * existing approval-wiring.
+ * Mutators may use either escape hatch.
  */
 
 import type { AgentEvent } from './event'

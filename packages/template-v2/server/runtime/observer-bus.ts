@@ -1,5 +1,5 @@
 /**
- * ObserverBus — per-observer worker loop. Spec §12.2.
+ * ObserverBus — per-observer worker loop.
  *
  * One queue per observer; a slow observer cannot backpressure a fast one
  * (the integration test's bench assertion verifies this at P1.1 acceptance).

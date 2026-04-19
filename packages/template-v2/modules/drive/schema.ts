@@ -1,5 +1,5 @@
 /**
- * drive module schema — spec §5.4.
+ * drive module schema.
  *
  * One unified table: `drive.files`. Folders and files co-exist; `scope + scope_id`
  * partitions the tree into tenant-wide KB vs per-contact drive. Same caption/

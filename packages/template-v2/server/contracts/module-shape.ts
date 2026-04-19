@@ -4,7 +4,6 @@
  * - `scripts/check-module-shape.ts` at CI (pre-merge lint)
  *
  * Data only — no logic. Keeps runtime enforcement and CI lint in lock-step.
- * Spec §4.2.
  */
 
 export const REQUIRED_MODULE_FILES = [

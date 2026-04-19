@@ -1,9 +1,9 @@
 /**
  * Generate `/workspace/AGENTS.md` content from the registered `vobase` CLI
- * verbs + a short workspace layout reference. Spec §7.1 + §7.4.
+ * verbs + a short workspace layout reference.
  *
  * This runs ONCE at `agent_start`; the rendered string lands in the frozen
- * system prompt. Never re-read mid-wake (N3).
+ * system prompt. Never re-read mid-wake.
  */
 import type { CommandDef } from '@server/contracts/plugin-context'
 

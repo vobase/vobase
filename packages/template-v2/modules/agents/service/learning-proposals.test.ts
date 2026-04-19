@@ -1,5 +1,5 @@
 /**
- * learning-proposals service tests — spec §13.1 steps 6-9.
+ * learning-proposals service tests.
  *
  * Covers `insertProposal`, `decideProposal` (threat_scan + scope-routed writes
  * + NOTIFY), and `listRecent`. Mocks the Drizzle handle so we can assert the

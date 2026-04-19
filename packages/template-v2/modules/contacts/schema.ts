@@ -1,5 +1,5 @@
 /**
- * contacts module schema — spec §5.2.
+ * contacts module schema.
  *
  * Two tables:
  *   - `contacts` — tenant-scoped identity (phone/email + working memory + segments)

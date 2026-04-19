@@ -1,7 +1,7 @@
 /**
  * Wake harness — the core `bootWake()` entry point.
  *
- * Drives the full event lifecycle (spec §8.2):
+ * Drives the full event lifecycle:
  *   `agent_start` → `turn_start` → `llm_call` → `message_start` →
  *   `message_update*` (≥1) → `message_end` → `turn_end` → `agent_end`
  *
@@ -292,8 +292,8 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   const capturedPrompts: CapturedPrompt[] = []
   const customSideLoad: CustomSideLoadMaterializer[] = []
 
-  // Bash commands run in turn N appear in turn N+1's side-load (§2.2 frozen
-  // snapshot — mid-wake writes never affect the turn that produced them).
+  // Bash commands run in turn N appear in turn N+1's side-load (frozen-snapshot
+  // invariant — mid-wake writes never affect the turn that produced them).
   let lastTurnBashCmds: string[] = []
   let currentTurnBashCmds: string[] = []
   customSideLoad.push(createBashHistoryMaterializer(() => lastTurnBashCmds))
@@ -388,7 +388,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       events.publish(preCompEvt)
     }
 
-    // Rebuild side-load FRESH each turn so mid-wake writes propagate (spec §2.2).
+    // Rebuild side-load FRESH each turn so mid-wake writes propagate (frozen-snapshot invariant).
     const sideLoadBody = await collectSideLoad({
       ctx: {
         tenantId: opts.tenantId,

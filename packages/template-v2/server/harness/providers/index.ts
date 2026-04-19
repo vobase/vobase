@@ -1,5 +1,5 @@
 /**
- * Provider factory — `pickProvider(config)` -> LlmProvider. Plan §P2.1.
+ * Provider factory — `pickProvider(config)` -> LlmProvider.
  *
  * Anthropic is the critical path; OpenAI is wired for live-smoke tests. Gemini
  * remains a stretch. The `mock` kind lets tests inject a pre-built provider

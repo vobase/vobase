@@ -1,5 +1,5 @@
 /**
- * `PluginContext` — THE module contract. Spec §6.1.
+ * `PluginContext` — THE module contract.
  *
  * Every module's `init(ctx: PluginContext)` receives this. Replaces the old
  * `getModuleDeps()` singleton. All cross-module access flows through typed ports;
@@ -93,8 +93,8 @@ export interface LlmResult<T = string> {
 }
 
 /**
- * Scoped Drizzle DB handle — tenant-filtered at the handler layer. Phase 3
- * lands the real primitive; see `./scoped-db.ts`.
+ * Scoped Drizzle DB handle — tenant-filtered at the handler layer.
+ * See `./scoped-db.ts`.
  */
 export type { ScopedDb } from './scoped-db'
 

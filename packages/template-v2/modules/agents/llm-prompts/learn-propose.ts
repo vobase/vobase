@@ -1,15 +1,14 @@
 /**
- * `learn.propose` prompt wrapper — Lane B owns per A4 of plan §P3.2 (no edit to
- * `server/runtime/llm-call.ts`; prompt wrappers live in the lane's dispatcher
- * layer). Wraps a `PluginContext.llmCall` into a strongly-typed proposer.
+ * `learn.propose` prompt wrapper. Wraps a `PluginContext.llmCall` into a
+ * strongly-typed proposer.
  *
  * Consumed by `modules/agents/observers/learning-proposal.ts`. The observer
  * feeds: (a) the wake's staff signals, (b) a compact turn history, (c) the
  * agent's existing skills + tenant drive outline (for dedup), and (d) the
  * agent's current working memory — including the `## Anti-lessons` section so
- * the LLM has the "don't re-propose X" context (spec §13.1 line 1780).
+ * the LLM has the "don't re-propose X" context.
  *
- * Scope routing (spec §13.1):
+ * Scope routing:
  *   - `contact` / `agent_memory` → auto-written
  *   - `agent_skill` / `drive_doc` → staff-approved
  */

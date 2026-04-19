@@ -1,5 +1,5 @@
 /**
- * AgentObserver — read-only event subscriber. Spec §6.6 + §12.1.
+ * AgentObserver — read-only event subscriber.
  *
  * Observers run on per-observer queues; a slow observer CANNOT backpressure other
  * observers (see `server/runtime/observer-bus.ts`). Throws are swallowed + logged.

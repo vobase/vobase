@@ -22,6 +22,6 @@ Owns conversations, messages, internal notes, pending approvals, and channel ins
 - `service/conversations.create(input)` — inserts one conversations row and returns it
 - `service/pending-approvals.insert(input, tx?)` — inserts one pending_approvals row
 
-## Spec reference
+## Schema
 
-See `v2-greenfield-spec.md` §5.1 for schema.
+See `schema.ts` for the full Drizzle schema (inbox module tables live in the `inbox` pgSchema).

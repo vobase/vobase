@@ -1,6 +1,5 @@
 /**
  * Phase 3 dogfood integration test — ≥14 assertions.
- * Plan §P3.7, §4.2.
  *
  * Exercises the full Phase-3 loop: workspace-agent bash invocations,
  * learning-proposal observer, moderation mutator, scorer observer,

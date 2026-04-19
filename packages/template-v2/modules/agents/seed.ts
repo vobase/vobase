@@ -1,6 +1,5 @@
 /**
  * agents module seed — inserts the meridian-support-v1 agent_definitions row.
- * Spec §15.2 + §15.3.
  */
 
 import { MERIDIAN_TENANT_ID } from '@modules/drive/seed'

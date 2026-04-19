@@ -1,5 +1,5 @@
 /**
- * REAL Phase 1 — sole write path for agents.conversation_events (spec §2.3, plan B5).
+ * REAL Phase 1 — sole write path for agents.conversation_events (one-write-path discipline).
  * Every harness event, every observer-emitted event flows through `append()`.
  * Called inside the caller's transaction so domain mutation + journal land atomically.
  */

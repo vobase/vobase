@@ -1,6 +1,6 @@
 /**
  * In-process `EventBus`. Synchronous fanout to subscribers; subscriber throws
- * are isolated (logged, not propagated). Spec §2.5 + §8.2.
+ * are isolated (logged, not propagated).
  *
  * pg NOTIFY fanout for cross-process SSE is wired separately in core's realtime
  * service — modules that want cross-process visibility call `ctx.realtime.notify()`
@@ -15,7 +15,7 @@ type Subscriber = (event: AgentEvent) => void | Promise<void>
  * Cross-process NOTIFY hook. When an `agent_end` passes through the bus, the
  * hook is invoked with `{channel: 'wake_released', payload: {...}}` so the
  * runtime can emit a pg NOTIFY for queued triggers waiting on the lease to
- * drop (spec §8.5 + plan §P2.4). The bus itself stays in-process; cross-process
+ * drop. The bus itself stays in-process; cross-process
  * fanout is the hook's responsibility.
  */
 export type WakeReleasedHook = (payload: {

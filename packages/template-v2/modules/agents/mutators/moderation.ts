@@ -1,14 +1,13 @@
 /**
  * moderationMutator — content-policy gate at reply/send_card/send_file/create_draft boundaries.
- * Spec §12.1 mutator #1, §12.3 first-block-wins.
  *
  * Two-stage check:
  *  1. Blocklist (regex, always runs) — fast path, fires first.
  *  2. LLM check (`llmCall('moderation', ...)`) — gated by VOBASE_ENABLE_MODERATION_LLM=true.
  *
  * On block: emits `moderation_blocked` via ctx.persistEvent + returns { action:'block' }.
- * First-block-wins: once any check returns a block, subsequent checks are skipped (handled
- * by the mutator chain in §12.3 — this mutator returns immediately on first match).
+ * First-block-wins: once any check returns a block, subsequent checks are skipped
+ * (this mutator returns immediately on first match).
  */
 
 import type { ModerationCategory } from '@server/contracts/domain-types'

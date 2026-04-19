@@ -7,7 +7,7 @@ const SubagentInputSchema = z.object({
   goal: z.string().min(1, 'goal must not be empty'),
   /**
    * Restricted toolset for the sub-agent. Defaults to `['bash']` so a spawned
-   * sub-agent can navigate the virtual workspace out of the box (plan §P3.1).
+   * sub-agent can navigate the virtual workspace out of the box.
    */
   toolset: z.array(z.string()).optional().default(['bash']),
   maxTurns: z.number().int().min(1).max(10).optional().default(5),

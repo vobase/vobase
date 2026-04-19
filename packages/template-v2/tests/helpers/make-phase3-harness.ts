@@ -1,5 +1,5 @@
 /**
- * Phase 3 harness factory — plan §P3.1.
+ * Phase 3 harness factory.
  *
  * Assembles a `bootWake()` call with the full Phase-3 observer + mutator set
  * wired on top of the Phase-1/2 green-thread. Purely additive: Phase 1/2 tests

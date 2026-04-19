@@ -2,11 +2,11 @@
  * workspaceSyncObserver — on `agent_end`, flushes the dirty-tracker buffer and
  * persists writable-zone changes to their owning module services.
  *
- * Routing rules (spec §3 decision 3 + §7.3):
+ * Routing rules:
  *   `/workspace/contact/MEMORY.md` → ContactsPort.upsertWorkingMemorySection (section-ops)
  *   `/workspace/contact/drive/**`  → DrivePort.create / delete  (scope='contact')
  *
- * Frozen-snapshot invariant (§2.2): this observer ONLY fires on `agent_end`.
+ * Frozen-snapshot invariant: this observer ONLY fires on `agent_end`.
  * Mid-wake dirty writes accumulate in the tracker but are NOT flushed until then,
  * so the current turn's frozen side-load never sees its own writes.
  *

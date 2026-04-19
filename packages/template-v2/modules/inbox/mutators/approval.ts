@@ -12,7 +12,6 @@
  *   4. Call ctx.persistEvent({ type: 'approval_requested', ... }).
  *   5. Return { action: 'block', reason: `pending_approval:<id>` }.
  *
- * Spec §12.1 mutator #2. See also spec §8.3 approval sequence diagram.
  */
 
 import type { AgentMutator, AgentStep, MutatorContext, MutatorDecision } from '@server/contracts/mutator'

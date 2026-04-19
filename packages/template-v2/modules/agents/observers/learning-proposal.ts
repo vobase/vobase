@@ -1,5 +1,5 @@
 /**
- * learningProposalObserver — spec §13.1 observer steps 1-5.
+ * learningProposalObserver — observer steps 1-5.
  *
  * Subscribes to every event so it can accumulate the wake's turn history in the
  * same pass that feeds `llmCall('learn.propose', …)`. On `agent_end`:
@@ -17,7 +17,7 @@
  *      (synthetic) for the auto-written scopes.
  *
  * Purity:
- *   - Does NOT mutate the wake it observes (frozen-snapshot §2.2). All writes
+ *   - Does NOT mutate the wake it observes (frozen-snapshot invariant). All writes
  *     are post-wake via the ScopedDb handle + ports.
  *   - Buffers events per `wakeId`; clears on `agent_end` to avoid leaks.
  *   - Swallows errors per-proposal — a single bad write can't poison the rest

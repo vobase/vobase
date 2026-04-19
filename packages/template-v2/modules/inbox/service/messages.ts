@@ -1,5 +1,5 @@
 /**
- * Sole write path for inbox.messages (spec §2.3 one-write-path invariant).
+ * Sole write path for inbox.messages (one-write-path invariant).
  * Every message append atomically journals a tool_execution_end event so the
  * messages table and conversation_events stay in sync.
  */

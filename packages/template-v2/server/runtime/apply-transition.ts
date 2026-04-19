@@ -1,5 +1,5 @@
 /**
- * State-machine helper — spec §5.1. Every module with state-machine flavored
+ * State-machine helper. Every module with state-machine flavored
  * tables declares its allowed transitions in `modules/<name>/state.ts` as data;
  * `applyTransition` is the only path for runtime code to change those statuses.
  *

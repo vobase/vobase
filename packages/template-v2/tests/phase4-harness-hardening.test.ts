@@ -652,7 +652,7 @@ describe('Lane F — cost/iteration budget', () => {
   it('frozen-snapshot regression — systemHash stable across turns when budget side-load text changes', async () => {
     // Soft threshold fires after turn 1 (ceil(3*0.7)=3 turns), so a 3-turn run
     // exercises both the no-warning side-load and the soft-warning side-load.
-    // The §2.2 invariant: system prompt hash MUST be identical across turns.
+    // Frozen-snapshot invariant: system prompt hash MUST be identical across turns.
     const budget: IterationBudget = { ...BASE, maxTurnsPerWake: 3, softCostCeilingUsd: 999 }
     const { harness } = await bootWake({
       tenantId: 't1',

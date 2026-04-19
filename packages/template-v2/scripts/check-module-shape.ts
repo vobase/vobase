@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 /**
- * CI lint — enforces spec §4.2 module shape.
+ * CI lint — enforces module shape.
  *
  * Checks:
  * 1. Every required file exists in each module dir (R2 — from module-shape.ts)
  * 2. No handler file exceeds MAX_HANDLER_RAW_LOC raw lines (N6)
  * 3. Every handlers/index.ts mounts at least one Hono route (R5)
- * 4. No module imports from another module's schema.ts (spec §4.2)
- * 5. No applyTransition calls outside state.ts (spec §4.2)
- * 6. Every README.md has YAML frontmatter with required keys (spec §4.2)
+ * 4. No module imports from another module's schema.ts
+ * 5. No applyTransition calls outside state.ts
+ * 6. Every README.md has YAML frontmatter with required keys
  *
  * Exits 0 on success, non-zero with file:line-accurate errors on failure.
  */
@@ -140,7 +140,7 @@ async function checkApplyTransitionOnlyInStateTs(moduleName: string, moduleDir: 
         if (!line.trim().startsWith('import') && !line.trim().startsWith('//')) {
           fail(
             fullPath,
-            `module "${moduleName}" calls applyTransition() outside state.ts (spec §4.2 — state transitions belong in state.ts)`,
+            `module "${moduleName}" calls applyTransition() outside state.ts (state transitions belong in state.ts)`,
             i + 1,
           )
         }

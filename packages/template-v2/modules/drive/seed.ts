@@ -1,8 +1,7 @@
 /**
  * drive module seed — inserts 7 tenant-scoped drive.files rows for the Meridian scenario.
- * Spec §15.1 + §15.5.
  *
- * /BUSINESS.md content matches spec §15.1 byte-for-byte.
+ * /BUSINESS.md contains the Meridian brand profile.
  * Other files contain concise placeholder content.
  */
 

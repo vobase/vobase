@@ -1,6 +1,5 @@
 /**
- * Threat-scan signature — ported from hermes. Patterns land in Phase 2+;
- * spec §11 is the reference list. Phase 1 ships a stub that returns `{ok:true}` always.
+ * Threat-scan signature. Phase 1 ships a stub that returns `{ok:true}` always.
  */
 
 export type ThreatCategory = 'invisible_unicode' | 'prompt_injection' | 'exfiltration' | 'secret_leak'
