@@ -10,6 +10,7 @@ import channelWhatsapp from './modules/channel-whatsapp/module'
 import contacts from './modules/contacts/module'
 import drive from './modules/drive/module'
 import inbox from './modules/inbox/module'
+import settings from './modules/settings/module'
 
 export default {
   database: process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2',
@@ -46,5 +47,5 @@ export default {
     },
   },
 
-  modules: [contacts, drive, inbox, agents, channelWeb, channelWhatsapp],
+  modules: [settings, contacts, drive, inbox, agents, channelWeb, channelWhatsapp],
 }
