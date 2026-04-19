@@ -76,3 +76,31 @@ export async function remove(_id: string): Promise<void> {
 export async function list(_tenantId: string): Promise<AgentDefinition[]> {
   throw new Error('not-implemented-in-phase-1: agents/agent-definitions.list')
 }
+
+/**
+ * Returns the working memory for the agent assigned to a conversation.
+ * Returns null if the conversation is not found or belongs to a different tenant (404 signal).
+ * Returns `{ memory: null }` if the conversation has no agent assigned or the agent has no memory.
+ */
+export async function getConversationWorkingMemory(
+  conversationId: string,
+  requestingTenantId: string,
+): Promise<{ memory: string | null } | null> {
+  const { conversations } = await import('@modules/inbox/schema')
+  const { agentDefinitions } = await import('@modules/agents/schema')
+  const { eq } = await import('drizzle-orm')
+  const db = requireDb() as { select: Function }
+
+  const convRows = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1)
+  const conv = convRows[0] as { tenantId: string; assignee: string } | undefined
+  if (!conv || conv.tenantId !== requestingTenantId) return null
+
+  const agentId = conv.assignee.startsWith('agent:') ? conv.assignee.slice(6) : null
+  if (!agentId) return { memory: null }
+
+  const agentRows = await db.select().from(agentDefinitions).where(eq(agentDefinitions.id, agentId)).limit(1)
+  const agent = agentRows[0] as { workingMemory: string } | undefined
+  if (!agent) return { memory: null }
+
+  return { memory: agent.workingMemory || null }
+}
