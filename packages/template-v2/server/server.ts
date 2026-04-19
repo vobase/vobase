@@ -27,7 +27,9 @@ import { setDb as setStaffOpsDb } from '@modules/inbox/service/staff-ops'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Sql } from 'postgres'
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import sseRoute from './routes/sse'
+import { createAuth } from './auth'
 import { buildDevPorts } from './runtime/dev-ports'
 import { createLiveAgentHandler } from './runtime/live-agent'
 import { createStubAgentHandler } from './runtime/stub-agent'
@@ -44,6 +46,10 @@ export function createApp(db: unknown, sql?: Sql): Hono {
   const app = new Hono()
   app.use('*', cors())
   app.get('/health', (c) => c.json({ ok: true, phase: 3 }))
+
+  const auth = createAuth(db as PostgresJsDatabase)
+  app.on(['GET', 'POST'], '/api/auth/**', (c) => auth.handler(c.req.raw))
+
   app.route('/api/inbox', inboxHandlers)
   app.route('/api/agents', agentsHandlers)
   app.route('/api/sse', sseRoute)
