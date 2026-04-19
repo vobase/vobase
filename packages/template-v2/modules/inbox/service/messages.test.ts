@@ -149,8 +149,7 @@ describe('appendCardReplyMessage', () => {
 
     setDb({
       select: () => makeSelectDb([]),
-      transaction: async <T>(fn: (tx: unknown) => Promise<T>) =>
-        fn({ select: () => makeSelectDb([]) } as unknown),
+      transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn({ select: () => makeSelectDb([]) } as unknown),
     } as unknown)
 
     await expect(

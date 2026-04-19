@@ -8,6 +8,7 @@ import type { AgentDefinition } from '@server/contracts/domain-types'
 import type { AgentEvent } from '@server/contracts/event'
 import type { Tx } from '@server/contracts/inbox-port'
 import { agentDefinitions, journal } from './service'
+import { getDailySpend } from './service/cost'
 
 export function createAgentsPort(): AgentsPort {
   return {
@@ -29,6 +30,14 @@ export function createAgentsPort(): AgentsPort {
         },
         tx,
       )
+    },
+
+    async checkDailyCeiling(tenantId: string, agentId: string) {
+      const def = await agentDefinitions.getById(agentId)
+      const ceilingUsd = Number(def.hardCostCeilingUsd ?? 0)
+      if (ceilingUsd <= 0) return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
+      const spentUsd = await getDailySpend(tenantId)
+      return { exceeded: spentUsd >= ceilingUsd, spentUsd, ceilingUsd }
     },
   }
 }

@@ -2,9 +2,11 @@ import { defineModule } from '@server/runtime/define-module'
 import { manifest } from './manifest'
 import { moderationMutator } from './mutators/moderation'
 import { auditObserver } from './observers/audit'
+import { createCostAggregatorObserver } from './observers/cost-aggregator'
 import { createScorerObserver } from './observers/scorer'
 import { sseObserver } from './observers/sse'
 import { setDb as setAgentDefsDb } from './service/agent-definitions'
+import { setCostDb } from './service/cost'
 import { setDb as setJournalDb } from './service/journal'
 import {
   createLearningNotifier,
@@ -22,6 +24,8 @@ export default defineModule({
     setJournalDb(ctx.db)
     setAgentDefsDb(ctx.db)
     setLearningProposalsDb(ctx.db)
+    setCostDb(ctx.db)
+    ctx.registerObserver(createCostAggregatorObserver())
     setLearningNotifier(createLearningNotifier(ctx.db))
     ctx.registerObserver(auditObserver)
     ctx.registerObserver(sseObserver)

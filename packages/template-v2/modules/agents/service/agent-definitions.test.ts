@@ -22,10 +22,7 @@ describe('resolveAllowedTools', () => {
   })
 
   it('dedupes when a built-in is also declared in the per-agent allowlist', () => {
-    expect(resolveAllowedTools({ skillAllowlist: ['bash', 'reply', 'bash'] })).toEqual([
-      ...BUILTIN_TOOL_NAMES,
-      'reply',
-    ])
+    expect(resolveAllowedTools({ skillAllowlist: ['bash', 'reply', 'bash'] })).toEqual([...BUILTIN_TOOL_NAMES, 'reply'])
   })
 
   it('preserves per-agent order when no overlap with built-ins', () => {

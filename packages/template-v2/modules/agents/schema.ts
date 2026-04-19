@@ -47,6 +47,11 @@ export const agentDefinitions = agentsPgSchema.table('agent_definitions', {
   cardApprovalRequired: boolean('card_approval_required').notNull().default(true),
   fileApprovalRequired: boolean('file_approval_required').notNull().default(true),
   bookSlotApprovalRequired: boolean('book_slot_approval_required').notNull().default(true),
+  maxOutputTokens: integer('max_output_tokens').default(4096),
+  maxInputTokens: integer('max_input_tokens').default(32768),
+  maxTurnsPerWake: integer('max_turns_per_wake').default(10),
+  softCostCeilingUsd: numeric('soft_cost_ceiling_usd', { precision: 10, scale: 4 }),
+  hardCostCeilingUsd: numeric('hard_cost_ceiling_usd', { precision: 10, scale: 4 }),
   enabled: boolean('enabled').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
