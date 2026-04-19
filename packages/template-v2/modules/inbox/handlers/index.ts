@@ -3,6 +3,8 @@ import { list as listMessages } from '@modules/inbox/service/messages'
 import { list as listApprovals } from '@modules/inbox/service/pending-approvals'
 import { Hono } from 'hono'
 import approvals from './approvals'
+import notes from './notes'
+import reassign from './reassign'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'tenant_meridian'
 
@@ -33,5 +35,9 @@ app.get('/approvals', async (c) => {
 
 // Plan §P2.4 A2: /api/inbox/approvals/* is owned by Lane D; handler file lives here.
 app.route('/approvals', approvals)
+
+// Parcel SV: staff endpoints — /conversations/:id/notes and /conversations/:id/reassign
+app.route('/conversations', notes)
+app.route('/conversations', reassign)
 
 export default app

@@ -15,6 +15,7 @@ import { setDb as setConversationsDb } from '@modules/inbox/service/conversation
 import { setDb as setMessagesDb } from '@modules/inbox/service/messages'
 import { setDb as setNotesDb } from '@modules/inbox/service/notes'
 import { setDb as setPendingApprovalsDb } from '@modules/inbox/service/pending-approvals'
+import { setDb as setStaffOpsDb } from '@modules/inbox/service/staff-ops'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import sseRoute from './routes/sse'
@@ -24,6 +25,7 @@ export function createApp(db: unknown): Hono {
   setMessagesDb(db)
   setNotesDb(db)
   setPendingApprovalsDb(db)
+  setStaffOpsDb(db)
   setLearningProposalsDb(db)
   setLearningNotifier(createLearningNotifier(db))
 
