@@ -3,7 +3,7 @@ import { getConversation, notifyConversation, reassignConversation } from '@modu
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'tenant_meridian'
+const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const reassignBodySchema = z.object({
   assignee: z.string().min(1),

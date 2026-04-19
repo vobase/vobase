@@ -6,7 +6,7 @@ import approvals from './approvals'
 import notes from './notes'
 import reassign from './reassign'
 
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'tenant_meridian'
+const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const app = new Hono()
 

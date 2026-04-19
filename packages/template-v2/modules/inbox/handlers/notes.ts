@@ -4,7 +4,7 @@ import { getConversation, notifyConversation } from '@modules/inbox/service/staf
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'tenant_meridian'
+const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const noteBodySchema = z.object({
   body: z.string().min(1),
