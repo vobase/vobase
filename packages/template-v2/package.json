@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "conc bun:dev:*",
     "dev:server": "bun run --hot server/entry.ts",
     "dev:web": "vite",
     "build": "vite build",
@@ -73,6 +73,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
     "drizzle-kit": "1.0.0-beta.22",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.3",

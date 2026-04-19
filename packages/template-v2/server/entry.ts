@@ -11,7 +11,7 @@ import { createApp } from './server'
 const sql = postgres(config.database)
 const db = drizzle({ client: sql })
 
-const app = createApp(db)
+const app = createApp(db, sql)
 const port = Number(process.env.PORT ?? 3000)
 
 Bun.serve({ fetch: app.fetch, port })
