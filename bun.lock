@@ -186,6 +186,7 @@
         "@tanstack/virtual-file-routes": "^1.161.7",
         "@vobase/core": "workspace:*",
         "ai": "^6.0.168",
+        "better-auth": "^1.6.5",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",

@@ -1,11 +1,12 @@
 import { Link } from '@tanstack/react-router'
 import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Settings2, Users } from 'lucide-react'
 import type * as React from 'react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Kbd } from '@/components/ui/kbd'
-import { Status } from '@/components/ui/status'
+import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { NavUser } from './nav-user'
+import { TopHeader } from './top-header'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -21,11 +22,11 @@ interface NavItemDef {
 
 const NAV_ITEMS: NavItemDef[] = [
   { icon: Inbox, label: 'Inbox', shortcut: '⌘1', to: '/inbox', enabled: true },
-  { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/approvals', enabled: false },
+  { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/approvals', enabled: true },
   { icon: Users, label: 'Contacts', shortcut: '⌘3', to: '/contacts', enabled: false },
   { icon: Bot, label: 'Agents', shortcut: '⌘4', to: '/agents', enabled: false },
   { icon: HardDrive, label: 'Drive', shortcut: '⌘5', to: '/drive', enabled: false },
-  { icon: Settings2, label: 'Settings', shortcut: '⌘6', to: '/settings', enabled: false },
+  { icon: Settings2, label: 'Settings', shortcut: '⌘6', to: '/settings', enabled: true },
 ]
 
 function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
@@ -83,8 +84,10 @@ function AppShell({ children }: AppShellProps) {
             ))}
           </nav>
 
-          {/* Dev tools + user avatar pinned to the bottom */}
-          <div className="mt-auto flex flex-col items-center gap-2">
+          <Separator className="my-3 w-8" />
+
+          {/* Dev tools pinned above user */}
+          <div className="flex flex-col items-center gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link
@@ -97,21 +100,18 @@ function AppShell({ children }: AppShellProps) {
               </TooltipTrigger>
               <TooltipContent side="right">Web channel test client</TooltipContent>
             </Tooltip>
+          </div>
 
-            <div className="relative">
-              <Avatar className="size-8">
-                <AvatarFallback className="bg-[var(--color-surface-elevated)] text-[10px] text-[var(--color-fg-muted)]">
-                  U
-                </AvatarFallback>
-              </Avatar>
-              <span className="absolute -bottom-0.5 -right-0.5">
-                <Status variant="active" label="" className="gap-0" />
-              </span>
-            </div>
+          {/* Nav-user at rail bottom */}
+          <div className="mt-auto w-full px-1">
+            <NavUser />
           </div>
         </aside>
 
-        <main className="flex min-w-0 flex-1 overflow-hidden">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <TopHeader />
+          <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+        </div>
       </div>
     </TooltipProvider>
   )
