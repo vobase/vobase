@@ -4,6 +4,18 @@ import { useRealtimeInvalidation } from './hooks/use-realtime-invalidation'
 import { ApprovalsPage } from './pages/approvals'
 import { ConversationDetailPlaceholder, InboxEmptyState, InboxLayout } from './pages/inbox'
 import { TestWebPage } from './pages/test-web'
+import {
+  AccountPlaceholder,
+  ApiKeysPlaceholder,
+  AppearancePlaceholder,
+  DisplayPlaceholder,
+  GeneralErrorPlaceholder,
+  LoginPlaceholder,
+  NotFoundPlaceholder,
+  NotificationsPlaceholder,
+  PendingPlaceholder,
+  ProfilePlaceholder,
+} from './routes/__slots__'
 
 // Vite replaces import.meta.env.DEV with a boolean literal at build time, so the
 // branch and its import are dead-code-eliminated from production bundles.
@@ -21,7 +33,11 @@ function RootLayout() {
   )
 }
 
-const rootRoute = createRootRoute({ component: RootLayout })
+const rootRoute = createRootRoute({
+  component: RootLayout,
+  notFoundComponent: NotFoundPlaceholder,
+  errorComponent: GeneralErrorPlaceholder,
+})
 
 const rootIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -55,6 +71,74 @@ const approvalsRoute = createRoute({
   component: ApprovalsPage,
 })
 
+// Settings routes
+const settingsParentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
+})
+
+const settingsIndexRoute = createRoute({
+  getParentRoute: () => settingsParentRoute,
+  path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/settings/profile' })
+  },
+})
+
+const settingsProfileRoute = createRoute({
+  getParentRoute: () => settingsParentRoute,
+  path: '/profile',
+  component: ProfilePlaceholder,
+})
+
+const settingsAccountRoute = createRoute({
+  getParentRoute: () => settingsParentRoute,
+  path: '/account',
+  component: AccountPlaceholder,
+})
+
+const settingsAppearanceRoute = createRoute({
+  getParentRoute: () => settingsParentRoute,
+  path: '/appearance',
+  component: AppearancePlaceholder,
+})
+
+const settingsNotificationsRoute = createRoute({
+  getParentRoute: () => settingsParentRoute,
+  path: '/notifications',
+  component: NotificationsPlaceholder,
+})
+
+const settingsDisplayRoute = createRoute({
+  getParentRoute: () => settingsParentRoute,
+  path: '/display',
+  component: DisplayPlaceholder,
+})
+
+const settingsApiKeysRoute = createRoute({
+  getParentRoute: () => settingsParentRoute,
+  path: '/api-keys',
+  component: ApiKeysPlaceholder,
+})
+
+// Auth routes
+const authParentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth',
+})
+
+const authLoginRoute = createRoute({
+  getParentRoute: () => authParentRoute,
+  path: '/login',
+  component: LoginPlaceholder,
+})
+
+const authPendingRoute = createRoute({
+  getParentRoute: () => authParentRoute,
+  path: '/pending',
+  component: PendingPlaceholder,
+})
+
 // In prod builds Vite replaces `import.meta.env.DEV` with `false`, so the ternary
 // collapses to `null` and Rollup tree-shakes the TestWebPage import out of the
 // bundle (test-web.tsx has no module-scope side effects).
@@ -70,6 +154,16 @@ const routeTree = rootRoute.addChildren([
   rootIndexRoute,
   inboxParentRoute.addChildren([inboxIndexRoute, inboxDetailRoute]),
   approvalsRoute,
+  settingsParentRoute.addChildren([
+    settingsIndexRoute,
+    settingsProfileRoute,
+    settingsAccountRoute,
+    settingsAppearanceRoute,
+    settingsNotificationsRoute,
+    settingsDisplayRoute,
+    settingsApiKeysRoute,
+  ]),
+  authParentRoute.addChildren([authLoginRoute, authPendingRoute]),
   ...(testWebRoute ? [testWebRoute] : []),
 ])
 
