@@ -1,97 +1,69 @@
-import type { Conversation } from '@server/contracts/domain-types'
+import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { Inbox as InboxIcon } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { ListDetailLayout } from '@/components/layout/list-detail-layout'
+import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 
-const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-success/15 text-success',
-  awaiting_approval: 'bg-blue/15 text-blue',
-  on_hold: 'bg-amber-500/15 text-amber-600',
-  resolved: 'bg-muted text-muted-foreground',
-  failed: 'bg-destructive/15 text-destructive',
+async function fetchConversations() {
+  const r = await fetch('/api/inbox/conversations')
+  if (!r.ok) throw new Error('fetch failed')
+  return r.json() as Promise<Array<{ id: string }>>
 }
 
-async function fetchConversations(): Promise<Conversation[]> {
-  const res = await fetch('/api/inbox/conversations')
-  if (!res.ok) throw new Error('Failed to fetch conversations')
-  return res.json() as Promise<Conversation[]>
+// Placeholder until IL lands with <ConversationList />
+function ConversationListSlot() {
+  return <div className="p-4 text-xs text-[var(--color-fg-muted)]">Loading conversations…</div>
 }
 
-export function InboxPage() {
-  const {
-    data: conversations = [],
-    isLoading,
-    error,
-  } = useQuery({
+export function InboxLayout() {
+  const navigate = useNavigate()
+  const isConvSelected = useRouterState({
+    select: (s) => /^\/inbox\/.+/.test(s.location.pathname),
+  })
+  const { data: convs = [] } = useQuery({
     queryKey: ['conversations'],
     queryFn: fetchConversations,
-    refetchInterval: 60_000,
   })
+  const autoSelected = useRef(false)
+
+  useEffect(() => {
+    if (autoSelected.current || isConvSelected || convs.length === 0) return
+    if (!matchMedia('(min-width: 1024px)').matches) return
+    autoSelected.current = true
+    navigate({ to: '/inbox/$id', params: { id: convs[0].id }, replace: true })
+  }, [convs, isConvSelected, navigate])
+
+  useKeyboardNav({ context: 'inbox-list' })
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between border-b border-border px-5 py-3">
-        <h1 className="text-sm font-semibold">Inbox</h1>
-        <span className="text-xs text-muted-foreground">{conversations.length} conversations</span>
-      </div>
+    <ListDetailLayout
+      list={<ConversationListSlot />}
+      detail={<Outlet />}
+    />
+  )
+}
 
-      <div className="flex-1 overflow-auto">
-        {isLoading && (
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-xs">Loading…</div>
-        )}
-        {error && (
-          <div className="m-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            Failed to load conversations
-          </div>
-        )}
-        {!isLoading && !error && conversations.length === 0 && (
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-xs">No conversations</div>
-        )}
-        <ul className="divide-y divide-border">
-          {conversations.map((conv) => (
-            <ConversationRow key={conv.id} conversation={conv} />
-          ))}
-        </ul>
-      </div>
+export function InboxEmptyState() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <Empty>
+        <EmptyMedia>
+          <InboxIcon className="size-5" />
+        </EmptyMedia>
+        <EmptyTitle>No conversation selected</EmptyTitle>
+        <EmptyDescription>Select a conversation from the list to get started.</EmptyDescription>
+      </Empty>
     </div>
   )
 }
 
-function ConversationRow({ conversation: c }: { conversation: Conversation }) {
-  const statusColor = STATUS_COLORS[c.status] ?? 'bg-muted text-muted-foreground'
-
+// Placeholder — ID replaces with <ConversationDetail /> from src/features/inbox/conversation-detail.tsx
+export function ConversationDetailPlaceholder() {
   return (
-    <li>
-      <Link
-        to="/conversation/$id"
-        params={{ id: c.id }}
-        className="flex items-center gap-3 px-5 py-3 hover:bg-accent/50 transition-colors"
-        activeProps={{ className: 'bg-accent' }}
-      >
-        {/* Status dot */}
-        <span
-          className={cn(
-            'inline-flex h-1.5 w-1.5 rounded-full shrink-0',
-            c.status === 'active' ? 'bg-success' : 'bg-muted-foreground/40',
-          )}
-        />
-
-        {/* Main info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium truncate">{c.contactId}</span>
-            <span className="text-[11px] text-muted-foreground shrink-0">{formatRelativeTime(c.lastMessageAt)}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium', statusColor)}>
-              {c.status.replace('_', ' ')}
-            </span>
-            {c.assignee !== 'unassigned' && (
-              <span className="text-[11px] text-muted-foreground truncate">{c.assignee}</span>
-            )}
-          </div>
-        </div>
-      </Link>
-    </li>
+    <div className="flex h-full items-center justify-center text-xs text-[var(--color-fg-muted)]">
+      Loading conversation…
+    </div>
   )
 }
