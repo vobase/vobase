@@ -23,6 +23,7 @@
   --color-warning: oklch(0.72 0.15 60);
   --color-danger: oklch(0.6 0.17 25);
   --color-info: oklch(0.6 0.14 280);
+  --color-info-fg: oklch(0.98 0.005 280);
 
   /* Spacing scale */
   --space-1: 4px;
@@ -88,6 +89,7 @@
   --color-warning: #f5a524;
   --color-danger: #f25555;
   --color-info: #a48bff;
+  --color-info-fg: #1a1424;
 }
 
 @theme inline {
