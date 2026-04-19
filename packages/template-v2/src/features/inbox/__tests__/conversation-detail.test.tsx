@@ -48,7 +48,7 @@ describe('ConversationDetail - prev/next boundaries', () => {
 
 describe('ConversationDetail - reassign', () => {
   it('calls mutate with selected assignee value', () => {
-    const mutate = mock(() => {})
+    const mutate = mock<(_v: string) => void>(() => {})
     const onValueChange = (val: string) => {
       if (val) mutate(val)
     }
@@ -57,7 +57,7 @@ describe('ConversationDetail - reassign', () => {
   })
 
   it('does not call mutate for empty string (deselect guard)', () => {
-    const mutate = mock(() => {})
+    const mutate = mock<(_v: string) => void>(() => {})
     const onValueChange = (val: string) => {
       if (val) mutate(val)
     }

@@ -1,6 +1,7 @@
 import type { LearningProposal } from '@server/contracts/domain-types'
 import { useState } from 'react'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { RelativeTimeCard } from '@/components/ui/relative-time'
+import { cn } from '@/lib/utils'
 
 const SCOPE_LABELS: Record<string, string> = {
   contact: 'Contact',
@@ -75,7 +76,7 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
             <span className="font-mono text-[11px] text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
               {proposal.target}
             </span>
-            <span className="text-[11px] text-muted-foreground">{formatRelativeTime(proposal.createdAt)}</span>
+            <RelativeTimeCard date={proposal.createdAt} className="text-[11px] text-muted-foreground" />
           </div>
 
           {proposal.body && <p className="text-xs text-foreground leading-relaxed line-clamp-3">{proposal.body}</p>}

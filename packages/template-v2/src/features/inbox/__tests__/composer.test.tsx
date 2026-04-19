@@ -65,7 +65,7 @@ describe('Composer - Cmd+Enter logic', () => {
   })
 
   it('submitComposer is a no-op when text is empty', () => {
-    const mutate = mock(() => {})
+    const mutate = mock<(_s: string) => void>(() => {})
     const text = ''
     const submit = () => {
       if (text.trim()) mutate(text.trim())
@@ -75,7 +75,7 @@ describe('Composer - Cmd+Enter logic', () => {
   })
 
   it('submitComposer calls mutate with trimmed text', () => {
-    const mutate = mock(() => {})
+    const mutate = mock<(_s: string) => void>(() => {})
     const text = '  My note  '
     const submit = () => {
       if (text.trim()) mutate(text.trim())

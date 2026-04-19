@@ -1,6 +1,7 @@
 import type { PendingApproval } from '@server/contracts/domain-types'
 import { useState } from 'react'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { RelativeTimeCard } from '@/components/ui/relative-time'
+import { cn } from '@/lib/utils'
 import type { DecideParams } from '@/pages/approvals'
 
 interface Props {
@@ -33,7 +34,7 @@ export function ApprovalRow({ approval, onDecide }: Props) {
             <span className="inline-flex items-center rounded bg-blue/10 px-1.5 py-0.5 font-mono text-[11px] text-blue">
               {approval.toolName}
             </span>
-            <span className="text-[11px] text-muted-foreground">{formatRelativeTime(approval.createdAt)}</span>
+            <RelativeTimeCard date={approval.createdAt} className="text-[11px] text-muted-foreground" />
           </div>
           <p className="mt-1 text-xs text-muted-foreground font-mono truncate max-w-md">
             conv: {approval.conversationId}
