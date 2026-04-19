@@ -63,11 +63,4 @@ export function InboxEmptyState() {
   )
 }
 
-// Placeholder — ID replaces with <ConversationDetail /> from src/features/inbox/conversation-detail.tsx
-export function ConversationDetailPlaceholder() {
-  return (
-    <div className="flex h-full items-center justify-center text-xs text-[var(--color-fg-muted)]">
-      Loading conversation…
-    </div>
-  )
-}
+export { ConversationDetail as ConversationDetailPlaceholder } from '@/features/inbox/conversation-detail'
