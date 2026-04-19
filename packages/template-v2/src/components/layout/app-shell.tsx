@@ -1,7 +1,8 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Settings2, Users } from 'lucide-react'
-import type * as React from 'react'
+import * as React from 'react'
 import { Kbd } from '@/components/ui/kbd'
+import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -66,6 +67,9 @@ function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
 }
 
 function AppShell({ children }: AppShellProps) {
+  const navigate = useNavigate()
+  useKeyboardNav({ context: 'shell', onNavigate: (path) => navigate({ to: path }) })
+
   return (
     <TooltipProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-bg)] text-[var(--color-fg)]">

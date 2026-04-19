@@ -1,19 +1,27 @@
 import { useCallback, useEffect, useRef } from 'react'
 
 export interface UseKeyboardNavOptions {
-  context: 'inbox-list' | 'inbox-detail'
+  context: 'inbox-list' | 'inbox-detail' | 'shell'
   onSelectNext?: () => void
   onSelectPrev?: () => void
   onOpenSelected?: () => void
   onClearSelection?: () => void
   onSubmitComposer?: () => void
   onFocusSearch?: () => void
+  onNavigate?: (path: string) => void
+  onCloseDialog?: () => void
 }
 
 const IGNORED_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 function isInsideCombobox(el: Element | null): boolean {
   return Boolean(el?.closest('[role="combobox"], [role="listbox"]'))
+}
+
+function isEditableTarget(target: HTMLElement): boolean {
+  if (IGNORED_TAGS.has(target.tagName)) return true
+  if (target.contentEditable === 'true') return true
+  return false
 }
 
 export function createKeyboardNavHandler(opts: UseKeyboardNavOptions) {
@@ -45,17 +53,95 @@ export function createKeyboardNavHandler(opts: UseKeyboardNavOptions) {
   }
 }
 
+export interface ShellKeyboardNavOptions {
+  onNavigate?: (path: string) => void
+  onCloseDialog?: () => void
+}
+
+export function createShellKeyboardNavHandler(opts: ShellKeyboardNavOptions) {
+  let pendingG = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  function clearPending() {
+    pendingG = false
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+  }
+
+  return {
+    handler(e: KeyboardEvent): void {
+      const target = e.target as HTMLElement
+      if (isEditableTarget(target)) return
+      // biome-ignore lint/suspicious/noExplicitAny: guard for non-browser test envs
+      if (typeof document !== 'undefined' && isInsideCombobox(document.activeElement)) return
+
+      if (e.key === 'Escape') {
+        opts.onCloseDialog?.()
+        clearPending()
+        return
+      }
+
+      if (pendingG) {
+        clearPending()
+        if (e.key === 's') {
+          e.preventDefault()
+          opts.onNavigate?.('/settings')
+        } else if (e.key === 'i' || e.key === 'h') {
+          e.preventDefault()
+          opts.onNavigate?.('/inbox')
+        }
+        return
+      }
+
+      if (e.key === 'g' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault()
+        pendingG = true
+        timer = setTimeout(clearPending, 500)
+      }
+    },
+    reset: clearPending,
+  }
+}
+
 export function useKeyboardNav(opts: UseKeyboardNavOptions) {
   const optsRef = useRef(opts)
   optsRef.current = opts
 
+  const shellHandlerRef = useRef<ReturnType<typeof createShellKeyboardNavHandler> | null>(null)
+
   useEffect(() => {
+    if (opts.context !== 'shell') return
+
+    shellHandlerRef.current = createShellKeyboardNavHandler({
+      get onNavigate() {
+        return optsRef.current.onNavigate
+      },
+      get onCloseDialog() {
+        return optsRef.current.onCloseDialog
+      },
+    })
+
+    function listener(e: KeyboardEvent) {
+      shellHandlerRef.current?.handler(e)
+    }
+    window.addEventListener('keydown', listener)
+    return () => {
+      shellHandlerRef.current?.reset()
+      window.removeEventListener('keydown', listener)
+    }
+  }, [opts.context])
+
+  useEffect(() => {
+    if (opts.context === 'shell') return
+
     function listener(e: KeyboardEvent) {
       createKeyboardNavHandler(optsRef.current)(e)
     }
     window.addEventListener('keydown', listener)
     return () => window.removeEventListener('keydown', listener)
-  }, [])
+  }, [opts.context])
 
   return {
     focusSearch: useCallback(() => optsRef.current.onFocusSearch?.(), []),
