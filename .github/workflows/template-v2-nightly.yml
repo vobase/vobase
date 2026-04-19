@@ -61,6 +61,14 @@ jobs:
       - name: Test phase2 + unit (live Anthropic API)
         run: bun test tests/phase2-dogfood.test.ts modules/ server/
 
+      - name: Test phase3 dogfood (live Anthropic + recorded fixtures)
+        run: bun test tests/phase3-dogfood.test.ts
+
+      - name: Test Gemini caption drift (live API — step 3)
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: bun test tests/nightly-gemini.test.ts
+
       - name: Open failure issue on first red night
         if: failure()
         uses: actions/github-script@v7

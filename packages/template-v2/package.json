@@ -37,6 +37,7 @@
     "nuqs": "^2.8.9",
     "pg-boss": "^12.15.0",
     "postgres": "^3.4.9",
+    "radix-ui": "^1.4.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwind-merge": "^3.5.0",

@@ -74,6 +74,9 @@ jobs:
       - name: Test phase2 + unit (dogfood, modules, server)
         run: bun test tests/phase2-dogfood.test.ts modules/ server/
 
+      - name: Test phase3 (dogfood integration)
+        run: bun test tests/phase3-dogfood.test.ts
+
       - name: Frontend bundle lint
         run: bun run check:bundle
 
