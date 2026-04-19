@@ -54,5 +54,16 @@ export interface AgentTool<TArgs = unknown, TResult = unknown> {
    */
   requiresApproval?: boolean
 
+  /**
+   * Parallel execution safety classification (metadata only — scheduler not yet wired).
+   * `'never'`     → must run serially; never batched with another tool call.
+   * `'safe'`      → side-effect-free; can run concurrently with any other safe call.
+   * `path-scoped` → can run concurrently with other path-scoped calls whose paths do
+   *                 not overlap (checked by `pathsOverlap()`). `pathArg` names the
+   *                 input field that carries the target path.
+   * Omitting this field is equivalent to `'never'` (conservative default).
+   */
+  parallelGroup?: 'never' | 'safe' | { kind: 'path-scoped'; pathArg: string }
+
   execute(args: TArgs, ctx: ToolContext): Promise<ToolResult<TResult>>
 }

@@ -31,6 +31,8 @@ export interface AgentTool<TArgs = unknown, TResult = unknown> {
   /** TypeBox or Zod schema — harness adapts. */
   inputSchema: unknown
   outputSchema?: unknown
+  /** Parallel execution safety — see `server/contracts/tool.ts` for full docs. */
+  parallelGroup?: 'never' | 'safe' | { kind: 'path-scoped'; pathArg: string }
   execute: (args: TArgs, ctx: ToolExecutionContext) => Promise<ToolResult<TResult>>
 }
 
@@ -41,6 +43,7 @@ export interface ToolExecutionContext {
   agentId: string
   turnIndex: number
   toolCallId: string
+  signal?: AbortSignal
 }
 
 export interface CommandDef {
@@ -69,6 +72,8 @@ export interface LlmRequest {
   messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
   tools?: AgentTool[]
   stream?: boolean
+  /** Cancellation signal — abort() cancels the in-flight LLM stream (Lane C). */
+  signal?: AbortSignal
   /** Pass-through for any provider-specific opts. */
   providerOpts?: Record<string, unknown>
 }

@@ -13,10 +13,12 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import type { AbortContext } from '../abort-context'
 import type { AgentsPort } from '../agents-port'
 import type { CaptionPort } from '../caption-port'
 import type { V2ChannelAdapter } from '../channel-adapter'
 import type { ChannelInboundEvent, ChannelOutboundEvent } from '../channel-event'
+import type { ClassifiedError } from '../classified-error'
 import type { ContactsPort } from '../contacts-port'
 import type {
   AgentDefinition,
@@ -32,18 +34,27 @@ import type {
 } from '../domain-types'
 import type { DrivePort, DriveScope } from '../drive-port'
 import type {
+  AgentAbortedEvent,
   AgentEvent,
   AgentEventType,
+  BudgetWarningEvent,
   ChannelInboundAgentEvent,
   ChannelOutboundAgentEvent,
+  ErrorClassifiedEvent,
+  LlmCallEvent,
   LlmTask,
   ModerationBlockedEvent,
+  PreCompactionEvent,
   ScorerRecordedEvent,
+  SteerInjectedEvent,
+  ToolResultPersistedEvent,
+  WakeRefusedEvent,
   WakeScheduledEvent,
   WakeTrigger,
   WakeTriggerKind,
 } from '../event'
 import type { InboxPort } from '../inbox-port'
+import type { BudgetPhase, BudgetState, IterationBudget } from '../iteration-budget'
 import type { OptionalModuleDir, RequiredModuleFile } from '../module-shape'
 import {
   type MAX_HANDLER_RAW_LOC,
@@ -99,6 +110,13 @@ type _EventTypes = AssertEqual<
   | 'channel_inbound'
   | 'channel_outbound'
   | 'wake_scheduled'
+  | 'budget_warning'
+  | 'error_classified'
+  | 'tool_result_persisted'
+  | 'pre_compaction'
+  | 'steer_injected'
+  | 'wake_refused'
+  | 'agent_aborted'
 >
 type _EventTypesCheck = AssertTrue<_EventTypes>
 
@@ -149,6 +167,20 @@ export function assertAgentEventExhaustive(e: AgentEvent): string {
       return e.channelType + e.toolName + e.contactId
     case 'wake_scheduled':
       return e.trigger + e.scheduledAt.toISOString()
+    case 'budget_warning':
+      return e.phase + String(e.turnsConsumed) + String(e.spentUsd)
+    case 'error_classified':
+      return e.reason + e.providerMessage + String(e.retryAttempt)
+    case 'tool_result_persisted':
+      return e.toolCallId + e.toolName + e.path + String(e.originalByteLength)
+    case 'pre_compaction':
+      return String(e.turnIndex)
+    case 'steer_injected':
+      return e.text
+    case 'wake_refused':
+      return e.reason
+    case 'agent_aborted':
+      return e.reason + e.abortedAt
   }
 }
 
@@ -224,7 +256,7 @@ type _RequiredDriveMethods =
   | 'deleteScope'
 type _DriveKeys = AssertTrue<AssertEqual<keyof DrivePort, _RequiredDriveMethods>>
 
-type _RequiredAgentsMethods = 'getAgentDefinition' | 'appendEvent'
+type _RequiredAgentsMethods = 'getAgentDefinition' | 'appendEvent' | 'checkDailyCeiling'
 type _AgentsKeys = AssertTrue<AssertEqual<keyof AgentsPort, _RequiredAgentsMethods>>
 
 // ---------------------------------------------------------------------------
@@ -540,6 +572,162 @@ void _scorerRec
 
 const _tenantScopeSample: TenantScope = { tenantId: 't1' }
 void _tenantScopeSample
+
+// ---------------------------------------------------------------------------
+// Classified-error / abort / iteration-budget — type-only instantiations
+// ---------------------------------------------------------------------------
+
+// classified-error.ts: 4-member discriminated union — exhaustively instantiable
+const _ceOverflow: ClassifiedError = { reason: 'context_overflow', providerMessage: 'context length exceeded' }
+const _cePayload: ClassifiedError = {
+  reason: 'payload_too_large',
+  httpStatus: 413,
+  providerMessage: '413 payload too large',
+}
+const _ceTransient: ClassifiedError = {
+  reason: 'transient',
+  httpStatus: 429,
+  providerMessage: 'rate limit',
+  retryAfterMs: 1000,
+}
+const _ceUnknown: ClassifiedError = { reason: 'unknown', providerMessage: 'unknown provider error' }
+void _ceOverflow
+void _cePayload
+void _ceTransient
+void _ceUnknown
+
+// abort-context.ts
+const _abortCtx: AbortContext = { wakeAbort: new AbortController(), reason: null }
+void _abortCtx
+
+// iteration-budget.ts: IterationBudget, BudgetState, BudgetPhase
+const _budget: IterationBudget = {
+  maxTurnsPerWake: 10,
+  softCostCeilingUsd: 0.07,
+  hardCostCeilingUsd: 0.1,
+  maxOutputTokens: 2048,
+  maxInputTokens: 32768,
+}
+const _budgetState: BudgetState = { turnsConsumed: 3, spentUsd: 0.04 }
+type _BudgetPhaseCheck = AssertTrue<AssertEqual<BudgetPhase, 'soft' | 'hard'>>
+void _budget
+void _budgetState
+
+// BudgetWarningEvent.phase is a string-literal union — exhaustively switched
+function assertBudgetPhaseExhaustive(phase: BudgetWarningEvent['phase']): string {
+  switch (phase) {
+    case 'soft':
+      return 'soft warning'
+    case 'hard':
+      return 'hard ceiling'
+  }
+}
+void assertBudgetPhaseExhaustive
+
+// New AgentEvent variant sample objects (type-only)
+const _budgetWarn: BudgetWarningEvent = {
+  type: 'budget_warning',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 3,
+  phase: 'soft',
+  turnsConsumed: 7,
+  spentUsd: 0.07,
+}
+void _budgetWarn
+
+const _errClassified: ErrorClassifiedEvent = {
+  type: 'error_classified',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 1,
+  reason: 'transient',
+  providerMessage: 'connection reset',
+  retryAttempt: 1,
+}
+void _errClassified
+
+const _toolPersisted: ToolResultPersistedEvent = {
+  type: 'tool_result_persisted',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 2,
+  toolCallId: 'tc1',
+  toolName: 'bash',
+  path: '/workspace/tmp/tool-tc1.txt',
+  originalByteLength: 150_000,
+}
+void _toolPersisted
+
+const _preCompaction: PreCompactionEvent = {
+  type: 'pre_compaction',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 9,
+}
+void _preCompaction
+
+const _steerInjected: SteerInjectedEvent = {
+  type: 'steer_injected',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 4,
+  text: 'Please focus on the billing issue.',
+}
+void _steerInjected
+
+const _wakeRefused: WakeRefusedEvent = {
+  type: 'wake_refused',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 0,
+  reason: 'daily_ceiling',
+}
+void _wakeRefused
+
+const _agentAborted: AgentAbortedEvent = {
+  type: 'agent_aborted',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 2,
+  reason: 'external',
+  abortedAt: 'in_tool',
+}
+void _agentAborted
+
+// LlmCallEvent sample — cacheReadTokens field (no cacheWriteTokens field)
+const _llmCallSample: LlmCallEvent = {
+  type: 'llm_call',
+  ts: new Date(),
+  wakeId: 'w1',
+  conversationId: 'c1',
+  tenantId: 't1',
+  turnIndex: 0,
+  task: 'agent.turn',
+  model: 'anthropic/claude-sonnet-4-6',
+  provider: 'anthropic',
+  tokensIn: 1200,
+  tokensOut: 350,
+  cacheReadTokens: 800,
+  costUsd: 0.003,
+  latencyMs: 1200,
+  cacheHit: true,
+}
+void _llmCallSample
 
 // ---------------------------------------------------------------------------
 // Explicit re-exports so bundlers + type-only consumers see the surface

@@ -116,6 +116,11 @@ export interface AgentDefinition {
   cardApprovalRequired: boolean
   fileApprovalRequired: boolean
   bookSlotApprovalRequired: boolean
+  maxOutputTokens: number | null
+  maxInputTokens: number | null
+  maxTurnsPerWake: number | null
+  softCostCeilingUsd: string | null
+  hardCostCeilingUsd: string | null
   enabled: boolean
   createdAt: Date
   updatedAt: Date

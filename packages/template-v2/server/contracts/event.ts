@@ -6,6 +6,8 @@
  * `modules/agents/service/journal.ts` (per spec §2.3 "one write path per domain").
  */
 
+import type { ClassifiedErrorReason } from './classified-error'
+
 export type WakeTrigger =
   | { trigger: 'inbound_message'; conversationId: string; messageIds: string[] }
   | {
@@ -185,6 +187,62 @@ export type LearningRejectedEvent = BaseEvent & {
   reason: string
 }
 
+// ─── Budget / abort / cache events ──────────────────────────────────────────
+
+export type BudgetWarningEvent = BaseEvent & {
+  type: 'budget_warning'
+  /** 'soft' = ≥70% threshold; 'hard' = ≥100% threshold (loop broken). */
+  phase: 'soft' | 'hard'
+  turnsConsumed: number
+  spentUsd: number
+}
+
+export type ErrorClassifiedEvent = BaseEvent & {
+  type: 'error_classified'
+  reason: ClassifiedErrorReason
+  providerMessage: string
+  httpStatus?: number
+  retryAttempt: number
+}
+
+export type ToolResultPersistedEvent = BaseEvent & {
+  type: 'tool_result_persisted'
+  toolCallId: string
+  toolName: string
+  /** Absolute path inside /workspace/tmp/ where the full result was spilled. */
+  path: string
+  originalByteLength: number
+}
+
+export type PreCompactionEvent = BaseEvent & {
+  type: 'pre_compaction'
+}
+
+export type SteerInjectedEvent = BaseEvent & {
+  type: 'steer_injected'
+  /** The steer text injected as the next user message. */
+  text: string
+}
+
+export type WakeRefusedEvent = BaseEvent & {
+  type: 'wake_refused'
+  reason: 'daily_ceiling'
+}
+
+export type AgentAbortedEvent = BaseEvent & {
+  type: 'agent_aborted'
+  /** Human-readable reason string from `AbortContext.reason` (or 'external' if unset). */
+  reason: string
+  /**
+   * Where in the turn the abort was detected.
+   * 'pre_tool'  — before any tool call started (includes LLM stream phase).
+   * 'in_tool'   — while a tool was executing (tool ran to completion).
+   * 'post_tool' — after a tool completed, before the next one started.
+   * Lets restart-recovery distinguish intentional abort from crash.
+   */
+  abortedAt: 'pre_tool' | 'in_tool' | 'post_tool'
+}
+
 // ─── Moderation + scorer events (Phase 3, plan §P3.0) ─────────────────
 
 export type ModerationBlockedEvent = BaseEvent & {
@@ -230,5 +288,12 @@ export type AgentEvent =
   | ChannelInboundAgentEvent
   | ChannelOutboundAgentEvent
   | WakeScheduledEvent
+  | BudgetWarningEvent
+  | ErrorClassifiedEvent
+  | ToolResultPersistedEvent
+  | PreCompactionEvent
+  | SteerInjectedEvent
+  | WakeRefusedEvent
+  | AgentAbortedEvent
 
 export type AgentEventType = AgentEvent['type']
