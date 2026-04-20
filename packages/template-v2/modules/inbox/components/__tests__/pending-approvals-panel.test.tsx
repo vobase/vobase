@@ -41,7 +41,7 @@ function makePendingApproval(overrides: Partial<PendingApproval> = {}): PendingA
 
 // ─── Pure function tests (real implementations via globalThis.fetch) ───────────
 
-import { decideApproval, fetchApprovals } from '../api/use-decide-approval'
+import { decideApproval, fetchApprovals } from '@modules/inbox/api/use-decide-approval'
 
 describe('fetchApprovals', () => {
   it('returns parsed JSON on 200', async () => {

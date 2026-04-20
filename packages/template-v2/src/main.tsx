@@ -1,12 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { RouterProvider } from '@tanstack/react-router'
+import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { NuqsAdapter } from 'nuqs/adapters/tanstack-router'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ThemeProvider } from './components/theme-provider'
 import { SearchProvider } from './providers/search-provider'
-import { router } from './routes'
+import { routeTree } from './routeTree.gen'
 import './styles/app.css'
+
+const router = createRouter({ routeTree })
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

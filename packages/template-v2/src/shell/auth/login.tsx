@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { useEmailOtp } from '@/pages/auth/use-email-otp'
+import { useEmailOtp } from '@/shell/auth/use-email-otp'
 
 const schema = z.object({ email: z.email() })
 type FormValues = z.infer<typeof schema>
@@ -17,7 +17,7 @@ const DEV_LOGIN_EMAIL = 'alice@meridian.test'
 const platformUrl = import.meta.env.VITE_PLATFORM_URL
 const platformTenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG
 
-export default function LoginPage() {
+export function LoginPage() {
   const navigate = useNavigate()
   const { sendOtp } = useEmailOtp()
   const [devLoginError, setDevLoginError] = useState<string | null>(null)
@@ -175,3 +175,7 @@ export default function LoginPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_auth/auth/login')({
+  component: LoginPage,
+})

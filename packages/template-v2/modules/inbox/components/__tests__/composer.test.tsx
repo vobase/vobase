@@ -5,11 +5,11 @@ import { createKeyboardNavHandler } from '@/hooks/use-keyboard-nav'
 const staffReplyMutate = mock(() => {})
 const sendNoteMutate = mock(() => {})
 
-mock.module('../api/use-staff-reply', () => ({
+mock.module('@modules/inbox/api/use-staff-reply', () => ({
   useStaffReply: () => ({ mutate: staffReplyMutate, isPending: false }),
 }))
 
-mock.module('../api/use-send-note', () => ({
+mock.module('@modules/inbox/api/use-send-note', () => ({
   useSendNote: () => ({ mutate: sendNoteMutate, isPending: false }),
 }))
 

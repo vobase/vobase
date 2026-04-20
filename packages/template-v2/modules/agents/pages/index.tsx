@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Bot, Brain, ChevronRight, FileCheck2, Shield } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,7 +10,7 @@ interface AgentSummary {
   description: string
   status: 'active' | 'disabled'
   icon: React.ElementType
-  links: { label: string; to: '/agents/learnings' | '/approvals'; icon: React.ElementType }[]
+  links: { label: string; to: '/agents/learnings' | '/inbox/approvals'; icon: React.ElementType }[]
 }
 
 const AGENTS: AgentSummary[] = [
@@ -24,7 +24,7 @@ const AGENTS: AgentSummary[] = [
     icon: Bot,
     links: [
       { label: 'Learnings', to: '/agents/learnings', icon: Brain },
-      { label: 'Approvals', to: '/approvals', icon: FileCheck2 },
+      { label: 'Approvals', to: '/inbox/approvals', icon: FileCheck2 },
     ],
   },
 ]
@@ -108,3 +108,7 @@ export function AgentsListPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_app/agents/')({
+  component: AgentsListPage,
+})

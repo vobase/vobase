@@ -1,4 +1,4 @@
-import { Outlet } from '@tanstack/react-router'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 
 const productName = import.meta.env.VITE_PRODUCT_NAME ?? 'Vobase'
 const vendorName = import.meta.env.VITE_VENDOR_NAME ?? 'Vobase'
@@ -16,3 +16,7 @@ export function AuthLayout() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_auth')({
+  component: AuthLayout,
+})

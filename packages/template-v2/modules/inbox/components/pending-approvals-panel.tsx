@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Status } from '@/components/ui/status'
-import { fetchApprovals, useDecideApproval } from './api/use-decide-approval'
+import { fetchApprovals, useDecideApproval } from '@modules/inbox/api/use-decide-approval'
 
 interface PendingApprovalsPanelProps {
   conversationId: string

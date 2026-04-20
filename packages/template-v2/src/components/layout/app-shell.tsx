@@ -23,7 +23,7 @@ interface NavItemDef {
 
 const NAV_ITEMS: NavItemDef[] = [
   { icon: Inbox, label: 'Inbox', shortcut: '⌘1', to: '/inbox', enabled: true },
-  { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/approvals', enabled: true },
+  { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/inbox/approvals', enabled: true },
   { icon: Users, label: 'Contacts', shortcut: '⌘3', to: '/contacts', enabled: true },
   { icon: Bot, label: 'Agents', shortcut: '⌘4', to: '/agents', enabled: true },
   { icon: HardDrive, label: 'Drive', shortcut: '⌘5', to: '/drive', enabled: true },

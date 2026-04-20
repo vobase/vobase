@@ -68,3 +68,8 @@ export default function AppearancePage() {
     </div>
   )
 }
+
+import { createFileRoute } from '@tanstack/react-router'
+export const Route = createFileRoute('/_app/settings/appearance')({
+  component: AppearancePage,
+})

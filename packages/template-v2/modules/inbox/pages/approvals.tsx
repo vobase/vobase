@@ -1,5 +1,6 @@
 import type { PendingApproval } from '@server/contracts/domain-types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
 import { ApprovalRow } from '@/components/approval-row'
 
 async function fetchPendingApprovals(): Promise<PendingApproval[]> {
@@ -84,3 +85,7 @@ export function ApprovalsPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_app/inbox/approvals')({
+  component: ApprovalsPage,
+})

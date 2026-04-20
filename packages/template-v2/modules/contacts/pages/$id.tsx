@@ -1,6 +1,6 @@
 import type { Contact } from '@server/contracts/domain-types'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useParams } from '@tanstack/react-router'
+import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft, Mail, Phone, User } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,7 @@ function renderDate(value: Date | string | null): React.ReactNode {
 }
 
 export function ContactDetailPage() {
-  const { id } = useParams({ from: '/contacts/$id' })
+  const { id } = useParams({ from: '/_app/contacts/$id' })
   const { data: contact, isLoading, error } = useQuery({ queryKey: ['contact', id], queryFn: () => fetchContact(id) })
 
   return (
@@ -142,3 +142,7 @@ function ProfileField({ label, value }: { label: string; value: React.ReactNode 
     </div>
   )
 }
+
+export const Route = createFileRoute('/_app/contacts/$id')({
+  component: ContactDetailPage,
+})

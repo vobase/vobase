@@ -60,7 +60,9 @@ async function getModuleDirs(): Promise<string[]> {
         .map((d) => d.name)
         .sort()
       for (const child of children) {
-        results.push(`channels/${child}`)
+        if (existsSync(join(channelsDir, child, 'module.ts'))) {
+          results.push(`channels/${child}`)
+        }
       }
     } else if (existsSync(join(MODULES_DIR, name, 'module.ts'))) {
       results.push(name)

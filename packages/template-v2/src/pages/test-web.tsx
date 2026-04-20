@@ -9,6 +9,7 @@
  */
 
 import type { Message } from '@server/contracts/domain-types'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MessageCard } from '@/components/message-card'
 
@@ -235,3 +236,10 @@ export function TestWebPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/test-web')({
+  beforeLoad: () => {
+    if (!import.meta.env.DEV) throw notFound()
+  },
+  component: TestWebPage,
+})

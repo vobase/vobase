@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 
 let memoryState = { memory: null as string | null, isPending: false }
 
-mock.module('@modules/inbox/pages/api/use-working-memory', () => ({
+mock.module('@modules/inbox/api/use-working-memory', () => ({
   useWorkingMemory: () => memoryState,
 }))
 

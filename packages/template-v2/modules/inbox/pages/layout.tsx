@@ -1,12 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
-import { Inbox as InboxIcon } from 'lucide-react'
+import { createFileRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { ListDetailLayout } from '@/components/layout/list-detail-layout'
-import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { ContextDrawer } from './context-drawer'
-import { ConversationList } from './conversation-list'
+import { ContextDrawer } from '@modules/inbox/components/context-drawer'
+import { ConversationList } from '@modules/inbox/components/conversation-list'
 
 async function fetchConversations() {
   const r = await fetch('/api/inbox/conversations')
@@ -49,18 +47,6 @@ export function InboxLayout() {
   )
 }
 
-export function InboxEmptyState() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <Empty>
-        <EmptyMedia>
-          <InboxIcon className="size-5" />
-        </EmptyMedia>
-        <EmptyTitle>No conversation selected</EmptyTitle>
-        <EmptyDescription>Select a conversation from the list to get started.</EmptyDescription>
-      </Empty>
-    </div>
-  )
-}
-
-export { ConversationDetail as ConversationDetailPlaceholder } from './conversation-detail'
+export const Route = createFileRoute('/_app/inbox')({
+  component: InboxLayout,
+})

@@ -1,4 +1,4 @@
-import { fetchApprovals } from '@modules/inbox/pages/api/use-decide-approval'
+import { fetchApprovals } from '@modules/inbox/api/use-decide-approval'
 import { computeTab } from '@modules/inbox/service/bucketing'
 import type { Contact, Conversation } from '@server/contracts/domain-types'
 import { useQuery } from '@tanstack/react-query'

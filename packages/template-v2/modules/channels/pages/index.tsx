@@ -1,4 +1,5 @@
 import { useQueries } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
 import { Check, Globe, MessageCircle, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -109,3 +110,7 @@ export function ChannelsPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_app/channels/')({
+  component: ChannelsPage,
+})

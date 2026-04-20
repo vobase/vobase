@@ -7,8 +7,8 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { useSendNote } from './api/use-send-note'
-import { useStaffReply } from './api/use-staff-reply'
+import { useSendNote } from '@modules/inbox/api/use-send-note'
+import { useStaffReply } from '@modules/inbox/api/use-staff-reply'
 
 interface ComposerProps {
   conversationId: string

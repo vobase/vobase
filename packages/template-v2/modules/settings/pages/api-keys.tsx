@@ -76,3 +76,8 @@ export default function ApiKeysPage() {
     </div>
   )
 }
+
+import { createFileRoute } from '@tanstack/react-router'
+export const Route = createFileRoute('/_app/settings/api-keys')({
+  component: ApiKeysPage,
+})

@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowLeft, Sparkles } from 'lucide-react'
 import { LearningProposalRow } from '@/components/learning-proposal-row'
 import { Badge } from '@/components/ui/badge'
@@ -62,3 +62,7 @@ export function AgentsLearningsPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_app/agents/learnings')({
+  component: AgentsLearningsPage,
+})

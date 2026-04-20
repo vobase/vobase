@@ -24,7 +24,7 @@ mock.module('@tanstack/react-router', () => ({
   useRouterState: () => 'email=user%40example.com',
 }))
 
-mock.module('@/pages/auth/use-email-otp', () => ({
+mock.module('@/shell/auth/use-email-otp', () => ({
   useEmailOtp: () => ({
     sendOtp: { mutate: mock(() => {}), isPending: false, isSuccess: false, error: null },
     verifyOtp: { mutate: mock(() => {}), isPending: false, error: null },
@@ -33,7 +33,7 @@ mock.module('@/pages/auth/use-email-otp', () => ({
   verifyOtpFn: mock(async ({ email, otp }: { email: string; otp: string }) => signInMock({ email, otp })),
 }))
 
-import PendingPage from '../pending'
+import { PendingPage } from '../pending'
 
 describe('PendingPage — render', () => {
   it('renders 6 OTP slots', () => {
@@ -55,7 +55,7 @@ describe('PendingPage — render', () => {
 
 describe('verifyOtpFn — unit', () => {
   it('calls authClient.emailOtp.signIn with email and otp', async () => {
-    const { verifyOtpFn } = await import('@/pages/auth/use-email-otp')
+    const { verifyOtpFn } = await import('@/shell/auth/use-email-otp')
     await verifyOtpFn({ email: 'user@example.com', otp: '123456' })
     expect(signInMock).toHaveBeenCalledWith({ email: 'user@example.com', otp: '123456' })
   })

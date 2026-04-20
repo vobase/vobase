@@ -1,10 +1,10 @@
-import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouterState } from '@tanstack/react-router'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
-import { useEmailOtp } from '@/pages/auth/use-email-otp'
+import { useEmailOtp } from '@/shell/auth/use-email-otp'
 
 const OTP_LENGTH = 6
 
-export default function PendingPage() {
+export function PendingPage() {
   const navigate = useNavigate()
   const locationSearch = useRouterState({ select: (s) => s.location.search })
   const email = new URLSearchParams(locationSearch).get('email') ?? ''
@@ -76,3 +76,7 @@ export default function PendingPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_auth/auth/pending')({
+  component: PendingPage,
+})

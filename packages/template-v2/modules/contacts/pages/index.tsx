@@ -1,6 +1,6 @@
 import type { Contact } from '@server/contracts/domain-types'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Mail, Phone, Search, UserPlus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -142,3 +142,7 @@ export function ContactsListPage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_app/contacts/')({
+  component: ContactsListPage,
+})

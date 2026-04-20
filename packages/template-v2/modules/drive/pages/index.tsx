@@ -1,3 +1,4 @@
+import { createFileRoute } from '@tanstack/react-router'
 import { FileText, FolderTree, HardDrive, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -95,3 +96,7 @@ export function DrivePage() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/_app/drive/')({
+  component: DrivePage,
+})
