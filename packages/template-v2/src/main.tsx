@@ -4,6 +4,7 @@ import { NuqsAdapter } from 'nuqs/adapters/tanstack-router'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { ThemeProvider } from './components/theme-provider'
+import { SearchProvider } from './providers/search-provider'
 import { router } from './routes'
 import './styles/app.css'
 
@@ -20,7 +21,9 @@ if (root && !root.innerHTML) {
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <NuqsAdapter>
-            <RouterProvider router={router} />
+            <SearchProvider>
+              <RouterProvider router={router} />
+            </SearchProvider>
           </NuqsAdapter>
         </QueryClientProvider>
       </ThemeProvider>

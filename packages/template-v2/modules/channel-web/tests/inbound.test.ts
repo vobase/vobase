@@ -24,13 +24,15 @@ const fakeConversation: Conversation = {
   tenantId: 'ten-1',
   contactId: 'contact-1',
   channelInstanceId: 'ch-web-1',
-  parentConversationId: null,
-  compactionSummary: null,
-  compactedAt: null,
   status: 'active',
   assignee: 'unassigned',
-  onHold: false,
-  onHoldReason: null,
+  snoozedUntil: null,
+  snoozedReason: null,
+  snoozedBy: null,
+  snoozedAt: null,
+  snoozedJobId: null,
+  threadKey: 'default',
+  emailSubject: null,
   lastMessageAt: null,
   resolvedAt: null,
   resolvedReason: null,
@@ -83,16 +85,15 @@ function makeInboxPort(isNew = true) {
     sendMediaMessage: async () => fakeMessage,
     resolve: async () => {},
     reassign: async () => {},
-    hold: async () => {},
     reopen: async () => {},
+    reset: async () => {},
+    snooze: async () => fakeConversation,
+    unsnooze: async () => fakeConversation,
     addInternalNote: async () => {
       throw new Error('not-expected')
     },
     listInternalNotes: async () => [],
     insertPendingApproval: async () => {
-      throw new Error('not-expected')
-    },
-    beginCompaction: async () => {
       throw new Error('not-expected')
     },
   } as unknown as ReturnType<typeof import('@modules/inbox/port').createInboxPort>

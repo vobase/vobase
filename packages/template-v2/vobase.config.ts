@@ -34,6 +34,26 @@ export default {
     },
   },
 
+  /**
+   * Storage adapter — local filesystem for dev, Cloudflare R2 (S3-compatible)
+   * for production. Standalone deployments can override by setting R2_*.
+   */
+  storage: process.env.R2_BUCKET
+    ? {
+        type: 's3' as const,
+        bucket: process.env.R2_BUCKET,
+        endpoint: process.env.R2_ENDPOINT ?? '',
+        accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+      }
+    : { type: 'local' as const, basePath: process.env.STORAGE_LOCAL_PATH ?? './data/files' },
+
+  buckets: {
+    uploads: { access: 'private' as const },
+    'kb-documents': { access: 'private' as const },
+    'chat-attachments': { access: 'private' as const },
+  },
+
   /** Channel config — web is always enabled; whatsapp is opt-in via env. */
   channels: {
     web: {

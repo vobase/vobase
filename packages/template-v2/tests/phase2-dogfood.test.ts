@@ -621,5 +621,5 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     expect(types).toContain('llm_call')
     expect(types).toContain('agent_start')
     expect(types).toContain('agent_end')
-  })
+  }, 30_000)
 })

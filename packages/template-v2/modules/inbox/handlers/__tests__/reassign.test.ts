@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { setDb as setJournalDb } from '@modules/agents/service/journal'
+import { setDb as setConversationsDb } from '@modules/inbox/service/conversations'
 import { setDb as setStaffOpsDb } from '@modules/inbox/service/staff-ops'
 import { Hono } from 'hono'
 import reassignRouter from '../reassign'
@@ -14,13 +16,13 @@ const fakeConv = {
   tenantId: TENANT_ID,
   contactId: 'c-1',
   channelInstanceId: 'ch-1',
-  parentConversationId: null,
-  compactionSummary: null,
-  compactedAt: null,
   status: 'active' as const,
   assignee: 'agent-alice',
-  onHold: false,
-  onHoldReason: null,
+  snoozedUntil: null,
+  snoozedReason: null,
+  snoozedBy: null,
+  snoozedAt: null,
+  snoozedJobId: null,
   lastMessageAt: null,
   resolvedAt: null,
   resolvedReason: null,
@@ -30,7 +32,7 @@ const fakeConv = {
 
 // ─── DB Stub builder ──────────────────────────────────────────────────────────
 
-function makeStaffOpsDb(conv: unknown, updatedConv: unknown, notifyCalls: string[]) {
+function makeStaffOpsDb(conv: unknown, notifyCalls: string[]) {
   return {
     select: () => ({
       from: () => ({
@@ -39,17 +41,46 @@ function makeStaffOpsDb(conv: unknown, updatedConv: unknown, notifyCalls: string
         }),
       }),
     }),
-    update: (_t: unknown) => ({
-      set: (_s: unknown) => ({
-        where: (_w: unknown) => ({
-          returning: async () => (updatedConv ? [updatedConv] : []),
-        }),
-      }),
-    }),
     execute: async (_q: unknown) => {
       notifyCalls.push(CONV_ID)
       return []
     },
+  }
+}
+
+function makeConversationsDb(current: unknown, updated: unknown) {
+  const run = {
+    insert: () => ({
+      values: () => ({
+        returning: async () => [],
+      }),
+    }),
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => (current ? [current] : []),
+        }),
+      }),
+    }),
+    update: () => ({
+      set: () => ({
+        where: () => ({
+          returning: async () => (updated ? [updated] : []),
+        }),
+      }),
+    }),
+  }
+  return {
+    ...run,
+    transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(run),
+  }
+}
+
+function makeJournalDb() {
+  return {
+    insert: () => ({
+      values: () => ({ returning: async () => [] }),
+    }),
   }
 }
 
@@ -72,7 +103,9 @@ describe('POST /conversations/:id/reassign', () => {
 
   beforeEach(() => {
     notifyCalls = []
-    setStaffOpsDb(makeStaffOpsDb(fakeConv, { ...fakeConv, assignee: 'agent-bob' }, notifyCalls))
+    setStaffOpsDb(makeStaffOpsDb(fakeConv, notifyCalls))
+    setConversationsDb(makeConversationsDb(fakeConv, { ...fakeConv, assignee: 'agent-bob' }))
+    setJournalDb(makeJournalDb())
   })
 
   it('(a) rejects payload missing assignee with 400', async () => {
@@ -106,13 +139,13 @@ describe('POST /conversations/:id/reassign', () => {
   })
 
   it('(d) returns 404 when conversation not found', async () => {
-    setStaffOpsDb(makeStaffOpsDb(null, null, notifyCalls))
+    setStaffOpsDb(makeStaffOpsDb(null, notifyCalls))
     const res = await POST(CONV_ID, { assignee: 'agent-bob' })
     expect(res.status).toBe(404)
   })
 
   it('(d) returns 403 when conversation belongs to different tenant', async () => {
-    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, tenantId: OTHER_TENANT }, null, notifyCalls))
+    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, tenantId: OTHER_TENANT }, notifyCalls))
     const res = await POST(CONV_ID, { assignee: 'agent-bob' })
     expect(res.status).toBe(403)
   })

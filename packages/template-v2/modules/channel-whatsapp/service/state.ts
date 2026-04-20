@@ -70,9 +70,39 @@ export function requirePhoneNumberId(): string {
 export function requireAccessToken(): string {
   return _accessToken ?? process.env.WA_ACCESS_TOKEN ?? ''
 }
+const _warned = { verifyToken: false, webhookSecret: false }
+
+function devFallback(
+  value: string | undefined,
+  fallback: string,
+  errorMsg: string,
+  warnMsg: string,
+  key: keyof typeof _warned,
+): string {
+  if (value) return value
+  if (process.env.NODE_ENV === 'production') throw new Error(errorMsg)
+  if (!_warned[key]) {
+    console.warn(warnMsg)
+    _warned[key] = true
+  }
+  return fallback
+}
+
 export function requireVerifyToken(): string {
-  return _verifyToken ?? process.env.WA_VERIFY_TOKEN ?? 'dev-verify-token'
+  return devFallback(
+    _verifyToken ?? process.env.WA_VERIFY_TOKEN,
+    'dev-verify-token',
+    'channel-whatsapp: WA_VERIFY_TOKEN is required in production',
+    '[channel-whatsapp] WARNING: WA_VERIFY_TOKEN not set — using dev fallback. Set it in production.',
+    'verifyToken',
+  )
 }
 export function requireWebhookSecret(): string {
-  return _webhookSecret ?? process.env.WA_WEBHOOK_SECRET ?? 'dev-webhook-secret'
+  return devFallback(
+    _webhookSecret ?? process.env.WHATSAPP_APP_SECRET ?? process.env.WA_WEBHOOK_SECRET,
+    'dev-webhook-secret',
+    'channel-whatsapp: WHATSAPP_APP_SECRET / WA_WEBHOOK_SECRET is required in production',
+    '[channel-whatsapp] WARNING: WHATSAPP_APP_SECRET / WA_WEBHOOK_SECRET not set — using dev fallback. Set it in production.',
+    'webhookSecret',
+  )
 }

@@ -14,7 +14,7 @@
 import { inboxPgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'
-import { boolean, check, index, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { check, index, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const channelInstances = inboxPgSchema.table(
   'channel_instances',
@@ -49,13 +49,23 @@ export const conversations = inboxPgSchema.table(
     channelInstanceId: text('channel_instance_id')
       .notNull()
       .references(() => channelInstances.id, { onDelete: 'restrict' }),
-    parentConversationId: text('parent_conversation_id'),
-    compactionSummary: text('compaction_summary'),
-    compactedAt: timestamp('compacted_at', { withTimezone: true }),
     status: text('status').notNull(),
     assignee: text('assignee').notNull(),
-    onHold: boolean('on_hold').default(false),
-    onHoldReason: text('on_hold_reason'),
+    /**
+     * Thread-scoping key. Chat channels (web/whatsapp/telegram/sms) pass
+     * `'default'` — one conversation per (tenant, contact, channel). Email
+     * populates from the RFC 5322 References/In-Reply-To root so each email
+     * topic is its own conversation. Stored as text — column is channel-type
+     * agnostic; the meaning of the value is owned by the channel adapter.
+     */
+    threadKey: text('thread_key').notNull().default('default'),
+    /** Email-only: subject line of the thread root for list display + search. Null for non-email channels. */
+    emailSubject: text('email_subject'),
+    snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
+    snoozedReason: text('snoozed_reason'),
+    snoozedBy: text('snoozed_by'),
+    snoozedAt: timestamp('snoozed_at', { withTimezone: true }),
+    snoozedJobId: text('snoozed_job_id'),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     resolvedReason: text('resolved_reason'),
@@ -68,11 +78,9 @@ export const conversations = inboxPgSchema.table(
   (t) => [
     index('idx_conv_tenant_status').on(t.tenantId, t.status),
     index('idx_conv_contact').on(t.contactId),
-    index('idx_conv_parent').on(t.parentConversationId),
-    check(
-      'conversations_status_check',
-      sql`status IN ('active','resolving','resolved','compacted','archived','awaiting_approval','failed')`,
-    ),
+    uniqueIndex('idx_conv_one_per_pair').on(t.tenantId, t.contactId, t.channelInstanceId, t.threadKey),
+    index('idx_conv_snoozed').on(t.tenantId, t.snoozedUntil).where(sql`${t.snoozedUntil} IS NOT NULL`),
+    check('conversations_status_check', sql`status IN ('active','resolving','awaiting_approval','resolved','failed')`),
   ],
 )
 

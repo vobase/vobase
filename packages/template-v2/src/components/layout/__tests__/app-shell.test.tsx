@@ -61,26 +61,16 @@ describe('AppShell', () => {
     expect(html).toContain('aria-label="User menu"')
   })
 
-  it('disabled nav stubs render with opacity-40', async () => {
+  it('all rail items render as enabled links, not disabled buttons', async () => {
     const html = await renderShell()
-    // Disabled items (Contacts, Agents, Drive) use opacity-40 class
-    expect(html).toContain('opacity-40')
-  })
-
-  it('enabled nav items do not have opacity-40 (Inbox is enabled)', async () => {
-    const html = await renderShell()
-    // Verify Inbox link is present without opacity-40 as a disabled button
-    // Inbox renders as a Link, not a disabled button — aria-disabled should not appear for it
-    const inboxMatch = html.match(/aria-label="Inbox"[^>]*>/)
-    expect(inboxMatch).toBeTruthy()
-    // The Inbox trigger should not carry aria-disabled
-    expect(inboxMatch?.[0]).not.toContain('aria-disabled')
-  })
-
-  it('renders page header (TopHeader sticky bar)', async () => {
-    const html = await renderShell()
-    expect(html).toContain('h-16')
-    expect(html).toContain('sticky')
+    // Every NAV_ITEMS entry is enabled=true, so none should carry aria-disabled.
+    for (const label of ['Inbox', 'Approvals', 'Contacts', 'Agents', 'Drive', 'Channels', 'Settings']) {
+      const match = html.match(new RegExp(`aria-label="${label}"[^>]*>`))
+      expect(match).toBeTruthy()
+      expect(match?.[0]).not.toContain('aria-disabled')
+    }
+    // Sanity: the disabled-stub styling token is absent when every item is enabled.
+    expect(html).not.toContain('opacity-40')
   })
 
   it('renders children content', async () => {

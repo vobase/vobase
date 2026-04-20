@@ -1,7 +1,11 @@
 import { defineModule } from '@server/runtime/define-module'
 import { manifest } from './manifest'
 import { approvalMutator } from './mutators/approval'
-import { setDb as setConversationsDb } from './service/conversations'
+import {
+  type ConversationScheduler,
+  setDb as setConversationsDb,
+  setScheduler as setConversationsScheduler,
+} from './service/conversations'
 import { setDb as setMessagesDb } from './service/messages'
 import {
   setDb as setPendingApprovalsDb,
@@ -9,7 +13,7 @@ import {
 } from './service/pending-approvals'
 import { inboxTools } from './tools'
 
-export { setPendingApprovalsScheduler }
+export { setConversationsScheduler, setPendingApprovalsScheduler }
 
 export default defineModule({
   name: 'inbox',
@@ -20,6 +24,14 @@ export default defineModule({
     setConversationsDb(ctx.db)
     setPendingApprovalsDb(ctx.db)
     setMessagesDb(ctx.db)
+
+    // Snooze wake enqueue/cancel. ctx.jobs exposes a pg-boss-shaped handle;
+    // we adapt it to the narrow `ConversationScheduler` interface so the
+    // service layer doesn't depend on pg-boss types directly.
+    if (ctx.jobs) {
+      setConversationsScheduler(ctx.jobs as unknown as ConversationScheduler)
+    }
+
     ctx.registerMutator(approvalMutator)
     for (const tool of inboxTools) {
       // Cast: PluginContext.registerTool uses the Phase-1 AgentTool stub; unifies in Phase 3.

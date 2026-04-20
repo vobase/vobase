@@ -3,18 +3,22 @@ import type { Conversation } from '@server/contracts/domain-types'
 import { filterConversations } from '../conversation-list'
 import type { FilterKey } from '../filter-tab-bar'
 
+const NOW = new Date('2026-04-20T10:00:00Z')
+
 const makeConv = (overrides: Partial<Conversation> = {}): Conversation => ({
   id: 'conv-1',
   tenantId: 't1',
   contactId: 'ct-1',
   channelInstanceId: 'ch-1',
-  parentConversationId: null,
-  compactionSummary: null,
-  compactedAt: null,
   status: 'active',
   assignee: 'unassigned',
-  onHold: false,
-  onHoldReason: null,
+  snoozedUntil: null,
+  snoozedReason: null,
+  snoozedBy: null,
+  snoozedAt: null,
+  snoozedJobId: null,
+  threadKey: 'default',
+  emailSubject: null,
   lastMessageAt: null,
   resolvedAt: null,
   resolvedReason: null,
@@ -25,80 +29,62 @@ const makeConv = (overrides: Partial<Conversation> = {}): Conversation => ({
 
 const CONVS: Conversation[] = [
   makeConv({ id: '1', status: 'active', assignee: 'unassigned' }),
-  makeConv({ id: '2', status: 'awaiting_approval', assignee: 'agent-1' }),
-  makeConv({ id: '3', status: 'archived', assignee: 'unassigned' }),
-  makeConv({ id: '4', status: 'resolved', assignee: 'agent-2' }),
+  makeConv({ id: '2', status: 'awaiting_approval', assignee: 'agent:1' }),
+  makeConv({ id: '3', status: 'failed', assignee: 'unassigned' }),
+  makeConv({ id: '4', status: 'resolved', assignee: 'user:carol' }),
+  makeConv({
+    id: '5',
+    status: 'active',
+    assignee: 'agent:1',
+    snoozedUntil: new Date(NOW.getTime() + 3600_000),
+  }),
 ]
 
-describe('filterConversations', () => {
-  it('all returns all conversations', () => {
-    expect(filterConversations(CONVS, 'all')).toHaveLength(4)
+describe('filterConversations (3-tab model)', () => {
+  it('active tab returns working-set conversations (active, resolving, awaiting_approval)', () => {
+    const result = filterConversations(CONVS, 'active', 'all', NOW)
+    expect(result.map((c) => c.id).sort()).toEqual(['1', '2'])
   })
 
-  it('unread filters to active conversations', () => {
-    const result = filterConversations(CONVS, 'unread')
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('1')
+  it('later tab returns only snoozed conversations', () => {
+    const result = filterConversations(CONVS, 'later', 'all', NOW)
+    expect(result.map((c) => c.id)).toEqual(['5'])
   })
 
-  it('awaiting_approval filters by status', () => {
-    const result = filterConversations(CONVS, 'awaiting_approval')
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('2')
+  it('done tab returns resolved + failed', () => {
+    const result = filterConversations(CONVS, 'done', 'all', NOW)
+    expect(result.map((c) => c.id).sort()).toEqual(['3', '4'])
   })
 
-  it('assigned_to_me filters assigned conversations', () => {
-    const result = filterConversations(CONVS, 'assigned_to_me')
-    expect(result).toHaveLength(2)
-    expect(result.map((c) => c.id)).toEqual(['2', '4'])
+  it('ownership=mine excludes unassigned within a tab', () => {
+    const result = filterConversations(CONVS, 'active', 'mine', NOW)
+    expect(result.map((c) => c.id)).toEqual(['2'])
   })
 
-  it('archived filters by status', () => {
-    const result = filterConversations(CONVS, 'archived')
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('3')
+  it('ownership=unassigned keeps only unassigned', () => {
+    const result = filterConversations(CONVS, 'active', 'unassigned', NOW)
+    expect(result.map((c) => c.id)).toEqual(['1'])
   })
 
-  it('filter changes operate on same data without calling queryFn again', () => {
-    const queryFn = mock(() => Promise.resolve(CONVS))
-    // Simulate: queryFn called once on mount
-    queryFn()
-    // Subsequent filter changes are client-side — filterConversations is a pure function
-    const r1 = filterConversations(CONVS, 'unread')
-    const r2 = filterConversations(CONVS, 'archived')
-    const r3 = filterConversations(CONVS, 'all')
-    expect(queryFn).toHaveBeenCalledTimes(1)
-    expect(r1).toHaveLength(1)
-    expect(r2).toHaveLength(1)
-    expect(r3).toHaveLength(4)
+  it('ownership=<specific assignee> filters exactly', () => {
+    const result = filterConversations(CONVS, 'later', 'agent:1', NOW)
+    expect(result.map((c) => c.id)).toEqual(['5'])
   })
 })
 
-describe('tab bar interaction', () => {
-  it('switching to "Mine" tab shows only assigned conversations without re-fetching', () => {
+describe('tab-bar + ownership interaction', () => {
+  it('switching tabs never calls queryFn again', () => {
     const queryFn = mock(() => Promise.resolve(CONVS))
     queryFn()
-    const tab: FilterKey = 'assigned_to_me'
-    const result = filterConversations(CONVS, tab)
+    const tabs: FilterKey[] = ['active', 'later', 'done', 'active']
+    for (const tab of tabs) filterConversations(CONVS, tab, 'all', NOW)
     expect(queryFn).toHaveBeenCalledTimes(1)
-    expect(result).toHaveLength(2)
-    expect(result.every((c) => c.assignee !== 'unassigned')).toBe(true)
   })
 
-  it('switching to "Pending" tab shows only awaiting_approval conversations', () => {
-    const queryFn = mock(() => Promise.resolve(CONVS))
-    queryFn()
-    const result = filterConversations(CONVS, 'awaiting_approval')
-    expect(queryFn).toHaveBeenCalledTimes(1)
-    expect(result).toHaveLength(1)
-    expect(result[0].status).toBe('awaiting_approval')
-  })
-
-  it('switching tabs multiple times never calls queryFn again', () => {
-    const queryFn = mock(() => Promise.resolve(CONVS))
-    queryFn()
-    const tabs: FilterKey[] = ['unread', 'assigned_to_me', 'archived', 'all']
-    for (const tab of tabs) filterConversations(CONVS, tab)
-    expect(queryFn).toHaveBeenCalledTimes(1)
+  it('three buckets partition the input (no conversation counted twice)', () => {
+    const a = filterConversations(CONVS, 'active', 'all', NOW).length
+    const l = filterConversations(CONVS, 'later', 'all', NOW).length
+    const d = filterConversations(CONVS, 'done', 'all', NOW).length
+    expect(a + l + d).toBe(CONVS.length)
   })
 })

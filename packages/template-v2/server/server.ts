@@ -18,6 +18,13 @@ import {
   setJobQueue as setChannelWebJobs,
   setRealtime as setChannelWebRealtime,
 } from '@modules/channel-web/service/state'
+import channelWhatsappHandlers from '@modules/channel-whatsapp/handlers'
+import {
+  setContactsPort as setWhatsappContacts,
+  setInboxPort as setWhatsappInbox,
+  setJobQueue as setWhatsappJobs,
+  setRealtime as setWhatsappRealtime,
+} from '@modules/channel-whatsapp/service/state'
 import contactsHandlers from '@modules/contacts/handlers'
 import { setDb as setContactsDb } from '@modules/contacts/service/contacts'
 import inboxHandlers from '@modules/inbox/handlers'
@@ -27,6 +34,8 @@ import { setDb as setNotesDb } from '@modules/inbox/service/notes'
 import { setDb as setPendingApprovalsDb } from '@modules/inbox/service/pending-approvals'
 import { setDb as setStaffOpsDb } from '@modules/inbox/service/staff-ops'
 import settingsHandlers from '@modules/settings/handlers'
+import systemHandlers from '@modules/system/handlers'
+import { setDb as setSystemDb } from '@modules/system/service'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
@@ -47,6 +56,7 @@ export function createApp(db: unknown, sql?: Sql): Hono {
   setContactsDb(db)
   setLearningProposalsDb(db)
   setLearningNotifier(createLearningNotifier(db))
+  setSystemDb(db)
 
   const app = new Hono()
   app.use('*', cors())
@@ -60,7 +70,12 @@ export function createApp(db: unknown, sql?: Sql): Hono {
   // must carry a valid better-auth session cookie; inbound channel webhooks sign
   // themselves with HMAC (separate trust model) and /api/sse authenticates inside
   // its own handler, so both stay outside this gate.
-  async function requireSession(c: import('hono').Context, next: () => Promise<void>) {
+  type AppSession = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>
+  type SessionEnv = { Variables: { session: AppSession } }
+  const requireSession = async (
+    c: import('hono').Context<SessionEnv>,
+    next: () => Promise<void>,
+  ): Promise<Response | void> => {
     const session = await auth.api.getSession({ headers: c.req.raw.headers })
     if (!session) return c.json({ error: 'unauthenticated' }, 401)
     c.set('session', session)
@@ -70,11 +85,13 @@ export function createApp(db: unknown, sql?: Sql): Hono {
   app.use('/api/agents/*', requireSession)
   app.use('/api/contacts/*', requireSession)
   app.use('/api/settings/*', requireSession)
+  app.use('/api/system/*', requireSession)
 
   app.route('/api/inbox', inboxHandlers)
   app.route('/api/agents', agentsHandlers)
   app.route('/api/contacts', contactsHandlers)
   app.route('/api/settings', settingsHandlers)
+  app.route('/api/system', systemHandlers)
   app.route('/api/sse', sseRoute)
 
   // Channel-web: dev-only. The inbound webhook's fallback HMAC secret is 'dev-secret',
@@ -109,6 +126,21 @@ export function createApp(db: unknown, sql?: Sql): Hono {
       jobHandlers.set(INBOUND_TO_WAKE_JOB, createStubAgentHandler({ inbox: ports.inbox, realtime: ports.realtime }))
     }
     app.route('/api/channel-web', channelWebHandlers)
+  }
+
+  // Channel-whatsapp: mount when META_WA_TOKEN + META_WA_VERIFY_TOKEN are set (matching
+  // vobase.config.ts:63 `whatsapp.enabled` gate). The webhook endpoint is PUBLIC — Meta
+  // authenticates via HMAC (X-Hub-Signature-256), not session cookies.
+  // In dev without env vars, we still mount so the route is reachable; requireWebhookSecret()
+  // falls back to 'dev-webhook-secret' and emits a console.warn.
+  if (sql) {
+    const jobHandlers = new Map<string, (data: unknown) => Promise<void>>()
+    const ports = buildDevPorts(db, sql, jobHandlers)
+    setWhatsappInbox(ports.inbox)
+    setWhatsappContacts(ports.contacts)
+    setWhatsappRealtime(ports.realtime)
+    setWhatsappJobs(ports.jobs)
+    app.route('/api/channel-whatsapp', channelWhatsappHandlers)
   }
 
   return app

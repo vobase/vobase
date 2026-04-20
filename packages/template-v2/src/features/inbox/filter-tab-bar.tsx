@@ -1,13 +1,11 @@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-export type FilterKey = 'all' | 'unread' | 'awaiting_approval' | 'assigned_to_me' | 'archived'
+export type FilterKey = 'active' | 'later' | 'done'
 
 const TABS: { key: FilterKey; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'unread', label: 'Unread' },
-  { key: 'awaiting_approval', label: 'Pending' },
-  { key: 'assigned_to_me', label: 'Mine' },
-  { key: 'archived', label: 'Archived' },
+  { key: 'active', label: 'Active' },
+  { key: 'later', label: 'Later' },
+  { key: 'done', label: 'Done' },
 ]
 
 interface FilterTabBarProps {
@@ -38,10 +36,10 @@ function FilterTabBar({ value, onChange, counts }: FilterTabBarProps) {
             role="tab"
             aria-selected={value === key}
             size="sm"
-            className="h-7 rounded-full px-3 text-[12px] data-[state=on]:bg-[var(--color-accent)] data-[state=on]:text-white"
+            className="h-7 rounded-md px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
             {label}
-            {counts?.[key] !== undefined && <span className="ml-1 text-[11px] opacity-70">({counts[key]})</span>}
+            {counts?.[key] !== undefined && <span className="ml-1 text-mini opacity-70">({counts[key]})</span>}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>

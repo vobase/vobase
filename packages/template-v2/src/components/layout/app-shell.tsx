@@ -1,13 +1,13 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Settings2, Users } from 'lucide-react'
+import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Radio, Settings2, Users } from 'lucide-react'
 import type * as React from 'react'
+import { ThemeSwitch } from '@/components/theme-switch'
 import { Kbd } from '@/components/ui/kbd'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { cn } from '@/lib/utils'
 import { NavUser } from './nav-user'
-import { TopHeader } from './top-header'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -24,10 +24,11 @@ interface NavItemDef {
 const NAV_ITEMS: NavItemDef[] = [
   { icon: Inbox, label: 'Inbox', shortcut: '⌘1', to: '/inbox', enabled: true },
   { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/approvals', enabled: true },
-  { icon: Users, label: 'Contacts', shortcut: '⌘3', to: '/contacts', enabled: false },
-  { icon: Bot, label: 'Agents', shortcut: '⌘4', to: '/agents', enabled: false },
-  { icon: HardDrive, label: 'Drive', shortcut: '⌘5', to: '/drive', enabled: false },
-  { icon: Settings2, label: 'Settings', shortcut: '⌘6', to: '/settings', enabled: true },
+  { icon: Users, label: 'Contacts', shortcut: '⌘3', to: '/contacts', enabled: true },
+  { icon: Bot, label: 'Agents', shortcut: '⌘4', to: '/agents', enabled: true },
+  { icon: HardDrive, label: 'Drive', shortcut: '⌘5', to: '/drive', enabled: true },
+  { icon: Radio, label: 'Channels', shortcut: '⌘6', to: '/channels', enabled: true },
+  { icon: Settings2, label: 'Settings', shortcut: '⌘7', to: '/settings', enabled: true },
 ]
 
 function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
@@ -36,11 +37,8 @@ function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
     <Link
       to={to}
       aria-label={label}
-      className={cn(
-        baseClass,
-        'text-[var(--color-fg-muted)] hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-fg)]',
-      )}
-      activeProps={{ className: cn(baseClass, 'bg-[var(--color-surface-elevated)] text-[var(--color-fg)]') }}
+      className={cn(baseClass, 'text-muted-foreground hover:bg-accent hover:text-foreground')}
+      activeProps={{ className: cn(baseClass, 'bg-accent text-foreground') }}
     >
       <Icon className="size-[18px]" />
     </Link>
@@ -49,7 +47,7 @@ function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
       type="button"
       aria-label={label}
       aria-disabled="true"
-      className={cn(baseClass, 'cursor-default text-[var(--color-fg-subtle)] opacity-40')}
+      className={cn(baseClass, 'cursor-default text-muted-foreground opacity-40')}
     >
       <Icon className="size-[18px]" />
     </button>
@@ -72,14 +70,14 @@ function AppShell({ children }: AppShellProps) {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen overflow-hidden bg-[var(--color-bg)] text-[var(--color-fg)]">
+      <div className="flex h-screen overflow-hidden bg-background text-foreground">
         <aside
           aria-label="Main navigation"
-          className="flex w-14 shrink-0 flex-col items-center border-r border-[var(--color-border-subtle)] bg-[var(--color-surface)] py-3"
+          className="flex w-14 shrink-0 flex-col items-center border-r border-border bg-sidebar py-3"
         >
           {/* Vobase logo */}
           <div className="mb-3 flex size-10 items-center justify-center">
-            <span className="font-mono text-[11px] font-bold tracking-widest text-[var(--color-fg)]">VB</span>
+            <span className="font-mono text-mini font-bold tracking-widest text-foreground">VB</span>
           </div>
 
           <nav aria-label="Module navigation" className="flex flex-col items-center gap-0.5">
@@ -90,19 +88,27 @@ function AppShell({ children }: AppShellProps) {
 
           <Separator className="my-3 w-8" />
 
-          {/* Dev tools pinned above user */}
-          <div className="flex flex-col items-center gap-2">
+          {/* Dev tools + theme switch pinned above user */}
+          <div className="flex flex-col items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link
                   to="/test-web"
                   aria-label="Web channel test client"
-                  className="flex size-10 items-center justify-center rounded-md text-[var(--color-fg-muted)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-fg)]"
+                  className="flex size-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <MessageCircle className="size-[18px]" />
                 </Link>
               </TooltipTrigger>
               <TooltipContent side="right">Web channel test client</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex size-10 items-center justify-center">
+                  <ThemeSwitch />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Toggle theme</TooltipContent>
             </Tooltip>
           </div>
 
@@ -113,7 +119,6 @@ function AppShell({ children }: AppShellProps) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <TopHeader />
           <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
         </div>
       </div>

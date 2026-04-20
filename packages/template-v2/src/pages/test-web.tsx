@@ -171,7 +171,7 @@ export function TestWebPage() {
     <div className="flex h-screen flex-col bg-[var(--color-bg)] text-[var(--color-fg)]">
       <header className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">
         <div className="flex items-center gap-3">
-          <span className="rounded bg-[var(--color-danger)]/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-[var(--color-danger)]">
+          <span className="rounded bg-[var(--color-danger)]/20 px-1.5 py-0.5 font-mono text-2xs font-semibold uppercase tracking-wide text-[var(--color-danger)]">
             dev-only
           </span>
           <span className="text-sm font-semibold">Web channel — test client</span>

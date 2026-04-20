@@ -31,10 +31,10 @@ export function ApprovalRow({ approval, onDecide }: Props) {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded bg-blue/10 px-1.5 py-0.5 font-mono text-[11px] text-blue">
+            <span className="inline-flex items-center rounded bg-info/10 px-1.5 py-0.5 font-mono text-mini text-info">
               {approval.toolName}
             </span>
-            <RelativeTimeCard date={approval.createdAt} className="text-[11px] text-muted-foreground" />
+            <RelativeTimeCard date={approval.createdAt} className="text-mini text-muted-foreground" />
           </div>
           <p className="mt-1 text-xs text-muted-foreground font-mono truncate max-w-md">
             conv: {approval.conversationId}
@@ -72,15 +72,15 @@ export function ApprovalRow({ approval, onDecide }: Props) {
 
       {/* Tool args */}
       <details className="group">
-        <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground select-none">
+        <summary className="cursor-pointer text-mini text-muted-foreground hover:text-foreground select-none">
           Tool args
         </summary>
-        <pre className="mt-1.5 rounded bg-muted/50 px-2 py-1.5 text-[11px] overflow-auto max-h-32">
+        <pre className="mt-1.5 rounded bg-muted/50 px-2 py-1.5 text-mini overflow-auto max-h-32">
           {JSON.stringify(approval.toolArgs, null, 2)}
         </pre>
       </details>
 
-      {error && <p className="text-[11px] text-destructive">{error}</p>}
+      {error && <p className="text-mini text-destructive">{error}</p>}
     </li>
   )
 }

@@ -7,27 +7,24 @@
  * surfaces at typecheck.
  */
 
-export type ConversationStatus =
-  | 'active'
-  | 'resolving'
-  | 'resolved'
-  | 'compacted'
-  | 'archived'
-  | 'awaiting_approval'
-  | 'failed'
+export type ConversationStatus = 'active' | 'resolving' | 'awaiting_approval' | 'resolved' | 'failed'
 
 export interface Conversation {
   id: string
   tenantId: string
   contactId: string
   channelInstanceId: string
-  parentConversationId: string | null
-  compactionSummary: string | null
-  compactedAt: Date | null
   status: ConversationStatus
   assignee: string
-  onHold: boolean
-  onHoldReason: string | null
+  /** Chat channels default `'default'`; email populates from RFC 5322 thread root. */
+  threadKey: string
+  /** Email-only subject; null for non-email channels. */
+  emailSubject: string | null
+  snoozedUntil: Date | null
+  snoozedReason: string | null
+  snoozedBy: string | null
+  snoozedAt: Date | null
+  snoozedJobId: string | null
   lastMessageAt: Date | null
   resolvedAt: Date | null
   resolvedReason: string | null

@@ -35,7 +35,7 @@ export function NavUser({ name = 'User', email = '' }: NavUserProps) {
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--color-surface-elevated)] focus-visible:outline-none"
           >
             <Avatar className="size-7 shrink-0">
-              <AvatarFallback className="bg-[var(--color-surface-elevated)] text-[10px] text-[var(--color-fg-muted)]">
+              <AvatarFallback className="bg-[var(--color-surface-elevated)] text-2xs text-[var(--color-fg-muted)]">
                 {initials}
               </AvatarFallback>
             </Avatar>

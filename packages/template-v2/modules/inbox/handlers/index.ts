@@ -6,6 +6,8 @@ import approvals from './approvals'
 import notes from './notes'
 import reassign from './reassign'
 import reply from './reply'
+import resolve from './resolve'
+import snooze from './snooze'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
@@ -16,7 +18,14 @@ app.get('/health', (c) => c.json({ module: 'inbox', status: 'ok' }))
 app.get('/conversations', async (c) => {
   const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
   const status = c.req.query('status')?.split(',').filter(Boolean)
-  const rows = await listConversations(tenantId, status?.length ? { status } : undefined)
+  const tabRaw = c.req.query('tab')
+  const tab = tabRaw === 'active' || tabRaw === 'later' || tabRaw === 'done' ? tabRaw : undefined
+  const owner = c.req.query('owner') || undefined
+  const rows = await listConversations(tenantId, {
+    status: status?.length ? status : undefined,
+    tab,
+    owner,
+  })
   return c.json(rows)
 })
 
@@ -46,9 +55,11 @@ app.get('/approvals', async (c) => {
 // /api/inbox/approvals/* handler file lives here.
 app.route('/approvals', approvals)
 
-// Parcel SV: staff endpoints — /conversations/:id/notes, /conversations/:id/reassign, /conversations/:id/reply
+// Parcel SV: staff endpoints — /conversations/:id/notes, /reassign, /reply, /snooze, /unsnooze, /resolve, /reopen, /reset
 app.route('/conversations', notes)
 app.route('/conversations', reassign)
 app.route('/conversations', reply)
+app.route('/conversations', snooze)
+app.route('/conversations', resolve)
 
 export default app

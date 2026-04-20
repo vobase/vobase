@@ -1,3 +1,4 @@
+import { computeTab } from '@modules/inbox/service/bucketing'
 import type { Contact, Conversation } from '@server/contracts/domain-types'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
@@ -9,6 +10,7 @@ import { fetchApprovals } from '@/features/inbox/api/use-decide-approval'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { ConversationRow } from './conversation-row'
 import { type FilterKey, FilterTabBar } from './filter-tab-bar'
+import { OwnershipFilter, type OwnershipOption, type OwnershipValue } from './ownership-filter'
 
 async function fetchConversations(): Promise<Conversation[]> {
   const r = await fetch('/api/inbox/conversations')
@@ -25,27 +27,39 @@ async function fetchContacts(): Promise<Contact[]> {
 export function filterConversations(
   convs: Conversation[],
   filter: FilterKey,
-  pendingConvIds: ReadonlySet<string> = new Set(),
+  owner: OwnershipValue = 'all',
+  now: Date = new Date(),
 ): Conversation[] {
-  switch (filter) {
-    case 'unread':
-      return convs.filter((c) => c.status === 'active')
-    case 'awaiting_approval':
-      // Conversations flagged awaiting_approval OR with any pending approval row
-      // (server-side approvalMutator sometimes lags on status transition; join to
-      // pending_approvals so the Pending tab matches /approvals exactly).
-      return convs.filter((c) => c.status === 'awaiting_approval' || pendingConvIds.has(c.id))
-    case 'assigned_to_me':
-      return convs.filter((c) => c.assignee !== 'unassigned')
-    case 'archived':
-      return convs.filter((c) => c.status === 'archived')
-    default:
-      return convs
+  return convs.filter((c) => {
+    const tab = computeTab(c, now)
+    if (tab !== filter) return false
+    if (owner === 'all') return true
+    if (owner === 'unassigned') return c.assignee === 'unassigned'
+    if (owner === 'mine') return c.assignee !== 'unassigned'
+    return c.assignee === owner
+  })
+}
+
+function deriveOwnershipOptions(convs: Conversation[]): OwnershipOption[] {
+  const seen = new Map<string, OwnershipOption>()
+  for (const c of convs) {
+    const a = c.assignee
+    if (!a || a === 'unassigned') continue
+    if (seen.has(a)) continue
+    if (a.startsWith('agent:')) {
+      seen.set(a, { value: a, label: a.slice(6), kind: 'agent' })
+    } else if (a.startsWith('user:')) {
+      seen.set(a, { value: a, label: a.slice(5), kind: 'staff' })
+    } else {
+      seen.set(a, { value: a, label: a, kind: 'staff' })
+    }
   }
+  return Array.from(seen.values())
 }
 
 function ConversationList() {
-  const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('active')
+  const [ownerFilter, setOwnerFilter] = useState<OwnershipValue>('all')
   const navigate = useNavigate()
 
   const selectedId = useRouterState({
@@ -65,10 +79,8 @@ function ConversationList() {
     queryFn: fetchContacts,
   })
 
-  const { data: approvals = [] } = useQuery({
-    queryKey: ['approvals'],
-    queryFn: fetchApprovals,
-  })
+  // Pending approvals are implicitly surfaced in the Active tab now (status=awaiting_approval).
+  useQuery({ queryKey: ['approvals'], queryFn: fetchApprovals })
 
   const contactById = useMemo(() => {
     const m = new Map<string, Contact>()
@@ -76,27 +88,26 @@ function ConversationList() {
     return m
   }, [contacts])
 
-  const pendingConvIds = useMemo(
-    () => new Set(approvals.filter((a) => a.status === 'pending').map((a) => a.conversationId)),
-    [approvals],
-  )
+  const { filtered, counts } = useMemo(() => {
+    const now = new Date()
+    const counts: Partial<Record<FilterKey, number>> = { active: 0, later: 0, done: 0 }
+    const filtered: Conversation[] = []
+    for (const c of conversations) {
+      const tab = computeTab(c, now)
+      counts[tab] = (counts[tab] ?? 0) + 1
+      if (tab !== activeFilter) continue
+      const a = c.assignee
+      const match =
+        ownerFilter === 'all' ||
+        (ownerFilter === 'unassigned' && a === 'unassigned') ||
+        (ownerFilter === 'mine' && a !== 'unassigned') ||
+        a === ownerFilter
+      if (match) filtered.push(c)
+    }
+    return { filtered, counts }
+  }, [conversations, activeFilter, ownerFilter])
 
-  const filtered = useMemo(
-    () => filterConversations(conversations, activeFilter, pendingConvIds),
-    [conversations, activeFilter, pendingConvIds],
-  )
-
-  const counts = useMemo<Partial<Record<FilterKey, number>>>(
-    () => ({
-      all: conversations.length,
-      unread: conversations.filter((c) => c.status === 'active').length,
-      awaiting_approval: conversations.filter((c) => c.status === 'awaiting_approval' || pendingConvIds.has(c.id))
-        .length,
-      assigned_to_me: conversations.filter((c) => c.assignee !== 'unassigned').length,
-      archived: conversations.filter((c) => c.status === 'archived').length,
-    }),
-    [conversations, pendingConvIds],
-  )
+  const ownershipOptions = useMemo(() => deriveOwnershipOptions(conversations), [conversations])
 
   const selectedIndex = filtered.findIndex((c) => c.id === selectedId)
 
@@ -118,9 +129,12 @@ function ConversationList() {
         title="Inbox"
         meta={`${filtered.length}/${conversations.length}`}
         actions={
-          <Button size="icon-sm" variant="ghost" aria-label="Search">
-            <Search className="size-4" />
-          </Button>
+          <div className="flex items-center gap-0.5">
+            <Button size="icon-sm" variant="ghost" aria-label="Search">
+              <Search className="size-4" />
+            </Button>
+            <OwnershipFilter value={ownerFilter} onChange={setOwnerFilter} options={ownershipOptions} />
+          </div>
         }
       />
       <FilterTabBar value={activeFilter} onChange={setActiveFilter} counts={counts} />

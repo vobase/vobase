@@ -1,7 +1,7 @@
 /**
  * InboxPort implementation — binds service methods to the typed port contract.
- * REAL: createConversation, insertPendingApproval, sendTextMessage, sendCardMessage,
- *       sendMediaMessage, createInboundMessage.
+ * Model A: one row per (tenant, contact, channelInstance); snooze orthogonal
+ * to status; resolve/reopen/reset are explicit lifecycle verbs.
  */
 import type {
   InboxPort,
@@ -9,6 +9,7 @@ import type {
   SendCardReplyInput,
   SendMediaInput,
   SendTextInput,
+  SnoozeConversationInput,
 } from '@server/contracts/inbox-port'
 import { conversations, notes, pendingApprovals } from './service'
 import {
@@ -87,16 +88,23 @@ export function createInboxPort(): InboxPort {
       })
     },
     async resolve(conversationId, reason, by) {
-      return conversations.resolve(conversationId, reason, by)
+      await conversations.resolve(conversationId, by.id, reason)
     },
     async reassign(conversationId, to, note) {
-      return conversations.reassign(conversationId, to, note)
-    },
-    async hold(conversationId, reason) {
-      return conversations.hold(conversationId, reason)
+      const assignee = to.kind === 'unassigned' ? 'unassigned' : `${to.kind}:${to.id}`
+      await conversations.reassign(conversationId, assignee, 'system', note)
     },
     async reopen(conversationId) {
-      return conversations.reopen(conversationId)
+      await conversations.reopen(conversationId, 'system', 'staff_reopen')
+    },
+    async reset(conversationId, by) {
+      await conversations.reset(conversationId, by)
+    },
+    async snooze(input: SnoozeConversationInput) {
+      return conversations.snooze(input)
+    },
+    async unsnooze(conversationId, by) {
+      return conversations.unsnooze(conversationId, by)
     },
     async addInternalNote(input) {
       return notes.addNote(input)
@@ -106,9 +114,6 @@ export function createInboxPort(): InboxPort {
     },
     async insertPendingApproval(input, tx) {
       return pendingApprovals.insert(input, tx)
-    },
-    async beginCompaction(conversationId, summary) {
-      return conversations.beginCompaction(conversationId, summary)
     },
     async createInboundMessage(input) {
       return conversations.createInboundMessage(input)

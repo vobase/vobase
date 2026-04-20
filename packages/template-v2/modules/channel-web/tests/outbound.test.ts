@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
-import type { Message } from '@server/contracts/domain-types'
+import type { Conversation, Message } from '@server/contracts/domain-types'
 import type { InboxPort } from '@server/contracts/inbox-port'
 import type { RealtimeService } from '@server/contracts/plugin-context'
 import { setInboxPort, setRealtime } from '../service/state'
@@ -57,16 +57,15 @@ function makeInboxPort(): InboxPort {
     },
     resolve: async () => {},
     reassign: async () => {},
-    hold: async () => {},
     reopen: async () => {},
+    reset: async () => {},
+    snooze: async () => ({}) as Conversation,
+    unsnooze: async () => ({}) as Conversation,
     addInternalNote: async () => {
       throw new Error('not-expected')
     },
     listInternalNotes: async () => [],
     insertPendingApproval: async () => {
-      throw new Error('not-expected')
-    },
-    beginCompaction: async () => {
       throw new Error('not-expected')
     },
     createInboundMessage: async () => {

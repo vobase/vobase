@@ -1,7 +1,7 @@
 import type { Contact, Conversation, Message } from '@server/contracts/domain-types'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
 import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,10 +14,15 @@ import {
 } from '@/components/ui/combobox'
 import { Status } from '@/components/ui/status'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { useLifecycle } from './api/use-lifecycle'
 import { useReassign } from './api/use-reassign'
 import { Composer } from './composer'
 import { InlineApprovalBanner } from './inline-approval-banner'
+import { deriveContactName } from './lib/contact'
 import { MessageThread } from './message-thread'
+import { SnoozeMenu } from './snooze-menu'
+
+const CURRENT_STAFF_ID = 'staff'
 
 async function fetchConversation(id: string): Promise<Conversation> {
   const r = await fetch(`/api/inbox/conversations/${id}`)
@@ -41,11 +46,6 @@ async function fetchContact(id: string): Promise<Contact | null> {
   const r = await fetch(`/api/contacts/${id}`)
   if (!r.ok) return null
   return r.json()
-}
-
-function deriveContactName(contact: Contact | null, fallback: string): string {
-  if (!contact) return fallback
-  return contact.displayName?.trim() || contact.email?.trim() || contact.phone?.trim() || fallback
 }
 
 const STAFF_OPTIONS = [
@@ -83,6 +83,14 @@ export function ConversationDetail() {
   const title = deriveContactName(contact, conv?.contactId ?? id)
 
   const reassign = useReassign(id)
+  const queryClient = useQueryClient()
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    queryClient.invalidateQueries({ queryKey: ['conversation', id] })
+  }
+  const resolveMut = useLifecycle(id, 'resolve', CURRENT_STAFF_ID)
+  const reopenMut = useLifecycle(id, 'reopen', CURRENT_STAFF_ID)
+  const resetMut = useLifecycle(id, 'reset', CURRENT_STAFF_ID)
 
   const idx = convList.findIndex((c) => c.id === id)
   const hasPrev = idx > 0
@@ -124,6 +132,45 @@ export function ConversationDetail() {
                 </ComboboxContent>
               </Combobox>
             </div>
+            {conv?.status === 'active' && (
+              <>
+                <SnoozeMenu conversationId={id} by={CURRENT_STAFF_ID} onSnoozed={invalidate} />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => resolveMut.mutate()}
+                  disabled={resolveMut.isPending}
+                  data-testid="conversation-resolve"
+                >
+                  <CheckIcon className="size-4" />
+                  Resolve
+                </Button>
+              </>
+            )}
+            {conv?.status === 'resolved' && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => reopenMut.mutate()}
+                disabled={reopenMut.isPending}
+                data-testid="conversation-reopen"
+              >
+                <RotateCcwIcon className="size-4" />
+                Reopen
+              </Button>
+            )}
+            {conv?.status === 'failed' && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => resetMut.mutate()}
+                disabled={resetMut.isPending}
+                data-testid="conversation-reset"
+              >
+                <RefreshCcwIcon className="size-4" />
+                Retry
+              </Button>
+            )}
             <Button
               size="icon-sm"
               variant="ghost"

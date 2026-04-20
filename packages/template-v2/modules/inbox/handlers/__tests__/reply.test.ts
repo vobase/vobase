@@ -18,13 +18,13 @@ const fakeConv = {
   tenantId: TENANT_ID,
   contactId: 'c-1',
   channelInstanceId: 'ch-1',
-  parentConversationId: null,
-  compactionSummary: null,
-  compactedAt: null,
   status: 'active' as const,
   assignee: 'unassigned',
-  onHold: false,
-  onHoldReason: null,
+  snoozedUntil: null,
+  snoozedReason: null,
+  snoozedBy: null,
+  snoozedAt: null,
+  snoozedJobId: null,
   lastMessageAt: null,
   resolvedAt: null,
   resolvedReason: null,
@@ -150,17 +150,11 @@ describe('POST /conversations/:id/reply', () => {
   })
 
   it('(f) no-agent-replay: wake-worker guard prevents staff_reply from triggering outbound dispatch', () => {
-    // Verify the guard condition inserted at wake-worker.ts line 157.
-    // OUTBOUND_TOOL_NAME_SET includes 'staff_reply' after channel-event.ts edit;
-    // the guard `if (event.toolName === 'staff_reply') return` MUST fire BEFORE
-    // the set membership check, so the outbound.emit is never called.
-
     const emitted: string[] = []
 
-    // Replicate the subscribeOutbound handler from wake-worker.ts lines 155-167
     const handler = (event: { type: string; toolName?: string }): void => {
       if (event.type !== 'tool_execution_end') return
-      if (event.toolName === 'staff_reply') return // Risk #7 guard
+      if (event.toolName === 'staff_reply') return
       if (!OUTBOUND_TOOL_NAME_SET.has(event.toolName ?? '')) return
       emitted.push(event.toolName ?? '')
     }

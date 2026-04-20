@@ -27,6 +27,10 @@ export interface CreateConversationInput {
   channelInstanceId: string
   status: Conversation['status']
   assignee: string
+  /** Defaults to `'default'` — chat channels always pass `'default'`; email passes the RFC 5322 thread root. */
+  threadKey?: string
+  /** Email-only — subject line of the thread root. */
+  emailSubject?: string
 }
 
 export interface SendTextInput {
@@ -92,6 +96,15 @@ export interface CreateInboundMessageInput {
   content: string
   contentType: InboundContentType
   profileName?: string
+  /**
+   * Thread-scoping key used to resolve the conversation row under
+   * `UNIQUE(tenant, contact, channelInstance, threadKey)`. Chat adapters
+   * omit or pass `'default'`; the email adapter passes the RFC 5322
+   * References root so each email topic gets its own conversation.
+   */
+  threadKey?: string
+  /** Email-only — subject of the thread root (set on first inbound in a thread). */
+  emailSubject?: string
 }
 
 export interface CreateInboundMessageResult {
@@ -129,6 +142,13 @@ export interface SendCardReplyInput {
   buttonLabel?: string
 }
 
+export interface SnoozeConversationInput {
+  conversationId: string
+  until: Date
+  by: string
+  reason?: string
+}
+
 export interface InboxPort {
   // read
   getConversation(id: string): Promise<Conversation>
@@ -142,11 +162,13 @@ export interface InboxPort {
   sendImageMessage(input: SendImageInput): Promise<Message>
   sendMediaMessage(input: SendMediaInput): Promise<Message>
 
-  // state transitions (applyTransition internally)
+  // lifecycle (applyTransition internally, via state.ts)
   resolve(conversationId: string, reason: string, by: AuthorRef): Promise<void>
-  reassign(conversationId: string, to: AssigneeRef, note?: string): Promise<void>
-  hold(conversationId: string, reason: string): Promise<void>
   reopen(conversationId: string): Promise<void>
+  reset(conversationId: string, by: string): Promise<void>
+  reassign(conversationId: string, to: AssigneeRef, note?: string): Promise<void>
+  snooze(input: SnoozeConversationInput): Promise<Conversation>
+  unsnooze(conversationId: string, by: string): Promise<Conversation>
 
   // internal notes
   addInternalNote(input: AddNoteInput): Promise<InternalNote>
@@ -154,9 +176,6 @@ export interface InboxPort {
 
   // pending approvals — inserted by approvalMutator
   insertPendingApproval(input: InsertPendingApprovalInput, tx?: Tx): Promise<PendingApproval>
-
-  // compaction
-  beginCompaction(conversationId: string, summary: string): Promise<{ childConversationId: string }>
 
   // inbound channel write path (one-write-path discipline)
   createInboundMessage(input: CreateInboundMessageInput): Promise<CreateInboundMessageResult>

@@ -8,13 +8,15 @@ const base: Conversation = {
   tenantId: 't1',
   contactId: 'ct-abc',
   channelInstanceId: 'ch-whatsapp',
-  parentConversationId: null,
-  compactionSummary: 'Test preview text',
-  compactedAt: null,
   status: 'active',
   assignee: 'unassigned',
-  onHold: false,
-  onHoldReason: null,
+  snoozedUntil: null,
+  snoozedReason: null,
+  snoozedBy: null,
+  snoozedAt: null,
+  snoozedJobId: null,
+  threadKey: 'default',
+  emailSubject: null,
   lastMessageAt: null,
   resolvedAt: null,
   resolvedReason: null,
@@ -22,15 +24,7 @@ const base: Conversation = {
   updatedAt: new Date('2024-01-15T10:00:00Z'),
 }
 
-const statuses: Conversation['status'][] = [
-  'active',
-  'resolving',
-  'resolved',
-  'compacted',
-  'archived',
-  'awaiting_approval',
-  'failed',
-]
+const statuses: Conversation['status'][] = ['active', 'resolving', 'resolved', 'awaiting_approval', 'failed']
 
 describe('ConversationRow', () => {
   for (const status of statuses) {
@@ -76,5 +70,23 @@ describe('ConversationRow', () => {
   it('shows single-line preview via line-clamp-1', () => {
     const html = renderToStaticMarkup(<ConversationRow conversation={base} isSelected={false} onClick={() => {}} />)
     expect(html).toContain('line-clamp-1')
+  })
+
+  it('renders snooze indicator when snoozedUntil is in the future', () => {
+    const snoozed = {
+      ...base,
+      snoozedUntil: new Date(Date.now() + 3600_000),
+    }
+    const html = renderToStaticMarkup(<ConversationRow conversation={snoozed} isSelected={false} onClick={() => {}} />)
+    expect(html).toContain('conversation-row-snoozed')
+  })
+
+  it('does not render snooze indicator when snoozedUntil is in the past', () => {
+    const snoozed = {
+      ...base,
+      snoozedUntil: new Date(Date.now() - 3600_000),
+    }
+    const html = renderToStaticMarkup(<ConversationRow conversation={snoozed} isSelected={false} onClick={() => {}} />)
+    expect(html).not.toContain('conversation-row-snoozed')
   })
 })

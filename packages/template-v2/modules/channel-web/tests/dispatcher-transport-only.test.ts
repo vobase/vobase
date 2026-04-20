@@ -81,16 +81,19 @@ function makeInboxPort(): InboxPort {
     },
     resolve: async () => {},
     reassign: async () => {},
-    hold: async () => {},
     reopen: async () => {},
+    reset: async () => {},
+    snooze: async () => {
+      throw new Error('not-expected')
+    },
+    unsnooze: async () => {
+      throw new Error('not-expected')
+    },
     addInternalNote: async () => {
       throw new Error('not-expected')
     },
     listInternalNotes: async () => [],
     insertPendingApproval: async () => {
-      throw new Error('not-expected')
-    },
-    beginCompaction: async () => {
       throw new Error('not-expected')
     },
     createInboundMessage: async () => {

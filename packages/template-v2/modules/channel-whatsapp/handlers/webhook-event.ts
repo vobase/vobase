@@ -1,27 +1,50 @@
 /**
  * POST /api/channel-whatsapp/webhook — receives Meta webhook events.
  *
- * Verifies X-Hub-Signature-256 via Core signHmac, parses payload into
- * canonical ChannelInboundEvents, delegates to InboxPort for persistence,
- * enqueues wake job. LOC ≤ 200.
+ * Security:
+ *   1. Verify X-Hub-Signature-256 HMAC-SHA256 against WA_WEBHOOK_SECRET / WHATSAPP_APP_SECRET.
+ *   2. Dev bypass: if no signature header AND secret env is unset, allow in NODE_ENV !== 'production'
+ *      with a console.warn. Production always rejects unsigned requests.
+ *
+ * After signature check delegates entirely to service/inbound.ts (handler LOC ≤ 200).
  */
 import { parseHubSignature } from '@server/runtime/hub-signature'
 import { verifyHmacSignature } from '@vobase/core'
 import type { Context } from 'hono'
-import { MetaWebhookPayloadSchema, parseWebhookPayload } from '../service/parser'
-import { requireContacts, requireInbox, requireJobs, requireWebhookSecret } from '../service/state'
+import { processWebhookPayload } from '../service/inbound'
+import { MetaWebhookPayloadSchema } from '../service/parser'
+import { requireWebhookSecret } from '../service/state'
 
-const FALLBACK_TENANT_ID = process.env.DEFAULT_TENANT_ID ?? 'tenant-default'
-const FALLBACK_CHANNEL_INSTANCE_ID = process.env.WA_CHANNEL_INSTANCE_ID ?? ''
+// Tenant is resolved from channelInstanceId / env — never from an inbound header.
+// Meta does not send x-tenant-id; only attackers would set it.
+const DEV_FALLBACK_TENANT_ID = process.env.WA_DEFAULT_TENANT_ID ?? undefined
 
 export async function handleWebhookEvent(c: Context): Promise<Response> {
   const rawBody = await c.req.text()
-  const sig = parseHubSignature(c)
+  const sigHeader = c.req.header('x-hub-signature-256')
 
-  if (!verifyHmacSignature(rawBody, sig, requireWebhookSecret())) {
-    return c.json({ error: 'invalid signature' }, 401)
+  // ── Signature verification ──────────────────────────────────────────────────
+  const appSecret = process.env.WHATSAPP_APP_SECRET ?? process.env.WA_WEBHOOK_SECRET
+  const secretConfigured = !!appSecret
+
+  if (!sigHeader) {
+    // No signature present
+    if (secretConfigured || process.env.NODE_ENV === 'production') {
+      return c.json({ error: 'missing x-hub-signature-256' }, 403)
+    }
+    // Dev-only bypass: allow unsigned requests when no secret is configured
+    console.warn(
+      '[channel-whatsapp] WARNING: Accepting unsigned webhook (no WHATSAPP_APP_SECRET set). Set the env var in production.',
+    )
+  } else {
+    const sig = parseHubSignature(c)
+    const secret = requireWebhookSecret()
+    if (!verifyHmacSignature(rawBody, sig, secret)) {
+      return c.json({ error: 'invalid signature' }, 401)
+    }
   }
 
+  // ── Parse payload ───────────────────────────────────────────────────────────
   let rawPayload: unknown
   try {
     rawPayload = JSON.parse(rawBody)
@@ -35,44 +58,23 @@ export async function handleWebhookEvent(c: Context): Promise<Response> {
     return c.json({ received: true, skipped: true }, 200)
   }
 
-  const tenantId = c.req.header('x-tenant-id') ?? FALLBACK_TENANT_ID
-  const channelInstanceId = c.req.header('x-channel-instance-id') ?? FALLBACK_CHANNEL_INSTANCE_ID
+  // ── Dispatch to service ─────────────────────────────────────────────────────
+  // Tenant is NOT read from headers — Meta doesn't set x-tenant-id and trusting
+  // it would allow any caller to impersonate another tenant. Instead, tenantId
+  // is derived from the channelInstanceId lookup inside processWebhookPayload
+  // (falling back to WA_DEFAULT_TENANT_ID for dev single-tenant setups).
+  // The channelInstanceId may come from a route param (multi-instance routing),
+  // but never from a caller-supplied header.
+  const channelInstanceId = c.req.param('channelInstanceId') ?? undefined
 
-  const events = parseWebhookPayload(parsed.data, tenantId)
-  const inboxPort = requireInbox()
-  const contactsPort = requireContacts()
-  const jobs = requireJobs()
+  if (!channelInstanceId && !DEV_FALLBACK_TENANT_ID && process.env.NODE_ENV === 'production') {
+    return c.json({ error: 'missing channelInstanceId' }, 400)
+  }
 
-  const results = await Promise.all(
-    events.map(async (event) => {
-      if (event.contentType === 'unsupported' && (event.metadata as Record<string, unknown>)?.waStatusUpdate) {
-        return null
-      }
-      const contact = await contactsPort.upsertByExternal({
-        tenantId: event.tenantId,
-        phone: event.from,
-        displayName: event.profileName || undefined,
-      })
-      const result = await inboxPort.createInboundMessage({
-        tenantId: event.tenantId,
-        channelInstanceId,
-        contactId: contact.id,
-        externalMessageId: event.externalMessageId,
-        content: event.content,
-        contentType: event.contentType,
-        profileName: event.profileName,
-      })
-      if (result.isNew) {
-        await jobs.send('channel-whatsapp:inbound-to-wake', {
-          tenantId: event.tenantId,
-          conversationId: result.conversation.id,
-          messageId: result.message.id,
-          contactId: contact.id,
-        })
-      }
-      return { externalMessageId: event.externalMessageId, isNew: result.isNew }
-    }),
-  )
-  const processed = results.filter((r): r is NonNullable<typeof r> => r !== null)
-  return c.json({ received: true, processed: processed.length, results: processed })
+  const result = await processWebhookPayload(parsed.data, {
+    tenantId: DEV_FALLBACK_TENANT_ID ?? 'tenant-default',
+    channelInstanceId,
+  })
+
+  return c.json({ received: true, ...result })
 }

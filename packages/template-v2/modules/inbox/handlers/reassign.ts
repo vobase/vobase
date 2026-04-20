@@ -1,5 +1,6 @@
 /** POST /api/inbox/conversations/:id/reassign */
-import { getConversation, notifyConversation, reassignConversation } from '@modules/inbox/service/staff-ops'
+import { reassign } from '@modules/inbox/service/conversations'
+import { getConversation, notifyConversation } from '@modules/inbox/service/staff-ops'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -7,6 +8,7 @@ const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const reassignBodySchema = z.object({
   assignee: z.string().min(1),
+  by: z.string().min(1).optional(),
   note: z.string().optional(),
 })
 
@@ -23,7 +25,7 @@ app.post('/:id/reassign', async (c) => {
   const conv = await getConversation(id)
   if (!conv) return c.json({ error: 'not_found' }, 404)
   if (conv.tenantId !== tenantId) return c.json({ error: 'forbidden' }, 403)
-  const conversation = await reassignConversation(id, parsed.data.assignee)
+  const conversation = await reassign(id, parsed.data.assignee, parsed.data.by ?? 'system', parsed.data.note)
   await notifyConversation(id).catch(() => undefined)
   return c.json({ conversation })
 })

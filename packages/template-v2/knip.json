@@ -1,0 +1,36 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "server/entry.ts",
+    "server/server.ts",
+    "vobase.config.ts",
+    "modules/*/module.ts",
+    "modules/*/handlers/index.ts",
+    "modules/*/seed.ts",
+    "modules/*/jobs.ts",
+    "src/main.tsx",
+    "scripts/*.ts",
+    "tests/**/*.test.ts",
+    "modules/**/*.test.ts",
+    "server/**/*.test.ts",
+    "src/**/*.test.{ts,tsx}"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "modules/**/*.{ts,tsx}", "server/**/*.{ts,tsx}", "scripts/**/*.ts", "tests/**/*.ts"],
+  "ignore": [
+    "src/components/ui/**",
+    "src/components/ai-elements/**",
+    "src/components/tool-ui/**",
+    "src/components/chat/**"
+  ],
+  "ignoreDependencies": [
+    "@fontsource-variable/geist",
+    "embla-carousel-react",
+    "tw-animate-css",
+    "vaul",
+    "shiki",
+    "tailwindcss",
+    "shadcn",
+    "@tanstack/virtual-file-routes"
+  ],
+  "ignoreExportsUsedInFile": true
+}

@@ -12,9 +12,9 @@ const SCOPE_LABELS: Record<string, string> = {
 
 const SCOPE_COLORS: Record<string, string> = {
   contact: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
-  agent_memory: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-  agent_skill: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-  drive_doc: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+  agent_memory: 'bg-info/10 text-info border-info/20',
+  agent_skill: 'bg-warning/10 text-warning border-warning/20',
+  drive_doc: 'bg-success/10 text-success border-success/20',
 }
 
 interface Props {
@@ -66,27 +66,24 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
         <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             <span
-              className={cn(
-                'inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium',
-                scopeColor,
-              )}
+              className={cn('inline-flex items-center rounded border px-1.5 py-0.5 text-mini font-medium', scopeColor)}
             >
               {SCOPE_LABELS[proposal.scope] ?? proposal.scope}
             </span>
-            <span className="font-mono text-[11px] text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
+            <span className="font-mono text-mini text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
               {proposal.target}
             </span>
-            <RelativeTimeCard date={proposal.createdAt} className="text-[11px] text-muted-foreground" />
+            <RelativeTimeCard date={proposal.createdAt} className="text-mini text-muted-foreground" />
           </div>
 
           {proposal.body && <p className="text-xs text-foreground leading-relaxed line-clamp-3">{proposal.body}</p>}
 
-          {proposal.rationale && <p className="text-[11px] text-muted-foreground italic">{proposal.rationale}</p>}
+          {proposal.rationale && <p className="text-mini text-muted-foreground italic">{proposal.rationale}</p>}
 
           {proposal.confidence !== null && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-muted-foreground">Confidence:</span>
-              <span className="text-[11px] font-medium">{Math.round((proposal.confidence ?? 0) * 100)}%</span>
+              <span className="text-mini text-muted-foreground">Confidence:</span>
+              <span className="text-mini font-medium">{Math.round((proposal.confidence ?? 0) * 100)}%</span>
             </div>
           )}
         </div>
@@ -137,14 +134,14 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
               setShowRejectForm(false)
               setRejectNote('')
             }}
-            className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-1.5"
+            className="text-mini text-muted-foreground hover:text-foreground px-2 py-1.5"
           >
             Cancel
           </button>
         </div>
       )}
 
-      {error && <p className="text-[11px] text-destructive">{error}</p>}
+      {error && <p className="text-mini text-destructive">{error}</p>}
     </li>
   )
 }

@@ -124,7 +124,7 @@ function ComboboxBadgeItem({
       )}
       {...props}
     >
-      <span className="truncate text-[13px] text-secondary-foreground">
+      <span className="truncate text-compact text-secondary-foreground">
         {children}
       </span>
       <ComboboxPrimitive.BadgeItemDelete

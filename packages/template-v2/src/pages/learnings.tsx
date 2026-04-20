@@ -9,7 +9,7 @@ export function LearningsPage() {
       <div className="flex items-center justify-between border-b border-border px-5 py-3">
         <h1 className="text-sm font-semibold">Proposed Learnings</h1>
         {proposals.length > 0 && (
-          <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-600">
+          <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-mini font-medium text-warning">
             {proposals.length} pending
           </span>
         )}

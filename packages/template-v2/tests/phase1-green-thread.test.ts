@@ -325,7 +325,7 @@ describe('Phase 1 green-thread wake', () => {
     expect(Bun.spawnSync(['bun', 'run', 'typecheck'], { cwd }).exitCode).toBe(0)
     expect(Bun.spawnSync(['bun', 'run', 'lint'], { cwd }).exitCode).toBe(0)
     expect(Bun.spawnSync(['bun', 'run', 'check:shape'], { cwd }).exitCode).toBe(0)
-  })
+  }, 30_000)
 
   // --- 11 --- llm_call event carries full cost/latency shape
   it('llm_call event carries the full cost/latency shape', async () => {

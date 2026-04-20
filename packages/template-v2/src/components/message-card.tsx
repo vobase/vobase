@@ -161,7 +161,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
     if (content.card) return renderCard(content.card, message)
     return (
       <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-        <pre className="text-[11px] text-muted-foreground overflow-auto max-h-32">
+        <pre className="text-mini text-muted-foreground overflow-auto max-h-32">
           {JSON.stringify(message.content, null, 2)}
         </pre>
       </div>
@@ -174,7 +174,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
 
     return (
       <div className={cn(bubbleBase, 'bg-muted text-foreground border border-border/50')}>
-        {parentTitle && <p className="text-[10px] text-muted-foreground mb-0.5">↳ {parentTitle}</p>}
+        {parentTitle && <p className="text-2xs text-muted-foreground mb-0.5">↳ {parentTitle}</p>}
         <p className="text-sm font-medium">{content.buttonLabel ?? content.buttonValue ?? content.buttonId ?? '—'}</p>
       </div>
     )
@@ -191,7 +191,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
 
   return (
     <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-      <pre className="text-[11px] text-muted-foreground overflow-auto max-h-32">
+      <pre className="text-mini text-muted-foreground overflow-auto max-h-32">
         {JSON.stringify(message.content, null, 2)}
       </pre>
     </div>

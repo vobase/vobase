@@ -89,7 +89,12 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
       return svcListMessages(conversationId, opts)
     },
     async createConversation(input) {
-      const { conversation } = await svcResumeOrCreate(input.tenantId, input.contactId, input.channelInstanceId)
+      const { conversation } = await svcResumeOrCreate(
+        input.tenantId,
+        input.contactId,
+        input.channelInstanceId,
+        input.threadKey ?? 'default',
+      )
       return conversation
     },
     async sendTextMessage(input) {
@@ -133,11 +138,17 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
     async reassign() {
       throw new Error('dev-ports: reassign not supported')
     },
-    async hold() {
-      throw new Error('dev-ports: hold not supported')
-    },
     async reopen() {
       throw new Error('dev-ports: reopen not supported')
+    },
+    async reset() {
+      throw new Error('dev-ports: reset not supported')
+    },
+    async snooze() {
+      throw new Error('dev-ports: snooze not supported')
+    },
+    async unsnooze() {
+      throw new Error('dev-ports: unsnooze not supported')
     },
     async addInternalNote(input) {
       return svcAddNote(input)
@@ -147,9 +158,6 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
     },
     async insertPendingApproval() {
       throw new Error('dev-ports: insertPendingApproval not supported outside wake')
-    },
-    async beginCompaction() {
-      throw new Error('dev-ports: beginCompaction not supported')
     },
     async createInboundMessage(input) {
       return svcCreateInboundMessage(input)

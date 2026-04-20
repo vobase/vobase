@@ -51,7 +51,12 @@ const MetaContactSchema = z.object({
 
 const MetaValueSchema = z.object({
   messaging_product: z.string().optional(),
-  metadata: z.object({ phone_number_id: z.string() }).optional(),
+  metadata: z
+    .object({
+      phone_number_id: z.string(),
+      display_phone_number: z.string().optional(),
+    })
+    .optional(),
   contacts: z.array(MetaContactSchema).optional(),
   messages: z.array(MetaMessageSchema).optional(),
   statuses: z.array(MetaStatusSchema).optional(),
@@ -138,8 +143,11 @@ export function parseWebhookPayload(payload: MetaWebhookPayload, tenantId: strin
         contactNames.set(c.wa_id, c.profile?.name ?? '')
       }
 
-      // Inbound messages
+      const displayPhone = value.metadata?.display_phone_number
+
+      // Inbound messages — skip echoes (sent from WhatsApp Business app)
       for (const msg of value.messages ?? []) {
+        if (displayPhone && msg.from === displayPhone) continue
         events.push({
           tenantId,
           channelType: 'whatsapp',
