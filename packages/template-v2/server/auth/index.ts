@@ -1,8 +1,18 @@
 import type { ScopedDb } from '@server/contracts/scoped-db'
-import { authAccount, authSession, authUser, authVerification, logger } from '@vobase/core'
+import {
+  authAccount,
+  authInvitation,
+  authMember,
+  authOrganization,
+  authSession,
+  authUser,
+  authVerification,
+  logger,
+} from '@vobase/core'
 import { type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP } from 'better-auth/plugins/email-otp'
+import { organization } from 'better-auth/plugins/organization'
 import { productName } from '../branding'
 import { renderOtpEmail } from '../emails'
 import { sendEmail } from '../emails/sender'
@@ -14,6 +24,9 @@ const authTableMap = {
   session: authSession,
   account: authAccount,
   verification: authVerification,
+  organization: authOrganization,
+  member: authMember,
+  invitation: authInvitation,
 }
 
 function parseAllowedEmailDomains(): string[] {
@@ -25,6 +38,12 @@ function parseAllowedEmailDomains(): string[] {
 }
 
 export function createAuth(db: ScopedDb) {
+  // Single-project default: orgs are opt-in for "multiple companies under one
+  // install" setups (e.g. agency serving N clients). `allowUserToCreateOrganization`
+  // stays false until a project explicitly flips VOBASE_MULTI_ORG=true — keeps
+  // sign-up flow dead simple for the common single-org case.
+  const multiOrg = process.env.VOBASE_MULTI_ORG === 'true'
+
   const plugins: BetterAuthPlugin[] = [
     emailOTP({
       sendVerificationOTP: async ({ email, otp, type }) => {
@@ -46,6 +65,12 @@ export function createAuth(db: ScopedDb) {
       },
       otpLength: 6,
       expiresIn: 300,
+    }),
+    organization({
+      allowUserToCreateOrganization: multiOrg,
+      // Teams deferred — better-auth migration-order bug (github.com/better-auth/better-auth#6832)
+      // plus we don't have a UI for them yet. Flip when both are addressed.
+      teams: { enabled: false },
     }),
   ]
 
