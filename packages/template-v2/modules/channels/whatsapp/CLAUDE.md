@@ -4,7 +4,7 @@ WhatsApp Business Cloud adapter. Opt-in via `META_WA_TOKEN` + `META_WA_VERIFY_TO
 
 **Transport-only rule (A3).** Same as channel-web: `service/sender.ts` must NEVER import drizzle or write DB. It only calls the WhatsApp Cloud API over HTTP. Guarded by the A3 pattern — keep it transport.
 
-**Webhook verification.** `handlers/webhook-verify.ts` answers Meta's `GET hub.challenge` if `hub.verify_token` matches env. `handlers/webhook-event.ts` verifies `X-Hub-Signature-256` HMAC (see `server/runtime/hub-signature.ts`) before parsing. Skipping either is a security hole — Meta re-delivers without auth.
+**Webhook verification.** `handlers/webhook-verify.ts` answers Meta's `GET hub.challenge` if `hub.verify_token` matches env. `handlers/webhook-event.ts` delegates `X-Hub-Signature-256` HMAC checking to `verifyHmacWebhook` from `@server/middlewares` with `devBypass: true` (matches Meta's webhook validation dance when no secret is configured in dev). Skipping either is a security hole — Meta re-delivers without auth.
 
 **Media URLs expire in 5 minutes.** Inbound media triggers a download job immediately in `jobs.ts`. If the job fails, the media is lost — keep the job retry budget tight.
 

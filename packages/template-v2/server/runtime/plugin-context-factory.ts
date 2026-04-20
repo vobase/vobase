@@ -65,6 +65,60 @@ export interface PluginContextFactoryInput {
   llmCall: <T = string>(task: LlmTask, request: LlmRequest) => Promise<LlmResult<T>>
 }
 
+/**
+ * Boot-time input — `init(ctx)` runs ONCE at server startup, before any wake
+ * exists, so per-wake fields (`tenantId`, `conversationId`, `events`, `llmCall`)
+ * are unavailable. The returned ctx throws on those fields so modules that
+ * mistakenly reach for them at boot fail loudly instead of silently capturing
+ * a stub.
+ *
+ * `tenantId` is deliberately the empty string at boot. `drive/service/proposal.ts`
+ * and similar tenant-scoped writers guard with `if (!_tenantId) throw`, so an
+ * empty sentinel surfaces as a clear error if those code paths are reached
+ * outside a per-tenant request context. Do not change to a dummy value.
+ */
+export interface BootContextInput {
+  moduleName: string
+  ports: PluginContext['ports']
+  db: ScopedDb
+  jobs: ScopedScheduler
+  storage: ScopedStorage
+  realtime: RealtimeService
+  logger: Logger
+  metrics: MetricSink
+}
+
+/** Returns `{ ctx, registrations }` — pass `ctx` to `module.init(ctx)` and then read drained registrations. */
+export function createBootContext(input: BootContextInput): {
+  ctx: PluginContext
+  registrations: ModuleRegistrations
+} {
+  const bootOnlyThrow = (field: string): never => {
+    throw new Error(
+      `PluginContext.${field} accessed during boot — only available inside a wake. ` +
+        `If you need this at register time, capture a lazy reference instead.`,
+    )
+  }
+  return createPluginContext({
+    moduleName: input.moduleName,
+    tenantId: '',
+    conversationId: '',
+    ports: input.ports,
+    db: input.db,
+    jobs: input.jobs,
+    storage: input.storage,
+    events: {
+      publish: () => bootOnlyThrow('events.publish'),
+      subscribe: () => bootOnlyThrow('events.subscribe'),
+    },
+    realtime: input.realtime,
+    logger: input.logger,
+    metrics: input.metrics,
+    trace: null,
+    llmCall: () => bootOnlyThrow('llmCall'),
+  })
+}
+
 /** Returns `{ ctx, registrations }` — pass `ctx` to `module.init(ctx)` and then read drained registrations. */
 export function createPluginContext(input: PluginContextFactoryInput): {
   ctx: PluginContext

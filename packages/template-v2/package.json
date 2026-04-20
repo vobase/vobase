@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "conc bun:dev:*",
-    "dev:server": "bun run --hot server/entry.ts",
+    "dev:server": "bun run --hot server/main.ts",
     "dev:web": "vite",
     "build": "vite build",
     "api:types": "echo 'api-types.generated.ts is hand-maintained for Phase 2'",

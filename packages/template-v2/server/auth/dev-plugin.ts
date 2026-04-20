@@ -17,10 +17,6 @@ export function devAuth(): BetterAuthPlugin {
           }),
         },
         async (ctx) => {
-          if (process.env.NODE_ENV === 'production') {
-            return ctx.json({ error: 'Not available in production' }, { status: 404 })
-          }
-
           const { email, name } = ctx.body
 
           const existing = await ctx.context.internalAdapter.findUserByEmail(email, { includeAccounts: true })

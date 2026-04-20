@@ -1,4 +1,5 @@
 import { defineModule } from '@server/runtime/define-module'
+import handlers from './handlers'
 import { manifest } from './manifest'
 import { approvalMutator } from './mutators/approval'
 import {
@@ -7,10 +8,12 @@ import {
   setScheduler as setConversationsScheduler,
 } from './service/conversations'
 import { setDb as setMessagesDb } from './service/messages'
+import { setDb as setNotesDb } from './service/notes'
 import {
   setDb as setPendingApprovalsDb,
   setScheduler as setPendingApprovalsScheduler,
 } from './service/pending-approvals'
+import { setDb as setStaffOpsDb } from './service/staff-ops'
 import { inboxTools } from './tools'
 
 export { setConversationsScheduler, setPendingApprovalsScheduler }
@@ -20,10 +23,13 @@ export default defineModule({
   version: '1.0',
   requires: ['contacts'],
   manifest,
+  routes: { basePath: '/api/inbox', handler: handlers, requireSession: true },
   init(ctx) {
     setConversationsDb(ctx.db)
     setPendingApprovalsDb(ctx.db)
     setMessagesDb(ctx.db)
+    setNotesDb(ctx.db)
+    setStaffOpsDb(ctx.db)
 
     // Snooze wake enqueue/cancel. ctx.jobs exposes a pg-boss-shaped handle;
     // we adapt it to the narrow `ConversationScheduler` interface so the

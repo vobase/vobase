@@ -1,28 +1,17 @@
 import { ChannelInboundEventSchema } from '@server/contracts/channel-event'
-import { parseHubSignature } from '@server/runtime/hub-signature'
-import { verifyHmacSignature } from '@vobase/core'
+import { verifyHmacWebhook } from '@server/middlewares'
 import type { Context } from 'hono'
 import { requireContacts, requireInbox, requireJobs } from '../service/state'
 
 const FALLBACK_SECRET = process.env.CHANNEL_WEB_WEBHOOK_SECRET ?? 'dev-secret'
 
 export async function handleInbound(c: Context): Promise<Response> {
-  const rawBody = await c.req.text()
-  const sig = parseHubSignature(c)
-  const secret = c.req.header('x-channel-secret') ?? FALLBACK_SECRET
+  const v = await verifyHmacWebhook(c, {
+    secret: (ctx) => ctx.req.header('x-channel-secret') ?? FALLBACK_SECRET,
+  })
+  if (!v.ok) return v.response
 
-  if (!verifyHmacSignature(rawBody, sig, secret)) {
-    return c.json({ error: 'invalid signature' }, 401)
-  }
-
-  let body: unknown
-  try {
-    body = JSON.parse(rawBody)
-  } catch {
-    return c.json({ error: 'invalid json' }, 400)
-  }
-
-  const parsed = ChannelInboundEventSchema.safeParse(body)
+  const parsed = ChannelInboundEventSchema.safeParse(v.payload)
   if (!parsed.success) {
     return c.json({ error: 'invalid payload', issues: parsed.error.issues }, 422)
   }

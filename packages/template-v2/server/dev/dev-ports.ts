@@ -8,8 +8,12 @@
  * provider when one is present (see `runStubReply` below).
  */
 
+import { agentDefinitions } from '@modules/agents/schema'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import { append as journalAppend, setDb as setJournalDb } from '@modules/agents/service/journal'
+import { contacts, staffChannelBindings } from '@modules/contacts/schema'
+import { driveFiles } from '@modules/drive/schema'
+import { conversations } from '@modules/inbox/schema'
 import {
   createInboundMessage as svcCreateInboundMessage,
   list as svcListConversations,
@@ -28,7 +32,8 @@ import type { AgentDefinition, Contact, Conversation, DriveFile, StaffBinding } 
 import type { DrivePort, DriveScope } from '@server/contracts/drive-port'
 import type { AgentEvent } from '@server/contracts/event'
 import type { InboxPort } from '@server/contracts/inbox-port'
-import type { RealtimeService } from '@server/contracts/plugin-context'
+import type { RealtimeService, ScopedDb } from '@server/contracts/plugin-context'
+import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
 
@@ -78,8 +83,6 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
 
   return {
     async getConversation(id) {
-      const { conversations } = await import('@modules/inbox/schema')
-      const { eq } = await import('drizzle-orm')
       const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1)
       const row = rows[0] as Conversation | undefined
       if (!row) throw new Error(`inbox/getConversation: no conversation ${id}`)
@@ -171,16 +174,12 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
   }
   return {
     async get(id) {
-      const { contacts } = await import('@modules/contacts/schema')
-      const { eq } = await import('drizzle-orm')
       const rows = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1)
       const r = rows[0] as Contact | undefined
       if (!r) throw new Error(`contacts/get: no contact ${id}`)
       return r
     },
     async getByPhone(tenantId, phone) {
-      const { contacts } = await import('@modules/contacts/schema')
-      const { and, eq } = await import('drizzle-orm')
       const rows = await db
         .select()
         .from(contacts)
@@ -189,8 +188,6 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
       return (rows[0] as Contact | undefined) ?? null
     },
     async getByEmail(tenantId, email) {
-      const { contacts } = await import('@modules/contacts/schema')
-      const { and, eq } = await import('drizzle-orm')
       const rows = await db
         .select()
         .from(contacts)
@@ -199,8 +196,6 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
       return (rows[0] as Contact | undefined) ?? null
     },
     async upsertByExternal(input) {
-      const { contacts } = await import('@modules/contacts/schema')
-      const { and, eq } = await import('drizzle-orm')
       if (input.phone) {
         const existing = await db
           .select()
@@ -238,8 +233,6 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
     setSegments: notImpl,
     setMarketingOptOut: notImpl,
     async resolveStaffByExternal(channelInstanceId, externalIdentifier) {
-      const { staffChannelBindings } = await import('@modules/contacts/schema')
-      const { and, eq } = await import('drizzle-orm')
       const rows = await db
         .select()
         .from(staffChannelBindings)
@@ -260,8 +253,6 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
 function buildAgentsPort(db: DrizzleHandle): AgentsPort {
   return {
     async getAgentDefinition(id: string): Promise<AgentDefinition> {
-      const { agentDefinitions } = await import('@modules/agents/schema')
-      const { eq } = await import('drizzle-orm')
       const rows = await db.select().from(agentDefinitions).where(eq(agentDefinitions.id, id)).limit(1)
       const r = rows[0] as AgentDefinition | undefined
       if (!r) throw new Error(`agents/getAgentDefinition: no row for ${id}`)
@@ -294,14 +285,10 @@ function buildDrivePort(db: DrizzleHandle): DrivePort {
   }
   return {
     async get(id: string): Promise<DriveFile | null> {
-      const { driveFiles } = await import('@modules/drive/schema')
-      const { eq } = await import('drizzle-orm')
       const rows = await db.select().from(driveFiles).where(eq(driveFiles.id, id)).limit(1)
       return (rows[0] as DriveFile | undefined) ?? null
     },
     async getByPath(scope: DriveScope, path: string): Promise<DriveFile | null> {
-      const { driveFiles } = await import('@modules/drive/schema')
-      const { and, eq } = await import('drizzle-orm')
       const conds = [eq(driveFiles.scope, scope.scope), eq(driveFiles.path, path)]
       if (scope.scope === 'contact') conds.push(eq(driveFiles.scopeId, scope.contactId))
       const rows = await db
@@ -312,8 +299,6 @@ function buildDrivePort(db: DrizzleHandle): DrivePort {
       return (rows[0] as DriveFile | undefined) ?? null
     },
     async listFolder(scope: DriveScope, parentId: string | null): Promise<DriveFile[]> {
-      const { driveFiles } = await import('@modules/drive/schema')
-      const { and, eq } = await import('drizzle-orm')
       const conds = [eq(driveFiles.scope, scope.scope)]
       if (scope.scope === 'contact') conds.push(eq(driveFiles.scopeId, scope.contactId))
       if (parentId !== null) conds.push(eq(driveFiles.parentFolderId, parentId))
@@ -375,11 +360,11 @@ function buildJobQueue(handlers: Map<string, (data: unknown) => Promise<void>>) 
 }
 
 export function buildDevPorts(
-  db: unknown,
+  db: ScopedDb,
   sql: Sql,
   jobHandlers: Map<string, (data: unknown) => Promise<void>>,
 ): DevPorts {
-  const drizzleDb = db as DrizzleHandle
+  const drizzleDb = db as unknown as DrizzleHandle
   // Agents journal needs its db set or `appendTextMessage` will throw on the journal write.
   setJournalDb(db)
   return {

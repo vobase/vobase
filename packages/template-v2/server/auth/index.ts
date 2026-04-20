@@ -1,13 +1,13 @@
+import type { ScopedDb } from '@server/contracts/scoped-db'
 import { authAccount, authSession, authUser, authVerification, logger } from '@vobase/core'
 import { type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP } from 'better-auth/plugins/email-otp'
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import { productName } from './branding'
-import { devAuth } from './dev-auth-plugin'
-import { sendEmail } from './email-sender'
-import { renderOtpEmail } from './emails'
-import { platformAuth } from './platform-auth-plugin'
+import { productName } from '../branding'
+import { renderOtpEmail } from '../emails'
+import { sendEmail } from '../emails/sender'
+import { devAuth } from './dev-plugin'
+import { platformAuth } from './platform-plugin'
 
 const authTableMap = {
   user: authUser,
@@ -24,7 +24,7 @@ function parseAllowedEmailDomains(): string[] {
     .filter((d) => d.length > 0)
 }
 
-export function createAuth(db: PostgresJsDatabase) {
+export function createAuth(db: ScopedDb) {
   const plugins: BetterAuthPlugin[] = [
     emailOTP({
       sendVerificationOTP: async ({ email, otp, type }) => {
@@ -66,6 +66,12 @@ export function createAuth(db: PostgresJsDatabase) {
     database: drizzleAdapter(db as any, { provider: 'pg', schema: authTableMap }),
     emailAndPassword: { enabled: false },
     plugins,
+    session: {
+      // 5 minutes of signed-cookie cache — avoids a DB hit for `getSession` in
+      // `requireSession` on every request. Invalidation is immediate on
+      // sign-out/revoke because better-auth re-signs the cookie on those flows.
+      cookieCache: { enabled: true, maxAge: 5 * 60 },
+    },
     advanced: {
       useSecureCookies: process.env.NODE_ENV === 'production',
     },

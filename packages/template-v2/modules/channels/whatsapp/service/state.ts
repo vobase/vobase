@@ -20,8 +20,6 @@ let _phoneNumberId: string | null = null
 let _accessToken: string | null = null
 /** Webhook verify token (Meta hub challenge). */
 let _verifyToken: string | null = null
-/** HMAC secret for Meta webhook signature verification. */
-let _webhookSecret: string | null = null
 
 export function setInboxPort(p: InboxPort): void {
   _inbox = p
@@ -43,9 +41,6 @@ export function setAccessToken(t: string): void {
 }
 export function setVerifyToken(t: string): void {
   _verifyToken = t
-}
-export function setWebhookSecret(s: string): void {
-  _webhookSecret = s
 }
 
 export function requireInbox(): InboxPort {
@@ -70,7 +65,7 @@ export function requirePhoneNumberId(): string {
 export function requireAccessToken(): string {
   return _accessToken ?? process.env.WA_ACCESS_TOKEN ?? ''
 }
-const _warned = { verifyToken: false, webhookSecret: false }
+const _warned = { verifyToken: false }
 
 function devFallback(
   value: string | undefined,
@@ -95,14 +90,5 @@ export function requireVerifyToken(): string {
     'channel-whatsapp: WA_VERIFY_TOKEN is required in production',
     '[channel-whatsapp] WARNING: WA_VERIFY_TOKEN not set — using dev fallback. Set it in production.',
     'verifyToken',
-  )
-}
-export function requireWebhookSecret(): string {
-  return devFallback(
-    _webhookSecret ?? process.env.WHATSAPP_APP_SECRET ?? process.env.WA_WEBHOOK_SECRET,
-    'dev-webhook-secret',
-    'channel-whatsapp: WHATSAPP_APP_SECRET / WA_WEBHOOK_SECRET is required in production',
-    '[channel-whatsapp] WARNING: WHATSAPP_APP_SECRET / WA_WEBHOOK_SECRET not set — using dev fallback. Set it in production.',
-    'webhookSecret',
   )
 }
