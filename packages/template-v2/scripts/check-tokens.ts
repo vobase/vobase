@@ -6,6 +6,9 @@
 
 // Hex inside quotes or Tailwind arbitrary: `'#abc'`, `bg-[#0b0b0b]`
 const HEX_RE = /(['"`]#[0-9a-fA-F]{3,8}['"`]|\[#[0-9a-fA-F]{3,8}\])/
+// SVG paint attributes — brand-mark logos carry official hex colors that can't be tokenized.
+// Exempts: fill="#...", stroke="#...", stop-color="#...", flood-color="#...", lighting-color="#..."
+const SVG_PAINT_RE = /\b(fill|stroke|stop-color|flood-color|lighting-color)="#[0-9a-fA-F]{3,8}"/
 // Inline oklch() outside of comments
 const OKLCH_RE = /oklch\(/
 // Date formatting calls that bypass RelativeTimeCard
@@ -23,6 +26,10 @@ const _selfTests: Array<{ line: string; re: RegExp; expect: boolean }> = [
   { line: "color: '#0b0b0b'", re: HEX_RE, expect: true },
   { line: 'bg-[#1a1a1a]', re: HEX_RE, expect: true },
   { line: "color: 'var(--color-fg)'", re: HEX_RE, expect: false },
+  { line: '<path fill="#4285F4" />', re: SVG_PAINT_RE, expect: true },
+  { line: '<rect fill="#F25022" />', re: SVG_PAINT_RE, expect: true },
+  { line: 'stroke="#fff"', re: SVG_PAINT_RE, expect: true },
+  { line: "color: '#abc'", re: SVG_PAINT_RE, expect: false },
   { line: 'oklch(0.5 0.1 240)', re: OKLCH_RE, expect: true },
   { line: '// some comment without oklch paren', re: OKLCH_RE, expect: false },
   { line: 'someDate.toLocaleDateString()', re: DATE_RENDERER_RE, expect: true },
@@ -46,7 +53,7 @@ for (const file of glob.scanSync({ cwd: `${import.meta.dir}/..` })) {
     const trimmed = raw.trimStart()
     if (trimmed.startsWith('//') || trimmed.startsWith('*')) continue
 
-    if (HEX_RE.test(raw)) violations.push({ file, line: i + 1, text: raw.trim() })
+    if (HEX_RE.test(raw) && !SVG_PAINT_RE.test(raw)) violations.push({ file, line: i + 1, text: raw.trim() })
     else if (OKLCH_RE.test(raw)) violations.push({ file, line: i + 1, text: raw.trim() })
     else if (!isDateExempt && DATE_RENDERER_RE.test(raw)) violations.push({ file, line: i + 1, text: raw.trim() })
   }
