@@ -7,7 +7,7 @@
  *   - `providerToStreamFn` bridge returns a StreamFn whose async generator
  *     yields the same events + populates the shared `finishRef`.
  *   - `translatePiMonoEvents` pure translation matches the Phase 1 canonical
- *     contract-event sequence (`PHASE_1_CANONICAL_EVENT_SEQUENCE`).
+ *     contract-event sequence (`CANONICAL_EVENT_SEQUENCE`).
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -16,12 +16,12 @@ import type { AgentEvent, ToolExecutionEndEvent } from '@server/contracts/event'
 import type { LlmProvider, LlmStreamChunk } from '@server/contracts/provider-port'
 import {
   drainProviderTurn,
-  PHASE_1_CANONICAL_EVENT_SEQUENCE,
+  CANONICAL_EVENT_SEQUENCE,
   providerToStreamFn,
   translatePiMonoEvents,
 } from '@server/harness/agent-adapter'
-import { bootWakePhase3 } from '../helpers/make-phase3-harness'
-import { createRecordedProvider } from '../helpers/recorded-provider'
+import { bootWakeWorkspaceAgent } from '../tests/helpers/make-workspace-agent-harness'
+import { createRecordedProvider } from '../tests/helpers/recorded-provider'
 
 function providerFrom(chunks: readonly LlmStreamChunk[]): LlmProvider {
   return {
@@ -176,7 +176,7 @@ describe('providerToStreamFn', () => {
 // ---------------------------------------------------------------------------
 
 describe('translatePiMonoEvents → canonical contract sequence', () => {
-  it('single-turn no-tool pi-mono lifecycle matches PHASE_1_CANONICAL_EVENT_SEQUENCE', () => {
+  it('single-turn no-tool pi-mono lifecycle matches CANONICAL_EVENT_SEQUENCE', () => {
     const pi: PiAgentEvent[] = [
       { type: 'agent_start' } as unknown as PiAgentEvent,
       { type: 'turn_start' } as unknown as PiAgentEvent,
@@ -186,7 +186,7 @@ describe('translatePiMonoEvents → canonical contract sequence', () => {
       { type: 'turn_end' } as unknown as PiAgentEvent,
       { type: 'agent_end' } as unknown as PiAgentEvent,
     ]
-    expect(translatePiMonoEvents(pi)).toEqual([...PHASE_1_CANONICAL_EVENT_SEQUENCE])
+    expect(translatePiMonoEvents(pi)).toEqual([...CANONICAL_EVENT_SEQUENCE])
   })
 
   it('turn with tool call inserts tool_execution_start/end between message_end and turn_end', () => {
@@ -247,7 +247,7 @@ describe('phase 3 — bash tool_use via recorded provider', () => {
   it('executes `ls /workspace/drive` against the InMemoryFs and emits non-null stdout', async () => {
     const provider = createRecordedProvider('meridian-bash-navigate.jsonl')
 
-    const { harness } = await bootWakePhase3({
+    const { harness } = await bootWakeWorkspaceAgent({
       organizationId: 'org-phase3',
       agentId: 'agt-phase3',
       contactId: 'ct-phase3',
@@ -275,7 +275,7 @@ describe('phase 3 — bash tool_use via recorded provider', () => {
     // must include the trailing section. The recorded fixture terminates after
     // one turn — for N+1 we rely on the `maxTurns: 2` loop where turn 1 re-uses
     // the same fixture replay (still emits a `finish` + empty tool set).
-    const { harness } = await bootWakePhase3({
+    const { harness } = await bootWakeWorkspaceAgent({
       organizationId: 'org-phase3',
       agentId: 'agt-phase3',
       contactId: 'ct-phase3',

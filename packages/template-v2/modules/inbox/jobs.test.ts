@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { setDb as setJournalDb } from '@modules/agents/service/journal'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_TENANT_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { wakeSnoozedJobHandler } from '@modules/inbox/jobs'
 import {
   reopen,
@@ -34,7 +34,7 @@ afterAll(async () => {
 
 describe('wakeSnoozedJobHandler idempotency', () => {
   it('no-ops when snoozedAt does not match current row', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_TENANT_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await reopen(conversation.id, 'test', 'staff_reopen').catch(() => undefined)
     await snooze({ conversationId: conversation.id, until: new Date(Date.now() + 3600_000), by: 'alice' })
 

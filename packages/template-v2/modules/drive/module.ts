@@ -1,7 +1,7 @@
 import { defineModule } from '@server/runtime/define-module'
 import { manifest } from './manifest'
-import { setDb, setTenantId } from './service/files'
-import { setTenantId as setProposalTenantId } from './service/proposal'
+import { setDb, setOrganizationId } from './service/files'
+import { setOrganizationId as setProposalOrganizationId } from './service/proposal'
 
 export default defineModule({
   name: 'drive',
@@ -9,7 +9,7 @@ export default defineModule({
   manifest,
   init(ctx) {
     setDb(ctx.db)
-    setTenantId(ctx.organizationId)
-    setProposalTenantId(ctx.organizationId)
+    setOrganizationId(ctx.organizationId)
+    setProposalOrganizationId(ctx.organizationId)
   },
 })

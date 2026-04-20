@@ -98,7 +98,7 @@ const noopLlmCall: PluginContext['llmCall'] = async (task) => ({
 })
 
 /** Build the Phase-3 registrations snapshot with observers/mutators pre-wired. */
-export function buildPhase3Registrations(opts: {
+export function buildWorkspaceAgentRegistrations(opts: {
   contactId: string
   agentId: string
   llmCall?: PluginContext['llmCall']
@@ -272,7 +272,7 @@ export function stubPhase3Ports(args: { organizationId: string; agentId: string;
 }
 
 /** Boot a Phase-3 wake with sensible defaults for unit/integration tests. */
-export async function bootWakePhase3(opts: MakePhase3Opts): Promise<BootWakeResult> {
+export async function bootWakeWorkspaceAgent(opts: MakePhase3Opts): Promise<BootWakeResult> {
   const basePorts = stubPhase3Ports({
     organizationId: opts.organizationId,
     agentId: opts.agentId,
@@ -284,7 +284,7 @@ export async function bootWakePhase3(opts: MakePhase3Opts): Promise<BootWakeResu
     drive: opts.overridePorts?.drive ?? basePorts.drive,
   }
 
-  const registrations = buildPhase3Registrations({
+  const registrations = buildWorkspaceAgentRegistrations({
     contactId: opts.contactId,
     agentId: opts.agentId,
     llmCall: opts.llmCall,

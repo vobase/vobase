@@ -1,7 +1,7 @@
 /**
- * Phase 1 green-thread integration test — proves the template-v2 architecture
- * end-to-end with zero real LLM calls, zero real channels, and the seeded
- * Meridian scenario.
+ * Wake-loop bootstrap — end-to-end integration test proving the template-v2
+ * architecture end-to-end with zero real LLM calls, zero real channels, and
+ * the seeded Meridian scenario.
  *
  * 14 it() blocks. Each assertion isolates ONE concern so failure signals are clean.
  *
@@ -15,7 +15,7 @@ import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import {
   ALICE_USER_ID,
   CUSTOMER_CHANNEL_INSTANCE_ID,
-  MERIDIAN_TENANT_ID,
+  MERIDIAN_ORG_ID,
   SEEDED_CONTACT_ID,
 } from '@modules/contacts/seed'
 import { SEEDED_CONV_ID } from '@modules/inbox/seed'
@@ -24,13 +24,13 @@ import type { SideLoadContributor } from '@server/contracts/side-load'
 import { mockStream } from '@server/harness'
 import { and, eq } from 'drizzle-orm'
 import type { Bash } from 'just-bash'
-import { connectTestDb, resetAndSeedDb, type TestDbHandle } from './helpers/test-db'
+import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../tests/helpers/test-db'
 import {
   bootWakeIntegration,
   buildIntegrationPorts,
   wireApprovalMutatorCtx,
   wireObserverContextFor,
-} from './helpers/test-harness'
+} from '../tests/helpers/test-harness'
 
 // Bracket-notation alias to keep the source clean while avoiding literal
 // `.exec(` tokens flagged by the repo security hook (this is just-bash's
@@ -108,7 +108,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -146,7 +146,7 @@ describe('Phase 1 green-thread wake', () => {
       const res = await bootWakeIntegration(
         ports,
         {
-          organizationId: MERIDIAN_TENANT_ID,
+          organizationId: MERIDIAN_ORG_ID,
           agentId: MERIDIAN_AGENT_ID,
           contactId: SEEDED_CONTACT_ID,
           conversationId: SEEDED_CONV_ID,
@@ -168,7 +168,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -206,7 +206,7 @@ describe('Phase 1 green-thread wake', () => {
     const wakeRes = await bootWakeIntegration(
       ports,
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -247,7 +247,7 @@ describe('Phase 1 green-thread wake', () => {
     const wakeRes = await bootWakeIntegration(
       ports,
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -267,7 +267,7 @@ describe('Phase 1 green-thread wake', () => {
     const wakeRes = await bootWakeIntegration(
       ports,
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -304,7 +304,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -332,7 +332,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -360,7 +360,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -415,7 +415,7 @@ describe('Phase 1 green-thread wake', () => {
     const { sseObserver } = await import('@modules/agents/observers/sse')
 
     const res = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,

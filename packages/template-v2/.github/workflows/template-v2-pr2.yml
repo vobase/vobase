@@ -104,9 +104,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run db:reset
-      - run: bun test tests/phase1-green-thread.test.ts
+      - run: bun test e2e/wake-loop-bootstrap.test.ts
       - run: bun run db:reset
-      - run: bun test tests/phase2-dogfood.test.ts modules/ server/
+      - run: bun test e2e/wake-end-to-end.test.ts modules/ server/
 
   smoke-staff-reply:
     name: Smoke — POST /reply (σ5 gate)

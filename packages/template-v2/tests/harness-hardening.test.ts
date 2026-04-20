@@ -1,5 +1,5 @@
 /**
- * Phase 4 harness hardening — convergence integration test.
+ * Harness hardening — convergence integration test.
  * Covers all 9 lanes end-to-end; no Docker or database required.
  */
 

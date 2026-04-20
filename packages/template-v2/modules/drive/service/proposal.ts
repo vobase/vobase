@@ -14,7 +14,7 @@
 import { decideProposal, insertProposal } from '@modules/agents/service/learning-proposals'
 
 let _tenantId = ''
-export function setTenantId(id: string): void {
+export function setOrganizationId(id: string): void {
   _tenantId = id
 }
 
@@ -37,7 +37,7 @@ export interface DriveProposalResult {
  * Status is always 'pending' — staff must approve before the file is written.
  */
 export async function propose(input: DriveProposalInput): Promise<DriveProposalResult> {
-  if (!_tenantId) throw new Error('drive/proposal: organizationId not set — call setTenantId() in module init')
+  if (!_tenantId) throw new Error('drive/proposal: organizationId not set — call setOrganizationId() in module init')
 
   const { id: proposalId } = await insertProposal({
     organizationId: _tenantId,

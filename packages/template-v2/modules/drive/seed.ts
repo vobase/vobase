@@ -5,9 +5,9 @@
  * Other files contain concise placeholder content.
  */
 
-import { MERIDIAN_TENANT_ID } from '@modules/contacts/seed'
+import { MERIDIAN_ORG_ID } from '@modules/contacts/seed'
 
-export { MERIDIAN_TENANT_ID }
+export { MERIDIAN_ORG_ID }
 
 const BUSINESS_MD_CONTENT = `# Business Identity
 
@@ -169,9 +169,9 @@ export async function seed(db: unknown): Promise<void> {
       .insert(driveFiles)
       .values({
         id: file.id,
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         scope: 'organization',
-        scopeId: MERIDIAN_TENANT_ID,
+        scopeId: MERIDIAN_ORG_ID,
         kind: 'file',
         name: file.name,
         path: file.path,

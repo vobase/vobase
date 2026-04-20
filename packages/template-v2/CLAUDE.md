@@ -28,9 +28,10 @@ Docker Postgres on port 5433 is required for every integration test. Run `docker
 
 | command | purpose |
 |---|---|
-| `bun run test` | full suite — `bun test tests/ modules/ server/ src/` |
-| `bun test <path>` | single file, e.g. `bun test tests/phase2-dogfood.test.ts` |
-| `bun test modules/ server/` | unit tests only (skip phase1/phase2 integration) |
+| `bun run test` | full suite — `bun test e2e/ tests/ modules/ server/ src/` |
+| `bun run test:unit` | unit suite — `bun test tests/ modules/ server/ src/` (skips e2e) |
+| `bun run test:e2e` | e2e suite — `bun test e2e/` (needs Docker Postgres + optional LLM keys) |
+| `bun test <path>` | single file, e.g. `bun test e2e/wake-end-to-end.test.ts` |
 | `bun run typecheck` | `tsc --noEmit` — must be 0 errors |
 | `bun run lint` | Biome — must be 0 errors |
 | `bun run check:shape` | module-shape lint (required files, handler LOC ≤ 200, no cross-module schema imports) |
@@ -39,10 +40,17 @@ Docker Postgres on port 5433 is required for every integration test. Run `docker
 
 ### Test layout
 
-- `tests/phase1-green-thread.test.ts` — **14 `it()` blocks** proving the Phase 1 skeleton: schemas, seed, workspace materialization, harness event stream, journal write path, RO enforcement, approval gate, frozen-snapshot invariant, CI gates. Uses `mockStream(...)`.
-- `tests/phase2-dogfood.test.ts` — **13 `it()` blocks** proving the live wake engine end-to-end: inbound webhook → wake → real LLM replay → tool call → approval block/approve/reject → outbound → SSE → mid-turn idempotency. Uses `createRecordedProvider('*.jsonl')`.
-- `modules/<module>/*.test.ts` and `modules/<module>/tests/*.test.ts` — per-module unit tests.
-- `server/harness/*.test.ts`, `server/runtime/*.test.ts` — harness and runtime unit tests.
+E2E tests (real Docker Postgres, optionally real LLM keys) live in `e2e/`. Unit tests live next to the code they cover under `modules/`, `server/`, and `src/`, with shared helpers in `tests/helpers/` and fixtures in `tests/fixtures/`.
+
+- `e2e/wake-loop-bootstrap.test.ts` — 14 `it()` blocks proving the bootstrap skeleton: schemas, seed, workspace materialization, harness event stream, journal write path, RO enforcement, approval gate, frozen-snapshot invariant, CI gates. Uses `mockStream(...)`.
+- `e2e/wake-end-to-end.test.ts` — 13 `it()` blocks proving the live wake engine end-to-end: inbound webhook → wake → real LLM replay → tool call → approval block/approve/reject → outbound → SSE → mid-turn idempotency. Uses `createRecordedProvider('*.jsonl')`.
+- `e2e/workspace-agent-loop.test.ts` — workspace-agent bash invocations, learning-proposal observer, moderation mutator, scorer observer, card-reply round-trip, Gemini caption, threat-scan wiring.
+- `e2e/workspace-sync.test.ts` — workspace materializers (dirty writeback) + memory distill stub.
+- `e2e/agent-adapter-integration.test.ts` — pi-agent-core adapter against a real wake.
+- `e2e/live-provider-smoke.test.ts` — opt-in live Anthropic/OpenAI smoke (`USE_RECORDED_FIXTURES=false` + API keys).
+- `e2e/nightly-gemini-drift.test.ts` — nightly live Gemini drift check (`GOOGLE_API_KEY` set).
+- `tests/harness-hardening.test.ts` — harness convergence tests; no DB, no keys.
+- `modules/<module>/*.test.ts`, `server/harness/*.test.ts`, `server/runtime/*.test.ts`, `src/**/*.test.*` — unit tests colocated with their code.
 
 ### Test helpers (`tests/helpers/`)
 
@@ -56,21 +64,21 @@ Docker Postgres on port 5433 is required for every integration test. Run `docker
 
 ### Deterministic CI via recorded fixtures
 
-Phase 2 assertions that touch a real LLM use `createRecordedProvider('<name>.jsonl')` instead of the Anthropic API. The JSONL files in `tests/fixtures/provider/` are one-event-per-line SSE replays (`meridian-hi-reply.jsonl`, `meridian-pricing-card.jsonl`, `meridian-pricing-card-reject.jsonl`). CI always replays; the nightly workflow (`.github/workflows/template-v2-nightly.yml`) swaps in the live API with `ANTHROPIC_API_KEY` to detect drift.
+E2E assertions that touch a real LLM use `createRecordedProvider('<name>.jsonl')` instead of the Anthropic API. The JSONL files in `tests/fixtures/provider/` are one-event-per-line SSE replays (`meridian-hi-reply.jsonl`, `meridian-pricing-card.jsonl`, `meridian-pricing-card-reject.jsonl`). CI always replays; the nightly workflow (`.github/workflows/template-v2-nightly.yml`) swaps in the live API with `ANTHROPIC_API_KEY` to detect drift.
 
 - Unit / harness tests → `mockStream([...])`.
-- Phase 2 integration → `createRecordedProvider(...)`.
+- E2E wake tests → `createRecordedProvider(...)`.
 - Do **not** re-record fixtures casually — CI determinism depends on stability. Re-record only when the provider API actually changes and commit the refreshed `.jsonl` alongside the test update.
 
 ### CI pipeline (`.github/workflows/template-v2.yml`)
 
-Eight steps in order: `typecheck` → `lint` → `check:shape` → `db:reset` → `bun test tests/phase1-green-thread.test.ts` → `db:reset` (again — fixture isolation between suites) → `bun test tests/phase2-dogfood.test.ts modules/ server/` → `check:bundle`. All must pass.
+Eight steps in order: `typecheck` → `lint` → `check:shape` → `db:reset` → `bun test e2e/wake-loop-bootstrap.test.ts` → `db:reset` (again — fixture isolation between suites) → `bun test e2e/wake-end-to-end.test.ts modules/ server/` → `check:bundle`. All must pass.
 
 ### Invariants tests enforce — do not bypass
 
 - **One-write-path.** All `messages` / `conversation_events` writes go through `InboxPort.send*Message` / `agents.service.journal.append`. Direct `.insert(messages)` outside `modules/inbox/service/` or `modules/agents/service/journal.ts` is forbidden.
 - **A3 dispatcher transport-only.** `modules/channels/*/service/dispatcher.ts` and `sender.ts` must not import drizzle or write to DB. `modules/channels/web/tests/dispatcher-transport-only.test.ts` guards this.
-- **Frozen-snapshot.** System prompt hash identical across turns; mid-wake writes appear in turn N+1, never turn N. Enforced by Phase 1 assertion 12 and Phase 2 assertion 10 via `capture-side-load-hashes.ts`.
+- **Frozen-snapshot.** System prompt hash identical across turns; mid-wake writes appear in turn N+1, never turn N. Enforced by `e2e/wake-loop-bootstrap.test.ts` assertion 12 and `e2e/wake-end-to-end.test.ts` assertion 10 via `capture-side-load-hashes.ts`.
 - **A7 V2ChannelAdapter.** Refines core's `ChannelAdapter` via `sendOutboundEvent()`; must never override core's `send()`.
 - **R1 domain types.** Hand-written `@server/contracts/domain-types.ts`; never `InferSelectModel` across module boundaries.
 - **Module shape.** Every module ships `module.ts`, `manifest.ts`, `schema.ts`, `handlers/index.ts`, `port.ts`, and `README.md` with YAML frontmatter. Handler files ≤ 200 raw lines. No cross-module `schema.ts` imports. `applyTransition()` only in `state.ts`.

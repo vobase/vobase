@@ -23,14 +23,14 @@ import {
   DEREK_CONTACT_ID,
   ELENA_CONTACT_ID,
   MARCUS_CONTACT_ID,
-  MERIDIAN_TENANT_ID,
+  MERIDIAN_ORG_ID,
   PRIYA_CONTACT_ID,
   SEEDED_CONTACT_ID,
   SOPHIA_CONTACT_ID,
   WEB_CHANNEL_INSTANCE_ID,
 } from '@modules/contacts/seed'
 
-export { MERIDIAN_TENANT_ID, SEEDED_CONTACT_ID }
+export { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID }
 
 /** Stable conversation ID — imported by integration tests and Lane F test-harness. */
 export const SEEDED_CONV_ID = 'cnv0test00'
@@ -67,7 +67,7 @@ async function insertConv(
   await insert(conversations)
     .values({
       id: row.id,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       contactId: row.contactId,
       channelInstanceId: row.channelInstanceId,
       status: row.status,
@@ -97,7 +97,7 @@ async function insertMsg(
     .values({
       id: row.id,
       conversationId: row.conversationId,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       role: row.role,
       kind: row.kind,
       content: row.content,
@@ -124,7 +124,7 @@ async function insertNote(
   await insert(internalNotes)
     .values({
       id: row.id,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: row.conversationId,
       authorType: row.authorType,
       authorId: row.authorId,
@@ -150,7 +150,7 @@ async function insertApproval(
   await insert(pendingApprovals)
     .values({
       id: row.id,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: row.conversationId,
       toolName: row.toolName,
       toolArgs: row.toolArgs,

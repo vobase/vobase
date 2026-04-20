@@ -25,7 +25,9 @@
     "check:shadcn-overrides": "bun run scripts/check-shadcn-overrides.ts",
     "check:no-auto-nav-tabs": "bun run scripts/check-no-auto-nav-tabs.ts",
     "check:no-stub-flag": "bun run scripts/check-no-stub-flag.ts",
-    "test": "bun test tests/ modules/ server/ src/",
+    "test": "bun test e2e/ tests/ modules/ server/ src/",
+    "test:unit": "bun test tests/ modules/ server/ src/",
+    "test:e2e": "bun test e2e/",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."

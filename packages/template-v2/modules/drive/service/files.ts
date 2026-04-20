@@ -28,7 +28,7 @@ function scopeId(scope: DriveScope, organizationId: string): { scopeName: string
 
 /** Injected organizationId — set by module init from ctx. */
 let _tenantId = ''
-export function setTenantId(id: string): void {
+export function setOrganizationId(id: string): void {
   _tenantId = id
 }
 

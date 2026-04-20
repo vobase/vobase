@@ -15,13 +15,13 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import { setDb as setLearningProposalsDb } from '@modules/agents/service/learning-proposals'
 import { createContactsPort } from '@modules/contacts/port'
-import { MERIDIAN_TENANT_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import {
   readWorkingMemory,
   setDb as setContactsDb,
   upsertWorkingMemorySection,
 } from '@modules/contacts/service/contacts'
-import { setTenantId as setProposalTenantId } from '@modules/drive/service/proposal'
+import { setOrganizationId as setProposalOrganizationId } from '@modules/drive/service/proposal'
 import { SEEDED_CONV_ID } from '@modules/inbox/seed'
 import { mockStream } from '@server/harness'
 import { DirtyTracker, snapshotFs } from '@server/workspace/dirty-tracker'
@@ -29,9 +29,9 @@ import { checkWriteAllowed } from '@server/workspace/ro-enforcer'
 import { driveVerbs } from '@server/workspace/vobase-cli/commands/drive'
 import { eq } from 'drizzle-orm'
 import { InMemoryFs } from 'just-bash'
-import type { TestDbHandle } from './helpers/test-db'
-import { connectTestDb, resetAndSeedDb } from './helpers/test-db'
-import { bootWakeIntegration, buildIntegrationPorts } from './helpers/test-harness'
+import type { TestDbHandle } from '../tests/helpers/test-db'
+import { connectTestDb, resetAndSeedDb } from '../tests/helpers/test-db'
+import { bootWakeIntegration, buildIntegrationPorts } from '../tests/helpers/test-harness'
 
 // ─── DB setup ────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ beforeAll(async () => {
   db = connectTestDb()
   setContactsDb(db.db)
   setLearningProposalsDb(db.db)
-  setProposalTenantId(MERIDIAN_TENANT_ID)
+  setProposalOrganizationId(MERIDIAN_ORG_ID)
 }, 60_000)
 
 afterAll(async () => {
@@ -60,7 +60,7 @@ describe('workspaceSyncObserver', () => {
     const { harness } = await bootWakeIntegration(
       { ...ports, contacts: realContactsPort },
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -122,7 +122,7 @@ describe('vobase drive propose CLI (C4)', () => {
     expect(cmd).toBeDefined()
 
     const ctx = {
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: SEEDED_CONV_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
@@ -157,7 +157,7 @@ describe('vobase drive propose CLI (C4)', () => {
   test('missing --path flag → returns error', async () => {
     const cmd = driveVerbs.find((v) => v.name === 'drive propose')!
     const ctx = {
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: SEEDED_CONV_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
@@ -184,7 +184,7 @@ describe('memoryDistillObserver', () => {
     const { harness } = await bootWakeIntegration(
       { ...ports, contacts: realContactsPort },
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,

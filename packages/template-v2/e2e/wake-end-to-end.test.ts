@@ -1,5 +1,5 @@
 /**
- * Phase 2 dogfood integration test — 13 assertions.
+ * Wake end-to-end — 13 assertions.
  *
  * Exercises the full round trip: inbound → wake → tool → approval gate →
  * resume (approve + reject) → SSE → frozen-snapshot invariant → idempotency.
@@ -13,7 +13,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
-import { ALICE_USER_ID, MERIDIAN_TENANT_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { ALICE_USER_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { SEEDED_CONV_ID } from '@modules/inbox/seed'
 import type { AgentEvent } from '@server/contracts/event'
 import type { AgentTool } from '@server/contracts/plugin-context'
@@ -22,11 +22,11 @@ import type { ModuleRegistrationsSnapshot } from '@server/harness'
 import { bootWake } from '@server/harness'
 import { mockStream } from '@server/harness/mock-stream'
 import { and, eq } from 'drizzle-orm'
-import { captureSideLoadHashes } from './helpers/capture-side-load-hashes'
-import { createRecordedProvider } from './helpers/recorded-provider'
-import { createSimulatedChannelWeb } from './helpers/simulated-channel-web'
-import { connectTestDb, resetAndSeedDb, type TestDbHandle } from './helpers/test-db'
-import { buildIntegrationPorts, wireApprovalMutatorCtx, wireObserverContextFor } from './helpers/test-harness'
+import { captureSideLoadHashes } from '../tests/helpers/capture-side-load-hashes'
+import { createRecordedProvider } from '../tests/helpers/recorded-provider'
+import { createSimulatedChannelWeb } from '../tests/helpers/simulated-channel-web'
+import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../tests/helpers/test-db'
+import { buildIntegrationPorts, wireApprovalMutatorCtx, wireObserverContextFor } from '../tests/helpers/test-harness'
 
 const noopLogger = {
   debug: () => undefined,
@@ -124,7 +124,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     const channelWeb = createSimulatedChannelWeb({ inboxPort, contactsPort: ports.contacts })
 
     const result = await channelWeb.postInbound({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       from: 'web:session-test-a1',
       text: 'Hi there',
     })
@@ -149,7 +149,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     for (let i = 0; i < 10; i++) {
       await scheduler.enqueue(
         { trigger: 'inbound_message', conversationId: SEEDED_CONV_ID, messageIds: [`rapid-msg-${i}`] },
-        { agentId: MERIDIAN_AGENT_ID, organizationId: MERIDIAN_TENANT_ID },
+        { agentId: MERIDIAN_AGENT_ID, organizationId: MERIDIAN_ORG_ID },
       )
     }
 
@@ -169,7 +169,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     const { approvalMutator } = await import('@modules/inbox/mutators/approval')
 
     const res = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -202,7 +202,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     const { replyTool } = await import('@modules/inbox/tools/reply')
 
     const res = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -239,7 +239,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     ).length
 
     const res = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -277,7 +277,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     sseNotifySpy.length = 0
 
     const res = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -343,7 +343,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
 
     // Run the approval_resumed wake using the hi-reply fixture (agent replies after approval)
     const resumedRes = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -384,7 +384,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
 
     const result = await dispatch(
       {
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         conversationId: SEEDED_CONV_ID,
         contactId: SEEDED_CONTACT_ID,
         wakeId: wakeIdA6 || 'a9-test-wake',
@@ -422,7 +422,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     ]
 
     const res = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -466,7 +466,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
 
     // Block a fresh send_card in a new wake
     const blockedRes = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -499,7 +499,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     ).length
 
     const rejRes = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -583,7 +583,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
         messageIds: ['a12-msg-1'],
       },
       agentId: MERIDIAN_AGENT_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
     })
 
     // Simulate mid-turn crash: first drain runs the handler but leaves job in queue

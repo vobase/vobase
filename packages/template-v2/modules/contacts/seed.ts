@@ -11,7 +11,7 @@
  */
 
 // Stable nanoid constants — hardcoded so tests can import them as compile-time constants.
-export const MERIDIAN_TENANT_ID = 'mer0tenant'
+export const MERIDIAN_ORG_ID = 'mer0tenant'
 
 export const ALICE_USER_ID = 'usr0alice0'
 export const BOB_USER_ID = 'usr00bob00'
@@ -66,7 +66,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(channelInstances)
     .values({
       id: CUSTOMER_CHANNEL_INSTANCE_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       type: 'whatsapp',
       role: 'customer',
       displayName: 'Meridian Customer WA',
@@ -78,7 +78,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(channelInstances)
     .values({
       id: STAFF_CHANNEL_INSTANCE_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       type: 'whatsapp',
       role: 'staff',
       displayName: 'Meridian Staff WA',
@@ -90,7 +90,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(channelInstances)
     .values({
       id: WEB_CHANNEL_INSTANCE_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       type: 'web',
       role: 'customer',
       displayName: 'Meridian Web Chat',
@@ -118,7 +118,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: SEEDED_CONTACT_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       displayName: 'Test Customer',
       phone: '+6500000000',
       workingMemory: '',
@@ -130,7 +130,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: PRIYA_CONTACT_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       displayName: 'Priya Raman',
       email: 'priya@acme-labs.io',
       phone: '+6591100201',
@@ -150,7 +150,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: MARCUS_CONTACT_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       displayName: 'Marcus Chen',
       email: 'marcus.chen@northwind.co',
       phone: '+6591100202',
@@ -168,7 +168,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: ELENA_CONTACT_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       displayName: 'Elena Rossi',
       email: 'elena@rossi-design.studio',
       phone: '+6591100203',
@@ -186,7 +186,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: DEREK_CONTACT_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       displayName: 'Derek Okafor',
       email: 'derek@okafor.dev',
       phone: '+6591100204',
@@ -199,7 +199,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: SOPHIA_CONTACT_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       displayName: 'Sophia Nakamura',
       email: 'sophia@nakamura-co.jp',
       phone: '+6591100205',

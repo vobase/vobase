@@ -1,7 +1,7 @@
 /**
- * Phase 3 dogfood integration test — ≥14 assertions.
+ * Workspace-agent loop — ≥14 assertions.
  *
- * Exercises the full Phase-3 loop: workspace-agent bash invocations,
+ * Exercises the workspace-agent loop end-to-end:
  * learning-proposal observer, moderation mutator, scorer observer,
  * card-reply round-trip, Gemini caption, and threat_scan wiring.
  *
@@ -12,7 +12,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
-import { ALICE_USER_ID, MERIDIAN_TENANT_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { ALICE_USER_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { SEEDED_CONV_ID } from '@modules/inbox/seed'
 import type { AgentEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
@@ -23,11 +23,11 @@ import type { ToolResult } from '@server/contracts/tool-result'
 import type { ModuleRegistrationsSnapshot } from '@server/harness'
 import { bootWake } from '@server/harness'
 import { eq } from 'drizzle-orm'
-import { captureSideLoadHashes } from './helpers/capture-side-load-hashes'
-import { bootWakePhase3, buildPhase3Registrations } from './helpers/make-phase3-harness'
-import { createRecordedProvider } from './helpers/recorded-provider'
-import { connectTestDb, resetAndSeedDb, type TestDbHandle } from './helpers/test-db'
-import { buildIntegrationPorts, wireApprovalMutatorCtx, wireObserverContextFor } from './helpers/test-harness'
+import { captureSideLoadHashes } from '../tests/helpers/capture-side-load-hashes'
+import { bootWakeWorkspaceAgent, buildWorkspaceAgentRegistrations } from '../tests/helpers/make-workspace-agent-harness'
+import { createRecordedProvider } from '../tests/helpers/recorded-provider'
+import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../tests/helpers/test-db'
+import { buildIntegrationPorts, wireApprovalMutatorCtx, wireObserverContextFor } from '../tests/helpers/test-harness'
 
 const noopLogger = {
   debug: () => undefined,
@@ -152,8 +152,8 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
       return { stdout: 'BUSINESS.md\nREADME.md\nAGENTS.md\n' }
     })
 
-    const res = await bootWakePhase3({
-      organizationId: MERIDIAN_TENANT_ID,
+    const res = await bootWakeWorkspaceAgent({
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -197,8 +197,8 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
       return { stdout: '' }
     })
 
-    await bootWakePhase3({
-      organizationId: MERIDIAN_TENANT_ID,
+    await bootWakeWorkspaceAgent({
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -245,8 +245,8 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
       },
     ]
 
-    const res = await bootWakePhase3({
-      organizationId: MERIDIAN_TENANT_ID,
+    const res = await bootWakeWorkspaceAgent({
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -271,8 +271,8 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
 
   // ── #4 ── moderation mutator emits event via persistEvent (not direct db.insert) ──
   it('moderation mutator emits moderation_blocked via persistEvent path — event appears in harness stream', async () => {
-    const res = await bootWakePhase3({
-      organizationId: MERIDIAN_TENANT_ID,
+    const res = await bootWakeWorkspaceAgent({
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -304,8 +304,8 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
       },
     } as unknown as AgentTool
 
-    const res = await bootWakePhase3({
-      organizationId: MERIDIAN_TENANT_ID,
+    const res = await bootWakeWorkspaceAgent({
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -368,7 +368,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     const before = (await db.db.select().from(agentScores).where(eq(agentScores.conversationId, SEEDED_CONV_ID))).length
 
     const res = await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -436,11 +436,11 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     }
 
     const countBefore = (
-      await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_TENANT_ID))
+      await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_ORG_ID))
     ).length
 
     await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -465,7 +465,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     expect(upsertCalls[0]!.heading).toBe('Preferences')
 
     // Proposal row inserted with status=auto_written
-    const rows = await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_TENANT_ID))
+    const rows = await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_ORG_ID))
     const added = rows.slice(countBefore)
     const autoWritten = added.filter((r) => r.status === 'auto_written' && r.scope === 'contact')
     expect(autoWritten.length).toBeGreaterThanOrEqual(1)
@@ -509,12 +509,12 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     }
 
     const countBefore = (
-      await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_TENANT_ID))
+      await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_ORG_ID))
     ).length
 
     // Regular inbound_message trigger — detectStaffSignals returns []
     await bootWake({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,
@@ -529,7 +529,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
 
     // Zero new proposals
     const countAfter = (
-      await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_TENANT_ID))
+      await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_ORG_ID))
     ).length
     expect(countAfter).toBe(countBefore)
     // Observer exited early at step 3 — LLM never called
@@ -544,7 +544,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
 
     // Seed a pending drive_doc proposal and reject it
     const { id: proposalId } = await insertProposal({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: SEEDED_CONV_ID,
       scope: 'drive_doc',
       action: 'create',
@@ -563,7 +563,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     })
 
     const fakeCtx = {
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: SEEDED_CONV_ID,
       wakeId: 'test-antilesson-wake',
       db: db.db,
@@ -579,7 +579,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
         ts: new Date(),
         wakeId: 'test-antilesson-wake',
         conversationId: SEEDED_CONV_ID,
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         turnIndex: 0,
         proposalId,
         reason: 'staff_rejected',
@@ -592,7 +592,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
         ts: new Date(),
         wakeId: 'test-antilesson-wake',
         conversationId: SEEDED_CONV_ID,
-        organizationId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_ORG_ID,
         turnIndex: 0,
         reason: 'complete',
       },
@@ -623,7 +623,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     })
 
     const { id: proposalId } = await insertProposal({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: SEEDED_CONV_ID,
       scope: 'drive_doc',
       action: 'create',
@@ -671,7 +671,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     // Seed a card message to reply to
     const cardMsg = await appendCardMessage({
       conversationId: SEEDED_CONV_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       wakeId: 'wake-p3-10b',
       turnIndex: 0,
@@ -728,7 +728,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
 
     const cardMsg2 = await appendCardMessage({
       conversationId: SEEDED_CONV_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       wakeId: 'wake-p3-10c',
       turnIndex: 0,
@@ -751,7 +751,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
         conversationId: replyMsg.conversationId,
         messageIds: [replyMsg.id],
       },
-      { agentId: MERIDIAN_AGENT_ID, organizationId: MERIDIAN_TENANT_ID },
+      { agentId: MERIDIAN_AGENT_ID, organizationId: MERIDIAN_ORG_ID },
     )
 
     const pending = q.pending()
@@ -811,7 +811,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
 
     // Approve a drive_doc proposal — Phase 3 stub always returns {ok:true}
     const { id: docId } = await insertProposal({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: SEEDED_CONV_ID,
       scope: 'drive_doc',
       action: 'create',
@@ -827,7 +827,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
 
     // Approve an agent_skill proposal — different materialisation path, same threat_scan
     const { id: skillId } = await insertProposal({
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       conversationId: SEEDED_CONV_ID,
       scope: 'agent_skill',
       action: 'create',

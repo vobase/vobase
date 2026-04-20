@@ -254,7 +254,7 @@ export function translatePiMonoEvents(events: readonly PiAgentEvent[]): string[]
 }
 
 /** Canonical event-TYPE sequence for a single-turn no-tool-call wake. */
-export const PHASE_1_CANONICAL_EVENT_SEQUENCE: readonly string[] = [
+export const CANONICAL_EVENT_SEQUENCE: readonly string[] = [
   'agent_start',
   'turn_start',
   'llm_call',

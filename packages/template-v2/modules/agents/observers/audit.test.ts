@@ -1,7 +1,7 @@
 /**
  * auditObserver tests — contract + shape verification.
  * Full integration (auditLog row count == 3, auditWakeMap rows per wake == 3)
- * is covered by tests/phase1-green-thread.test.ts which runs against real Postgres.
+ * is covered by e2e/wake-loop-bootstrap.test.ts which runs against real Postgres.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -70,7 +70,7 @@ describe('auditObserver', () => {
   // channel_outbound, and wake_scheduled. The generic handle() covers all AgentEvent
   // variants — these tests assert the new types are valid AgentEvent members and that
   // handle() accepts them (unit: Promise-shaped return; DB-level row count covered by
-  // phase1-green-thread.test.ts and phase2-dogfood.test.ts).
+  // e2e/wake-loop-bootstrap.test.ts and e2e/wake-end-to-end.test.ts).
 
   it('handle() accepts channel_inbound event without type error', () => {
     const ctx = makeCtx()

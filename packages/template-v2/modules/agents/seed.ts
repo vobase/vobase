@@ -2,9 +2,9 @@
  * agents module seed — inserts the meridian-support-v1 agent_definitions row.
  */
 
-import { MERIDIAN_TENANT_ID } from '@modules/drive/seed'
+import { MERIDIAN_ORG_ID } from '@modules/drive/seed'
 
-export { MERIDIAN_TENANT_ID }
+export { MERIDIAN_ORG_ID }
 
 /** Stable agent ID — consumed by inbox/seed and integration tests. */
 export const MERIDIAN_AGENT_ID = 'agt0mer0v1'
@@ -59,7 +59,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(agentDefinitions)
     .values({
       id: MERIDIAN_AGENT_ID,
-      organizationId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_ORG_ID,
       name: 'meridian-support-v1',
       soulMd: SOUL_MD,
       model: 'claude-sonnet-4-6',
