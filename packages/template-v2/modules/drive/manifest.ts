@@ -7,4 +7,16 @@ export const manifest: ModuleManifest = {
     channels: [],
   },
   permissions: [],
+  workspace: {
+    owns: [{ kind: 'prefix', path: '/workspace/drive/' }],
+    frozenEager: [{ kind: 'exact', path: '/workspace/drive/BUSINESS.md' }],
+  },
+  tables: ['public.drive_files', 'public.learning_proposals'],
+  accessGrants: [
+    {
+      to: 'agents',
+      path: 'service/learning-proposals',
+      reason: 'drive proposal builder co-commits a LearningProposal via agents-owned writer',
+    },
+  ],
 }

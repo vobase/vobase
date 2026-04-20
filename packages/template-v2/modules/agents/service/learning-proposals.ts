@@ -5,12 +5,15 @@
  * `agent_skill` / `drive_doc` are pending until `decideProposal` runs the
  * threat-scan, materialises the approved scope, journals the decision, and
  * fires a pg_notify invalidate.
+ *
+ * Factory-DI service. `createLearningProposalsService({ db, notifier })`
+ * returns the bound API; `installLearningProposalsService(svc)` wires the module-scoped
+ * handle used by the free-function wrappers. `setDb(db)` and `setNotifier(fn)` remain
+ * as compatibility shims — they patch the in-place installed service without requiring
+ * call-sites to rebuild it from scratch.
  */
 
 import { nanoid } from 'nanoid'
-
-let _db: unknown = null
-let _notifier: NotifyFn | null = null
 
 /**
  * Fired after a decision commits. Production wires this to pg_notify on the
@@ -18,19 +21,6 @@ let _notifier: NotifyFn | null = null
  * so `use-realtime-invalidation.ts` invalidates the staff UI.
  */
 export type NotifyFn = (channel: string, payload: string) => Promise<void> | void
-
-export function setDb(db: unknown): void {
-  _db = db
-}
-
-export function setNotifier(fn: NotifyFn | null): void {
-  _notifier = fn
-}
-
-function requireDb() {
-  if (!_db) throw new Error('agents/learning-proposals: db not initialised — call setDb() in module init')
-  return _db as DrizzleHandle
-}
 
 export type ProposalScope = 'contact' | 'agent_memory' | 'agent_skill' | 'drive_doc'
 export type ProposalAction = 'upsert' | 'create' | 'patch'
@@ -93,31 +83,6 @@ interface DrizzleHandle {
   transaction: <T>(fn: (tx: DrizzleHandle) => Promise<T>) => Promise<T>
 }
 
-export async function insertProposal(input: InsertProposalInput): Promise<{ id: string }> {
-  const { learningProposals } = await import('@modules/agents/schema')
-  const db = requireDb()
-  const id = nanoid(10)
-  const status: ProposalStatus = input.status ?? (needsApproval(input.scope) ? 'pending' : 'auto_written')
-
-  await db
-    .insert(learningProposals)
-    .values({
-      id,
-      organizationId: input.organizationId,
-      conversationId: input.conversationId,
-      scope: input.scope,
-      action: input.action,
-      target: input.target,
-      body: input.body ?? null,
-      rationale: input.rationale ?? null,
-      confidence: input.confidence ?? null,
-      status,
-    })
-    .returning()
-
-  return { id }
-}
-
 export interface DecideResult {
   proposalId: string
   status: Extract<ProposalStatus, 'approved' | 'rejected'>
@@ -126,92 +91,154 @@ export interface DecideResult {
   threatScanReport?: unknown
 }
 
-export async function decideProposal(
-  id: string,
-  decision: 'approved' | 'rejected',
-  decidedByUserId: string,
-  note?: string,
-): Promise<DecideResult> {
-  const { learningProposals } = await import('@modules/agents/schema')
-  const { eq } = await import('drizzle-orm')
-  const db = requireDb()
-
-  const rows = (await db
-    .select()
-    .from(learningProposals)
-    .where(eq(learningProposals.id, id))
-    .limit(1)) as unknown as ProposalRow[]
-  const proposal = rows[0]
-  if (!proposal) throw new Error(`learning-proposals.decide: not found: ${id}`)
-  if (proposal.status !== 'pending') {
-    throw new Error(`learning-proposals.decide: not pending (status=${proposal.status})`)
-  }
-
-  if (decision === 'rejected') {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(learningProposals)
-        .set({ status: 'rejected', decidedByUserId, decidedAt: new Date(), decidedNote: note ?? null })
-        .where(eq(learningProposals.id, id))
-      await emitJournalEvent(tx, proposal, {
-        type: 'learning_rejected',
-        proposalId: id,
-        reason: note ?? 'staff_rejected',
-      })
-    })
-    await notifyInvalidate('learnings:refresh', { proposalId: id, status: 'rejected' })
-    return { proposalId: id, status: 'rejected', writeId: null }
-  }
-
-  const scanResult = await runThreatScan(proposal.body ?? '')
-  if (!scanResult.ok) {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(learningProposals)
-        .set({ status: 'rejected', decidedByUserId, decidedAt: new Date(), decidedNote: note ?? 'threat_scan' })
-        .where(eq(learningProposals.id, id))
-      await emitJournalEvent(tx, proposal, { type: 'learning_rejected', proposalId: id, reason: 'threat_scan' })
-    })
-    await notifyInvalidate('learnings:refresh', { proposalId: id, status: 'rejected' })
-    return { proposalId: id, status: 'rejected', writeId: null, threatScanReport: scanResult }
-  }
-
-  const writeId = await db.transaction(async (tx) => {
-    const wid = await writeApprovedScope(tx, proposal)
-    await tx
-      .update(learningProposals)
-      .set({
-        status: 'approved',
-        decidedByUserId,
-        decidedAt: new Date(),
-        decidedNote: note ?? null,
-        approvedWriteId: wid,
-      })
-      .where(eq(learningProposals.id, id))
-    await emitJournalEvent(tx, proposal, { type: 'learning_approved', proposalId: id, writeId: wid })
-    return wid
-  })
-  await notifyInvalidate(invalidateChannelFor(proposal.scope), { proposalId: id, writeId, scope: proposal.scope })
-
-  return { proposalId: id, status: 'approved', writeId }
+export interface LearningProposalsService {
+  insertProposal(input: InsertProposalInput): Promise<{ id: string }>
+  decideProposal(
+    id: string,
+    decision: 'approved' | 'rejected',
+    decidedByUserId: string,
+    note?: string,
+  ): Promise<DecideResult>
+  listRecent(organizationId: string, status?: ProposalStatus, limit?: number): Promise<ProposalRow[]>
+  setNotifier(fn: NotifyFn | null): void
 }
 
-export async function listRecent(organizationId: string, status?: ProposalStatus, limit = 50): Promise<ProposalRow[]> {
-  const { learningProposals } = await import('@modules/agents/schema')
-  const { and, desc, eq } = await import('drizzle-orm')
-  const db = requireDb()
+export interface LearningProposalsServiceDeps {
+  db: unknown
+  notifier?: NotifyFn | null
+}
 
-  const where = status
-    ? and(eq(learningProposals.organizationId, organizationId), eq(learningProposals.status, status))
-    : eq(learningProposals.organizationId, organizationId)
+export function createLearningProposalsService(deps: LearningProposalsServiceDeps): LearningProposalsService {
+  const db = deps.db as DrizzleHandle
+  let notifier: NotifyFn | null = deps.notifier ?? null
 
-  const rows = (await db
-    .select()
-    .from(learningProposals)
-    .where(where)
-    .orderBy(desc(learningProposals.createdAt))
-    .limit(limit)) as unknown as ProposalRow[]
-  return rows
+  async function insertProposal(input: InsertProposalInput): Promise<{ id: string }> {
+    const { learningProposals } = await import('@modules/agents/schema')
+    const id = nanoid(10)
+    const status: ProposalStatus = input.status ?? (needsApproval(input.scope) ? 'pending' : 'auto_written')
+
+    await db
+      .insert(learningProposals)
+      .values({
+        id,
+        organizationId: input.organizationId,
+        conversationId: input.conversationId,
+        scope: input.scope,
+        action: input.action,
+        target: input.target,
+        body: input.body ?? null,
+        rationale: input.rationale ?? null,
+        confidence: input.confidence ?? null,
+        status,
+      })
+      .returning()
+
+    return { id }
+  }
+
+  async function decideProposal(
+    id: string,
+    decision: 'approved' | 'rejected',
+    decidedByUserId: string,
+    note?: string,
+  ): Promise<DecideResult> {
+    const { learningProposals } = await import('@modules/agents/schema')
+    const { eq } = await import('drizzle-orm')
+
+    const rows = (await db
+      .select()
+      .from(learningProposals)
+      .where(eq(learningProposals.id, id))
+      .limit(1)) as unknown as ProposalRow[]
+    const proposal = rows[0]
+    if (!proposal) throw new Error(`learning-proposals.decide: not found: ${id}`)
+    if (proposal.status !== 'pending') {
+      throw new Error(`learning-proposals.decide: not pending (status=${proposal.status})`)
+    }
+
+    if (decision === 'rejected') {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(learningProposals)
+          .set({ status: 'rejected', decidedByUserId, decidedAt: new Date(), decidedNote: note ?? null })
+          .where(eq(learningProposals.id, id))
+        await emitJournalEvent(tx, proposal, {
+          type: 'learning_rejected',
+          proposalId: id,
+          reason: note ?? 'staff_rejected',
+        })
+      })
+      await notifyInvalidate('learnings:refresh', { proposalId: id, status: 'rejected' })
+      return { proposalId: id, status: 'rejected', writeId: null }
+    }
+
+    const scanResult = await runThreatScan(proposal.body ?? '')
+    if (!scanResult.ok) {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(learningProposals)
+          .set({ status: 'rejected', decidedByUserId, decidedAt: new Date(), decidedNote: note ?? 'threat_scan' })
+          .where(eq(learningProposals.id, id))
+        await emitJournalEvent(tx, proposal, { type: 'learning_rejected', proposalId: id, reason: 'threat_scan' })
+      })
+      await notifyInvalidate('learnings:refresh', { proposalId: id, status: 'rejected' })
+      return { proposalId: id, status: 'rejected', writeId: null, threatScanReport: scanResult }
+    }
+
+    const writeId = await db.transaction(async (tx) => {
+      const wid = await writeApprovedScope(tx, proposal)
+      await tx
+        .update(learningProposals)
+        .set({
+          status: 'approved',
+          decidedByUserId,
+          decidedAt: new Date(),
+          decidedNote: note ?? null,
+          approvedWriteId: wid,
+        })
+        .where(eq(learningProposals.id, id))
+      await emitJournalEvent(tx, proposal, { type: 'learning_approved', proposalId: id, writeId: wid })
+      return wid
+    })
+    await notifyInvalidate(invalidateChannelFor(proposal.scope), { proposalId: id, writeId, scope: proposal.scope })
+
+    return { proposalId: id, status: 'approved', writeId }
+  }
+
+  async function listRecent(organizationId: string, status?: ProposalStatus, limit = 50): Promise<ProposalRow[]> {
+    const { learningProposals } = await import('@modules/agents/schema')
+    const { and, desc, eq } = await import('drizzle-orm')
+
+    const where = status
+      ? and(eq(learningProposals.organizationId, organizationId), eq(learningProposals.status, status))
+      : eq(learningProposals.organizationId, organizationId)
+
+    const rows = (await db
+      .select()
+      .from(learningProposals)
+      .where(where)
+      .orderBy(desc(learningProposals.createdAt))
+      .limit(limit)) as unknown as ProposalRow[]
+    return rows
+  }
+
+  async function notifyInvalidate(channel: string, payload: Record<string, unknown>): Promise<void> {
+    if (!notifier) return
+    try {
+      await notifier(channel, JSON.stringify(payload))
+    } catch {
+      // notifications are best-effort — swallow so decide() never fails on NOTIFY
+    }
+  }
+
+  return {
+    insertProposal,
+    decideProposal,
+    listRecent,
+    setNotifier(fn) {
+      notifier = fn
+    },
+  }
 }
 
 function needsApproval(scope: ProposalScope): boolean {
@@ -225,8 +252,6 @@ function invalidateChannelFor(scope: ProposalScope): string {
 }
 
 async function runThreatScan(_body: string): Promise<{ ok: true } | { ok: false; reason: string }> {
-  // Stub scanner — real patterns land with the moderation mutator work;
-  // `server/contracts/threat-scan.ts` holds the signature every scanner honours.
   return { ok: true }
 }
 
@@ -304,15 +329,6 @@ async function emitJournalEvent(
   })
 }
 
-async function notifyInvalidate(channel: string, payload: Record<string, unknown>): Promise<void> {
-  if (!_notifier) return
-  try {
-    await _notifier(channel, JSON.stringify(payload))
-  } catch {
-    // notifications are best-effort — swallow so decide() never fails on NOTIFY
-  }
-}
-
 /**
  * Build a `NotifyFn` that bridges the service's named channels
  * (`learnings:refresh` / `skills:invalidate` / `drive:invalidate`) into a
@@ -335,4 +351,57 @@ export function createLearningNotifier(db: unknown): NotifyFn {
     const { sql } = await import('drizzle-orm')
     await handle.execute(sql`SELECT pg_notify('vobase_sse', ${ssePayload})` as never)
   }
+}
+
+let _currentLearningProposalsService: LearningProposalsService | null = null
+
+export function installLearningProposalsService(svc: LearningProposalsService): void {
+  _currentLearningProposalsService = svc
+}
+
+export function __resetLearningProposalsServiceForTests(): void {
+  _currentLearningProposalsService = null
+}
+
+function current(): LearningProposalsService {
+  if (!_currentLearningProposalsService) {
+    throw new Error(
+      'agents/learning-proposals: service not installed — call installLearningProposalsService() in module init',
+    )
+  }
+  return _currentLearningProposalsService
+}
+
+/** Compatibility shim — constructs + installs in one call. Preserves any previously-set notifier. */
+export function setDb(db: unknown): void {
+  // If a notifier was already set, carry it over so setDb() doesn't silently reset it.
+  const previousNotifier = _currentLearningProposalsService ? _capturedNotifier : null
+  installLearningProposalsService(createLearningProposalsService({ db, notifier: previousNotifier }))
+  if (previousNotifier) _capturedNotifier = previousNotifier
+}
+
+/** Compatibility shim — forwards to the installed service; no-op if none installed yet. */
+let _capturedNotifier: NotifyFn | null = null
+export function setNotifier(fn: NotifyFn | null): void {
+  _capturedNotifier = fn
+  if (_currentLearningProposalsService) {
+    _currentLearningProposalsService.setNotifier(fn)
+  }
+}
+
+export async function insertProposal(input: InsertProposalInput): Promise<{ id: string }> {
+  return current().insertProposal(input)
+}
+
+export async function decideProposal(
+  id: string,
+  decision: 'approved' | 'rejected',
+  decidedByUserId: string,
+  note?: string,
+): Promise<DecideResult> {
+  return current().decideProposal(id, decision, decidedByUserId, note)
+}
+
+export async function listRecent(organizationId: string, status?: ProposalStatus, limit = 50): Promise<ProposalRow[]> {
+  return current().listRecent(organizationId, status, limit)
 }

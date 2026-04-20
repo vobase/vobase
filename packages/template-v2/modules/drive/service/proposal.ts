@@ -9,14 +9,13 @@
  * On approval, it writes the drive file via the drive service (Phase 2 stub — the actual
  * drive.files.create call is deferred until a real `ScopedDb` lands; the proposal row is
  * updated to 'approved' and the write ID is stored for idempotency).
+ *
+ * Factory-DI service. `createProposalService({ organizationId })` returns the
+ * bound API; `installProposalService(svc)` wires the module-scoped handle used by the
+ * free-function wrappers below.
  */
 
 import { decideProposal, insertProposal } from '@modules/agents/service/learning-proposals'
-
-let _tenantId = ''
-export function setOrganizationId(id: string): void {
-  _tenantId = id
-}
 
 export interface DriveProposalInput {
   conversationId: string
@@ -32,37 +31,83 @@ export interface DriveProposalResult {
   status: 'pending'
 }
 
-/**
- * Insert a learning_proposals row for a organization-drive document change.
- * Status is always 'pending' — staff must approve before the file is written.
- */
-export async function propose(input: DriveProposalInput): Promise<DriveProposalResult> {
-  if (!_tenantId) throw new Error('drive/proposal: organizationId not set — call setOrganizationId() in module init')
-
-  const { id: proposalId } = await insertProposal({
-    organizationId: _tenantId,
-    conversationId: input.conversationId,
-    scope: 'drive_doc',
-    action: 'upsert',
-    target: input.path,
-    body: input.body,
-    rationale: input.rationale,
-    confidence: input.confidence,
-    status: 'pending',
-  })
-
-  return { proposalId, status: 'pending' }
+export interface ProposalService {
+  propose(input: DriveProposalInput): Promise<DriveProposalResult>
+  decideDriveProposal(
+    proposalId: string,
+    decision: 'approved' | 'rejected',
+    decidedByUserId: string,
+    note?: string,
+  ): Promise<void>
 }
 
-/**
- * Staff decision on a drive proposal.
- * On approval: marks approved_write_id = proposalId (actual file write is Phase 3).
- */
+export interface ProposalServiceDeps {
+  organizationId: string
+}
+
+export function createProposalService(deps: ProposalServiceDeps): ProposalService {
+  const organizationId = deps.organizationId
+
+  async function propose(input: DriveProposalInput): Promise<DriveProposalResult> {
+    if (!organizationId) {
+      throw new Error(
+        'drive/proposal: organizationId not set — construct createProposalService with a wake organizationId',
+      )
+    }
+
+    const { id: proposalId } = await insertProposal({
+      organizationId,
+      conversationId: input.conversationId,
+      scope: 'drive_doc',
+      action: 'upsert',
+      target: input.path,
+      body: input.body,
+      rationale: input.rationale,
+      confidence: input.confidence,
+      status: 'pending',
+    })
+
+    return { proposalId, status: 'pending' }
+  }
+
+  async function decideDriveProposal(
+    proposalId: string,
+    decision: 'approved' | 'rejected',
+    decidedByUserId: string,
+    note?: string,
+  ): Promise<void> {
+    await decideProposal(proposalId, decision, decidedByUserId, note)
+  }
+
+  return { propose, decideDriveProposal }
+}
+
+let _currentProposalService: ProposalService | null = null
+
+export function installProposalService(svc: ProposalService): void {
+  _currentProposalService = svc
+}
+
+export function __resetProposalServiceForTests(): void {
+  _currentProposalService = null
+}
+
+function current(): ProposalService {
+  if (!_currentProposalService) {
+    throw new Error('drive/proposal: service not installed — call installProposalService() in module init')
+  }
+  return _currentProposalService
+}
+
+export async function propose(input: DriveProposalInput): Promise<DriveProposalResult> {
+  return current().propose(input)
+}
+
 export async function decideDriveProposal(
   proposalId: string,
   decision: 'approved' | 'rejected',
   decidedByUserId: string,
   note?: string,
 ): Promise<void> {
-  await decideProposal(proposalId, decision, decidedByUserId, note)
+  return current().decideDriveProposal(proposalId, decision, decidedByUserId, note)
 }

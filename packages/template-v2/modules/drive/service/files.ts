@@ -1,6 +1,11 @@
 /**
  * REAL Phase 1 — getByPath, listFolder, readContent, getBusinessMd.
  * All write methods throw not-implemented-in-phase-1.
+ *
+ * Factory-DI service. `createFilesService({ db, organizationId })`
+ * returns the bound API; `installFilesService(svc)` wires the module-scoped
+ * handle used by the free-function wrappers below (which preserve the
+ * existing import surface).
  */
 import type { DriveFile } from '@server/contracts/domain-types'
 import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInput } from '@server/contracts/drive-port'
@@ -8,128 +13,224 @@ import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInpu
 /** Fallback content when /BUSINESS.md is absent from the drive. */
 export const BUSINESS_MD_FALLBACK = 'No business profile configured. Ask staff to create /BUSINESS.md in the drive.'
 
-let _db: unknown = null
-
-export function setDb(db: unknown): void {
-  _db = db
-}
-
-function requireDb(): unknown {
-  if (!_db) throw new Error('drive/files: db not initialised — call setDb() in module init')
-  return _db
-}
-
-function scopeId(scope: DriveScope, organizationId: string): { scopeName: string; scopeIdVal: string } {
-  if (scope.scope === 'organization') {
-    return { scopeName: 'organization', scopeIdVal: organizationId }
+type FilesDb = {
+  select: () => {
+    from: (t: unknown) => {
+      where: (c: unknown) => {
+        limit: (n: number) => Promise<unknown[]>
+      } & Promise<unknown[]>
+    }
   }
-  return { scopeName: 'contact', scopeIdVal: scope.contactId }
 }
 
-/** Injected organizationId — set by module init from ctx. */
-let _tenantId = ''
-export function setOrganizationId(id: string): void {
-  _tenantId = id
+export interface FilesService {
+  getByPath(scope: DriveScope, path: string): Promise<DriveFile | null>
+  listFolder(scope: DriveScope, parentId: string | null): Promise<DriveFile[]>
+  readContent(id: string): Promise<{ content: string; spilledToPath?: string }>
+  getBusinessMd(): Promise<string>
+  get(id: string): Promise<DriveFile | null>
+  grep(scope: DriveScope, pattern: string, opts?: GrepOpts): Promise<GrepMatch[]>
+  create(scope: DriveScope, input: CreateFileInput): Promise<DriveFile>
+  mkdir(scope: DriveScope, path: string): Promise<DriveFile>
+  move(id: string, newPath: string): Promise<DriveFile>
+  remove(id: string): Promise<void>
+  ingestUpload(input: IngestUploadInput): Promise<DriveFile>
+  saveInboundMessageAttachment(msgId: string, targetPath?: string): Promise<DriveFile>
+  deleteScope(scope: 'contact', scopeId: string): Promise<void>
+}
+
+export interface FilesServiceDeps {
+  db: unknown
+  organizationId: string
+}
+
+export function createFilesService(deps: FilesServiceDeps): FilesService {
+  const db = deps.db as FilesDb
+  const organizationId = deps.organizationId
+
+  function scopeId(scope: DriveScope): { scopeName: string; scopeIdVal: string } {
+    if (scope.scope === 'organization') {
+      return { scopeName: 'organization', scopeIdVal: organizationId }
+    }
+    return { scopeName: 'contact', scopeIdVal: scope.contactId }
+  }
+
+  async function getByPath(scope: DriveScope, path: string): Promise<DriveFile | null> {
+    const { driveFiles } = await import('@modules/drive/schema')
+    const { eq, and } = await import('drizzle-orm')
+    const { scopeName, scopeIdVal } = scopeId(scope)
+
+    const rows = await db
+      .select()
+      .from(driveFiles)
+      .where(
+        and(
+          eq(driveFiles.organizationId, organizationId),
+          eq(driveFiles.scope, scopeName),
+          eq(driveFiles.scopeId, scopeIdVal),
+          eq(driveFiles.path, path),
+        ),
+      )
+      .limit(1)
+    return (rows[0] as DriveFile) ?? null
+  }
+
+  async function listFolder(scope: DriveScope, parentId: string | null): Promise<DriveFile[]> {
+    const { driveFiles } = await import('@modules/drive/schema')
+    const { eq, and, isNull } = await import('drizzle-orm')
+    const { scopeName, scopeIdVal } = scopeId(scope)
+
+    const rows = await db
+      .select()
+      .from(driveFiles)
+      .where(
+        and(
+          eq(driveFiles.organizationId, organizationId),
+          eq(driveFiles.scope, scopeName),
+          eq(driveFiles.scopeId, scopeIdVal),
+          parentId ? eq(driveFiles.parentFolderId, parentId) : isNull(driveFiles.parentFolderId),
+        ),
+      )
+    return rows as DriveFile[]
+  }
+
+  async function readContent(id: string): Promise<{ content: string; spilledToPath?: string }> {
+    const { driveFiles } = await import('@modules/drive/schema')
+    const { eq } = await import('drizzle-orm')
+
+    const rows = await db.select().from(driveFiles).where(eq(driveFiles.id, id)).limit(1)
+    const row = rows[0] as DriveFile | undefined
+    if (!row) throw new Error(`drive file not found: ${id}`)
+
+    const content = row.extractedText ?? ''
+    return { content }
+  }
+
+  async function getBusinessMd(): Promise<string> {
+    const file = await getByPath({ scope: 'organization' }, '/BUSINESS.md')
+    if (!file) return BUSINESS_MD_FALLBACK
+    const { content } = await readContent(file.id)
+    return content || BUSINESS_MD_FALLBACK
+  }
+
+  async function get(_id: string): Promise<DriveFile | null> {
+    throw new Error('not-implemented-in-phase-1: drive/files.get')
+  }
+
+  async function grep(_scope: DriveScope, _pattern: string, _opts?: GrepOpts): Promise<GrepMatch[]> {
+    throw new Error('not-implemented-in-phase-1: drive/files.grep')
+  }
+
+  async function create(_scope: DriveScope, _input: CreateFileInput): Promise<DriveFile> {
+    throw new Error('not-implemented-in-phase-1: drive/files.create')
+  }
+
+  async function mkdir(_scope: DriveScope, _path: string): Promise<DriveFile> {
+    throw new Error('not-implemented-in-phase-1: drive/files.mkdir')
+  }
+
+  async function move(_id: string, _newPath: string): Promise<DriveFile> {
+    throw new Error('not-implemented-in-phase-1: drive/files.move')
+  }
+
+  async function remove(_id: string): Promise<void> {
+    throw new Error('not-implemented-in-phase-1: drive/files.remove')
+  }
+
+  async function ingestUpload(_input: IngestUploadInput): Promise<DriveFile> {
+    throw new Error('not-implemented-in-phase-1: drive/files.ingestUpload')
+  }
+
+  async function saveInboundMessageAttachment(_msgId: string, _targetPath?: string): Promise<DriveFile> {
+    throw new Error('not-implemented-in-phase-1: drive/files.saveInboundMessageAttachment')
+  }
+
+  async function deleteScope(_scope: 'contact', _scopeId: string): Promise<void> {
+    throw new Error('not-implemented-in-phase-1: drive/files.deleteScope')
+  }
+
+  return {
+    getByPath,
+    listFolder,
+    readContent,
+    getBusinessMd,
+    get,
+    grep,
+    create,
+    mkdir,
+    move,
+    remove,
+    ingestUpload,
+    saveInboundMessageAttachment,
+    deleteScope,
+  }
+}
+
+let _currentFilesService: FilesService | null = null
+
+export function installFilesService(svc: FilesService): void {
+  _currentFilesService = svc
+}
+
+export function __resetFilesServiceForTests(): void {
+  _currentFilesService = null
+}
+
+function current(): FilesService {
+  if (!_currentFilesService) {
+    throw new Error('drive/files: service not installed — call installFilesService() in module init')
+  }
+  return _currentFilesService
 }
 
 export async function getByPath(scope: DriveScope, path: string): Promise<DriveFile | null> {
-  const { driveFiles } = await import('@modules/drive/schema')
-  const { eq, and } = await import('drizzle-orm')
-  const db = requireDb() as { select: Function }
-  const { scopeName, scopeIdVal } = scopeId(scope, _tenantId)
-
-  const rows = await db
-    .select()
-    .from(driveFiles)
-    .where(
-      and(
-        eq(driveFiles.organizationId, _tenantId),
-        eq(driveFiles.scope, scopeName),
-        eq(driveFiles.scopeId, scopeIdVal),
-        eq(driveFiles.path, path),
-      ),
-    )
-    .limit(1)
-  return (rows[0] as DriveFile) ?? null
+  return current().getByPath(scope, path)
 }
 
 export async function listFolder(scope: DriveScope, parentId: string | null): Promise<DriveFile[]> {
-  const { driveFiles } = await import('@modules/drive/schema')
-  const { eq, and, isNull } = await import('drizzle-orm')
-  const db = requireDb() as { select: Function }
-  const { scopeName, scopeIdVal } = scopeId(scope, _tenantId)
-
-  const rows = await db
-    .select()
-    .from(driveFiles)
-    .where(
-      and(
-        eq(driveFiles.organizationId, _tenantId),
-        eq(driveFiles.scope, scopeName),
-        eq(driveFiles.scopeId, scopeIdVal),
-        parentId ? eq(driveFiles.parentFolderId, parentId) : isNull(driveFiles.parentFolderId),
-      ),
-    )
-  return rows as DriveFile[]
+  return current().listFolder(scope, parentId)
 }
 
 export async function readContent(id: string): Promise<{ content: string; spilledToPath?: string }> {
-  const { driveFiles } = await import('@modules/drive/schema')
-  const { eq } = await import('drizzle-orm')
-  const db = requireDb() as { select: Function }
-
-  const rows = await db.select().from(driveFiles).where(eq(driveFiles.id, id)).limit(1)
-  const row = rows[0] as DriveFile | undefined
-  if (!row) throw new Error(`drive file not found: ${id}`)
-
-  const content = row.extractedText ?? ''
-  return { content }
+  return current().readContent(id)
 }
 
-/**
- * Reads /BUSINESS.md from the organization scope.
- * Returns the stub fallback string if the row doesn't exist.
- */
 export async function getBusinessMd(): Promise<string> {
-  const file = await getByPath({ scope: 'organization' }, '/BUSINESS.md')
-  if (!file) return BUSINESS_MD_FALLBACK
-  const { content } = await readContent(file.id)
-  return content || BUSINESS_MD_FALLBACK
+  return current().getBusinessMd()
 }
 
-// Scaffold — Phase 2
-export async function get(_id: string): Promise<DriveFile | null> {
-  throw new Error('not-implemented-in-phase-1: drive/files.get')
+export async function get(id: string): Promise<DriveFile | null> {
+  return current().get(id)
 }
 
-export async function grep(_scope: DriveScope, _pattern: string, _opts?: GrepOpts): Promise<GrepMatch[]> {
-  throw new Error('not-implemented-in-phase-1: drive/files.grep')
+export async function grep(scope: DriveScope, pattern: string, opts?: GrepOpts): Promise<GrepMatch[]> {
+  return current().grep(scope, pattern, opts)
 }
 
-export async function create(_scope: DriveScope, _input: CreateFileInput): Promise<DriveFile> {
-  throw new Error('not-implemented-in-phase-1: drive/files.create')
+export async function create(scope: DriveScope, input: CreateFileInput): Promise<DriveFile> {
+  return current().create(scope, input)
 }
 
-export async function mkdir(_scope: DriveScope, _path: string): Promise<DriveFile> {
-  throw new Error('not-implemented-in-phase-1: drive/files.mkdir')
+export async function mkdir(scope: DriveScope, path: string): Promise<DriveFile> {
+  return current().mkdir(scope, path)
 }
 
-export async function move(_id: string, _newPath: string): Promise<DriveFile> {
-  throw new Error('not-implemented-in-phase-1: drive/files.move')
+export async function move(id: string, newPath: string): Promise<DriveFile> {
+  return current().move(id, newPath)
 }
 
-export async function remove(_id: string): Promise<void> {
-  throw new Error('not-implemented-in-phase-1: drive/files.remove')
+export async function remove(id: string): Promise<void> {
+  return current().remove(id)
 }
 
-export async function ingestUpload(_input: IngestUploadInput): Promise<DriveFile> {
-  throw new Error('not-implemented-in-phase-1: drive/files.ingestUpload')
+export async function ingestUpload(input: IngestUploadInput): Promise<DriveFile> {
+  return current().ingestUpload(input)
 }
 
-export async function saveInboundMessageAttachment(_msgId: string, _targetPath?: string): Promise<DriveFile> {
-  throw new Error('not-implemented-in-phase-1: drive/files.saveInboundMessageAttachment')
+export async function saveInboundMessageAttachment(msgId: string, targetPath?: string): Promise<DriveFile> {
+  return current().saveInboundMessageAttachment(msgId, targetPath)
 }
 
-export async function deleteScope(_scope: 'contact', _scopeId: string): Promise<void> {
-  throw new Error('not-implemented-in-phase-1: drive/files.deleteScope')
+export async function deleteScope(scope: 'contact', scopeId: string): Promise<void> {
+  return current().deleteScope(scope, scopeId)
 }

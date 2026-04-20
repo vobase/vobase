@@ -1,15 +1,14 @@
 import { defineModule } from '@server/runtime/define-module'
 import { manifest } from './manifest'
-import { setDb, setOrganizationId } from './service/files'
-import { setOrganizationId as setProposalOrganizationId } from './service/proposal'
+import { createFilesService, installFilesService } from './service/files'
+import { createProposalService, installProposalService } from './service/proposal'
 
 export default defineModule({
   name: 'drive',
   version: '1.0',
   manifest,
   init(ctx) {
-    setDb(ctx.db)
-    setOrganizationId(ctx.organizationId)
-    setProposalOrganizationId(ctx.organizationId)
+    installFilesService(createFilesService({ db: ctx.db, organizationId: ctx.organizationId }))
+    installProposalService(createProposalService({ organizationId: ctx.organizationId }))
   },
 })
