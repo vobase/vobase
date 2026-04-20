@@ -4,7 +4,7 @@
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { setDb as setJournalDb } from '@modules/agents/service/journal'
-import { setDb as setMessagesDb } from '@modules/inbox/service/messages'
+import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
 import type { Message } from '@server/contracts/domain-types'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ function makeJournalDb() {
 
 describe('sendStaffReply', () => {
   beforeEach(() => {
-    setMessagesDb(makeTransactionDb(fakeMessage))
+    installMessagesService(createMessagesService({ db: makeTransactionDb(fakeMessage) }))
     setJournalDb(makeJournalDb())
   })
 
@@ -94,11 +94,13 @@ describe('sendStaffReply', () => {
     let capturedKind: unknown
     let capturedContent: unknown
 
-    setMessagesDb(
-      makeTransactionDb(fakeMessage, (vals) => {
-        capturedRole = vals.role
-        capturedKind = vals.kind
-        capturedContent = vals.content
+    installMessagesService(
+      createMessagesService({
+        db: makeTransactionDb(fakeMessage, (vals) => {
+          capturedRole = vals.role
+          capturedKind = vals.kind
+          capturedContent = vals.content
+        }),
       }),
     )
 
@@ -112,9 +114,11 @@ describe('sendStaffReply', () => {
   it('journals tool_execution_end with toolName=staff_reply atomically', async () => {
     let capturedToolName: unknown
 
-    setMessagesDb(
-      makeTransactionDb(fakeMessage, undefined, (vals) => {
-        capturedToolName = journalToolName(vals)
+    installMessagesService(
+      createMessagesService({
+        db: makeTransactionDb(fakeMessage, undefined, (vals) => {
+          capturedToolName = journalToolName(vals)
+        }),
       }),
     )
 

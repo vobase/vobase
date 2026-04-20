@@ -15,20 +15,20 @@ import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import {
   ConversationFailedError,
+  createConversationsService,
   createInboundMessage,
   get,
+  installConversationsService,
   reopen,
   reset,
   resolve,
   resumeOrCreate,
   SnoozeNotAllowedError,
-  setDb as setConversationsDb,
-  setScheduler,
   snooze,
   unsnooze,
   wakeSnoozed,
 } from '@modules/inbox/service/conversations'
-import { setDb as setMessagesDb } from '@modules/inbox/service/messages'
+import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
 import { and, eq } from 'drizzle-orm'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../../tests/helpers/test-db'
 
@@ -55,10 +55,9 @@ function fakeScheduler() {
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
-  setConversationsDb(db.db)
+  installConversationsService(createConversationsService({ db: db.db, scheduler: fakeScheduler() }))
   setJournalDb(db.db)
-  setMessagesDb(db.db)
-  setScheduler(fakeScheduler())
+  installMessagesService(createMessagesService({ db: db.db }))
 })
 
 afterAll(async () => {

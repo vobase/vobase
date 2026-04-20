@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { setDb as setJournalDb } from '@modules/agents/service/journal'
-import { setDb as setMessagesDb } from '@modules/inbox/service/messages'
+import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
 import type { ToolContext } from '@server/contracts/tool'
 import { sendCardTool } from './send-card'
 
@@ -39,7 +39,7 @@ const noopJournalDb = { insert: (_: unknown) => ({ values: (_v: unknown) => Prom
 beforeEach(() => {
   messageStore = []
   eventStore = []
-  setMessagesDb(makeDb())
+  installMessagesService(createMessagesService({ db: makeDb() }))
   setJournalDb(noopJournalDb)
 })
 

@@ -79,7 +79,7 @@ function makeJournalDb() {
 
 beforeEach(async () => {
   const mod = await import('./messages')
-  mod.setDb(makeDb([fakeParent], fakeReplyRow))
+  mod.installMessagesService(mod.createMessagesService({ db: makeDb([fakeParent], fakeReplyRow) }))
 
   const journal = await import('@modules/agents/service/journal')
   journal.setDb(makeJournalDb())
@@ -103,34 +103,38 @@ describe('appendCardReplyMessage', () => {
   })
 
   it('inserts message inside transaction with correct content shape', async () => {
-    const { setDb, appendCardReplyMessage } = await import('./messages')
+    const { appendCardReplyMessage, createMessagesService, installMessagesService } = await import('./messages')
 
     let capturedKind: unknown
     let capturedRole: unknown
     let capturedContent: unknown
     let capturedParentId: unknown
 
-    setDb({
-      select: () => makeSelectDb([fakeParent]),
-      transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
-        const fakeTx = {
+    installMessagesService(
+      createMessagesService({
+        db: {
           select: () => makeSelectDb([fakeParent]),
-          insert: (_table: unknown) => ({
-            values: (vals: Record<string, unknown>) => {
-              if ('kind' in vals) {
-                capturedKind = vals.kind
-                capturedRole = vals.role
-                capturedContent = vals.content
-                capturedParentId = vals.parentMessageId
-                return { returning: async () => [fakeReplyRow] }
-              }
-              return { returning: async () => [{ id: 999 }] }
-            },
-          }),
-        }
-        return fn(fakeTx)
-      },
-    } as unknown)
+          transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
+            const fakeTx = {
+              select: () => makeSelectDb([fakeParent]),
+              insert: (_table: unknown) => ({
+                values: (vals: Record<string, unknown>) => {
+                  if ('kind' in vals) {
+                    capturedKind = vals.kind
+                    capturedRole = vals.role
+                    capturedContent = vals.content
+                    capturedParentId = vals.parentMessageId
+                    return { returning: async () => [fakeReplyRow] }
+                  }
+                  return { returning: async () => [{ id: 999 }] }
+                },
+              }),
+            }
+            return fn(fakeTx)
+          },
+        },
+      }),
+    )
 
     await appendCardReplyMessage({
       parentMessageId: 'parent-card-1',
@@ -145,12 +149,16 @@ describe('appendCardReplyMessage', () => {
   })
 
   it('throws when parent message not found', async () => {
-    const { setDb, appendCardReplyMessage } = await import('./messages')
+    const { appendCardReplyMessage, createMessagesService, installMessagesService } = await import('./messages')
 
-    setDb({
-      select: () => makeSelectDb([]),
-      transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn({ select: () => makeSelectDb([]) } as unknown),
-    } as unknown)
+    installMessagesService(
+      createMessagesService({
+        db: {
+          select: () => makeSelectDb([]),
+          transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn({ select: () => makeSelectDb([]) } as unknown),
+        },
+      }),
+    )
 
     await expect(
       appendCardReplyMessage({ parentMessageId: 'missing-id', buttonId: 'b', buttonValue: 'v' }),

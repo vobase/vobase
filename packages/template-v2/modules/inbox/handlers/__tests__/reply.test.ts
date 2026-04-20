@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { setDb as setJournalDb } from '@modules/agents/service/journal'
-import { setDb as setMessagesDb } from '@modules/inbox/service/messages'
-import { setDb as setStaffOpsDb } from '@modules/inbox/service/staff-ops'
+import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
+import { createStaffOpsService, installStaffOpsService } from '@modules/inbox/service/staff-ops'
 import { OUTBOUND_TOOL_NAME_SET } from '@server/contracts/channel-event'
 import { Hono } from 'hono'
 import replyRouter from '../reply'
@@ -111,8 +111,8 @@ describe('POST /conversations/:id/reply', () => {
 
   beforeEach(() => {
     notifyCalls = []
-    setStaffOpsDb(makeStaffOpsDb(fakeConv, notifyCalls))
-    setMessagesDb(makeMessagesDb(fakeMessage))
+    installStaffOpsService(createStaffOpsService({ db: makeStaffOpsDb(fakeConv, notifyCalls) }))
+    installMessagesService(createMessagesService({ db: makeMessagesDb(fakeMessage) }))
     setJournalDb(makeJournalDb())
   })
 
@@ -144,7 +144,9 @@ describe('POST /conversations/:id/reply', () => {
   })
 
   it('(d) cross-organization: returns 404 when conversation belongs to different organization', async () => {
-    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls))
+    installStaffOpsService(
+      createStaffOpsService({ db: makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls) }),
+    )
     const res = await POST(CONV_ID, { body: 'Hi', staffUserId: 'u-1' })
     expect(res.status).toBe(404)
   })

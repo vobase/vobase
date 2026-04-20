@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { setDb as setNotesDb } from '@modules/inbox/service/notes'
-import { setDb as setStaffOpsDb } from '@modules/inbox/service/staff-ops'
+import { createNotesService, installNotesService } from '@modules/inbox/service/notes'
+import { createStaffOpsService, installStaffOpsService } from '@modules/inbox/service/staff-ops'
 import { Hono } from 'hono'
 import notesRouter from '../notes'
 
@@ -98,8 +98,8 @@ describe('POST /conversations/:id/notes', () => {
 
   beforeEach(() => {
     notifyCalls = []
-    setStaffOpsDb(makeStaffOpsDb(fakeConv, notifyCalls))
-    setNotesDb(makeNotesDb(fakeNote))
+    installStaffOpsService(createStaffOpsService({ db: makeStaffOpsDb(fakeConv, notifyCalls) }))
+    installNotesService(createNotesService({ db: makeNotesDb(fakeNote) }))
   })
 
   it('(a) rejects payload missing required fields with 400', async () => {
@@ -134,13 +134,15 @@ describe('POST /conversations/:id/notes', () => {
   })
 
   it('(d) returns 404 when conversation not found', async () => {
-    setStaffOpsDb(makeStaffOpsDb(null, notifyCalls))
+    installStaffOpsService(createStaffOpsService({ db: makeStaffOpsDb(null, notifyCalls) }))
     const res = await POST(CONV_ID, { body: 'hi', authorType: 'staff', authorId: 'u-1' })
     expect(res.status).toBe(404)
   })
 
   it('(d) returns 403 when conversation belongs to different organization', async () => {
-    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls))
+    installStaffOpsService(
+      createStaffOpsService({ db: makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls) }),
+    )
     const res = await POST(CONV_ID, { body: 'hi', authorType: 'staff', authorId: 'u-1' })
     expect(res.status).toBe(403)
   })

@@ -3,13 +3,13 @@ import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { wakeSnoozedJobHandler } from '@modules/inbox/jobs'
 import {
+  createConversationsService,
+  installConversationsService,
   reopen,
   resumeOrCreate,
-  setDb as setConversationsDb,
-  setScheduler,
   snooze,
 } from '@modules/inbox/service/conversations'
-import { setDb as setMessagesDb } from '@modules/inbox/service/messages'
+import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../tests/helpers/test-db'
 
 let db: TestDbHandle
@@ -22,10 +22,9 @@ const noopScheduler = {
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
-  setConversationsDb(db.db)
+  installConversationsService(createConversationsService({ db: db.db, scheduler: noopScheduler }))
   setJournalDb(db.db)
-  setMessagesDb(db.db)
-  setScheduler(noopScheduler)
+  installMessagesService(createMessagesService({ db: db.db }))
 })
 
 afterAll(async () => {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { setDb as setJournalDb } from '@modules/agents/service/journal'
-import { setDb as setConversationsDb } from '@modules/inbox/service/conversations'
-import { setDb as setStaffOpsDb } from '@modules/inbox/service/staff-ops'
+import { createConversationsService, installConversationsService } from '@modules/inbox/service/conversations'
+import { createStaffOpsService, installStaffOpsService } from '@modules/inbox/service/staff-ops'
 import { Hono } from 'hono'
 import reassignRouter from '../reassign'
 
@@ -103,8 +103,10 @@ describe('POST /conversations/:id/reassign', () => {
 
   beforeEach(() => {
     notifyCalls = []
-    setStaffOpsDb(makeStaffOpsDb(fakeConv, notifyCalls))
-    setConversationsDb(makeConversationsDb(fakeConv, { ...fakeConv, assignee: 'agent-bob' }))
+    installStaffOpsService(createStaffOpsService({ db: makeStaffOpsDb(fakeConv, notifyCalls) }))
+    installConversationsService(
+      createConversationsService({ db: makeConversationsDb(fakeConv, { ...fakeConv, assignee: 'agent-bob' }) }),
+    )
     setJournalDb(makeJournalDb())
   })
 
@@ -139,13 +141,15 @@ describe('POST /conversations/:id/reassign', () => {
   })
 
   it('(d) returns 404 when conversation not found', async () => {
-    setStaffOpsDb(makeStaffOpsDb(null, notifyCalls))
+    installStaffOpsService(createStaffOpsService({ db: makeStaffOpsDb(null, notifyCalls) }))
     const res = await POST(CONV_ID, { assignee: 'agent-bob' })
     expect(res.status).toBe(404)
   })
 
   it('(d) returns 403 when conversation belongs to different organization', async () => {
-    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls))
+    installStaffOpsService(
+      createStaffOpsService({ db: makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls) }),
+    )
     const res = await POST(CONV_ID, { assignee: 'agent-bob' })
     expect(res.status).toBe(403)
   })
