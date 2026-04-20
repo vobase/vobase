@@ -8,15 +8,11 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'shell/home-redirect.tsx'),
-    route('/inbox', '../modules/inbox/pages/layout.tsx', [
-      physical('/', '../modules/inbox/pages'),
-    ]),
+    route('/inbox', '../modules/inbox/pages/layout.tsx', [physical('/', '../modules/inbox/pages')]),
     physical('/contacts', '../modules/contacts/pages'),
     physical('/agents', '../modules/agents/pages'),
     physical('/drive', '../modules/drive/pages'),
     physical('/channels', '../modules/channels/pages'),
-    route('/settings', '../modules/settings/pages/layout.tsx', [
-      physical('/', '../modules/settings/pages'),
-    ]),
+    route('/settings', '../modules/settings/pages/layout.tsx', [physical('/', '../modules/settings/pages')]),
   ]),
 ])

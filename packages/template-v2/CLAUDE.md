@@ -117,6 +117,23 @@ expect(types).toEqual([
 ])
 ```
 
+### Module-primitives migration window (Phase 0, Steps 5–8)
+
+While the declarative-module-primitives migration is in flight, `check:shape`
+runs in **non-strict** mode by default: Phase 0 rules (no file-level singletons;
+no raw `db.transaction()` in services; observer/mutator id ↔ manifest match;
+command name ↔ manifest match; `accessGrants` cover cross-module service
+imports) emit warnings instead of errors. Each module migrates in its own PR
+(`inbox` → `drive` → `agents` → `contacts` → `channels/web,whatsapp` → `system,settings`),
+and Step 8's final sub-step flips strict on unconditionally.
+
+- `CHECK_SHAPE_STRICT=true bun run check:shape` — run strict locally to preview the final flip
+- `bun scripts/check-new-modules.ts` — lints new modules (not on Step-5 baseline) strict regardless
+- `scripts/new-modules-baseline.txt` — baseline of modules present when Step 5 merged
+- `modules/tests/{no-file-level-singletons,journaled-tx-required,manifest-matches-registrations,accessGrants-service-import}.test.ts` — negative tests paired with each rule; tolerate violations in non-strict, fail in strict
+
+New modules added during the migration window MUST be strict-clean from day one: factory services (`createXService({ db, organizationId })`), no file-level singletons, all cross-module service imports declared via manifest `accessGrants`, every journal-appending mutation wrapped in `ctx.withJournaledTx`.
+
 ### Anti-patterns
 
 - Don't mock the database — every integration test uses real Postgres via Docker.

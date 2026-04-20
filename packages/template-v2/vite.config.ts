@@ -11,7 +11,8 @@ export default defineConfig({
       virtualRouteConfig: './src/routes.ts',
       routesDirectory: './src',
       generatedRouteTree: './src/routeTree.gen.ts',
-      routeFileIgnorePattern: '^(api|lib|schemas|components|__tests__|__snapshots__)$|^(layout|api|lib|schemas)\\.tsx?$|\\.(test|spec)\\.',
+      routeFileIgnorePattern:
+        '^(api|lib|schemas|components|__tests__|__snapshots__)$|^(layout|api|lib|schemas)\\.tsx?$|\\.(test|spec)\\.',
     }),
     react(),
     tailwindcss(),

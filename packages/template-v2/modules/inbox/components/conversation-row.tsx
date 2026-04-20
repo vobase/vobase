@@ -1,3 +1,4 @@
+import { deriveContactName, deriveInitials } from '@modules/inbox/lib/contact'
 import type { Contact, Conversation } from '@server/contracts/domain-types'
 import { ClockIcon } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -5,7 +6,6 @@ import { AvatarGroup } from '@/components/ui/avatar-group'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { Status } from '@/components/ui/status'
 import { cn } from '@/lib/utils'
-import { deriveContactName, deriveInitials } from '@modules/inbox/lib/contact'
 
 interface ConversationRowProps {
   conversation: Conversation

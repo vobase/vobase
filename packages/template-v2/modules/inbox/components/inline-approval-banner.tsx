@@ -1,6 +1,6 @@
+import { fetchApprovals, useDecideApproval } from '@modules/inbox/api/use-decide-approval'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { fetchApprovals, useDecideApproval } from '@modules/inbox/api/use-decide-approval'
 
 interface InlineApprovalBannerProps {
   conversationId: string

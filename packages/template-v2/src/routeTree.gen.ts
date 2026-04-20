@@ -8,30 +8,30 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './root'
-import { Route as pagesTestWebRouteImport } from './pages/test-web'
-import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
-import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
-import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
-import { Route as DotDotModulesInboxPagesLayoutRouteImport } from './../modules/inbox/pages/layout'
-import { Route as shellHomeRedirectRouteImport } from './shell/home-redirect'
-import { Route as IndexRouteImport } from './../modules/inbox/pages/index'
-import { Route as DriveIndexRouteImport } from './../modules/drive/pages/index'
-import { Route as ContactsIndexRouteImport } from './../modules/contacts/pages/index'
-import { Route as ChannelsIndexRouteImport } from './../modules/channels/pages/index'
 import { Route as AgentsIndexRouteImport } from './../modules/agents/pages/index'
-import { Route as shellAuthPendingRouteImport } from './shell/auth/pending'
-import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
-import { Route as ProfileRouteImport } from './../modules/settings/pages/profile'
-import { Route as NotificationsRouteImport } from './../modules/settings/pages/notifications'
-import { Route as DisplayRouteImport } from './../modules/settings/pages/display'
-import { Route as AppearanceRouteImport } from './../modules/settings/pages/appearance'
-import { Route as ApiKeysRouteImport } from './../modules/settings/pages/api-keys'
-import { Route as AccountRouteImport } from './../modules/settings/pages/account'
-import { Route as ApprovalsRouteImport } from './../modules/inbox/pages/approvals'
-import { Route as IdRouteImport } from './../modules/inbox/pages/$id'
-import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
 import { Route as AgentsLearningsRouteImport } from './../modules/agents/pages/learnings'
+import { Route as ChannelsIndexRouteImport } from './../modules/channels/pages/index'
+import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
+import { Route as ContactsIndexRouteImport } from './../modules/contacts/pages/index'
+import { Route as DriveIndexRouteImport } from './../modules/drive/pages/index'
+import { Route as IdRouteImport } from './../modules/inbox/pages/$id'
+import { Route as ApprovalsRouteImport } from './../modules/inbox/pages/approvals'
+import { Route as IndexRouteImport } from './../modules/inbox/pages/index'
+import { Route as DotDotModulesInboxPagesLayoutRouteImport } from './../modules/inbox/pages/layout'
+import { Route as AccountRouteImport } from './../modules/settings/pages/account'
+import { Route as ApiKeysRouteImport } from './../modules/settings/pages/api-keys'
+import { Route as AppearanceRouteImport } from './../modules/settings/pages/appearance'
+import { Route as DisplayRouteImport } from './../modules/settings/pages/display'
+import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
+import { Route as NotificationsRouteImport } from './../modules/settings/pages/notifications'
+import { Route as ProfileRouteImport } from './../modules/settings/pages/profile'
+import { Route as pagesTestWebRouteImport } from './pages/test-web'
+import { Route as rootRouteImport } from './root'
+import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
+import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
+import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
+import { Route as shellAuthPendingRouteImport } from './shell/auth/pending'
+import { Route as shellHomeRedirectRouteImport } from './shell/home-redirect'
 
 const pagesTestWebRoute = pagesTestWebRouteImport.update({
   id: '/test-web',
@@ -46,18 +46,16 @@ const shellAppLayoutRoute = shellAppLayoutRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DotDotModulesSettingsPagesLayoutRoute =
-  DotDotModulesSettingsPagesLayoutRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => shellAppLayoutRoute,
-  } as any)
-const DotDotModulesInboxPagesLayoutRoute =
-  DotDotModulesInboxPagesLayoutRouteImport.update({
-    id: '/inbox',
-    path: '/inbox',
-    getParentRoute: () => shellAppLayoutRoute,
-  } as any)
+const DotDotModulesSettingsPagesLayoutRoute = DotDotModulesSettingsPagesLayoutRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => shellAppLayoutRoute,
+} as any)
+const DotDotModulesInboxPagesLayoutRoute = DotDotModulesInboxPagesLayoutRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => shellAppLayoutRoute,
+} as any)
 const shellHomeRedirectRoute = shellHomeRedirectRouteImport.update({
   id: '/',
   path: '/',
@@ -471,17 +469,15 @@ interface DotDotModulesInboxPagesLayoutRouteChildren {
   IndexRoute: typeof IndexRoute
 }
 
-const DotDotModulesInboxPagesLayoutRouteChildren: DotDotModulesInboxPagesLayoutRouteChildren =
-  {
-    IdRoute: IdRoute,
-    ApprovalsRoute: ApprovalsRoute,
-    IndexRoute: IndexRoute,
-  }
+const DotDotModulesInboxPagesLayoutRouteChildren: DotDotModulesInboxPagesLayoutRouteChildren = {
+  IdRoute: IdRoute,
+  ApprovalsRoute: ApprovalsRoute,
+  IndexRoute: IndexRoute,
+}
 
-const DotDotModulesInboxPagesLayoutRouteWithChildren =
-  DotDotModulesInboxPagesLayoutRoute._addFileChildren(
-    DotDotModulesInboxPagesLayoutRouteChildren,
-  )
+const DotDotModulesInboxPagesLayoutRouteWithChildren = DotDotModulesInboxPagesLayoutRoute._addFileChildren(
+  DotDotModulesInboxPagesLayoutRouteChildren,
+)
 
 interface DotDotModulesSettingsPagesLayoutRouteChildren {
   AccountRoute: typeof AccountRoute
@@ -492,20 +488,18 @@ interface DotDotModulesSettingsPagesLayoutRouteChildren {
   ProfileRoute: typeof ProfileRoute
 }
 
-const DotDotModulesSettingsPagesLayoutRouteChildren: DotDotModulesSettingsPagesLayoutRouteChildren =
-  {
-    AccountRoute: AccountRoute,
-    ApiKeysRoute: ApiKeysRoute,
-    AppearanceRoute: AppearanceRoute,
-    DisplayRoute: DisplayRoute,
-    NotificationsRoute: NotificationsRoute,
-    ProfileRoute: ProfileRoute,
-  }
+const DotDotModulesSettingsPagesLayoutRouteChildren: DotDotModulesSettingsPagesLayoutRouteChildren = {
+  AccountRoute: AccountRoute,
+  ApiKeysRoute: ApiKeysRoute,
+  AppearanceRoute: AppearanceRoute,
+  DisplayRoute: DisplayRoute,
+  NotificationsRoute: NotificationsRoute,
+  ProfileRoute: ProfileRoute,
+}
 
-const DotDotModulesSettingsPagesLayoutRouteWithChildren =
-  DotDotModulesSettingsPagesLayoutRoute._addFileChildren(
-    DotDotModulesSettingsPagesLayoutRouteChildren,
-  )
+const DotDotModulesSettingsPagesLayoutRouteWithChildren = DotDotModulesSettingsPagesLayoutRoute._addFileChildren(
+  DotDotModulesSettingsPagesLayoutRouteChildren,
+)
 
 interface shellAppLayoutRouteChildren {
   shellHomeRedirectRoute: typeof shellHomeRedirectRoute
@@ -521,10 +515,8 @@ interface shellAppLayoutRouteChildren {
 
 const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   shellHomeRedirectRoute: shellHomeRedirectRoute,
-  DotDotModulesInboxPagesLayoutRoute:
-    DotDotModulesInboxPagesLayoutRouteWithChildren,
-  DotDotModulesSettingsPagesLayoutRoute:
-    DotDotModulesSettingsPagesLayoutRouteWithChildren,
+  DotDotModulesInboxPagesLayoutRoute: DotDotModulesInboxPagesLayoutRouteWithChildren,
+  DotDotModulesSettingsPagesLayoutRoute: DotDotModulesSettingsPagesLayoutRouteWithChildren,
   AgentsLearningsRoute: AgentsLearningsRoute,
   ContactsIdRoute: ContactsIdRoute,
   AgentsIndexRoute: AgentsIndexRoute,
@@ -533,9 +525,7 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   DriveIndexRoute: DriveIndexRoute,
 }
 
-const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(
-  shellAppLayoutRouteChildren,
-)
+const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(shellAppLayoutRouteChildren)
 
 interface shellAuthLayoutRouteChildren {
   shellAuthLoginRoute: typeof shellAuthLoginRoute
@@ -547,15 +537,11 @@ const shellAuthLayoutRouteChildren: shellAuthLayoutRouteChildren = {
   shellAuthPendingRoute: shellAuthPendingRoute,
 }
 
-const shellAuthLayoutRouteWithChildren = shellAuthLayoutRoute._addFileChildren(
-  shellAuthLayoutRouteChildren,
-)
+const shellAuthLayoutRouteWithChildren = shellAuthLayoutRoute._addFileChildren(shellAuthLayoutRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   shellAppLayoutRoute: shellAppLayoutRouteWithChildren,
   shellAuthLayoutRoute: shellAuthLayoutRouteWithChildren,
   pagesTestWebRoute: pagesTestWebRoute,
 }
-export const routeTree = rootRouteImport
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()

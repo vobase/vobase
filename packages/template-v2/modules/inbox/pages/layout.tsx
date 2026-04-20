@@ -1,10 +1,10 @@
+import { ContextDrawer } from '@modules/inbox/components/context-drawer'
+import { ConversationList } from '@modules/inbox/components/conversation-list'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import { ListDetailLayout } from '@/components/layout/list-detail-layout'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { ContextDrawer } from '@modules/inbox/components/context-drawer'
-import { ConversationList } from '@modules/inbox/components/conversation-list'
 
 async function fetchConversations() {
   const r = await fetch('/api/inbox/conversations')
