@@ -40,7 +40,7 @@ export interface LlmCallOptions {
   provider: LlmProvider
   defaultModel: string
   wakeContext: {
-    tenantId: string
+    organizationId: string
     conversationId: string
     wakeId: string
     turnIndex: number
@@ -63,7 +63,7 @@ export function makeLlmCall(opts: LlmCallOptions) {
       ts: new Date(),
       wakeId: opts.wakeContext.wakeId,
       conversationId: opts.wakeContext.conversationId,
-      tenantId: opts.wakeContext.tenantId,
+      organizationId: opts.wakeContext.organizationId,
       turnIndex: opts.wakeContext.turnIndex,
       task,
       model: resolved.model,

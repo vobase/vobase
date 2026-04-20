@@ -44,7 +44,7 @@ import { createRecordedProvider } from './helpers/recorded-provider'
 
 const AGENT: AgentDefinition = {
   id: 'agent-1',
-  tenantId: 't1',
+  organizationId: 't1',
   name: 'test-agent',
   soulMd: '# Role: Test',
   model: 'mock',
@@ -111,7 +111,7 @@ function emptyContacts(): ContactsPort {
     async get(id): Promise<Contact> {
       return {
         id,
-        tenantId: 't1',
+        organizationId: 't1',
         displayName: 'Test',
         phone: null,
         email: null,
@@ -176,7 +176,7 @@ function regs(extra?: Partial<ModuleRegistrationsSnapshot>): ModuleRegistrations
 }
 
 const TOOL_CTX: ToolExecutionContext = {
-  tenantId: 't1',
+  organizationId: 't1',
   conversationId: 'c1',
   wakeId: 'w1',
   agentId: 'agent-1',
@@ -283,7 +283,7 @@ describe('Lane A2 — resilient provider', () => {
     return {
       events: bus,
       logger: noopLogger,
-      getScope: () => ({ tenantId: 't1', conversationId: 'c1', wakeId: 'w1', turnIndex: 0 }),
+      getScope: () => ({ organizationId: 't1', conversationId: 'c1', wakeId: 'w1', turnIndex: 0 }),
       maxTransientRetries: 3,
     }
   }
@@ -466,7 +466,7 @@ describe('Lane C — steer/abort', () => {
     const ctrl = new AbortController()
     ctrl.abort()
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       abortCtx: { wakeAbort: ctrl, reason: 'user-cancel' },
@@ -498,7 +498,7 @@ describe('Lane C — steer/abort', () => {
       },
     }
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       abortCtx: { wakeAbort: ctrl, reason: 'external' },
@@ -518,7 +518,7 @@ describe('Lane C — steer/abort', () => {
     const steerQueue = createSteerQueue()
     steerQueue.push('Focus on refunds.')
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       maxTurns: 2,
@@ -537,7 +537,7 @@ describe('Lane C — steer/abort', () => {
     // Wakes with agent_aborted in journal signal intent, not crash → getLastWakeTail returns interrupted:false
     const contributor = createRestartRecoveryContributor('conv-aborted', async () => ({ interrupted: false }))
     const stubCtx = {
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'conv-aborted',
       agentId: 'a',
       contactId: 'k',
@@ -555,7 +555,7 @@ describe('Lane D — restart recovery', () => {
   it('interrupted previous wake → injects <previous-turn-interrupted> into turn-0 side-load (one-shot)', async () => {
     const contributor = createRestartRecoveryContributor('conv-crashed', async () => ({ interrupted: true }))
     const stubCtx = {
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'conv-crashed',
       agentId: 'a',
       contactId: 'k',
@@ -623,7 +623,7 @@ describe('Lane F — cost/iteration budget', () => {
   it('bootWake with maxTurnsPerWake=2 → budget_warning(hard) + agent_end(blocked)', async () => {
     const budget: IterationBudget = { ...BASE, maxTurnsPerWake: 2 }
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       iterationBudget: budget,
@@ -655,7 +655,7 @@ describe('Lane F — cost/iteration budget', () => {
     // Frozen-snapshot invariant: system prompt hash MUST be identical across turns.
     const budget: IterationBudget = { ...BASE, maxTurnsPerWake: 3, softCostCeilingUsd: 999 }
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       maxTurns: 3,
@@ -678,7 +678,7 @@ describe('Lane F — cost/iteration budget', () => {
 describe('Lane G — pre_compaction event', () => {
   it('single-turn wake → no pre_compaction emitted', async () => {
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       maxTurns: 1,
@@ -691,7 +691,7 @@ describe('Lane G — pre_compaction event', () => {
 
   it('multi-turn wake → pre_compaction emitted exactly once before turn 1', async () => {
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       maxTurns: 3,
@@ -706,7 +706,7 @@ describe('Lane G — pre_compaction event', () => {
 
   it('pre_compaction is idempotent within a wake: emitted at most once across 5 turns', async () => {
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       maxTurns: 5,
@@ -762,7 +762,7 @@ describe('Lane H — provider factory + cache instrumentation', () => {
   it('CACHE HIT (BLOCKING) — LlmCallEvent.cacheReadTokens=300 + cacheHit=true from fixture', async () => {
     const provider = createRecordedProvider('provider-cache-hit.jsonl')
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       provider,

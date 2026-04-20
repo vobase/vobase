@@ -19,7 +19,7 @@ function requireDb() {
 
 export interface AppendTextMessageInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   agentId: string
   wakeId: string
   turnIndex: number
@@ -30,7 +30,7 @@ export interface AppendTextMessageInput {
 
 export interface AppendCardMessageInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   agentId: string
   wakeId: string
   turnIndex: number
@@ -41,7 +41,7 @@ export interface AppendCardMessageInput {
 
 export interface AppendMediaMessageInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   agentId: string
   wakeId: string
   turnIndex: number
@@ -56,7 +56,7 @@ async function insertMessageRow(
   txDb: { insert: InsertFn },
   row: {
     conversationId: string
-    tenantId: string
+    organizationId: string
     role: string
     kind: string
     content: unknown
@@ -68,7 +68,7 @@ async function insertMessageRow(
     .insert(messages)
     .values({
       conversationId: row.conversationId,
-      tenantId: row.tenantId,
+      organizationId: row.organizationId,
       role: row.role,
       kind: row.kind,
       content: row.content,
@@ -84,7 +84,7 @@ async function journalToolEnd(
   tx: unknown,
   input: {
     conversationId: string
-    tenantId: string
+    organizationId: string
     wakeId: string
     turnIndex: number
     toolCallId: string
@@ -96,7 +96,7 @@ async function journalToolEnd(
   await append(
     {
       conversationId: input.conversationId,
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       wakeId: input.wakeId,
       turnIndex: input.turnIndex,
       event: {
@@ -104,7 +104,7 @@ async function journalToolEnd(
         ts: new Date(),
         wakeId: input.wakeId,
         conversationId: input.conversationId,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         turnIndex: input.turnIndex,
         toolCallId: input.toolCallId,
         toolName: input.toolName,
@@ -119,7 +119,7 @@ async function journalToolEnd(
 
 interface AppendAgentMessageCtx {
   conversationId: string
-  tenantId: string
+  organizationId: string
   wakeId: string
   turnIndex: number
   toolCallId: string
@@ -136,7 +136,7 @@ async function appendAgentMessage(
   return db.transaction(async (tx) => {
     const msg = await insertMessageRow(tx as { insert: InsertFn }, {
       conversationId: ctx.conversationId,
-      tenantId: ctx.tenantId,
+      organizationId: ctx.organizationId,
       role: 'agent',
       kind,
       content,
@@ -144,7 +144,7 @@ async function appendAgentMessage(
     })
     await journalToolEnd(tx, {
       conversationId: ctx.conversationId,
-      tenantId: ctx.tenantId,
+      organizationId: ctx.organizationId,
       wakeId: ctx.wakeId,
       turnIndex: ctx.turnIndex,
       toolCallId: ctx.toolCallId,
@@ -174,7 +174,7 @@ export async function appendMediaMessage(input: AppendMediaMessageInput): Promis
 
 export interface AppendStaffTextMessageInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   staffUserId: string
   body: string
 }
@@ -186,14 +186,14 @@ export async function appendStaffTextMessage(input: AppendStaffTextMessageInput)
   return db.transaction(async (tx) => {
     const msg = await insertMessageRow(tx as { insert: InsertFn }, {
       conversationId: input.conversationId,
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       role: 'staff',
       kind: 'text',
       content: { text: input.body },
     })
     await journalToolEnd(tx, {
       conversationId: input.conversationId,
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       wakeId,
       turnIndex: 0,
       toolCallId,
@@ -206,7 +206,7 @@ export async function appendStaffTextMessage(input: AppendStaffTextMessageInput)
 
 async function journalChannelInbound(
   tx: unknown,
-  input: { conversationId: string; tenantId: string; messageId: string; turnIndex: number },
+  input: { conversationId: string; organizationId: string; messageId: string; turnIndex: number },
 ): Promise<void> {
   const { append } = await import('@modules/agents/service/journal')
   // `card_reply:<id>` sentinel marks inbounds that did not arrive via a real
@@ -215,7 +215,7 @@ async function journalChannelInbound(
   await append(
     {
       conversationId: input.conversationId,
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       wakeId,
       turnIndex: input.turnIndex,
       event: {
@@ -223,7 +223,7 @@ async function journalChannelInbound(
         ts: new Date(),
         wakeId,
         conversationId: input.conversationId,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         turnIndex: input.turnIndex,
         channelType: 'web',
         externalMessageId: input.messageId,
@@ -254,7 +254,7 @@ export async function appendCardReplyMessage(input: AppendCardReplyInput): Promi
 
     const msg = await insertMessageRow(txDb, {
       conversationId: parent.conversationId,
-      tenantId: parent.tenantId,
+      organizationId: parent.organizationId,
       role: 'customer',
       kind: 'card_reply',
       content: {
@@ -268,7 +268,7 @@ export async function appendCardReplyMessage(input: AppendCardReplyInput): Promi
     const turnIndex = await getLatestTurnIndex(parent.conversationId, tx)
     await journalChannelInbound(tx, {
       conversationId: parent.conversationId,
-      tenantId: parent.tenantId,
+      organizationId: parent.organizationId,
       messageId: msg.id,
       turnIndex,
     })

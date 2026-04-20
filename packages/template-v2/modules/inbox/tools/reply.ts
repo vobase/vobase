@@ -24,7 +24,7 @@ export const replyTool: AgentTool<ReplyInput, { messageId: string }> = {
 
     const msg = await appendTextMessage({
       conversationId: ctx.conversationId,
-      tenantId: ctx.tenantId,
+      organizationId: ctx.organizationId,
       agentId: ctx.agentId,
       wakeId: ctx.wakeId,
       turnIndex: ctx.turnIndex,

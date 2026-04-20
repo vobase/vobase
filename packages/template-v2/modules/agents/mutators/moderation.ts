@@ -78,7 +78,7 @@ export const moderationMutator: AgentMutator = {
           ts: new Date(),
           wakeId: ctx.wakeId,
           conversationId: ctx.conversationId,
-          tenantId: ctx.tenantId,
+          organizationId: ctx.organizationId,
           turnIndex: 0,
         })
         return { action: 'block', reason: `moderation_failed:${category}` }
@@ -118,7 +118,7 @@ export const moderationMutator: AgentMutator = {
         ts: new Date(),
         wakeId: ctx.wakeId,
         conversationId: ctx.conversationId,
-        tenantId: ctx.tenantId,
+        organizationId: ctx.organizationId,
         turnIndex: 0,
       })
       return { action: 'block', reason: `moderation_failed:${category}` }

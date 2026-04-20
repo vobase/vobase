@@ -18,11 +18,11 @@ export interface AgentsPort {
   appendEvent(event: AgentEvent, tx?: Tx): Promise<void>
 
   /**
-   * Returns whether this tenant's daily LLM spend has reached the agent's hard ceiling.
+   * Returns whether this organization's daily LLM spend has reached the agent's hard ceiling.
    * Called by the inbound-message NACK path before starting a wake.
    */
   checkDailyCeiling(
-    tenantId: string,
+    organizationId: string,
     agentId: string,
   ): Promise<{ exceeded: boolean; spentUsd: number; ceilingUsd: number }>
 }

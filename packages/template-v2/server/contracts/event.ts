@@ -44,7 +44,7 @@ interface BaseEvent {
   /** Stable identifier for the specific wake that produced this event. */
   wakeId: string
   conversationId: string
-  tenantId: string
+  organizationId: string
   turnIndex: number
 }
 

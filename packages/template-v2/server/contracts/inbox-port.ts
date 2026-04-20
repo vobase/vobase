@@ -22,7 +22,7 @@ export type AuthorRef = AuthorRefAgent | AuthorRefUser | AuthorRefStaff
 export type AssigneeRef = AuthorRef | { kind: 'unassigned' }
 
 export interface CreateConversationInput {
-  tenantId: string
+  organizationId: string
   contactId: string
   channelInstanceId: string
   status: Conversation['status']
@@ -35,7 +35,7 @@ export interface CreateConversationInput {
 
 export interface SendTextInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   author: AuthorRef
   body: string
   parentMessageId?: string
@@ -48,7 +48,7 @@ export interface SendTextInput {
 
 export interface SendCardInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   author: AuthorRef
   card: unknown
   parentMessageId?: string
@@ -60,7 +60,7 @@ export interface SendCardInput {
 
 export interface SendImageInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   author: AuthorRef
   storageKey: string
   caption?: string
@@ -68,7 +68,7 @@ export interface SendImageInput {
 
 export interface SendMediaInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   author: AuthorRef
   driveFileId: string
   wakeId?: string
@@ -89,7 +89,7 @@ export type InboundContentType =
   | 'unsupported'
 
 export interface CreateInboundMessageInput {
-  tenantId: string
+  organizationId: string
   channelInstanceId: string
   contactId: string
   externalMessageId: string
@@ -98,7 +98,7 @@ export interface CreateInboundMessageInput {
   profileName?: string
   /**
    * Thread-scoping key used to resolve the conversation row under
-   * `UNIQUE(tenant, contact, channelInstance, threadKey)`. Chat adapters
+   * `UNIQUE(organization, contact, channelInstance, threadKey)`. Chat adapters
    * omit or pass `'default'`; the email adapter passes the RFC 5322
    * References root so each email topic gets its own conversation.
    */
@@ -116,7 +116,7 @@ export interface CreateInboundMessageResult {
 
 export interface AddNoteInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   author: { kind: 'agent' | 'staff' | 'system'; id: string }
   body: string
   mentions?: string[]
@@ -124,7 +124,7 @@ export interface AddNoteInput {
 }
 
 export interface InsertPendingApprovalInput {
-  tenantId: string
+  organizationId: string
   conversationId: string
   conversationEventId: string | null
   toolName: string

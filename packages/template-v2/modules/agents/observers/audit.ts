@@ -25,7 +25,7 @@ export const auditObserver: AgentObserver = {
     const details = JSON.stringify({
       conversationId: ctx.conversationId,
       wakeId: ctx.wakeId,
-      tenantId: ctx.tenantId,
+      organizationId: ctx.organizationId,
       type: event.type,
       turnIndex: event.turnIndex,
       ...(event as unknown as Record<string, unknown>),
@@ -52,7 +52,7 @@ export const auditObserver: AgentObserver = {
       wakeId: ctx.wakeId,
       conversationId: ctx.conversationId,
       eventType: event.type,
-      tenantId: ctx.tenantId,
+      organizationId: ctx.organizationId,
     })
   },
 }

@@ -89,13 +89,13 @@ beforeAll(async () => {
 
 // boot a wake with the mock path
 const res = await bootWakeIntegration(ports, {
-  tenantId, agentId, contactId, conversationId,
+  organizationId, agentId, contactId, conversationId,
   mockStreamFn: mockStream([{ type: 'finish', finishReason: 'stop' }]),
 }, db)
 
 // boot a wake with a recorded provider
 const res = await bootWake({
-  tenantId, agentId, contactId, conversationId,
+  organizationId, agentId, contactId, conversationId,
   provider: createRecordedProvider('meridian-hi-reply.jsonl'),
   registrations: makeRegs({ tools: [...], observers: [...], mutators: [...] }),
   ports, logger: noopLogger,

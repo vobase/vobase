@@ -15,7 +15,7 @@ permissions: []
 
 # drive module
 
-Unified file tree for tenant-scoped KB and contact-scoped drive. Owns `drive.files`.
+Unified file tree for organization-scoped KB and contact-scoped drive. Owns `drive.files`.
 
 ## Phase 1 real methods
 

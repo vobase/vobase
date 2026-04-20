@@ -5,7 +5,7 @@ import { ConversationRow } from '../conversation-row'
 
 const base: Conversation = {
   id: 'conv-1',
-  tenantId: 't1',
+  organizationId: 't1',
   contactId: 'ct-abc',
   channelInstanceId: 'ch-whatsapp',
   status: 'active',

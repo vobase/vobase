@@ -21,7 +21,7 @@ type Subscriber = (event: AgentEvent) => void | Promise<void>
 export type WakeReleasedHook = (payload: {
   conversationId: string
   wakeId: string
-  tenantId: string
+  organizationId: string
   reason: string
 }) => void | Promise<void>
 
@@ -54,7 +54,7 @@ export class EventBus implements EventBusContract {
         const result = this.onWakeReleased({
           conversationId: event.conversationId,
           wakeId: event.wakeId,
-          tenantId: event.tenantId,
+          organizationId: event.organizationId,
           reason: event.reason,
         })
         if (result && typeof (result as Promise<void>).then === 'function') {

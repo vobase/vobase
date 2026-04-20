@@ -10,14 +10,14 @@ import type { Message } from '@server/contracts/domain-types'
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const CONV_ID = 'conv-sr-1'
-const TENANT_ID = 'tenant_meridian'
+const ORG_ID = 'tenant_meridian'
 const STAFF_USER = 'user-staff-1'
 const BODY = 'Staff reply text'
 
 const fakeMessage: Message = {
   id: 'msg-sr-1',
   conversationId: CONV_ID,
-  tenantId: TENANT_ID,
+  organizationId: ORG_ID,
   role: 'staff',
   kind: 'text',
   content: { text: BODY },
@@ -81,7 +81,7 @@ describe('sendStaffReply', () => {
     const { sendStaffReply } = await import('../staff-reply')
     const result = await sendStaffReply({
       conversationId: CONV_ID,
-      tenantId: TENANT_ID,
+      organizationId: ORG_ID,
       staffUserId: STAFF_USER,
       body: BODY,
     })
@@ -103,7 +103,7 @@ describe('sendStaffReply', () => {
     )
 
     const { sendStaffReply } = await import('../staff-reply')
-    await sendStaffReply({ conversationId: CONV_ID, tenantId: TENANT_ID, staffUserId: STAFF_USER, body: BODY })
+    await sendStaffReply({ conversationId: CONV_ID, organizationId: ORG_ID, staffUserId: STAFF_USER, body: BODY })
     expect(capturedRole).toBe('staff')
     expect(capturedKind).toBe('text')
     expect((capturedContent as Record<string, unknown>)?.text).toBe(BODY)
@@ -119,7 +119,7 @@ describe('sendStaffReply', () => {
     )
 
     const { sendStaffReply } = await import('../staff-reply')
-    await sendStaffReply({ conversationId: CONV_ID, tenantId: TENANT_ID, staffUserId: STAFF_USER, body: BODY })
+    await sendStaffReply({ conversationId: CONV_ID, organizationId: ORG_ID, staffUserId: STAFF_USER, body: BODY })
     expect(capturedToolName).toBe('staff_reply')
   })
 })

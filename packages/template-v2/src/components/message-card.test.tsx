@@ -20,7 +20,7 @@ function makeMsg(overrides: Partial<Message> = {}): Message {
   return {
     id: 'msg-1',
     conversationId: 'conv-1',
-    tenantId: 'ten-1',
+    organizationId: 'ten-1',
     role: 'agent',
     kind: 'text',
     content: { text: 'hello' },

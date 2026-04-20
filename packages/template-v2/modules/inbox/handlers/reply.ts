@@ -15,7 +15,7 @@ const app = new Hono()
 
 app.post('/:id/reply', async (c) => {
   const id = c.req.param('id')
-  const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
+  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const raw = await c.req.json().catch(() => null)
   const parsed = replyBodySchema.safeParse(raw)
   if (!parsed.success) {
@@ -23,11 +23,11 @@ app.post('/:id/reply', async (c) => {
   }
   const conv = await getConversation(id)
   if (!conv) return c.json({ error: 'not_found' }, 404)
-  if (conv.tenantId !== tenantId) return c.json({ error: 'not_found' }, 404)
+  if (conv.organizationId !== organizationId) return c.json({ error: 'not_found' }, 404)
   const staffUserId = parsed.data.staffUserId ?? 'staff'
   const { messageId } = await sendStaffReply({
     conversationId: id,
-    tenantId,
+    organizationId,
     staffUserId,
     body: parsed.data.body,
   })

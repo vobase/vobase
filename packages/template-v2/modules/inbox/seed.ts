@@ -67,7 +67,7 @@ async function insertConv(
   await insert(conversations)
     .values({
       id: row.id,
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       contactId: row.contactId,
       channelInstanceId: row.channelInstanceId,
       status: row.status,
@@ -97,7 +97,7 @@ async function insertMsg(
     .values({
       id: row.id,
       conversationId: row.conversationId,
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       role: row.role,
       kind: row.kind,
       content: row.content,
@@ -124,7 +124,7 @@ async function insertNote(
   await insert(internalNotes)
     .values({
       id: row.id,
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       conversationId: row.conversationId,
       authorType: row.authorType,
       authorId: row.authorId,
@@ -150,7 +150,7 @@ async function insertApproval(
   await insert(pendingApprovals)
     .values({
       id: row.id,
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       conversationId: row.conversationId,
       toolName: row.toolName,
       toolArgs: row.toolArgs,

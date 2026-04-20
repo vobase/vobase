@@ -39,7 +39,7 @@ export interface WakeSchedulerDeps {
 export interface AgentWakeJobPayload {
   trigger: WakeTrigger
   agentId: string
-  tenantId: string
+  organizationId: string
   /** Set when the enqueue traced the conversation back to an agent. */
   scheduledAt?: string
 }
@@ -47,13 +47,13 @@ export interface AgentWakeJobPayload {
 export interface ScheduledFollowupPayload {
   trigger: Extract<WakeTrigger, { trigger: 'scheduled_followup' }>
   agentId: string
-  tenantId: string
+  organizationId: string
   scheduledAt: string
 }
 
 export interface EnqueueOpts {
   agentId: string
-  tenantId: string
+  organizationId: string
 }
 
 export interface EnqueueResult {
@@ -125,7 +125,7 @@ export class WakeScheduler {
     const payload: AgentWakeJobPayload = {
       trigger,
       agentId: opts.agentId,
-      tenantId: opts.tenantId,
+      organizationId: opts.organizationId,
     }
     const result = await this.queue.sendOrMerge<AgentWakeJobPayload>(
       AGENT_WAKE_JOB,
@@ -140,7 +140,7 @@ export class WakeScheduler {
   }
 
   private async enqueueAgentWake(trigger: WakeTrigger, opts: EnqueueOpts, sendOpts: SendOpts): Promise<EnqueueResult> {
-    const payload: AgentWakeJobPayload = { trigger, agentId: opts.agentId, tenantId: opts.tenantId }
+    const payload: AgentWakeJobPayload = { trigger, agentId: opts.agentId, organizationId: opts.organizationId }
     const result = await this.queue.send<AgentWakeJobPayload>(AGENT_WAKE_JOB, payload, sendOpts)
     return { jobId: result.jobId, wasNew: result.wasNew, steered: false }
   }
@@ -152,7 +152,7 @@ export class WakeScheduler {
     const payload: ScheduledFollowupPayload = {
       trigger,
       agentId: opts.agentId,
-      tenantId: opts.tenantId,
+      organizationId: opts.organizationId,
       scheduledAt: trigger.scheduledAt.toISOString(),
     }
     const result = await this.queue.send<ScheduledFollowupPayload>(SCHEDULED_FOLLOWUP_JOB, payload, {

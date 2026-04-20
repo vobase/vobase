@@ -8,9 +8,9 @@
  */
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3001'
-const TENANT_ID = process.env.TENANT_ID ?? 'tenant_meridian'
+const ORG_ID = process.env.ORG_ID ?? 'tenant_meridian'
 const CONV_ID = process.env.CONV_ID ?? 'conv_seed_1'
-const SSE_URL = process.env.SSE_URL ?? `${BASE_URL}/sse?tenantId=${TENANT_ID}`
+const SSE_URL = process.env.SSE_URL ?? `${BASE_URL}/sse?organizationId=${ORG_ID}`
 const API = `${BASE_URL}/api/inbox/conversations/${CONV_ID}`
 
 function sse2sPromise(): { promise: Promise<void>; abort: AbortController } {
@@ -39,7 +39,7 @@ function sse2sPromise(): { promise: Promise<void>; abort: AbortController } {
 }
 
 async function post(path: string, body: unknown) {
-  const res = await fetch(`${API}${path}?tenantId=${TENANT_ID}`, {
+  const res = await fetch(`${API}${path}?organizationId=${ORG_ID}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

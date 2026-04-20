@@ -50,7 +50,7 @@ export function platformAuth(config: PlatformAuthConfig): BetterAuthPlugin {
 
           // 1. Verify handoff JWT.
           // ctx.context.baseURL includes the /api/auth path (e.g., "https://example.com/api/auth")
-          // but the platform signs JWTs with aud = tenant.instanceUrl (e.g., "https://example.com").
+          // but the platform signs JWTs with aud = organization.instanceUrl (e.g., "https://example.com").
           // Accept both formats for robustness.
           const baseURL = ctx.context.baseURL
           const instanceUrl = baseURL.replace(/\/api\/auth\/?$/, '')

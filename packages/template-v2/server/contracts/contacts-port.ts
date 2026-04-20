@@ -5,7 +5,7 @@
 import type { Contact, StaffBinding } from './domain-types'
 
 export interface UpsertByExternalInput {
-  tenantId: string
+  organizationId: string
   phone?: string
   email?: string
   displayName?: string
@@ -13,8 +13,8 @@ export interface UpsertByExternalInput {
 
 export interface ContactsPort {
   get(id: string): Promise<Contact>
-  getByPhone(tenantId: string, phone: string): Promise<Contact | null>
-  getByEmail(tenantId: string, email: string): Promise<Contact | null>
+  getByPhone(organizationId: string, phone: string): Promise<Contact | null>
+  getByEmail(organizationId: string, email: string): Promise<Contact | null>
   upsertByExternal(input: UpsertByExternalInput): Promise<Contact>
 
   // working memory

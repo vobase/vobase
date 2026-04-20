@@ -1,5 +1,5 @@
 /**
- * conversations service — Model A (one row per (tenant, contact, channelInstance)).
+ * conversations service — Model A (one row per (organization, contact, channelInstance)).
  *
  * Every mutation is transactional and writes an audit row to
  * `agents.conversation_events` in the same tx. Non-agent lifecycle events use
@@ -69,7 +69,7 @@ function requireDb(): DbHandle {
 
 interface ConversationEventInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   type: string
   payload: Record<string, unknown>
 }
@@ -80,7 +80,7 @@ async function writeConversationEvent(runner: DbHandle, input: ConversationEvent
     .insert(conversationEvents)
     .values({
       conversationId: input.conversationId,
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       wakeId: null,
       turnIndex: 0,
       type: input.type,
@@ -109,7 +109,7 @@ export async function create(input: CreateConversationInput): Promise<Conversati
   const rows = await db
     .insert(conversations)
     .values({
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       contactId: input.contactId,
       channelInstanceId: input.channelInstanceId,
       status: input.status,
@@ -125,7 +125,7 @@ export async function create(input: CreateConversationInput): Promise<Conversati
 }
 
 /**
- * Model A — exactly one row per (tenant, contact, channelInstance, threadKey).
+ * Model A — exactly one row per (organization, contact, channelInstance, threadKey).
  *
  * Uses the unique index `idx_conv_one_per_pair` as the idempotency boundary:
  * INSERT ... ON CONFLICT DO NOTHING, then SELECT the current row. Chat
@@ -133,7 +133,7 @@ export async function create(input: CreateConversationInput): Promise<Conversati
  * RFC 5322 thread root so each topic gets its own row.
  */
 export async function resumeOrCreate(
-  tenantId: string,
+  organizationId: string,
   contactId: string,
   channelInstanceId: string,
   threadKey = 'default',
@@ -145,7 +145,7 @@ export async function resumeOrCreate(
   const inserted = (await db
     .insert(conversations)
     .values({
-      tenantId,
+      organizationId,
       contactId,
       channelInstanceId,
       status: 'active',
@@ -162,7 +162,7 @@ export async function resumeOrCreate(
     .from(conversations)
     .where(
       and(
-        eq(conversations.tenantId, tenantId),
+        eq(conversations.organizationId, organizationId),
         eq(conversations.contactId, contactId),
         eq(conversations.channelInstanceId, channelInstanceId),
         eq(conversations.threadKey, threadKey),
@@ -200,7 +200,7 @@ export async function get(id: string): Promise<Conversation> {
  */
 export async function createInboundMessage(input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> {
   const { conversation, created } = await resumeOrCreate(
-    input.tenantId,
+    input.organizationId,
     input.contactId,
     input.channelInstanceId,
     input.threadKey ?? 'default',
@@ -217,7 +217,7 @@ export async function createInboundMessage(input: CreateInboundMessageInput): Pr
   const existing = (await db
     .select()
     .from(messages)
-    .where(and(eq(messages.tenantId, input.tenantId), eq(messages.channelExternalId, input.externalMessageId)))
+    .where(and(eq(messages.organizationId, input.organizationId), eq(messages.channelExternalId, input.externalMessageId)))
     .limit(1)) as Message[]
 
   if (existing[0]) return { conversation, message: existing[0], isNew: false }
@@ -228,7 +228,7 @@ export async function createInboundMessage(input: CreateInboundMessageInput): Pr
       .insert(messages)
       .values({
         conversationId: conversation.id,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         role: 'customer',
         kind,
         content: { text: input.content },
@@ -269,7 +269,7 @@ export async function createInboundMessage(input: CreateInboundMessageInput): Pr
     if (conversation.status === 'resolved') {
       await writeConversationEvent(tx, {
         conversationId: conversation.id,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         type: 'conversation.reopened',
         payload: { trigger: 'new_inbound' },
       })
@@ -278,7 +278,7 @@ export async function createInboundMessage(input: CreateInboundMessageInput): Pr
     if (conversation.snoozedUntil) {
       await writeConversationEvent(tx, {
         conversationId: conversation.id,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         type: 'conversation.unsnoozed',
         payload: { trigger: 'new_inbound', originalUntil: conversation.snoozedUntil.toISOString() },
       })
@@ -361,7 +361,7 @@ export async function snooze(input: SnoozeInput): Promise<Conversation> {
 
     await writeConversationEvent(tx, {
       conversationId: input.conversationId,
-      tenantId: row.tenantId,
+      organizationId: row.organizationId,
       type: 'conversation.snoozed',
       payload: { until: input.until.toISOString(), reason: input.reason ?? null, by: input.by },
     })
@@ -392,7 +392,7 @@ export async function unsnooze(conversationId: string, by: string): Promise<Conv
 
     await writeConversationEvent(tx, {
       conversationId,
-      tenantId: row.tenantId,
+      organizationId: row.organizationId,
       type: 'conversation.unsnoozed',
       payload: { by },
     })
@@ -424,7 +424,7 @@ export async function wakeSnoozed(conversationId: string, snoozedAtIso: string):
 
     await writeConversationEvent(tx, {
       conversationId,
-      tenantId: current.tenantId,
+      organizationId: current.organizationId,
       type: 'conversation.snooze_expired',
       payload: { originalUntil: originalUntil.toISOString() },
     })
@@ -458,7 +458,7 @@ export async function resolve(conversationId: string, by: string, reason?: strin
 
     await writeConversationEvent(tx, {
       conversationId,
-      tenantId: row.tenantId,
+      organizationId: row.organizationId,
       type: 'conversation.resolved',
       payload: { by, reason: reason ?? null },
     })
@@ -490,7 +490,7 @@ export async function reopen(
 
     await writeConversationEvent(tx, {
       conversationId,
-      tenantId: row.tenantId,
+      organizationId: row.organizationId,
       type: 'conversation.reopened',
       payload: { by, trigger },
     })
@@ -527,7 +527,7 @@ export async function reassign(
 
     await writeConversationEvent(tx, {
       conversationId,
-      tenantId: row.tenantId,
+      organizationId: row.organizationId,
       type: 'conversation.reassigned',
       payload: { from: current.assignee, to: assignee, reason: reason ?? null, by },
     })
@@ -569,13 +569,13 @@ export interface ListOpts {
   now?: Date
 }
 
-export async function list(tenantId: string, opts?: ListOpts): Promise<Conversation[]> {
+export async function list(organizationId: string, opts?: ListOpts): Promise<Conversation[]> {
   const { conversations } = await import('@modules/inbox/schema')
   const { and, desc, eq, gt, inArray, isNotNull, or, sql } = await import('drizzle-orm')
   const db = requireDb()
 
   const now = opts?.now ?? new Date()
-  const conds: unknown[] = [eq(conversations.tenantId, tenantId)]
+  const conds: unknown[] = [eq(conversations.organizationId, organizationId)]
 
   if (opts?.status?.length) {
     conds.push(inArray(conversations.status, opts.status))

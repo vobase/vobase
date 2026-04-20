@@ -51,7 +51,7 @@ export function emptyRegistrations(): ModuleRegistrations {
 
 export interface PluginContextFactoryInput {
   moduleName: string
-  tenantId: string
+  organizationId: string
   conversationId: string
   ports: PluginContext['ports']
   db: ScopedDb
@@ -67,15 +67,15 @@ export interface PluginContextFactoryInput {
 
 /**
  * Boot-time input — `init(ctx)` runs ONCE at server startup, before any wake
- * exists, so per-wake fields (`tenantId`, `conversationId`, `events`, `llmCall`)
+ * exists, so per-wake fields (`organizationId`, `conversationId`, `events`, `llmCall`)
  * are unavailable. The returned ctx throws on those fields so modules that
  * mistakenly reach for them at boot fail loudly instead of silently capturing
  * a stub.
  *
- * `tenantId` is deliberately the empty string at boot. `drive/service/proposal.ts`
- * and similar tenant-scoped writers guard with `if (!_tenantId) throw`, so an
+ * `organizationId` is deliberately the empty string at boot. `drive/service/proposal.ts`
+ * and similar organization-scoped writers guard with `if (!_tenantId) throw`, so an
  * empty sentinel surfaces as a clear error if those code paths are reached
- * outside a per-tenant request context. Do not change to a dummy value.
+ * outside a per-organization request context. Do not change to a dummy value.
  */
 export interface BootContextInput {
   moduleName: string
@@ -101,7 +101,7 @@ export function createBootContext(input: BootContextInput): {
   }
   return createPluginContext({
     moduleName: input.moduleName,
-    tenantId: '',
+    organizationId: '',
     conversationId: '',
     ports: input.ports,
     db: input.db,
@@ -128,7 +128,7 @@ export function createPluginContext(input: PluginContextFactoryInput): {
 
   const ctx: PluginContext = {
     moduleName: input.moduleName,
-    tenantId: input.tenantId,
+    organizationId: input.organizationId,
     conversationId: input.conversationId,
     ports: input.ports,
 

@@ -12,7 +12,7 @@ import { mockStream } from './mock-stream'
 
 const AGENT: AgentDefinition = {
   id: 'agent-1',
-  tenantId: 't1',
+  organizationId: 't1',
   name: 'test-agent',
   soulMd: '# Role: Test',
   model: 'mock',
@@ -79,7 +79,7 @@ function emptyContacts(): ContactsPort {
     async get(id): Promise<Contact> {
       return {
         id,
-        tenantId: 't1',
+        organizationId: 't1',
         displayName: 'Test',
         phone: null,
         email: null,
@@ -152,7 +152,7 @@ describe('abort signal — pre_tool', () => {
     const abortCtx = { wakeAbort: ctrl, reason: 'user-cancel' }
 
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       abortCtx,
@@ -194,7 +194,7 @@ describe('abort signal — in_tool', () => {
     }
 
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       abortCtx,
@@ -223,7 +223,7 @@ describe('abort signal — in_tool', () => {
 describe('abort signal — no abort', () => {
   it('no abort → no agent_aborted, agent_end(complete)', async () => {
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       registrations: regs(),
@@ -246,7 +246,7 @@ describe('steer queue', () => {
     steerQueue.push('Focus on refund.')
 
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       maxTurns: 2,
@@ -267,7 +267,7 @@ describe('steer queue', () => {
     steerQueue.push('URGENT: wrap up.')
 
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       maxTurns: 2,
@@ -284,7 +284,7 @@ describe('steer queue', () => {
     const steerQueue = createSteerQueue()
 
     const { harness } = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       maxTurns: 2,

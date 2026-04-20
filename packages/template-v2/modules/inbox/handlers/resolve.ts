@@ -22,20 +22,20 @@ const simpleBodySchema = z.object({
 
 const app = new Hono()
 
-async function guardTenant(c: import('hono').Context, id: string, tenantId: string) {
+async function guardTenant(c: import('hono').Context, id: string, organizationId: string) {
   const conv = await getConversation(id)
   if (!conv) return { err: c.json({ error: 'not_found' }, 404) }
-  if (conv.tenantId !== tenantId) return { err: c.json({ error: 'forbidden' }, 403) }
+  if (conv.organizationId !== organizationId) return { err: c.json({ error: 'forbidden' }, 403) }
   return { conv }
 }
 
 app.post('/:id/resolve', async (c) => {
   const id = c.req.param('id')
-  const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
+  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const raw = await c.req.json().catch(() => ({}))
   const parsed = resolveBodySchema.safeParse(raw)
   if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-  const guard = await guardTenant(c, id, tenantId)
+  const guard = await guardTenant(c, id, organizationId)
   if (guard.err) return guard.err
   try {
     const conversation = await resolve(id, parsed.data.by, parsed.data.reason)
@@ -49,11 +49,11 @@ app.post('/:id/resolve', async (c) => {
 
 app.post('/:id/reopen', async (c) => {
   const id = c.req.param('id')
-  const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
+  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const raw = await c.req.json().catch(() => ({}))
   const parsed = simpleBodySchema.safeParse(raw)
   if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-  const guard = await guardTenant(c, id, tenantId)
+  const guard = await guardTenant(c, id, organizationId)
   if (guard.err) return guard.err
   try {
     const conversation = await reopen(id, parsed.data.by, 'staff_reopen')
@@ -67,11 +67,11 @@ app.post('/:id/reopen', async (c) => {
 
 app.post('/:id/reset', async (c) => {
   const id = c.req.param('id')
-  const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
+  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const raw = await c.req.json().catch(() => ({}))
   const parsed = simpleBodySchema.safeParse(raw)
   if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-  const guard = await guardTenant(c, id, tenantId)
+  const guard = await guardTenant(c, id, organizationId)
   if (guard.err) return guard.err
   try {
     const conversation = await reset(id, parsed.data.by)

@@ -17,7 +17,7 @@ import { RecentLearningsPanel } from '../recent-learnings-panel'
 function makeLearning(overrides: Partial<LearningProposal> = {}): LearningProposal {
   return {
     id: 'l1',
-    tenantId: 't1',
+    organizationId: 't1',
     conversationId: 'conv_abc',
     wakeEventId: null,
     scope: 'agent_memory',

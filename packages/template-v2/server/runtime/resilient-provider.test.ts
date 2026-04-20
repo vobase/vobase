@@ -45,7 +45,7 @@ function makePolicy(bus: EventBus) {
   return {
     events: bus,
     logger: noopLogger,
-    getScope: () => ({ tenantId: 't1', conversationId: 'c1', wakeId: 'w1', turnIndex: 0 }),
+    getScope: () => ({ organizationId: 't1', conversationId: 'c1', wakeId: 'w1', turnIndex: 0 }),
     maxTransientRetries: 3,
   }
 }

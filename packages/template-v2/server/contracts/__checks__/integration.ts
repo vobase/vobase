@@ -64,7 +64,7 @@ import type { AgentMutator, AgentStep, MutatorContext, MutatorDecision, StepResu
 import type { AgentObserver, Logger, ObserverContext } from '../observer'
 import type { AgentTool, CommandDef, EventBus, PluginContext, RealtimeService } from '../plugin-context'
 import type { LlmProvider, LlmStreamChunk } from '../provider-port'
-import type { Schema, ScopedDb, TenantScope } from '../scoped-db'
+import type { Schema, ScopedDb, OrganizationScope } from '../scoped-db'
 import type {
   MaterializerCtx,
   MaterializerPhase,
@@ -264,7 +264,7 @@ type _AgentsKeys = AssertTrue<AssertEqual<keyof AgentsPort, _RequiredAgentsMetho
 type _PluginKeys = keyof PluginContext
 type _RequiredPluginKeys =
   | 'moduleName'
-  | 'tenantId'
+  | 'organizationId'
   | 'conversationId'
   | 'ports'
   | 'registerTool'
@@ -377,7 +377,7 @@ void _trig5
 // ---------------------------------------------------------------------------
 // DriveScope discriminants
 // ---------------------------------------------------------------------------
-const _scopeTenant: DriveScope = { scope: 'tenant' }
+const _scopeTenant: DriveScope = { scope: 'organization' }
 const _scopeContact: DriveScope = { scope: 'contact', contactId: 'k1' }
 void _scopeTenant
 void _scopeContact
@@ -441,7 +441,7 @@ type _WakeTriggerKindKeep = AssertTrue<
 // channel-event.ts: both Zod-inferred shapes must be structurally correct
 type _InboundEvt = ChannelInboundEvent
 const _inboundSample: _InboundEvt = {
-  tenantId: 't1',
+  organizationId: 't1',
   channelType: 'whatsapp',
   externalMessageId: 'wamid.ABC',
   from: '+6512345678',
@@ -454,7 +454,7 @@ void _inboundSample
 
 type _OutboundEvt = ChannelOutboundEvent
 const _outboundSample: _OutboundEvt = {
-  tenantId: 't1',
+  organizationId: 't1',
   conversationId: 'c1',
   contactId: 'k1',
   wakeId: 'w1',
@@ -491,7 +491,7 @@ const _chanIn: _ChanInboundEvt = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 0,
   channelType: 'whatsapp',
   externalMessageId: 'wamid.XYZ',
@@ -503,7 +503,7 @@ const _chanOut: _ChanOutboundEvt = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 0,
   channelType: 'web',
   toolName: 'reply',
@@ -516,7 +516,7 @@ const _wakeSched: _WakeSchEvt = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 0,
   trigger: 'scheduled_followup',
   scheduledAt: new Date(Date.now() + 3600_000),
@@ -528,10 +528,10 @@ void _wakeSched
 // ---------------------------------------------------------------------------
 
 // scoped-db.ts: ScopedDb refines PostgresJsDatabase<Schema>; the contracts
-// layer holds the Schema + TenantScope carrier names for downstream lanes.
+// layer holds the Schema + OrganizationScope carrier names for downstream lanes.
 type _ScopedDbKeep = ScopedDb
 type _SchemaKeep = Schema
-type _TenantScopeKeep = TenantScope
+type _TenantScopeKeep = OrganizationScope
 
 // MutatorContext.db is now ScopedDb (Phase 3 lift) — confirm structurally
 type _MutatorDbIsScopedDb = AssertTrue<AssertEqual<MutatorContext['db'], ScopedDb>>
@@ -546,7 +546,7 @@ const _modBlocked: _ModBlockedEvt = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 0,
   toolName: 'send_card',
   toolCallId: 'tc1',
@@ -561,7 +561,7 @@ const _scorerRec: _ScorerRecEvt = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 0,
   scorerId: 'answer_relevancy',
   score: 0.82,
@@ -569,7 +569,7 @@ const _scorerRec: _ScorerRecEvt = {
 }
 void _scorerRec
 
-const _tenantScopeSample: TenantScope = { tenantId: 't1' }
+const _tenantScopeSample: OrganizationScope = { organizationId: 't1' }
 void _tenantScopeSample
 
 // ---------------------------------------------------------------------------
@@ -629,7 +629,7 @@ const _budgetWarn: BudgetWarningEvent = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 3,
   phase: 'soft',
   turnsConsumed: 7,
@@ -642,7 +642,7 @@ const _errClassified: ErrorClassifiedEvent = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 1,
   reason: 'transient',
   providerMessage: 'connection reset',
@@ -655,7 +655,7 @@ const _toolPersisted: ToolResultPersistedEvent = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 2,
   toolCallId: 'tc1',
   toolName: 'bash',
@@ -669,7 +669,7 @@ const _preCompaction: PreCompactionEvent = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 9,
 }
 void _preCompaction
@@ -679,7 +679,7 @@ const _steerInjected: SteerInjectedEvent = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 4,
   text: 'Please focus on the billing issue.',
 }
@@ -690,7 +690,7 @@ const _wakeRefused: WakeRefusedEvent = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 0,
   reason: 'daily_ceiling',
 }
@@ -701,7 +701,7 @@ const _agentAborted: AgentAbortedEvent = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 2,
   reason: 'external',
   abortedAt: 'in_tool',
@@ -714,7 +714,7 @@ const _llmCallSample: LlmCallEvent = {
   ts: new Date(),
   wakeId: 'w1',
   conversationId: 'c1',
-  tenantId: 't1',
+  organizationId: 't1',
   turnIndex: 0,
   task: 'agent.turn',
   model: 'anthropic/claude-sonnet-4-6',

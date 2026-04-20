@@ -16,7 +16,7 @@ export interface Logger {
 }
 
 export interface ObserverContext {
-  readonly tenantId: string
+  readonly organizationId: string
   readonly conversationId: string
   readonly wakeId: string
   readonly ports: PluginContext['ports']

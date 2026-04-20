@@ -45,7 +45,7 @@ beforeEach(() => {
 
 function makeCtx(): ToolContext {
   return {
-    tenantId: 'ten-1',
+    organizationId: 'ten-1',
     conversationId: 'conv-1',
     wakeId: 'wake-1',
     agentId: 'agt-1',

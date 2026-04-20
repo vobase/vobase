@@ -86,7 +86,7 @@ describe('Phase 1 green-thread wake', () => {
     const agents = await db.db.select().from(agentDefinitions)
     expect(agents.length).toBeGreaterThanOrEqual(1)
 
-    const tenantFiles = await db.db.select().from(driveFiles).where(eq(driveFiles.scope, 'tenant'))
+    const tenantFiles = await db.db.select().from(driveFiles).where(eq(driveFiles.scope, 'organization'))
     expect(tenantFiles.length).toBeGreaterThanOrEqual(7)
 
     const businessMd = tenantFiles.find((f) => f.path === '/BUSINESS.md')
@@ -108,7 +108,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -129,24 +129,24 @@ describe('Phase 1 green-thread wake', () => {
     expect(business.stdout).toContain('Meridian')
   })
 
-  // --- 4b --- R8: BUSINESS.md fallback when tenant row is missing
-  it('BUSINESS.md fallback stub appears when the tenant row is missing', async () => {
+  // --- 4b --- R8: BUSINESS.md fallback when organization row is missing
+  it('BUSINESS.md fallback stub appears when the organization row is missing', async () => {
     const { driveFiles } = await import('@modules/drive/schema')
 
     const snapshot = await db.db
       .select()
       .from(driveFiles)
-      .where(and(eq(driveFiles.scope, 'tenant'), eq(driveFiles.path, '/BUSINESS.md')))
+      .where(and(eq(driveFiles.scope, 'organization'), eq(driveFiles.path, '/BUSINESS.md')))
       .limit(1)
     expect(snapshot.length).toBe(1)
 
-    await db.db.delete(driveFiles).where(and(eq(driveFiles.scope, 'tenant'), eq(driveFiles.path, '/BUSINESS.md')))
+    await db.db.delete(driveFiles).where(and(eq(driveFiles.scope, 'organization'), eq(driveFiles.path, '/BUSINESS.md')))
 
     try {
       const res = await bootWakeIntegration(
         ports,
         {
-          tenantId: MERIDIAN_TENANT_ID,
+          organizationId: MERIDIAN_TENANT_ID,
           agentId: MERIDIAN_AGENT_ID,
           contactId: SEEDED_CONTACT_ID,
           conversationId: SEEDED_CONV_ID,
@@ -168,7 +168,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -206,7 +206,7 @@ describe('Phase 1 green-thread wake', () => {
     const wakeRes = await bootWakeIntegration(
       ports,
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -247,7 +247,7 @@ describe('Phase 1 green-thread wake', () => {
     const wakeRes = await bootWakeIntegration(
       ports,
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -267,7 +267,7 @@ describe('Phase 1 green-thread wake', () => {
     const wakeRes = await bootWakeIntegration(
       ports,
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -304,7 +304,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -332,7 +332,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -360,7 +360,7 @@ describe('Phase 1 green-thread wake', () => {
     const res = await bootWakeIntegration(
       ports,
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -415,7 +415,7 @@ describe('Phase 1 green-thread wake', () => {
     const { sseObserver } = await import('@modules/agents/observers/sse')
 
     const res = await bootWake({
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
       conversationId: SEEDED_CONV_ID,

@@ -10,11 +10,11 @@ export function createContactsPort(): ContactsPort {
     async get(id) {
       return contacts.get(id)
     },
-    async getByPhone(tenantId, phone) {
-      return contacts.getByPhone(tenantId, phone)
+    async getByPhone(organizationId, phone) {
+      return contacts.getByPhone(organizationId, phone)
     },
-    async getByEmail(tenantId, email) {
-      return contacts.getByEmail(tenantId, email)
+    async getByEmail(organizationId, email) {
+      return contacts.getByEmail(organizationId, email)
     },
     async upsertByExternal(input) {
       return contacts.upsertByExternal(input)

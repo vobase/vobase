@@ -10,7 +10,7 @@ import type { CommandDef } from '@server/contracts/plugin-context'
 export interface GenerateAgentsMdOpts {
   /** Aggregated from every module's `init(ctx).registerCommand(...)`. */
   commands: readonly CommandDef[]
-  /** If the platform wants to override the header (e.g. per-tenant). */
+  /** If the platform wants to override the header (e.g. per-organization). */
   headerOverride?: string
 }
 
@@ -27,8 +27,8 @@ writes are blocked outside \`/workspace/contact/drive/\` and \`/workspace/tmp/\`
 - \`SOUL.md\` — your role, scope, voice, tools (frozen, per-agent)
 - \`MEMORY.md\` — your working memory (written via \`vobase memory …\`)
 - \`skills/*.md\` — how-to playbooks (read-only)
-- \`drive/*\` — tenant knowledge base (read-only; propose additions via CLI)
-- \`drive/BUSINESS.md\` — tenant brand + policies (frozen)
+- \`drive/*\` — organization knowledge base (read-only; propose additions via CLI)
+- \`drive/BUSINESS.md\` — organization brand + policies (frozen)
 - \`conversation/messages.md\` — customer-visible timeline
 - \`conversation/internal-notes.md\` — staff ↔ agent notes
 - \`contact/profile.md\` — contact identity (read-only)

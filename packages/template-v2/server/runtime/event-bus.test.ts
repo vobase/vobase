@@ -8,7 +8,7 @@ function fakeEvent(): AgentEvent {
     ts: new Date(),
     wakeId: 'w1',
     conversationId: 'c1',
-    tenantId: 't1',
+    organizationId: 't1',
     turnIndex: 0,
   }
 }

@@ -38,7 +38,7 @@ export async function handleCardReply(c: Context): Promise<Response> {
   const conv = await inboxPort.getConversation(reply.conversationId)
 
   await jobs.send('channel-web:inbound-to-wake', {
-    tenantId: reply.tenantId,
+    organizationId: reply.organizationId,
     conversationId: reply.conversationId,
     messageId: reply.id,
     contactId: conv.contactId,

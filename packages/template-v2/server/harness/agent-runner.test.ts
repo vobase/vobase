@@ -11,7 +11,7 @@ import { mockStream, mockStreamTurns } from './mock-stream'
 
 const AGENT: AgentDefinition = {
   id: 'agent-1',
-  tenantId: 't1',
+  organizationId: 't1',
   name: 'meridian-support-v1',
   soulMd: '# Role: Meridian Support Agent v1',
   model: 'mock',
@@ -90,7 +90,7 @@ function emptyContacts(): ContactsPort {
     async get(id): Promise<Contact> {
       return {
         id,
-        tenantId: 't1',
+        organizationId: 't1',
         displayName: 'Test',
         phone: null,
         email: null,
@@ -156,7 +156,7 @@ describe('bootWake — event lifecycle', () => {
     })
 
     const res = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       mockStreamFn: mockStream([
@@ -187,7 +187,7 @@ describe('bootWake — event lifecycle', () => {
 
   it('frozen prompt is computed once: turn1.systemHash === turn3.systemHash even after mid-wake writes (N3)', async () => {
     const res = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       mockStreamFn: mockStreamTurns([
@@ -231,7 +231,7 @@ describe('bootWake — event lifecycle', () => {
     }
 
     const res = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       mockStreamFn: mockStream([
@@ -257,7 +257,7 @@ describe('bootWake — event lifecycle', () => {
       },
     }
     const res = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       mockStreamFn: mockStream([{ type: 'finish', finishReason: 'stop' }]),
@@ -270,7 +270,7 @@ describe('bootWake — event lifecycle', () => {
 
   it('registerSideLoadMaterializer contributions appear in next-turn prompt (B7 round-trip)', async () => {
     const res = await bootWake({
-      tenantId: 't1',
+      organizationId: 't1',
       agentId: 'agent-1',
       contactId: 'k1',
       mockStreamFn: mockStreamTurns([

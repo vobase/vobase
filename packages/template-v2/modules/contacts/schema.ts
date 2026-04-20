@@ -2,7 +2,7 @@
  * contacts module schema.
  *
  * Two tables:
- *   - `contacts` — tenant-scoped identity (phone/email + working memory + segments)
+ *   - `contacts` — organization-scoped identity (phone/email + working memory + segments)
  *   - `staff_channel_bindings` — (user_id, channel_instance_id) → external_identifier
  *
  * NOTE: `staff_channel_bindings.channel_instance_id` has a CROSS-SCHEMA FK to
@@ -23,7 +23,7 @@ export const contacts = contactsPgSchema.table(
   'contacts',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     displayName: text('display_name'),
     phone: text('phone'),
     email: text('email'),
@@ -38,9 +38,9 @@ export const contacts = contactsPgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    index('idx_contacts_tenant').on(t.tenantId),
-    uniqueIndex('uq_contacts_tenant_phone').on(t.tenantId, t.phone),
-    uniqueIndex('uq_contacts_tenant_email').on(t.tenantId, t.email),
+    index('idx_contacts_organization').on(t.organizationId),
+    uniqueIndex('uq_contacts_tenant_phone').on(t.organizationId, t.phone),
+    uniqueIndex('uq_contacts_tenant_email').on(t.organizationId, t.email),
   ],
 )
 

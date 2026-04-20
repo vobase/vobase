@@ -24,7 +24,7 @@ import { createInMemoryOutbound, createWakeWorker } from '../service/wake-worker
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 
-const TENANT = 'ten-test'
+const ORG = 'ten-test'
 const AGENT = 'agt-test'
 const CONV = 'conv-test'
 
@@ -65,7 +65,7 @@ function makeStubBootWake(script: {
       ts: new Date(),
       wakeId,
       conversationId: opts.conversationId ?? CONV,
-      tenantId: opts.tenantId,
+      organizationId: opts.organizationId,
       turnIndex,
     }
     events?.publish({
@@ -122,7 +122,7 @@ describe('wake-scheduler — 5 triggers', () => {
     const { scheduler, queue } = buildRig()
     const result = await scheduler.enqueue(
       { trigger: 'inbound_message', conversationId: CONV, messageIds: ['m1'] },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     expect(result.wasNew).toBe(true)
     expect(queue.pending()).toHaveLength(1)
@@ -138,7 +138,7 @@ describe('wake-scheduler — 5 triggers', () => {
     const { scheduler, queue } = buildRig()
     await scheduler.enqueue(
       { trigger: 'approval_resumed', conversationId: CONV, approvalId: 'ap1', decision: 'approved' },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     const pending = queue.pending()[0]
     expect(pending?.name).toBe(AGENT_WAKE_JOB)
@@ -151,7 +151,7 @@ describe('wake-scheduler — 5 triggers', () => {
     const { scheduler, queue } = buildRig()
     await scheduler.enqueue(
       { trigger: 'supervisor', conversationId: CONV, noteId: 'note-1', authorUserId: 'usr-a' },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     const pending = queue.pending()[0]
     const payload = pending?.data as AgentWakeJobPayload
@@ -164,7 +164,7 @@ describe('wake-scheduler — 5 triggers', () => {
     const scheduledAt = new Date('2030-01-01T00:00:00Z')
     await scheduler.enqueue(
       { trigger: 'scheduled_followup', conversationId: CONV, reason: 'nudge', scheduledAt },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     const pending = queue.pending()[0]
     expect(pending?.name).toBe(SCHEDULED_FOLLOWUP_JOB)
@@ -177,7 +177,7 @@ describe('wake-scheduler — 5 triggers', () => {
     const { scheduler, queue } = buildRig()
     await scheduler.enqueue(
       { trigger: 'manual', conversationId: CONV, reason: 'staff test', actorUserId: 'usr-x' },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     const pending = queue.pending()[0]
     const payload = pending?.data as AgentWakeJobPayload
@@ -194,7 +194,7 @@ describe('wake-scheduler — debounce', () => {
     for (let i = 0; i < 10; i += 1) {
       await scheduler.enqueue(
         { trigger: 'inbound_message', conversationId: CONV, messageIds: [`m${i}`] },
-        { agentId: AGENT, tenantId: TENANT },
+        { agentId: AGENT, organizationId: ORG },
       )
     }
     const jobs = queue.pending().filter((j) => j.name === AGENT_WAKE_JOB)
@@ -210,7 +210,7 @@ describe('wake-scheduler — debounce', () => {
     await activeWakes.acquire(CONV, 'worker-X', 30_000)
     const result = await scheduler.enqueue(
       { trigger: 'inbound_message', conversationId: CONV, messageIds: ['steer-1'] },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     expect(result.steered).toBe(true)
     expect(queue.pending()).toHaveLength(0)
@@ -224,13 +224,13 @@ describe('wake-scheduler — debounce', () => {
     await activeWakes.acquire(CONV, 'worker-X', 30_000)
     await scheduler.enqueue(
       { trigger: 'inbound_message', conversationId: CONV, messageIds: ['a'] },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     expect(queue.pending()).toHaveLength(0)
     await activeWakes.release(CONV, 'worker-X')
     const second = await scheduler.enqueue(
       { trigger: 'inbound_message', conversationId: CONV, messageIds: ['b'] },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     expect(second.steered).toBe(false)
     expect(second.wasNew).toBe(true)
@@ -251,7 +251,7 @@ describe('wake-scheduler — approval resume', () => {
         decision: 'approved',
         note: 'lgtm',
       },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     queue.advance(0)
     const outbound = createInMemoryOutbound()
@@ -301,7 +301,7 @@ describe('wake-scheduler — approval resume', () => {
         decision: 'rejected',
         note: 'too risky',
       },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     let capturedTrigger: WakeTrigger | null = null
     const worker = createWakeWorker({
@@ -343,7 +343,7 @@ describe('wake-scheduler — scheduled followup', () => {
     const scheduledAt = new Date(10_000)
     await scheduler.enqueue(
       { trigger: 'scheduled_followup', conversationId: CONV, reason: 'r', scheduledAt },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     const outbound = createInMemoryOutbound()
     let ran = false
@@ -383,7 +383,7 @@ describe('wake-scheduler — scheduled followup', () => {
     const scheduledAt = new Date('2027-06-15T10:30:00Z')
     await scheduler.enqueue(
       { trigger: 'scheduled_followup', conversationId: CONV, reason: 'r', scheduledAt },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     const pending = queue.pending()[0]
     const payload = pending?.data as ScheduledFollowupPayload
@@ -398,7 +398,7 @@ describe('wake-worker — idempotency', () => {
     const { scheduler, queue } = buildRig({ debounceMs: 0 })
     await scheduler.enqueue(
       { trigger: 'manual', conversationId: CONV, reason: 'retry', actorUserId: 'u' },
-      { agentId: AGENT, tenantId: TENANT },
+      { agentId: AGENT, organizationId: ORG },
     )
     const outbound = createInMemoryOutbound()
     const emits: Array<{ toolCallId: string }> = []
@@ -423,7 +423,7 @@ describe('wake-worker — idempotency', () => {
           ts: new Date(),
           wakeId: `w-${attempts}`,
           conversationId: opts.conversationId ?? CONV,
-          tenantId: opts.tenantId,
+          organizationId: opts.organizationId,
           turnIndex: 0,
         }
         bus?.publish({
@@ -477,16 +477,16 @@ describe('wake-worker — idempotency', () => {
   })
 
   it('EventBus onWakeReleased hook fires on agent_end', () => {
-    const released: Array<{ conversationId: string; wakeId: string; tenantId: string; reason: string }> = []
+    const released: Array<{ conversationId: string; wakeId: string; organizationId: string; reason: string }> = []
     const bus = new EventBus({
       onWakeReleased: (p) => {
         released.push(p)
       },
     })
-    const base = { ts: new Date(), wakeId: 'w1', conversationId: CONV, tenantId: TENANT, turnIndex: 0 }
+    const base = { ts: new Date(), wakeId: 'w1', conversationId: CONV, organizationId: ORG, turnIndex: 0 }
     bus.publish({ ...base, type: 'agent_end', reason: 'complete' })
     expect(released).toHaveLength(1)
-    expect(released[0]).toEqual({ conversationId: CONV, wakeId: 'w1', tenantId: TENANT, reason: 'complete' })
+    expect(released[0]).toEqual({ conversationId: CONV, wakeId: 'w1', organizationId: ORG, reason: 'complete' })
   })
 
   it('non-agent_end events do not invoke the wake-released hook', () => {
@@ -496,7 +496,7 @@ describe('wake-worker — idempotency', () => {
         released.push(1)
       },
     })
-    const base = { ts: new Date(), wakeId: 'w1', conversationId: CONV, tenantId: TENANT, turnIndex: 0 }
+    const base = { ts: new Date(), wakeId: 'w1', conversationId: CONV, organizationId: ORG, turnIndex: 0 }
     bus.publish({ ...base, type: 'turn_start' })
     bus.publish({ ...base, type: 'turn_end', tokensIn: 0, tokensOut: 0, costUsd: 0 })
     expect(released).toHaveLength(0)

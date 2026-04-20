@@ -4,7 +4,7 @@ import { Bash } from 'just-bash'
 import { collectSideLoad } from './side-load-collector'
 
 const CTX = {
-  tenantId: 't',
+  organizationId: 't',
   conversationId: 'c',
   agentId: 'a',
   contactId: 'k',

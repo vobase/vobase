@@ -10,7 +10,7 @@ import { sseObserver } from './sse'
 
 function makeCtx(notifyFn: (p: { table: string; id?: string; action?: string }) => void): ObserverContext {
   return {
-    tenantId: 'ten1',
+    organizationId: 'ten1',
     conversationId: 'conv-sse-1',
     wakeId: 'wake-sse-1',
     ports: {} as ObserverContext['ports'],
@@ -26,7 +26,7 @@ function makeEvent(type: string, conversationId = 'conv-sse-1'): AgentEvent {
     ts: new Date(),
     wakeId: 'wake-sse-1',
     conversationId,
-    tenantId: 'ten1',
+    organizationId: 'ten1',
     turnIndex: 0,
   } as AgentEvent
 }

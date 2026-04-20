@@ -7,7 +7,7 @@ const NOW = new Date('2026-04-20T10:00:00Z')
 
 const makeConv = (overrides: Partial<Conversation> = {}): Conversation => ({
   id: 'conv-1',
-  tenantId: 't1',
+  organizationId: 't1',
   contactId: 'ct-1',
   channelInstanceId: 'ch-1',
   status: 'active',

@@ -36,7 +36,7 @@ export async function addNote(input: AddNoteInput): Promise<InternalNote> {
   const rows = await db
     .insert(internalNotes)
     .values({
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       conversationId: input.conversationId,
       authorType: input.author.kind,
       authorId: input.author.id,

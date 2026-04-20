@@ -112,7 +112,7 @@ function mockNotifier(): NotifyFn {
 function makePendingProposal(overrides: Partial<ProposalRow> = {}): ProposalRow {
   return {
     id: 'prop-1',
-    tenantId: 'ten-1',
+    organizationId: 'ten-1',
     conversationId: 'conv-1',
     scope: 'agent_skill',
     action: 'create',
@@ -145,7 +145,7 @@ beforeEach(() => {
 describe('insertProposal', () => {
   it('defaults status to pending for agent_skill scope', async () => {
     await insertProposal({
-      tenantId: 'ten-1',
+      organizationId: 'ten-1',
       conversationId: 'conv-1',
       scope: 'agent_skill',
       action: 'create',
@@ -157,7 +157,7 @@ describe('insertProposal', () => {
 
   it('defaults status to auto_written for contact scope', async () => {
     await insertProposal({
-      tenantId: 'ten-1',
+      organizationId: 'ten-1',
       conversationId: 'conv-1',
       scope: 'contact',
       action: 'upsert',
@@ -168,7 +168,7 @@ describe('insertProposal', () => {
 
   it('honours explicit status override', async () => {
     await insertProposal({
-      tenantId: 'ten-1',
+      organizationId: 'ten-1',
       conversationId: 'conv-1',
       scope: 'agent_skill',
       action: 'create',
@@ -180,7 +180,7 @@ describe('insertProposal', () => {
 
   it('returns the generated id', async () => {
     const { id } = await insertProposal({
-      tenantId: 'ten-1',
+      organizationId: 'ten-1',
       conversationId: 'conv-1',
       scope: 'agent_skill',
       action: 'create',
@@ -227,7 +227,7 @@ describe('decideProposal', () => {
     const skillInsert = inserts.find((i) => i.table === 'learned_skills')
     expect(skillInsert).toBeDefined()
     expect(skillInsert?.values).toMatchObject({
-      tenantId: 'ten-1',
+      organizationId: 'ten-1',
       agentId: 'agt-xyz',
       name: 'refund-procedure',
       parentProposalId: 'prop-1',
@@ -267,7 +267,7 @@ describe('decideProposal', () => {
 })
 
 describe('listRecent', () => {
-  it('returns rows for tenant when no status filter', async () => {
+  it('returns rows for organization when no status filter', async () => {
     const rows = [makePendingProposal(), makePendingProposal({ id: 'prop-2' })]
     recentProposals = rows
     const result = await listRecent('ten-1')

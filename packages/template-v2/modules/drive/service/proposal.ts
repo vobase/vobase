@@ -1,8 +1,8 @@
 /**
  * Drive proposal service — `vobase drive propose` inserts a `learning_proposals` row
- * for tenant-drive documents that the agent cannot write directly.
+ * for organization-drive documents that the agent cannot write directly.
  *
- * Scope routing: tenant-drive writes require staff approval (scope='drive_doc',
+ * Scope routing: organization-drive writes require staff approval (scope='drive_doc',
  * status='pending'). Contact-drive writes are free and go through workspaceSyncObserver.
  *
  * `decide()` is called by the staff approval handler (modules/drive/handlers/proposal.ts).
@@ -20,7 +20,7 @@ export function setTenantId(id: string): void {
 
 export interface DriveProposalInput {
   conversationId: string
-  /** Scope-relative path under tenant drive (e.g. '/pricing.md'). */
+  /** Scope-relative path under organization drive (e.g. '/pricing.md'). */
   path: string
   body: string
   rationale?: string
@@ -33,14 +33,14 @@ export interface DriveProposalResult {
 }
 
 /**
- * Insert a learning_proposals row for a tenant-drive document change.
+ * Insert a learning_proposals row for a organization-drive document change.
  * Status is always 'pending' — staff must approve before the file is written.
  */
 export async function propose(input: DriveProposalInput): Promise<DriveProposalResult> {
-  if (!_tenantId) throw new Error('drive/proposal: tenantId not set — call setTenantId() in module init')
+  if (!_tenantId) throw new Error('drive/proposal: organizationId not set — call setTenantId() in module init')
 
   const { id: proposalId } = await insertProposal({
-    tenantId: _tenantId,
+    organizationId: _tenantId,
     conversationId: input.conversationId,
     scope: 'drive_doc',
     action: 'upsert',

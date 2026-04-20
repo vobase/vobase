@@ -8,8 +8,8 @@ const app = new Hono()
 app.get('/health', (c) => c.json({ module: 'contacts', status: 'ok' }))
 
 app.get('/', async (c) => {
-  const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
-  const rows = await listContacts(tenantId)
+  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+  const rows = await listContacts(organizationId)
   return c.json(rows)
 })
 

@@ -60,7 +60,7 @@ describe('workspaceSyncObserver', () => {
     const { harness } = await bootWakeIntegration(
       { ...ports, contacts: realContactsPort },
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,
@@ -122,7 +122,7 @@ describe('vobase drive propose CLI (C4)', () => {
     expect(cmd).toBeDefined()
 
     const ctx = {
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       conversationId: SEEDED_CONV_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
@@ -157,7 +157,7 @@ describe('vobase drive propose CLI (C4)', () => {
   test('missing --path flag → returns error', async () => {
     const cmd = driveVerbs.find((v) => v.name === 'drive propose')!
     const ctx = {
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       conversationId: SEEDED_CONV_ID,
       agentId: MERIDIAN_AGENT_ID,
       contactId: SEEDED_CONTACT_ID,
@@ -184,7 +184,7 @@ describe('memoryDistillObserver', () => {
     const { harness } = await bootWakeIntegration(
       { ...ports, contacts: realContactsPort },
       {
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         agentId: MERIDIAN_AGENT_ID,
         contactId: SEEDED_CONTACT_ID,
         conversationId: SEEDED_CONV_ID,

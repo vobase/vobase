@@ -18,7 +18,7 @@ let calls: CallRecord[] = []
 const fakeMessage: Message = {
   id: 'msg-outbound-1',
   conversationId: 'conv-1',
-  tenantId: 'ten-1',
+  organizationId: 'ten-1',
   role: 'agent',
   kind: 'text',
   content: { text: 'hello' },
@@ -84,7 +84,7 @@ function makeRealtime(): RealtimeService {
 
 function makeEvent(toolName: ChannelOutboundEvent['toolName'], payload: unknown): ChannelOutboundEvent {
   return {
-    tenantId: 'ten-1',
+    organizationId: 'ten-1',
     conversationId: 'conv-1',
     contactId: 'contact-1',
     wakeId: 'wake-1',

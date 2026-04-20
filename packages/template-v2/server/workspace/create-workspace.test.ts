@@ -7,7 +7,7 @@ import { BUSINESS_MD_FALLBACK, createWorkspace } from './create-workspace'
 
 const AGENT_DEFINITION: AgentDefinition = {
   id: 'agent-1',
-  tenantId: 't1',
+  organizationId: 't1',
   name: 'meridian-support-v1',
   soulMd: '# Role: Meridian Support Agent v1\nStay on brand.',
   model: 'mock',
@@ -31,8 +31,8 @@ function makeTenantFile(partial: Partial<DriveFile> & { path: string; extractedT
   const id = partial.id ?? `f-${partial.path}`
   return {
     id,
-    tenantId: 't1',
-    scope: 'tenant',
+    organizationId: 't1',
+    scope: 'organization',
     scopeId: 't1',
     parentFolderId: null,
     kind: 'file',
@@ -109,7 +109,7 @@ function makeContactsStub(): ContactsPort {
     async get(id): Promise<Contact> {
       return {
         id,
-        tenantId: 't1',
+        organizationId: 't1',
         displayName: 'Test Customer',
         phone: '+6580000000',
         email: null,
@@ -164,7 +164,7 @@ function makeAgentsStub(): AgentsPort {
 
 async function buildWorkspace(files: DriveFile[] = []) {
   return createWorkspace({
-    tenantId: 't1',
+    organizationId: 't1',
     agentId: 'agent-1',
     contactId: 'contact-1',
     conversationId: 'conv-1',
@@ -205,7 +205,7 @@ describe('createWorkspace', () => {
     expect(r.stdout).toContain('Meridian Business')
   })
 
-  it('falls back to BUSINESS_MD_FALLBACK when the tenant row is missing (R8)', async () => {
+  it('falls back to BUSINESS_MD_FALLBACK when the organization row is missing (R8)', async () => {
     const ws = await buildWorkspace([])
     const r = await run(ws, 'cat /workspace/drive/BUSINESS.md')
     expect(r.stdout).toContain('No business profile configured')

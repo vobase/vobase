@@ -5,7 +5,7 @@ import { buildFrozenPrompt } from './frozen-prompt-builder'
 
 const DEF: AgentDefinition = {
   id: 'agent-1',
-  tenantId: 't1',
+  organizationId: 't1',
   name: 'a',
   soulMd: 'SOUL body',
   model: 'mock',
@@ -40,7 +40,7 @@ describe('buildFrozenPrompt', () => {
     const r = await buildFrozenPrompt({
       bash,
       agentDefinition: DEF,
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'c1',
       contactId: 'k1',
     })
@@ -58,14 +58,14 @@ describe('buildFrozenPrompt', () => {
     const a = await buildFrozenPrompt({
       bash: bash1,
       agentDefinition: DEF,
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'c1',
       contactId: 'k1',
     })
     const b = await buildFrozenPrompt({
       bash: bash2,
       agentDefinition: DEF,
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'c1',
       contactId: 'k1',
     })
@@ -77,7 +77,7 @@ describe('buildFrozenPrompt', () => {
     const a = await buildFrozenPrompt({
       bash,
       agentDefinition: DEF,
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'c1',
       contactId: 'k1',
     })
@@ -85,7 +85,7 @@ describe('buildFrozenPrompt', () => {
     const b = await buildFrozenPrompt({
       bash,
       agentDefinition: DEF,
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'c1',
       contactId: 'k1',
     })

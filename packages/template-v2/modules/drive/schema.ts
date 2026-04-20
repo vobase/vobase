@@ -2,10 +2,10 @@
  * drive module schema.
  *
  * One unified table: `drive.files`. Folders and files co-exist; `scope + scope_id`
- * partitions the tree into tenant-wide KB vs per-contact drive. Same caption/
+ * partitions the tree into organization-wide KB vs per-contact drive. Same caption/
  * extract/threat-scan pipeline for both scopes.
  *
- * `/BUSINESS.md` lives as a regular row (`scope='tenant', path='/BUSINESS.md'`);
+ * `/BUSINESS.md` lives as a regular row (`scope='organization', path='/BUSINESS.md'`);
  * the harness materializer pre-loads it into the frozen system prompt.
  *
  * pg_trgm + GIN index on (extracted_text || ' ' || caption) accelerates `grep`.
@@ -20,7 +20,7 @@ export const driveFiles = drivePgSchema.table(
   'files',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     scope: text('scope').notNull(),
     scopeId: text('scope_id').notNull(),
     /** Self-ref: parent folder in the same tree. */
@@ -51,12 +51,12 @@ export const driveFiles = drivePgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    index('idx_drive_scope_path').on(t.tenantId, t.scope, t.scopeId, t.path),
+    index('idx_drive_scope_path').on(t.organizationId, t.scope, t.scopeId, t.path),
     index('idx_drive_parent').on(t.parentFolderId).where(sql`${t.parentFolderId} IS NOT NULL`),
-    uniqueIndex('uq_drive_path').on(t.tenantId, t.scope, t.scopeId, t.path),
-    uniqueIndex('uq_drive_parent_name').on(t.tenantId, t.scope, t.scopeId, t.parentFolderId, t.name),
+    uniqueIndex('uq_drive_path').on(t.organizationId, t.scope, t.scopeId, t.path),
+    uniqueIndex('uq_drive_parent_name').on(t.organizationId, t.scope, t.scopeId, t.parentFolderId, t.name),
     check('drive_kind_check', sql`kind IN ('folder','file')`),
-    check('drive_scope_check', sql`scope IN ('tenant','contact')`),
+    check('drive_scope_check', sql`scope IN ('organization','contact')`),
     check(
       'drive_source_check',
       sql`source IS NULL OR source IN ('customer_inbound','agent_uploaded','staff_uploaded','admin_uploaded')`,

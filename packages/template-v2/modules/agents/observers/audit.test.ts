@@ -12,7 +12,7 @@ import { auditObserver } from './audit'
 
 function makeCtx(wakeId = 'wake-test-1'): ObserverContext {
   return {
-    tenantId: 'ten1',
+    organizationId: 'ten1',
     conversationId: 'conv1',
     wakeId,
     ports: {} as ObserverContext['ports'],
@@ -28,7 +28,7 @@ function makeEvent(type: string): AgentEvent {
     ts: new Date(),
     wakeId: 'wake-test-1',
     conversationId: 'conv1',
-    tenantId: 'ten1',
+    organizationId: 'ten1',
     turnIndex: 0,
   } as AgentEvent
 }
@@ -79,7 +79,7 @@ describe('auditObserver', () => {
       ts: new Date(),
       wakeId: 'wake-test-1',
       conversationId: 'conv1',
-      tenantId: 'ten1',
+      organizationId: 'ten1',
       turnIndex: 0,
       channelType: 'whatsapp',
       externalMessageId: 'wamid.ABC123',
@@ -97,7 +97,7 @@ describe('auditObserver', () => {
       ts: new Date(),
       wakeId: 'wake-test-1',
       conversationId: 'conv1',
-      tenantId: 'ten1',
+      organizationId: 'ten1',
       turnIndex: 0,
       channelType: 'web',
       toolName: 'reply',
@@ -115,7 +115,7 @@ describe('auditObserver', () => {
       ts: new Date(),
       wakeId: 'wake-test-1',
       conversationId: 'conv1',
-      tenantId: 'ten1',
+      organizationId: 'ten1',
       turnIndex: 0,
       trigger: 'scheduled_followup',
       scheduledAt: new Date(Date.now() + 3600_000),

@@ -12,7 +12,7 @@ export function DrivePage() {
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Drive</h1>
             <p className="text-sm text-muted-foreground">
-              Virtual file tree — tenant-scope policy docs and per-contact uploads.
+              Virtual file tree — organization-scope policy docs and per-contact uploads.
             </p>
           </div>
         </div>
@@ -24,7 +24,7 @@ export function DrivePage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <FolderTree className="size-4" />
-                Tenant scope
+                Organization scope
               </CardTitle>
               <CardDescription>Brand, policy, pricing docs — read-only to the agent.</CardDescription>
             </CardHeader>
@@ -65,7 +65,7 @@ export function DrivePage() {
                 <Info className="size-4" />
                 Proposal flow
               </CardTitle>
-              <CardDescription>How agents propose changes to tenant-scope files.</CardDescription>
+              <CardDescription>How agents propose changes to organization-scope files.</CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               <ol className="list-decimal space-y-1 pl-5">

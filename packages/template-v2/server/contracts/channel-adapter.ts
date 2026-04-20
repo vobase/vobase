@@ -6,7 +6,7 @@
  *     method-signature mismatch with `OutboundMessage` vs `ChannelOutboundEvent` and
  *     break cross-template code paths.
  *   - V2 adds a NEW method `sendOutboundEvent` that carries v2-specific fields
- *     (tenantId, contactId, wakeId) from the ChannelOutboundEvent envelope.
+ *     (organizationId, contactId, wakeId) from the ChannelOutboundEvent envelope.
  *     Channel-web and channel-whatsapp implement this method; the dispatcher calls it.
  *
  * Usage: modules/channel-web and modules/channel-whatsapp implement V2ChannelAdapter.

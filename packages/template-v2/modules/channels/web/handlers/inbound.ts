@@ -22,7 +22,7 @@ export async function handleInbound(c: Context): Promise<Response> {
   const jobs = requireJobs()
 
   const contact = await contactsPort.upsertByExternal({
-    tenantId: event.tenantId,
+    organizationId: event.organizationId,
     phone: `web:${event.from}`,
     displayName: event.profileName || undefined,
   })
@@ -34,7 +34,7 @@ export async function handleInbound(c: Context): Promise<Response> {
   }
 
   const result = await inboxPort.createInboundMessage({
-    tenantId: event.tenantId,
+    organizationId: event.organizationId,
     channelInstanceId,
     contactId: contact.id,
     externalMessageId: event.externalMessageId,
@@ -45,7 +45,7 @@ export async function handleInbound(c: Context): Promise<Response> {
 
   if (result.isNew) {
     await jobs.send('channel-web:inbound-to-wake', {
-      tenantId: event.tenantId,
+      organizationId: event.organizationId,
       conversationId: result.conversation.id,
       messageId: result.message.id,
       contactId: contact.id,

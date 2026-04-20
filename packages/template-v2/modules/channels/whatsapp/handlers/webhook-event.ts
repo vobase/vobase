@@ -11,9 +11,9 @@ import type { Context } from 'hono'
 import { processWebhookPayload } from '../service/inbound'
 import { MetaWebhookPayloadSchema } from '../service/parser'
 
-// Tenant is resolved from channelInstanceId / env — never from an inbound header.
-// Meta does not send x-tenant-id; only attackers would set it.
-const DEV_FALLBACK_TENANT_ID = process.env.WA_DEFAULT_TENANT_ID ?? undefined
+// Organization is resolved from channelInstanceId / env — never from an inbound header.
+// Meta does not send x-organization-id; only attackers would set it.
+const DEV_FALLBACK_ORG_ID = process.env.WA_DEFAULT_ORG_ID ?? undefined
 
 export async function handleWebhookEvent(c: Context): Promise<Response> {
   const v = await verifyHmacWebhook(c, {
@@ -29,20 +29,20 @@ export async function handleWebhookEvent(c: Context): Promise<Response> {
   }
 
   // ── Dispatch to service ─────────────────────────────────────────────────────
-  // Tenant is NOT read from headers — Meta doesn't set x-tenant-id and trusting
-  // it would allow any caller to impersonate another tenant. Instead, tenantId
+  // Organization is NOT read from headers — Meta doesn't set x-organization-id and trusting
+  // it would allow any caller to impersonate another organization. Instead, organizationId
   // is derived from the channelInstanceId lookup inside processWebhookPayload
-  // (falling back to WA_DEFAULT_TENANT_ID for dev single-tenant setups).
+  // (falling back to WA_DEFAULT_ORG_ID for dev single-organization setups).
   // The channelInstanceId may come from a route param (multi-instance routing),
   // but never from a caller-supplied header.
   const channelInstanceId = c.req.param('channelInstanceId') ?? undefined
 
-  if (!channelInstanceId && !DEV_FALLBACK_TENANT_ID && process.env.NODE_ENV === 'production') {
+  if (!channelInstanceId && !DEV_FALLBACK_ORG_ID && process.env.NODE_ENV === 'production') {
     return c.json({ error: 'missing channelInstanceId' }, 400)
   }
 
   const result = await processWebhookPayload(parsed.data, {
-    tenantId: DEV_FALLBACK_TENANT_ID ?? 'tenant-default',
+    organizationId: DEV_FALLBACK_ORG_ID ?? 'org-default',
     channelInstanceId,
   })
 

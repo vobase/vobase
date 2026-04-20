@@ -16,8 +16,8 @@ export const OUTBOUND_TOOL_NAME_SET: ReadonlySet<string> = new Set(OUTBOUND_TOOL
 // ─── Inbound ────────────────────────────────────────────────────────────────
 
 export const ChannelInboundEventSchema = z.object({
-  /** Resolved tenant scope (from webhook signature / session). */
-  tenantId: z.string(),
+  /** Resolved organization scope (from webhook signature / session). */
+  organizationId: z.string(),
   /** Channel that delivered the message. */
   channelType: z.enum(['web', 'whatsapp']),
   /** Provider-assigned message ID — used for idempotent dedup. */
@@ -46,7 +46,7 @@ export type ChannelInboundEvent = z.infer<typeof ChannelInboundEventSchema>
 // ─── Outbound ───────────────────────────────────────────────────────────────
 
 export const ChannelOutboundEventSchema = z.object({
-  tenantId: z.string(),
+  organizationId: z.string(),
   conversationId: z.string(),
   /** Resolved contact ID for address lookup. */
   contactId: z.string(),

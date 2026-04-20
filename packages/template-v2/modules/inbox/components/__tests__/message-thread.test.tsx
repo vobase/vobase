@@ -49,7 +49,7 @@ import { MessageThread } from '../message-thread'
 const textMsg: Message = {
   id: 'msg-1',
   conversationId: 'conv-1',
-  tenantId: 'tenant-1',
+  organizationId: 'org-1',
   role: 'customer',
   kind: 'text',
   content: { text: 'Hello world' },
@@ -62,7 +62,7 @@ const textMsg: Message = {
 const agentCardMsg: Message = {
   id: 'msg-2',
   conversationId: 'conv-1',
-  tenantId: 'tenant-1',
+  organizationId: 'org-1',
   role: 'agent',
   kind: 'card',
   content: {
@@ -136,7 +136,7 @@ describe('MessageThread', () => {
     const taskMsg: Message = {
       id: 'msg-t1',
       conversationId: 'conv-1',
-      tenantId: 'tenant-1',
+      organizationId: 'org-1',
       role: 'agent',
       kind: 'text',
       content: {

@@ -14,7 +14,7 @@ import type { ToolResult } from './tool-result'
 // ─── Tool execution context ─────────────────────────────────────────────────
 
 export interface ToolContext {
-  tenantId: string
+  organizationId: string
   conversationId: string
   wakeId: string
   agentId: string

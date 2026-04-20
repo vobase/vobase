@@ -127,10 +127,10 @@ function extractContentType(msg: z.infer<typeof MetaMessageSchema>): ChannelInbo
  * Parse a validated Meta webhook payload into canonical ChannelInboundEvents.
  *
  * @param payload - validated MetaWebhookPayload
- * @param tenantId - resolved from webhook signature / channel instance
+ * @param organizationId - resolved from webhook signature / channel instance
  * @returns array of ChannelInboundEvents (may be empty for ignored event types)
  */
-export function parseWebhookPayload(payload: MetaWebhookPayload, tenantId: string): ChannelInboundEvent[] {
+export function parseWebhookPayload(payload: MetaWebhookPayload, organizationId: string): ChannelInboundEvent[] {
   const events: ChannelInboundEvent[] = []
 
   for (const entry of payload.entry) {
@@ -149,7 +149,7 @@ export function parseWebhookPayload(payload: MetaWebhookPayload, tenantId: strin
       for (const msg of value.messages ?? []) {
         if (displayPhone && msg.from === displayPhone) continue
         events.push({
-          tenantId,
+          organizationId,
           channelType: 'whatsapp',
           externalMessageId: msg.id,
           from: msg.from,
@@ -168,7 +168,7 @@ export function parseWebhookPayload(payload: MetaWebhookPayload, tenantId: strin
       // scheduler can optionally act on delivery receipts.
       for (const status of value.statuses ?? []) {
         events.push({
-          tenantId,
+          organizationId,
           channelType: 'whatsapp',
           externalMessageId: status.id,
           from: status.recipient_id,

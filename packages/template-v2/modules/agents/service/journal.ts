@@ -8,7 +8,7 @@ import type { Tx } from '@server/contracts/inbox-port'
 
 export interface JournalAppendInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   wakeId?: string | null
   turnIndex: number
   event: AgentEvent
@@ -63,7 +63,7 @@ export async function append(input: JournalAppendInput, tx?: Tx): Promise<void> 
 
   await runner.insert(conversationEvents).values({
     conversationId: input.conversationId,
-    tenantId: input.tenantId,
+    organizationId: input.organizationId,
     wakeId: input.wakeId ?? null,
     turnIndex: input.turnIndex,
     type: ev.type as string,

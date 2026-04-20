@@ -13,7 +13,7 @@ import type { LlmResult, PluginContext } from '@server/contracts/plugin-context'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import { createScorerObserver } from './scorer'
 
-type InsertedRow = { scorer: string; score: number; tenantId: string; wakeTurnIndex: number }
+type InsertedRow = { scorer: string; score: number; organizationId: string; wakeTurnIndex: number }
 let insertedRows: InsertedRow[] = []
 let emittedEvents: AgentEvent[] = []
 let llmCallLog: string[] = []
@@ -31,7 +31,7 @@ function makeMockDb(): unknown {
         insertedRows.push({
           scorer: row.scorer as string,
           score: row.score as number,
-          tenantId: row.tenantId as string,
+          organizationId: row.organizationId as string,
           wakeTurnIndex: row.wakeTurnIndex as number,
         })
         return Promise.resolve()
@@ -58,7 +58,7 @@ async function mockLlmCall(task: string, _req: unknown): Promise<LlmResult<strin
 
 function makeCtx(): ObserverContext {
   return {
-    tenantId: 'ten-scorer-1',
+    organizationId: 'ten-scorer-1',
     conversationId: 'conv-scorer-1',
     wakeId: 'wake-scorer-1',
     ports: {} as ObserverContext['ports'],
@@ -73,7 +73,7 @@ function makeBase() {
     ts: new Date(),
     wakeId: 'wake-scorer-1',
     conversationId: 'conv-scorer-1',
-    tenantId: 'ten-scorer-1',
+    organizationId: 'ten-scorer-1',
     turnIndex: 1,
   }
 }
@@ -124,14 +124,14 @@ describe('createScorerObserver', () => {
     expect(scorers).toEqual(['answer_relevancy', 'faithfulness'])
   })
 
-  it('inserts rows with correct tenantId and wakeTurnIndex', async () => {
+  it('inserts rows with correct organizationId and wakeTurnIndex', async () => {
     const observer = createScorerObserver({
       llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
       emit: (e) => emittedEvents.push(e),
     })
     await observer.handle(makeTurnEndEvent(3), makeCtx())
     for (const row of insertedRows) {
-      expect(row.tenantId).toBe('ten-scorer-1')
+      expect(row.organizationId).toBe('ten-scorer-1')
       expect(row.wakeTurnIndex).toBe(3)
     }
   })

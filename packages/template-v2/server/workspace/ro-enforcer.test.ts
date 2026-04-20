@@ -6,7 +6,7 @@ describe('checkWriteAllowed', () => {
   it('returns spec-exact EROFS for /workspace/drive/*', () => {
     const err = checkWriteAllowed('/workspace/drive/refunds/updated.md')
     expect(err).toContain('bash: /workspace/drive/refunds/updated.md: Read-only filesystem.')
-    expect(err).toContain('vobase drive propose --scope=tenant --path=/refunds/updated.md --body=...')
+    expect(err).toContain('vobase drive propose --scope=organization --path=/refunds/updated.md --body=...')
   })
 
   it('returns memory hint for direct MEMORY.md writes', () => {

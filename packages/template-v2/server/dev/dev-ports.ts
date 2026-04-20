@@ -93,7 +93,7 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
     },
     async createConversation(input) {
       const { conversation } = await svcResumeOrCreate(
-        input.tenantId,
+        input.organizationId,
         input.contactId,
         input.channelInstanceId,
         input.threadKey ?? 'default',
@@ -104,7 +104,7 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
       const ctx = stubToolCtx()
       return appendTextMessage({
         conversationId: input.conversationId,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         agentId: input.agentId ?? ctx.agentId,
         wakeId: input.wakeId ?? ctx.wakeId,
         turnIndex: input.turnIndex ?? ctx.turnIndex,
@@ -117,7 +117,7 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
       const ctx = stubToolCtx()
       return appendCardMessage({
         conversationId: input.conversationId,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         agentId: input.agentId ?? ctx.agentId,
         wakeId: input.wakeId ?? ctx.wakeId,
         turnIndex: input.turnIndex ?? ctx.turnIndex,
@@ -179,19 +179,19 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
       if (!r) throw new Error(`contacts/get: no contact ${id}`)
       return r
     },
-    async getByPhone(tenantId, phone) {
+    async getByPhone(organizationId, phone) {
       const rows = await db
         .select()
         .from(contacts)
-        .where(and(eq(contacts.tenantId, tenantId), eq(contacts.phone, phone)))
+        .where(and(eq(contacts.organizationId, organizationId), eq(contacts.phone, phone)))
         .limit(1)
       return (rows[0] as Contact | undefined) ?? null
     },
-    async getByEmail(tenantId, email) {
+    async getByEmail(organizationId, email) {
       const rows = await db
         .select()
         .from(contacts)
-        .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, email)))
+        .where(and(eq(contacts.organizationId, organizationId), eq(contacts.email, email)))
         .limit(1)
       return (rows[0] as Contact | undefined) ?? null
     },
@@ -200,7 +200,7 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
         const existing = await db
           .select()
           .from(contacts)
-          .where(and(eq(contacts.tenantId, input.tenantId), eq(contacts.phone, input.phone)))
+          .where(and(eq(contacts.organizationId, input.organizationId), eq(contacts.phone, input.phone)))
           .limit(1)
         if (existing[0]) return existing[0] as Contact
       }
@@ -208,14 +208,14 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
         const existing = await db
           .select()
           .from(contacts)
-          .where(and(eq(contacts.tenantId, input.tenantId), eq(contacts.email, input.email)))
+          .where(and(eq(contacts.organizationId, input.organizationId), eq(contacts.email, input.email)))
           .limit(1)
         if (existing[0]) return existing[0] as Contact
       }
       const rows = await db
         .insert(contacts)
         .values({
-          tenantId: input.tenantId,
+          organizationId: input.organizationId,
           displayName: input.displayName ?? null,
           phone: input.phone ?? null,
           email: input.email ?? null,
@@ -261,13 +261,13 @@ function buildAgentsPort(db: DrizzleHandle): AgentsPort {
     async appendEvent(event: AgentEvent): Promise<void> {
       const anyEv = event as unknown as {
         conversationId: string
-        tenantId: string
+        organizationId: string
         wakeId?: string
         turnIndex?: number
       }
       await journalAppend({
         conversationId: anyEv.conversationId,
-        tenantId: anyEv.tenantId,
+        organizationId: anyEv.organizationId,
         wakeId: anyEv.wakeId ?? null,
         turnIndex: anyEv.turnIndex ?? 0,
         event,

@@ -12,7 +12,7 @@ export function createCostAggregatorObserver(): AgentObserver {
 
       const today = new Date().toISOString().slice(0, 10)
       await recordCostUsage({
-        tenantId: event.tenantId,
+        organizationId: event.organizationId,
         date: today,
         llmTask: event.task,
         tokensIn: event.tokensIn,

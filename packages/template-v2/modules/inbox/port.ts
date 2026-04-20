@@ -1,6 +1,6 @@
 /**
  * InboxPort implementation — binds service methods to the typed port contract.
- * Model A: one row per (tenant, contact, channelInstance); snooze orthogonal
+ * Model A: one row per (organization, contact, channelInstance); snooze orthogonal
  * to status; resolve/reopen/reset are explicit lifecycle verbs.
  */
 import type {
@@ -36,14 +36,14 @@ export function createInboxPort(): InboxPort {
       if (input.author.kind === 'staff') {
         return appendStaffTextMessage({
           conversationId: input.conversationId,
-          tenantId: input.tenantId,
+          organizationId: input.organizationId,
           staffUserId: input.author.id,
           body: input.body,
         })
       }
       return appendTextMessage({
         conversationId: input.conversationId,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         agentId: input.agentId ?? (input.author.kind === 'agent' ? input.author.id : 'system'),
         wakeId: input.wakeId ?? 'direct',
         turnIndex: input.turnIndex ?? 0,
@@ -63,7 +63,7 @@ export function createInboxPort(): InboxPort {
     async sendCardMessage(input: SendCardInput) {
       return appendCardMessage({
         conversationId: input.conversationId,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         agentId: input.agentId ?? (input.author.kind === 'agent' ? input.author.id : 'system'),
         wakeId: input.wakeId ?? 'direct',
         turnIndex: input.turnIndex ?? 0,
@@ -78,7 +78,7 @@ export function createInboxPort(): InboxPort {
     async sendMediaMessage(input: SendMediaInput) {
       return appendMediaMessage({
         conversationId: input.conversationId,
-        tenantId: input.tenantId,
+        organizationId: input.organizationId,
         agentId: input.agentId ?? (input.author.kind === 'agent' ? input.author.id : 'system'),
         wakeId: input.wakeId ?? 'direct',
         turnIndex: input.turnIndex ?? 0,

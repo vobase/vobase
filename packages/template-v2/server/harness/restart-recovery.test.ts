@@ -13,7 +13,7 @@ async function runContributor(interrupted: boolean, turnCount = 1): Promise<stri
   for (let i = 0; i < turnCount; i++) {
     // contribute() ignores the ctx in the current implementation; pass minimal shape
     const body = await contributor.contribute({
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'conv-1',
       agentId: 'a1',
       contactId: 'k1',
@@ -64,7 +64,7 @@ describe('createRestartRecoveryContributor', () => {
       return { interrupted: false }
     })
     await c.contribute({
-      tenantId: 't1',
+      organizationId: 't1',
       conversationId: 'my-conv',
       agentId: 'a1',
       contactId: 'k1',

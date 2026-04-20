@@ -25,7 +25,7 @@ export async function dispatch(
     const payload = event.payload as { text: string; replyToMessageId?: string }
     const msg = await inboxPort.sendTextMessage({
       conversationId: event.conversationId,
-      tenantId: event.tenantId,
+      organizationId: event.organizationId,
       author,
       body: payload.text,
       parentMessageId: payload.replyToMessageId,
@@ -35,7 +35,7 @@ export async function dispatch(
   } else if (event.toolName === 'send_card') {
     const msg = await inboxPort.sendCardMessage({
       conversationId: event.conversationId,
-      tenantId: event.tenantId,
+      organizationId: event.organizationId,
       author,
       card: event.payload,
       wakeId: event.wakeId,
@@ -45,7 +45,7 @@ export async function dispatch(
     const payload = event.payload as { driveFileId: string; caption?: string }
     const msg = await inboxPort.sendMediaMessage({
       conversationId: event.conversationId,
-      tenantId: event.tenantId,
+      organizationId: event.organizationId,
       author,
       driveFileId: payload.driveFileId,
       caption: payload.caption,
@@ -57,7 +57,7 @@ export async function dispatch(
     const staffAuthor = { kind: 'staff' as const, id: payload.staffUserId ?? `wake:${event.wakeId}` }
     const msg = await inboxPort.sendTextMessage({
       conversationId: event.conversationId,
-      tenantId: event.tenantId,
+      organizationId: event.organizationId,
       author: staffAuthor,
       body: payload.text,
       wakeId: event.wakeId,

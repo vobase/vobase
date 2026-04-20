@@ -13,9 +13,9 @@ const decideBodySchema = z.object({
 })
 
 app.get('/learnings', async (c) => {
-  const tenantId = c.req.query('tenantId') ?? 'tenant_meridian'
+  const organizationId = c.req.query('organizationId') ?? 'tenant_meridian'
   try {
-    const proposals = await listRecent(tenantId, 'pending')
+    const proposals = await listRecent(organizationId, 'pending')
     return c.json(proposals)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

@@ -12,7 +12,7 @@ const silentLogger: Logger = {
 
 function fakeCtx(): ObserverContext {
   return {
-    tenantId: 't1',
+    organizationId: 't1',
     conversationId: 'c1',
     wakeId: 'w1',
     ports: {} as ObserverContext['ports'],
@@ -28,7 +28,7 @@ function fakeEvent(): AgentEvent {
     ts: new Date(),
     wakeId: 'w1',
     conversationId: 'c1',
-    tenantId: 't1',
+    organizationId: 't1',
     turnIndex: 0,
   }
 }

@@ -25,7 +25,7 @@ import { MaterializerRegistry } from './materializer-registry'
 import { ScopedFs } from './ro-enforcer'
 import { createVobaseCommand } from './vobase-cli/dispatcher'
 
-/** Built-in BUSINESS.md fallback stub — shown when no tenant drive row exists. */
+/** Built-in BUSINESS.md fallback stub — shown when no organization drive row exists. */
 export const BUSINESS_MD_FALLBACK = `# Business Identity
 
 No business profile configured. Ask staff to create /BUSINESS.md in the drive.
@@ -52,7 +52,7 @@ _empty_
 const EMPTY_BOOKINGS_MD = `# Bookings\n\n_No appointments yet._\n`
 
 export interface CreateWorkspaceOpts {
-  tenantId: string
+  organizationId: string
   agentId: string
   contactId: string
   conversationId: string
@@ -102,7 +102,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
 
   const mats = new MaterializerRegistry(opts.materializers)
   const matCtx: MaterializerCtx = {
-    tenantId: opts.tenantId,
+    organizationId: opts.organizationId,
     agentId: opts.agentId,
     conversationId: opts.conversationId,
     contactId: opts.contactId,
@@ -116,7 +116,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   await innerFs.writeFile('/workspace/MEMORY.md', opts.agentDefinition.workingMemory || EMPTY_MEMORY_MD)
 
   // BUSINESS.md — materializer may override; otherwise look up by convention (R8).
-  const businessMd = await loadBusinessMd(opts.drivePort, opts.tenantId)
+  const businessMd = await loadBusinessMd(opts.drivePort, opts.organizationId)
   await innerFs.writeFile('/workspace/drive/BUSINESS.md', businessMd)
 
   // Conversation files — materializer-first, then fallback.
@@ -157,7 +157,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   }
 
   const [tenantTree, contactTree] = await Promise.all([
-    safeListFolder(opts.drivePort, { scope: 'tenant' }, null),
+    safeListFolder(opts.drivePort, { scope: 'organization' }, null),
     safeListFolder(opts.drivePort, { scope: 'contact', contactId: opts.contactId }, null),
   ])
 
@@ -199,7 +199,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
 
   // ---- Build the Bash instance ----
   const commandCtx: CommandContext = {
-    tenantId: opts.tenantId,
+    organizationId: opts.organizationId,
     conversationId: opts.conversationId,
     agentId: opts.agentId,
     contactId: opts.contactId,
@@ -258,10 +258,10 @@ async function findMaterialized(
   return fallback
 }
 
-/** Plan R8 / test assertion 4b — BUSINESS.md falls back to the stub if the tenant row is missing. */
+/** Plan R8 / test assertion 4b — BUSINESS.md falls back to the stub if the organization row is missing. */
 async function loadBusinessMd(drive: DrivePort, _tenantId: string): Promise<string> {
   try {
-    const row = await drive.getByPath({ scope: 'tenant' }, '/BUSINESS.md')
+    const row = await drive.getByPath({ scope: 'organization' }, '/BUSINESS.md')
     if (!row) return BUSINESS_MD_FALLBACK
     if (row.extractedText) return row.extractedText
     try {

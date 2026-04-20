@@ -6,7 +6,7 @@ import { BASH_PREVIEW_BYTES, makeBashTool } from './bash-tool'
 import { L1_PREVIEW_BYTES, L2_SPILL_BYTES, L3_CEILING_BYTES, TurnBudget } from './turn-budget'
 
 const TOOL_CTX: ToolExecutionContext = {
-  tenantId: 't',
+  organizationId: 't',
   conversationId: 'c',
   wakeId: 'w',
   agentId: 'a',

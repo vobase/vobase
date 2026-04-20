@@ -4,7 +4,7 @@
  *
  * Consumed by `modules/agents/observers/learning-proposal.ts`. The observer
  * feeds: (a) the wake's staff signals, (b) a compact turn history, (c) the
- * agent's existing skills + tenant drive outline (for dedup), and (d) the
+ * agent's existing skills + organization drive outline (for dedup), and (d) the
  * agent's current working memory — including the `## Anti-lessons` section so
  * the LLM has the "don't re-propose X" context.
  *

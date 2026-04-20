@@ -22,7 +22,7 @@ export interface SideLoadItem {
 }
 
 export interface SideLoadCtx {
-  readonly tenantId: string
+  readonly organizationId: string
   readonly conversationId: string
   readonly agentId: string
   readonly contactId: string
@@ -41,7 +41,7 @@ export type SideLoadContributor = (ctx: SideLoadCtx) => Promise<SideLoadItem[]>
 export type MaterializerPhase = 'frozen' | 'side-load' | 'on-read'
 
 export interface MaterializerCtx {
-  tenantId: string
+  organizationId: string
   agentId: string
   conversationId: string
   contactId: string

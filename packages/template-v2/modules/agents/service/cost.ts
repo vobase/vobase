@@ -31,7 +31,7 @@ function requireDb(): DbHandle {
 }
 
 export interface RecordCostInput {
-  tenantId: string
+  organizationId: string
   /** 'YYYY-MM-DD' */
   date: string
   llmTask: string
@@ -49,7 +49,7 @@ export async function recordCostUsage(input: RecordCostInput, tx?: Tx): Promise<
   await runner
     .insert(tenantCostDaily)
     .values({
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       date: input.date,
       llmTask: input.llmTask,
       tokensIn: input.tokensIn,
@@ -59,7 +59,7 @@ export async function recordCostUsage(input: RecordCostInput, tx?: Tx): Promise<
       callCount: 1,
     })
     .onConflictDoUpdate({
-      target: [tenantCostDaily.tenantId, tenantCostDaily.date, tenantCostDaily.llmTask],
+      target: [tenantCostDaily.organizationId, tenantCostDaily.date, tenantCostDaily.llmTask],
       set: {
         tokensIn: sql`${tenantCostDaily.tokensIn} + ${input.tokensIn}`,
         tokensOut: sql`${tenantCostDaily.tokensOut} + ${input.tokensOut}`,
@@ -70,8 +70,8 @@ export async function recordCostUsage(input: RecordCostInput, tx?: Tx): Promise<
     })
 }
 
-/** Returns today's total spend (USD) across all llmTasks for this tenant. */
-export async function getDailySpend(tenantId: string): Promise<number> {
+/** Returns today's total spend (USD) across all llmTasks for this organization. */
+export async function getDailySpend(organizationId: string): Promise<number> {
   const { tenantCostDaily } = await import('@modules/agents/schema')
   const { eq, and } = await import('drizzle-orm')
 
@@ -80,7 +80,7 @@ export async function getDailySpend(tenantId: string): Promise<number> {
   const rows = await requireDb()
     .select({ costUsd: tenantCostDaily.costUsd })
     .from(tenantCostDaily)
-    .where(and(eq(tenantCostDaily.tenantId, tenantId), eq(tenantCostDaily.date, today)))
+    .where(and(eq(tenantCostDaily.organizationId, organizationId), eq(tenantCostDaily.date, today)))
 
   return rows.reduce((sum, r) => sum + Number(r.costUsd ?? 0), 0)
 }

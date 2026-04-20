@@ -27,34 +27,34 @@ export async function get(id: string): Promise<Contact> {
   return row as Contact
 }
 
-export async function list(tenantId: string): Promise<Contact[]> {
+export async function list(organizationId: string): Promise<Contact[]> {
   const { contacts } = await import('@modules/contacts/schema')
   const { eq } = await import('drizzle-orm')
   const db = requireDb() as { select: Function }
-  const rows = (await db.select().from(contacts).where(eq(contacts.tenantId, tenantId))) as unknown[]
+  const rows = (await db.select().from(contacts).where(eq(contacts.organizationId, organizationId))) as unknown[]
   return rows as Contact[]
 }
 
-export async function getByPhone(tenantId: string, phone: string): Promise<Contact | null> {
+export async function getByPhone(organizationId: string, phone: string): Promise<Contact | null> {
   const { contacts } = await import('@modules/contacts/schema')
   const { eq, and } = await import('drizzle-orm')
   const db = requireDb() as { select: Function }
   const rows = await db
     .select()
     .from(contacts)
-    .where(and(eq(contacts.tenantId, tenantId), eq(contacts.phone, phone)))
+    .where(and(eq(contacts.organizationId, organizationId), eq(contacts.phone, phone)))
     .limit(1)
   return (rows[0] as Contact) ?? null
 }
 
-export async function getByEmail(tenantId: string, email: string): Promise<Contact | null> {
+export async function getByEmail(organizationId: string, email: string): Promise<Contact | null> {
   const { contacts } = await import('@modules/contacts/schema')
   const { eq, and } = await import('drizzle-orm')
   const db = requireDb() as { select: Function }
   const rows = await db
     .select()
     .from(contacts)
-    .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, email)))
+    .where(and(eq(contacts.organizationId, organizationId), eq(contacts.email, email)))
     .limit(1)
   return (rows[0] as Contact) ?? null
 }
@@ -73,7 +73,7 @@ export async function upsertByExternal(input: UpsertByExternalInput): Promise<Co
     const existing = await db
       .select()
       .from(contacts)
-      .where(and(eq(contacts.tenantId, input.tenantId), or(...conditions)))
+      .where(and(eq(contacts.organizationId, input.organizationId), or(...conditions)))
       .limit(1)
 
     if (existing[0]) return existing[0] as Contact
@@ -83,7 +83,7 @@ export async function upsertByExternal(input: UpsertByExternalInput): Promise<Co
   const rows = await (db as { insert: Function })
     .insert(contacts)
     .values({
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       phone: input.phone ?? null,
       email: input.email ?? null,
       displayName: input.displayName ?? null,

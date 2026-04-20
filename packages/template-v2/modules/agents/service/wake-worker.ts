@@ -36,7 +36,7 @@ export interface OutboundDispatch {
     toolCallId: string
     toolName: string
     wakeId: string
-    tenantId: string
+    organizationId: string
     result: unknown
   }): Promise<void>
 }
@@ -72,11 +72,11 @@ export interface WakeWorkerDeps {
   bootWake: BootWakeInvoker
   outbound: OutboundDispatch
   /** Cross-process NOTIFY hook (pg NOTIFY in prod; no-op in unit tests). */
-  onWakeReleased?: (payload: { conversationId: string; wakeId: string; tenantId: string }) => Promise<void>
+  onWakeReleased?: (payload: { conversationId: string; wakeId: string; organizationId: string }) => Promise<void>
   /** Invariant deps needed by bootWake but not carried in the job payload. */
   buildBootOpts(
     payload: AgentWakeJobPayload | ScheduledFollowupPayload,
-  ): Omit<BootWakeOpts, 'trigger' | 'tenantId' | 'agentId' | 'conversationId'> & { contactId: string }
+  ): Omit<BootWakeOpts, 'trigger' | 'organizationId' | 'agentId' | 'conversationId'> & { contactId: string }
   /** Stable worker id for lease acquisition. */
   workerId?: string
   /** Debounce window for the lease. Default 30s. */
@@ -119,13 +119,13 @@ export class WakeWorker {
     try {
       const overrides = this.buildBootOpts(job.data)
       const bootOpts: BootWakeOpts = {
-        tenantId: job.data.tenantId,
+        organizationId: job.data.organizationId,
         agentId: job.data.agentId,
         conversationId,
         trigger: trigger as WakeTrigger,
         ...overrides,
       }
-      const outboundSubscription = this.subscribeOutbound(bootOpts, conversationId, job.data.tenantId)
+      const outboundSubscription = this.subscribeOutbound(bootOpts, conversationId, job.data.organizationId)
       try {
         const result = await this.bootWake(bootOpts)
         wakeId = result.wakeId
@@ -135,7 +135,7 @@ export class WakeWorker {
     } finally {
       await this.activeWakes.release(conversationId, this.workerId)
       if (wakeId) {
-        await this.onWakeReleased?.({ conversationId, wakeId, tenantId: job.data.tenantId })
+        await this.onWakeReleased?.({ conversationId, wakeId, organizationId: job.data.organizationId })
       }
     }
   }
@@ -145,7 +145,7 @@ export class WakeWorker {
    * outbound-facing tool is forwarded through the idempotent outbound port.
    * Returns a disposer that removes the decoration.
    */
-  private subscribeOutbound(bootOpts: BootWakeOpts, conversationId: string, tenantId: string): () => void {
+  private subscribeOutbound(bootOpts: BootWakeOpts, conversationId: string, organizationId: string): () => void {
     const existing = bootOpts.events
     if (!existing) {
       // bootWake will construct its own EventBus when `events` is omitted —
@@ -161,7 +161,7 @@ export class WakeWorker {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         wakeId: event.wakeId,
-        tenantId,
+        organizationId,
         result: event.result,
       })
     }

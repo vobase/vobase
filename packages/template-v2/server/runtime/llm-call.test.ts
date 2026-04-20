@@ -14,7 +14,7 @@ describe('llmCall chokepoint', () => {
       events: bus,
       provider: mockProvider({ id: 'mock', responseText: 'hi', tokensIn: 7, tokensOut: 2, costUsd: 0.01 }),
       defaultModel: 'gpt-mock',
-      wakeContext: { tenantId: 't1', conversationId: 'c1', wakeId: 'w1', turnIndex: 0 },
+      wakeContext: { organizationId: 't1', conversationId: 'c1', wakeId: 'w1', turnIndex: 0 },
     })
     const result = await llmCall('agent.turn', { messages: [{ role: 'user', content: 'hi' }] })
     expect(result.task).toBe('agent.turn')
@@ -34,7 +34,7 @@ describe('llmCall chokepoint', () => {
     expect(evt.cacheHit).toBe(false)
   })
 
-  it('threads wakeId + tenantId + conversationId from wake context', async () => {
+  it('threads wakeId + organizationId + conversationId from wake context', async () => {
     const bus = new EventBus()
     const events: AgentEvent[] = []
     bus.subscribe((e) => {
@@ -44,14 +44,14 @@ describe('llmCall chokepoint', () => {
       events: bus,
       provider: mockProvider(),
       defaultModel: 'gpt-mock',
-      wakeContext: { tenantId: 'tenant-x', conversationId: 'conv-y', wakeId: 'wake-z', turnIndex: 3 },
+      wakeContext: { organizationId: 'org-x', conversationId: 'conv-y', wakeId: 'wake-z', turnIndex: 3 },
     })
     await llmCall('scorer.answer_relevancy', {})
     const evt = events[0]
     if (!evt) throw new Error('no event emitted')
     expect(evt.wakeId).toBe('wake-z')
     expect(evt.conversationId).toBe('conv-y')
-    expect(evt.tenantId).toBe('tenant-x')
+    expect(evt.organizationId).toBe('org-x')
     expect(evt.turnIndex).toBe(3)
   })
 
@@ -65,7 +65,7 @@ describe('llmCall chokepoint', () => {
       events: bus,
       provider: mockProvider(),
       defaultModel: 'gpt-mock',
-      wakeContext: { tenantId: 't1', conversationId: 'c1', wakeId: 'w1', turnIndex: 0 },
+      wakeContext: { organizationId: 't1', conversationId: 'c1', wakeId: 'w1', turnIndex: 0 },
     })
     const result = await llmCall('drive.caption.image', {})
     expect(result.task).toBe('drive.caption.image')

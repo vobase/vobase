@@ -76,7 +76,7 @@ export function checkWriteAllowed(path: string): string | null {
 function renderRoError(path: string): string {
   // The error must include the `vobase drive propose …` hint
   // and should render the path as the agent wrote it.
-  const scope = 'tenant'
+  const scope = 'organization'
   const rel = path.startsWith('/workspace/drive/')
     ? path.slice('/workspace/drive'.length)
     : path.slice('/workspace'.length)

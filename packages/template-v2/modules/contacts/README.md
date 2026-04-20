@@ -14,7 +14,7 @@ permissions: []
 
 # contacts module
 
-Owns tenant-scoped contact identity: phone/email lookup, working memory, segments, staff channel bindings.
+Owns organization-scoped contact identity: phone/email lookup, working memory, segments, staff channel bindings.
 
 ## Phase 1 real methods
 

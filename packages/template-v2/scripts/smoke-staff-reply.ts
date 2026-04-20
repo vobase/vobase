@@ -8,9 +8,9 @@
  */
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3001'
-const TENANT_ID = process.env.TENANT_ID ?? 'mer0tenant'
+const ORG_ID = process.env.ORG_ID ?? 'mer0tenant'
 const CONV_ID = process.env.CONV_ID ?? 'conv_seed_1'
-const SSE_URL = process.env.SSE_URL ?? `${BASE_URL}/sse?tenantId=${TENANT_ID}`
+const SSE_URL = process.env.SSE_URL ?? `${BASE_URL}/sse?organizationId=${ORG_ID}`
 const API = `${BASE_URL}/api/inbox/conversations/${CONV_ID}`
 
 function sseNotifyPromise(): { promise: Promise<void>; abort: AbortController } {
@@ -45,7 +45,7 @@ async function main() {
   const { promise: sseP, abort } = sseNotifyPromise()
   const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('SSE timeout (2s)')), 2000))
 
-  const res = await fetch(`${API}/reply?tenantId=${TENANT_ID}`, {
+  const res = await fetch(`${API}/reply?organizationId=${ORG_ID}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body: 'smoke-test staff reply', staffUserId: 'staff_smoke' }),

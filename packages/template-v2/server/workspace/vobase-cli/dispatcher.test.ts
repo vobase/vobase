@@ -15,7 +15,7 @@ function cmd(name: string, fn?: CommandDef['execute']): CommandDef {
 }
 
 const CTX: CommandContext = {
-  tenantId: 't1',
+  organizationId: 't1',
   conversationId: 'c1',
   agentId: 'a1',
   contactId: 'k1',

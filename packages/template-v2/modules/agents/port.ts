@@ -23,7 +23,7 @@ export function createAgentsPort(): AgentsPort {
       await journal.append(
         {
           conversationId: (ev.conversationId as string) ?? '',
-          tenantId: (ev.tenantId as string) ?? '',
+          organizationId: (ev.organizationId as string) ?? '',
           wakeId: (ev.wakeId as string | undefined) ?? null,
           turnIndex: (ev.turnIndex as number) ?? 0,
           event,
@@ -32,11 +32,11 @@ export function createAgentsPort(): AgentsPort {
       )
     },
 
-    async checkDailyCeiling(tenantId: string, agentId: string) {
+    async checkDailyCeiling(organizationId: string, agentId: string) {
       const def = await agentDefinitions.getById(agentId)
       const ceilingUsd = Number(def.hardCostCeilingUsd ?? 0)
       if (ceilingUsd <= 0) return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
-      const spentUsd = await getDailySpend(tenantId)
+      const spentUsd = await getDailySpend(organizationId)
       return { exceeded: spentUsd >= ceilingUsd, spentUsd, ceilingUsd }
     },
   }

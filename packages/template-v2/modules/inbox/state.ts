@@ -2,7 +2,7 @@
  * inbox module state transitions for conversations.
  * Only state.ts is allowed to call applyTransition (enforced by check-module-shape.ts).
  *
- * Model A — exactly one row per (tenant, contact, channelInstance). No terminal
+ * Model A — exactly one row per (organization, contact, channelInstance). No terminal
  * states; every status can cycle back via one of the listed edges.
  */
 

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import type { Schema, ScopedDb, TenantScope } from './scoped-db'
+import type { Schema, ScopedDb, OrganizationScope } from './scoped-db'
 
 type AssertEqual<T, U> = [T] extends [U] ? ([U] extends [T] ? true : false) : false
 type AssertTrue<T extends true> = T
@@ -40,10 +40,10 @@ describe('ScopedDb contract', () => {
     expect(typeof scoped.transaction).toBe('function')
   })
 
-  it('TenantScope names the tenant-filter carrier shape', () => {
-    const scope: TenantScope = { tenantId: 't1' }
-    expect(scope.tenantId).toBe('t1')
-    type _TenantScope = AssertTrue<AssertEqual<keyof TenantScope, 'tenantId'>>
+  it('OrganizationScope names the organization-filter carrier shape', () => {
+    const scope: OrganizationScope = { organizationId: 't1' }
+    expect(scope.organizationId).toBe('t1')
+    type _TenantScope = AssertTrue<AssertEqual<keyof OrganizationScope, 'organizationId'>>
     const _ts: _TenantScope = true
     expect(_ts).toBe(true)
   })

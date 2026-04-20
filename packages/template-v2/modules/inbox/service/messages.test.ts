@@ -10,7 +10,7 @@ import type { Message } from '@server/contracts/domain-types'
 const fakeParent: Message = {
   id: 'parent-card-1',
   conversationId: 'conv-1',
-  tenantId: 'ten-1',
+  organizationId: 'ten-1',
   role: 'agent',
   kind: 'card',
   content: { card: { title: 'Test Card' } },
@@ -23,7 +23,7 @@ const fakeParent: Message = {
 const fakeReplyRow: Message = {
   id: 'reply-msg-1',
   conversationId: 'conv-1',
-  tenantId: 'ten-1',
+  organizationId: 'ten-1',
   role: 'customer',
   kind: 'card_reply',
   content: { buttonId: 'btn-yes', buttonValue: 'yes', buttonLabel: 'Yes' },
@@ -99,7 +99,7 @@ describe('appendCardReplyMessage', () => {
     expect(result.kind).toBe('card_reply')
     expect(result.role).toBe('customer')
     expect(result.conversationId).toBe('conv-1')
-    expect(result.tenantId).toBe('ten-1')
+    expect(result.organizationId).toBe('ten-1')
   })
 
   it('inserts message inside transaction with correct content shape', async () => {

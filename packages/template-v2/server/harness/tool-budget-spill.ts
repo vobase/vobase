@@ -31,7 +31,7 @@ export async function spillToFile(deps: SpillDeps): Promise<SpillOutput> {
     ts: new Date(),
     wakeId: deps.ctx.wakeId,
     conversationId: deps.ctx.conversationId,
-    tenantId: deps.ctx.tenantId,
+    organizationId: deps.ctx.organizationId,
     turnIndex: deps.ctx.turnIndex,
     type: 'tool_result_persisted',
     toolCallId: deps.ctx.toolCallId,

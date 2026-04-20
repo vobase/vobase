@@ -98,7 +98,7 @@ export const sendCardTool: AgentTool<CardElement, { messageId: string }> = {
 
     const msg = await appendCardMessage({
       conversationId: ctx.conversationId,
-      tenantId: ctx.tenantId,
+      organizationId: ctx.organizationId,
       agentId: ctx.agentId,
       wakeId: ctx.wakeId,
       turnIndex: ctx.turnIndex,

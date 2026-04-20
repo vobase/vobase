@@ -48,7 +48,7 @@ export interface Phase3Ports {
 }
 
 export interface MakePhase3Opts {
-  tenantId: string
+  organizationId: string
   agentId: string
   contactId: string
   conversationId?: string
@@ -128,10 +128,10 @@ export function buildPhase3Registrations(opts: {
 }
 
 /** Fixed stub agent definition — satisfies `AgentsPort.getAgentDefinition`. */
-export function stubAgentDefinition(agentId: string, tenantId: string): AgentDefinition {
+export function stubAgentDefinition(agentId: string, organizationId: string): AgentDefinition {
   return {
     id: agentId,
-    tenantId,
+    organizationId,
     name: 'phase3-stub-agent',
     soulMd: '# Role: Phase 3 Stub Agent',
     model: 'claude-sonnet-4-6',
@@ -153,10 +153,10 @@ export function stubAgentDefinition(agentId: string, tenantId: string): AgentDef
 }
 
 /** Build throwaway in-memory ports — enough to boot a wake without a real DB. */
-export function stubPhase3Ports(args: { tenantId: string; agentId: string; contactId: string }): Phase3Ports {
+export function stubPhase3Ports(args: { organizationId: string; agentId: string; contactId: string }): Phase3Ports {
   const stubContact: Contact = {
     id: args.contactId,
-    tenantId: args.tenantId,
+    organizationId: args.organizationId,
     displayName: 'Phase 3 Test Contact',
     phone: null,
     email: null,
@@ -172,7 +172,7 @@ export function stubPhase3Ports(args: { tenantId: string; agentId: string; conta
 
   const agents: AgentsPort = {
     async getAgentDefinition(): Promise<AgentDefinition> {
-      return stubAgentDefinition(args.agentId, args.tenantId)
+      return stubAgentDefinition(args.agentId, args.organizationId)
     },
     async appendEvent(event): Promise<void> {
       appended.push(event)
@@ -274,7 +274,7 @@ export function stubPhase3Ports(args: { tenantId: string; agentId: string; conta
 /** Boot a Phase-3 wake with sensible defaults for unit/integration tests. */
 export async function bootWakePhase3(opts: MakePhase3Opts): Promise<BootWakeResult> {
   const basePorts = stubPhase3Ports({
-    tenantId: opts.tenantId,
+    organizationId: opts.organizationId,
     agentId: opts.agentId,
     contactId: opts.contactId,
   })
@@ -297,7 +297,7 @@ export async function bootWakePhase3(opts: MakePhase3Opts): Promise<BootWakeResu
   })
 
   return bootWake({
-    tenantId: opts.tenantId,
+    organizationId: opts.organizationId,
     agentId: opts.agentId,
     contactId: opts.contactId,
     conversationId: opts.conversationId,

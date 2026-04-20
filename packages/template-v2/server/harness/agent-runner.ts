@@ -73,7 +73,7 @@ export interface ModuleRegistrationsSnapshot {
 }
 
 export interface BootWakeOpts {
-  tenantId: string
+  organizationId: string
   agentId: string
   contactId: string
   trigger?: WakeTrigger
@@ -160,7 +160,7 @@ const noopLogger: Logger = {
 // ----- event helpers -------------------------------------------------------
 
 interface WakeScope {
-  tenantId: string
+  organizationId: string
   conversationId: string
   wakeId: string
   turnIndex: number
@@ -171,7 +171,7 @@ function baseEventFields(scope: WakeScope) {
     ts: new Date(),
     wakeId: scope.wakeId,
     conversationId: scope.conversationId,
-    tenantId: scope.tenantId,
+    organizationId: scope.organizationId,
     turnIndex: scope.turnIndex,
   }
 }
@@ -201,7 +201,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       },
     ) as never
   const observerCtx: ObserverContext = {
-    tenantId: opts.tenantId,
+    organizationId: opts.organizationId,
     conversationId,
     wakeId,
     ports: {
@@ -233,7 +233,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
 
   // ---- Build workspace ---------------------------------------------------
   const workspace = await createWorkspace({
-    tenantId: opts.tenantId,
+    organizationId: opts.organizationId,
     agentId: opts.agentId,
     contactId: opts.contactId,
     conversationId,
@@ -303,7 +303,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   const frozen0 = await buildFrozenPrompt({
     bash: workspace.bash,
     agentDefinition,
-    tenantId: opts.tenantId,
+    organizationId: opts.organizationId,
     contactId: opts.contactId,
     conversationId,
   })
@@ -314,7 +314,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     actorUserId: opts.agentId,
   }
   const startEvt: AgentStartEvent = {
-    ...baseEventFields({ tenantId: opts.tenantId, conversationId, wakeId, turnIndex: 0 }),
+    ...baseEventFields({ organizationId: opts.organizationId, conversationId, wakeId, turnIndex: 0 }),
     type: 'agent_start',
     agentId: opts.agentId,
     trigger: trigger.trigger,
@@ -334,7 +334,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     ? makeResilientProvider(opts.provider, {
         events,
         logger,
-        getScope: () => ({ tenantId: opts.tenantId, conversationId, wakeId, turnIndex: resilientTurnIndex }),
+        getScope: () => ({ organizationId: opts.organizationId, conversationId, wakeId, turnIndex: resilientTurnIndex }),
       })
     : undefined
 
@@ -357,7 +357,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   }
 
   for (let turnIndex = 0; turnIndex < maxTurns; turnIndex += 1) {
-    const scope: WakeScope = { tenantId: opts.tenantId, conversationId, wakeId, turnIndex }
+    const scope: WakeScope = { organizationId: opts.organizationId, conversationId, wakeId, turnIndex }
 
     // Pre-turn worst-case delta: refuse if projected next-turn spend exceeds hard ceiling.
     if (opts.iterationBudget && (lastCostPerInputToken > 0 || lastCostPerOutputToken > 0)) {
@@ -391,7 +391,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     // Rebuild side-load FRESH each turn so mid-wake writes propagate (frozen-snapshot invariant).
     const sideLoadBody = await collectSideLoad({
       ctx: {
-        tenantId: opts.tenantId,
+        organizationId: opts.organizationId,
         conversationId,
         agentId: opts.agentId,
         contactId: opts.contactId,
@@ -579,7 +579,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
         const startedAt = Date.now()
         try {
           const result = await tool.execute(effectiveArgs, {
-            tenantId: opts.tenantId,
+            organizationId: opts.organizationId,
             conversationId,
             wakeId,
             agentId: opts.agentId,
@@ -713,7 +713,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
 
   // agent_end
   const endEvt: AgentEndEvent = {
-    ...baseEventFields({ tenantId: opts.tenantId, conversationId, wakeId, turnIndex: 0 }),
+    ...baseEventFields({ organizationId: opts.organizationId, conversationId, wakeId, turnIndex: 0 }),
     type: 'agent_end',
     reason: endReason,
   }
@@ -734,7 +734,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       // Run through the mutator chain, then the tool, and emit the tool-exec pair.
       const toolCallId = nanoid(10)
       const step: AgentStep = { toolCallId, toolName: name, args }
-      const scope: WakeScope = { tenantId: opts.tenantId, conversationId, wakeId, turnIndex: 0 }
+      const scope: WakeScope = { organizationId: opts.organizationId, conversationId, wakeId, turnIndex: 0 }
       const mutatorCtx: MutatorContext = {
         ...observerCtx,
         llmCall: async () => {
@@ -772,7 +772,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       } else {
         const t0 = Date.now()
         const result = await tool.execute(eff, {
-          tenantId: opts.tenantId,
+          organizationId: opts.organizationId,
           conversationId,
           wakeId,
           agentId: opts.agentId,

@@ -9,7 +9,7 @@ export default defineModule({
   manifest,
   init(ctx) {
     setDb(ctx.db)
-    setTenantId(ctx.tenantId)
-    setProposalTenantId(ctx.tenantId)
+    setTenantId(ctx.organizationId)
+    setProposalTenantId(ctx.organizationId)
   },
 })

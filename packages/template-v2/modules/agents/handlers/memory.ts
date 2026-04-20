@@ -8,8 +8,8 @@ const app = new Hono()
 
 app.get('/:id/working-memory', async (c) => {
   const id = c.req.param('id')
-  const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
-  const result = await getConversationWorkingMemory(id, tenantId)
+  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+  const result = await getConversationWorkingMemory(id, organizationId)
   if (result === null) return c.json({ error: 'not_found' }, 404)
   return c.json(result)
 })

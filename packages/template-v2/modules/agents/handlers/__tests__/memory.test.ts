@@ -4,11 +4,11 @@ import { Hono } from 'hono'
 import memoryRouter from '../memory'
 
 const CONV_ID = 'conv-mem-1'
-const TENANT_A = 'tenant_meridian'
-const TENANT_B = 'tenant_other'
+const ORG_A = 'tenant_meridian'
+const ORG_B = 'tenant_other'
 const AGENT_ID = 'agt-mem-1'
 
-const fakeConv = { id: CONV_ID, tenantId: TENANT_A, assignee: `agent:${AGENT_ID}` }
+const fakeConv = { id: CONV_ID, organizationId: ORG_A, assignee: `agent:${AGENT_ID}` }
 const fakeAgent = { id: AGENT_ID, workingMemory: 'User prefers concise replies.' }
 
 function makeDb(convRows: unknown[], agentRows: unknown[]) {
@@ -27,7 +27,7 @@ function makeDb(convRows: unknown[], agentRows: unknown[]) {
 const app = new Hono()
 app.route('/conversations', memoryRouter)
 
-const GET = (id: string, tenant = TENANT_A) => app.request(`/conversations/${id}/working-memory?tenantId=${tenant}`)
+const GET = (id: string, org = ORG_A) => app.request(`/conversations/${id}/working-memory?organizationId=${org}`)
 
 describe('GET /conversations/:id/working-memory', () => {
   beforeEach(() => {
@@ -49,8 +49,8 @@ describe('GET /conversations/:id/working-memory', () => {
     expect(json.memory).toBeNull()
   })
 
-  it('(c) returns 404 when conversation belongs to a different tenant', async () => {
-    const res = await GET(CONV_ID, TENANT_B)
+  it('(c) returns 404 when conversation belongs to a different organization', async () => {
+    const res = await GET(CONV_ID, ORG_B)
     expect(res.status).toBe(404)
   })
 })

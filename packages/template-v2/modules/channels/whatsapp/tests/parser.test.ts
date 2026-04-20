@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'bun:test'
 import { type MetaWebhookPayload, parseWebhookPayload } from '../service/parser'
 
-const TENANT = 'ten-test'
+const ORG = 'ten-test'
 const BASE_TS = '1700000000'
 
 type WaContact = { profile?: { name: string }; wa_id: string }
@@ -40,7 +40,7 @@ describe('parseWebhookPayload', () => {
     const payload = wrap([
       { from: '6591234567', id: 'wamid.001', timestamp: BASE_TS, type: 'text', text: { body: 'Hello world' } },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev).toBeDefined()
     expect(ev.channelType).toBe('whatsapp')
     expect(ev.contentType).toBe('text')
@@ -48,7 +48,7 @@ describe('parseWebhookPayload', () => {
     expect(ev.from).toBe('6591234567')
     expect(ev.profileName).toBe('Alice')
     expect(ev.externalMessageId).toBe('wamid.001')
-    expect(ev.tenantId).toBe(TENANT)
+    expect(ev.organizationId).toBe(ORG)
     expect(typeof ev.timestamp).toBe('number')
   })
 
@@ -62,7 +62,7 @@ describe('parseWebhookPayload', () => {
         image: { id: 'img-001', caption: 'Check this out', mime_type: 'image/jpeg' },
       },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('image')
     expect(ev.content).toBe('Check this out')
     expect(ev.externalMessageId).toBe('wamid.002')
@@ -72,7 +72,7 @@ describe('parseWebhookPayload', () => {
     const payload = wrap([
       { from: '6591234567', id: 'wamid.003', timestamp: BASE_TS, type: 'image', image: { id: 'img-002' } },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('image')
     expect(ev.content).toContain('img-002')
   })
@@ -87,7 +87,7 @@ describe('parseWebhookPayload', () => {
         audio: { id: 'aud-001', mime_type: 'audio/ogg' },
       },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('audio')
     expect(ev.content).toContain('aud-001')
   })
@@ -102,7 +102,7 @@ describe('parseWebhookPayload', () => {
         document: { id: 'doc-001', filename: 'invoice.pdf', caption: 'Please review' },
       },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('document')
     expect(ev.content).toBe('Please review')
   })
@@ -117,7 +117,7 @@ describe('parseWebhookPayload', () => {
         interactive: { type: 'button_reply', button_reply: { id: 'btn_yes', title: 'Yes, confirm' } },
       },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('button_reply')
     expect(ev.content).toBe('Yes, confirm')
   })
@@ -135,14 +135,14 @@ describe('parseWebhookPayload', () => {
         },
       },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('list_reply')
     expect(ev.content).toBe('Option B')
   })
 
   it('fixture 8 — status delivered', () => {
     const payload = wrap([], [{ id: 'wamid.008', status: 'delivered', timestamp: BASE_TS, recipient_id: '6591234567' }])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('unsupported')
     expect(ev.content).toBe('delivered')
     expect(ev.from).toBe('6591234567')
@@ -151,7 +151,7 @@ describe('parseWebhookPayload', () => {
 
   it('fixture 9 — status read', () => {
     const payload = wrap([], [{ id: 'wamid.009', status: 'read', timestamp: BASE_TS, recipient_id: '6591234567' }])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('unsupported')
     expect(ev.content).toBe('read')
   })
@@ -166,7 +166,7 @@ describe('parseWebhookPayload', () => {
         video: { id: 'vid-001', caption: 'Watch this' },
       },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     expect(ev.contentType).toBe('video')
     expect(ev.content).toBe('Watch this')
   })
@@ -179,7 +179,7 @@ describe('parseWebhookPayload', () => {
       ],
       [{ id: 'wamid.013', status: 'sent', timestamp: BASE_TS, recipient_id: '6591234567' }],
     )
-    const events = parseWebhookPayload(payload, TENANT)
+    const events = parseWebhookPayload(payload, ORG)
     expect(events).toHaveLength(3)
     expect(events[0].content).toBe('Hello')
     expect(events[1].content).toBe('World')
@@ -190,9 +190,9 @@ describe('parseWebhookPayload', () => {
     const payload = wrap([
       { from: '6591234567', id: 'wamid.014', timestamp: BASE_TS, type: 'text', text: { body: 'hi' } },
     ])
-    const [ev] = parseWebhookPayload(payload, TENANT)
+    const [ev] = parseWebhookPayload(payload, ORG)
     // All required ChannelInboundEvent fields must be present with correct types
-    expect(typeof ev.tenantId).toBe('string')
+    expect(typeof ev.organizationId).toBe('string')
     expect(typeof ev.channelType).toBe('string')
     expect(typeof ev.externalMessageId).toBe('string')
     expect(typeof ev.from).toBe('string')

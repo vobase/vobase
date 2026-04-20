@@ -40,7 +40,7 @@ export const sendFileTool: AgentTool<SendFileInput, { messageId: string }> = {
 
     const msg = await appendMediaMessage({
       conversationId: ctx.conversationId,
-      tenantId: ctx.tenantId,
+      organizationId: ctx.organizationId,
       agentId: ctx.agentId,
       wakeId: ctx.wakeId,
       turnIndex: ctx.turnIndex,

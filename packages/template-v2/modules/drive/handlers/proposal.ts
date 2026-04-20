@@ -1,5 +1,5 @@
 /**
- * Drive proposal handlers — staff approve / reject tenant-drive proposals.
+ * Drive proposal handlers — staff approve / reject organization-drive proposals.
  *
  * Routes:
  *   GET  /api/drive/proposals          list pending proposals

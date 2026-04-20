@@ -78,7 +78,7 @@ export const approvalMutator: AgentMutator = {
       .insert(pendingApprovals)
       .values({
         id: approvalId,
-        tenantId: ctx.tenantId,
+        organizationId: ctx.organizationId,
         conversationId: ctx.conversationId,
         conversationEventId: null,
         toolName: step.toolName,
@@ -97,7 +97,7 @@ export const approvalMutator: AgentMutator = {
       ts: new Date(),
       wakeId: ctx.wakeId,
       conversationId: ctx.conversationId,
-      tenantId: ctx.tenantId,
+      organizationId: ctx.organizationId,
       turnIndex: 0,
     })
 

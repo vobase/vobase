@@ -59,7 +59,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(agentDefinitions)
     .values({
       id: MERIDIAN_AGENT_ID,
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       name: 'meridian-support-v1',
       soulMd: SOUL_MD,
       model: 'claude-sonnet-4-6',

@@ -19,14 +19,14 @@ function requireDb(): unknown {
   return _db
 }
 
-function scopeId(scope: DriveScope, tenantId: string): { scopeName: string; scopeIdVal: string } {
-  if (scope.scope === 'tenant') {
-    return { scopeName: 'tenant', scopeIdVal: tenantId }
+function scopeId(scope: DriveScope, organizationId: string): { scopeName: string; scopeIdVal: string } {
+  if (scope.scope === 'organization') {
+    return { scopeName: 'organization', scopeIdVal: organizationId }
   }
   return { scopeName: 'contact', scopeIdVal: scope.contactId }
 }
 
-/** Injected tenantId — set by module init from ctx. */
+/** Injected organizationId — set by module init from ctx. */
 let _tenantId = ''
 export function setTenantId(id: string): void {
   _tenantId = id
@@ -43,7 +43,7 @@ export async function getByPath(scope: DriveScope, path: string): Promise<DriveF
     .from(driveFiles)
     .where(
       and(
-        eq(driveFiles.tenantId, _tenantId),
+        eq(driveFiles.organizationId, _tenantId),
         eq(driveFiles.scope, scopeName),
         eq(driveFiles.scopeId, scopeIdVal),
         eq(driveFiles.path, path),
@@ -64,7 +64,7 @@ export async function listFolder(scope: DriveScope, parentId: string | null): Pr
     .from(driveFiles)
     .where(
       and(
-        eq(driveFiles.tenantId, _tenantId),
+        eq(driveFiles.organizationId, _tenantId),
         eq(driveFiles.scope, scopeName),
         eq(driveFiles.scopeId, scopeIdVal),
         parentId ? eq(driveFiles.parentFolderId, parentId) : isNull(driveFiles.parentFolderId),
@@ -87,11 +87,11 @@ export async function readContent(id: string): Promise<{ content: string; spille
 }
 
 /**
- * Reads /BUSINESS.md from the tenant scope.
+ * Reads /BUSINESS.md from the organization scope.
  * Returns the stub fallback string if the row doesn't exist.
  */
 export async function getBusinessMd(): Promise<string> {
-  const file = await getByPath({ scope: 'tenant' }, '/BUSINESS.md')
+  const file = await getByPath({ scope: 'organization' }, '/BUSINESS.md')
   if (!file) return BUSINESS_MD_FALLBACK
   const { content } = await readContent(file.id)
   return content || BUSINESS_MD_FALLBACK

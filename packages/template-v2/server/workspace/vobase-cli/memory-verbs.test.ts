@@ -3,7 +3,7 @@ import type { CommandContext } from '@server/contracts/plugin-context'
 import { memoryVerbs } from './memory-verbs'
 
 const CTX: CommandContext = {
-  tenantId: 't',
+  organizationId: 't',
   conversationId: 'c',
   agentId: 'a',
   contactId: 'k',

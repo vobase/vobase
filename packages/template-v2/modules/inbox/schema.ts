@@ -2,7 +2,7 @@
  * inbox module schema.
  *
  * Five tables:
- *   - `channel_instances` — per-tenant adapter instances (referenced by conversations)
+ *   - `channel_instances` — per-organization adapter instances (referenced by conversations)
  *   - `conversations`
  *   - `messages`
  *   - `internal_notes`
@@ -20,7 +20,7 @@ export const channelInstances = inboxPgSchema.table(
   'channel_instances',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     type: text('type').notNull(),
     role: text('role').notNull().default('customer'),
     displayName: text('display_name'),
@@ -34,7 +34,7 @@ export const channelInstances = inboxPgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    index('idx_channel_instances_tenant').on(t.tenantId),
+    index('idx_channel_instances_organization').on(t.organizationId),
     check('channel_instances_role_check', sql`role IN ('customer','staff')`),
   ],
 )
@@ -43,7 +43,7 @@ export const conversations = inboxPgSchema.table(
   'conversations',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     /** Cross-schema FK to contacts.contacts(id); enforced post-push. */
     contactId: text('contact_id').notNull(),
     channelInstanceId: text('channel_instance_id')
@@ -53,7 +53,7 @@ export const conversations = inboxPgSchema.table(
     assignee: text('assignee').notNull(),
     /**
      * Thread-scoping key. Chat channels (web/whatsapp/telegram/sms) pass
-     * `'default'` — one conversation per (tenant, contact, channel). Email
+     * `'default'` — one conversation per (organization, contact, channel). Email
      * populates from the RFC 5322 References/In-Reply-To root so each email
      * topic is its own conversation. Stored as text — column is channel-type
      * agnostic; the meaning of the value is owned by the channel adapter.
@@ -76,10 +76,10 @@ export const conversations = inboxPgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    index('idx_conv_tenant_status').on(t.tenantId, t.status),
+    index('idx_conv_organization_status').on(t.organizationId, t.status),
     index('idx_conv_contact').on(t.contactId),
-    uniqueIndex('idx_conv_one_per_pair').on(t.tenantId, t.contactId, t.channelInstanceId, t.threadKey),
-    index('idx_conv_snoozed').on(t.tenantId, t.snoozedUntil).where(sql`${t.snoozedUntil} IS NOT NULL`),
+    uniqueIndex('idx_conv_one_per_pair').on(t.organizationId, t.contactId, t.channelInstanceId, t.threadKey),
+    index('idx_conv_snoozed').on(t.organizationId, t.snoozedUntil).where(sql`${t.snoozedUntil} IS NOT NULL`),
     check('conversations_status_check', sql`status IN ('active','resolving','awaiting_approval','resolved','failed')`),
   ],
 )
@@ -91,7 +91,7 @@ export const messages = inboxPgSchema.table(
     conversationId: text('conversation_id')
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     role: text('role').notNull(),
     kind: text('kind').notNull(),
     content: jsonb('content').notNull(),
@@ -103,7 +103,7 @@ export const messages = inboxPgSchema.table(
   (t) => [
     index('idx_msg_conv_ts').on(t.conversationId, t.createdAt),
     uniqueIndex('idx_msg_channel_ext')
-      .on(t.tenantId, t.channelExternalId)
+      .on(t.organizationId, t.channelExternalId)
       .where(sql`${t.channelExternalId} IS NOT NULL`),
     check('messages_role_check', sql`role IN ('customer','agent','system','staff')`),
     check('messages_kind_check', sql`kind IN ('text','image','card','card_reply')`),
@@ -114,7 +114,7 @@ export const internalNotes = inboxPgSchema.table(
   'internal_notes',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     conversationId: text('conversation_id')
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),
@@ -140,7 +140,7 @@ export const pendingApprovals = inboxPgSchema.table(
   'pending_approvals',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     conversationId: text('conversation_id')
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),

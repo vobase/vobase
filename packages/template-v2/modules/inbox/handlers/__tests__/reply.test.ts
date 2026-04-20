@@ -9,13 +9,13 @@ import replyRouter from '../reply'
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const CONV_ID = 'conv-reply-1'
-const TENANT_ID = 'tenant_meridian'
+const ORG_ID = 'tenant_meridian'
 const OTHER_TENANT = 'tenant_other'
 const MSG_ID = 'msg-reply-1'
 
 const fakeConv = {
   id: CONV_ID,
-  tenantId: TENANT_ID,
+  organizationId: ORG_ID,
   contactId: 'c-1',
   channelInstanceId: 'ch-1',
   status: 'active' as const,
@@ -35,7 +35,7 @@ const fakeConv = {
 const fakeMessage = {
   id: MSG_ID,
   conversationId: CONV_ID,
-  tenantId: TENANT_ID,
+  organizationId: ORG_ID,
   role: 'staff',
   kind: 'text',
   content: { text: 'Hello from staff' },
@@ -97,8 +97,8 @@ function makeJournalDb() {
 const app = new Hono()
 app.route('/conversations', replyRouter)
 
-const POST = (id: string, body: unknown, tenant = TENANT_ID) =>
-  app.request(`/conversations/${id}/reply?tenantId=${tenant}`, {
+const POST = (id: string, body: unknown, org = ORG_ID) =>
+  app.request(`/conversations/${id}/reply?organizationId=${org}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -143,8 +143,8 @@ describe('POST /conversations/:id/reply', () => {
     expect(notifyCalls).toContain(CONV_ID)
   })
 
-  it('(d) cross-tenant: returns 404 when conversation belongs to different tenant', async () => {
-    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, tenantId: OTHER_TENANT }, notifyCalls))
+  it('(d) cross-organization: returns 404 when conversation belongs to different organization', async () => {
+    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls))
     const res = await POST(CONV_ID, { body: 'Hi', staffUserId: 'u-1' })
     expect(res.status).toBe(404)
   })

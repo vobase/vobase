@@ -32,7 +32,7 @@ export interface IntegrationHarnessHandle {
 }
 
 export interface IntegrationBootOpts {
-  tenantId: string
+  organizationId: string
   agentId: string
   contactId: string
   conversationId?: string
@@ -65,7 +65,7 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
     async appendEvent(event: AgentEvent): Promise<void> {
       await journalAppend({
         conversationId: (event as unknown as { conversationId: string }).conversationId,
-        tenantId: (event as unknown as { tenantId: string }).tenantId,
+        organizationId: (event as unknown as { organizationId: string }).organizationId,
         wakeId: (event as unknown as { wakeId?: string }).wakeId ?? null,
         turnIndex: (event as unknown as { turnIndex: number }).turnIndex ?? 0,
         event,
@@ -212,7 +212,7 @@ export async function bootWakeIntegration(
   const _ctxDb = db.db
 
   const result = await bootWake({
-    tenantId: opts.tenantId,
+    organizationId: opts.organizationId,
     agentId: opts.agentId,
     contactId: opts.contactId,
     trigger: opts.trigger,

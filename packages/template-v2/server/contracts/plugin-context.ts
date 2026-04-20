@@ -37,7 +37,7 @@ export interface AgentTool<TArgs = unknown, TResult = unknown> {
 }
 
 export interface ToolExecutionContext {
-  tenantId: string
+  organizationId: string
   conversationId: string
   wakeId: string
   agentId: string
@@ -55,7 +55,7 @@ export interface CommandDef {
 }
 
 export interface CommandContext {
-  tenantId: string
+  organizationId: string
   conversationId: string
   agentId: string
   contactId: string
@@ -93,7 +93,7 @@ export interface LlmResult<T = string> {
 }
 
 /**
- * Scoped Drizzle DB handle — tenant-filtered at the handler layer.
+ * Scoped Drizzle DB handle — organization-filtered at the handler layer.
  * See `./scoped-db.ts`.
  */
 export type { ScopedDb } from './scoped-db'
@@ -127,7 +127,7 @@ export type TraceSpan = {
 export interface PluginContext {
   /** Immutable identity */
   readonly moduleName: string
-  readonly tenantId: string
+  readonly organizationId: string
   readonly conversationId: string
 
   /** Typed cross-module contracts — never raw schema imports */

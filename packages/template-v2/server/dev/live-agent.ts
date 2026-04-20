@@ -47,7 +47,7 @@ export function createLiveAgentHandler(deps: LiveAgentDeps) {
     const data = rawData as InboundToWakePayload
     console.log('[live-agent] handling inbound→wake', { conv: data.conversationId, msg: data.messageId })
 
-    // Resolve the conversation so we can pick up tenantId + agent assignee.
+    // Resolve the conversation so we can pick up organizationId + agent assignee.
     let conv: Conversation
     try {
       conv = await deps.inbox.getConversation(data.conversationId)
@@ -131,7 +131,7 @@ export function createLiveAgentHandler(deps: LiveAgentDeps) {
 
     try {
       await bootWake({
-        tenantId: data.tenantId,
+        organizationId: data.organizationId,
         agentId,
         contactId: data.contactId,
         conversationId: data.conversationId,

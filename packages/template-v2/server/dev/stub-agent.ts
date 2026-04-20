@@ -129,7 +129,7 @@ export function createStubAgentHandler(deps: StubAgentDeps) {
       if (!reply) return
       const msg = await deps.inbox.sendTextMessage({
         conversationId: data.conversationId,
-        tenantId: data.tenantId,
+        organizationId: data.organizationId,
         author: { kind: 'agent', id: MERIDIAN_AGENT_ID },
         body: reply,
         wakeId,
@@ -146,7 +146,7 @@ export function createStubAgentHandler(deps: StubAgentDeps) {
     if (intent === 'greeting') {
       const msg = await deps.inbox.sendTextMessage({
         conversationId: data.conversationId,
-        tenantId: data.tenantId,
+        organizationId: data.organizationId,
         author: { kind: 'agent', id: MERIDIAN_AGENT_ID },
         body: "Hey! I'm Meridian's support assistant. What can I help you with today?",
         wakeId,
@@ -155,7 +155,7 @@ export function createStubAgentHandler(deps: StubAgentDeps) {
       // Follow up with a quick-reply card so the customer has one-tap paths.
       const card = await deps.inbox.sendCardMessage({
         conversationId: data.conversationId,
-        tenantId: data.tenantId,
+        organizationId: data.organizationId,
         author: { kind: 'agent', id: MERIDIAN_AGENT_ID },
         card: HELP_CARD,
         wakeId,
@@ -168,7 +168,7 @@ export function createStubAgentHandler(deps: StubAgentDeps) {
     if (intent === 'pricing') {
       const msg = await deps.inbox.sendCardMessage({
         conversationId: data.conversationId,
-        tenantId: data.tenantId,
+        organizationId: data.organizationId,
         author: { kind: 'agent', id: MERIDIAN_AGENT_ID },
         card: PRICING_CARD,
         wakeId,
@@ -181,7 +181,7 @@ export function createStubAgentHandler(deps: StubAgentDeps) {
     if (intent === 'refund') {
       const msg = await deps.inbox.sendCardMessage({
         conversationId: data.conversationId,
-        tenantId: data.tenantId,
+        organizationId: data.organizationId,
         author: { kind: 'agent', id: MERIDIAN_AGENT_ID },
         card: REFUND_CARD,
         wakeId,
@@ -194,7 +194,7 @@ export function createStubAgentHandler(deps: StubAgentDeps) {
     // Fallback: acknowledge + show the help card.
     const ack = await deps.inbox.sendTextMessage({
       conversationId: data.conversationId,
-      tenantId: data.tenantId,
+      organizationId: data.organizationId,
       author: { kind: 'agent', id: MERIDIAN_AGENT_ID },
       body: "Got it — let me get you to the right place. Here's what I can help with:",
       wakeId,
@@ -202,7 +202,7 @@ export function createStubAgentHandler(deps: StubAgentDeps) {
     deps.realtime.notify({ table: 'messages', id: ack.id, action: 'INSERT' })
     const card = await deps.inbox.sendCardMessage({
       conversationId: data.conversationId,
-      tenantId: data.tenantId,
+      organizationId: data.organizationId,
       author: { kind: 'agent', id: MERIDIAN_AGENT_ID },
       card: HELP_CARD,
       wakeId,

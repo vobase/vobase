@@ -13,7 +13,7 @@ import type { Bash } from 'just-bash'
 export interface FrozenPromptInput {
   bash: Bash
   agentDefinition: AgentDefinition
-  tenantId: string
+  organizationId: string
   contactId: string
   conversationId: string
   /** Optional override — tests can inject a stable prompt suffix. */
@@ -97,7 +97,7 @@ export async function buildFrozenPrompt(input: FrozenPromptInput): Promise<Froze
   const rendered = [
     '# System',
     '',
-    `tenant_id=${input.tenantId}`,
+    `organization_id=${input.organizationId}`,
     `conversation_id=${input.conversationId}`,
     `contact_id=${input.contactId}`,
     `agent_id=${input.agentDefinition.id}`,

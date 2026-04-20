@@ -12,7 +12,7 @@ Last in the init chain (depends on inbox/contacts/drive ports). Owns the `conver
 
 **Tiered learning flow.** Staff consult-replies, supervisor notes, and approval rejections are concentrated teaching signals. `learningProposalObserver` runs after any wake containing these and proposes durable changes:
 - Low blast-radius (contact memory, agent memory) → auto-write.
-- High blast-radius (skill files, tenant drive docs) → `learning_proposals` row, staff approves via the learnings UI.
+- High blast-radius (skill files, organization drive docs) → `learning_proposals` row, staff approves via the learnings UI.
 - Rejections store as anti-lessons in the agent memory so the agent doesn't re-propose.
 
 **`active_wakes` is UNLOGGED.** In-flight guard preventing duplicate concurrent wakes. Doesn't survive crash — wake-worker reconciles on restart via `restart-recovery`.

@@ -13,7 +13,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MessageCard } from '@/components/message-card'
 
-const TENANT_ID = 'mer0tenant'
+const ORG_ID = 'mer0tenant'
 const CHANNEL_INSTANCE_ID = 'chi00web00'
 const WEBHOOK_SECRET = 'dev-secret'
 const SESSION_STORAGE_KEY = 'vobase.test-web.session'
@@ -54,7 +54,7 @@ async function postInbound(opts: {
   externalMessageId: string
 }): Promise<InboundResponse> {
   const payload = {
-    tenantId: TENANT_ID,
+    organizationId: ORG_ID,
     channelType: 'web',
     from: opts.sessionId,
     externalMessageId: opts.externalMessageId,

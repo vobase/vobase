@@ -61,7 +61,7 @@ async function mockLlmCallBlock(task: string, _req: unknown): Promise<LlmResult<
 
 function makeCtx(llmOverride?: typeof mockLlmCall): MutatorContext {
   return {
-    tenantId: 'ten-mod-1',
+    organizationId: 'ten-mod-1',
     conversationId: 'conv-mod-1',
     wakeId: 'wake-mod-1',
     ports: {} as MutatorContext['ports'],

@@ -113,7 +113,7 @@ export function createScorerObserver(opts: ScorerObserverOpts): AgentObserver {
             .insert(agentScores)
             .values({
               id: nanoid(8),
-              tenantId: ctx.tenantId,
+              organizationId: ctx.organizationId,
               conversationId: ctx.conversationId,
               wakeTurnIndex: event.turnIndex,
               scorer: scorerId,
@@ -130,7 +130,7 @@ export function createScorerObserver(opts: ScorerObserverOpts): AgentObserver {
             ts: new Date(),
             wakeId: ctx.wakeId,
             conversationId: ctx.conversationId,
-            tenantId: ctx.tenantId,
+            organizationId: ctx.organizationId,
             turnIndex: event.turnIndex,
           })
         } catch (err) {

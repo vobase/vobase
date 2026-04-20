@@ -37,7 +37,7 @@ import {
 
 export const agentDefinitions = agentsPgSchema.table('agent_definitions', {
   id: nanoidPrimaryKey(),
-  tenantId: text('tenant_id').notNull(),
+  organizationId: text('organization_id').notNull(),
   name: text('name').notNull(),
   soulMd: text('soul_md').notNull().default(''),
   model: text('model').notNull().default('claude-sonnet-4-6'),
@@ -66,7 +66,7 @@ export const conversationEvents = agentsPgSchema.table(
     id: bigserial('id', { mode: 'bigint' }).primaryKey(),
     /** Cross-schema FK to inbox.conversations(id); enforced post-push. */
     conversationId: text('conversation_id').notNull(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     /** Stable identifier per wake — queries use this for per-wake scoping. */
     wakeId: text('wake_id'),
     turnIndex: integer('turn_index').notNull(),
@@ -117,7 +117,7 @@ export const learnedSkills = agentsPgSchema.table(
   'learned_skills',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     agentId: text('agent_id').references(() => agentDefinitions.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description').notNull(),
@@ -132,14 +132,14 @@ export const learnedSkills = agentsPgSchema.table(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (t) => [uniqueIndex('uq_learned_skills_name').on(t.tenantId, t.agentId, t.name)],
+  (t) => [uniqueIndex('uq_learned_skills_name').on(t.organizationId, t.agentId, t.name)],
 )
 
 export const learningProposals = agentsPgSchema.table(
   'learning_proposals',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     conversationId: text('conversation_id').notNull(),
     /** Self-ref to conversation_events.id; enforced post-push. */
     wakeEventId: bigint('wake_event_id', { mode: 'number' }),
@@ -157,7 +157,7 @@ export const learningProposals = agentsPgSchema.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index('idx_proposals_status').on(t.tenantId, t.status, t.createdAt),
+    index('idx_proposals_status').on(t.organizationId, t.status, t.createdAt),
     check('lp_scope_check', sql`scope IN ('contact','agent_memory','agent_skill','drive_doc')`),
     check('lp_action_check', sql`action IN ('upsert','create','patch')`),
     check('lp_status_check', sql`status IN ('pending','approved','rejected','superseded','auto_written')`),
@@ -168,7 +168,7 @@ export const agentScores = agentsPgSchema.table(
   'agent_scores',
   {
     id: nanoidPrimaryKey(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     conversationId: text('conversation_id').notNull(),
     wakeTurnIndex: integer('wake_turn_index').notNull(),
     scorer: text('scorer').notNull(),
@@ -183,7 +183,7 @@ export const agentScores = agentsPgSchema.table(
 export const tenantCostDaily = agentsPgSchema.table(
   'tenant_cost_daily',
   {
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     date: date('date').notNull(),
     llmTask: text('llm_task').notNull(),
     tokensIn: bigint('tokens_in', { mode: 'number' }),
@@ -192,7 +192,7 @@ export const tenantCostDaily = agentsPgSchema.table(
     costUsd: numeric('cost_usd', { precision: 12, scale: 4 }),
     callCount: integer('call_count'),
   },
-  (t) => [primaryKey({ columns: [t.tenantId, t.date, t.llmTask] })],
+  (t) => [primaryKey({ columns: [t.organizationId, t.date, t.llmTask] })],
 )
 
 /**
@@ -208,7 +208,7 @@ export const auditWakeMap = agentsPgSchema.table(
     wakeId: text('wake_id').notNull(),
     conversationId: text('conversation_id').notNull(),
     eventType: text('event_type').notNull(),
-    tenantId: text('tenant_id').notNull(),
+    organizationId: text('organization_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('idx_audit_wake_map_wake').on(t.wakeId), index('idx_audit_wake_map_conv').on(t.conversationId)],

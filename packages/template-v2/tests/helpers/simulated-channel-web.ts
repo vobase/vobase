@@ -18,7 +18,7 @@ export interface CapturedJob {
 }
 
 export interface InboundRequest {
-  tenantId: string
+  organizationId: string
   /** Session token — used as `from` for contact resolution. */
   from: string
   text: string
@@ -71,7 +71,7 @@ export function createSimulatedChannelWeb(opts: SimulatedChannelWebOpts): Simula
     secret,
 
     async postInbound({
-      tenantId,
+      organizationId,
       from,
       text,
       externalMessageId,
@@ -80,7 +80,7 @@ export function createSimulatedChannelWeb(opts: SimulatedChannelWebOpts): Simula
       msgCounter += 1
       const msgId = externalMessageId ?? `ext-msg-${Date.now()}-${msgCounter}`
       const payload = {
-        tenantId,
+        organizationId,
         channelType: 'web',
         from,
         externalMessageId: msgId,

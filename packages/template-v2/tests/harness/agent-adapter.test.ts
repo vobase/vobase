@@ -248,7 +248,7 @@ describe('phase 3 — bash tool_use via recorded provider', () => {
     const provider = createRecordedProvider('meridian-bash-navigate.jsonl')
 
     const { harness } = await bootWakePhase3({
-      tenantId: 'ten-phase3',
+      organizationId: 'ten-phase3',
       agentId: 'agt-phase3',
       contactId: 'ct-phase3',
       provider,
@@ -276,7 +276,7 @@ describe('phase 3 — bash tool_use via recorded provider', () => {
     // one turn — for N+1 we rely on the `maxTurns: 2` loop where turn 1 re-uses
     // the same fixture replay (still emits a `finish` + empty tool set).
     const { harness } = await bootWakePhase3({
-      tenantId: 'ten-phase3',
+      organizationId: 'ten-phase3',
       agentId: 'agt-phase3',
       contactId: 'ct-phase3',
       provider,

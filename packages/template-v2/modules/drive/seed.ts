@@ -1,5 +1,5 @@
 /**
- * drive module seed — inserts 7 tenant-scoped drive.files rows for the Meridian scenario.
+ * drive module seed — inserts 7 organization-scoped drive.files rows for the Meridian scenario.
  *
  * /BUSINESS.md contains the Meridian brand profile.
  * Other files contain concise placeholder content.
@@ -169,8 +169,8 @@ export async function seed(db: unknown): Promise<void> {
       .insert(driveFiles)
       .values({
         id: file.id,
-        tenantId: MERIDIAN_TENANT_ID,
-        scope: 'tenant',
+        organizationId: MERIDIAN_TENANT_ID,
+        scope: 'organization',
         scopeId: MERIDIAN_TENANT_ID,
         kind: 'file',
         name: file.name,

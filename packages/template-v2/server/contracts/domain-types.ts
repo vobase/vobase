@@ -11,7 +11,7 @@ export type ConversationStatus = 'active' | 'resolving' | 'awaiting_approval' | 
 
 export interface Conversation {
   id: string
-  tenantId: string
+  organizationId: string
   contactId: string
   channelInstanceId: string
   status: ConversationStatus
@@ -38,7 +38,7 @@ export type MessageKind = 'text' | 'image' | 'card' | 'card_reply'
 export interface Message {
   id: string
   conversationId: string
-  tenantId: string
+  organizationId: string
   role: MessageRole
   kind: MessageKind
   content: unknown
@@ -52,7 +52,7 @@ export type InternalNoteAuthorType = 'agent' | 'staff' | 'system'
 
 export interface InternalNote {
   id: string
-  tenantId: string
+  organizationId: string
   conversationId: string
   authorType: InternalNoteAuthorType
   authorId: string
@@ -68,7 +68,7 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 
 export interface PendingApproval {
   id: string
-  tenantId: string
+  organizationId: string
   conversationId: string
   conversationEventId: string | null
   toolName: string
@@ -83,7 +83,7 @@ export interface PendingApproval {
 
 export interface Contact {
   id: string
-  tenantId: string
+  organizationId: string
   displayName: string | null
   phone: string | null
   email: string | null
@@ -104,7 +104,7 @@ export interface StaffBinding {
 
 export interface AgentDefinition {
   id: string
-  tenantId: string
+  organizationId: string
   name: string
   soulMd: string
   model: string
@@ -125,13 +125,13 @@ export interface AgentDefinition {
 }
 
 export type DriveKind = 'folder' | 'file'
-export type DriveScopeName = 'tenant' | 'contact'
+export type DriveScopeName = 'organization' | 'contact'
 export type DriveSource = 'customer_inbound' | 'agent_uploaded' | 'staff_uploaded' | 'admin_uploaded' | null
 export type DriveProcessingStatus = 'pending' | 'processing' | 'ready' | 'failed'
 
 export interface DriveFile {
   id: string
-  tenantId: string
+  organizationId: string
   scope: DriveScopeName
   scopeId: string
   parentFolderId: string | null
@@ -162,7 +162,7 @@ export type LearningStatus = 'pending' | 'approved' | 'rejected' | 'superseded' 
 
 export interface LearningProposal {
   id: string
-  tenantId: string
+  organizationId: string
   conversationId: string
   wakeEventId: number | null
   scope: LearningScope
@@ -206,7 +206,7 @@ export type ModerationCategory = 'hate' | 'harassment' | 'violence' | 'sexual' |
 
 export interface AgentScore {
   id: string
-  tenantId: string
+  organizationId: string
   conversationId: string
   wakeTurnIndex: number
   scorer: string
@@ -224,7 +224,7 @@ export interface AgentScore {
 export interface ConversationEvent {
   id: number
   conversationId: string
-  tenantId: string
+  organizationId: string
   turnIndex: number
   ts: Date
   type: string

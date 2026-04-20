@@ -5,7 +5,7 @@
 import { z } from 'zod'
 
 export const InboundToWakePayloadSchema = z.object({
-  tenantId: z.string(),
+  organizationId: z.string(),
   conversationId: z.string(),
   messageId: z.string(),
   contactId: z.string(),

@@ -27,7 +27,7 @@ function parseFlags(argv: readonly string[]): Record<string, string> {
 export const driveVerbs: readonly CommandDef[] = [
   {
     name: 'drive propose',
-    description: 'Propose a change to a tenant-drive document (requires staff approval).',
+    description: 'Propose a change to a organization-drive document (requires staff approval).',
     usage: 'vobase drive propose --path=/<path> --body="..." [--rationale="..."] [--confidence=0.7]',
 
     async execute(argv, ctx) {

@@ -7,12 +7,12 @@ import notesRouter from '../notes'
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const CONV_ID = 'conv-notes-1'
-const TENANT_ID = 'tenant_meridian'
+const ORG_ID = 'tenant_meridian'
 const OTHER_TENANT = 'tenant_other'
 
 const fakeConv = {
   id: CONV_ID,
-  tenantId: TENANT_ID,
+  organizationId: ORG_ID,
   contactId: 'c-1',
   channelInstanceId: 'ch-1',
   status: 'active' as const,
@@ -31,7 +31,7 @@ const fakeConv = {
 
 const fakeNote = {
   id: 'note-1',
-  tenantId: TENANT_ID,
+  organizationId: ORG_ID,
   conversationId: CONV_ID,
   authorType: 'staff' as const,
   authorId: 'user-1',
@@ -84,8 +84,8 @@ function makeNotesDb(note: unknown) {
 const app = new Hono()
 app.route('/conversations', notesRouter)
 
-const POST = (id: string, body: unknown, tenant = TENANT_ID) =>
-  app.request(`/conversations/${id}/notes?tenantId=${tenant}`, {
+const POST = (id: string, body: unknown, org = ORG_ID) =>
+  app.request(`/conversations/${id}/notes?organizationId=${org}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -139,8 +139,8 @@ describe('POST /conversations/:id/notes', () => {
     expect(res.status).toBe(404)
   })
 
-  it('(d) returns 403 when conversation belongs to different tenant', async () => {
-    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, tenantId: OTHER_TENANT }, notifyCalls))
+  it('(d) returns 403 when conversation belongs to different organization', async () => {
+    setStaffOpsDb(makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls))
     const res = await POST(CONV_ID, { body: 'hi', authorType: 'staff', authorId: 'u-1' })
     expect(res.status).toBe(403)
   })

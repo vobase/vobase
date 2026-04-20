@@ -8,7 +8,7 @@ import { appendStaffTextMessage } from './messages'
 
 export interface SendStaffReplyInput {
   conversationId: string
-  tenantId: string
+  organizationId: string
   staffUserId: string
   body: string
 }
@@ -16,7 +16,7 @@ export interface SendStaffReplyInput {
 export async function sendStaffReply(input: SendStaffReplyInput): Promise<{ messageId: string; message: Message }> {
   const message = await appendStaffTextMessage({
     conversationId: input.conversationId,
-    tenantId: input.tenantId,
+    organizationId: input.organizationId,
     staffUserId: input.staffUserId,
     body: input.body,
   })

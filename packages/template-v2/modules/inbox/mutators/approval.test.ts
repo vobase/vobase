@@ -13,7 +13,7 @@ import { approvalMutator } from './approval'
 
 type PendingRow = {
   id: string
-  tenantId: string
+  organizationId: string
   conversationId: string
   toolName: string
   toolArgs: unknown
@@ -70,7 +70,7 @@ function makeMockDb(opts: { cardApprovalRequired: boolean; agentId: string; conv
           id: String(row.id ?? 'pa-test'),
           status: 'pending',
           wakeId: String(row.wakeId ?? null),
-          tenantId: String(row.tenantId ?? ''),
+          organizationId: String(row.organizationId ?? ''),
           conversationId: String(row.conversationId ?? ''),
           toolName: String(row.toolName ?? ''),
           toolArgs: row.toolArgs,
@@ -88,7 +88,7 @@ function makeCtx(opts: { cardApprovalRequired: boolean; agentId?: string; conver
   const conversationId = opts.conversationId ?? 'conv-test'
 
   return {
-    tenantId: 'ten-test',
+    organizationId: 'ten-test',
     conversationId,
     wakeId: 'wake-test',
     ports: {} as MutatorContext['ports'],

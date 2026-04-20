@@ -16,12 +16,12 @@ const app = new Hono()
 app.get('/health', (c) => c.json({ module: 'inbox', status: 'ok' }))
 
 app.get('/conversations', async (c) => {
-  const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
+  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const status = c.req.query('status')?.split(',').filter(Boolean)
   const tabRaw = c.req.query('tab')
   const tab = tabRaw === 'active' || tabRaw === 'later' || tabRaw === 'done' ? tabRaw : undefined
   const owner = c.req.query('owner') || undefined
-  const rows = await listConversations(tenantId, {
+  const rows = await listConversations(organizationId, {
     status: status?.length ? status : undefined,
     tab,
     owner,
@@ -46,9 +46,9 @@ app.get('/conversations/:id/messages', async (c) => {
 })
 
 app.get('/approvals', async (c) => {
-  const tenantId = c.req.query('tenantId') ?? DEFAULT_TENANT
+  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const status = c.req.query('status') ?? 'pending'
-  const rows = await listApprovals(tenantId, { status })
+  const rows = await listApprovals(organizationId, { status })
   return c.json(rows)
 })
 

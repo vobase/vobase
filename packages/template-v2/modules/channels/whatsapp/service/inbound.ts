@@ -41,7 +41,7 @@ function resolveChannelInstanceId(phoneNumberId: string | undefined, explicitIns
 export async function processWebhookPayload(
   payload: MetaWebhookPayload,
   opts: {
-    tenantId: string
+    organizationId: string
     /** Explicit channel instance ID from route param or x-channel-instance-id header. */
     channelInstanceId?: string
   },
@@ -50,7 +50,7 @@ export async function processWebhookPayload(
   const contactsPort = requireContacts()
   const jobs = requireJobs()
 
-  const events = parseWebhookPayload(payload, opts.tenantId)
+  const events = parseWebhookPayload(payload, opts.organizationId)
 
   const settled = await Promise.all(
     events.map(async (event): Promise<ProcessResult['results'][number] | null> => {
@@ -71,13 +71,13 @@ export async function processWebhookPayload(
       }
 
       const contact = await contactsPort.upsertByExternal({
-        tenantId: event.tenantId,
+        organizationId: event.organizationId,
         phone: event.from,
         displayName: event.profileName || undefined,
       })
 
       const result = await inboxPort.createInboundMessage({
-        tenantId: event.tenantId,
+        organizationId: event.organizationId,
         channelInstanceId,
         contactId: contact.id,
         externalMessageId: event.externalMessageId,
@@ -88,7 +88,7 @@ export async function processWebhookPayload(
 
       if (result.isNew) {
         await jobs.send('channel-whatsapp:inbound-to-wake', {
-          tenantId: event.tenantId,
+          organizationId: event.organizationId,
           conversationId: result.conversation.id,
           messageId: result.message.id,
           contactId: contact.id,

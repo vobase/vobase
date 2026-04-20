@@ -29,7 +29,7 @@ export interface ResilientProviderPolicy {
   events: EventBus
   logger: Logger
   /** Returns the current wake scope fields for emitted events. */
-  getScope: () => { tenantId: string; conversationId: string; wakeId: string; turnIndex: number }
+  getScope: () => { organizationId: string; conversationId: string; wakeId: string; turnIndex: number }
   /** Max retries for transient errors. Defaults to `MAX_TRANSIENT_RETRIES` (3). */
   maxTransientRetries?: number
 }
@@ -54,7 +54,7 @@ function emitErrorClassified(
     ts: new Date(),
     wakeId: scope.wakeId,
     conversationId: scope.conversationId,
-    tenantId: scope.tenantId,
+    organizationId: scope.organizationId,
     turnIndex: scope.turnIndex,
     reason: classified.reason,
     providerMessage: classified.providerMessage,

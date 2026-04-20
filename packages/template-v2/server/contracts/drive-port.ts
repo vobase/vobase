@@ -1,10 +1,10 @@
 /**
- * DrivePort — unified file tree across tenant-scope (KB) and contact-scope.
+ * DrivePort — unified file tree across organization-scope (KB) and contact-scope.
  */
 
 import type { DriveFile } from './domain-types'
 
-export type DriveScope = { scope: 'tenant' } | { scope: 'contact'; contactId: string }
+export type DriveScope = { scope: 'organization' } | { scope: 'contact'; contactId: string }
 
 export interface CreateFileInput {
   parentFolderId?: string | null

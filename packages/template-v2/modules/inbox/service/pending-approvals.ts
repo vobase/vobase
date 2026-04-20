@@ -28,7 +28,7 @@ let _scheduler: ApprovalScheduler | null = null
 
 /** Narrow port binding — avoids pulling the agents module's concrete scheduler class. */
 export interface ApprovalScheduler {
-  enqueue(trigger: WakeTrigger, opts: { agentId: string; tenantId: string }): Promise<unknown>
+  enqueue(trigger: WakeTrigger, opts: { agentId: string; organizationId: string }): Promise<unknown>
 }
 
 export function setDb(db: unknown): void {
@@ -52,7 +52,7 @@ export async function insert(input: InsertPendingApprovalInput, tx?: Tx): Promis
   const rows = await runner
     .insert(pendingApprovals)
     .values({
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       conversationId: input.conversationId,
       conversationEventId: input.conversationEventId,
       toolName: input.toolName,
@@ -94,14 +94,14 @@ export interface DecideResult {
   enqueued: boolean
 }
 
-export async function list(tenantId: string, opts?: { status?: string }): Promise<PendingApproval[]> {
+export async function list(organizationId: string, opts?: { status?: string }): Promise<PendingApproval[]> {
   const { pendingApprovals } = await import('@modules/inbox/schema')
   const { eq, and, desc } = await import('drizzle-orm')
   const db = requireDb() as { select: Function }
 
   const whereClause = opts?.status
-    ? and(eq(pendingApprovals.tenantId, tenantId), eq(pendingApprovals.status, opts.status))
-    : eq(pendingApprovals.tenantId, tenantId)
+    ? and(eq(pendingApprovals.organizationId, organizationId), eq(pendingApprovals.status, opts.status))
+    : eq(pendingApprovals.organizationId, organizationId)
 
   const rows = (await db
     .select()
@@ -161,7 +161,7 @@ export async function decide(id: string, input: DecideInput): Promise<DecideResu
 
   let enqueued = false
   if (_scheduler) {
-    await _scheduler.enqueue(trigger, { agentId, tenantId: approval.tenantId })
+    await _scheduler.enqueue(trigger, { agentId, organizationId: approval.organizationId })
     enqueued = true
   }
 
@@ -181,7 +181,7 @@ export async function persistRejectionNote(
 ): Promise<void> {
   const { addNote } = await import('./notes')
   await addNote({
-    tenantId: approval.tenantId,
+    organizationId: approval.organizationId,
     conversationId: approval.conversationId,
     author: { kind: 'staff', id: decidedByUserId },
     body: `Approval rejected: ${body}`,

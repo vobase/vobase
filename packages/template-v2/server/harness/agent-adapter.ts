@@ -211,7 +211,7 @@ export function createPiAgent(opts: CreatePiAgentOpts): PiAgent {
  * event sequence parity without running the full harness.
  *
  * Returns the list of contract event types we would emit given a captured
- * pi-mono event stream. The harness adds wake metadata (wakeId, tenantId,
+ * pi-mono event stream. The harness adds wake metadata (wakeId, organizationId,
  * conversationId, turnIndex) on top at emit time.
  */
 export function translatePiMonoEvents(events: readonly PiAgentEvent[]): string[] {

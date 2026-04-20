@@ -60,7 +60,7 @@ export function ChannelsPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <header className="shrink-0 border-b border-border px-6 py-4">
         <h1 className="text-lg font-semibold tracking-tight">Channels</h1>
-        <p className="text-sm text-muted-foreground">Transport adapters connecting customers to this tenant's inbox.</p>
+        <p className="text-sm text-muted-foreground">Transport adapters connecting customers to this organization's inbox.</p>
       </header>
 
       <div className="flex-1 overflow-auto p-6">

@@ -37,7 +37,7 @@ export type ProposalAction = 'upsert' | 'create' | 'patch'
 export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'superseded' | 'auto_written'
 
 export interface InsertProposalInput {
-  tenantId: string
+  organizationId: string
   conversationId: string
   scope: ProposalScope
   action: ProposalAction
@@ -50,7 +50,7 @@ export interface InsertProposalInput {
 
 export interface ProposalRow {
   id: string
-  tenantId: string
+  organizationId: string
   conversationId: string
   scope: ProposalScope
   action: ProposalAction
@@ -103,7 +103,7 @@ export async function insertProposal(input: InsertProposalInput): Promise<{ id: 
     .insert(learningProposals)
     .values({
       id,
-      tenantId: input.tenantId,
+      organizationId: input.organizationId,
       conversationId: input.conversationId,
       scope: input.scope,
       action: input.action,
@@ -196,14 +196,14 @@ export async function decideProposal(
   return { proposalId: id, status: 'approved', writeId }
 }
 
-export async function listRecent(tenantId: string, status?: ProposalStatus, limit = 50): Promise<ProposalRow[]> {
+export async function listRecent(organizationId: string, status?: ProposalStatus, limit = 50): Promise<ProposalRow[]> {
   const { learningProposals } = await import('@modules/agents/schema')
   const { and, desc, eq } = await import('drizzle-orm')
   const db = requireDb()
 
   const where = status
-    ? and(eq(learningProposals.tenantId, tenantId), eq(learningProposals.status, status))
-    : eq(learningProposals.tenantId, tenantId)
+    ? and(eq(learningProposals.organizationId, organizationId), eq(learningProposals.status, status))
+    : eq(learningProposals.organizationId, organizationId)
 
   const rows = (await db
     .select()
@@ -249,7 +249,7 @@ async function writeApprovedScope(db: DrizzleHandle, proposal: ProposalRow): Pro
       .insert(learnedSkills)
       .values({
         id: skillId,
-        tenantId: proposal.tenantId,
+        organizationId: proposal.organizationId,
         agentId,
         name: proposal.target,
         description: proposal.rationale ?? proposal.target,
@@ -297,7 +297,7 @@ async function emitJournalEvent(
 
   await db.insert(conversationEvents).values({
     conversationId: proposal.conversationId,
-    tenantId: proposal.tenantId,
+    organizationId: proposal.organizationId,
     turnIndex,
     type: event.type,
     payload,

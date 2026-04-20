@@ -42,7 +42,7 @@ function makeInboxPort(): InboxPort {
   const fakeMsg = (): Message => ({
     id: 'msg-dispatched',
     conversationId: 'conv-1',
-    tenantId: 'ten-1',
+    organizationId: 'ten-1',
     role: 'agent',
     kind: 'text',
     content: {},
@@ -106,7 +106,7 @@ const noopRealtime: RealtimeService = { notify: () => {} }
 
 function makeEvent(toolName: ChannelOutboundEvent['toolName'], payload: unknown): ChannelOutboundEvent {
   return {
-    tenantId: 'ten-1',
+    organizationId: 'ten-1',
     conversationId: 'conv-1',
     contactId: 'contact-1',
     wakeId: 'wake-1',

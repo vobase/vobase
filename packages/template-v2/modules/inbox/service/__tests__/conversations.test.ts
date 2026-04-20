@@ -70,7 +70,7 @@ beforeEach(() => {
 })
 
 describe('resumeOrCreate (Model A uniqueness)', () => {
-  it('returns the same row across calls for the same (tenant, contact, channelInstance)', async () => {
+  it('returns the same row across calls for the same (organization, contact, channelInstance)', async () => {
     const a = await resumeOrCreate(MERIDIAN_TENANT_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     const b = await resumeOrCreate(MERIDIAN_TENANT_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     expect(a.conversation.id).toBe(b.conversation.id)
@@ -85,10 +85,10 @@ describe('resumeOrCreate (Model A uniqueness)', () => {
     expect(again.created).toBe(false)
   })
 
-  it('distinct threadKeys coexist on the same (tenant, contact, channelInstance) — email topic isolation', async () => {
+  it('distinct threadKeys coexist on the same (organization, contact, channelInstance) — email topic isolation', async () => {
     // Chat channels default to threadKey='default' (one row per pair).
     // Email-style: two RFC 5322 thread roots → two separate conversations
-    // on the same (tenant, contact, channel_instance).
+    // on the same (organization, contact, channel_instance).
     const booking = await resumeOrCreate(
       MERIDIAN_TENANT_ID,
       SEEDED_CONTACT_ID,
@@ -189,7 +189,7 @@ describe('createInboundMessage lifecycle', () => {
     await resolve(conversation.id, 'alice', 'done')
 
     const res = await createInboundMessage({
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: `wake-resolved-${Date.now()}`,
@@ -220,7 +220,7 @@ describe('createInboundMessage lifecycle', () => {
 
     await expect(
       createInboundMessage({
-        tenantId: MERIDIAN_TENANT_ID,
+        organizationId: MERIDIAN_TENANT_ID,
         channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
         contactId: SEEDED_CONTACT_ID,
         externalMessageId: `wake-failed-${Date.now()}`,
@@ -241,7 +241,7 @@ describe('createInboundMessage lifecycle', () => {
     schedulerCalls.length = 0
 
     const res = await createInboundMessage({
-      tenantId: MERIDIAN_TENANT_ID,
+      organizationId: MERIDIAN_TENANT_ID,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: `wake-snoozed-${Date.now()}`,

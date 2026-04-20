@@ -19,7 +19,7 @@ const AGENTS: AgentSummary[] = [
     name: 'Meridian',
     model: 'claude-sonnet-4-6',
     description:
-      'The default customer-facing agent for this tenant. Handles inbound messages, proposes learnings, and routes approvals to staff.',
+      'The default customer-facing agent for this organization. Handles inbound messages, proposes learnings, and routes approvals to staff.',
     status: 'active',
     icon: Bot,
     links: [
@@ -35,7 +35,7 @@ export function AgentsListPage() {
       <header className="shrink-0 border-b border-border px-6 py-4">
         <h1 className="text-lg font-semibold tracking-tight">Agents</h1>
         <p className="text-sm text-muted-foreground">
-          Agents configured for this tenant, their model, and review queues.
+          Agents configured for this organization, their model, and review queues.
         </p>
       </header>
 

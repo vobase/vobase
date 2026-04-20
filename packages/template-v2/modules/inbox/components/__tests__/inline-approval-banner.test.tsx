@@ -20,7 +20,7 @@ mock.module('@tanstack/react-query', () => ({
 function makePendingApproval(overrides: Partial<PendingApproval> = {}): PendingApproval {
   return {
     id: 'approval_abc',
-    tenantId: 'tenant_meridian',
+    organizationId: 'tenant_meridian',
     conversationId: 'conv_123',
     conversationEventId: null,
     toolName: 'send_card',

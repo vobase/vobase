@@ -148,7 +148,7 @@ async function gatherProposalContext(ctx: ObserverContext, agentId: string): Pro
   const skillRows = (await db
     .select({ name: learnedSkills.name, description: learnedSkills.description })
     .from(learnedSkills)
-    .where(and(eq(learnedSkills.tenantId, ctx.tenantId), eq(learnedSkills.agentId, agentId)))) as Array<{
+    .where(and(eq(learnedSkills.organizationId, ctx.organizationId), eq(learnedSkills.agentId, agentId)))) as Array<{
     name: string
     description: string
   }>
@@ -183,7 +183,7 @@ async function routeProposal(input: RouteInput): Promise<void> {
   }
 
   const { id } = await insertProposal({
-    tenantId: ctx.tenantId,
+    organizationId: ctx.organizationId,
     conversationId: ctx.conversationId,
     scope: draft.scope,
     action: draft.action,
@@ -199,7 +199,7 @@ async function routeProposal(input: RouteInput): Promise<void> {
     ts: new Date(),
     wakeId: event.wakeId,
     conversationId: event.conversationId,
-    tenantId: event.tenantId,
+    organizationId: event.organizationId,
     turnIndex: event.turnIndex,
     proposalId: id,
     scope: draft.scope,
@@ -212,7 +212,7 @@ async function routeProposal(input: RouteInput): Promise<void> {
       ts: new Date(),
       wakeId: event.wakeId,
       conversationId: event.conversationId,
-      tenantId: event.tenantId,
+      organizationId: event.organizationId,
       turnIndex: event.turnIndex,
       proposalId: id,
       writeId: `auto:${id}`,
