@@ -1,6 +1,6 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
-import { useEmailOtp } from '@/features/auth/api/use-email-otp'
+import { useEmailOtp } from '@/pages/auth/use-email-otp'
 
 const OTP_LENGTH = 6
 

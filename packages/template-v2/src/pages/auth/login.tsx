@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { useEmailOtp } from '@/features/auth/api/use-email-otp'
+import { useEmailOtp } from '@/pages/auth/use-email-otp'
 
 const schema = z.object({ email: z.email() })
 type FormValues = z.infer<typeof schema>
