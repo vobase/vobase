@@ -21,6 +21,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd packages/template-v2 && bun run check"
+          }
+        ]
+      }
     ]
   }
 }
