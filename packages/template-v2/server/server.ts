@@ -10,21 +10,21 @@ import {
   setNotifier as setLearningNotifier,
   setDb as setLearningProposalsDb,
 } from '@modules/agents/service/learning-proposals'
-import channelWebHandlers from '@modules/channel-web/handlers'
-import { INBOUND_TO_WAKE_JOB } from '@modules/channel-web/jobs'
+import channelWebHandlers from '@modules/channels/web/handlers'
+import { INBOUND_TO_WAKE_JOB } from '@modules/channels/web/jobs'
 import {
   setContactsPort as setChannelWebContacts,
   setInboxPort as setChannelWebInbox,
   setJobQueue as setChannelWebJobs,
   setRealtime as setChannelWebRealtime,
-} from '@modules/channel-web/service/state'
-import channelWhatsappHandlers from '@modules/channel-whatsapp/handlers'
+} from '@modules/channels/web/service/state'
+import channelWhatsappHandlers from '@modules/channels/whatsapp/handlers'
 import {
   setContactsPort as setWhatsappContacts,
   setInboxPort as setWhatsappInbox,
   setJobQueue as setWhatsappJobs,
   setRealtime as setWhatsappRealtime,
-} from '@modules/channel-whatsapp/service/state'
+} from '@modules/channels/whatsapp/service/state'
 import contactsHandlers from '@modules/contacts/handlers'
 import { setDb as setContactsDb } from '@modules/contacts/service/contacts'
 import inboxHandlers from '@modules/inbox/handlers'

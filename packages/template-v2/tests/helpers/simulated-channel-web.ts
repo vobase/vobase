@@ -6,8 +6,8 @@
  * and captures enqueued jobs via an in-memory spy.
  */
 import { createHmac } from 'node:crypto'
-import { handleInbound } from '@modules/channel-web/handlers/inbound'
-import { setContactsPort, setInboxPort, setJobQueue } from '@modules/channel-web/service/state'
+import { handleInbound } from '@modules/channels/web/handlers/inbound'
+import { setContactsPort, setInboxPort, setJobQueue } from '@modules/channels/web/service/state'
 import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { InboxPort } from '@server/contracts/inbox-port'
 import { Hono } from 'hono'

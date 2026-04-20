@@ -370,7 +370,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
 
   // ── 9 ── A3 guard: dispatcher transport-only, InboxPort writes the row ─────
   it('approved send_card dispatches via dispatcher transport AND persists via InboxPort — no double write', async () => {
-    const { dispatch } = await import('@modules/channel-web/service/dispatcher')
+    const { dispatch } = await import('@modules/channels/web/service/dispatcher')
     const { messages: messagesTable } = await import('@modules/inbox/schema')
 
     const before = await db.db.select().from(messagesTable).where(eq(messagesTable.conversationId, SEEDED_CONV_ID))

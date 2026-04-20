@@ -89,11 +89,11 @@ jobs:
 
       - name: Deliberate-violation guard (check:shape must detect missing file)
         run: |
-          mv modules/channel-web/jobs.ts /tmp/.jobs.ts.bak
+          mv modules/channels/web/jobs.ts /tmp/.jobs.ts.bak
           if bun run check:shape; then
             echo "::error::check:shape failed to detect deliberate missing file"
-            mv /tmp/.jobs.ts.bak modules/channel-web/jobs.ts
+            mv /tmp/.jobs.ts.bak modules/channels/web/jobs.ts
             exit 1
           fi
-          mv /tmp/.jobs.ts.bak modules/channel-web/jobs.ts
+          mv /tmp/.jobs.ts.bak modules/channels/web/jobs.ts
           bun run check:shape

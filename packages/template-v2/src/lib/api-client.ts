@@ -11,7 +11,7 @@
  */
 
 import type agentsApp from '@modules/agents/handlers/index'
-import type channelWebApp from '@modules/channel-web/handlers/index'
+import type channelWebApp from '@modules/channels/web/handlers/index'
 import type contactsApp from '@modules/contacts/handlers/index'
 import type inboxApp from '@modules/inbox/handlers/index'
 import type settingsApp from '@modules/settings/handlers/index'

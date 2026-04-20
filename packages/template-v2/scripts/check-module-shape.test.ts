@@ -34,8 +34,8 @@ describe('check-module-shape lint', () => {
   })
 
   describe('deliberate violation: missing required file', () => {
-    const jobsPath = join(MODULES_DIR, 'channel-web', 'jobs.ts')
-    const backupPath = join(MODULES_DIR, 'channel-web', 'jobs.ts.bak')
+    const jobsPath = join(MODULES_DIR, 'channels', 'web', 'jobs.ts')
+    const backupPath = join(MODULES_DIR, 'channels', 'web', 'jobs.ts.bak')
 
     beforeAll(() => {
       // Rename jobs.ts to simulate missing file
@@ -57,12 +57,12 @@ describe('check-module-shape lint', () => {
       // Error message should reference the missing file
       const combined = result.stdout + result.stderr
       expect(combined).toMatch(/jobs\.ts/)
-      expect(combined).toMatch(/channel-web/)
+      expect(combined).toMatch(/channels\/web/)
     })
   })
 
   describe('deliberate violation: handler LOC exceeds 200', () => {
-    const fatHandlerDir = join(MODULES_DIR, 'channel-web', 'handlers')
+    const fatHandlerDir = join(MODULES_DIR, 'channels', 'web', 'handlers')
     const fatFile = join(fatHandlerDir, 'fat.ts')
 
     beforeAll(() => {
@@ -97,7 +97,7 @@ describe('check-module-shape lint', () => {
   })
 
   describe('deliberate violation: missing README frontmatter key', () => {
-    const readmePath = join(MODULES_DIR, 'channel-web', 'README.md')
+    const readmePath = join(MODULES_DIR, 'channels', 'web', 'README.md')
     let originalContent = ''
 
     beforeAll(async () => {

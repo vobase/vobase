@@ -35,4 +35,4 @@ If in doubt, put it in the module. It's always cheaper to promote a file up into
 
 ## Exceptions (currently)
 
-- `src/pages/channels.tsx` — temporarily here pending the channel adapters reorg (moving `modules/channel-*` into a `channels/` grouping). Will move once that lands.
+- `src/pages/channels.tsx` — temporarily here. The channel adapters reorg (`modules/channel-*` → `modules/channels/*`) has landed; relocating this page to the `settings` module or a channel-specific pages dir is a follow-up task.

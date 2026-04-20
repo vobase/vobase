@@ -15,7 +15,7 @@
  */
 
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
-import type { InboundToWakePayload } from '@modules/channel-web/jobs'
+import type { InboundToWakePayload } from '@modules/channels/web/jobs'
 import { replyTool } from '@modules/inbox/tools/reply'
 import type { AgentsPort } from '@server/contracts/agents-port'
 import type { ContactsPort } from '@server/contracts/contacts-port'

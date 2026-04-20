@@ -5,8 +5,8 @@
  */
 
 import agents from './modules/agents/module'
-import channelWeb from './modules/channel-web/module'
-import channelWhatsapp from './modules/channel-whatsapp/module'
+import channelWeb from './modules/channels/web/module'
+import channelWhatsapp from './modules/channels/whatsapp/module'
 import contacts from './modules/contacts/module'
 import drive from './modules/drive/module'
 import inbox from './modules/inbox/module'

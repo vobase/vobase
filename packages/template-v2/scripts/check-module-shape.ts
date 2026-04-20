@@ -44,11 +44,29 @@ function fail(file: string, message: string, line?: number): void {
 }
 
 async function getModuleDirs(): Promise<string[]> {
-  const { readdirSync } = await import('node:fs')
-  return readdirSync(MODULES_DIR, { withFileTypes: true })
+  const { readdirSync, existsSync } = await import('node:fs')
+  const topLevel = readdirSync(MODULES_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
     .sort()
+
+  const results: string[] = []
+  for (const name of topLevel) {
+    if (name === 'channels') {
+      // Recurse one level into channels/ to discover channel adapter modules.
+      const channelsDir = join(MODULES_DIR, 'channels')
+      const children = readdirSync(channelsDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name)
+        .sort()
+      for (const child of children) {
+        results.push(`channels/${child}`)
+      }
+    } else if (existsSync(join(MODULES_DIR, name, 'module.ts'))) {
+      results.push(name)
+    }
+  }
+  return results
 }
 
 async function fileExists(path: string): Promise<boolean> {
