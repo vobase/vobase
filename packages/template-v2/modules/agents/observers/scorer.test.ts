@@ -58,7 +58,7 @@ async function mockLlmCall(task: string, _req: unknown): Promise<LlmResult<strin
 
 function makeCtx(): ObserverContext {
   return {
-    organizationId: 'ten-scorer-1',
+    organizationId: 'org-scorer-1',
     conversationId: 'conv-scorer-1',
     wakeId: 'wake-scorer-1',
     ports: {} as ObserverContext['ports'],
@@ -73,7 +73,7 @@ function makeBase() {
     ts: new Date(),
     wakeId: 'wake-scorer-1',
     conversationId: 'conv-scorer-1',
-    organizationId: 'ten-scorer-1',
+    organizationId: 'org-scorer-1',
     turnIndex: 1,
   }
 }
@@ -131,7 +131,7 @@ describe('createScorerObserver', () => {
     })
     await observer.handle(makeTurnEndEvent(3), makeCtx())
     for (const row of insertedRows) {
-      expect(row.organizationId).toBe('ten-scorer-1')
+      expect(row.organizationId).toBe('org-scorer-1')
       expect(row.wakeTurnIndex).toBe(3)
     }
   })

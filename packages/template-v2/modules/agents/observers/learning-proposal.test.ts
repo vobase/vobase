@@ -139,7 +139,7 @@ function makePortsAndDb(cap: PortCapture): Pick<ObserverContext, 'ports' | 'db' 
 function makeCtx(cap: PortCapture): ObserverContext {
   const base = makePortsAndDb(cap)
   return {
-    organizationId: 'ten-1',
+    organizationId: 'org-1',
     conversationId: 'conv-1',
     wakeId: 'wake-1',
     ...base,
@@ -151,7 +151,7 @@ function baseFields(wakeId = 'wake-1') {
     ts: new Date('2026-04-19T10:00:00Z'),
     wakeId,
     conversationId: 'conv-1',
-    organizationId: 'ten-1',
+    organizationId: 'org-1',
     turnIndex: 0,
   }
 }

@@ -88,7 +88,7 @@ function makeCtx(opts: { cardApprovalRequired: boolean; agentId?: string; conver
   const conversationId = opts.conversationId ?? 'conv-test'
 
   return {
-    organizationId: 'ten-test',
+    organizationId: 'org-test',
     conversationId,
     wakeId: 'wake-test',
     ports: {} as MutatorContext['ports'],

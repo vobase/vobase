@@ -12,7 +12,7 @@ function baseFields() {
     ts: new Date('2026-04-19T10:00:00Z'),
     wakeId: 'wake-1',
     conversationId: 'conv-1',
-    organizationId: 'ten-1',
+    organizationId: 'org-1',
     turnIndex: 0,
   }
 }

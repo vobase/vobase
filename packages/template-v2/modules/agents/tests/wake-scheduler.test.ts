@@ -24,7 +24,7 @@ import { createInMemoryOutbound, createWakeWorker } from '../service/wake-worker
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 
-const ORG = 'ten-test'
+const ORG = 'org-test'
 const AGENT = 'agt-test'
 const CONV = 'conv-test'
 

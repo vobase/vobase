@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'bun:test'
 import { type MetaWebhookPayload, parseWebhookPayload } from '../service/parser'
 
-const ORG = 'ten-test'
+const ORG = 'org-test'
 const BASE_TS = '1700000000'
 
 type WaContact = { profile?: { name: string }; wa_id: string }

@@ -21,7 +21,7 @@ let calls: CallRecord[] = []
 
 const fakeConversation: Conversation = {
   id: 'conv-web-1',
-  organizationId: 'ten-1',
+  organizationId: 'org-1',
   contactId: 'contact-1',
   channelInstanceId: 'ch-web-1',
   status: 'active',
@@ -42,7 +42,7 @@ const fakeConversation: Conversation = {
 
 const fakeContact: Contact = {
   id: 'contact-1',
-  organizationId: 'ten-1',
+  organizationId: 'org-1',
   displayName: 'Web User',
   phone: 'web:session-abc',
   email: null,
@@ -57,7 +57,7 @@ const fakeContact: Contact = {
 const fakeMessage: Message = {
   id: 'msg-inbound-1',
   conversationId: 'conv-web-1',
-  organizationId: 'ten-1',
+  organizationId: 'org-1',
   role: 'customer',
   kind: 'text',
   content: { text: 'Hello' },
@@ -123,7 +123,7 @@ function makeContactsPort() {
 }
 
 const fakeEvent = {
-  organizationId: 'ten-1',
+  organizationId: 'org-1',
   channelType: 'web' as const,
   externalMessageId: 'ext-msg-1',
   from: 'session-abc',
