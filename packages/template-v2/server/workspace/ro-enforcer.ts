@@ -9,6 +9,7 @@
  * via stderr + non-zero exit code when `echo > …` redirects fail.
  */
 import type { BufferEncoding, CpOptions, FileContent, FsStat, IFileSystem, MkdirOptions, RmOptions } from 'just-bash'
+import type { MergedWorkspaceConfig } from './workspace-config'
 
 // `ReadFileOptions`, `WriteFileOptions`, and `DirentEntry` are not re-exported
 // from `just-bash`'s public entry; redeclare the minimal shapes we use.
@@ -21,47 +22,76 @@ interface DirentEntry {
   isSymbolicLink: boolean
 }
 
-/** RO paths. Absolute-path prefixes or literal paths. */
-const READ_ONLY_PREFIXES: readonly string[] = ['/workspace/drive/', '/workspace/skills/', '/workspace/conversation/']
+/** Default RO prefixes — matches Phase 0 literals until modules opt in (Steps 6+). */
+const DEFAULT_READ_ONLY_PREFIXES: readonly string[] = [
+  '/workspace/drive/',
+  '/workspace/skills/',
+  '/workspace/conversation/',
+]
 
-const READ_ONLY_EXACT: ReadonlySet<string> = new Set([
+/** Default RO exact paths — matches Phase 0 literals until modules opt in (Steps 6+). */
+const DEFAULT_READ_ONLY_EXACT: readonly string[] = [
   '/workspace/SOUL.md',
   '/workspace/AGENTS.md',
   '/workspace/contact/profile.md',
   '/workspace/contact/bookings.md',
-])
+]
 
 /** Memory files are writable ONLY via `vobase memory …`, not direct `echo >`. */
-const MEMORY_PATHS: ReadonlySet<string> = new Set(['/workspace/MEMORY.md', '/workspace/contact/MEMORY.md'])
+const DEFAULT_MEMORY_PATHS: readonly string[] = ['/workspace/MEMORY.md', '/workspace/contact/MEMORY.md']
+
+/** Default writable prefix allowlist. */
+const DEFAULT_WRITABLE_PREFIXES: readonly string[] = ['/workspace/contact/drive/', '/workspace/tmp/']
+
+/** Effective RO/writable configuration consumed by `checkWriteAllowed` and `ScopedFs`. */
+export interface ReadOnlyConfig {
+  readOnlyPrefixes: readonly string[]
+  readOnlyExact: ReadonlySet<string>
+  memoryPaths: ReadonlySet<string>
+  writablePrefixes: readonly string[]
+}
 
 /**
- * Writable zone allowlist (for dirty-tracking). Anything under these prefixes
- * is legal to write. Direct writes outside both allowlist and RO list are
- * rejected — defense-in-depth against stray writes (e.g. `echo > /workspace/evil`).
+ * Builds the effective RO/writable configuration from a merged workspace config.
+ * Phase 0: returns the current literal defaults regardless of argument (modules
+ * migrate into this hook in Steps 6+). Phase 1: derives RO/writable zones from
+ * each module's `workspace.owns` / `frozenEager` declarations.
  */
-export const WRITABLE_PREFIXES: readonly string[] = ['/workspace/contact/drive/', '/workspace/tmp/']
+export function buildReadOnlyConfig(_merged?: MergedWorkspaceConfig): ReadOnlyConfig {
+  return {
+    readOnlyPrefixes: DEFAULT_READ_ONLY_PREFIXES,
+    readOnlyExact: new Set(DEFAULT_READ_ONLY_EXACT),
+    memoryPaths: new Set(DEFAULT_MEMORY_PATHS),
+    writablePrefixes: DEFAULT_WRITABLE_PREFIXES,
+  }
+}
+
+const DEFAULT_CONFIG: ReadOnlyConfig = buildReadOnlyConfig()
+
+/** Back-compat re-export for callers that just want the default writable prefixes. */
+export const WRITABLE_PREFIXES: readonly string[] = DEFAULT_WRITABLE_PREFIXES
 
 /** Returns `null` if write is allowed, otherwise the spec-exact error message. */
-export function checkWriteAllowed(path: string): string | null {
+export function checkWriteAllowed(path: string, config: ReadOnlyConfig = DEFAULT_CONFIG): string | null {
   // Memory files get their own message.
-  if (MEMORY_PATHS.has(path)) {
+  if (config.memoryPaths.has(path)) {
     return `bash: ${path}: use \`vobase memory set|append|remove\` to mutate memory safely.`
   }
 
   // Exact-path RO matches.
-  if (READ_ONLY_EXACT.has(path)) {
+  if (config.readOnlyExact.has(path)) {
     return renderRoError(path)
   }
 
   // Prefix RO matches.
-  for (const prefix of READ_ONLY_PREFIXES) {
+  for (const prefix of config.readOnlyPrefixes) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) {
       return renderRoError(path)
     }
   }
 
   // Writable prefixes take priority (even inside otherwise-unmatched parents).
-  for (const prefix of WRITABLE_PREFIXES) {
+  for (const prefix of config.writablePrefixes) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) return null
   }
 
@@ -97,7 +127,13 @@ export class ReadOnlyFsError extends Error {
  * enforcer. Only routes the LLM hits go through `writeFile` on this wrapper.
  */
 export class ScopedFs implements IFileSystem {
-  constructor(private readonly inner: IFileSystem) {}
+  private readonly config: ReadOnlyConfig
+  constructor(
+    private readonly inner: IFileSystem,
+    config: ReadOnlyConfig = DEFAULT_CONFIG,
+  ) {
+    this.config = config
+  }
 
   /** Allow harness-controlled code to perform privileged writes. */
   async innerWriteFile(path: string, content: FileContent): Promise<void> {
@@ -142,48 +178,48 @@ export class ScopedFs implements IFileSystem {
 
   // ---- Write-intercepting ----
   async writeFile(path: string, content: FileContent, options?: WriteFileOptions | BufferEncoding): Promise<void> {
-    const err = checkWriteAllowed(path)
+    const err = checkWriteAllowed(path, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.writeFile(path, content, options)
   }
   async appendFile(path: string, content: FileContent, options?: WriteFileOptions | BufferEncoding): Promise<void> {
-    const err = checkWriteAllowed(path)
+    const err = checkWriteAllowed(path, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.appendFile(path, content, options)
   }
   async mkdir(path: string, options?: MkdirOptions): Promise<void> {
-    const err = checkWriteAllowed(path)
+    const err = checkWriteAllowed(path, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.mkdir(path, options)
   }
   async rm(path: string, options?: RmOptions): Promise<void> {
-    const err = checkWriteAllowed(path)
+    const err = checkWriteAllowed(path, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.rm(path, options)
   }
   async cp(src: string, dest: string, options?: CpOptions): Promise<void> {
-    const err = checkWriteAllowed(dest)
+    const err = checkWriteAllowed(dest, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.cp(src, dest, options)
   }
   async mv(src: string, dest: string): Promise<void> {
     // moving INTO an RO destination is still a write, so reject based on dest.
-    const err = checkWriteAllowed(dest)
+    const err = checkWriteAllowed(dest, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.mv(src, dest)
   }
   async chmod(path: string, mode: number): Promise<void> {
-    const err = checkWriteAllowed(path)
+    const err = checkWriteAllowed(path, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.chmod(path, mode)
   }
   async symlink(target: string, linkPath: string): Promise<void> {
-    const err = checkWriteAllowed(linkPath)
+    const err = checkWriteAllowed(linkPath, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.symlink(target, linkPath)
   }
   async link(existingPath: string, newPath: string): Promise<void> {
-    const err = checkWriteAllowed(newPath)
+    const err = checkWriteAllowed(newPath, this.config)
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.link(existingPath, newPath)
   }

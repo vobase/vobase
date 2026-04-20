@@ -28,8 +28,17 @@ function fakeCtxInput() {
       ) as PluginContext['ports']['caption'],
     },
     db: {} as PluginContext['db'],
-    jobs: undefined,
-    storage: {},
+    jobs: {
+      async send() {
+        return 'job-test'
+      },
+      async cancel() {},
+    },
+    storage: {
+      getBucket() {
+        throw new Error('ScopedStorage not configured in this test')
+      },
+    },
     realtime: { notify: () => undefined },
     logger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
     metrics: { increment: () => undefined, gauge: () => undefined, timing: () => undefined },
@@ -138,5 +147,75 @@ describe('bootModules', () => {
     })
     expect(regs.tools.map((t) => t.name)).toEqual(['t1'])
     expect(regs.observers.map((o) => o.id)).toEqual(['o1'])
+  })
+
+  it('throws ManifestCollisionError when two modules claim overlapping workspace prefixes', async () => {
+    const a = defineModule({
+      name: 'a',
+      version: '1.0',
+      manifest: {
+        provides: {},
+        permissions: [],
+        workspace: { owns: [{ kind: 'prefix', path: '/workspace/foo/' }] },
+      },
+      init: () => undefined,
+    })
+    const b = defineModule({
+      name: 'b',
+      version: '1.0',
+      manifest: {
+        provides: {},
+        permissions: [],
+        workspace: { owns: [{ kind: 'exact', path: '/workspace/foo/bar.md' }] },
+      },
+      init: () => undefined,
+    })
+    await expect(
+      bootModules({ modules: [a, b], app: new Hono(), ctx: fakeCtxInput(), requireSession: noopSession }),
+    ).rejects.toThrow(/collision/i)
+  })
+
+  it('throws NamespaceViolationError when a module claims a runtime-owned path', async () => {
+    const rogue = defineModule({
+      name: 'rogue',
+      version: '1.0',
+      manifest: {
+        provides: {},
+        permissions: [],
+        workspace: { owns: [{ kind: 'exact', path: '/workspace/AGENTS.md' }] },
+      },
+      init: () => undefined,
+    })
+    await expect(
+      bootModules({ modules: [rogue], app: new Hono(), ctx: fakeCtxInput(), requireSession: noopSession }),
+    ).rejects.toThrow(/namespace violation/i)
+  })
+
+  it('throws ManifestMismatchError when registered observer id is not declared in manifest.provides.observers', async () => {
+    const mod = defineModule({
+      name: 'x',
+      version: '1.0',
+      manifest: { provides: { observers: ['x:declared'] }, permissions: [] },
+      init: (ctx) => {
+        ctx.registerObserver({ id: 'x:undeclared', handle: async () => undefined } as never)
+      },
+    })
+    await expect(
+      bootModules({ modules: [mod], app: new Hono(), ctx: fakeCtxInput(), requireSession: noopSession }),
+    ).rejects.toThrow(/manifest mismatch/i)
+  })
+
+  it('skips manifest.provides.observers id check when declarations are absent (opt-in)', async () => {
+    const mod = defineModule({
+      name: 'x',
+      version: '1.0',
+      manifest: { provides: {}, permissions: [] },
+      init: (ctx) => {
+        ctx.registerObserver({ id: 'anything', handle: async () => undefined } as never)
+      },
+    })
+    await expect(
+      bootModules({ modules: [mod], app: new Hono(), ctx: fakeCtxInput(), requireSession: noopSession }),
+    ).resolves.toBeDefined()
   })
 })

@@ -18,11 +18,12 @@ import type { AgentDefinition, DriveFile } from '@server/contracts/domain-types'
 import type { DrivePort } from '@server/contracts/drive-port'
 import type { CommandContext, CommandDef } from '@server/contracts/plugin-context'
 import type { MaterializerCtx, WorkspaceMaterializer } from '@server/contracts/side-load'
+import type { WorkspacePath } from '@server/runtime/define-module'
 import { Bash, InMemoryFs } from 'just-bash'
 import { generateAgentsMd } from './agents-md-generator'
 import { snapshotFs } from './dirty-tracker'
 import { MaterializerRegistry } from './materializer-registry'
-import { ScopedFs } from './ro-enforcer'
+import { type ReadOnlyConfig, ScopedFs } from './ro-enforcer'
 import { createVobaseCommand } from './vobase-cli/dispatcher'
 
 /** Built-in BUSINESS.md fallback stub — shown when no organization drive row exists. */
@@ -73,6 +74,16 @@ export interface CreateWorkspaceOpts {
   onSideEffect?: (cmd: CommandDef) => void
   /** Optional env passed through to `Bash`. */
   env?: Record<string, string>
+  /**
+   * Paths to eagerly materialize at wake turn-0. Phase 0 default is the literal
+   * `FROZEN_EAGER_PATHS` list; Steps 6+ source this from merged module manifests.
+   */
+  frozenEagerPaths?: readonly WorkspacePath[]
+  /**
+   * Effective RO/writable configuration for `ScopedFs`. Defaults to the current
+   * literals; Steps 6+ derive this from merged module manifests.
+   */
+  readOnlyConfig?: ReadOnlyConfig
 }
 
 export interface WorkspaceHandle {
@@ -98,7 +109,11 @@ export const FROZEN_EAGER_PATHS = [
 
 export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<WorkspaceHandle> {
   const innerFs = new InMemoryFs()
-  const fs = new ScopedFs(innerFs)
+  const fs = opts.readOnlyConfig ? new ScopedFs(innerFs, opts.readOnlyConfig) : new ScopedFs(innerFs)
+  // `opts.frozenEagerPaths` is a Phase 0 hook; today the eager-write block below
+  // uses hardcoded paths and per-path loaders. Steps 6+ move each path to a
+  // module-registered materializer resolved here via `MaterializerRegistry`.
+  void opts.frozenEagerPaths
 
   const mats = new MaterializerRegistry(opts.materializers)
   const matCtx: MaterializerCtx = {

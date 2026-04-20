@@ -6,15 +6,18 @@
  */
 
 import type { LlmTask } from '@server/contracts/event'
+import type { Tx } from '@server/contracts/inbox-port'
 import type { AgentMutator } from '@server/contracts/mutator'
 import type { AgentObserver, Logger } from '@server/contracts/observer'
 import type {
   AgentTool,
   CommandDef,
   EventBus,
+  JournalSink,
   LlmRequest,
   LlmResult,
   MetricSink,
+  ObserverFactory,
   PluginContext,
   RealtimeService,
   ScopedDb,
@@ -24,6 +27,8 @@ import type {
 } from '@server/contracts/plugin-context'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { ChannelAdapter } from '@vobase/core'
+import { buildScopedScheduler } from './scoped-scheduler'
+import { buildScopedStorage } from './scoped-storage'
 
 export interface ModuleRegistrations {
   tools: AgentTool[]
@@ -31,6 +36,7 @@ export interface ModuleRegistrations {
   commands: CommandDef[]
   channels: Array<{ type: string; adapter: ChannelAdapter }>
   observers: AgentObserver[]
+  observerFactories: ObserverFactory[]
   mutators: AgentMutator[]
   materializers: WorkspaceMaterializer[]
   sideLoadContributors: SideLoadContributor[]
@@ -43,6 +49,7 @@ export function emptyRegistrations(): ModuleRegistrations {
     commands: [],
     channels: [],
     observers: [],
+    observerFactories: [],
     mutators: [],
     materializers: [],
     sideLoadContributors: [],
@@ -63,6 +70,13 @@ export interface PluginContextFactoryInput {
   metrics: MetricSink
   trace?: TraceSpan | null
   llmCall: <T = string>(task: LlmTask, request: LlmRequest) => Promise<LlmResult<T>>
+  /**
+   * Per-wake `withJournaledTx` implementation supplied by the harness. At boot
+   * we don't have a journal writer yet, so the boot-only context uses a
+   * throwing stub — modules that invoke `withJournaledTx` at register time
+   * fail loudly instead of silently capturing a placeholder.
+   */
+  withJournaledTx?: <T>(fn: (tx: Tx, journal: JournalSink) => Promise<T>) => Promise<T>
 }
 
 /**
@@ -86,6 +100,10 @@ export interface BootContextInput {
   realtime: RealtimeService
   logger: Logger
   metrics: MetricSink
+  /** Queue suffixes from `manifest.queues` — undefined skips namespace enforcement. */
+  allowedQueues?: readonly string[]
+  /** Bucket suffixes from `manifest.buckets` — undefined skips namespace enforcement. */
+  allowedBuckets?: readonly string[]
 }
 
 /** Returns `{ ctx, registrations }` — pass `ctx` to `module.init(ctx)` and then read drained registrations. */
@@ -99,14 +117,24 @@ export function createBootContext(input: BootContextInput): {
         `If you need this at register time, capture a lazy reference instead.`,
     )
   }
+  const jobs = buildScopedScheduler({
+    moduleName: input.moduleName,
+    allowedQueues: input.allowedQueues,
+    raw: input.jobs,
+  })
+  const storage = buildScopedStorage({
+    moduleName: input.moduleName,
+    allowedBuckets: input.allowedBuckets,
+    raw: input.storage,
+  })
   return createPluginContext({
     moduleName: input.moduleName,
     organizationId: '',
     conversationId: '',
     ports: input.ports,
     db: input.db,
-    jobs: input.jobs,
-    storage: input.storage,
+    jobs,
+    storage,
     events: {
       publish: () => bootOnlyThrow('events.publish'),
       subscribe: () => bootOnlyThrow('events.subscribe'),
@@ -116,6 +144,7 @@ export function createBootContext(input: BootContextInput): {
     metrics: input.metrics,
     trace: null,
     llmCall: () => bootOnlyThrow('llmCall'),
+    withJournaledTx: () => bootOnlyThrow('withJournaledTx'),
   })
 }
 
@@ -147,6 +176,9 @@ export function createPluginContext(input: PluginContextFactoryInput): {
     registerObserver(observer) {
       registrations.observers.push(observer)
     },
+    registerObserverFactory(factory) {
+      registrations.observerFactories.push(factory)
+    },
     registerMutator(mutator) {
       registrations.mutators.push(mutator)
     },
@@ -168,6 +200,14 @@ export function createPluginContext(input: PluginContextFactoryInput): {
     trace: input.trace ?? null,
 
     llmCall: input.llmCall,
+    withJournaledTx:
+      input.withJournaledTx ??
+      (() => {
+        throw new Error(
+          `PluginContext.withJournaledTx called but no implementation supplied. ` +
+            `The harness must thread \`createWithJournaledTx(...)\` into the factory for per-wake contexts.`,
+        )
+      }),
   }
 
   return { ctx, registrations }

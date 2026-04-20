@@ -49,7 +49,11 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
       ports,
       db,
       jobs: ports.jobs,
-      storage: {},
+      storage: {
+        getBucket: () => {
+          throw new Error('ScopedStorage not configured — no module declared manifest.buckets')
+        },
+      },
       realtime: ports.realtime,
       logger: {
         debug: () => undefined,

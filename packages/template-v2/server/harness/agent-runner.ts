@@ -40,9 +40,17 @@ import type {
 import type { BudgetState, IterationBudget } from '@server/contracts/iteration-budget'
 import type { AgentMutator, AgentStep, MutatorContext } from '@server/contracts/mutator'
 import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
-import type { AgentTool, CommandDef, EventBus, LlmRequest, PluginContext } from '@server/contracts/plugin-context'
+import type {
+  AgentTool,
+  CommandDef,
+  EventBus,
+  LlmRequest,
+  ObserverFactory,
+  PluginContext,
+} from '@server/contracts/plugin-context'
 import type { LlmFinish, LlmProvider } from '@server/contracts/provider-port'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
+import type { WakeContext } from '@server/contracts/wake-context'
 import { EventBus as DefaultEventBus } from '@server/runtime/event-bus'
 import { assessBudget, worstCaseDeltaExceeds } from '@server/runtime/iteration-budget-runtime'
 import { newWakeId } from '@server/runtime/llm-call'
@@ -67,6 +75,7 @@ export interface ModuleRegistrationsSnapshot {
   tools: readonly AgentTool[]
   commands: readonly CommandDef[]
   observers: readonly AgentObserver[]
+  observerFactories?: readonly ObserverFactory[]
   mutators: readonly AgentMutator[]
   materializers: readonly WorkspaceMaterializer[]
   sideLoadContributors: readonly SideLoadContributor[]
@@ -218,6 +227,27 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   const observers = new ObserverBus({ logger, observerCtx })
   for (const obs of opts.registrations.observers) observers.register(obs)
 
+  // Observer factories receive a live WakeContext so they can capture per-wake
+  // bindings (e.g. `llmCall`) that are boot-time throw-proxies.
+  if (opts.registrations.observerFactories && opts.registrations.observerFactories.length > 0) {
+    const llmCallForWake =
+      opts.observerLlmCall ??
+      (async () => {
+        throw new Error('observer factory invoked llmCall but bootWake was not supplied with `observerLlmCall`')
+      })
+    const wakeCtx: WakeContext = {
+      organizationId: opts.organizationId,
+      wakeId,
+      conversationId,
+      agentId: opts.agentId,
+      logger,
+      llmCall: llmCallForWake as PluginContext['llmCall'],
+    }
+    for (const factory of opts.registrations.observerFactories) {
+      observers.register(factory(wakeCtx))
+    }
+  }
+
   // Bridge EventBus → ObserverBus + journal (serialized to preserve DB PK order).
   const eventLog: AgentEvent[] = []
   let journalChain: Promise<void> = Promise.resolve()
@@ -334,7 +364,12 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     ? makeResilientProvider(opts.provider, {
         events,
         logger,
-        getScope: () => ({ organizationId: opts.organizationId, conversationId, wakeId, turnIndex: resilientTurnIndex }),
+        getScope: () => ({
+          organizationId: opts.organizationId,
+          conversationId,
+          wakeId,
+          turnIndex: resilientTurnIndex,
+        }),
       })
     : undefined
 

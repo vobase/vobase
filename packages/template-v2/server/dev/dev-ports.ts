@@ -43,7 +43,10 @@ export interface DevPorts {
   agents: AgentsPort
   drive: DrivePort
   realtime: RealtimeService
-  jobs: { send(name: string, data: unknown): Promise<string> }
+  jobs: {
+    send(name: string, data: unknown, opts?: { startAfter?: Date; singletonKey?: string }): Promise<string>
+    cancel(jobId: string): Promise<void>
+  }
 }
 
 interface WhereResult extends Promise<unknown[]> {
@@ -355,6 +358,9 @@ function buildJobQueue(handlers: Map<string, (data: unknown) => Promise<void>>) 
           console.error(`[jobs] handler "${name}" failed:`, err)
         })
       return jobId
+    },
+    async cancel(_jobId: string): Promise<void> {
+      // Dev queue is fire-and-forget; cancel is a no-op.
     },
   }
 }

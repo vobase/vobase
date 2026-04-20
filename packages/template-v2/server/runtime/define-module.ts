@@ -21,6 +21,41 @@ export interface ModuleHttpRoutes {
   requireSession?: boolean
 }
 
+/**
+ * A workspace location a module claims. `prefix` owns an entire subtree;
+ * `exact` owns a single virtual file. Validator rejects overlapping prefixes
+ * and exact paths falling under another module's prefix.
+ */
+export type WorkspacePath =
+  | { readonly kind: 'prefix'; readonly path: `/workspace/${string}/` }
+  | { readonly kind: 'exact'; readonly path: `/workspace/${string}` }
+
+/** Phase-keyed materializer declaration (matches MaterializerRegistry phases). */
+export type ManifestMaterializerPhase = 'frozen' | 'side-load' | 'on-read'
+
+export interface ManifestMaterializer {
+  readonly path: `/workspace/${string}`
+  readonly phase: ManifestMaterializerPhase
+}
+
+export interface ModuleManifestWorkspace {
+  /** Paths this module owns. Cross-namespace writes require an explicit accessGrant. */
+  readonly owns: readonly WorkspacePath[]
+  /** Named materializers this module registers; key is the materializer name. */
+  readonly materializers?: Readonly<Record<string, ManifestMaterializer>>
+  /** Subset of `owns` eagerly materialized at wake turn-0 (frozen snapshot). */
+  readonly frozenEager?: readonly WorkspacePath[]
+}
+
+export interface ModuleAccessGrant {
+  /** Target module name. */
+  readonly to: string
+  /** Human-readable justification surfaced in CI lint output. */
+  readonly reason: string
+  /** Optional path inside the target module (e.g. `service/learning-proposals`). */
+  readonly path?: string
+}
+
 export interface ModuleManifest {
   /** Declarative capabilities this module advertises to other modules. */
   provides: {
@@ -34,6 +69,16 @@ export interface ModuleManifest {
   }
   /** Capability tokens this module needs to run (checked at boot). */
   permissions: readonly string[]
+  /** Virtual workspace paths this module owns + materializes. */
+  workspace?: ModuleManifestWorkspace
+  /** Fully-qualified `schema.table` names owned by this module. */
+  tables?: readonly string[]
+  /** Job-queue suffixes; runtime wraps each as `${moduleName}.${suffix}`. */
+  queues?: readonly string[]
+  /** Storage bucket suffixes; runtime wraps each as `${moduleName}-${suffix}`. */
+  buckets?: readonly string[]
+  /** Declared cross-module `service/**` imports. Enforced by CI lint in Phase 0. */
+  accessGrants?: readonly ModuleAccessGrant[]
 }
 
 export interface ModuleDef {
