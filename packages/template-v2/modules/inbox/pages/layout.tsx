@@ -4,9 +4,9 @@ import { Inbox as InboxIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { ListDetailLayout } from '@/components/layout/list-detail-layout'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { ContextDrawer } from '@/features/inbox/context-drawer'
-import { ConversationList } from '@/features/inbox/conversation-list'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { ContextDrawer } from './context-drawer'
+import { ConversationList } from './conversation-list'
 
 async function fetchConversations() {
   const r = await fetch('/api/inbox/conversations')
@@ -63,4 +63,4 @@ export function InboxEmptyState() {
   )
 }
 
-export { ConversationDetail as ConversationDetailPlaceholder } from '@/features/inbox/conversation-detail'
+export { ConversationDetail as ConversationDetailPlaceholder } from './conversation-detail'

@@ -1,28 +1,28 @@
+import { AgentsLearningsPage } from '@modules/agents/pages/learnings'
+import { AgentsListPage } from '@modules/agents/pages/list'
+import { ContactDetailPage } from '@modules/contacts/pages/detail'
+import { ContactsListPage } from '@modules/contacts/pages/list'
+import { DrivePage } from '@modules/drive/pages/index'
+import { ApprovalsPage } from '@modules/inbox/pages/approvals'
+import { ConversationDetailPlaceholder, InboxEmptyState, InboxLayout } from '@modules/inbox/pages/layout'
+import AccountPage from '@modules/settings/pages/account'
+import ApiKeysPage from '@modules/settings/pages/api-keys'
+import AppearancePage from '@modules/settings/pages/appearance'
+import DisplayPage from '@modules/settings/pages/display'
+import SettingsLayout from '@modules/settings/pages/layout'
+import NotificationsPage from '@modules/settings/pages/notifications'
+import ProfilePage from '@modules/settings/pages/profile'
 import { createRootRoute, createRoute, createRouter, Outlet, redirect, useRouterState } from '@tanstack/react-router'
 import { AppShell } from './components/layout/app-shell'
 import { Toaster } from './components/ui/sonner'
 import { useRealtimeInvalidation } from './hooks/use-realtime-invalidation'
 import { authClient } from './lib/auth-client'
-import { AgentsLearningsPage } from './pages/agents/learnings'
-import { AgentsListPage } from './pages/agents/list'
-import { ApprovalsPage } from './pages/approvals'
 import { AuthLayout } from './pages/auth/layout'
 import LoginPage from './pages/auth/login'
 import PendingPage from './pages/auth/pending'
 import { ChannelsPage } from './pages/channels'
-import { ContactDetailPage } from './pages/contacts/detail'
-import { ContactsListPage } from './pages/contacts/list'
-import { DrivePage } from './pages/drive'
 import GeneralErrorPage from './pages/errors/general-error'
 import NotFoundPage from './pages/errors/not-found'
-import { ConversationDetailPlaceholder, InboxEmptyState, InboxLayout } from './pages/inbox'
-import AccountPage from './pages/settings/account'
-import ApiKeysPage from './pages/settings/api-keys'
-import AppearancePage from './pages/settings/appearance'
-import DisplayPage from './pages/settings/display'
-import SettingsLayout from './pages/settings/layout'
-import NotificationsPage from './pages/settings/notifications'
-import ProfilePage from './pages/settings/profile'
 import { TestWebPage } from './pages/test-web'
 
 async function requireSession() {
@@ -45,7 +45,13 @@ function RootLayout() {
   })
   return (
     <>
-      {isStandalone ? <Outlet /> : <AppShell><Outlet /></AppShell>}
+      {isStandalone ? (
+        <Outlet />
+      ) : (
+        <AppShell>
+          <Outlet />
+        </AppShell>
+      )}
       <Toaster richColors closeButton />
     </>
   )

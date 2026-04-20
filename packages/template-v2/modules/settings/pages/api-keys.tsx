@@ -1,12 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useSettingsSave } from '@modules/settings/pages/api/use-settings-save'
+import type { ApiKeysValues } from '@modules/settings/pages/schemas'
+import { apiKeysSchema } from '@modules/settings/pages/schemas'
 import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import type { ApiKeysValues } from '@/features/settings/schemas'
-import { apiKeysSchema } from '@/features/settings/schemas'
 
 export default function ApiKeysPage() {
   const { mutate, isPending } = useSettingsSave('api-keys', apiKeysSchema)

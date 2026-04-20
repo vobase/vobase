@@ -1,11 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useSettingsSave } from '@modules/settings/pages/api/use-settings-save'
+import type { DisplayValues } from '@modules/settings/pages/schemas'
+import { displaySchema } from '@modules/settings/pages/schemas'
 import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import type { DisplayValues } from '@/features/settings/schemas'
-import { displaySchema } from '@/features/settings/schemas'
 
 export default function DisplayPage() {
   const { mutate, isPending } = useSettingsSave('display', displaySchema)

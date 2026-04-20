@@ -1,8 +1,8 @@
+import type { DecideParams } from '@modules/inbox/pages/approvals'
 import type { PendingApproval } from '@server/contracts/domain-types'
 import { useState } from 'react'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { cn } from '@/lib/utils'
-import type { DecideParams } from '@/pages/approvals'
 
 interface Props {
   approval: PendingApproval

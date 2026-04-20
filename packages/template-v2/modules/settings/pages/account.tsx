@@ -1,40 +1,40 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useSettingsSave } from '@modules/settings/pages/api/use-settings-save'
+import type { AccountValues } from '@modules/settings/pages/schemas'
+import { accountSchema } from '@modules/settings/pages/schemas'
 import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import type { ProfileValues } from '@/features/settings/schemas'
-import { profileSchema } from '@/features/settings/schemas'
 
-export default function ProfilePage() {
-  const { mutate, isPending } = useSettingsSave('profile', profileSchema)
+export default function AccountPage() {
+  const { mutate, isPending } = useSettingsSave('account', accountSchema)
 
-  const form = useForm<ProfileValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: { displayName: '', email: '' },
+  const form = useForm<AccountValues>({
+    resolver: zodResolver(accountSchema),
+    defaultValues: { timezone: '', language: '' },
   })
 
-  async function onSubmit(values: ProfileValues) {
+  async function onSubmit(values: AccountValues) {
     await mutate(values)
   }
 
   return (
     <div className="max-w-lg space-y-6 p-6">
       <div>
-        <h2 className="text-lg font-semibold">Profile</h2>
-        <p className="text-sm text-muted-foreground">Update your display name and email address.</p>
+        <h2 className="text-lg font-semibold">Account</h2>
+        <p className="text-sm text-muted-foreground">Manage your timezone and language preferences.</p>
       </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
             control={form.control}
-            name="displayName"
+            name="timezone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Display name</FormLabel>
+                <FormLabel>Timezone</FormLabel>
                 <FormControl>
-                  <Input placeholder="Your name" {...field} />
+                  <Input placeholder="America/New_York" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -42,19 +42,19 @@ export default function ProfilePage() {
           />
           <FormField
             control={form.control}
-            name="email"
+            name="language"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>Language</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="you@example.com" {...field} />
+                  <Input placeholder="en" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
           <Button type="submit" disabled={isPending}>
-            {isPending ? 'Saving…' : 'Save profile'}
+            {isPending ? 'Saving…' : 'Save account'}
           </Button>
         </form>
       </Form>

@@ -1,10 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useSettingsSave } from '@modules/settings/pages/api/use-settings-save'
+import type { NotificationsValues } from '@modules/settings/pages/schemas'
+import { notificationsSchema } from '@modules/settings/pages/schemas'
 import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
-import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import type { NotificationsValues } from '@/features/settings/schemas'
-import { notificationsSchema } from '@/features/settings/schemas'
 
 export default function NotificationsPage() {
   const { mutate, isPending } = useSettingsSave('notifications', notificationsSchema)

@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from 'bun:test'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-mock.module('@/features/inbox/profile-panel', () => ({
+mock.module('@modules/inbox/pages/profile-panel', () => ({
   ProfilePanel: ({ conversationId }: { conversationId: string }) => (
     <div data-testid="profile-panel" data-conv={conversationId}>
       <dl>
@@ -17,7 +17,7 @@ mock.module('@/features/inbox/profile-panel', () => ({
   ),
 }))
 
-mock.module('@/features/inbox/pending-approvals-panel', () => ({
+mock.module('@modules/inbox/pages/pending-approvals-panel', () => ({
   PendingApprovalsPanel: ({ conversationId }: { conversationId: string }) => (
     <div data-testid="pending-approvals-panel" data-conv={conversationId}>
       No pending approvals
@@ -25,13 +25,13 @@ mock.module('@/features/inbox/pending-approvals-panel', () => ({
   ),
 }))
 
-mock.module('@/features/inbox/working-memory-panel', () => ({
+mock.module('@modules/inbox/pages/working-memory-panel', () => ({
   WorkingMemoryPanel: ({ conversationId }: { conversationId: string }) => (
     <div data-testid="working-memory-panel" data-conv={conversationId} />
   ),
 }))
 
-mock.module('@/features/inbox/recent-learnings-panel', () => ({
+mock.module('@modules/inbox/pages/recent-learnings-panel', () => ({
   RecentLearningsPanel: ({ conversationId }: { conversationId: string }) => (
     <div data-testid="recent-learnings-panel" data-conv={conversationId} />
   ),

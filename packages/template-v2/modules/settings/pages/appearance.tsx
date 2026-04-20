@@ -1,13 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useSettingsSave } from '@modules/settings/pages/api/use-settings-save'
+import type { AppearanceValues } from '@modules/settings/pages/schemas'
+import { appearanceSchema } from '@modules/settings/pages/schemas'
 import { useForm } from 'react-hook-form'
 import { useTheme } from '@/components/theme-provider'
 import { THEME_OPTIONS, ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useSettingsSave } from '@/features/settings/api/use-settings-save'
-import type { AppearanceValues } from '@/features/settings/schemas'
-import { appearanceSchema } from '@/features/settings/schemas'
 
 export default function AppearancePage() {
   const { theme } = useTheme()
