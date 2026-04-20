@@ -1,0 +1,11 @@
+# Modules on main when Step 5 merged. Any module NOT in this list is treated
+# as "new" by scripts/check-new-modules.ts and linted with CHECK_SHAPE_STRICT=true.
+# Retire this file when Step 8 flips strict on unconditionally.
+agents
+channels/web
+channels/whatsapp
+contacts
+drive
+inbox
+settings
+system
