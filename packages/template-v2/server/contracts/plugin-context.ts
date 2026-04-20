@@ -19,6 +19,9 @@ import type { AgentObserver, Logger } from './observer'
 import type { ScopedDb } from './scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from './side-load'
 import type { ToolResult } from './tool-result'
+import type { WakeContext } from './wake-context'
+
+export type ObserverFactory = (wake: WakeContext) => AgentObserver
 
 /**
  * Minimal AgentTool shape — matches pi-agent-core's `AgentTool<Args, Result>` contract.
@@ -98,11 +101,50 @@ export interface LlmResult<T = string> {
  */
 export type { ScopedDb } from './scoped-db'
 
-/** pg-boss handle, namespaced per-module. */
-export type ScopedScheduler = unknown
+/**
+ * Scheduler enqueue options — superset of pg-boss shape used across modules.
+ * Optional `startAfter`/`singletonKey` match pg-boss semantics.
+ */
+export interface ScheduleOpts {
+  startAfter?: Date
+  singletonKey?: string
+}
 
-/** `_storage` bucket wrapper scoped to this module. */
-export type ScopedStorage = unknown
+/**
+ * pg-boss-shaped handle, namespace-enforced per-module.
+ *
+ * The raw scheduler passed in at boot has no notion of queue ownership; the
+ * runtime wraps it with `buildScopedScheduler(raw, allowedQueues)` so a module
+ * declaring `manifest.queues = ['snooze']` can `ctx.jobs.send('snooze', …)`
+ * but `ctx.jobs.send('other-module.queue', …)` throws `NamespaceViolationError`.
+ * Modules that do NOT declare `manifest.queues` get the raw scheduler
+ * unchanged (opt-in during Phase 0 migration window).
+ */
+export interface ScopedScheduler {
+  send(name: string, data: unknown, opts?: ScheduleOpts): Promise<string>
+  cancel(jobId: string): Promise<void>
+  schedule?(name: string, cron: string, data?: unknown, opts?: ScheduleOpts): Promise<string>
+}
+
+/**
+ * Minimal bucket handle — covers the shapes `_storage` adapters expose today.
+ * Expanded by Phase 1 when a named consumer of `ScopedStorage` materializes.
+ */
+export interface BucketHandle {
+  put(key: string, body: unknown, opts?: { contentType?: string }): Promise<void>
+  get(key: string): Promise<unknown>
+  delete(key: string): Promise<void>
+}
+
+/**
+ * `_storage` wrapper namespace-enforced per-module. Like `ScopedScheduler`,
+ * the runtime wraps the raw storage with `buildScopedStorage(raw, allowedBuckets)`
+ * so a module declaring `manifest.buckets = ['attachments']` can resolve
+ * `ctx.storage.getBucket('attachments')` but not sibling-module buckets.
+ */
+export interface ScopedStorage {
+  getBucket(name: string): BucketHandle
+}
 
 export interface EventBus {
   publish(event: AgentEvent): void
@@ -145,6 +187,12 @@ export interface PluginContext {
   registerCommand(cmd: CommandDef): void
   registerChannel(type: string, adapter: ChannelAdapter): void
   registerObserver(observer: AgentObserver): void
+  /**
+   * Register an observer factory that is invoked ONCE per wake with a live
+   * `WakeContext`. Use this when the observer needs per-wake bindings such as
+   * `ctx.llmCall` or `ctx.events.publish` that are boot-time throw-proxies.
+   */
+  registerObserverFactory(factory: ObserverFactory): void
   registerMutator(mutator: AgentMutator): void
   registerWorkspaceMaterializer(m: WorkspaceMaterializer): void
 
@@ -165,6 +213,26 @@ export interface PluginContext {
 
   /** The task-tagged chokepoint for ALL LLM calls */
   llmCall<T = string>(task: LlmTask, request: LlmRequest): Promise<LlmResult<T>>
+
+  /**
+   * Transactional write path with mandatory journal append.
+   *
+   * Begins a drizzle tx, runs `fn` with an idempotent `journal` sink, and
+   * throws `MissingJournalAppendError` on commit if `journal.append` was never
+   * invoked inside the tx. Phase 0 is opt-in: existing service files may keep
+   * using `db.transaction(...)` until their module migrates (Steps 6+).
+   */
+  withJournaledTx<T>(fn: (tx: Tx, journal: JournalSink) => Promise<T>): Promise<T>
+}
+
+/**
+ * Journal sink handed to the inner callback of `withJournaledTx`. Calling
+ * `append` (any number of times) marks the tx as journaled; missing calls
+ * cause the tx wrapper to throw at commit time.
+ */
+export interface JournalSink {
+  append(event: AgentEvent, tx: Tx): Promise<void>
 }
 
 export type { LlmTask } from './event'
+export type { Tx } from './inbox-port'

@@ -64,7 +64,7 @@ import type { AgentMutator, AgentStep, MutatorContext, MutatorDecision, StepResu
 import type { AgentObserver, Logger, ObserverContext } from '../observer'
 import type { AgentTool, CommandDef, EventBus, PluginContext, RealtimeService } from '../plugin-context'
 import type { LlmProvider, LlmStreamChunk } from '../provider-port'
-import type { Schema, ScopedDb, OrganizationScope } from '../scoped-db'
+import type { OrganizationScope, Schema, ScopedDb } from '../scoped-db'
 import type {
   MaterializerCtx,
   MaterializerPhase,
@@ -272,6 +272,7 @@ type _RequiredPluginKeys =
   | 'registerCommand'
   | 'registerChannel'
   | 'registerObserver'
+  | 'registerObserverFactory'
   | 'registerMutator'
   | 'registerWorkspaceMaterializer'
   | 'contributeSideLoad'
@@ -284,6 +285,7 @@ type _RequiredPluginKeys =
   | 'metrics'
   | 'trace'
   | 'llmCall'
+  | 'withJournaledTx'
 type _PluginCtxCheck = AssertTrue<AssertEqual<_PluginKeys, _RequiredPluginKeys>>
 
 // ---------------------------------------------------------------------------

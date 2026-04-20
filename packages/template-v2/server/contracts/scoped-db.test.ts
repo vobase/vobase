@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import type { Schema, ScopedDb, OrganizationScope } from './scoped-db'
+import type { OrganizationScope, Schema, ScopedDb } from './scoped-db'
 
 type AssertEqual<T, U> = [T] extends [U] ? ([U] extends [T] ? true : false) : false
 type AssertTrue<T extends true> = T
