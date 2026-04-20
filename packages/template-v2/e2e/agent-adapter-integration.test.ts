@@ -15,8 +15,8 @@ import type { AgentEvent as PiAgentEvent } from '@mariozechner/pi-agent-core'
 import type { AgentEvent, ToolExecutionEndEvent } from '@server/contracts/event'
 import type { LlmProvider, LlmStreamChunk } from '@server/contracts/provider-port'
 import {
-  drainProviderTurn,
   CANONICAL_EVENT_SEQUENCE,
+  drainProviderTurn,
   providerToStreamFn,
   translatePiMonoEvents,
 } from '@server/harness/agent-adapter'

@@ -17,11 +17,12 @@ import { setDb as setLearningProposalsDb } from '@modules/agents/service/learnin
 import { createContactsPort } from '@modules/contacts/port'
 import { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import {
+  createContactsService,
+  installContactsService,
   readWorkingMemory,
-  setDb as setContactsDb,
   upsertWorkingMemorySection,
 } from '@modules/contacts/service/contacts'
-import { setOrganizationId as setProposalOrganizationId } from '@modules/drive/service/proposal'
+import { createProposalService, installProposalService } from '@modules/drive/service/proposal'
 import { SEEDED_CONV_ID } from '@modules/inbox/seed'
 import { mockStream } from '@server/harness'
 import { DirtyTracker, snapshotFs } from '@server/workspace/dirty-tracker'
@@ -40,9 +41,9 @@ let db: TestDbHandle
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
-  setContactsDb(db.db)
+  installContactsService(createContactsService({ db: db.db }))
   setLearningProposalsDb(db.db)
-  setProposalOrganizationId(MERIDIAN_ORG_ID)
+  installProposalService(createProposalService({ organizationId: MERIDIAN_ORG_ID }))
 }, 60_000)
 
 afterAll(async () => {
@@ -120,6 +121,7 @@ describe('vobase drive propose CLI (C4)', () => {
   test('inserting a proposal creates learning_proposals row with status=pending', async () => {
     const cmd = driveVerbs.find((v) => v.name === 'drive propose')
     expect(cmd).toBeDefined()
+    if (!cmd) throw new Error('drive propose verb not registered')
 
     const ctx = {
       organizationId: MERIDIAN_ORG_ID,
@@ -130,7 +132,7 @@ describe('vobase drive propose CLI (C4)', () => {
       readWorkspace: async () => '',
     }
 
-    const result = await cmd!.execute(
+    const result = await cmd.execute(
       ['--path=/pricing.md', '--body=Updated pricing for 2027', '--rationale=Staff requested update'],
       ctx,
     )
@@ -139,10 +141,10 @@ describe('vobase drive propose CLI (C4)', () => {
     if (!result.ok) throw new Error('expected ok result')
     expect(result.content).toContain('pending')
 
-    // Extract proposal ID from the result message and verify the DB row.
     const match = String(result.content).match(/Proposal\s+(\S+)\s+submitted/)
     expect(match).not.toBeNull()
-    const proposalId = match![1]
+    if (!match) throw new Error('proposal id not found in result')
+    const proposalId = match[1]
 
     const { learningProposals } = await import('@modules/agents/schema')
     const rows = await db.db.select().from(learningProposals).where(eq(learningProposals.id, proposalId))

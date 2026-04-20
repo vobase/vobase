@@ -53,21 +53,24 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
 
     // Wire all module-level DB handles required by Phase 2 services
     const { setDb: setJournalDb } = await import('@modules/agents/service/journal')
-    const { setDb: setMessagesDb } = await import('@modules/inbox/service/messages')
-    const { setDb: setConversationsDb } = await import('@modules/inbox/service/conversations')
-    const { setDb: setPendingApprovalsDb, setScheduler } = await import('@modules/inbox/service/pending-approvals')
+    const { createMessagesService, installMessagesService } = await import('@modules/inbox/service/messages')
+    const { createConversationsService, installConversationsService } = await import(
+      '@modules/inbox/service/conversations'
+    )
+    const { createPendingApprovalsService, installPendingApprovalsService } = await import(
+      '@modules/inbox/service/pending-approvals'
+    )
 
     setJournalDb(db.db)
-    setMessagesDb(db.db)
-    setConversationsDb(db.db)
-    setPendingApprovalsDb(db.db)
+    installMessagesService(createMessagesService({ db: db.db }))
+    installConversationsService(createConversationsService({ db: db.db }))
 
     // Wire a fake scheduler for pending-approvals.decide() to enqueue approval_resumed
     const { createFakeWakeQueue } = await import('@modules/agents/service/queue-port')
     const { createInProcessScheduler } = await import('@modules/agents/service/wake-scheduler')
     const fakeQueue = createFakeWakeQueue()
     const { scheduler } = createInProcessScheduler({ queue: fakeQueue, debounceMs: 0 })
-    setScheduler(scheduler)
+    installPendingApprovalsService(createPendingApprovalsService({ db: db.db, scheduler }))
 
     ports = await buildIntegrationPorts(db)
 
@@ -84,7 +87,12 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
         if (existing[0]) return existing[0] as Awaited<ReturnType<typeof ports.contacts.get>>
         const rows = await db.db
           .insert(contactsTable)
-          .values({ organizationId: input.organizationId, phone: input.phone, displayName: input.displayName, workingMemory: '' })
+          .values({
+            organizationId: input.organizationId,
+            phone: input.phone,
+            displayName: input.displayName,
+            workingMemory: '',
+          })
           .returning()
         return rows[0] as Awaited<ReturnType<typeof ports.contacts.get>>
       },
@@ -306,7 +314,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
     expect(rows[0]?.status).toBe('pending')
     expect(rows[0]?.agentSnapshot).toBeTruthy()
 
-    pendingApprovalIdA6 = rows[0]!.id
+    pendingApprovalIdA6 = rows[0]?.id
   })
 
   // ── 7 ── sseObserver emits realtime notifications ─────────────────────────
@@ -481,7 +489,7 @@ describe('Phase 2 dogfood — inbound → wake → tool → approval → resume'
       .from(pendingApprovals)
       .where(and(eq(pendingApprovals.wakeId, blockedRes.wakeId), eq(pendingApprovals.conversationId, SEEDED_CONV_ID)))
     expect(pendingRows.length).toBe(1)
-    const rejectApprovalId = pendingRows[0]!.id
+    const rejectApprovalId = pendingRows[0]?.id
 
     // Reject the approval
     const { decide } = await import('@modules/inbox/service/pending-approvals')

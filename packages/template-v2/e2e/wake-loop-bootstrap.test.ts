@@ -12,12 +12,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
-import {
-  ALICE_USER_ID,
-  CUSTOMER_CHANNEL_INSTANCE_ID,
-  MERIDIAN_ORG_ID,
-  SEEDED_CONTACT_ID,
-} from '@modules/contacts/seed'
+import { ALICE_USER_ID, CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { SEEDED_CONV_ID } from '@modules/inbox/seed'
 import type { AgentEvent } from '@server/contracts/event'
 import type { SideLoadContributor } from '@server/contracts/side-load'

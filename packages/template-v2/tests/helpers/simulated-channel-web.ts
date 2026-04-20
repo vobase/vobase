@@ -2,12 +2,11 @@
  * Simulated channel-web inbound — fires POST requests via Hono app.request() so
  * tests exercise the real handler code without a running HTTP server.
  *
- * Wires the channel-web module-state (setInboxPort / setContactsPort / setJobQueue)
- * and captures enqueued jobs via an in-memory spy.
+ * Installs the channel-web state factory and captures enqueued jobs via an in-memory spy.
  */
 import { createHmac } from 'node:crypto'
 import { handleInbound } from '@modules/channels/web/handlers/inbound'
-import { setContactsPort, setInboxPort, setJobQueue } from '@modules/channels/web/service/state'
+import { createChannelWebState, installChannelWebState } from '@modules/channels/web/service/state'
 import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { InboxPort } from '@server/contracts/inbox-port'
 import { Hono } from 'hono'
@@ -53,14 +52,18 @@ export function createSimulatedChannelWeb(opts: SimulatedChannelWebOpts): Simula
   const channelInstanceId = opts.channelInstanceId ?? 'chi0cust00'
   const capturedJobs: CapturedJob[] = []
 
-  setInboxPort(opts.inboxPort)
-  setContactsPort(opts.contactsPort)
-  setJobQueue({
-    async send(name: string, data: unknown): Promise<string> {
-      capturedJobs.push({ name, data })
-      return `fake-job-${Date.now()}`
-    },
-  })
+  installChannelWebState(
+    createChannelWebState({
+      inbox: opts.inboxPort,
+      contacts: opts.contactsPort,
+      jobs: {
+        async send(name: string, data: unknown): Promise<string> {
+          capturedJobs.push({ name, data })
+          return `fake-job-${Date.now()}`
+        },
+      },
+    }),
+  )
 
   const app = new Hono()
   app.post('/api/channel-web/inbound', handleInbound)

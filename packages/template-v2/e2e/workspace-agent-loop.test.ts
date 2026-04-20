@@ -24,7 +24,7 @@ import type { ModuleRegistrationsSnapshot } from '@server/harness'
 import { bootWake } from '@server/harness'
 import { eq } from 'drizzle-orm'
 import { captureSideLoadHashes } from '../tests/helpers/capture-side-load-hashes'
-import { bootWakeWorkspaceAgent, buildWorkspaceAgentRegistrations } from '../tests/helpers/make-workspace-agent-harness'
+import { bootWakeWorkspaceAgent } from '../tests/helpers/make-workspace-agent-harness'
 import { createRecordedProvider } from '../tests/helpers/recorded-provider'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../tests/helpers/test-db'
 import { buildIntegrationPorts, wireApprovalMutatorCtx, wireObserverContextFor } from '../tests/helpers/test-harness'
@@ -114,16 +114,20 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     db = connectTestDb()
 
     const { setDb: setJournalDb } = await import('@modules/agents/service/journal')
-    const { setDb: setMessagesDb } = await import('@modules/inbox/service/messages')
-    const { setDb: setConversationsDb } = await import('@modules/inbox/service/conversations')
-    const { setDb: setPendingApprovalsDb, setScheduler } = await import('@modules/inbox/service/pending-approvals')
+    const { createMessagesService, installMessagesService } = await import('@modules/inbox/service/messages')
+    const { createConversationsService, installConversationsService } = await import(
+      '@modules/inbox/service/conversations'
+    )
+    const { createPendingApprovalsService, installPendingApprovalsService } = await import(
+      '@modules/inbox/service/pending-approvals'
+    )
     const { setDb: setLearningDb } = await import('@modules/agents/service/learning-proposals')
     const { setDb: setAgentDefsDb } = await import('@modules/agents/service/agent-definitions')
 
     setJournalDb(db.db)
-    setMessagesDb(db.db)
-    setConversationsDb(db.db)
-    setPendingApprovalsDb(db.db)
+    installMessagesService(createMessagesService({ db: db.db }))
+    installConversationsService(createConversationsService({ db: db.db }))
+    // pending-approvals will be (re)installed once the scheduler is created below
     setLearningDb(db.db)
     setAgentDefsDb(db.db)
 
@@ -131,7 +135,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     const { createInProcessScheduler } = await import('@modules/agents/service/wake-scheduler')
     const q = createFakeWakeQueue()
     const { scheduler } = createInProcessScheduler({ queue: q, debounceMs: 0 })
-    setScheduler(scheduler)
+    installPendingApprovalsService(createPendingApprovalsService({ db: db.db, scheduler }))
 
     ports = await buildIntegrationPorts(db)
     unwireObservers = wireObserverContextFor(db, { calls: [] })
@@ -260,13 +264,13 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
     const hashes = captureSideLoadHashes(res.harness.capturedPrompts)
 
     // Frozen: system hash identical across both turns
-    expect(hashes[1]!.systemHash).toBe(hashes[0]!.systemHash)
+    expect(hashes[1]?.systemHash).toBe(hashes[0]?.systemHash)
     // Side-load rebuilt: firstUserMessage hash differs
-    expect(hashes[1]!.firstUserMessageHash).not.toBe(hashes[0]!.firstUserMessageHash)
+    expect(hashes[1]?.firstUserMessageHash).not.toBe(hashes[0]?.firstUserMessageHash)
 
     // Turn N sees turnIndex=0, turn N+1 sees turnIndex=1
-    expect(res.harness.capturedPrompts[0]!.firstUserMessage).toContain('side-load-turn: 0')
-    expect(res.harness.capturedPrompts[1]!.firstUserMessage).toContain('side-load-turn: 1')
+    expect(res.harness.capturedPrompts[0]?.firstUserMessage).toContain('side-load-turn: 0')
+    expect(res.harness.capturedPrompts[1]?.firstUserMessage).toContain('side-load-turn: 1')
   })
 
   // ── #4 ── moderation mutator emits event via persistEvent (not direct db.insert) ──
@@ -462,10 +466,13 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
 
     // Observer auto-wrote contact section
     expect(upsertCalls.length).toBeGreaterThanOrEqual(1)
-    expect(upsertCalls[0]!.heading).toBe('Preferences')
+    expect(upsertCalls[0]?.heading).toBe('Preferences')
 
     // Proposal row inserted with status=auto_written
-    const rows = await db.db.select().from(learningProposals).where(eq(learningProposals.organizationId, MERIDIAN_ORG_ID))
+    const rows = await db.db
+      .select()
+      .from(learningProposals)
+      .where(eq(learningProposals.organizationId, MERIDIAN_ORG_ID))
     const added = rows.slice(countBefore)
     const autoWritten = added.filter((r) => r.status === 'auto_written' && r.scope === 'contact')
     expect(autoWritten.length).toBeGreaterThanOrEqual(1)
@@ -719,12 +726,14 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
   it('card-reply insertion triggers SchedulerPort.enqueue with trigger=inbound_message', async () => {
     const { createFakeWakeQueue } = await import('@modules/agents/service/queue-port')
     const { createInProcessScheduler } = await import('@modules/agents/service/wake-scheduler')
-    const { setScheduler } = await import('@modules/inbox/service/pending-approvals')
+    const { createPendingApprovalsService, installPendingApprovalsService } = await import(
+      '@modules/inbox/service/pending-approvals'
+    )
     const { appendCardMessage, appendCardReplyMessage } = await import('@modules/inbox/service/messages')
 
     const q = createFakeWakeQueue()
     const { scheduler } = createInProcessScheduler({ queue: q, debounceMs: 0 })
-    setScheduler(scheduler)
+    installPendingApprovalsService(createPendingApprovalsService({ db: db.db, scheduler }))
 
     const cardMsg2 = await appendCardMessage({
       conversationId: SEEDED_CONV_ID,
@@ -850,7 +859,7 @@ describe('Phase 3 dogfood — workspace agent + learning flow + full observer ch
 
   // ── #13 ── A3 regression: card-reply handler goes through InboxPort.sendCardReply ─
   it('card-reply write path goes through InboxPort.sendCardReply — no direct drizzle insert from handler', () => {
-    const handlerSource = readFileSync('modules/channel-web/handlers/card-reply.ts', 'utf8')
+    const handlerSource = readFileSync('modules/channels/web/handlers/card-reply.ts', 'utf8')
 
     // Handler must call inboxPort.sendCardReply
     expect(handlerSource).toContain('inboxPort.sendCardReply')
