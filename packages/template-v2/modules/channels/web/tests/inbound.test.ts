@@ -7,10 +7,11 @@
  * Does NOT call real Hono app — tests the handler logic directly via a mock context.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
+import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { Contact, Conversation, Message } from '@server/contracts/domain-types'
-import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@server/contracts/inbox-port'
+import type { CreateInboundMessageInput, CreateInboundMessageResult, InboxPort } from '@server/contracts/inbox-port'
 import { signHmac } from '@vobase/core'
-import { setContactsPort, setInboxPort, setJobQueue } from '../service/state'
+import { createChannelWebState, installChannelWebState, type JobQueue } from '../service/state'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -158,16 +159,25 @@ function makeCtx(body: string, sig: string, channelInstanceId = 'ch-web-1') {
   } as unknown as import('hono').Context
 }
 
-beforeEach(() => {
-  calls = []
-  setInboxPort(makeInboxPort() as unknown as Parameters<typeof setInboxPort>[0])
-  setContactsPort(makeContactsPort() as unknown as Parameters<typeof setContactsPort>[0])
-  setJobQueue({
+function installTestState(isNewMessage = true): void {
+  const jobs: JobQueue = {
     send: async (name, data) => {
       calls.push({ method: 'job.send', data: { name, data } })
       return 'job-id'
     },
-  })
+  }
+  installChannelWebState(
+    createChannelWebState({
+      inbox: makeInboxPort(isNewMessage) as unknown as InboxPort,
+      contacts: makeContactsPort() as unknown as ContactsPort,
+      jobs,
+    }),
+  )
+}
+
+beforeEach(() => {
+  calls = []
+  installTestState()
 })
 
 describe('handleInbound', () => {
@@ -195,7 +205,7 @@ describe('handleInbound', () => {
   })
 
   it('dedupe — same externalMessageId does not enqueue another job', async () => {
-    setInboxPort(makeInboxPort(false) as unknown as Parameters<typeof setInboxPort>[0])
+    installTestState(false)
     const { handleInbound } = await import('../handlers/inbound')
     const { body, sig } = makeSigned(fakeEvent)
     const ctx = makeCtx(body, sig)

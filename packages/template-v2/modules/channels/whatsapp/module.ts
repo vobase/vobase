@@ -1,7 +1,7 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
 import { manifest } from './manifest'
-import { type JobQueue, setContactsPort, setInboxPort, setJobQueue, setRealtime } from './service/state'
+import { createChannelWhatsappState, installChannelWhatsappState, type JobQueue } from './service/state'
 
 export default defineModule({
   name: 'channel-whatsapp',
@@ -11,9 +11,13 @@ export default defineModule({
   // Meta authenticates via X-Hub-Signature-256 HMAC, not session cookies.
   routes: { basePath: '/api/channel-whatsapp', handler: handlers },
   init(ctx) {
-    setInboxPort(ctx.ports.inbox)
-    setContactsPort(ctx.ports.contacts)
-    setJobQueue(ctx.jobs as JobQueue)
-    setRealtime(ctx.realtime)
+    installChannelWhatsappState(
+      createChannelWhatsappState({
+        inbox: ctx.ports.inbox,
+        contacts: ctx.ports.contacts,
+        jobs: ctx.jobs as JobQueue,
+        realtime: ctx.realtime,
+      }),
+    )
   },
 })

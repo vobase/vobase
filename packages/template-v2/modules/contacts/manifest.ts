@@ -6,4 +6,7 @@ export const manifest: ModuleManifest = {
     materializers: ['contactProfileMaterializer', 'contactMemoryMaterializer'],
   },
   permissions: [],
+  workspace: { owns: [] },
+  tables: ['public.contacts'],
+  accessGrants: [],
 }

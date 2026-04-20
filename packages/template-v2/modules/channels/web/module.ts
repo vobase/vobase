@@ -1,7 +1,7 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
 import { manifest } from './manifest'
-import { type JobQueue, setContactsPort, setInboxPort, setJobQueue, setRealtime } from './service/state'
+import { createChannelWebState, installChannelWebState, type JobQueue } from './service/state'
 
 export default defineModule({
   name: 'channel-web',
@@ -13,9 +13,13 @@ export default defineModule({
   routes: { basePath: '/api/channel-web', handler: handlers },
   enabled: (env) => env.NODE_ENV !== 'production',
   init(ctx) {
-    setInboxPort(ctx.ports.inbox)
-    setContactsPort(ctx.ports.contacts)
-    setJobQueue(ctx.jobs as JobQueue)
-    setRealtime(ctx.realtime)
+    installChannelWebState(
+      createChannelWebState({
+        inbox: ctx.ports.inbox,
+        contacts: ctx.ports.contacts,
+        jobs: ctx.jobs as JobQueue,
+        realtime: ctx.realtime,
+      }),
+    )
   },
 })

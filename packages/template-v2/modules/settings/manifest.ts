@@ -12,4 +12,6 @@ export const manifest: ModuleManifest = {
     ],
   },
   permissions: [],
+  workspace: { owns: [] },
+  accessGrants: [],
 }

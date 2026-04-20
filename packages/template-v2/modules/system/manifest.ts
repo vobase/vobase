@@ -5,4 +5,6 @@ export const manifest: ModuleManifest = {
     commands: ['system:info', 'system:health', 'system:audit-log', 'system:sequences'],
   },
   permissions: [],
+  workspace: { owns: [] },
+  accessGrants: [],
 }

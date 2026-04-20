@@ -1,7 +1,7 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
 import { manifest } from './manifest'
-import { setDb as setSystemDb } from './service'
+import { createSystemService, installSystemService } from './service'
 
 export default defineModule({
   name: 'system',
@@ -10,6 +10,6 @@ export default defineModule({
   manifest,
   routes: { basePath: '/api/system', handler: handlers, requireSession: true },
   init(ctx) {
-    setSystemDb(ctx.db)
+    installSystemService(createSystemService({ db: ctx.db }))
   },
 })

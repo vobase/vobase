@@ -9,62 +9,88 @@ export interface JobQueue {
   send(name: string, data: unknown): Promise<string>
 }
 
-let _inbox: InboxPort | null = null
-let _contacts: ContactsPort | null = null
-let _jobs: JobQueue | null = null
-let _realtime: RealtimeService | null = null
+interface ChannelWhatsappStateDeps {
+  inbox?: InboxPort | null
+  contacts?: ContactsPort | null
+  jobs?: JobQueue | null
+  realtime?: RealtimeService | null
+  /** Phone number ID used when sending via Meta Graph API. Sourced from channel_instance config. */
+  phoneNumberId?: string | null
+  /** Meta Graph API access token. */
+  accessToken?: string | null
+  /** Webhook verify token (Meta hub challenge). */
+  verifyToken?: string | null
+}
 
-/** Phone number ID used when sending via Meta Graph API. Set from channel_instance config. */
-let _phoneNumberId: string | null = null
-/** Meta Graph API access token. */
-let _accessToken: string | null = null
-/** Webhook verify token (Meta hub challenge). */
-let _verifyToken: string | null = null
+export interface ChannelWhatsappState {
+  inbox: InboxPort | null
+  contacts: ContactsPort | null
+  jobs: JobQueue | null
+  realtime: RealtimeService | null
+  phoneNumberId: string | null
+  accessToken: string | null
+  verifyToken: string | null
+}
 
-export function setInboxPort(p: InboxPort): void {
-  _inbox = p
+export function createChannelWhatsappState(deps: ChannelWhatsappStateDeps = {}): ChannelWhatsappState {
+  return {
+    inbox: deps.inbox ?? null,
+    contacts: deps.contacts ?? null,
+    jobs: deps.jobs ?? null,
+    realtime: deps.realtime ?? null,
+    phoneNumberId: deps.phoneNumberId ?? null,
+    accessToken: deps.accessToken ?? null,
+    verifyToken: deps.verifyToken ?? null,
+  }
 }
-export function setContactsPort(p: ContactsPort): void {
-  _contacts = p
+
+let _currentChannelWhatsappState: ChannelWhatsappState | null = null
+
+export function installChannelWhatsappState(state: ChannelWhatsappState): void {
+  _currentChannelWhatsappState = state
 }
-export function setJobQueue(q: JobQueue): void {
-  _jobs = q
+
+export function __resetChannelWhatsappStateForTests(): void {
+  _currentChannelWhatsappState = null
 }
-export function setRealtime(r: RealtimeService): void {
-  _realtime = r
-}
-export function setPhoneNumberId(id: string): void {
-  _phoneNumberId = id
-}
-export function setAccessToken(t: string): void {
-  _accessToken = t
-}
-export function setVerifyToken(t: string): void {
-  _verifyToken = t
+
+function current(): ChannelWhatsappState {
+  if (!_currentChannelWhatsappState) {
+    throw new Error('channel-whatsapp: state not installed — call installChannelWhatsappState() in module init')
+  }
+  return _currentChannelWhatsappState
 }
 
 export function requireInbox(): InboxPort {
-  if (!_inbox) throw new Error('channel-whatsapp: inboxPort not initialised')
-  return _inbox
+  const s = current()
+  if (!s.inbox) throw new Error('channel-whatsapp: inboxPort not initialised')
+  return s.inbox
 }
 export function requireContacts(): ContactsPort {
-  if (!_contacts) throw new Error('channel-whatsapp: contactsPort not initialised')
-  return _contacts
+  const s = current()
+  if (!s.contacts) throw new Error('channel-whatsapp: contactsPort not initialised')
+  return s.contacts
 }
 export function requireJobs(): JobQueue {
-  if (!_jobs) throw new Error('channel-whatsapp: jobQueue not initialised')
-  return _jobs
+  const s = current()
+  if (!s.jobs) throw new Error('channel-whatsapp: jobQueue not initialised')
+  return s.jobs
 }
 export function requireRealtime(): RealtimeService {
-  if (!_realtime) throw new Error('channel-whatsapp: realtime not initialised')
-  return _realtime
+  const s = current()
+  if (!s.realtime) throw new Error('channel-whatsapp: realtime not initialised')
+  return s.realtime
 }
+
 export function requirePhoneNumberId(): string {
-  return _phoneNumberId ?? process.env.WA_PHONE_NUMBER_ID ?? ''
+  const s = _currentChannelWhatsappState
+  return s?.phoneNumberId ?? process.env.WA_PHONE_NUMBER_ID ?? ''
 }
 export function requireAccessToken(): string {
-  return _accessToken ?? process.env.WA_ACCESS_TOKEN ?? ''
+  const s = _currentChannelWhatsappState
+  return s?.accessToken ?? process.env.WA_ACCESS_TOKEN ?? ''
 }
+
 const _warned = { verifyToken: false }
 
 function devFallback(
@@ -84,8 +110,9 @@ function devFallback(
 }
 
 export function requireVerifyToken(): string {
+  const s = _currentChannelWhatsappState
   return devFallback(
-    _verifyToken ?? process.env.WA_VERIFY_TOKEN,
+    s?.verifyToken ?? process.env.WA_VERIFY_TOKEN,
     'dev-verify-token',
     'channel-whatsapp: WA_VERIFY_TOKEN is required in production',
     '[channel-whatsapp] WARNING: WA_VERIFY_TOKEN not set — using dev fallback. Set it in production.',

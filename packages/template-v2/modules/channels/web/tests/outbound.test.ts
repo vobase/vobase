@@ -8,7 +8,7 @@ import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
 import type { Conversation, Message } from '@server/contracts/domain-types'
 import type { InboxPort } from '@server/contracts/inbox-port'
 import type { RealtimeService } from '@server/contracts/plugin-context'
-import { setInboxPort, setRealtime } from '../service/state'
+import { createChannelWebState, installChannelWebState } from '../service/state'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -108,8 +108,12 @@ function makeCtx(body: unknown) {
 
 beforeEach(() => {
   calls = []
-  setInboxPort(makeInboxPort())
-  setRealtime(makeRealtime())
+  installChannelWebState(
+    createChannelWebState({
+      inbox: makeInboxPort(),
+      realtime: makeRealtime(),
+    }),
+  )
 })
 
 describe('handleOutbound', () => {

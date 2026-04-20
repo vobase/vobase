@@ -5,4 +5,9 @@ export const manifest: ModuleManifest = {
     channels: ['web'],
   },
   permissions: [],
+  workspace: { owns: [] },
+  accessGrants: [
+    { to: 'inbox', reason: 'A3 inbound via InboxPort' },
+    { to: 'contacts', reason: 'contact resolution' },
+  ],
 }

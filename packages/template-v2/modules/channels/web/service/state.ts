@@ -1,5 +1,5 @@
 /**
- * Module-level state for channel-web. Set during init, consumed by handlers/services.
+ * Module-level state for channel-web. Built during init, consumed by handlers/services.
  */
 import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { InboxPort } from '@server/contracts/inbox-port'
@@ -10,37 +10,63 @@ export interface JobQueue {
   send(name: string, data: unknown): Promise<string>
 }
 
-let _inbox: InboxPort | null = null
-let _contacts: ContactsPort | null = null
-let _jobs: JobQueue | null = null
-let _realtime: RealtimeService | null = null
+interface ChannelWebStateDeps {
+  inbox?: InboxPort | null
+  contacts?: ContactsPort | null
+  jobs?: JobQueue | null
+  realtime?: RealtimeService | null
+}
 
-export function setInboxPort(p: InboxPort): void {
-  _inbox = p
+export interface ChannelWebState {
+  inbox: InboxPort | null
+  contacts: ContactsPort | null
+  jobs: JobQueue | null
+  realtime: RealtimeService | null
 }
-export function setContactsPort(p: ContactsPort): void {
-  _contacts = p
+
+export function createChannelWebState(deps: ChannelWebStateDeps = {}): ChannelWebState {
+  return {
+    inbox: deps.inbox ?? null,
+    contacts: deps.contacts ?? null,
+    jobs: deps.jobs ?? null,
+    realtime: deps.realtime ?? null,
+  }
 }
-export function setJobQueue(q: JobQueue): void {
-  _jobs = q
+
+let _currentChannelWebState: ChannelWebState | null = null
+
+export function installChannelWebState(state: ChannelWebState): void {
+  _currentChannelWebState = state
 }
-export function setRealtime(r: RealtimeService): void {
-  _realtime = r
+
+export function __resetChannelWebStateForTests(): void {
+  _currentChannelWebState = null
+}
+
+function current(): ChannelWebState {
+  if (!_currentChannelWebState) {
+    throw new Error('channel-web: state not installed — call installChannelWebState() in module init')
+  }
+  return _currentChannelWebState
 }
 
 export function requireInbox(): InboxPort {
-  if (!_inbox) throw new Error('channel-web: inboxPort not initialised — call setInboxPort() in module init')
-  return _inbox
+  const s = current()
+  if (!s.inbox) throw new Error('channel-web: inboxPort not initialised')
+  return s.inbox
 }
 export function requireContacts(): ContactsPort {
-  if (!_contacts) throw new Error('channel-web: contactsPort not initialised')
-  return _contacts
+  const s = current()
+  if (!s.contacts) throw new Error('channel-web: contactsPort not initialised')
+  return s.contacts
 }
 export function requireJobs(): JobQueue {
-  if (!_jobs) throw new Error('channel-web: jobQueue not initialised')
-  return _jobs
+  const s = current()
+  if (!s.jobs) throw new Error('channel-web: jobQueue not initialised')
+  return s.jobs
 }
 export function requireRealtime(): RealtimeService {
-  if (!_realtime) throw new Error('channel-web: realtime not initialised')
-  return _realtime
+  const s = current()
+  if (!s.realtime) throw new Error('channel-web: realtime not initialised')
+  return s.realtime
 }

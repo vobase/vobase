@@ -1,7 +1,7 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
 import { manifest } from './manifest'
-import { setDb as setContactsDb } from './service/contacts'
+import { createContactsService, installContactsService } from './service/contacts'
 
 export default defineModule({
   name: 'contacts',
@@ -9,6 +9,6 @@ export default defineModule({
   manifest,
   routes: { basePath: '/api/contacts', handler: handlers, requireSession: true },
   init(ctx) {
-    setContactsDb(ctx.db)
+    installContactsService(createContactsService({ db: ctx.db }))
   },
 })
