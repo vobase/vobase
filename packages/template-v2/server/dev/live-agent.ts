@@ -8,6 +8,9 @@
  * trigger. Approval-gated tools remain the right path for staff workflows; for
  * the dev /test-web dogfood we want unblocked round-trips.
  *
+ * Multi-turn is now enabled (maxTurns: 10). Message history is persisted via
+ * createMessageHistoryObserver when a db handle is supplied to bootWake.
+ *
  * One observer is registered: a custom SSE bridge that closes over the real
  * `RealtimeService` so message-producing tool calls fan out to the UI via
  * LISTEN/NOTIFY. Audit + approval are out of scope for the dev path (both
@@ -82,8 +85,7 @@ export function createLiveAgentHandler(deps: LiveAgentDeps) {
     // Materializer writes the transcript into the workspace so bash `cat
     // /workspace/conversation/messages.md` works. Side-load contributor pushes
     // the same content into the first user message so Claude sees the customer
-    // question without having to issue a bash call (the harness doesn't feed
-    // tool_result back between turns, so shell-exploration loops forever).
+    // question without a bash call on turn 0.
     const messagesMaterializer: WorkspaceMaterializer = {
       path: '/workspace/conversation/messages.md',
       phase: 'frozen',
@@ -156,12 +158,7 @@ export function createLiveAgentHandler(deps: LiveAgentDeps) {
           warn: (obj, msg) => console.warn('[live-agent]', msg ?? '', obj),
           error: (obj, msg) => console.error('[live-agent]', msg ?? '', obj),
         },
-        // Load-bearing: the harness does not feed tool_result back between turns
-        // (agent-adapter.ts sends `messages: []`), so Claude can't see that its
-        // turn-0 `reply` succeeded. Any value > 1 causes duplicate replies and
-        // bash-exploration loops. Keep at 1 until pi-agent-core supports
-        // tool_result replay, then switch to an iterationBudget.
-        maxTurns: 1,
+        maxTurns: 10,
       })
     } catch (err) {
       console.error('[live-agent] bootWake failed:', err)
