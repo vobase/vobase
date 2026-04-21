@@ -3,9 +3,7 @@
  * All write methods throw not-implemented-in-phase-1.
  *
  * Factory-DI service. `createFilesService({ db, organizationId })`
- * returns the bound API; `installFilesService(svc)` wires the module-scoped
- * handle used by the free-function wrappers below (which preserve the
- * existing import surface).
+ * returns the bound API.
  */
 import type { DriveFile } from '@server/contracts/domain-types'
 import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInput } from '@server/contracts/drive-port'
@@ -164,73 +162,4 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     saveInboundMessageAttachment,
     deleteScope,
   }
-}
-
-let _currentFilesService: FilesService | null = null
-
-export function installFilesService(svc: FilesService): void {
-  _currentFilesService = svc
-}
-
-export function __resetFilesServiceForTests(): void {
-  _currentFilesService = null
-}
-
-function current(): FilesService {
-  if (!_currentFilesService) {
-    throw new Error('drive/files: service not installed — call installFilesService() in module init')
-  }
-  return _currentFilesService
-}
-
-export async function getByPath(scope: DriveScope, path: string): Promise<DriveFile | null> {
-  return current().getByPath(scope, path)
-}
-
-export async function listFolder(scope: DriveScope, parentId: string | null): Promise<DriveFile[]> {
-  return current().listFolder(scope, parentId)
-}
-
-export async function readContent(id: string): Promise<{ content: string; spilledToPath?: string }> {
-  return current().readContent(id)
-}
-
-export async function getBusinessMd(): Promise<string> {
-  return current().getBusinessMd()
-}
-
-export async function get(id: string): Promise<DriveFile | null> {
-  return current().get(id)
-}
-
-export async function grep(scope: DriveScope, pattern: string, opts?: GrepOpts): Promise<GrepMatch[]> {
-  return current().grep(scope, pattern, opts)
-}
-
-export async function create(scope: DriveScope, input: CreateFileInput): Promise<DriveFile> {
-  return current().create(scope, input)
-}
-
-export async function mkdir(scope: DriveScope, path: string): Promise<DriveFile> {
-  return current().mkdir(scope, path)
-}
-
-export async function move(id: string, newPath: string): Promise<DriveFile> {
-  return current().move(id, newPath)
-}
-
-export async function remove(id: string): Promise<void> {
-  return current().remove(id)
-}
-
-export async function ingestUpload(input: IngestUploadInput): Promise<DriveFile> {
-  return current().ingestUpload(input)
-}
-
-export async function saveInboundMessageAttachment(msgId: string, targetPath?: string): Promise<DriveFile> {
-  return current().saveInboundMessageAttachment(msgId, targetPath)
-}
-
-export async function deleteScope(scope: 'contact', scopeId: string): Promise<void> {
-  return current().deleteScope(scope, scopeId)
 }
