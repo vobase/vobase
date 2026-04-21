@@ -1,8 +1,8 @@
 ## modules/channels/
 
-Channel adapters that connect external messaging surfaces to the inbox. Each subdirectory is a full module conforming to the standard shape (`module.ts`, `manifest.ts`, `schema.ts`, `handlers/index.ts`, `port.ts`, `README.md`).
+Channel adapters that connect external messaging surfaces to the inbox. Each subdirectory is a full module conforming to the standard shape, plus a `port.ts` that implements `V2ChannelAdapter` — channels are the one place `port.ts` still earns its keep (multiple real implementations: web, whatsapp, future).
 
-**What channels are.** Channels implement `V2ChannelAdapter` (which refines core's `ChannelAdapter`). They own inbound webhook reception, HMAC verification, and outbound dispatch — nothing more. All conversation writes go through `InboxPort`; channels never touch DB tables directly (A3 invariant: `service/dispatcher.ts` and `sender.ts` must not import drizzle).
+**What channels are.** Channels implement `V2ChannelAdapter` (which refines core's `ChannelAdapter`). They own inbound webhook reception, HMAC verification, and outbound dispatch — nothing more. All conversation writes go through the inbox service (`appendTextMessage`, `appendCardMessage`, …); channels never touch DB tables directly (A3 invariant: `service/dispatcher.ts` and `sender.ts` must not import drizzle).
 
 **What channels are not.** Channels are not business surfaces. They have no user-facing pages of their own. Settings UI (e.g. WhatsApp token config) lives in the `settings` module or is contributed via module registration. HTTP mount paths (`/api/channel-web`, `/api/channel-whatsapp`) are external surfaces registered with providers (Meta, etc.) and must not change — they are decoupled from the file layout here.
 

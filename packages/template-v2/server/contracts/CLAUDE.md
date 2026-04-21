@@ -1,13 +1,13 @@
 ## server/contracts/
 
-The scannable API surface. No business logic — only types, interfaces, and one compile-only exhaustiveness check. Three hard rules:
+The scannable API surface. No business logic — only types, interfaces, and one compile-only exhaustiveness check. Two hard rules:
 
-**R1 — Hand-written domain types.** `domain-types.ts` shapes are hand-written, never `InferSelectModel<typeof schema>`. Otherwise a schema change in one module silently mutates types in another.
+**R1 — Shared module-shape constants.** `module-shape.ts` is imported by both `server/runtime/define-module.ts` (boot-time enforcement) and `scripts/check-module-shape.ts` (CI lint). Single source; never duplicate the required-files list.
 
-**R2 — Shared module-shape constants.** `module-shape.ts` is imported by both `server/runtime/define-module.ts` (boot-time enforcement) and `scripts/check-module-shape.ts` (CI lint). Single source; never duplicate the required-files list.
+**R2 — Compile-only exhaustiveness gate.** `__checks__/integration.ts` `switch`es over every `AgentEvent` variant. Adding a new variant without handling it here breaks `tsc`. This is how observers/mutators can't silently miss a new event type.
 
-**R3 — Compile-only exhaustiveness gate.** `__checks__/integration.ts` `switch`es over every `AgentEvent` variant. Adding a new variant without handling it here breaks `tsc`. This is how observers/mutators can't silently miss a new event type.
+**Journal write-path guard.** `checkJournalWriteAuthority` in `scripts/check-module-shape.ts` greps for `.insert|update|delete(messages|conversationEvents …)` and fails unless the file lives under `modules/inbox/service/**` or is `modules/agents/service/journal.ts`. This replaces the older "no cross-module schema imports" rule — we only guard the one-write-path tables, not schema imports in general.
 
-**Port rule.** Cross-module access goes through `<name>-port.ts` surfaced via `PluginContext.ports`. Direct cross-module `schema.ts` imports are forbidden (enforced by `check:shape`). Add a port: define interface → implement in `modules/<name>/port.ts` → wire into `PluginContext.ports` → wire into `plugin-context-factory.ts`.
+**Cross-module access.** Import the service directly: `import { appendTextMessage } from '@modules/inbox/service/messages'`. The four domain "port" interfaces (`inbox-port.ts`, `agents-port.ts`, `contacts-port.ts`, `drive-port.ts`) remain as the TYPE surface for `PluginContext.ports.{inbox,agents,contacts,drive}` — wired by `server/dev/dev-ports.ts` for dev + test. They are no longer the canonical call surface; read them as the wiring contract, not as a facade to hide the service behind.
 
 **Outbound tool coupling.** `OUTBOUND_TOOL_NAMES` in `channel-event.ts` is authoritative. Every name here must also appear in the switches in `modules/channel-web/service/dispatcher.ts` AND `modules/channel-whatsapp/service/sender.ts` — otherwise outbound delivery silently drops.

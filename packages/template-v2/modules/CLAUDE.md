@@ -2,7 +2,9 @@
 
 Eight modules total — six business-domain modules plus two channel adapters grouped under `channels/`. All conform to the same `defineModule` shape (enforced by `check:shape`). Opening `modules/inbox/` shows the same layout as `modules/drive/`; adding a new channel or business domain is a drop-in folder, not a multi-file patch.
 
-**Required files per module** (any missing = `check:shape` fails): `module.ts`, `manifest.ts`, `schema.ts`, `handlers/index.ts`, `port.ts`, `README.md`. Handler files ≤ 200 raw lines (lift into `service/`). No cross-module `schema.ts` imports. `applyTransition()` only in `state.ts`.
+**Required files per module** (any missing = `check:shape` fails): `module.ts`, `manifest.ts`, `schema.ts`, `state.ts`, `service/index.ts`, `handlers/index.ts`, `jobs.ts`, `seed.ts`, `README.md`. Handler files ≤ 200 raw lines (lift into `service/`). `applyTransition()` only in `state.ts`.
+
+`port.ts` is no longer required. The four domain "ports" (inbox, agents, contacts, drive) turned out to be 1:1 pass-throughs over the module's own service layer — every call site used the real service against a test DB, never a second implementation. Callers go straight to `@modules/<name>/service/*`. Channel adapters (`channels/web`, `channels/whatsapp`) still own a `port.ts` because `V2ChannelAdapter` has multiple real implementations (web + whatsapp + future).
 
 **Init order (enforced via `requires`):** `contacts → drive → inbox → agents → channels/web → channels/whatsapp`. Later modules depend on earlier-module ports through `PluginContext.ports`.
 
