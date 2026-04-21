@@ -30,6 +30,10 @@ export function useRealtimeInvalidation(): void {
     // Targeted invalidation: inbox conversations list + specific conversation
     if (payload.table === 'conversations') {
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      // Mentions piggy-back on conversation updates — agent-authored notes fire
+      // the same `conversations` NOTIFY on tool_execution_end, and there's no
+      // dedicated `internal_notes` channel.
+      queryClient.invalidateQueries({ queryKey: ['team', 'mentions'] })
       if (payload.id) {
         queryClient.invalidateQueries({ queryKey: ['conversation', payload.id] })
         queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })

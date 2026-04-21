@@ -1,11 +1,12 @@
 /**
- * Development ports — minimal InboxPort / ContactsService / RealtimeService / JobQueue
- * wired directly against drizzle for the dev server.
+ * App ports — minimal InboxPort / ContactsService / AgentsPort / FilesService /
+ * RealtimeService / JobQueue wired directly against drizzle for the app server.
  *
- * Production will replace these with the full harness-driven wake-worker path
- * (wake triggers). Dev ships a canned "stub agent" so the web channel can be
- * exercised end-to-end without an LLM key — and swaps to the real Anthropic
- * provider when one is present (see `runStubReply` below).
+ * Reads use drizzle; writes delegate to each module's service layer so the
+ * one-write-path invariant holds. Several write methods throw — those paths
+ * aren't exercised yet and should be filled in when a caller needs them. The
+ * job queue is in-process (fire-and-forget); swap for pg-boss if/when
+ * multi-process or retry-safe delivery is needed.
  */
 
 import type { AgentDefinition } from '@modules/agents/schema'
@@ -24,7 +25,6 @@ import type { Conversation } from '@modules/inbox/schema'
 import { conversations } from '@modules/inbox/schema'
 import {
   createInboundMessage as svcCreateInboundMessage,
-  list as svcListConversations,
   resumeOrCreate as svcResumeOrCreate,
 } from '@modules/inbox/service/conversations'
 import {
@@ -41,7 +41,7 @@ import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
 
-export interface DevPorts {
+export interface Ports {
   inbox: InboxPort
   contacts: ContactsService
   agents: AgentsPort
@@ -137,28 +137,28 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
       return appendCardReplyMessage(input)
     },
     async sendImageMessage() {
-      throw new Error('dev-ports: sendImageMessage not supported')
+      throw new Error('ports: sendImageMessage not supported')
     },
     async sendMediaMessage() {
-      throw new Error('dev-ports: sendMediaMessage not supported')
+      throw new Error('ports: sendMediaMessage not supported')
     },
     async resolve() {
-      throw new Error('dev-ports: resolve not supported')
+      throw new Error('ports: resolve not supported')
     },
     async reassign() {
-      throw new Error('dev-ports: reassign not supported')
+      throw new Error('ports: reassign not supported')
     },
     async reopen() {
-      throw new Error('dev-ports: reopen not supported')
+      throw new Error('ports: reopen not supported')
     },
     async reset() {
-      throw new Error('dev-ports: reset not supported')
+      throw new Error('ports: reset not supported')
     },
     async snooze() {
-      throw new Error('dev-ports: snooze not supported')
+      throw new Error('ports: snooze not supported')
     },
     async unsnooze() {
-      throw new Error('dev-ports: unsnooze not supported')
+      throw new Error('ports: unsnooze not supported')
     },
     async addInternalNote(input) {
       return svcAddNote(input)
@@ -167,7 +167,7 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
       return svcListNotes(conversationId)
     },
     async insertPendingApproval() {
-      throw new Error('dev-ports: insertPendingApproval not supported outside wake')
+      throw new Error('ports: insertPendingApproval not supported outside wake')
     },
     async createInboundMessage(input) {
       return svcCreateInboundMessage(input)
@@ -177,7 +177,7 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
 
 function buildContactsService(db: DrizzleHandle): ContactsService {
   const notImpl = (): never => {
-    throw new Error('dev-ports: not implemented')
+    throw new Error('ports: contacts method not implemented')
   }
   return {
     async get(id) {
@@ -291,7 +291,7 @@ function buildAgentsPort(db: DrizzleHandle): AgentsPort {
 
 function buildFilesService(db: DrizzleHandle): FilesService {
   const notImpl = (): never => {
-    throw new Error('dev-ports/drive: write ops not implemented')
+    throw new Error('ports/drive: write ops not implemented')
   }
   return {
     async get(id: string): Promise<DriveFile | null> {
@@ -388,12 +388,12 @@ function buildJobQueue(handlers: Map<string, (data: unknown) => Promise<void>>) 
   }
 }
 
-export async function buildDevPorts(
+export async function buildPorts(
   db: ScopedDb,
   sql: Sql,
   databaseConfig: string,
   jobHandlers: Map<string, (data: unknown) => Promise<void>>,
-): Promise<DevPorts> {
+): Promise<Ports> {
   const drizzleDb = db as unknown as DrizzleHandle
   // Agents journal needs its db set or `appendTextMessage` will throw on the journal write.
   setJournalDb(db)
@@ -407,5 +407,3 @@ export async function buildDevPorts(
     jobs: buildJobQueue(jobHandlers),
   }
 }
-
-export { svcListConversations }

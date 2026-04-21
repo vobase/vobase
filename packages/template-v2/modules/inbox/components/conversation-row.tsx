@@ -1,6 +1,6 @@
 import type { Contact } from '@modules/contacts/schema'
 import { deriveContactName } from '@modules/inbox/lib/contact'
-import { ClockIcon } from 'lucide-react'
+import { AtSignIcon, ClockIcon } from 'lucide-react'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { cn } from '@/lib/utils'
 import type { Conversation } from '../schema'
@@ -10,6 +10,8 @@ interface ConversationRowProps {
   contact?: Contact
   isSelected: boolean
   isUnread?: boolean
+  /** Current staff user has one or more unread @-mentions in this conversation. */
+  hasUnreadMention?: boolean
   onClick: () => void
 }
 
@@ -28,7 +30,14 @@ function previewPrefix(conv: Conversation): string {
   return ''
 }
 
-function ConversationRow({ conversation: conv, contact, isSelected, isUnread, onClick }: ConversationRowProps) {
+function ConversationRow({
+  conversation: conv,
+  contact,
+  isSelected,
+  isUnread,
+  hasUnreadMention,
+  onClick,
+}: ConversationRowProps) {
   const displayName = deriveContactName(contact, conv.contactId)
   const isBold = isSelected || !!isUnread
   const isSnoozed = Boolean(conv.snoozedUntil && new Date(conv.snoozedUntil).getTime() > Date.now())
@@ -64,6 +73,16 @@ function ConversationRow({ conversation: conv, contact, isSelected, isUnread, on
           >
             {displayName}
           </span>
+          {hasUnreadMention ? (
+            <span
+              className="flex shrink-0 items-center justify-center rounded-full bg-rose-600 p-0.5 text-white dark:bg-rose-500"
+              aria-label="You have an unread mention in this conversation"
+              title="You have an unread mention"
+              data-testid="conversation-row-unread-mention"
+            >
+              <AtSignIcon className="size-3" strokeWidth={3} />
+            </span>
+          ) : null}
           {isSnoozed && conv.snoozedUntil ? (
             <span
               className="flex shrink-0 items-center gap-0.5 text-mini text-[var(--color-fg-muted)] whitespace-nowrap"

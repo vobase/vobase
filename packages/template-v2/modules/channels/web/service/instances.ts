@@ -75,6 +75,7 @@ function toInstance(r: Row): WebInstance {
 export interface WebInstancesService {
   list(organizationId: string): Promise<WebInstance[]>
   getPublic(id: string): Promise<PublicWebInstance | null>
+  getDefaultAssignee(id: string): Promise<string | null>
   create(input: CreateWebInstanceInput): Promise<WebInstance>
   update(id: string, organizationId: string, patch: UpdateWebInstanceInput): Promise<WebInstance>
   remove(id: string, organizationId: string): Promise<void>
@@ -119,6 +120,17 @@ export function createWebInstancesService(deps: { db: unknown }): WebInstancesSe
       displayName: inst.displayName,
       starters: inst.starters.length > 0 ? inst.starters : [...DEFAULT_STARTERS],
     }
+  }
+
+  async function getDefaultAssignee(id: string): Promise<string | null> {
+    const { and, eq } = await import('drizzle-orm')
+    const rows = (await db
+      .select()
+      .from(channelInstances)
+      .where(and(eq(channelInstances.id, id), eq(channelInstances.type, 'web')))) as Row[]
+    const row = rows[0]
+    if (!row) return null
+    return toInstance(row).defaultAssignee
   }
 
   async function create(input: CreateWebInstanceInput): Promise<WebInstance> {
@@ -185,7 +197,7 @@ export function createWebInstancesService(deps: { db: unknown }): WebInstancesSe
       .where(and(eq(channelInstances.id, id), eq(channelInstances.organizationId, organizationId)))
   }
 
-  return { list, getPublic, create, update, remove }
+  return { list, getPublic, getDefaultAssignee, create, update, remove }
 }
 
 let _currentService: WebInstancesService | null = null
@@ -210,6 +222,9 @@ export async function listInstances(organizationId: string): Promise<WebInstance
 }
 export async function getPublicInstance(id: string): Promise<PublicWebInstance | null> {
   return current().getPublic(id)
+}
+export async function getInstanceDefaultAssignee(id: string): Promise<string | null> {
+  return current().getDefaultAssignee(id)
 }
 export async function createInstance(input: CreateWebInstanceInput): Promise<WebInstance> {
   return current().create(input)

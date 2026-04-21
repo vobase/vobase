@@ -1,6 +1,7 @@
 import type { Contact } from '@modules/contacts/schema'
 import { fetchApprovals } from '@modules/inbox/api/use-decide-approval'
 import { computeTab } from '@modules/inbox/service/bucketing'
+import { useUnreadMentions } from '@modules/team/api/use-unread-mentions'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
@@ -96,6 +97,13 @@ function ConversationList() {
     return m
   }, [contacts])
 
+  const { data: unreadMentions = [] } = useUnreadMentions()
+  const conversationsWithUnreadMention = useMemo(() => {
+    const s = new Set<string>()
+    for (const m of unreadMentions) s.add(m.conversationId)
+    return s
+  }, [unreadMentions])
+
   // Server already collapsed to one row per contact with tab-aware bucketing.
   // Client only filters by active tab + owner.
   const { filtered, counts, totalContacts } = useMemo(() => {
@@ -156,6 +164,7 @@ function ConversationList() {
           conversation={conv}
           contact={contactById.get(conv.contactId)}
           isSelected={conv.contactId === selectedContactId}
+          hasUnreadMention={conversationsWithUnreadMention.has(conv.id)}
           onClick={() =>
             navigate({
               to: '/inbox/$contactId',

@@ -4,6 +4,7 @@ import { type ChannelInboundEvent, ChannelInboundEventSchema } from '@server/con
 import { verifyHmacWebhook } from '@server/middlewares'
 import type { Context } from 'hono'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
+import { getInstanceDefaultAssignee } from '../service/instances'
 import { requireJobs } from '../service/state'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
@@ -35,6 +36,8 @@ async function dispatchInbound(c: Context, input: InboundInput): Promise<Respons
     displayName: input.displayName,
   })
 
+  const defaultAssignee = await getInstanceDefaultAssignee(input.channelInstanceId)
+
   const result = await createInboundMessage({
     organizationId: input.organizationId,
     channelInstanceId: input.channelInstanceId,
@@ -43,6 +46,7 @@ async function dispatchInbound(c: Context, input: InboundInput): Promise<Respons
     content: input.content,
     contentType: input.contentType,
     profileName: input.profileName,
+    initialAssignee: defaultAssignee,
   })
 
   if (result.isNew) {

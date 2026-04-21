@@ -147,6 +147,7 @@ export interface ConversationsService {
     contactId: string,
     channelInstanceId: string,
     threadKey?: string,
+    initialAssignee?: string | null,
   ): Promise<{ conversation: Conversation; created: boolean }>
   get(id: string): Promise<Conversation>
   listActivity(conversationId: string): Promise<ActivityEvent[]>
@@ -217,6 +218,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     contactId: string,
     channelInstanceId: string,
     threadKey = 'default',
+    initialAssignee?: string | null,
   ): Promise<{ conversation: Conversation; created: boolean }> {
     const inserted = (await db
       .insert(conversations)
@@ -225,7 +227,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
         contactId,
         channelInstanceId,
         status: 'active',
-        assignee: 'unassigned',
+        assignee: initialAssignee ?? 'unassigned',
         threadKey,
       })
       .onConflictDoNothing()
@@ -264,6 +266,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
       input.contactId,
       input.channelInstanceId,
       input.threadKey ?? 'default',
+      input.initialAssignee ?? null,
     )
 
     if (conversation.status === 'failed') {
@@ -731,8 +734,15 @@ export async function resumeOrCreate(
   contactId: string,
   channelInstanceId: string,
   threadKey = 'default',
+  initialAssignee?: string | null,
 ): Promise<{ conversation: Conversation; created: boolean }> {
-  return currentConversations().resumeOrCreate(organizationId, contactId, channelInstanceId, threadKey)
+  return currentConversations().resumeOrCreate(
+    organizationId,
+    contactId,
+    channelInstanceId,
+    threadKey,
+    initialAssignee,
+  )
 }
 export async function get(id: string): Promise<Conversation> {
   return currentConversations().get(id)

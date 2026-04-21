@@ -1,24 +1,23 @@
 /**
- * Live agent handler — processes `channel-web:inbound-to-wake` jobs by booting
- * a real Anthropic wake via the pi-agent-core harness.
+ * Wake handler — processes `channel-web:inbound-to-wake` jobs by booting a wake
+ * via the pi-agent-core harness. Sole consumer of that job; sole producer of
+ * agent replies on the web channel.
+ *
+ * Agents only run when the conversation's assignee is an `agent:<id>`. If the
+ * assignee is a user or unassigned, the wake is skipped — no fallback agent.
+ * The channel instance's `defaultAssignee` config is what seeds this on first
+ * inbound (see `modules/channels/web/handlers/inbound.ts`).
  *
  * `replyTool` and `sendCardTool` are both registered. The side-load instructs
  * the agent to prefer `send_card` whenever the reply has structure or choices,
  * falling back to `reply` only for pure acknowledgements and free-form
- * questions. Card approval is off on the Meridian seed so cards flow straight
- * to the widget without staff gating — flip `cardApprovalRequired` back on if
- * you want the approval UX in the loop.
- *
- * Multi-turn is now enabled (maxTurns: 10). Message history is persisted via
- * createMessageHistoryObserver when a db handle is supplied to bootWake.
+ * questions.
  *
  * One observer is registered: a custom SSE bridge that closes over the real
  * `RealtimeService` so message-producing tool calls fan out to the UI via
- * LISTEN/NOTIFY. Audit + approval are out of scope for the dev path (both
- * require patched `ctx.db`, which the harness only exposes to test helpers).
+ * LISTEN/NOTIFY.
  */
 
-import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { InboundToWakePayload } from '@modules/channels/web/jobs'
 import type { ContactsService } from '@modules/contacts/service/contacts'
@@ -31,35 +30,34 @@ import type { AgentObserver } from '@server/contracts/observer'
 import type { AgentTool, RealtimeService } from '@server/contracts/plugin-context'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import { bootWake } from '@server/harness'
+import { conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 
-interface LiveAgentDeps {
+interface WakeHandlerDeps {
   inbox: InboxPort
   contacts: ContactsService
   agents: AgentsPort
   drive: FilesService
   realtime: RealtimeService
-  /** Retained for API compatibility — the pi-agent-core harness now reads
-   *  OPENAI_API_KEY / BIFROST_API_KEY from env via `resolveApiKey()`. */
-  anthropicApiKey: string
 }
 
-export function createLiveAgentHandler(_deps: LiveAgentDeps) {
-  const deps = _deps
-
+export function createWakeHandler(deps: WakeHandlerDeps) {
   return async function handleInboundToWake(rawData: unknown): Promise<void> {
     const data = rawData as InboundToWakePayload
-    console.log('[live-agent] handling inbound→wake', { conv: data.conversationId, msg: data.messageId })
+    console.log('[wake] handling inbound→wake', { conv: data.conversationId, msg: data.messageId })
 
-    // Resolve the conversation so we can pick up organizationId + agent assignee.
     let conv: Conversation
     try {
       conv = await deps.inbox.getConversation(data.conversationId)
     } catch (err) {
-      console.error('[live-agent] conversation lookup failed:', err)
+      console.error('[wake] conversation lookup failed:', err)
       return
     }
-    const agentId = conv.assignee.startsWith('agent:') ? conv.assignee.slice(6) : MERIDIAN_AGENT_ID
-    console.log('[live-agent] booting wake', { agentId, contactId: data.contactId })
+    if (!conv.assignee.startsWith('agent:')) {
+      console.log('[wake] skipping — assignee is not an agent', { assignee: conv.assignee })
+      return
+    }
+    const agentId = conv.assignee.slice('agent:'.length)
+    console.log('[wake] booting wake', { agentId, contactId: data.contactId })
 
     // Render the conversation messages as a markdown transcript.
     const renderTranscript = async (conversationId: string): Promise<string> => {
@@ -102,7 +100,18 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
       const instruction = [
         '# Task',
         '',
-        "Respond to the customer now. PREFER `send_card` whenever the reply has any structure or actionable choices — pricing, plans, refund confirmations, yes/no with consequences, 2+ options, next-step CTAs. Use plain `reply` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA. Do NOT use bash to re-explore the workspace — everything you need is already in this message. Keep prose replies to 2–4 short sentences. If the answer depends on pricing or policy details you don't know, say so briefly and offer a follow-up.",
+        "Respond to the customer now. PREFER `send_card` whenever the reply has any structure or actionable choices — pricing, plans, refund confirmations, yes/no with consequences, 2+ options, next-step CTAs. Use plain `reply` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA. Keep prose replies to 2–4 short sentences.",
+        '',
+        '# Escalation + staff consultation (via bash)',
+        '',
+        "- `vobase team list` — see who's on the team and their availability/expertise.",
+        '- `vobase team get --user=<userId>` — full profile for one staff member.',
+        '- `vobase conv reassign --to=user:<userId> [--reason="..."]` — hand off when the customer explicitly asks for a human, or when the request is outside your authority (legal, large refunds, formal complaints). After reassigning, STOP replying — the customer now owns the conversation with that staff member.',
+        '- `vobase conv ask-staff --mention=<userId> --body="question"` — post an internal note to ask staff a question you need answered before you can reply. Their reply will wake you again with the answer; in the meantime tell the customer briefly that you\'re checking.',
+        '',
+        'Before using `conv reassign` or `conv ask-staff`, ALWAYS run `vobase team list` first to get the real userIds. Do NOT invent userIds from names the customer used.',
+        '',
+        'If the answer depends on pricing or policy details you don\'t know, prefer `vobase conv ask-staff` over guessing.',
       ].join('\n')
       return [
         { kind: 'custom', priority: 100, render: () => instruction },
@@ -113,10 +122,9 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
 
     // Custom SSE observer — closes over the real realtime service so we don't
     // depend on the harness wiring `ctx.realtime` (it noops by default).
-    const devSseObserver: AgentObserver = {
-      id: 'dev:sse',
+    const sseObserver: AgentObserver = {
+      id: 'wake:sse',
       handle(event) {
-        // Dev-only trace: summarize each event so we can see what the agent is doing.
         const anyEv = event as unknown as Record<string, unknown>
         const detail = anyEv.toolName ? ` tool=${anyEv.toolName}` : ''
         const reason = anyEv.reason ? ` reason=${anyEv.reason}` : ''
@@ -125,7 +133,7 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
         const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
         const isError = anyEv.isError ? ' ERROR' : ''
         console.log(
-          `[live-agent] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`,
+          `[wake] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`,
         )
         if (event.type === 'tool_execution_end') {
           deps.realtime.notify({ table: 'messages', id: data.conversationId, action: 'INSERT' })
@@ -147,8 +155,8 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
         },
         registrations: {
           tools: [replyTool as unknown as AgentTool, sendCardTool as unknown as AgentTool],
-          commands: [],
-          observers: [devSseObserver],
+          commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
+          observers: [sseObserver],
           mutators: [],
           materializers: [messagesMaterializer],
           sideLoadContributors: [conversationSideLoad],
@@ -157,13 +165,13 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
         logger: {
           debug: () => undefined,
           info: () => undefined,
-          warn: (obj, msg) => console.warn('[live-agent]', msg ?? '', obj),
-          error: (obj, msg) => console.error('[live-agent]', msg ?? '', obj),
+          warn: (obj, msg) => console.warn('[wake]', msg ?? '', obj),
+          error: (obj, msg) => console.error('[wake]', msg ?? '', obj),
         },
         maxTurns: 10,
       })
     } catch (err) {
-      console.error('[live-agent] bootWake failed:', err)
+      console.error('[wake] bootWake failed:', err)
     }
   }
 }

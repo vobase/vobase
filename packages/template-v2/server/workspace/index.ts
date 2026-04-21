@@ -10,4 +10,11 @@ export {
   ScopedFs,
   WRITABLE_PREFIXES,
 } from './ro-enforcer'
-export { createVobaseCommand, memoryVerbs, type VobaseDispatcherOpts } from './vobase-cli'
+export {
+  conversationVerbs,
+  createVobaseCommand,
+  driveVerbs,
+  memoryVerbs,
+  teamVerbs,
+  type VobaseDispatcherOpts,
+} from './vobase-cli'

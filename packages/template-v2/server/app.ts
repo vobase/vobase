@@ -7,12 +7,11 @@ import type { Sql } from 'postgres'
 import config from '../vobase.config'
 import { createAuth } from './auth'
 import { wireAuthIntoModules } from './auth/wire-modules'
-import { buildDevPorts } from './dev/dev-ports'
-import { createLiveAgentHandler } from './dev/live-agent'
-import { createStubAgentHandler } from './dev/stub-agent'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from './middlewares'
+import { buildPorts } from './ports'
 import { createSseRoute } from './routes/sse'
 import { bootModules } from './runtime/boot-modules'
+import { createWakeHandler } from './wake-handler'
 
 export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   const app = new Hono()
@@ -26,15 +25,13 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
 
   const requireSession = createRequireSession(auth)
 
-  // Dev ports + in-process job queue drive the channel modules' wake
-  // dispatch. Production replaces these with the pg-boss-backed harness.
+  // App ports + in-process job queue drive the channel modules' wake dispatch.
   const jobHandlers = new Map<string, (data: unknown) => Promise<void>>()
-  const devPorts = await buildDevPorts(db, sql, config.database, jobHandlers)
-  // CaptionPort has no dev implementation — Gemini-backed only. Throw-proxy
-  // keeps the PluginContext shape satisfied; modules that reach for caption
-  // at boot fail loudly.
+  const ports = await buildPorts(db, sql, config.database, jobHandlers)
+  // CaptionPort is Gemini-backed only. Throw-proxy keeps the PluginContext
+  // shape satisfied; modules that reach for caption at boot fail loudly.
   const captionThrow = (): never => {
-    throw new Error('CaptionPort unavailable in dev — wire CAPTION_PROVIDER=gemini + GOOGLE_API_KEY')
+    throw new Error('CaptionPort unwired — set CAPTION_PROVIDER=gemini + GOOGLE_API_KEY')
   }
   const caption: CaptionPort = {
     captionImage: captionThrow,
@@ -47,13 +44,13 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
     ctx: {
       caption,
       db,
-      jobs: devPorts.jobs,
+      jobs: ports.jobs,
       storage: {
         getBucket: () => {
           throw new Error('ScopedStorage not configured — no module declared manifest.buckets')
         },
       },
-      realtime: devPorts.realtime,
+      realtime: ports.realtime,
       logger: {
         debug: () => undefined,
         info: (obj, msg) => console.info('[boot]', msg ?? '', obj ?? ''),
@@ -71,34 +68,21 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
 
   await wireAuthIntoModules(auth)
 
-  app.route('/api/sse', createSseRoute(devPorts.realtime))
+  app.route('/api/sse', createSseRoute(ports.realtime))
 
-  // Dev wake dispatch: stub replies when no LLM key, real wake otherwise.
-  // The pi-agent-core harness reads OPENAI_API_KEY (or BIFROST_*) directly —
-  // we just gate the live handler on key presence here.
-  if (process.env.NODE_ENV !== 'production') {
-    const hasLlmKey = Boolean(process.env.OPENAI_API_KEY || (process.env.BIFROST_API_KEY && process.env.BIFROST_URL))
-    if (hasLlmKey) {
-      console.log('[server] LLM key present — routing /test-web through real wake engine')
-      jobHandlers.set(
-        INBOUND_TO_WAKE_JOB,
-        createLiveAgentHandler({
-          inbox: devPorts.inbox,
-          contacts: devPorts.contacts,
-          agents: devPorts.agents,
-          drive: devPorts.drive,
-          realtime: devPorts.realtime,
-          anthropicApiKey: '',
-        }),
-      )
-    } else {
-      console.log('[server] no LLM key — /test-web will use canned stub-agent replies')
-      jobHandlers.set(
-        INBOUND_TO_WAKE_JOB,
-        createStubAgentHandler({ inbox: devPorts.inbox, realtime: devPorts.realtime }),
-      )
-    }
-  }
+  // Wake dispatch for the web channel. The pi-agent-core harness reads
+  // OPENAI_API_KEY (or BIFROST_API_KEY + BIFROST_URL) from env directly — the
+  // handler fails loudly on the first inbound if no key is set.
+  jobHandlers.set(
+    INBOUND_TO_WAKE_JOB,
+    createWakeHandler({
+      inbox: ports.inbox,
+      contacts: ports.contacts,
+      agents: ports.agents,
+      drive: ports.drive,
+      realtime: ports.realtime,
+    }),
+  )
 
   return app
 }

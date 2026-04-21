@@ -4,7 +4,7 @@ Greenfield rebuild of the template package.
 
 ## Layout
 
-- `server/` — backend infra (runtime, contracts, harness, workspace, middlewares, dev, db, `main.ts` bootstrap). Each subdir has its own CLAUDE.md.
+- `server/` — backend infra (runtime, contracts, harness, workspace, middlewares, db, `main.ts` bootstrap, plus top-level `ports.ts` and `wake-handler.ts`). Each subdir has its own CLAUDE.md.
 - `modules/` — business domains (backend + frontend straddle per module; each conforms to the enforced module shape). See `modules/CLAUDE.md` for module shape + init order; per-module CLAUDE.md for domain rules (`agents`, `channels`, `drive`, `inbox`).
 - `src/` — frontend shell only (TanStack Router, shadcn/ai-elements/DiceUI primitives, app-wide providers/layout). No module-specific code — see `src/CLAUDE.md`.
 - `scripts/`, `docs/`, `tests/`, `e2e/`, `db/` — supporting

@@ -9,6 +9,7 @@ import {
   UserIcon,
   ZapIcon,
 } from 'lucide-react'
+import type React from 'react'
 import { Fragment } from 'react'
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation'
 import { MessageResponse } from '@/components/ai-elements/message'
@@ -194,6 +195,8 @@ function NoteRow({
   const principal = directory.resolve(note.authorType === 'agent' ? `agent:${note.authorId}` : note.authorId)
   const isMine = Boolean(currentUserId) && note.authorType === 'staff' && note.authorId === currentUserId
   const kind: PrincipalKind = principal?.kind ?? (note.authorType === 'agent' ? 'agent' : 'staff')
+  const isMentioned =
+    Boolean(currentUserId) && note.mentions.some((m) => m === `staff:${currentUserId}`)
 
   return (
     <Bubble isMine={isMine} principal={principal} kind={kind} variant="note" timestamp={note.createdAt}>
@@ -201,9 +204,71 @@ function NoteRow({
         <StickyNote className="size-3" />
         Internal note
       </div>
-      <MessageResponse className="text-foreground">{note.body}</MessageResponse>
+      <div className="text-foreground whitespace-pre-wrap break-words text-sm">
+        {renderNoteBodyWithMentions(note.body, note.mentions, directory, currentUserId)}
+      </div>
+      {isMentioned ? (
+        <div className="mt-1 text-mini font-medium uppercase tracking-wide text-rose-600 dark:text-rose-400">
+          You were mentioned
+        </div>
+      ) : null}
     </Bubble>
   )
+}
+
+/**
+ * Render a note body with `@Name` tokens highlighted. Only tokens whose
+ * display name matches an entry in `note.mentions` get styled — random `@foo`
+ * tokens fall through as plain text.
+ */
+function renderNoteBodyWithMentions(
+  body: string,
+  mentions: readonly string[],
+  directory: PrincipalDirectory,
+  currentUserId: string | null,
+): React.ReactNode[] {
+  if (mentions.length === 0) return [body]
+
+  const nameToKey = new Map<string, string>()
+  for (const m of mentions) {
+    const principal = directory.resolve(m.startsWith('staff:') ? m.slice('staff:'.length) : m)
+    const name = principal?.name
+    if (name) nameToKey.set(name.toLowerCase(), m)
+  }
+  if (nameToKey.size === 0) return [body]
+
+  const out: React.ReactNode[] = []
+  const matches = Array.from(
+    body.matchAll(/@([A-Za-z][A-Za-z0-9._-]*(?:\s+[A-Za-z][A-Za-z0-9._-]*)?)/g),
+  )
+  let cursor = 0
+  let chipIdx = 0
+  for (const m of matches) {
+    const raw = m[0]
+    const name = m[1]
+    const idx = m.index ?? -1
+    if (idx < 0) continue
+    const key = nameToKey.get(name.toLowerCase())
+    if (!key) continue
+    if (idx > cursor) out.push(body.slice(cursor, idx))
+    const isMe = currentUserId !== null && key === `staff:${currentUserId}`
+    out.push(
+      <span
+        key={`mention-${chipIdx++}`}
+        className={cn(
+          'rounded px-1 font-medium',
+          isMe
+            ? 'bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200'
+            : 'bg-blue-100 text-blue-900 dark:bg-blue-950/60 dark:text-blue-200',
+        )}
+      >
+        {raw}
+      </span>,
+    )
+    cursor = idx + raw.length
+  }
+  if (cursor < body.length) out.push(body.slice(cursor))
+  return out
 }
 
 // ─── Shared bubble ───────────────────────────────────────────────────

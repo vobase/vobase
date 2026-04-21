@@ -106,6 +106,13 @@ export interface CreateInboundMessageInput {
   threadKey?: string
   /** Email-only — subject of the thread root (set on first inbound in a thread). */
   emailSubject?: string
+  /**
+   * Assignee to set when this inbound creates the conversation row. Ignored
+   * when resuming an existing conversation. Channels resolve this from their
+   * instance config (e.g. web's `defaultAssignee`). When absent, falls back
+   * to `'unassigned'`.
+   */
+  initialAssignee?: string | null
 }
 
 export interface CreateInboundMessageResult {

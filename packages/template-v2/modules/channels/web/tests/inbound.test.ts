@@ -87,6 +87,13 @@ mock.module('@modules/contacts/service/contacts', () => ({
   },
 }))
 
+mock.module('../service/instances', () => ({
+  getInstanceDefaultAssignee: async (id: string) => {
+    calls.push({ method: 'getInstanceDefaultAssignee', data: { id } })
+    return null
+  },
+}))
+
 const fakeEvent = {
   organizationId: 'org-1',
   channelType: 'web' as const,
