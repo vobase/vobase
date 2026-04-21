@@ -13,16 +13,13 @@ import { decideDriveProposal } from '@modules/drive/service/proposal'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-const app = new Hono()
-
 const decideBodySchema = z.object({
   decision: z.enum(['approved', 'rejected']),
   decidedByUserId: z.string().min(1),
   note: z.string().optional(),
 })
 
-/** POST /api/drive/proposals/:id/decide */
-app.post('/:id/decide', async (c) => {
+const app = new Hono().post('/:id/decide', async (c) => {
   const { id } = c.req.param()
   const parsed = decideBodySchema.safeParse(await c.req.json())
   if (!parsed.success) {
