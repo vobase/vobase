@@ -19,6 +19,34 @@ import type { AgentDefinition } from '../schema'
 export const BUILTIN_TOOL_NAMES = ['bash', 'vobase'] as const
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number]
 
+export interface ModelOption {
+  value: string
+  label: string
+}
+
+export const MODEL_OPTIONS: readonly ModelOption[] = [
+  { value: 'gpt-5.4', label: 'GPT-5.4' },
+  { value: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (legacy)' },
+] as const
+
+export interface CreateAgentInput {
+  organizationId: string
+  name: string
+  model?: string
+  soulMd?: string
+  workingMemory?: string
+  enabled?: boolean
+}
+
+export interface UpdateAgentInput {
+  name?: string
+  model?: string
+  soulMd?: string
+  workingMemory?: string
+  enabled?: boolean
+}
+
 export function resolveAllowedTools(def: Pick<AgentDefinition, 'skillAllowlist'>): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -39,8 +67,8 @@ export function resolveAllowedTools(def: Pick<AgentDefinition, 'skillAllowlist'>
 
 export interface AgentDefinitionsService {
   getById(id: string): Promise<AgentDefinition>
-  create(input: unknown): Promise<AgentDefinition>
-  update(id: string, input: unknown): Promise<AgentDefinition>
+  create(input: CreateAgentInput): Promise<AgentDefinition>
+  update(id: string, input: UpdateAgentInput): Promise<AgentDefinition>
   remove(id: string): Promise<void>
   list(organizationId: string): Promise<AgentDefinition[]>
   getConversationWorkingMemory(
@@ -54,7 +82,7 @@ export interface AgentDefinitionsServiceDeps {
 }
 
 export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps): AgentDefinitionsService {
-  const db = deps.db as { select: Function }
+  const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
 
   async function getById(id: string): Promise<AgentDefinition> {
     const { agentDefinitions } = await import('@modules/agents/schema')
@@ -65,16 +93,48 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
     return row as AgentDefinition
   }
 
-  async function create(_input: unknown): Promise<AgentDefinition> {
-    throw new Error('not-implemented-in-phase-1: agents/agent-definitions.create')
+  async function create(input: CreateAgentInput): Promise<AgentDefinition> {
+    const { agentDefinitions } = await import('@modules/agents/schema')
+    const rows = (await db
+      .insert(agentDefinitions)
+      .values({
+        organizationId: input.organizationId,
+        name: input.name,
+        model: input.model ?? 'gpt-5.4',
+        soulMd: input.soulMd ?? '',
+        workingMemory: input.workingMemory ?? '',
+        enabled: input.enabled ?? true,
+      })
+      .returning()) as unknown[]
+    const row = rows[0]
+    if (!row) throw new Error('agents/create: insert returned no rows')
+    return row as AgentDefinition
   }
 
-  async function update(_id: string, _input: unknown): Promise<AgentDefinition> {
-    throw new Error('not-implemented-in-phase-1: agents/agent-definitions.update')
+  async function update(id: string, patch: UpdateAgentInput): Promise<AgentDefinition> {
+    const { agentDefinitions } = await import('@modules/agents/schema')
+    const { eq } = await import('drizzle-orm')
+    const set: Record<string, unknown> = {}
+    if (patch.name !== undefined) set.name = patch.name
+    if (patch.model !== undefined) set.model = patch.model
+    if (patch.soulMd !== undefined) set.soulMd = patch.soulMd
+    if (patch.workingMemory !== undefined) set.workingMemory = patch.workingMemory
+    if (patch.enabled !== undefined) set.enabled = patch.enabled
+    if (Object.keys(set).length === 0) return getById(id)
+    const rows = (await db
+      .update(agentDefinitions)
+      .set(set)
+      .where(eq(agentDefinitions.id, id))
+      .returning()) as unknown[]
+    const row = rows[0]
+    if (!row) throw new Error(`agent definition not found: ${id}`)
+    return row as AgentDefinition
   }
 
-  async function remove(_id: string): Promise<void> {
-    throw new Error('not-implemented-in-phase-1: agents/agent-definitions.remove')
+  async function remove(id: string): Promise<void> {
+    const { agentDefinitions } = await import('@modules/agents/schema')
+    const { eq } = await import('drizzle-orm')
+    await db.delete(agentDefinitions).where(eq(agentDefinitions.id, id))
   }
 
   async function list(organizationId: string): Promise<AgentDefinition[]> {
@@ -141,11 +201,11 @@ export async function getById(id: string): Promise<AgentDefinition> {
   return current().getById(id)
 }
 
-export async function create(input: unknown): Promise<AgentDefinition> {
+export async function create(input: CreateAgentInput): Promise<AgentDefinition> {
   return current().create(input)
 }
 
-export async function update(id: string, input: unknown): Promise<AgentDefinition> {
+export async function update(id: string, input: UpdateAgentInput): Promise<AgentDefinition> {
   return current().update(id, input)
 }
 

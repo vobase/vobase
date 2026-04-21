@@ -38,6 +38,7 @@ import { Route as ContactIdRouteImport } from './../modules/inbox/pages/$contact
 import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pages/attributes'
 import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
 import { Route as AgentsLearningsRouteImport } from './../modules/agents/pages/learnings'
+import { Route as AgentsIdRouteImport } from './../modules/agents/pages/$id'
 
 const pagesTestWebRoute = pagesTestWebRouteImport.update({
   id: '/test-web',
@@ -185,6 +186,11 @@ const AgentsLearningsRoute = AgentsLearningsRouteImport.update({
   path: '/agents/learnings',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
+const AgentsIdRoute = AgentsIdRouteImport.update({
+  id: '/agents/$id',
+  path: '/agents/$id',
+  getParentRoute: () => shellAppLayoutRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof shellHomeRedirectRoute
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof DotDotModulesInboxPagesLayoutRouteWithChildren
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
+  '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/contacts/attributes': typeof ContactsAttributesRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/test-web': typeof pagesTestWebRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
+  '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/contacts/attributes': typeof ContactsAttributesRoute
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/_app/inbox': typeof DotDotModulesInboxPagesLayoutRouteWithChildren
   '/_app/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
+  '/_app/agents/$id': typeof AgentsIdRoute
   '/_app/agents/learnings': typeof AgentsLearningsRoute
   '/_app/contacts/$id': typeof ContactsIdRoute
   '/_app/contacts/attributes': typeof ContactsAttributesRoute
@@ -283,6 +292,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/settings'
     | '/chat/$channelInstanceId'
+    | '/agents/$id'
     | '/agents/learnings'
     | '/contacts/$id'
     | '/contacts/attributes'
@@ -311,6 +321,7 @@ export interface FileRouteTypes {
     | '/test-web'
     | '/settings'
     | '/chat/$channelInstanceId'
+    | '/agents/$id'
     | '/agents/learnings'
     | '/contacts/$id'
     | '/contacts/attributes'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/_app/inbox'
     | '/_app/settings'
     | '/chat/$channelInstanceId'
+    | '/_app/agents/$id'
     | '/_app/agents/learnings'
     | '/_app/contacts/$id'
     | '/_app/contacts/attributes'
@@ -578,6 +590,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsLearningsRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
+    '/_app/agents/$id': {
+      id: '/_app/agents/$id'
+      path: '/agents/$id'
+      fullPath: '/agents/$id'
+      preLoaderRoute: typeof AgentsIdRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
   }
 }
 
@@ -627,6 +646,7 @@ interface shellAppLayoutRouteChildren {
   shellHomeRedirectRoute: typeof shellHomeRedirectRoute
   DotDotModulesInboxPagesLayoutRoute: typeof DotDotModulesInboxPagesLayoutRouteWithChildren
   DotDotModulesSettingsPagesLayoutRoute: typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
+  AgentsIdRoute: typeof AgentsIdRoute
   AgentsLearningsRoute: typeof AgentsLearningsRoute
   ContactsIdRoute: typeof ContactsIdRoute
   ContactsAttributesRoute: typeof ContactsAttributesRoute
@@ -646,6 +666,7 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
     DotDotModulesInboxPagesLayoutRouteWithChildren,
   DotDotModulesSettingsPagesLayoutRoute:
     DotDotModulesSettingsPagesLayoutRouteWithChildren,
+  AgentsIdRoute: AgentsIdRoute,
   AgentsLearningsRoute: AgentsLearningsRoute,
   ContactsIdRoute: ContactsIdRoute,
   ContactsAttributesRoute: ContactsAttributesRoute,

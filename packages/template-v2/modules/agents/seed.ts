@@ -66,9 +66,9 @@ export async function seed(db: unknown): Promise<void> {
       maxSteps: 20,
       workingMemory: '',
       skillAllowlist: ['reply-with-card', 'de-escalate', 'cite-policy', 'escalate-to-human', 'save-customer-doc'],
-      cardApprovalRequired: true,
-      fileApprovalRequired: true,
-      bookSlotApprovalRequired: true,
+      cardApprovalRequired: false,
+      fileApprovalRequired: false,
+      bookSlotApprovalRequired: false,
       enabled: true,
     })
     .onConflictDoNothing()
