@@ -1,5 +1,5 @@
 import type { Auth } from '@server/auth'
-import { requireOrganization, scopeRbac } from '@server/middlewares'
+import { type OrganizationEnv, requireOrganization, scopeRbac } from '@server/middlewares'
 import { type Context, Hono, type MiddlewareHandler } from 'hono'
 import { getDriveAuth } from '../service/files'
 import filesHandlers from './files'
@@ -10,18 +10,16 @@ import proposalHandlers from './proposal'
  * after the drive module's `init()` runs — the Auth instance is published via
  * `installDriveAuth()` in `wireAuthIntoModules()`.
  *
- * Falls through with no gate when auth is not installed — unit tests mount
- * `filesHandlers` directly without a session layer.
+ * Falls through with no gate when auth is not installed (unit-test mode).
  */
 function scopeGate(write: boolean): MiddlewareHandler {
-  return async (c: Context, next) => {
+  return async (c: Context<OrganizationEnv>, next) => {
     const auth = getDriveAuth() as Auth | null
     if (!auth) return next()
-    let resp: Response | undefined
-    await requireOrganization(c, async () => {
-      resp = (await scopeRbac(auth, { write })(c, next)) ?? undefined
-    })
-    return resp
+    // Chain requireOrganization → scopeRbac → next. Each middleware in the
+    // chain either blocks (finalizing c with c.json) or falls through to its
+    // own `next`. Returning undefined is fine — Hono checks c.finalized.
+    return requireOrganization(c, () => scopeRbac(auth, { write })(c, next) as Promise<void>)
   }
 }
 

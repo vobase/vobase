@@ -11,6 +11,7 @@ export const routes = rootRoute('root.tsx', [
     route('/', 'shell/home-redirect.tsx'),
     route('/inbox', '../modules/inbox/pages/layout.tsx', [physical('/', '../modules/inbox/pages')]),
     physical('/contacts', '../modules/contacts/pages'),
+    physical('/team', '../modules/team/pages'),
     physical('/agents', '../modules/agents/pages'),
     physical('/drive', '../modules/drive/pages'),
     physical('/channels', '../modules/channels/pages'),

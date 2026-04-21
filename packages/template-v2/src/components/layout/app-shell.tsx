@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Radio, Settings2, Users } from 'lucide-react'
+import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Radio, Settings2, UserCog, Users } from 'lucide-react'
 import type * as React from 'react'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Kbd } from '@/components/ui/kbd'
@@ -25,10 +25,11 @@ const NAV_ITEMS: NavItemDef[] = [
   { icon: Inbox, label: 'Inbox', shortcut: '⌘1', to: '/inbox', enabled: true },
   { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/inbox/approvals', enabled: true },
   { icon: Users, label: 'Contacts', shortcut: '⌘3', to: '/contacts', enabled: true },
-  { icon: Bot, label: 'Agents', shortcut: '⌘4', to: '/agents', enabled: true },
-  { icon: HardDrive, label: 'Drive', shortcut: '⌘5', to: '/drive', enabled: true },
-  { icon: Radio, label: 'Channels', shortcut: '⌘6', to: '/channels', enabled: true },
-  { icon: Settings2, label: 'Settings', shortcut: '⌘7', to: '/settings', enabled: true },
+  { icon: UserCog, label: 'Team', shortcut: '⌘4', to: '/team', enabled: true },
+  { icon: Bot, label: 'Agents', shortcut: '⌘5', to: '/agents', enabled: true },
+  { icon: HardDrive, label: 'Drive', shortcut: '⌘6', to: '/drive', enabled: true },
+  { icon: Radio, label: 'Channels', shortcut: '⌘7', to: '/channels', enabled: true },
+  { icon: Settings2, label: 'Settings', shortcut: '⌘8', to: '/settings', enabled: true },
 ]
 
 function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {

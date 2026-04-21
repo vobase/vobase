@@ -16,6 +16,7 @@ import { Route as pagesChatDotchannelInstanceIdRouteImport } from './pages/chat.
 import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
 import { Route as DotDotModulesInboxPagesLayoutRouteImport } from './../modules/inbox/pages/layout'
 import { Route as shellHomeRedirectRouteImport } from './shell/home-redirect'
+import { Route as TeamIndexRouteImport } from './../modules/team/pages/index'
 import { Route as IndexRouteImport } from './../modules/inbox/pages/index'
 import { Route as DriveIndexRouteImport } from './../modules/drive/pages/index'
 import { Route as ContactsIndexRouteImport } from './../modules/contacts/pages/index'
@@ -23,6 +24,8 @@ import { Route as ChannelsIndexRouteImport } from './../modules/channels/pages/i
 import { Route as AgentsIndexRouteImport } from './../modules/agents/pages/index'
 import { Route as shellAuthPendingRouteImport } from './shell/auth/pending'
 import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
+import { Route as TeamAttributesRouteImport } from './../modules/team/pages/attributes'
+import { Route as TeamUserIdRouteImport } from './../modules/team/pages/$userId'
 import { Route as ProfileRouteImport } from './../modules/settings/pages/profile'
 import { Route as NotificationsRouteImport } from './../modules/settings/pages/notifications'
 import { Route as DisplayRouteImport } from './../modules/settings/pages/display'
@@ -71,6 +74,11 @@ const shellHomeRedirectRoute = shellHomeRedirectRouteImport.update({
   path: '/',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
+const TeamIndexRoute = TeamIndexRouteImport.update({
+  id: '/team/',
+  path: '/team/',
+  getParentRoute: () => shellAppLayoutRoute,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -105,6 +113,16 @@ const shellAuthLoginRoute = shellAuthLoginRouteImport.update({
   id: '/auth/login',
   path: '/auth/login',
   getParentRoute: () => shellAuthLayoutRoute,
+} as any)
+const TeamAttributesRoute = TeamAttributesRouteImport.update({
+  id: '/team/attributes',
+  path: '/team/attributes',
+  getParentRoute: () => shellAppLayoutRoute,
+} as any)
+const TeamUserIdRoute = TeamUserIdRouteImport.update({
+  id: '/team/$userId',
+  path: '/team/$userId',
+  getParentRoute: () => shellAppLayoutRoute,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
@@ -179,6 +197,8 @@ export interface FileRoutesByFullPath {
   '/settings/display': typeof DisplayRoute
   '/settings/notifications': typeof NotificationsRoute
   '/settings/profile': typeof ProfileRoute
+  '/team/$userId': typeof TeamUserIdRoute
+  '/team/attributes': typeof TeamAttributesRoute
   '/auth/login': typeof shellAuthLoginRoute
   '/auth/pending': typeof shellAuthPendingRoute
   '/agents/': typeof AgentsIndexRoute
@@ -186,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/contacts/': typeof ContactsIndexRoute
   '/drive/': typeof DriveIndexRoute
   '/inbox/': typeof IndexRoute
+  '/team/': typeof TeamIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof shellHomeRedirectRoute
@@ -203,6 +224,8 @@ export interface FileRoutesByTo {
   '/settings/display': typeof DisplayRoute
   '/settings/notifications': typeof NotificationsRoute
   '/settings/profile': typeof ProfileRoute
+  '/team/$userId': typeof TeamUserIdRoute
+  '/team/attributes': typeof TeamAttributesRoute
   '/auth/login': typeof shellAuthLoginRoute
   '/auth/pending': typeof shellAuthPendingRoute
   '/agents': typeof AgentsIndexRoute
@@ -210,6 +233,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof ContactsIndexRoute
   '/drive': typeof DriveIndexRoute
   '/inbox': typeof IndexRoute
+  '/team': typeof TeamIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -231,6 +255,8 @@ export interface FileRoutesById {
   '/_app/settings/display': typeof DisplayRoute
   '/_app/settings/notifications': typeof NotificationsRoute
   '/_app/settings/profile': typeof ProfileRoute
+  '/_app/team/$userId': typeof TeamUserIdRoute
+  '/_app/team/attributes': typeof TeamAttributesRoute
   '/_auth/auth/login': typeof shellAuthLoginRoute
   '/_auth/auth/pending': typeof shellAuthPendingRoute
   '/_app/agents/': typeof AgentsIndexRoute
@@ -238,6 +264,7 @@ export interface FileRoutesById {
   '/_app/contacts/': typeof ContactsIndexRoute
   '/_app/drive/': typeof DriveIndexRoute
   '/_app/inbox/': typeof IndexRoute
+  '/_app/team/': typeof TeamIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -258,6 +285,8 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/notifications'
     | '/settings/profile'
+    | '/team/$userId'
+    | '/team/attributes'
     | '/auth/login'
     | '/auth/pending'
     | '/agents/'
@@ -265,6 +294,7 @@ export interface FileRouteTypes {
     | '/contacts/'
     | '/drive/'
     | '/inbox/'
+    | '/team/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -282,6 +312,8 @@ export interface FileRouteTypes {
     | '/settings/display'
     | '/settings/notifications'
     | '/settings/profile'
+    | '/team/$userId'
+    | '/team/attributes'
     | '/auth/login'
     | '/auth/pending'
     | '/agents'
@@ -289,6 +321,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/drive'
     | '/inbox'
+    | '/team'
   id:
     | '__root__'
     | '/_app'
@@ -309,6 +342,8 @@ export interface FileRouteTypes {
     | '/_app/settings/display'
     | '/_app/settings/notifications'
     | '/_app/settings/profile'
+    | '/_app/team/$userId'
+    | '/_app/team/attributes'
     | '/_auth/auth/login'
     | '/_auth/auth/pending'
     | '/_app/agents/'
@@ -316,6 +351,7 @@ export interface FileRouteTypes {
     | '/_app/contacts/'
     | '/_app/drive/'
     | '/_app/inbox/'
+    | '/_app/team/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -376,6 +412,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof shellHomeRedirectRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
+    '/_app/team/': {
+      id: '/_app/team/'
+      path: '/team'
+      fullPath: '/team/'
+      preLoaderRoute: typeof TeamIndexRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
     '/_app/inbox/': {
       id: '/_app/inbox/'
       path: '/'
@@ -424,6 +467,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/login'
       preLoaderRoute: typeof shellAuthLoginRouteImport
       parentRoute: typeof shellAuthLayoutRoute
+    }
+    '/_app/team/attributes': {
+      id: '/_app/team/attributes'
+      path: '/team/attributes'
+      fullPath: '/team/attributes'
+      preLoaderRoute: typeof TeamAttributesRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_app/team/$userId': {
+      id: '/_app/team/$userId'
+      path: '/team/$userId'
+      fullPath: '/team/$userId'
+      preLoaderRoute: typeof TeamUserIdRouteImport
+      parentRoute: typeof shellAppLayoutRoute
     }
     '/_app/settings/profile': {
       id: '/_app/settings/profile'
@@ -554,10 +611,13 @@ interface shellAppLayoutRouteChildren {
   AgentsLearningsRoute: typeof AgentsLearningsRoute
   ContactsIdRoute: typeof ContactsIdRoute
   ContactsAttributesRoute: typeof ContactsAttributesRoute
+  TeamUserIdRoute: typeof TeamUserIdRoute
+  TeamAttributesRoute: typeof TeamAttributesRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   ChannelsIndexRoute: typeof ChannelsIndexRoute
   ContactsIndexRoute: typeof ContactsIndexRoute
   DriveIndexRoute: typeof DriveIndexRoute
+  TeamIndexRoute: typeof TeamIndexRoute
 }
 
 const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
@@ -569,10 +629,13 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   AgentsLearningsRoute: AgentsLearningsRoute,
   ContactsIdRoute: ContactsIdRoute,
   ContactsAttributesRoute: ContactsAttributesRoute,
+  TeamUserIdRoute: TeamUserIdRoute,
+  TeamAttributesRoute: TeamAttributesRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   ChannelsIndexRoute: ChannelsIndexRoute,
   ContactsIndexRoute: ContactsIndexRoute,
   DriveIndexRoute: DriveIndexRoute,
+  TeamIndexRoute: TeamIndexRoute,
 }
 
 const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(
