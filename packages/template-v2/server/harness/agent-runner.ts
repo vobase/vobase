@@ -12,8 +12,10 @@
 
 import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
+import { createMessageHistoryObserver } from '@modules/agents/observers/message-history-observer'
 import { createWorkspaceSyncObserver } from '@modules/agents/observers/workspace-sync'
 import { getLastWakeTail } from '@modules/agents/service/journal'
+import { loadMessages, resolveThread } from '@modules/agents/service/message-history'
 import type { AbortContext } from '@server/contracts/abort-context'
 import type { AgentsPort } from '@server/contracts/agents-port'
 import type { ContactsPort } from '@server/contracts/contacts-port'
@@ -49,6 +51,7 @@ import type {
 } from '@server/contracts/plugin-context'
 import type { LlmFinish, LlmProvider } from '@server/contracts/provider-port'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
+import type { ScopedDb } from '@server/contracts/scoped-db'
 import type { WakeContext } from '@server/contracts/wake-context'
 import { EventBus as DefaultEventBus } from '@server/runtime/event-bus'
 import { assessBudget, worstCaseDeltaExceeds } from '@server/runtime/iteration-budget-runtime'
@@ -132,6 +135,12 @@ export interface BootWakeOpts {
   abortCtx?: AbortContext
   /** Inbound steer messages drained between turns. */
   steerQueue?: SteerQueueHandle
+  /**
+   * Drizzle handle for persisting pi AgentMessage[] history to agents.messages.
+   * When provided, a `createMessageHistoryObserver` is registered automatically.
+   * When absent (unit tests / mock path), message history is silently skipped.
+   */
+  db?: ScopedDb
 }
 
 export interface CapturedPrompt {
@@ -244,6 +253,32 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     }
     for (const factory of opts.registrations.observerFactories) {
       observers.register(factory(wakeCtx))
+    }
+  }
+
+  // ---- Message history observer -----------------------------------------
+  // When a real db handle is provided, resolve (or create) the thread row for
+  // this wake source and register the history observer. Unit tests omit `db`
+  // so this block is skipped entirely — no behaviour change for existing tests.
+  if (opts.db) {
+    try {
+      const threadId = await resolveThread(opts.db, {
+        agentId: opts.agentId,
+        conversationId,
+      })
+      const historyMessages = await loadMessages(opts.db, threadId)
+      observers.register(
+        createMessageHistoryObserver({
+          db: opts.db,
+          threadId,
+          // Hand-rolled loop: no pi AgentMessage[] yet — observer is a no-op
+          // until agentLoop replaces the turn loop (future commit).
+          getMessages: () => [],
+          initialSeq: historyMessages.length,
+        }),
+      )
+    } catch (err) {
+      logger.warn({ err }, 'bootWake: message history setup failed — continuing without persistence')
     }
   }
 
