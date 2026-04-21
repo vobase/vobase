@@ -13,8 +13,13 @@ import { ConversationRow } from './conversation-row'
 import { type FilterKey, FilterTabBar } from './filter-tab-bar'
 import { OwnershipFilter, type OwnershipOption, type OwnershipValue } from './ownership-filter'
 
-async function fetchConversations(): Promise<Conversation[]> {
-  const r = await fetch('/api/inbox/conversations')
+interface GroupedInbox {
+  rows: Conversation[]
+  counts: { active: number; later: number; done: number }
+}
+
+async function fetchInboxGrouped(): Promise<GroupedInbox> {
+  const r = await fetch('/api/inbox/conversations?grouped=1')
   if (!r.ok) throw new Error('fetch failed')
   return r.json()
 }
@@ -63,17 +68,19 @@ function ConversationList() {
   const [ownerFilter, setOwnerFilter] = useState<OwnershipValue>('all')
   const navigate = useNavigate()
 
-  const selectedId = useRouterState({
+  const selectedContactId = useRouterState({
     select: (s) => {
-      const m = s.location.pathname.match(/^\/inbox\/(.+)/)
+      const m = s.location.pathname.match(/^\/inbox\/([^/?#]+)/)
       return m?.[1] ?? null
     },
   })
 
-  const { data: conversations = [] } = useQuery<Conversation[]>({
-    queryKey: ['conversations'],
-    queryFn: fetchConversations,
+  const { data: grouped } = useQuery<GroupedInbox>({
+    queryKey: ['conversations', 'grouped'],
+    queryFn: fetchInboxGrouped,
   })
+  const conversations = grouped?.rows ?? []
+  const serverCounts = grouped?.counts
 
   const { data: contacts = [] } = useQuery<Contact[]>({
     queryKey: ['contacts'],
@@ -89,38 +96,42 @@ function ConversationList() {
     return m
   }, [contacts])
 
-  const { filtered, counts } = useMemo(() => {
+  // Server already collapsed to one row per contact with tab-aware bucketing.
+  // Client only filters by active tab + owner.
+  const { filtered, counts, totalContacts } = useMemo(() => {
     const now = new Date()
-    const counts: Partial<Record<FilterKey, number>> = { active: 0, later: 0, done: 0 }
-    const filtered: Conversation[] = []
-    for (const c of conversations) {
-      const tab = computeTab(c, now)
-      counts[tab] = (counts[tab] ?? 0) + 1
-      if (tab !== activeFilter) continue
+    const inTab = conversations.filter((c) => computeTab(c, now) === activeFilter)
+    const filtered = inTab.filter((c) => {
       const a = c.assignee
-      const match =
+      return (
         ownerFilter === 'all' ||
         (ownerFilter === 'unassigned' && a === 'unassigned') ||
         (ownerFilter === 'mine' && a !== 'unassigned') ||
         a === ownerFilter
-      if (match) filtered.push(c)
-    }
-    return { filtered, counts }
-  }, [conversations, activeFilter, ownerFilter])
+      )
+    })
+    const counts: Partial<Record<FilterKey, number>> = serverCounts ?? { active: 0, later: 0, done: 0 }
+    const totalContacts = (counts.active ?? 0) + (counts.later ?? 0) + (counts.done ?? 0)
+    return { filtered, counts, totalContacts }
+  }, [conversations, activeFilter, ownerFilter, serverCounts])
 
   const ownershipOptions = useMemo(() => deriveOwnershipOptions(conversations), [conversations])
 
-  const selectedIndex = filtered.findIndex((c) => c.id === selectedId)
+  const selectedIndex = filtered.findIndex((c) => c.contactId === selectedContactId)
 
   useKeyboardNav({
     context: 'inbox-list',
     onSelectNext: () => {
       const next = filtered[selectedIndex + 1]
-      if (next) navigate({ to: '/inbox/$id', params: { id: next.id } })
+      if (next) {
+        navigate({ to: '/inbox/$contactId', params: { contactId: next.contactId }, search: { conv: next.id } })
+      }
     },
     onSelectPrev: () => {
       const prev = filtered[selectedIndex - 1]
-      if (prev) navigate({ to: '/inbox/$id', params: { id: prev.id } })
+      if (prev) {
+        navigate({ to: '/inbox/$contactId', params: { contactId: prev.contactId }, search: { conv: prev.id } })
+      }
     },
   })
 
@@ -128,7 +139,7 @@ function ConversationList() {
     <>
       <PaneHeader
         title="Inbox"
-        meta={`${filtered.length}/${conversations.length}`}
+        meta={`${filtered.length}/${totalContacts}`}
         actions={
           <div className="flex items-center gap-0.5">
             <Button size="icon-sm" variant="ghost" aria-label="Search">
@@ -144,8 +155,14 @@ function ConversationList() {
           key={conv.id}
           conversation={conv}
           contact={contactById.get(conv.contactId)}
-          isSelected={conv.id === selectedId}
-          onClick={() => navigate({ to: '/inbox/$id', params: { id: conv.id } })}
+          isSelected={conv.contactId === selectedContactId}
+          onClick={() =>
+            navigate({
+              to: '/inbox/$contactId',
+              params: { contactId: conv.contactId },
+              search: { conv: conv.id },
+            })
+          }
         />
       ))}
     </>

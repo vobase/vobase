@@ -36,8 +36,10 @@ export { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID }
 export const SEEDED_CONV_ID = 'cnv0test00'
 
 export const PRIYA_CONV_ID = 'cnv0priya0'
+export const PRIYA_WA_CONV_ID = 'cnv0priyawa'
 export const MARCUS_CONV_ID = 'cnv0marcus'
 export const ELENA_CONV_ID = 'cnv0elena0'
+export const ELENA_WEB_CONV_ID = 'cnv0elenweb'
 export const DEREK_CONV_ID = 'cnv0derek0'
 export const SOPHIA_CONV_ID = 'cnv0sophia'
 
@@ -239,6 +241,35 @@ export async function seed(db: unknown): Promise<void> {
     createdAt: mins(8),
   })
 
+  // ── 2b. Priya — second conversation on WhatsApp (short follow-up) ──
+  await insertConv(ins, {
+    id: PRIYA_WA_CONV_ID,
+    contactId: PRIYA_CONTACT_ID,
+    channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
+    status: 'active',
+    assignee: AGENT_ASSIGNEE,
+    lastMessageAt: mins(45),
+  })
+  await insertMsg(ins, {
+    id: 'msg0priywa1',
+    conversationId: PRIYA_WA_CONV_ID,
+    role: 'customer',
+    kind: 'text',
+    content: { text: 'Ping over WA — quick one: can I forward Slack alerts to my phone during on-call?' },
+    channelExternalId: 'wa-priya-01',
+    createdAt: mins(50),
+  })
+  await insertMsg(ins, {
+    id: 'msg0priywa2',
+    conversationId: PRIYA_WA_CONV_ID,
+    role: 'agent',
+    kind: 'text',
+    content: {
+      text: "Yes — Slack's own mobile app handles that best. In our dashboard you can also set a per-user WhatsApp fallback under Notifications → Escalation. Want me to walk you through it?",
+    },
+    createdAt: mins(45),
+  })
+
   // ── 3. Marcus — awaiting_approval; enterprise quote drafted, waiting on Alice ──
   await insertConv(ins, {
     id: MARCUS_CONV_ID,
@@ -396,6 +427,37 @@ export async function seed(db: unknown): Promise<void> {
       },
     },
     createdAt: mins(21),
+  })
+
+  // ── 4b. Elena — second conversation on Web (billing portal follow-up) ──
+  await insertConv(ins, {
+    id: ELENA_WEB_CONV_ID,
+    contactId: ELENA_CONTACT_ID,
+    channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
+    status: 'active',
+    assignee: AGENT_ASSIGNEE,
+    lastMessageAt: mins(70),
+  })
+  await insertMsg(ins, {
+    id: 'msg0elnweb1',
+    conversationId: ELENA_WEB_CONV_ID,
+    role: 'customer',
+    kind: 'text',
+    content: {
+      text: 'Also from the web — the billing portal link in my email 404s. Is there a direct URL I can bookmark?',
+    },
+    channelExternalId: 'web-elena-01',
+    createdAt: mins(75),
+  })
+  await insertMsg(ins, {
+    id: 'msg0elnweb2',
+    conversationId: ELENA_WEB_CONV_ID,
+    role: 'agent',
+    kind: 'text',
+    content: {
+      text: "Sorry about that — the /billing route was renamed last week. Settings → Billing works, or direct link: app.meridian.com/settings/billing. I'll flag the stale email template internally.",
+    },
+    createdAt: mins(70),
   })
 
   // ── 5. Derek — resolved; quick slack-integration help, closed ───────

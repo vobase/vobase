@@ -10,8 +10,11 @@
  * returns the bound API; free-function wrappers route through the installed
  * instance to preserve the existing import surface.
  */
-import type { Conversation, Message } from '../schema'
+import { conversationEvents } from '@modules/agents/schema'
+import { and, desc, eq, getTableColumns, gt, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { type Conversation, channelInstances, conversations, type Message, messages } from '../schema'
 import { transitionConversation } from '../state'
+import { computeTab } from './bucketing'
 import type { CreateConversationInput, CreateInboundMessageInput, CreateInboundMessageResult } from './types'
 
 /** Minimal pg-boss-shaped binding — enough for snooze/unsnooze without pulling pg-boss types. */
@@ -46,6 +49,37 @@ type DbHandle = {
   update: (t: unknown) => UpdateChain
   transaction: <T>(fn: (tx: DbHandle) => Promise<T>) => Promise<T>
 }
+
+/** Escape hatch for building a `.as('alias')` subquery — not representable via DbHandle. */
+type Subquery<TFields> = TFields & { _isSubquery: true }
+type SubqueryBuilder<TFields> = {
+  from: (t: unknown) => {
+    where: (c: unknown) => {
+      orderBy: (col: unknown) => { limit: (n: number) => { as: (alias: string) => Subquery<TFields> } }
+    }
+  }
+}
+type DbWithSubquery = { select: <T>(fields: T) => SubqueryBuilder<T> }
+
+/** Escape hatch for `leftJoinLateral` + `leftJoin` — not representable via DbHandle. */
+type LateralSelectChain = {
+  from: (t: unknown) => {
+    leftJoin: (
+      table: unknown,
+      on: unknown,
+    ) => {
+      leftJoinLateral: (
+        subq: unknown,
+        on: unknown,
+      ) => {
+        where: (c: unknown) => {
+          orderBy: (col: unknown) => { limit: (n: number) => Promise<unknown[]> }
+        }
+      }
+    }
+  }
+}
+type DbWithLateral = { select: (fields: unknown) => LateralSelectChain }
 
 // ─── shared patch constants ────────────────────────────────────────────────
 const CLEAR_SNOOZE = {
@@ -85,6 +119,7 @@ export interface ListOpts {
   status?: string[]
   tab?: 'active' | 'later' | 'done'
   owner?: string
+  contactId?: string
   now?: Date
 }
 
@@ -106,6 +141,10 @@ export interface ConversationsService {
   reset(conversationId: string, by: string): Promise<Conversation>
   reassign(conversationId: string, assignee: string, by: string, reason?: string): Promise<Conversation>
   list(organizationId: string, opts?: ListOpts): Promise<Conversation[]>
+  listInboxByContact(
+    organizationId: string,
+    opts?: Omit<ListOpts, 'tab' | 'contactId'>,
+  ): Promise<{ rows: Conversation[]; counts: { active: number; later: number; done: number } }>
   sendText(input: unknown): Promise<unknown>
   sendCard(input: unknown): Promise<unknown>
   sendImage(input: unknown): Promise<unknown>
@@ -124,7 +163,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     runner: DbHandle,
     input: { conversationId: string; organizationId: string; type: string; payload: Record<string, unknown> },
   ): Promise<void> {
-    const { conversationEvents } = await import('@modules/agents/schema')
     await runner
       .insert(conversationEvents)
       .values({
@@ -139,7 +177,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
   }
 
   async function create(input: CreateConversationInput): Promise<Conversation> {
-    const { conversations } = await import('@modules/inbox/schema')
     const rows = await db
       .insert(conversations)
       .values({
@@ -163,9 +200,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     channelInstanceId: string,
     threadKey = 'default',
   ): Promise<{ conversation: Conversation; created: boolean }> {
-    const { conversations } = await import('@modules/inbox/schema')
-    const { and, eq } = await import('drizzle-orm')
-
     const inserted = (await db
       .insert(conversations)
       .values({
@@ -200,8 +234,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
   }
 
   async function get(id: string): Promise<Conversation> {
-    const { conversations } = await import('@modules/inbox/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db.select().from(conversations).where(eq(conversations.id, id)).limit(1)) as Conversation[]
     const row = rows[0]
     if (!row) throw new Error(`conversation not found: ${id}`)
@@ -215,8 +247,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
       input.channelInstanceId,
       input.threadKey ?? 'default',
     )
-    const { conversations, messages } = await import('@modules/inbox/schema')
-    const { and, eq } = await import('drizzle-orm')
 
     if (conversation.status === 'failed') {
       throw new ConversationFailedError(conversation.id)
@@ -327,9 +357,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
         .catch(() => null)
     }
 
-    const { conversations } = await import('@modules/inbox/schema')
-    const { eq } = await import('drizzle-orm')
-
     return db.transaction(async (tx) => {
       const rows = (await tx
         .update(conversations)
@@ -364,9 +391,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
       await scheduler.cancel(current.snoozedJobId).catch(() => undefined)
     }
 
-    const { conversations } = await import('@modules/inbox/schema')
-    const { eq } = await import('drizzle-orm')
-
     return db.transaction(async (tx) => {
       const rows = (await tx
         .update(conversations)
@@ -392,9 +416,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     if (!originalUntil || !current.snoozedAt) return { woken: false }
     if (current.snoozedAt.toISOString() !== snoozedAtIso) return { woken: false }
 
-    const { conversations } = await import('@modules/inbox/schema')
-    const { eq } = await import('drizzle-orm')
-
     await db.transaction(async (tx) => {
       await tx
         .update(conversations)
@@ -416,8 +437,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
   async function resolve(conversationId: string, by: string, reason?: string): Promise<Conversation> {
     const current = await get(conversationId)
     const nextStatus = transitionConversation(current.status, 'resolved')
-    const { conversations } = await import('@modules/inbox/schema')
-    const { eq } = await import('drizzle-orm')
 
     return db.transaction(async (tx) => {
       const rows = (await tx
@@ -450,8 +469,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
   ): Promise<Conversation> {
     const current = await get(conversationId)
     const nextStatus = transitionConversation(current.status, 'active')
-    const { conversations } = await import('@modules/inbox/schema')
-    const { eq } = await import('drizzle-orm')
 
     return db.transaction(async (tx) => {
       const rows = (await tx
@@ -483,8 +500,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     reason?: string,
   ): Promise<Conversation> {
     const current = await get(conversationId)
-    const { conversations } = await import('@modules/inbox/schema')
-    const { eq } = await import('drizzle-orm')
 
     return db.transaction(async (tx) => {
       const rows = (await tx
@@ -515,9 +530,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     throw new Error('not-implemented: inbox/conversations.sendImage')
   }
   async function list(organizationId: string, opts?: ListOpts): Promise<Conversation[]> {
-    const { conversations } = await import('@modules/inbox/schema')
-    const { and, desc, eq, gt, inArray, isNotNull, or, sql } = await import('drizzle-orm')
-
     const now = opts?.now ?? new Date()
     const conds: unknown[] = [eq(conversations.organizationId, organizationId)]
 
@@ -547,16 +559,80 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
       }
     }
 
+    if (opts?.contactId) {
+      conds.push(eq(conversations.contactId, opts.contactId))
+    }
+
     const whereClause = conds.length === 1 ? conds[0] : and(...(conds as Parameters<typeof and>))
 
-    const rows = (await db
-      .select()
+    const lastMsg = (db as unknown as DbWithSubquery)
+      .select({
+        preview: sql<string | null>`${messages.content}->>'text'`.as('preview'),
+        kind: messages.kind,
+        role: messages.role,
+      })
+      .from(messages)
+      .where(eq(messages.conversationId, conversations.id))
+      .orderBy(desc(messages.createdAt))
+      .limit(1)
+      .as('last_msg')
+
+    const rows = (await (db as unknown as DbWithLateral)
+      .select({
+        ...getTableColumns(conversations),
+        lastMessagePreview: lastMsg.preview,
+        lastMessageKind: lastMsg.kind,
+        lastMessageRole: lastMsg.role,
+        channelInstanceType: channelInstances.type,
+        channelInstanceLabel: channelInstances.displayName,
+      })
       .from(conversations)
+      .leftJoin(channelInstances, eq(channelInstances.id, conversations.channelInstanceId))
+      .leftJoinLateral(lastMsg, sql`true`)
       .where(whereClause)
       .orderBy(desc(conversations.lastMessageAt))
       .limit(100)) as unknown[]
 
     return rows as Conversation[]
+  }
+
+  async function listInboxByContact(
+    organizationId: string,
+    opts?: Omit<ListOpts, 'tab' | 'contactId'>,
+  ): Promise<{ rows: Conversation[]; counts: { active: number; later: number; done: number } }> {
+    const now = opts?.now ?? new Date()
+    const all = await list(organizationId, { ...opts, now })
+    const reprByContactByTab: Record<'active' | 'later' | 'done', Map<string, Conversation>> = {
+      active: new Map(),
+      later: new Map(),
+      done: new Map(),
+    }
+    for (const c of all) {
+      if (c.channelInstanceType === 'email') continue
+      const tab = computeTab(c, now)
+      const m = reprByContactByTab[tab]
+      const existing = m.get(c.contactId)
+      const ta = c.lastMessageAt ? new Date(c.lastMessageAt).getTime() : 0
+      const te = existing?.lastMessageAt ? new Date(existing.lastMessageAt).getTime() : -1
+      if (!existing || ta > te) m.set(c.contactId, c)
+    }
+    const merged = [
+      ...reprByContactByTab.active.values(),
+      ...reprByContactByTab.later.values(),
+      ...reprByContactByTab.done.values(),
+    ].sort((a, b) => {
+      const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
+      const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
+      return tb - ta
+    })
+    return {
+      rows: merged,
+      counts: {
+        active: reprByContactByTab.active.size,
+        later: reprByContactByTab.later.size,
+        done: reprByContactByTab.done.size,
+      },
+    }
   }
 
   return {
@@ -572,6 +648,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     reset,
     reassign,
     list,
+    listInboxByContact,
     sendText,
     sendCard,
     sendImage,
@@ -653,4 +730,10 @@ export async function sendImage(input: unknown): Promise<unknown> {
 }
 export async function list(organizationId: string, opts?: ListOpts): Promise<Conversation[]> {
   return currentConversations().list(organizationId, opts)
+}
+export async function listInboxByContact(
+  organizationId: string,
+  opts?: Omit<ListOpts, 'tab' | 'contactId'>,
+): Promise<{ rows: Conversation[]; counts: { active: number; later: number; done: number } }> {
+  return currentConversations().listInboxByContact(organizationId, opts)
 }

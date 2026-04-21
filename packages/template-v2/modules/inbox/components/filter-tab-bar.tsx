@@ -1,4 +1,5 @@
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export type FilterKey = 'active' | 'later' | 'done'
 
@@ -16,33 +17,24 @@ interface FilterTabBarProps {
 
 function FilterTabBar({ value, onChange, counts }: FilterTabBarProps) {
   return (
-    <div
-      role="tablist"
-      aria-label="Conversation filters"
-      className="flex h-10 shrink-0 items-center border-b border-[var(--color-border-subtle)] px-3"
-    >
-      <ToggleGroup
-        type="single"
-        value={value}
-        onValueChange={(v) => {
-          if (v) onChange(v as FilterKey)
-        }}
-        className="gap-0.5"
-      >
-        {TABS.map(({ key, label }) => (
-          <ToggleGroupItem
-            key={key}
-            value={key}
-            role="tab"
-            aria-selected={value === key}
-            size="sm"
-            className="h-7 rounded-md px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-          >
-            {label}
-            {counts?.[key] !== undefined && <span className="ml-1 text-mini opacity-70">({counts[key]})</span>}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+    <div className="px-3 pt-2 shrink-0 border-b border-[var(--color-border-subtle)] pb-2">
+      <Tabs value={value} onValueChange={(v) => onChange(v as FilterKey)}>
+        <TabsList className="w-full">
+          {TABS.map(({ key, label }) => {
+            const count = counts?.[key]
+            return (
+              <TabsTrigger key={key} value={key} aria-selected={value === key} className="flex-1 text-sm gap-1.5">
+                {label}
+                {count ? (
+                  <Badge variant="secondary" className="h-4 min-w-4 px-1 text-xs font-bold">
+                    {count > 99 ? '99+' : count}
+                  </Badge>
+                ) : null}
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+      </Tabs>
     </div>
   )
 }

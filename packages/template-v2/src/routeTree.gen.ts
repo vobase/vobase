@@ -34,7 +34,7 @@ import { Route as AppearanceRouteImport } from './../modules/settings/pages/appe
 import { Route as ApiKeysRouteImport } from './../modules/settings/pages/api-keys'
 import { Route as AccountRouteImport } from './../modules/settings/pages/account'
 import { Route as ApprovalsRouteImport } from './../modules/inbox/pages/approvals'
-import { Route as IdRouteImport } from './../modules/inbox/pages/$id'
+import { Route as ContactIdRouteImport } from './../modules/inbox/pages/$contactId'
 import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pages/attributes'
 import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
 import { Route as AgentsLearningsRouteImport } from './../modules/agents/pages/learnings'
@@ -165,9 +165,9 @@ const ApprovalsRoute = ApprovalsRouteImport.update({
   path: '/approvals',
   getParentRoute: () => DotDotModulesInboxPagesLayoutRoute,
 } as any)
-const IdRoute = IdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
+const ContactIdRoute = ContactIdRouteImport.update({
+  id: '/$contactId',
+  path: '/$contactId',
   getParentRoute: () => DotDotModulesInboxPagesLayoutRoute,
 } as any)
 const ContactsAttributesRoute = ContactsAttributesRouteImport.update({
@@ -195,7 +195,7 @@ export interface FileRoutesByFullPath {
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/contacts/attributes': typeof ContactsAttributesRoute
-  '/inbox/$id': typeof IdRoute
+  '/inbox/$contactId': typeof ContactIdRoute
   '/inbox/approvals': typeof ApprovalsRoute
   '/settings/account': typeof AccountRoute
   '/settings/api-keys': typeof ApiKeysRoute
@@ -223,7 +223,7 @@ export interface FileRoutesByTo {
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/contacts/attributes': typeof ContactsAttributesRoute
-  '/inbox/$id': typeof IdRoute
+  '/inbox/$contactId': typeof ContactIdRoute
   '/inbox/approvals': typeof ApprovalsRoute
   '/settings/account': typeof AccountRoute
   '/settings/api-keys': typeof ApiKeysRoute
@@ -255,7 +255,7 @@ export interface FileRoutesById {
   '/_app/agents/learnings': typeof AgentsLearningsRoute
   '/_app/contacts/$id': typeof ContactsIdRoute
   '/_app/contacts/attributes': typeof ContactsAttributesRoute
-  '/_app/inbox/$id': typeof IdRoute
+  '/_app/inbox/$contactId': typeof ContactIdRoute
   '/_app/inbox/approvals': typeof ApprovalsRoute
   '/_app/settings/account': typeof AccountRoute
   '/_app/settings/api-keys': typeof ApiKeysRoute
@@ -286,7 +286,7 @@ export interface FileRouteTypes {
     | '/agents/learnings'
     | '/contacts/$id'
     | '/contacts/attributes'
-    | '/inbox/$id'
+    | '/inbox/$contactId'
     | '/inbox/approvals'
     | '/settings/account'
     | '/settings/api-keys'
@@ -314,7 +314,7 @@ export interface FileRouteTypes {
     | '/agents/learnings'
     | '/contacts/$id'
     | '/contacts/attributes'
-    | '/inbox/$id'
+    | '/inbox/$contactId'
     | '/inbox/approvals'
     | '/settings/account'
     | '/settings/api-keys'
@@ -345,7 +345,7 @@ export interface FileRouteTypes {
     | '/_app/agents/learnings'
     | '/_app/contacts/$id'
     | '/_app/contacts/attributes'
-    | '/_app/inbox/$id'
+    | '/_app/inbox/$contactId'
     | '/_app/inbox/approvals'
     | '/_app/settings/account'
     | '/_app/settings/api-keys'
@@ -550,11 +550,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApprovalsRouteImport
       parentRoute: typeof DotDotModulesInboxPagesLayoutRoute
     }
-    '/_app/inbox/$id': {
-      id: '/_app/inbox/$id'
-      path: '/$id'
-      fullPath: '/inbox/$id'
-      preLoaderRoute: typeof IdRouteImport
+    '/_app/inbox/$contactId': {
+      id: '/_app/inbox/$contactId'
+      path: '/$contactId'
+      fullPath: '/inbox/$contactId'
+      preLoaderRoute: typeof ContactIdRouteImport
       parentRoute: typeof DotDotModulesInboxPagesLayoutRoute
     }
     '/_app/contacts/attributes': {
@@ -582,14 +582,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface DotDotModulesInboxPagesLayoutRouteChildren {
-  IdRoute: typeof IdRoute
+  ContactIdRoute: typeof ContactIdRoute
   ApprovalsRoute: typeof ApprovalsRoute
   IndexRoute: typeof IndexRoute
 }
 
 const DotDotModulesInboxPagesLayoutRouteChildren: DotDotModulesInboxPagesLayoutRouteChildren =
   {
-    IdRoute: IdRoute,
+    ContactIdRoute: ContactIdRoute,
     ApprovalsRoute: ApprovalsRoute,
     IndexRoute: IndexRoute,
   }

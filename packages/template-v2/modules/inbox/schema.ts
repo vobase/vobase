@@ -34,6 +34,16 @@ export interface Conversation {
   resolvedReason: string | null
   createdAt: Date
   updatedAt: Date
+  /** Populated only by `ConversationsService.list()` — latest non-system message preview. */
+  lastMessagePreview?: string | null
+  /** Populated only by `ConversationsService.list()` — kind of latest message. */
+  lastMessageKind?: MessageKind | null
+  /** Populated only by `ConversationsService.list()` — role of latest message sender. */
+  lastMessageRole?: MessageRole | null
+  /** Populated only by `ConversationsService.list()`/`get()` — channel instance type (e.g. 'web', 'whatsapp'). */
+  channelInstanceType?: string | null
+  /** Populated only by `ConversationsService.list()`/`get()` — channel instance display label. */
+  channelInstanceLabel?: string | null
 }
 
 export type MessageRole = 'customer' | 'agent' | 'system' | 'staff'

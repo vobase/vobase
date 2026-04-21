@@ -1,46 +1,40 @@
 "use client";
 
-import { cva, type VariantProps } from "class-variance-authority";
+import { intlFormatDistance } from "date-fns";
 import { Slot as SlotPrimitive } from "radix-ui";
 import * as React from "react";
-import { cn } from "@/lib/utils";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { cn } from "@/lib/utils";
 
-function pluralize(n: number, word: string) {
-  return `${n} ${word}${n === 1 ? "" : "s"}`;
-}
+export type RelativeTimeLength = "short" | "long";
 
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
+function formatShort(date: Date, now: Date = new Date()): string {
   const diff = now.getTime() - date.getTime();
-  const isInFuture = diff < 0;
-  const absDiff = Math.abs(diff);
-
-  const seconds = Math.floor(absDiff / 1000);
-  const minutes = Math.floor(seconds / 60);
+  const abs = Math.abs(diff);
+  const sign = diff < 0 ? "-" : "";
+  const minutes = Math.floor(abs / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
 
-  if (seconds < 5) return "just now";
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${sign}${minutes}m`;
+  if (hours < 24) return `${sign}${hours}h`;
+  if (days < 7) return `${sign}${days}d`;
+  if (weeks < 5) return `${sign}${weeks}w`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
-  if (isInFuture) {
-    if (seconds < 60) return `in ${pluralize(seconds, "second")}`;
-    if (minutes < 60) return `in ${pluralize(minutes, "minute")}`;
-    if (hours < 24) return `in ${pluralize(hours, "hour")}`;
-    if (days < 7) return `in ${pluralize(days, "day")}`;
-    return date.toLocaleDateString();
+function formatLong(date: Date, now: Date = new Date()): string {
+  const diff = Math.abs(now.getTime() - date.getTime());
+  if (diff < 60000) {
+    return diff < 0 ? "in less than a minute" : "less than a minute ago";
   }
-
-  if (seconds < 60) return `${pluralize(seconds, "second")} ago`;
-  if (minutes < 60)
-    return `${pluralize(minutes, "minute")} ${pluralize(seconds % 60, "second")} ago`;
-  if (hours < 24) return `${pluralize(hours, "hour")} ago`;
-  if (days < 7) return `${pluralize(days, "day")} ago`;
-  return date.toLocaleDateString();
+  return intlFormatDistance(date, now);
 }
 
 interface TimezoneCardProps extends React.ComponentProps<"div"> {
@@ -104,22 +98,6 @@ function TimezoneCard(props: TimezoneCardProps) {
   );
 }
 
-const triggerVariants = cva(
-  "inline-flex w-fit items-center justify-center text-foreground/70 text-sm transition-colors hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-  {
-    variants: {
-      variant: {
-        default: "",
-        muted: "text-foreground/50 hover:text-foreground/70",
-        ghost: "hover:underline",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  },
-);
-
 interface RelativeTimeCardProps
   extends React.ComponentProps<"button">,
     React.ComponentProps<typeof HoverCard>,
@@ -133,17 +111,21 @@ interface RelativeTimeCardProps
       | "collisionBoundary"
       | "collisionPadding"
       | "asChild"
-    >,
-    VariantProps<typeof triggerVariants> {
+    > {
   date: Date | string | number;
   timezones?: string[];
   updateInterval?: number;
+  /**
+   * Trigger display length. `long` (default) → intlFormatDistance (e.g. "2 minutes ago");
+   * `short` → "2m", "1h", "3d". Below 1 minute shows "less than a minute ago" / "now"
+   * so we never render precise seconds. Hover card always shows full detail.
+   */
+  length?: RelativeTimeLength;
 }
 
 function RelativeTimeCard(props: RelativeTimeCardProps) {
   const {
     date: dateProp,
-    variant,
     timezones = ["UTC"],
     open,
     defaultOpen,
@@ -158,6 +140,7 @@ function RelativeTimeCard(props: RelativeTimeCardProps) {
     collisionBoundary,
     collisionPadding,
     updateInterval = 1000,
+    length = "long",
     asChild,
     children,
     className,
@@ -174,18 +157,34 @@ function RelativeTimeCard(props: RelativeTimeCardProps) {
     [],
   );
 
-  const [formattedTime, setFormattedTime] = React.useState<string>(() =>
-    date.toLocaleDateString(),
+  const absoluteDateTime = React.useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(date),
+    [date, locale],
   );
 
+  const compute = React.useCallback(
+    () => (length === "short" ? formatShort(date) : formatLong(date)),
+    [date, length],
+  );
+
+  const [relativeTime, setRelativeTime] = React.useState<string>(compute);
+
   React.useEffect(() => {
-    setFormattedTime(formatRelativeTime(date));
+    setRelativeTime(compute());
     const timer = setInterval(() => {
-      setFormattedTime(formatRelativeTime(date));
+      setRelativeTime(compute());
     }, updateInterval);
 
     return () => clearInterval(timer);
-  }, [date, updateInterval]);
+  }, [compute, updateInterval]);
 
   const TriggerPrimitive = asChild ? SlotPrimitive.Slot : "button";
 
@@ -200,17 +199,14 @@ function RelativeTimeCard(props: RelativeTimeCardProps) {
       <HoverCardTrigger asChild>
         <TriggerPrimitive
           {...triggerProps}
-          className={cn(triggerVariants({ variant, className }))}
+          className={cn(
+            "inline-flex w-fit cursor-default items-center text-inherit transition-colors hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            className,
+          )}
         >
           {children ?? (
             <time dateTime={date.toISOString()} suppressHydrationWarning>
-              {new Intl.DateTimeFormat(locale, {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              }).format(date)}
+              {relativeTime}
             </time>
           )}
         </TriggerPrimitive>
@@ -227,9 +223,9 @@ function RelativeTimeCard(props: RelativeTimeCardProps) {
       >
         <time
           dateTime={date.toISOString()}
-          className="text-muted-foreground text-sm"
+          className="font-medium text-foreground text-sm"
         >
-          {formattedTime}
+          {absoluteDateTime}
         </time>
         <div role="list" className="flex flex-col gap-1">
           {timezones.map((timezone) => (

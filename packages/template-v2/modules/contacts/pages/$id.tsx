@@ -62,7 +62,7 @@ export function ContactDetailPage() {
                   </span>
                 )}
                 <span>
-                  Added <RelativeTimeCard date={contact.createdAt} variant="muted" />
+                  Added <RelativeTimeCard date={contact.createdAt} />
                 </span>
                 {contact.marketingOptOut && (
                   <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
@@ -71,7 +71,7 @@ export function ContactDetailPage() {
                     {contact.marketingOptOutAt && (
                       <>
                         {' '}
-                        (<RelativeTimeCard date={contact.marketingOptOutAt} variant="muted" />)
+                        (<RelativeTimeCard date={contact.marketingOptOutAt} />)
                       </>
                     )}
                   </span>

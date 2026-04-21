@@ -181,7 +181,7 @@ export function ContactsListPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right text-xs text-muted-foreground">
-                    {c.createdAt ? <RelativeTimeCard date={c.createdAt} variant="muted" /> : '—'}
+                    {c.createdAt ? <RelativeTimeCard date={c.createdAt} /> : '—'}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

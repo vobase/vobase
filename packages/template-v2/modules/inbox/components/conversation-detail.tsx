@@ -6,7 +6,8 @@ import { deriveContactName } from '@modules/inbox/lib/contact'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
-import { PaneHeader } from '@/components/layout/pane-header'
+import { useQueryState } from 'nuqs'
+import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Combobox,
@@ -16,9 +17,10 @@ import {
   ComboboxItem,
   ComboboxTrigger,
 } from '@/components/ui/combobox'
-import { Status } from '@/components/ui/status'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import type { Conversation, Message } from '../schema'
+import type { ChannelTab } from './channel-tab-bar'
+import { ChannelTabBar } from './channel-tab-bar'
 import { Composer } from './composer'
 import { InlineApprovalBanner } from './inline-approval-banner'
 import { MessageThread } from './message-thread'
@@ -26,8 +28,8 @@ import { SnoozeMenu } from './snooze-menu'
 
 const CURRENT_STAFF_ID = 'staff'
 
-async function fetchConversation(id: string): Promise<Conversation> {
-  const r = await fetch(`/api/inbox/conversations/${id}`)
+async function fetchConversationsForContact(contactId: string): Promise<Conversation[]> {
+  const r = await fetch(`/api/inbox/conversations?contactId=${encodeURIComponent(contactId)}`)
   if (!r.ok) throw new Error(`fetch failed: ${r.status}`)
   return r.json()
 }
@@ -38,8 +40,11 @@ async function fetchMessages(id: string): Promise<Message[]> {
   return r.json()
 }
 
-async function fetchConversationList(): Promise<Array<{ id: string; contactId?: string }>> {
-  const r = await fetch('/api/inbox/conversations')
+async function fetchInboxGrouped(): Promise<{
+  rows: Conversation[]
+  counts: { active: number; later: number; done: number }
+}> {
+  const r = await fetch('/api/inbox/conversations?grouped=1')
   if (!r.ok) throw new Error(`fetch failed: ${r.status}`)
   return r.json()
 }
@@ -57,150 +62,209 @@ const STAFF_OPTIONS = [
 ]
 
 export function ConversationDetail() {
-  const params = useParams({ strict: false }) as { id: string }
-  const id = params.id
+  const params = useParams({ strict: false }) as { contactId: string }
+  const contactId = params.contactId
   const navigate = useNavigate()
 
-  const { data: conv } = useQuery({
-    queryKey: ['conversation', id],
-    queryFn: () => fetchConversation(id),
-  })
+  const [convParam, setConvParam] = useQueryState('conv')
 
-  const { data: messages = [] } = useQuery({
-    queryKey: ['messages', id],
-    queryFn: () => fetchMessages(id),
-  })
-
-  const { data: notes = [] } = useNotes(id)
-
-  const { data: convList = [] } = useQuery({
-    queryKey: ['conversations'],
-    queryFn: fetchConversationList,
+  const { data: contactConvs = [] } = useQuery({
+    queryKey: ['conversations', { contactId }],
+    queryFn: () => fetchConversationsForContact(contactId),
   })
 
   const { data: contact = null } = useQuery({
-    queryKey: ['contact', conv?.contactId],
-    queryFn: () => (conv?.contactId ? fetchContact(conv.contactId) : null),
-    enabled: Boolean(conv?.contactId),
+    queryKey: ['contact', contactId],
+    queryFn: () => fetchContact(contactId),
   })
 
-  const title = deriveContactName(contact, conv?.contactId ?? id)
+  // Filter out email channels per current scope.
+  const visibleConvs = useMemo(() => contactConvs.filter((c) => c.channelInstanceType !== 'email'), [contactConvs])
 
-  const reassign = useReassign(id)
-  const queryClient = useQueryClient()
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['conversations'] })
-    queryClient.invalidateQueries({ queryKey: ['conversation', id] })
-  }
-  const resolveMut = useLifecycle(id, 'resolve', CURRENT_STAFF_ID)
-  const reopenMut = useLifecycle(id, 'reopen', CURRENT_STAFF_ID)
-  const resetMut = useLifecycle(id, 'reset', CURRENT_STAFF_ID)
+  // Unique channel tabs (one per distinct channelInstanceId), sorted by most-recent activity.
+  const tabs = useMemo<ChannelTab[]>(() => {
+    const byChannel = new Map<string, { conv: Conversation; latest: number }>()
+    for (const c of visibleConvs) {
+      const t = c.lastMessageAt ? new Date(c.lastMessageAt).getTime() : 0
+      const cur = byChannel.get(c.channelInstanceId)
+      if (!cur || t > cur.latest) byChannel.set(c.channelInstanceId, { conv: c, latest: t })
+    }
+    return [...byChannel.entries()]
+      .sort((a, b) => b[1].latest - a[1].latest)
+      .map(([channelInstanceId, { conv }]) => ({
+        channelInstanceId,
+        type: conv.channelInstanceType ?? null,
+        label: conv.channelInstanceLabel ?? null,
+      }))
+  }, [visibleConvs])
 
-  const idx = convList.findIndex((c) => c.id === id)
+  // Selected conversation: ?conv=<id> if present, else most recently active.
+  const activeConv = useMemo<Conversation | null>(() => {
+    if (visibleConvs.length === 0) return null
+    if (convParam) {
+      const match = visibleConvs.find((c) => c.id === convParam)
+      if (match) return match
+    }
+    // Most recently active overall.
+    return [...visibleConvs].sort((a, b) => {
+      const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
+      const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
+      return tb - ta
+    })[0]
+  }, [visibleConvs, convParam])
+
+  const activeChannelInstanceId = activeConv?.channelInstanceId ?? null
+  const activeConvId = activeConv?.id ?? null
+
+  const { data: messages = [] } = useQuery({
+    queryKey: ['messages', activeConvId],
+    queryFn: () => (activeConvId ? fetchMessages(activeConvId) : Promise.resolve([])),
+    enabled: Boolean(activeConvId),
+  })
+
+  const { data: notes = [] } = useNotes(activeConvId ?? '')
+
+  // Conversation-list nav: prev/next walks contactIds from the grouped inbox.
+  const { data: grouped } = useQuery({
+    queryKey: ['conversations', 'grouped'],
+    queryFn: fetchInboxGrouped,
+  })
+  const distinctContactIds = useMemo(() => (grouped?.rows ?? []).map((c) => c.contactId), [grouped])
+
+  const idx = distinctContactIds.indexOf(contactId)
   const hasPrev = idx > 0
-  const hasNext = idx >= 0 && idx < convList.length - 1
-
-  const navigateTo = (targetId: string) => navigate({ to: '/inbox/$id', params: { id: targetId } })
+  const hasNext = idx >= 0 && idx < distinctContactIds.length - 1
+  const navigateTo = (targetContactId: string) =>
+    navigate({ to: '/inbox/$contactId', params: { contactId: targetContactId } })
 
   useKeyboardNav({
     context: 'inbox-detail',
-    onSelectPrev: hasPrev ? () => navigateTo(convList[idx - 1].id) : undefined,
-    onSelectNext: hasNext ? () => navigateTo(convList[idx + 1].id) : undefined,
+    onSelectPrev: hasPrev ? () => navigateTo(distinctContactIds[idx - 1]) : undefined,
+    onSelectNext: hasNext ? () => navigateTo(distinctContactIds[idx + 1]) : undefined,
   })
+
+  const reassign = useReassign(activeConvId ?? '')
+  const queryClient = useQueryClient()
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    if (activeConvId) queryClient.invalidateQueries({ queryKey: ['conversation', activeConvId] })
+  }
+  const resolveMut = useLifecycle(activeConvId ?? '', 'resolve', CURRENT_STAFF_ID)
+  const reopenMut = useLifecycle(activeConvId ?? '', 'reopen', CURRENT_STAFF_ID)
+  const resetMut = useLifecycle(activeConvId ?? '', 'reset', CURRENT_STAFF_ID)
+
+  const title = deriveContactName(contact, contactId)
+  const subline = contact?.phone ?? contact?.email ?? null
 
   return (
     <div className="flex h-full flex-col">
-      <PaneHeader
-        density="detail"
-        title={title}
-        meta={conv ? <Status variant={conv.status} label={conv.status} /> : undefined}
-        actions={
-          <div className="flex items-center gap-1">
-            <div className="w-36">
-              <Combobox
-                value={conv?.assignee ?? ''}
-                onValueChange={(val) => {
-                  if (val) reassign.mutate(val)
-                }}
-              >
-                <ComboboxAnchor className="h-7 border-0 bg-transparent px-1 shadow-none">
-                  <ComboboxInput className="h-7 text-xs" placeholder="Assign to…" />
-                  <ComboboxTrigger />
-                </ComboboxAnchor>
-                <ComboboxContent>
-                  {STAFF_OPTIONS.map((opt) => (
-                    <ComboboxItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </ComboboxItem>
-                  ))}
-                </ComboboxContent>
-              </Combobox>
-            </div>
-            {conv?.status === 'active' && (
-              <>
-                <SnoozeMenu conversationId={id} by={CURRENT_STAFF_ID} onSnoozed={invalidate} />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => resolveMut.mutate()}
-                  disabled={resolveMut.isPending}
-                  data-testid="conversation-resolve"
-                >
-                  <CheckIcon className="size-4" />
-                  Resolve
-                </Button>
-              </>
-            )}
-            {conv?.status === 'resolved' && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => reopenMut.mutate()}
-                disabled={reopenMut.isPending}
-                data-testid="conversation-reopen"
-              >
-                <RotateCcwIcon className="size-4" />
-                Reopen
-              </Button>
-            )}
-            {conv?.status === 'failed' && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => resetMut.mutate()}
-                disabled={resetMut.isPending}
-                data-testid="conversation-reset"
-              >
-                <RefreshCcwIcon className="size-4" />
-                Retry
-              </Button>
-            )}
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              disabled={!hasPrev}
-              className={!hasPrev ? 'opacity-30' : undefined}
-              onClick={() => hasPrev && navigateTo(convList[idx - 1].id)}
-              aria-label="Previous conversation"
-            >
-              <ChevronLeftIcon className="size-4" />
-            </Button>
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              disabled={!hasNext}
-              className={!hasNext ? 'opacity-30' : undefined}
-              onClick={() => hasNext && navigateTo(convList[idx + 1].id)}
-              aria-label="Next conversation"
-            >
-              <ChevronRightIcon className="size-4" />
-            </Button>
+      {/* Row 1: contact header + channel tabs */}
+      <div className="w-full border-b bg-background px-4 py-2 flex items-center gap-6">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <h1 className="text-base font-semibold truncate">{title}</h1>
+          {subline && <span className="text-xs text-muted-foreground shrink-0">{subline}</span>}
+        </div>
+        {tabs.length > 1 && (
+          <div>
+            <ChannelTabBar
+              tabs={tabs}
+              selectedChannelInstanceId={activeChannelInstanceId}
+              onSelect={(chId) => {
+                const conv = visibleConvs.find((c) => c.channelInstanceId === chId)
+                if (conv) setConvParam(conv.id)
+              }}
+            />
           </div>
-        }
-      />
-      <InlineApprovalBanner conversationId={id} />
+        )}
+      </div>
+
+      {/* Row 2: action bar */}
+      <div className="border-b bg-muted/20 px-4 py-1.5 flex items-center gap-2">
+        <div className="w-36">
+          <Combobox
+            value={activeConv?.assignee ?? ''}
+            onValueChange={(val) => {
+              if (val && activeConvId) reassign.mutate(val)
+            }}
+          >
+            <ComboboxAnchor className="h-7 border-0 bg-transparent px-1 shadow-none">
+              <ComboboxInput className="h-7 text-xs" placeholder="Assign to…" />
+              <ComboboxTrigger />
+            </ComboboxAnchor>
+            <ComboboxContent>
+              {STAFF_OPTIONS.map((opt) => (
+                <ComboboxItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </ComboboxItem>
+              ))}
+            </ComboboxContent>
+          </Combobox>
+        </div>
+        <div className="flex-1" />
+        {activeConv?.status === 'active' && activeConvId && (
+          <>
+            <SnoozeMenu conversationId={activeConvId} by={CURRENT_STAFF_ID} onSnoozed={invalidate} />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => resolveMut.mutate()}
+              disabled={resolveMut.isPending}
+              data-testid="conversation-resolve"
+            >
+              <CheckIcon className="size-4" />
+              Resolve
+            </Button>
+          </>
+        )}
+        {activeConv?.status === 'resolved' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => reopenMut.mutate()}
+            disabled={reopenMut.isPending}
+            data-testid="conversation-reopen"
+          >
+            <RotateCcwIcon className="size-4" />
+            Reopen
+          </Button>
+        )}
+        {activeConv?.status === 'failed' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => resetMut.mutate()}
+            disabled={resetMut.isPending}
+            data-testid="conversation-reset"
+          >
+            <RefreshCcwIcon className="size-4" />
+            Retry
+          </Button>
+        )}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          disabled={!hasPrev}
+          className={!hasPrev ? 'opacity-30' : undefined}
+          onClick={() => hasPrev && navigateTo(distinctContactIds[idx - 1])}
+          aria-label="Previous conversation"
+        >
+          <ChevronLeftIcon className="size-4" />
+        </Button>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          disabled={!hasNext}
+          className={!hasNext ? 'opacity-30' : undefined}
+          onClick={() => hasNext && navigateTo(distinctContactIds[idx + 1])}
+          aria-label="Next conversation"
+        >
+          <ChevronRightIcon className="size-4" />
+        </Button>
+      </div>
+
+      {activeConvId && <InlineApprovalBanner conversationId={activeConvId} />}
       <MessageThread messages={messages} notes={notes} />
-      <Composer conversationId={id} />
+      {activeConvId && <Composer conversationId={activeConvId} />}
     </div>
   )
 }

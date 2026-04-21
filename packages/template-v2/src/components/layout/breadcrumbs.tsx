@@ -40,10 +40,10 @@ export function Breadcrumbs() {
       continue
     }
 
-    // inbox conversation detail — look up subject from query cache
-    if ('id' in params && pathname.includes('/inbox/')) {
-      const conv = qc.getQueryData<ConvCacheEntry>(['messaging-threads', params.id])
-      const label = conv?.subject ?? params.id.slice(0, 8)
+    // inbox contact detail — look up subject from query cache
+    if ('contactId' in params && pathname.includes('/inbox/')) {
+      const conv = qc.getQueryData<ConvCacheEntry>(['messaging-threads', params.contactId])
+      const label = conv?.subject ?? params.contactId.slice(0, 8)
       crumbs.push({ label, href: null })
       continue
     }

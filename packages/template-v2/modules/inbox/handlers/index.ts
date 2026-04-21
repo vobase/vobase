@@ -1,4 +1,8 @@
-import { get as getConversation, list as listConversations } from '@modules/inbox/service/conversations'
+import {
+  get as getConversation,
+  list as listConversations,
+  listInboxByContact,
+} from '@modules/inbox/service/conversations'
 import { list as listMessages } from '@modules/inbox/service/messages'
 import { list as listApprovals } from '@modules/inbox/service/pending-approvals'
 import { Hono } from 'hono'
@@ -19,10 +23,20 @@ const app = new Hono()
     const tabRaw = c.req.query('tab')
     const tab = tabRaw === 'active' || tabRaw === 'later' || tabRaw === 'done' ? tabRaw : undefined
     const owner = c.req.query('owner') || undefined
+    const contactId = c.req.query('contactId') || undefined
+    const grouped = c.req.query('grouped') === '1'
+    if (grouped) {
+      const result = await listInboxByContact(organizationId, {
+        status: status?.length ? status : undefined,
+        owner,
+      })
+      return c.json(result)
+    }
     const rows = await listConversations(organizationId, {
       status: status?.length ? status : undefined,
       tab,
       owner,
+      contactId,
     })
     return c.json(rows)
   })

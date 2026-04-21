@@ -252,5 +252,27 @@ describe('createInboundMessage lifecycle', () => {
   })
 })
 
+describe('list() preview', () => {
+  it('returns lastMessagePreview + kind + role from latest message', async () => {
+    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    await createInboundMessage({
+      organizationId: MERIDIAN_ORG_ID,
+      channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
+      contactId: SEEDED_CONTACT_ID,
+      externalMessageId: `preview-${Date.now()}`,
+      content: 'latest text from customer',
+      contentType: 'text',
+    })
+
+    const { list } = await import('@modules/inbox/service/conversations')
+    const rows = await list(MERIDIAN_ORG_ID)
+    const row = rows.find((r) => r.id === conversation.id)
+    expect(row).toBeDefined()
+    expect(row?.lastMessagePreview).toBe('latest text from customer')
+    expect(row?.lastMessageKind).toBe('text')
+    expect(row?.lastMessageRole).toBe('customer')
+  })
+})
+
 // silence unused
 void MERIDIAN_AGENT_ID
