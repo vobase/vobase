@@ -77,8 +77,15 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
     throw new Error('not-implemented-in-phase-1: agents/agent-definitions.remove')
   }
 
-  async function list(_organizationId: string): Promise<AgentDefinition[]> {
-    throw new Error('not-implemented-in-phase-1: agents/agent-definitions.list')
+  async function list(organizationId: string): Promise<AgentDefinition[]> {
+    const { agentDefinitions } = await import('@modules/agents/schema')
+    const { asc, eq } = await import('drizzle-orm')
+    const rows = await db
+      .select()
+      .from(agentDefinitions)
+      .where(eq(agentDefinitions.organizationId, organizationId))
+      .orderBy(asc(agentDefinitions.name))
+    return rows as AgentDefinition[]
   }
 
   async function getConversationWorkingMemory(

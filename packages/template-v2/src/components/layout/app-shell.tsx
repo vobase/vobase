@@ -6,6 +6,7 @@ import { Kbd } from '@/components/ui/kbd'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { useStaffHeartbeat } from '@/hooks/use-staff-heartbeat'
 import { cn } from '@/lib/utils'
 import { NavUser } from './nav-user'
 
@@ -68,6 +69,7 @@ function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
 function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate()
   useKeyboardNav({ context: 'shell', onNavigate: (path) => navigate({ to: path }) })
+  useStaffHeartbeat()
 
   return (
     <TooltipProvider>

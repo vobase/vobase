@@ -208,9 +208,35 @@ export const internalNotes = inboxPgSchema.table(
   (t) => [
     index('idx_notes_conv').on(t.conversationId, t.createdAt),
     index('idx_notes_notif').on(t.notifChannelMsgId).where(sql`${t.notifChannelMsgId} IS NOT NULL`),
+    index('idx_notes_mentions').using('gin', t.mentions),
     check('internal_notes_author_type_check', sql`author_type IN ('agent','staff','system')`),
   ],
 )
+
+/**
+ * Per-user read-state for `@staff:<id>` mentions on internal notes. Row present
+ * = dismissed/read. Notification fan-out (T7b) filters unread by `LEFT JOIN`.
+ */
+export const mentionDismissals = inboxPgSchema.table(
+  'mention_dismissals',
+  {
+    userId: text('user_id').notNull(),
+    noteId: text('note_id')
+      .notNull()
+      .references(() => internalNotes.id, { onDelete: 'cascade' }),
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('idx_mention_dismissals_user').on(t.userId, t.dismissedAt),
+    uniqueIndex('uq_mention_dismissals').on(t.userId, t.noteId),
+  ],
+)
+
+export interface MentionDismissal {
+  userId: string
+  noteId: string
+  dismissedAt: Date
+}
 
 export const pendingApprovals = inboxPgSchema.table(
   'pending_approvals',
