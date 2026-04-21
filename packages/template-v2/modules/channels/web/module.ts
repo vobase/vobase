@@ -15,8 +15,6 @@ export default defineModule({
   init(ctx) {
     installChannelWebState(
       createChannelWebState({
-        inbox: ctx.ports.inbox,
-        contacts: ctx.ports.contacts,
         jobs: ctx.jobs as JobQueue,
         realtime: ctx.realtime,
       }),

@@ -262,7 +262,7 @@ type _RequiredPluginKeys =
   | 'moduleName'
   | 'organizationId'
   | 'conversationId'
-  | 'ports'
+  | 'caption'
   | 'registerTool'
   | 'registerSkill'
   | 'registerCommand'

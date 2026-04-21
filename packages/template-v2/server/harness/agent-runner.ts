@@ -329,27 +329,18 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   }
 
   // ---- Observer bus ------------------------------------------------------
-  const unwiredPort = (name: string) =>
-    new Proxy(
-      {},
-      {
-        get(_t, prop) {
-          throw new Error(`harness observer ctx: ${name}.${String(prop)} accessed but not wired`)
-        },
-      },
-    ) as never
   const observerCtx: ObserverContext = {
     organizationId: opts.organizationId,
     conversationId,
     wakeId,
-    ports: {
-      inbox: unwiredPort('ports.inbox'),
-      contacts: opts.ports.contacts,
-      drive: opts.ports.drive,
-      agents: opts.ports.agents,
-      caption: unwiredPort('ports.caption'),
-    },
-    db: unwiredPort('db'),
+    db: new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          throw new Error(`harness observer ctx: db.${String(prop)} accessed but not wired`)
+        },
+      },
+    ) as never,
     logger,
     realtime: { notify: () => undefined, subscribe: () => () => {} },
   }
@@ -427,7 +418,12 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
 
   const dirtyTracker = new DirtyTracker(workspace.initialSnapshot)
   observers.register(
-    createWorkspaceSyncObserver({ fs: workspace.innerFs, tracker: dirtyTracker, contactId: opts.contactId }),
+    createWorkspaceSyncObserver({
+      fs: workspace.innerFs,
+      tracker: dirtyTracker,
+      contactId: opts.contactId,
+      drive: opts.ports.drive,
+    }),
   )
   observers.register(
     createMemoryDistillObserver({

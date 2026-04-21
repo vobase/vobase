@@ -7,7 +7,7 @@
 import { ChannelOutboundEventSchema } from '@server/contracts/channel-event'
 import type { Context } from 'hono'
 import { dispatch } from '../service/dispatcher'
-import { requireInbox, requireRealtime } from '../service/state'
+import { requireRealtime } from '../service/state'
 
 export async function handleOutbound(c: Context): Promise<Response> {
   let body: unknown
@@ -28,7 +28,7 @@ export async function handleOutbound(c: Context): Promise<Response> {
     return c.json({ error: 'channel mismatch — expected web' }, 400)
   }
 
-  const result = await dispatch(event, requireInbox(), requireRealtime())
+  const result = await dispatch(event, requireRealtime())
 
   return c.json({ dispatched: true, messageId: result.messageId, notified: result.notified })
 }

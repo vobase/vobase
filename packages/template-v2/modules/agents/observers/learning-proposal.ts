@@ -28,10 +28,12 @@
  * to resolve them from the event stream.
  */
 
+import { upsertWorkingMemorySection } from '@modules/contacts/service/contacts'
 import type { AgentEvent, LearningProposedEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
 import type { PluginContext } from '@server/contracts/plugin-context'
 import { callLearnPropose, type LearningProposalDraft } from '../llm-prompts/learn-propose'
+import { append as journalAppend } from '../service/journal'
 import { insertProposal } from '../service/learning-proposals'
 import { detectStaffSignals } from '../service/staff-signals'
 
@@ -204,11 +206,17 @@ async function routeProposal(input: RouteInput): Promise<void> {
     proposalId: id,
     scope: draft.scope,
   }
-  await ctx.ports.agents.appendEvent(proposedEv)
+  await journalAppend({
+    conversationId: proposedEv.conversationId,
+    organizationId: proposedEv.organizationId,
+    wakeId: proposedEv.wakeId ?? null,
+    turnIndex: proposedEv.turnIndex ?? 0,
+    event: proposedEv,
+  })
 
   if (autoWrite) {
-    await ctx.ports.agents.appendEvent({
-      type: 'learning_approved',
+    const approvedEv = {
+      type: 'learning_approved' as const,
       ts: new Date(),
       wakeId: event.wakeId,
       conversationId: event.conversationId,
@@ -216,6 +224,13 @@ async function routeProposal(input: RouteInput): Promise<void> {
       turnIndex: event.turnIndex,
       proposalId: id,
       writeId: `auto:${id}`,
+    }
+    await journalAppend({
+      conversationId: approvedEv.conversationId,
+      organizationId: approvedEv.organizationId,
+      wakeId: approvedEv.wakeId,
+      turnIndex: approvedEv.turnIndex,
+      event: approvedEv,
     })
   }
 }
@@ -227,7 +242,7 @@ async function writeAutoScope(
   agentId: string,
 ): Promise<void> {
   if (draft.scope === 'contact') {
-    await ctx.ports.contacts.upsertWorkingMemorySection(contactId, draft.target, draft.body)
+    await upsertWorkingMemorySection(contactId, draft.target, draft.body)
     return
   }
 

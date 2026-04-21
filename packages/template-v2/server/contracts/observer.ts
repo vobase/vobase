@@ -19,7 +19,6 @@ export interface ObserverContext {
   readonly organizationId: string
   readonly conversationId: string
   readonly wakeId: string
-  readonly ports: PluginContext['ports']
   readonly db: PluginContext['db']
   readonly logger: Logger
   readonly realtime: PluginContext['realtime']

@@ -13,8 +13,6 @@ export default defineModule({
   init(ctx) {
     installChannelWhatsappState(
       createChannelWhatsappState({
-        inbox: ctx.ports.inbox,
-        contacts: ctx.ports.contacts,
         jobs: ctx.jobs as JobQueue,
         realtime: ctx.realtime,
       }),

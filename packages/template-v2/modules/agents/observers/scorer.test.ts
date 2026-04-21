@@ -61,7 +61,6 @@ function makeCtx(): ObserverContext {
     organizationId: 'org-scorer-1',
     conversationId: 'conv-scorer-1',
     wakeId: 'wake-scorer-1',
-    ports: {} as ObserverContext['ports'],
     db: makeMockDb() as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     realtime: { notify: () => {}, subscribe: () => () => {} },

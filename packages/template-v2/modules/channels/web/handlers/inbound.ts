@@ -1,8 +1,10 @@
+import { upsertByExternal } from '@modules/contacts/service/contacts'
+import { createInboundMessage } from '@modules/inbox/service/conversations'
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '@server/contracts/channel-event'
 import { verifyHmacWebhook } from '@server/middlewares'
 import type { Context } from 'hono'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
-import { requireContacts, requireInbox, requireJobs } from '../service/state'
+import { requireJobs } from '../service/state'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
@@ -27,13 +29,13 @@ interface InboundInput {
 }
 
 async function dispatchInbound(c: Context, input: InboundInput): Promise<Response> {
-  const contact = await requireContacts().upsertByExternal({
+  const contact = await upsertByExternal({
     organizationId: input.organizationId,
     phone: `web:${input.from}`,
     displayName: input.displayName,
   })
 
-  const result = await requireInbox().createInboundMessage({
+  const result = await createInboundMessage({
     organizationId: input.organizationId,
     channelInstanceId: input.channelInstanceId,
     contactId: contact.id,

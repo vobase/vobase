@@ -7,9 +7,11 @@
  * A3 invariant: no drizzle imports here. Instance resolution goes through InboxPort/ContactsService.
  * One-write-path: all message writes via InboxPort.createInboundMessage.
  */
+import { upsertByExternal } from '@modules/contacts/service/contacts'
+import { createInboundMessage } from '@modules/inbox/service/conversations'
 import type { MetaWebhookPayload } from './parser'
 import { parseWebhookPayload } from './parser'
-import { requireContacts, requireInbox, requireJobs } from './state'
+import { requireJobs } from './state'
 
 export interface ProcessResult {
   processed: number
@@ -46,8 +48,6 @@ export async function processWebhookPayload(
     channelInstanceId?: string
   },
 ): Promise<ProcessResult> {
-  const inboxPort = requireInbox()
-  const contactsPort = requireContacts()
   const jobs = requireJobs()
 
   const events = parseWebhookPayload(payload, opts.organizationId)
@@ -70,13 +70,13 @@ export async function processWebhookPayload(
         return null
       }
 
-      const contact = await contactsPort.upsertByExternal({
+      const contact = await upsertByExternal({
         organizationId: event.organizationId,
         phone: event.from,
         displayName: event.profileName || undefined,
       })
 
-      const result = await inboxPort.createInboundMessage({
+      const result = await createInboundMessage({
         organizationId: event.organizationId,
         channelInstanceId,
         contactId: contact.id,

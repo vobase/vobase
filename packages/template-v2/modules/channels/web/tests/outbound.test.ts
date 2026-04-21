@@ -3,10 +3,9 @@
  *
  * Verifies: payload validation, dispatcher invocation, SSE notify, transport-only discipline.
  */
-import { beforeEach, describe, expect, it } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
-import type { Conversation, Message } from '@server/contracts/domain-types'
-import type { InboxPort } from '@server/contracts/inbox-port'
+import type { Message } from '@server/contracts/domain-types'
 import type { RealtimeService } from '@server/contracts/plugin-context'
 import { createChannelWebState, installChannelWebState } from '../service/state'
 
@@ -28,51 +27,24 @@ const fakeMessage: Message = {
   createdAt: new Date(),
 }
 
-function makeInboxPort(): InboxPort {
-  return {
-    sendTextMessage: async (input) => {
-      calls.push({ method: 'sendTextMessage', data: input })
-      return fakeMessage
-    },
-    sendCardMessage: async (input) => {
-      calls.push({ method: 'sendCardMessage', data: input })
-      return fakeMessage
-    },
-    sendMediaMessage: async (input) => {
-      calls.push({ method: 'sendMediaMessage', data: input })
-      return fakeMessage
-    },
-    sendCardReply: async () => {
-      throw new Error('not-expected')
-    },
-    getConversation: async () => {
-      throw new Error('not-expected')
-    },
-    listMessages: async () => [],
-    createConversation: async () => {
-      throw new Error('not-expected')
-    },
-    sendImageMessage: async () => {
-      throw new Error('not-expected')
-    },
-    resolve: async () => {},
-    reassign: async () => {},
-    reopen: async () => {},
-    reset: async () => {},
-    snooze: async () => ({}) as Conversation,
-    unsnooze: async () => ({}) as Conversation,
-    addInternalNote: async () => {
-      throw new Error('not-expected')
-    },
-    listInternalNotes: async () => [],
-    insertPendingApproval: async () => {
-      throw new Error('not-expected')
-    },
-    createInboundMessage: async () => {
-      throw new Error('not-expected')
-    },
-  }
-}
+mock.module('@modules/inbox/service/messages', () => ({
+  appendTextMessage: async (input: unknown) => {
+    calls.push({ method: 'appendTextMessage', data: input })
+    return fakeMessage
+  },
+  appendCardMessage: async (input: unknown) => {
+    calls.push({ method: 'appendCardMessage', data: input })
+    return fakeMessage
+  },
+  appendMediaMessage: async (input: unknown) => {
+    calls.push({ method: 'appendMediaMessage', data: input })
+    return fakeMessage
+  },
+  appendStaffTextMessage: async (input: unknown) => {
+    calls.push({ method: 'appendStaffTextMessage', data: input })
+    return fakeMessage
+  },
+}))
 
 function makeRealtime(): RealtimeService {
   return {
@@ -109,16 +81,11 @@ function makeCtx(body: unknown) {
 
 beforeEach(() => {
   calls = []
-  installChannelWebState(
-    createChannelWebState({
-      inbox: makeInboxPort(),
-      realtime: makeRealtime(),
-    }),
-  )
+  installChannelWebState(createChannelWebState({ realtime: makeRealtime() }))
 })
 
 describe('handleOutbound', () => {
-  it('reply event — dispatches via InboxPort.sendTextMessage + notifies', async () => {
+  it('reply event — dispatches via appendTextMessage + notifies', async () => {
     const { handleOutbound } = await import('../handlers/outbound')
     const event = makeEvent('reply', { text: 'Hello customer' })
     const ctx = makeCtx(event)
@@ -126,28 +93,28 @@ describe('handleOutbound', () => {
 
     expect(res._status).toBe(200)
     expect(res._body.dispatched).toBe(true)
-    expect(calls.some((c) => c.method === 'sendTextMessage')).toBe(true)
+    expect(calls.some((c) => c.method === 'appendTextMessage')).toBe(true)
     expect(calls.some((c) => c.method === 'notify')).toBe(true)
   })
 
-  it('send_card event — dispatches via InboxPort.sendCardMessage', async () => {
+  it('send_card event — dispatches via appendCardMessage', async () => {
     const { handleOutbound } = await import('../handlers/outbound')
     const event = makeEvent('send_card', { type: 'card', title: 'Invoice', children: [] })
     const ctx = makeCtx(event)
     const res = (await handleOutbound(ctx)) as unknown as { _body: Record<string, unknown> }
 
     expect(res._body.dispatched).toBe(true)
-    expect(calls.some((c) => c.method === 'sendCardMessage')).toBe(true)
+    expect(calls.some((c) => c.method === 'appendCardMessage')).toBe(true)
   })
 
-  it('send_file event — dispatches via InboxPort.sendMediaMessage', async () => {
+  it('send_file event — dispatches via appendMediaMessage', async () => {
     const { handleOutbound } = await import('../handlers/outbound')
     const event = makeEvent('send_file', { driveFileId: 'f-001', caption: 'See attached' })
     const ctx = makeCtx(event)
     const res = (await handleOutbound(ctx)) as unknown as { _body: Record<string, unknown> }
 
     expect(res._body.dispatched).toBe(true)
-    expect(calls.some((c) => c.method === 'sendMediaMessage')).toBe(true)
+    expect(calls.some((c) => c.method === 'appendMediaMessage')).toBe(true)
   })
 
   it('wrong channelType is rejected with 400', async () => {
@@ -156,7 +123,7 @@ describe('handleOutbound', () => {
     const ctx = makeCtx(event)
     const res = (await handleOutbound(ctx)) as unknown as { _status: number }
     expect(res._status).toBe(400)
-    expect(calls.some((c) => c.method === 'sendTextMessage')).toBe(false)
+    expect(calls.some((c) => c.method === 'appendTextMessage')).toBe(false)
   })
 
   it('invalid payload schema returns 422', async () => {

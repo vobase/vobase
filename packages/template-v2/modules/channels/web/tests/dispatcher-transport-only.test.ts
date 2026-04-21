@@ -1,45 +1,24 @@
 /**
- * A3 gate — dispatcher MUST call InboxPort for persistence, never drizzle directly.
+ * A3 gate — dispatcher MUST delegate persistence to the inbox service,
+ * never touch drizzle (or schema) directly.
  *
- * This test uses a spy-instrumented InboxPort mock and asserts that after dispatch():
- *   1. InboxPort.sendTextMessage / sendCardMessage / sendMediaMessage was called.
- *   2. The drizzle sentinel object was NEVER accessed (no import of drizzle-orm or
- *      schema tables from the dispatcher module).
- *
- * It also double-checks at the source level that the dispatcher file has zero
- * direct drizzle imports (R1 companion check).
+ * Two-layer check:
+ *   1. Source-level: dispatcher.ts has no `drizzle-orm` or schema imports.
+ *   2. Runtime: mocked inbox service records every call and asserts dispatcher
+ *      routes the right tool name to the right service function.
  */
-import { beforeEach, describe, expect, it } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
 import type { Message } from '@server/contracts/domain-types'
-import type { InboxPort } from '@server/contracts/inbox-port'
 import type { RealtimeService } from '@server/contracts/plugin-context'
-import { dispatch } from '../service/dispatcher'
-
-// ─── Sentinels ───────────────────────────────────────────────────────────────
-
-let drizzleAccessed = false
-
-/** Poison proxy — any property access triggers the fail flag. */
-function makeDrizzlePoison(): unknown {
-  return new Proxy(
-    {},
-    {
-      get(_t, prop) {
-        drizzleAccessed = true
-        throw new Error(`A3 VIOLATION: dispatcher accessed drizzle property "${String(prop)}"`)
-      },
-    },
-  )
-}
-
-// ─── Mock InboxPort ──────────────────────────────────────────────────────────
 
 type CallLog = { method: string; input: unknown }
 let callLog: CallLog[] = []
 
-function makeInboxPort(): InboxPort {
-  const fakeMsg = (): Message => ({
+const fakeMsg = (): Message =>
+  ({
     id: 'msg-dispatched',
     conversationId: 'conv-1',
     organizationId: 'org-1',
@@ -50,57 +29,28 @@ function makeInboxPort(): InboxPort {
     channelExternalId: null,
     status: null,
     createdAt: new Date(),
-  })
+  }) as unknown as Message
 
-  return {
-    sendTextMessage: async (input) => {
-      callLog.push({ method: 'sendTextMessage', input })
-      return fakeMsg()
-    },
-    sendCardMessage: async (input) => {
-      callLog.push({ method: 'sendCardMessage', input })
-      return fakeMsg()
-    },
-    sendCardReply: async () => {
-      throw new Error('not-expected')
-    },
-    sendMediaMessage: async (input) => {
-      callLog.push({ method: 'sendMediaMessage', input })
-      return fakeMsg()
-    },
-    // Unused methods — return stubs
-    getConversation: async () => {
-      throw new Error('not-expected')
-    },
-    listMessages: async () => [],
-    createConversation: async () => {
-      throw new Error('not-expected')
-    },
-    sendImageMessage: async () => {
-      throw new Error('not-expected')
-    },
-    resolve: async () => {},
-    reassign: async () => {},
-    reopen: async () => {},
-    reset: async () => {},
-    snooze: async () => {
-      throw new Error('not-expected')
-    },
-    unsnooze: async () => {
-      throw new Error('not-expected')
-    },
-    addInternalNote: async () => {
-      throw new Error('not-expected')
-    },
-    listInternalNotes: async () => [],
-    insertPendingApproval: async () => {
-      throw new Error('not-expected')
-    },
-    createInboundMessage: async () => {
-      throw new Error('not-expected')
-    },
-  }
-}
+mock.module('@modules/inbox/service/messages', () => ({
+  appendTextMessage: async (input: unknown) => {
+    callLog.push({ method: 'appendTextMessage', input })
+    return fakeMsg()
+  },
+  appendCardMessage: async (input: unknown) => {
+    callLog.push({ method: 'appendCardMessage', input })
+    return fakeMsg()
+  },
+  appendMediaMessage: async (input: unknown) => {
+    callLog.push({ method: 'appendMediaMessage', input })
+    return fakeMsg()
+  },
+  appendStaffTextMessage: async (input: unknown) => {
+    callLog.push({ method: 'appendStaffTextMessage', input })
+    return fakeMsg()
+  },
+}))
+
+const { dispatch } = await import('../service/dispatcher')
 
 const noopRealtime: RealtimeService = { notify: () => {}, subscribe: () => () => {} }
 
@@ -117,50 +67,46 @@ function makeEvent(toolName: ChannelOutboundEvent['toolName'], payload: unknown)
 }
 
 beforeEach(() => {
-  drizzleAccessed = false
   callLog = []
-  // Install drizzle poison — dispatcher must never access this.
-  ;(globalThis as Record<string, unknown>).__drizzle_poison__ = makeDrizzlePoison()
 })
 
 describe('dispatcher transport-only (A3 gate)', () => {
-  it('reply: calls InboxPort.sendTextMessage, not drizzle', async () => {
+  it('dispatcher source has no drizzle or schema imports', async () => {
+    const path = fileURLToPath(new URL('../service/dispatcher.ts', import.meta.url))
+    const src = await readFile(path, 'utf8')
+    expect(src).not.toMatch(/from\s+['"]drizzle-orm/)
+    expect(src).not.toMatch(/from\s+['"]@modules\/[^'"]+\/schema['"]/)
+  })
+
+  it('reply: calls appendTextMessage', async () => {
     const event = makeEvent('reply', { text: 'Hi there' })
-    const result = await dispatch(event, makeInboxPort(), noopRealtime)
-
-    expect(drizzleAccessed).toBe(false)
+    const result = await dispatch(event, noopRealtime)
     expect(callLog).toHaveLength(1)
-    expect(callLog[0].method).toBe('sendTextMessage')
+    expect(callLog[0].method).toBe('appendTextMessage')
     expect(result.messageId).toBe('msg-dispatched')
   })
 
-  it('send_card: calls InboxPort.sendCardMessage, not drizzle', async () => {
+  it('send_card: calls appendCardMessage', async () => {
     const event = makeEvent('send_card', { type: 'card', title: 'Test', children: [] })
-    const result = await dispatch(event, makeInboxPort(), noopRealtime)
-
-    expect(drizzleAccessed).toBe(false)
+    const result = await dispatch(event, noopRealtime)
     expect(callLog).toHaveLength(1)
-    expect(callLog[0].method).toBe('sendCardMessage')
+    expect(callLog[0].method).toBe('appendCardMessage')
     expect(result.messageId).toBe('msg-dispatched')
   })
 
-  it('send_file: calls InboxPort.sendMediaMessage, not drizzle', async () => {
+  it('send_file: calls appendMediaMessage', async () => {
     const event = makeEvent('send_file', { driveFileId: 'file-001', caption: 'See attached' })
-    const result = await dispatch(event, makeInboxPort(), noopRealtime)
-
-    expect(drizzleAccessed).toBe(false)
+    const result = await dispatch(event, noopRealtime)
     expect(callLog).toHaveLength(1)
-    expect(callLog[0].method).toBe('sendMediaMessage')
+    expect(callLog[0].method).toBe('appendMediaMessage')
     expect(result.messageId).toBe('msg-dispatched')
   })
 
   it('reply with replyToMessageId threaded through', async () => {
     const event = makeEvent('reply', { text: 'Thread reply', replyToMessageId: 'msg-prev' })
-    await dispatch(event, makeInboxPort(), noopRealtime)
-
-    const logged = callLog[0].input as { parentMessageId?: string }
-    expect(logged.parentMessageId).toBe('msg-prev')
-    expect(drizzleAccessed).toBe(false)
+    await dispatch(event, noopRealtime)
+    const logged = callLog[0].input as { replyToMessageId?: string }
+    expect(logged.replyToMessageId).toBe('msg-prev')
   })
 
   it('notified flag is true after dispatch', async () => {
@@ -172,14 +118,13 @@ describe('dispatcher transport-only (A3 gate)', () => {
       subscribe: () => () => {},
     }
     const event = makeEvent('reply', { text: 'ping' })
-    const result = await dispatch(event, makeInboxPort(), spyRealtime)
+    const result = await dispatch(event, spyRealtime)
     expect(result.notified).toBe(true)
     expect(notified).toBe(true)
   })
 
-  it('unknown toolName throws without touching drizzle', async () => {
+  it('unknown toolName throws', async () => {
     const event = makeEvent('book_slot' as ChannelOutboundEvent['toolName'], { slotId: 'slot-1' })
-    await expect(dispatch(event, makeInboxPort(), noopRealtime)).rejects.toThrow('unknown toolName')
-    expect(drizzleAccessed).toBe(false)
+    await expect(dispatch(event, noopRealtime)).rejects.toThrow('unknown toolName')
   })
 })

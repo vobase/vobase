@@ -64,7 +64,6 @@ function makeCtx(llmOverride?: typeof mockLlmCall): MutatorContext {
     organizationId: 'org-mod-1',
     conversationId: 'conv-mod-1',
     wakeId: 'wake-mod-1',
-    ports: {} as MutatorContext['ports'],
     db: {} as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     realtime: { notify: () => {}, subscribe: () => () => {} },

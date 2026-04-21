@@ -1,6 +1,8 @@
+import { get as getConversation } from '@modules/inbox/service/conversations'
+import { appendCardReplyMessage } from '@modules/inbox/service/messages'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import { requireInbox, requireJobs } from '../service/state'
+import { requireJobs } from '../service/state'
 
 const CardReplyBodySchema = z.object({
   messageId: z.string().min(1),
@@ -23,19 +25,18 @@ export async function handleCardReply(c: Context): Promise<Response> {
   }
 
   const { messageId, buttonId, buttonValue, buttonLabel } = parsed.data
-  const inboxPort = requireInbox()
   const jobs = requireJobs()
 
-  let reply: Awaited<ReturnType<typeof inboxPort.sendCardReply>>
+  let reply: Awaited<ReturnType<typeof appendCardReplyMessage>>
   try {
-    reply = await inboxPort.sendCardReply({ parentMessageId: messageId, buttonId, buttonValue, buttonLabel })
+    reply = await appendCardReplyMessage({ parentMessageId: messageId, buttonId, buttonValue, buttonLabel })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('not found')) return c.json({ error: 'parent message not found' }, 404)
     return c.json({ error: 'internal error' }, 500)
   }
 
-  const conv = await inboxPort.getConversation(reply.conversationId)
+  const conv = await getConversation(reply.conversationId)
 
   await jobs.send('channel-web:inbound-to-wake', {
     organizationId: reply.organizationId,

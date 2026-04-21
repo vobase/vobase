@@ -1,8 +1,6 @@
 /**
  * Module-level state for channel-whatsapp.
  */
-import type { ContactsService } from '@modules/contacts/service/contacts'
-import type { InboxPort } from '@server/contracts/inbox-port'
 import type { RealtimeService } from '@server/contracts/plugin-context'
 
 export interface JobQueue {
@@ -10,8 +8,6 @@ export interface JobQueue {
 }
 
 interface ChannelWhatsappStateDeps {
-  inbox?: InboxPort | null
-  contacts?: ContactsService | null
   jobs?: JobQueue | null
   realtime?: RealtimeService | null
   /** Phone number ID used when sending via Meta Graph API. Sourced from channel_instance config. */
@@ -23,8 +19,6 @@ interface ChannelWhatsappStateDeps {
 }
 
 export interface ChannelWhatsappState {
-  inbox: InboxPort | null
-  contacts: ContactsService | null
   jobs: JobQueue | null
   realtime: RealtimeService | null
   phoneNumberId: string | null
@@ -34,8 +28,6 @@ export interface ChannelWhatsappState {
 
 export function createChannelWhatsappState(deps: ChannelWhatsappStateDeps = {}): ChannelWhatsappState {
   return {
-    inbox: deps.inbox ?? null,
-    contacts: deps.contacts ?? null,
     jobs: deps.jobs ?? null,
     realtime: deps.realtime ?? null,
     phoneNumberId: deps.phoneNumberId ?? null,
@@ -61,16 +53,6 @@ function current(): ChannelWhatsappState {
   return _currentChannelWhatsappState
 }
 
-export function requireInbox(): InboxPort {
-  const s = current()
-  if (!s.inbox) throw new Error('channel-whatsapp: inboxPort not initialised')
-  return s.inbox
-}
-export function requireContacts(): ContactsService {
-  const s = current()
-  if (!s.contacts) throw new Error('channel-whatsapp: contactsPort not initialised')
-  return s.contacts
-}
 export function requireJobs(): JobQueue {
   const s = current()
   if (!s.jobs) throw new Error('channel-whatsapp: jobQueue not initialised')

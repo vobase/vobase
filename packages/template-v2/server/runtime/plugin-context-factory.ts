@@ -60,7 +60,7 @@ export interface PluginContextFactoryInput {
   moduleName: string
   organizationId: string
   conversationId: string
-  ports: PluginContext['ports']
+  caption: PluginContext['caption']
   db: ScopedDb
   jobs: ScopedScheduler
   storage: ScopedStorage
@@ -93,7 +93,7 @@ export interface PluginContextFactoryInput {
  */
 export interface BootContextInput {
   moduleName: string
-  ports: PluginContext['ports']
+  caption: PluginContext['caption']
   db: ScopedDb
   jobs: ScopedScheduler
   storage: ScopedStorage
@@ -131,7 +131,7 @@ export function createBootContext(input: BootContextInput): {
     moduleName: input.moduleName,
     organizationId: '',
     conversationId: '',
-    ports: input.ports,
+    caption: input.caption,
     db: input.db,
     jobs,
     storage,
@@ -159,7 +159,7 @@ export function createPluginContext(input: PluginContextFactoryInput): {
     moduleName: input.moduleName,
     organizationId: input.organizationId,
     conversationId: input.conversationId,
-    ports: input.ports,
+    caption: input.caption,
 
     registerTool(tool) {
       registrations.tools.push(tool)

@@ -7,8 +7,6 @@
 import { createHmac } from 'node:crypto'
 import { handleInbound } from '@modules/channels/web/handlers/inbound'
 import { createChannelWebState, installChannelWebState } from '@modules/channels/web/service/state'
-import type { ContactsService } from '@modules/contacts/service/contacts'
-import type { InboxPort } from '@server/contracts/inbox-port'
 import { Hono } from 'hono'
 
 export interface CapturedJob {
@@ -39,23 +37,19 @@ export interface SimulatedChannelWeb {
 }
 
 export interface SimulatedChannelWebOpts {
-  inboxPort: InboxPort
-  contactsPort: ContactsService
   channelInstanceId?: string
   secret?: string
 }
 
 let msgCounter = 0
 
-export function createSimulatedChannelWeb(opts: SimulatedChannelWebOpts): SimulatedChannelWeb {
+export function createSimulatedChannelWeb(opts: SimulatedChannelWebOpts = {}): SimulatedChannelWeb {
   const secret = opts.secret ?? 'test-secret'
   const channelInstanceId = opts.channelInstanceId ?? 'chi0cust00'
   const capturedJobs: CapturedJob[] = []
 
   installChannelWebState(
     createChannelWebState({
-      inbox: opts.inboxPort,
-      contacts: opts.contactsPort,
       jobs: {
         async send(name: string, data: unknown): Promise<string> {
           capturedJobs.push({ name, data })

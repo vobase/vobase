@@ -7,12 +7,23 @@
  * + contact working memory upsert) is covered through the debounce stub.
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { AgentEndEvent, LearningRejectedEvent, MessageEndEvent } from '@server/contracts/event'
 import type { ObserverContext } from '@server/contracts/observer'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import { getTableName } from 'drizzle-orm'
-import { createMemoryDistillObserver } from './memory-distill'
+
+let contactUpserts: Array<{ heading: string; body: string }> = []
+
+mock.module('@modules/contacts/service/contacts', () => ({
+  readWorkingMemory: async () => '',
+  upsertWorkingMemorySection: async (_id: string, heading: string, body: string) => {
+    contactUpserts.push({ heading, body })
+  },
+}))
+
+// Must import AFTER mock.module
+const { createMemoryDistillObserver } = await import('./memory-distill')
 
 let currentWorkingMemory = ''
 let workingMemoryWrites: string[] = []
@@ -23,7 +34,6 @@ let proposalRows: Array<{
   decidedNote: string | null
   decidedAt: Date | null
 }> = []
-let contactUpserts: Array<{ heading: string; body: string }> = []
 
 function tableNameOf(t: unknown): string {
   try {
@@ -58,20 +68,10 @@ function makeCtx(): ObserverContext {
     }),
   }
 
-  const ports = {
-    contacts: {
-      readWorkingMemory: async () => '',
-      upsertWorkingMemorySection: async (_id: string, heading: string, body: string) => {
-        contactUpserts.push({ heading, body })
-      },
-    },
-  } as unknown as ObserverContext['ports']
-
   return {
     organizationId: 'org-1',
     conversationId: 'conv-1',
     wakeId: 'wake-1',
-    ports,
     db: db as unknown as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     realtime: { notify: () => {}, subscribe: () => () => {} },

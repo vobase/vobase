@@ -6,11 +6,10 @@
  *
  * Does NOT call real Hono app — tests the handler logic directly via a mock context.
  */
-import { beforeEach, describe, expect, it } from 'bun:test'
-import type { ContactsService } from '@modules/contacts/service/contacts'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { Auth } from '@server/auth'
 import type { Contact, Conversation, Message } from '@server/contracts/domain-types'
-import type { CreateInboundMessageInput, CreateInboundMessageResult, InboxPort } from '@server/contracts/inbox-port'
+import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@server/contracts/inbox-port'
 import { signHmac } from '@vobase/core'
 import { createChannelWebState, installChannelWebAuth, installChannelWebState, type JobQueue } from '../service/state'
 
@@ -69,60 +68,21 @@ const fakeMessage: Message = {
   createdAt: new Date(),
 }
 
-function makeInboxPort(isNew = true) {
-  return {
-    createInboundMessage: async (input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> => {
-      calls.push({ method: 'createInboundMessage', data: input })
-      return { conversation: fakeConversation, message: fakeMessage, isNew }
-    },
-    // stubs
-    getConversation: async () => {
-      throw new Error('not-expected')
-    },
-    listMessages: async () => [],
-    createConversation: async () => fakeConversation,
-    sendTextMessage: async () => fakeMessage,
-    sendCardMessage: async () => fakeMessage,
-    sendImageMessage: async () => fakeMessage,
-    sendMediaMessage: async () => fakeMessage,
-    resolve: async () => {},
-    reassign: async () => {},
-    reopen: async () => {},
-    reset: async () => {},
-    snooze: async () => fakeConversation,
-    unsnooze: async () => fakeConversation,
-    addInternalNote: async () => {
-      throw new Error('not-expected')
-    },
-    listInternalNotes: async () => [],
-    insertPendingApproval: async () => {
-      throw new Error('not-expected')
-    },
-  } as unknown as InboxPort
-}
+let mockIsNew = true
 
-function makeContactsService() {
-  return {
-    upsertByExternal: async () => {
-      calls.push({ method: 'upsertByExternal', data: null })
-      return fakeContact
-    },
-    get: async () => fakeContact,
-    getByPhone: async () => fakeContact,
-    getByEmail: async () => null,
-    readWorkingMemory: async () => '',
-    upsertWorkingMemorySection: async () => {},
-    appendWorkingMemory: async () => {},
-    removeWorkingMemorySection: async () => {},
-    setSegments: async () => {},
-    setMarketingOptOut: async () => {},
-    resolveStaffByExternal: async () => null,
-    bindStaff: async () => {
-      throw new Error('not-expected')
-    },
-    delete: async () => {},
-  }
-}
+mock.module('@modules/inbox/service/conversations', () => ({
+  createInboundMessage: async (input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> => {
+    calls.push({ method: 'createInboundMessage', data: input })
+    return { conversation: fakeConversation, message: fakeMessage, isNew: mockIsNew }
+  },
+}))
+
+mock.module('@modules/contacts/service/contacts', () => ({
+  upsertByExternal: async () => {
+    calls.push({ method: 'upsertByExternal', data: null })
+    return fakeContact
+  },
+}))
 
 const fakeEvent = {
   organizationId: 'org-1',
@@ -163,23 +123,19 @@ function makeCtx(body: string, sig: string, channelInstanceId = 'ch-web-1', extr
 }
 
 function installTestState(isNewMessage = true): void {
+  mockIsNew = isNewMessage
   const jobs: JobQueue = {
     send: async (name, data) => {
       calls.push({ method: 'job.send', data: { name, data } })
       return 'job-id'
     },
   }
-  installChannelWebState(
-    createChannelWebState({
-      inbox: makeInboxPort(isNewMessage) as unknown as InboxPort,
-      contacts: makeContactsService() as unknown as ContactsService,
-      jobs,
-    }),
-  )
+  installChannelWebState(createChannelWebState({ jobs }))
 }
 
 beforeEach(() => {
   calls = []
+  mockIsNew = true
   installTestState()
 })
 

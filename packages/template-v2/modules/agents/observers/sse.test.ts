@@ -13,7 +13,6 @@ function makeCtx(notifyFn: (p: { table: string; id?: string; action?: string }) 
     organizationId: 'ten1',
     conversationId: 'conv-sse-1',
     wakeId: 'wake-sse-1',
-    ports: {} as ObserverContext['ports'],
     db: {} as unknown as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     realtime: { notify: notifyFn, subscribe: () => () => {} },

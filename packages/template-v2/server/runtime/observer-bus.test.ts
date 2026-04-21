@@ -15,7 +15,6 @@ function fakeCtx(): ObserverContext {
     organizationId: 't1',
     conversationId: 'c1',
     wakeId: 'w1',
-    ports: {} as ObserverContext['ports'],
     db: {} as ObserverContext['db'],
     logger: silentLogger,
     realtime: {} as ObserverContext['realtime'],

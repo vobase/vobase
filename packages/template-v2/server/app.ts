@@ -40,21 +40,19 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
     captionVideo: captionThrow,
     extractText: captionThrow,
   }
-  const ports = { ...devPorts, caption }
-
   await bootModules({
     modules: config.modules,
     app,
     ctx: {
-      ports,
+      caption,
       db,
-      jobs: ports.jobs,
+      jobs: devPorts.jobs,
       storage: {
         getBucket: () => {
           throw new Error('ScopedStorage not configured — no module declared manifest.buckets')
         },
       },
-      realtime: ports.realtime,
+      realtime: devPorts.realtime,
       logger: {
         debug: () => undefined,
         info: (obj, msg) => console.info('[boot]', msg ?? '', obj ?? ''),
@@ -72,7 +70,7 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
 
   await wireAuthIntoModules(auth)
 
-  app.route('/api/sse', createSseRoute(ports.realtime))
+  app.route('/api/sse', createSseRoute(devPorts.realtime))
 
   // Dev wake dispatch: stub replies when no LLM key, real wake otherwise.
   // The pi-agent-core harness reads OPENAI_API_KEY (or BIFROST_*) directly —

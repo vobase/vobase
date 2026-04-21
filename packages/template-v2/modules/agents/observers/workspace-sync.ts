@@ -14,7 +14,8 @@
  * instances (created at wake-start) so the observer has zero module-level state.
  */
 
-import type { CreateFileInput, DriveScope } from '@server/contracts/drive-port'
+import { upsertWorkingMemorySection } from '@modules/contacts/service/contacts'
+import type { CreateFileInput, DrivePort, DriveScope } from '@server/contracts/drive-port'
 import type { AgentEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
 import type { DirtyTracker } from '@server/workspace/dirty-tracker'
@@ -24,10 +25,11 @@ export interface WorkspaceSyncOpts {
   fs: IFileSystem
   tracker: DirtyTracker
   contactId: string
+  drive: DrivePort
 }
 
 export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObserver {
-  const { fs, tracker, contactId } = opts
+  const { fs, tracker, contactId, drive } = opts
 
   return {
     id: 'agents:workspace-sync',
@@ -45,7 +47,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
           const raw = await fs.readFile('/workspace/contact/MEMORY.md')
           const sections = parseMarkdownSections(raw)
           for (const [heading, body] of sections) {
-            await ctx.ports.contacts.upsertWorkingMemorySection(contactId, heading, body)
+            await upsertWorkingMemorySection(contactId, heading, body)
           }
         } catch (err) {
           ctx.logger.warn({ err }, 'workspace-sync: failed to flush contact/MEMORY.md')
@@ -63,7 +65,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
           const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
           const name = drivePath.split('/').filter(Boolean).pop() ?? drivePath
 
-          const existing = await ctx.ports.drive.getByPath(contactScope, drivePath)
+          const existing = await drive.getByPath(contactScope, drivePath)
           if (!existing) {
             const input: CreateFileInput = {
               kind: 'file',
@@ -73,7 +75,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
               extractedText: content,
               source: 'agent_uploaded',
             }
-            await ctx.ports.drive.create(contactScope, input)
+            await drive.create(contactScope, input)
           }
           // Content updates on existing files are deferred to Phase 3 (no update-content on DrivePort yet).
         } catch (err) {
@@ -84,9 +86,9 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
       for (const wPath of scoped.contactDrive.deleted) {
         try {
           const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
-          const existing = await ctx.ports.drive.getByPath(contactScope, drivePath)
+          const existing = await drive.getByPath(contactScope, drivePath)
           if (existing) {
-            await ctx.ports.drive.delete(existing.id)
+            await drive.delete(existing.id)
           }
         } catch (err) {
           ctx.logger.warn({ err, wPath }, 'workspace-sync: failed to delete contact/drive file')

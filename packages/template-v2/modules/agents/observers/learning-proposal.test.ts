@@ -10,23 +10,36 @@
  *   - Swallows single-proposal errors without crashing the batch
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { AgentEvent } from '@server/contracts/event'
 import type { ObserverContext } from '@server/contracts/observer'
 import type { LlmResult, PluginContext } from '@server/contracts/plugin-context'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import { getTableName } from 'drizzle-orm'
 import { setDb as setLearningProposalsDb } from '../service/learning-proposals'
-import { createLearningProposalObserver, upsertMarkdownSection } from './learning-proposal'
 
-interface PortCapture {
-  contactUpserts: Array<{ contactId: string; heading: string; body: string }>
-  journalEvents: AgentEvent[]
-}
+/** Module-level captures populated by mock.module stubs. */
+let contactUpserts: Array<{ contactId: string; heading: string; body: string }> = []
+let journalEvents: AgentEvent[] = []
+let upsertThrowOnCall = 0 // when > 0, throw on that call number
 
-function capture(): PortCapture {
-  return { contactUpserts: [], journalEvents: [] }
-}
+let upsertCallCount = 0
+mock.module('@modules/contacts/service/contacts', () => ({
+  upsertWorkingMemorySection: async (contactId: string, heading: string, body: string) => {
+    upsertCallCount++
+    if (upsertThrowOnCall > 0 && upsertCallCount === upsertThrowOnCall) throw new Error('boom')
+    contactUpserts.push({ contactId, heading, body })
+  },
+}))
+
+mock.module('@modules/agents/service/journal', () => ({
+  append: async (opts: { event: AgentEvent }) => {
+    journalEvents.push(opts.event)
+  },
+}))
+
+// Must import AFTER mock.module
+const { createLearningProposalObserver, upsertMarkdownSection } = await import('./learning-proposal')
 
 let llmCallLog: Array<{ task: string; user: string }> = []
 let nextProposalsRaw = '{"proposals":[]}'
@@ -75,7 +88,7 @@ function mockLlmCall(...args: unknown[]): Promise<LlmResult<string>> {
   })
 }
 
-function makePortsAndDb(cap: PortCapture): Pick<ObserverContext, 'ports' | 'db' | 'logger' | 'realtime'> {
+function makeDbAndLogger(): Pick<ObserverContext, 'db' | 'logger' | 'realtime'> {
   const db = {
     select: (_cols?: unknown) => ({
       from: (t: unknown) => ({
@@ -112,19 +125,6 @@ function makePortsAndDb(cap: PortCapture): Pick<ObserverContext, 'ports' | 'db' 
     }),
   }
 
-  const ports = {
-    contacts: {
-      upsertWorkingMemorySection: async (contactId: string, heading: string, body: string) => {
-        cap.contactUpserts.push({ contactId, heading, body })
-      },
-    },
-    agents: {
-      appendEvent: async (ev: AgentEvent) => {
-        cap.journalEvents.push(ev)
-      },
-    },
-  } as unknown as ObserverContext['ports']
-
   const realtime: ObserverContext['realtime'] = { notify: () => {}, subscribe: () => () => {} }
   const logger: ObserverContext['logger'] = {
     debug: () => {},
@@ -133,11 +133,11 @@ function makePortsAndDb(cap: PortCapture): Pick<ObserverContext, 'ports' | 'db' 
     error: () => {},
   }
 
-  return { ports, db: db as unknown as ScopedDb, logger, realtime }
+  return { db: db as unknown as ScopedDb, logger, realtime }
 }
 
-function makeCtx(cap: PortCapture): ObserverContext {
-  const base = makePortsAndDb(cap)
+function makeCtx(): ObserverContext {
+  const base = makeDbAndLogger()
   return {
     organizationId: 'org-1',
     conversationId: 'conv-1',
@@ -182,6 +182,10 @@ beforeEach(() => {
   recentAgentMemory = ''
   agentMemoryUpdates = []
   serviceInsertCalls = []
+  contactUpserts = []
+  journalEvents = []
+  upsertCallCount = 0
+  upsertThrowOnCall = 0
   installServiceDb()
 })
 
@@ -201,8 +205,7 @@ describe('createLearningProposalObserver', () => {
       agentId: 'agt-1',
       llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
     })
-    const cap = capture()
-    const ctx = makeCtx(cap)
+    const ctx = makeCtx()
 
     // inbound_message start (not a staff signal)
     await obs.handle(
@@ -220,7 +223,7 @@ describe('createLearningProposalObserver', () => {
 
     expect(llmCallLog).toEqual([])
     expect(serviceInsertCalls).toEqual([])
-    expect(cap.journalEvents).toEqual([])
+    expect(journalEvents).toEqual([])
   })
 
   it('fires exactly once on agent_end for a qualifying wake', async () => {
@@ -241,8 +244,7 @@ describe('createLearningProposalObserver', () => {
       agentId: 'agt-1',
       llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
     })
-    const cap = capture()
-    const ctx = makeCtx(cap)
+    const ctx = makeCtx()
 
     await obs.handle(supervisorStart(), ctx)
     await obs.handle(agentEnd(), ctx)
@@ -273,8 +275,7 @@ describe('createLearningProposalObserver', () => {
       agentId: 'agt-1',
       llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
     })
-    const cap = capture()
-    const ctx = makeCtx(cap)
+    const ctx = makeCtx()
 
     await obs.handle(supervisorStart(), ctx)
     await obs.handle(agentEnd(), ctx)
@@ -284,9 +285,9 @@ describe('createLearningProposalObserver', () => {
     expect(serviceInsertCalls[0]?.scope).toBe('agent_skill')
     expect(serviceInsertCalls[0]?.target).toBe('refund-procedure')
 
-    const types = cap.journalEvents.map((e) => e.type)
+    const types = journalEvents.map((e) => e.type)
     expect(types).toEqual(['learning_proposed'])
-    expect(cap.contactUpserts).toEqual([])
+    expect(contactUpserts).toEqual([])
   })
 
   it('contact scope auto-writes via ContactsService + emits proposed + synthetic approved', async () => {
@@ -308,18 +309,17 @@ describe('createLearningProposalObserver', () => {
       agentId: 'agt-1',
       llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
     })
-    const cap = capture()
-    const ctx = makeCtx(cap)
+    const ctx = makeCtx()
 
     await obs.handle(supervisorStart(), ctx)
     await obs.handle(agentEnd(), ctx)
 
-    expect(cap.contactUpserts).toEqual([
+    expect(contactUpserts).toEqual([
       { contactId: 'contact-1', heading: 'Preferences', body: 'Likes email over phone.' },
     ])
 
     expect(serviceInsertCalls[0]?.status).toBe('auto_written')
-    const types = cap.journalEvents.map((e) => e.type)
+    const types = journalEvents.map((e) => e.type)
     expect(types).toEqual(['learning_proposed', 'learning_approved'])
   })
 
@@ -343,8 +343,7 @@ describe('createLearningProposalObserver', () => {
       agentId: 'agt-1',
       llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
     })
-    const cap = capture()
-    const ctx = makeCtx(cap)
+    const ctx = makeCtx()
 
     await obs.handle(supervisorStart(), ctx)
     await obs.handle(agentEnd(), ctx)
@@ -354,7 +353,7 @@ describe('createLearningProposalObserver', () => {
     expect(agentMemoryUpdates[0]?.workingMemory).toContain('Always greet by name.')
 
     expect(serviceInsertCalls[0]?.status).toBe('auto_written')
-    const types = cap.journalEvents.map((e) => e.type)
+    const types = journalEvents.map((e) => e.type)
     expect(types).toEqual(['learning_proposed', 'learning_approved'])
   })
 
@@ -370,26 +369,16 @@ describe('createLearningProposalObserver', () => {
       agentId: 'agt-1',
       llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
     })
-    const cap = capture()
-    const ctx = makeCtx(cap)
+    const ctx = makeCtx()
     // Fail the first upsert, succeed the second.
-    let calls = 0
-    const portsAny = ctx.ports as unknown as {
-      contacts: { upsertWorkingMemorySection: (c: string, h: string, b: string) => Promise<void> }
-    }
-    const origUpsert = portsAny.contacts.upsertWorkingMemorySection
-    portsAny.contacts.upsertWorkingMemorySection = async (c, h, b) => {
-      calls += 1
-      if (calls === 1) throw new Error('boom')
-      await origUpsert(c, h, b)
-    }
+    upsertThrowOnCall = 1
 
     await obs.handle(supervisorStart(), ctx)
     await obs.handle(agentEnd(), ctx)
 
     // Second proposal still wrote through even though first raised.
-    expect(cap.contactUpserts).toHaveLength(1)
-    expect(cap.contactUpserts[0]?.heading).toBe('B')
+    expect(contactUpserts).toHaveLength(1)
+    expect(contactUpserts[0]?.heading).toBe('B')
   })
 })
 

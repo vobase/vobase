@@ -1,66 +1,76 @@
-/** Outbound dispatcher — transport only. Persistence flows through InboxPort. */
+/** Outbound dispatcher — transport only. Persistence flows through inbox service. */
+import {
+  appendCardMessage,
+  appendMediaMessage,
+  appendStaffTextMessage,
+  appendTextMessage,
+} from '@modules/inbox/service/messages'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
-import type { InboxPort } from '@server/contracts/inbox-port'
 import type { RealtimeService } from '@server/contracts/plugin-context'
+import { nanoid } from 'nanoid'
 
 export interface DispatchResult {
   messageId: string
   notified: boolean
 }
 
-function agentAuthor(wakeId: string) {
-  return { kind: 'agent' as const, id: `wake:${wakeId}` }
+function toolCtx(wakeId: string) {
+  return {
+    wakeId,
+    toolCallId: `wake-${nanoid(8)}`,
+    turnIndex: 0,
+  }
 }
 
-export async function dispatch(
-  event: ChannelOutboundEvent,
-  inboxPort: InboxPort,
-  realtime: RealtimeService,
-): Promise<DispatchResult> {
-  const author = agentAuthor(event.wakeId)
-
+export async function dispatch(event: ChannelOutboundEvent, realtime: RealtimeService): Promise<DispatchResult> {
+  const ctx = toolCtx(event.wakeId)
+  const agentId = `wake:${event.wakeId}`
   let messageId: string
 
   if (event.toolName === 'reply') {
     const payload = event.payload as { text: string; replyToMessageId?: string }
-    const msg = await inboxPort.sendTextMessage({
+    const msg = await appendTextMessage({
       conversationId: event.conversationId,
       organizationId: event.organizationId,
-      author,
-      body: payload.text,
-      parentMessageId: payload.replyToMessageId,
-      wakeId: event.wakeId,
+      agentId,
+      wakeId: ctx.wakeId,
+      turnIndex: ctx.turnIndex,
+      toolCallId: ctx.toolCallId,
+      text: payload.text,
+      replyToMessageId: payload.replyToMessageId,
     })
     messageId = msg.id
   } else if (event.toolName === 'send_card') {
-    const msg = await inboxPort.sendCardMessage({
+    const msg = await appendCardMessage({
       conversationId: event.conversationId,
       organizationId: event.organizationId,
-      author,
+      agentId,
+      wakeId: ctx.wakeId,
+      turnIndex: ctx.turnIndex,
+      toolCallId: ctx.toolCallId,
       card: event.payload,
-      wakeId: event.wakeId,
     })
     messageId = msg.id
   } else if (event.toolName === 'send_file') {
     const payload = event.payload as { driveFileId: string; caption?: string }
-    const msg = await inboxPort.sendMediaMessage({
+    const msg = await appendMediaMessage({
       conversationId: event.conversationId,
       organizationId: event.organizationId,
-      author,
+      agentId,
+      wakeId: ctx.wakeId,
+      turnIndex: ctx.turnIndex,
+      toolCallId: ctx.toolCallId,
       driveFileId: payload.driveFileId,
       caption: payload.caption,
-      wakeId: event.wakeId,
     })
     messageId = msg.id
   } else if (event.toolName === 'staff_reply') {
     const payload = event.payload as { text: string; staffUserId?: string }
-    const staffAuthor = { kind: 'staff' as const, id: payload.staffUserId ?? `wake:${event.wakeId}` }
-    const msg = await inboxPort.sendTextMessage({
+    const msg = await appendStaffTextMessage({
       conversationId: event.conversationId,
       organizationId: event.organizationId,
-      author: staffAuthor,
+      staffUserId: payload.staffUserId ?? `wake:${event.wakeId}`,
       body: payload.text,
-      wakeId: event.wakeId,
     })
     messageId = msg.id
   } else {

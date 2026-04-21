@@ -7,13 +7,10 @@
  * `scripts/check-module-shape.ts`).
  */
 
-import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { ChannelAdapter } from '@vobase/core'
-import type { AgentsPort } from './agents-port'
 import type { CaptionPort } from './caption-port'
-import type { DrivePort } from './drive-port'
 import type { AgentEvent, LlmTask } from './event'
-import type { InboxPort, Tx } from './inbox-port'
+import type { Tx } from './inbox-port'
 import type { AgentMutator } from './mutator'
 import type { AgentObserver, Logger } from './observer'
 import type { ScopedDb } from './scoped-db'
@@ -174,14 +171,8 @@ export interface PluginContext {
   readonly organizationId: string
   readonly conversationId: string
 
-  /** Typed cross-module contracts — never raw schema imports */
-  readonly ports: {
-    inbox: InboxPort
-    contacts: ContactsService
-    drive: DrivePort
-    agents: AgentsPort
-    caption: CaptionPort
-  }
+  /** Caption adapter — has real alternate impls (throw-proxy dev, Gemini prod). */
+  readonly caption: CaptionPort
 
   /** Registration surface (called during init only) */
   registerTool(tool: AgentTool): void

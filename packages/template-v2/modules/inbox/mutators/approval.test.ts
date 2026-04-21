@@ -91,7 +91,6 @@ function makeCtx(opts: { cardApprovalRequired: boolean; agentId?: string; conver
     organizationId: 'org-test',
     conversationId,
     wakeId: 'wake-test',
-    ports: {} as MutatorContext['ports'],
     db: makeMockDb({ cardApprovalRequired: opts.cardApprovalRequired, agentId, conversationId }) as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     realtime: { notify: () => {}, subscribe: () => () => {} },

@@ -11,22 +11,10 @@ function fakeCtxInput() {
     throw new Error(`unexpected access to ${field} in test`)
   }
   return {
-    ports: {
-      inbox: new Proxy({}, { get: (_, p) => throwing(`ports.inbox.${String(p)}`) }) as PluginContext['ports']['inbox'],
-      contacts: new Proxy(
-        {},
-        { get: (_, p) => throwing(`ports.contacts.${String(p)}`) },
-      ) as PluginContext['ports']['contacts'],
-      drive: new Proxy({}, { get: (_, p) => throwing(`ports.drive.${String(p)}`) }) as PluginContext['ports']['drive'],
-      agents: new Proxy(
-        {},
-        { get: (_, p) => throwing(`ports.agents.${String(p)}`) },
-      ) as PluginContext['ports']['agents'],
-      caption: new Proxy(
-        {},
-        { get: (_, p) => throwing(`ports.caption.${String(p)}`) },
-      ) as PluginContext['ports']['caption'],
-    },
+    caption: new Proxy(
+      {},
+      { get: (_, p) => throwing(`caption.${String(p)}`) },
+    ) as PluginContext['caption'],
     db: {} as PluginContext['db'],
     jobs: {
       async send() {

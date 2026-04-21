@@ -7,6 +7,7 @@
  * when no provider is wired.
  */
 
+import { readWorkingMemory, upsertWorkingMemorySection } from '@modules/contacts/service/contacts'
 import type { AgentEvent, LearningRejectedEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
 import type { PluginContext } from '@server/contracts/plugin-context'
@@ -83,7 +84,7 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
         }
 
         for (const { heading, body } of sections) {
-          await ctx.ports.contacts.upsertWorkingMemorySection(contactId, heading, body)
+          await upsertWorkingMemorySection(contactId, heading, body)
         }
 
         lastDistillTs.set(contactId, now)
@@ -94,9 +95,9 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
   }
 }
 
-async function readMemorySafe(ctx: ObserverContext, contactId: string): Promise<string> {
+async function readMemorySafe(_ctx: ObserverContext, contactId: string): Promise<string> {
   try {
-    return await ctx.ports.contacts.readWorkingMemory(contactId)
+    return await readWorkingMemory(contactId)
   } catch {
     return ''
   }
