@@ -62,7 +62,6 @@ import {
 import type { AgentMutator, AgentStep, MutatorContext, MutatorDecision, StepResult } from '../mutator'
 import type { AgentObserver, Logger, ObserverContext } from '../observer'
 import type { AgentTool, CommandDef, EventBus, PluginContext, RealtimeService } from '../plugin-context'
-import type { LlmProvider, LlmStreamChunk } from '../provider-port'
 import type { OrganizationScope, Schema, ScopedDb } from '../scoped-db'
 import type {
   MaterializerCtx,
@@ -467,11 +466,9 @@ type _V2Adapter = V2ChannelAdapter
 type _HasSendOutboundEvent = AssertTrue<'sendOutboundEvent' extends keyof _V2Adapter ? true : false>
 type _HasSend = AssertTrue<'send' extends keyof _V2Adapter ? true : false>
 
-// provider-port.ts: LlmProvider and all LlmStreamChunk variants
-type _ProviderKeep = LlmProvider
-type _StreamChunkKeep = AssertTrue<
-  AssertEqual<LlmStreamChunk['type'], 'text-delta' | 'tool-use-start' | 'tool-use-delta' | 'tool-use-end' | 'finish'>
->
+// provider-port.ts was deleted in the pi-agent-core migration — stream
+// lifecycle is now owned by pi-ai's `AssistantMessageEvent` union which
+// is exercised by `server/harness/agent-runner.ts`.
 
 // tool.ts: typed AgentTool envelope + ToolContext with approval decision carrier
 type _TypedTool = TypedAgentTool<{ text: string }, { sent: boolean }>

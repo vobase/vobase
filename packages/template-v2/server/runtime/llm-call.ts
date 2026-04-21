@@ -11,7 +11,6 @@
 
 import type { AgentEvent, LlmTask } from '@server/contracts/event'
 import type { EventBus, LlmRequest, LlmResult } from '@server/contracts/plugin-context'
-import type { LlmProvider as StreamingLlmProvider } from '@server/contracts/provider-port'
 import { nanoid } from 'nanoid'
 
 export interface LlmProvider {
@@ -113,53 +112,6 @@ export function mockProvider(opts?: {
         costUsd: opts?.costUsd ?? 0,
         cacheHit: false,
         finishReason: 'stop',
-      }
-    },
-  }
-}
-
-/**
- * Adapt a streaming `StreamingLlmProvider` (from `server/contracts/provider-port`,
- * used inside the harness turn loop) into the request-response `LlmProvider`
- * this chokepoint expects. Drains the streaming provider, concatenates text
- * deltas, and surfaces the terminal `finish` metadata unchanged.
- */
-export function makeStreamingLlmProvider(streaming: StreamingLlmProvider): LlmProvider {
-  return {
-    id: streaming.name,
-    async call<T = string>(request: ResolvedLlmRequest): Promise<ProviderResult<T>> {
-      let text = ''
-      let tokensIn = 0
-      let tokensOut = 0
-      let cacheReadTokens = 0
-      let costUsd = 0
-      let cacheHit = false
-      let finishReason: string | undefined
-      for await (const chunk of streaming.stream(request)) {
-        switch (chunk.type) {
-          case 'text-delta':
-            text += chunk.text
-            break
-          case 'finish':
-            tokensIn = chunk.tokensIn
-            tokensOut = chunk.tokensOut
-            cacheReadTokens = chunk.cacheReadTokens
-            costUsd = chunk.costUsd
-            cacheHit = chunk.cacheHit
-            finishReason = chunk.finishReason
-            break
-          default:
-            break
-        }
-      }
-      return {
-        content: text as unknown as T,
-        tokensIn,
-        tokensOut,
-        cacheReadTokens,
-        costUsd,
-        cacheHit,
-        finishReason,
       }
     },
   }

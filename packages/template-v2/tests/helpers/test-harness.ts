@@ -17,7 +17,7 @@ import type { AgentsPort } from '@server/contracts/agents-port'
 import type { AgentDefinition, Contact, DriveFile, StaffBinding } from '@server/contracts/domain-types'
 import type { DrivePort, DriveScope } from '@server/contracts/drive-port'
 import type { AgentEvent } from '@server/contracts/event'
-import type { HarnessHandle, StreamFn } from '@server/harness'
+import type { HarnessHandle, StreamFnLike } from '@server/harness'
 import { bootWake } from '@server/harness'
 import { and, eq } from 'drizzle-orm'
 import type { TestDbHandle } from './test-db'
@@ -36,7 +36,7 @@ export interface IntegrationBootOpts {
   agentId: string
   contactId: string
   conversationId?: string
-  mockStreamFn: StreamFn
+  mockStreamFn: StreamFnLike
   trigger?: Parameters<typeof bootWake>[0]['trigger']
   maxTurns?: number
   customSideLoad?: Parameters<HarnessHandle['registerSideLoadMaterializer']>[0][]
@@ -219,7 +219,7 @@ export async function bootWakeIntegration(
     agentId: opts.agentId,
     contactId: opts.contactId,
     trigger: opts.trigger,
-    mockStreamFn: opts.mockStreamFn,
+    streamFn: opts.mockStreamFn,
     conversationId: opts.conversationId,
     maxTurns: opts.maxTurns ?? 1,
     registrations: {

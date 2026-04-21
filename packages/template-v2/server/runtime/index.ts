@@ -7,7 +7,7 @@ export type { ModuleDef, ModuleHttpRoutes, ModuleInstance, ModuleManifest } from
 export { defineModule, InvalidModuleError, isModuleInstance, sortModules } from './define-module'
 export { EventBus } from './event-bus'
 export type { LlmCallOptions, LlmProvider, ProviderResult, ResolvedLlmRequest } from './llm-call'
-export { makeLlmCall, makeStreamingLlmProvider, mockProvider, newWakeId } from './llm-call'
+export { makeLlmCall, mockProvider, newWakeId } from './llm-call'
 export { MutatorChain } from './mutator-chain'
 export type { ObserverBusOptions } from './observer-bus'
 export { ObserverBus } from './observer-bus'

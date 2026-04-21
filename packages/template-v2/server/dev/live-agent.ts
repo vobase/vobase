@@ -29,7 +29,6 @@ import type { AgentObserver } from '@server/contracts/observer'
 import type { AgentTool, RealtimeService } from '@server/contracts/plugin-context'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import { bootWake } from '@server/harness'
-import { createAnthropicProvider } from '@server/harness/providers'
 
 interface LiveAgentDeps {
   inbox: InboxPort
@@ -37,14 +36,13 @@ interface LiveAgentDeps {
   agents: AgentsPort
   drive: DrivePort
   realtime: RealtimeService
+  /** Retained for API compatibility — the pi-agent-core harness now reads
+   *  OPENAI_API_KEY / BIFROST_API_KEY from env via `resolveApiKey()`. */
   anthropicApiKey: string
 }
 
-export function createLiveAgentHandler(deps: LiveAgentDeps) {
-  const provider = createAnthropicProvider({
-    apiKey: deps.anthropicApiKey,
-    defaultModel: process.env.ANTHROPIC_DEFAULT_MODEL ?? 'claude-sonnet-4-6',
-  })
+export function createLiveAgentHandler(_deps: LiveAgentDeps) {
+  const deps = _deps
 
   return async function handleInboundToWake(rawData: unknown): Promise<void> {
     const data = rawData as InboundToWakePayload
@@ -142,7 +140,6 @@ export function createLiveAgentHandler(deps: LiveAgentDeps) {
           conversationId: data.conversationId,
           messageIds: [data.messageId],
         },
-        provider,
         registrations: {
           tools: [replyTool as unknown as AgentTool],
           commands: [],
