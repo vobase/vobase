@@ -15,13 +15,15 @@ import { MessageResponse } from '@/components/ai-elements/message'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
 import { MessageCard } from '@/components/message-card'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { cn } from '@/lib/utils'
 import type { InternalNote, Message } from '../schema'
+import { DeliveryStatus } from './delivery-status'
 import {
   type Principal,
+  PrincipalAvatar,
   type PrincipalDirectory,
   type PrincipalKind,
-  PrincipalAvatar,
   usePrincipalDirectory,
 } from './principal'
 
@@ -66,14 +68,16 @@ export function MessageThread({ messages, notes = [], activity = [], currentUser
           const prev = idx > 0 ? items[idx - 1] : null
           const showDivider = !prev || prev.at.toDateString() !== item.at.toDateString()
           const key =
-            item.kind === 'message' ? `msg-${item.msg.id}` : item.kind === 'note' ? `note-${item.note.id}` : `act-${item.ev.id}`
+            item.kind === 'message'
+              ? `msg-${item.msg.id}`
+              : item.kind === 'note'
+                ? `note-${item.note.id}`
+                : `act-${item.ev.id}`
           return (
             <Fragment key={key}>
               {showDivider && <DateDivider at={item.at} />}
               {item.kind === 'activity' && <ActivityRow ev={item.ev} directory={directory} />}
-              {item.kind === 'note' && (
-                <NoteRow note={item.note} directory={directory} currentUserId={currentUserId} />
-              )}
+              {item.kind === 'note' && <NoteRow note={item.note} directory={directory} currentUserId={currentUserId} />}
               {item.kind === 'message' && (
                 <MessageRow msg={item.msg} messages={messages} directory={directory} currentUserId={currentUserId} />
               )}
@@ -98,7 +102,7 @@ function DateDivider({ at }: { at: Date }) {
   return (
     <div className="flex items-center gap-3 py-1">
       <div className="flex-1 border-t" />
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground/60">{label}</span>
       <div className="flex-1 border-t" />
     </div>
   )
@@ -134,13 +138,24 @@ function MessageRow({ msg, messages, directory, currentUserId }: MessageRowProps
   // Messages don't track per-row senderId yet, so we treat any `role === 'staff'`
   // row as mine when a staff user is signed in.
   const isMine = Boolean(currentUserId) && msg.role === 'staff'
-  const kind: PrincipalKind | 'customer' = msg.role === 'customer' ? 'customer' : principal?.kind ?? 'staff'
+  const kind: PrincipalKind | 'customer' = msg.role === 'customer' ? 'customer' : (principal?.kind ?? 'staff')
 
   const taskPayload = isTaskPayload(msg.content) ? msg.content : null
   const parent = msg.kind === 'card_reply' ? messages.find((m) => m.id === msg.parentMessageId) : undefined
+  const failureReason =
+    typeof msg.content === 'object' && msg.content !== null
+      ? (msg.content as { failureReason?: unknown }).failureReason
+      : undefined
 
   return (
-    <Bubble isMine={isMine} principal={principal} kind={kind}>
+    <Bubble
+      isMine={isMine}
+      principal={principal}
+      kind={kind}
+      timestamp={msg.createdAt}
+      status={msg.status}
+      failureReason={typeof failureReason === 'string' ? failureReason : null}
+    >
       {msg.reasoning && (
         <Reasoning defaultOpen={false}>
           <ReasoningTrigger />
@@ -181,12 +196,12 @@ function NoteRow({
   const kind: PrincipalKind = principal?.kind ?? (note.authorType === 'agent' ? 'agent' : 'staff')
 
   return (
-    <Bubble isMine={isMine} principal={principal} kind={kind} variant="note">
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+    <Bubble isMine={isMine} principal={principal} kind={kind} variant="note" timestamp={note.createdAt}>
+      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
         <StickyNote className="size-3" />
         Internal note
       </div>
-      <p className="whitespace-pre-wrap text-sm text-foreground">{note.body}</p>
+      <MessageResponse className="text-foreground">{note.body}</MessageResponse>
     </Bubble>
   )
 }
@@ -204,23 +219,30 @@ function Bubble({
   principal,
   kind,
   variant = 'message',
+  timestamp,
+  status = null,
+  failureReason = null,
   children,
 }: {
   isMine: boolean
   principal: Principal | null
   kind: 'customer' | PrincipalKind
   variant?: 'message' | 'note'
+  timestamp?: Date | string | number
+  status?: string | null
+  failureReason?: string | null
   children: React.ReactNode
 }) {
+  const isFailed = status === 'failed'
   const bubbleClass =
     variant === 'note'
       ? 'rounded-lg border border-amber-500/30 bg-amber-50/70 px-3 py-2 dark:bg-amber-950/25'
-      : `rounded-lg px-3 py-2 ${BUBBLE_BG[kind]}`
+      : cn('rounded-lg px-3 py-2', isFailed ? 'border border-destructive/30 bg-destructive/5' : BUBBLE_BG[kind])
   const name = principal?.name ?? (kind === 'customer' ? 'Customer' : kind === 'agent' ? 'Agent' : 'Staff')
 
   return (
     <div className={cn('flex gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}>
-      <div className="shrink-0 pt-4">
+      <div className="shrink-0 pt-5">
         {principal ? (
           <PrincipalAvatar kind={principal.kind} size="md" />
         ) : (
@@ -229,9 +251,21 @@ function Bubble({
           </span>
         )}
       </div>
-      <div className={cn('flex min-w-0 max-w-[78%] flex-col gap-0.5', isMine ? 'items-end' : 'items-start')}>
-        <span className="text-[11px] font-medium text-muted-foreground">{name}</span>
-        <div className={cn(bubbleClass, 'min-w-0')}>{children}</div>
+      <div className={cn('flex min-w-0 max-w-[min(78%,560px)] flex-col gap-1', isMine ? 'items-end' : 'items-start')}>
+        <div
+          className={cn('flex items-center gap-1.5 text-xs text-muted-foreground', isMine && 'flex-row-reverse')}
+        >
+          <span className="font-medium text-foreground/80">{name}</span>
+          {timestamp && (
+            <RelativeTimeCard
+              date={timestamp}
+              length="short"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            />
+          )}
+          <DeliveryStatus status={status} failureReason={failureReason} />
+        </div>
+        <div className={cn(bubbleClass, 'min-w-0 text-sm')}>{children}</div>
       </div>
     </div>
   )
@@ -331,4 +365,3 @@ function ActivityLine({ icon, children }: { icon: React.ReactNode; children: Rea
     </div>
   )
 }
-

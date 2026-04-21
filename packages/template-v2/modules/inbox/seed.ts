@@ -86,11 +86,12 @@ async function insertMsg(
   row: {
     id: string
     conversationId: string
-    role: 'customer' | 'agent' | 'system'
+    role: 'customer' | 'agent' | 'system' | 'staff'
     kind: 'text' | 'card' | 'card_reply' | 'image'
     content: unknown
     parentMessageId?: string | null
     channelExternalId?: string | null
+    status?: string | null
     createdAt: Date
   },
 ) {
@@ -105,6 +106,7 @@ async function insertMsg(
       content: row.content,
       parentMessageId: row.parentMessageId ?? null,
       channelExternalId: row.channelExternalId ?? null,
+      status: row.status ?? null,
       createdAt: row.createdAt,
     })
     .onConflictDoNothing()
@@ -227,6 +229,7 @@ export async function seed(db: unknown): Promise<void> {
     content: {
       text: 'Hi Priya — yes, filters are per-channel. You pick which project events route to which Slack channel under Settings → Integrations → Slack → Routing. Want me to show the options?',
     },
+    status: 'delivered',
     createdAt: mins(34),
   })
   await insertMsg(ins, {
@@ -251,6 +254,7 @@ export async function seed(db: unknown): Promise<void> {
         ],
       },
     },
+    status: 'read',
     createdAt: mins(34),
   })
   await insertMsg(ins, {
@@ -289,7 +293,9 @@ export async function seed(db: unknown): Promise<void> {
     kind: 'text',
     content: {
       text: "Yes — Slack's own mobile app handles that best. In our dashboard you can also set a per-user WhatsApp fallback under Notifications → Escalation. Want me to walk you through it?",
+      failureReason: 'WhatsApp rejected message: 24h window expired — send a template instead.',
     },
+    status: 'failed',
     createdAt: mins(45),
   })
 
@@ -585,7 +591,12 @@ export async function seed(db: unknown): Promise<void> {
   await insertActivity(ins, {
     conversationId: SOPHIA_CONV_ID,
     type: 'conversation.reassigned',
-    payload: { from: AGENT_ASSIGNEE, to: `user:${BOB_USER_ID}`, reason: 'enterprise upgrade quote', by: MERIDIAN_AGENT_ID },
+    payload: {
+      from: AGENT_ASSIGNEE,
+      to: `user:${BOB_USER_ID}`,
+      reason: 'enterprise upgrade quote',
+      by: MERIDIAN_AGENT_ID,
+    },
     ts: mins(92),
   })
 

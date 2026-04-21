@@ -17,7 +17,6 @@ import { AssigneeBadge } from './assignee-badge'
 import type { ChannelTab } from './channel-tab-bar'
 import { ChannelTabBar } from './channel-tab-bar'
 import { Composer } from './composer'
-import { InlineApprovalBanner } from './inline-approval-banner'
 import { MessageThread } from './message-thread'
 import { SnoozeMenu } from './snooze-menu'
 
@@ -221,7 +220,6 @@ export function ConversationDetail() {
         )}
       </div>
 
-      {activeConvId && <InlineApprovalBanner conversationId={activeConvId} />}
       <MessageThread messages={messages} notes={notes} activity={activity} currentUserId={currentUserId} />
       {activeConvId && <Composer conversationId={activeConvId} />}
     </div>
