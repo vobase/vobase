@@ -1,8 +1,10 @@
 ## server/harness/
 
-The hot path: `bootWake` assembles the frozen system prompt once, runs turns, dispatches tools through the mutator chain, fans events to the observer bus. Non-obvious invariants:
+The hot path: `bootWake` assembles the frozen system prompt once, drives turns through `@mariozechner/pi-agent-core`'s stateful `Agent`, translates pi's event stream into our contract `AgentEvent` union, dispatches tools through the mutator chain, and fans events to the observer bus. `server/harness/llm-provider.ts` is the single provider seam: `createModel(id)` returns a pi-ai `Model<'openai-responses'>` whose `baseUrl` points at Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set, direct OpenAI otherwise; `resolveApiKey()` picks the matching env var. Non-obvious invariants:
 
-**Frozen snapshot.** System prompt computed once at `agent_start`; `systemHash` must be identical across every turn of a wake. Mid-wake writes (`vobase memory set`, `drive propose`, file ops) persist immediately but only appear in the NEXT turn's side-load — never the current turn, never the system prompt. Preserves Anthropic prefix cache (~$800/mo at volume) and prevents the agent from racing its own writes. New contributors go through `side-load-collector`, not the frozen prompt.
+**Frozen snapshot.** System prompt computed once at `agent_start`; `systemHash` must be identical across every turn of a wake. Mid-wake writes (`vobase memory set`, `drive propose`, file ops) persist immediately but only appear in the NEXT turn's side-load — never the current turn, never the system prompt. Preserves the provider's prefix-cache hit rate (OpenAI/Bifrost Responses API) and prevents the agent from racing its own writes. New contributors go through `side-load-collector`, not the frozen prompt.
+
+**User-turn vs pi sub-turn.** A "turn" in our contract = one `agent.prompt()` call. pi-agent-core runs its own internal multi-step tool loop between `prompt()` and `waitForIdle()`; its sub-turn `turn_start` / `turn_end` events are dropped from the contract stream. `TurnTracker` increments `turnIndex` only on user-turns. Side-load is built on the first `transformContext` call of a user-turn and cached across sub-turns. Our `llm_call` is synthesised on pi's `message_end` using `message.usage` + `Date.now() - turnStartedAt`.
 
 **Three-layer byte budget for tool stdout.** L1=4KB inline preview; L2=100KB per-call spill to `/workspace/tmp/tool-<callId>.txt` (emits `tool_result_persisted`); L3=200KB turn-aggregate ceiling. Read-only re-reads of spill files are exempt (whitelist: `cat head tail less more wc grep awk sed`, plus `bash -c`/`sh -c` wrapping one of those); compound commands with `;`/`&`/`|` break the exemption. Bulk output spills instead of flooding context.
 
@@ -12,4 +14,4 @@ The hot path: `bootWake` assembles the frozen system prompt once, runs turns, di
 
 **Restart recovery is a one-shot side-load.** If the previous wake's tail is `tool_execution_end` with no subsequent `message_end`/`agent_end`/`agent_aborted`, `restart-recovery` injects a `<previous-turn-interrupted>` block on turn 0 of the next wake.
 
-**Prompt cache key memoized.** Anthropic provider computes `prompt_cache_key = sha256(system).slice(0,16)` once per provider instance. Mutating the system prompt between calls within a wake breaks cache coherence.
+**Prompt cache coherence.** Prefix caching is owned by the provider (OpenAI Responses / Bifrost). Keeping `systemPrompt` byte-stable across every pi call within a wake — the frozen-snapshot invariant — is what keeps the cache warm. Mutating it mid-wake breaks the prefix hash and forfeits the cache.

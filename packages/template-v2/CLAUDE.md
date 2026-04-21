@@ -1,6 +1,6 @@
 # template-v2
 
-Greenfield rebuild of the template package. Phases 1–4 shipped.
+Greenfield rebuild of the template package.
 
 ## Layout
 
@@ -40,47 +40,39 @@ Docker Postgres on port 5433 is required for every integration test. Run `docker
 
 ### Test layout
 
-E2E tests (real Docker Postgres, optionally real LLM keys) live in `e2e/`. Unit tests live next to the code they cover under `modules/`, `server/`, and `src/`, with shared helpers in `tests/helpers/` and fixtures in `tests/fixtures/`.
+E2E tests (real Docker Postgres) live in `e2e/`. Unit tests live next to the code they cover under `modules/`, `server/`, and `src/`, with shared helpers in `tests/helpers/`.
 
-- `e2e/wake-loop-bootstrap.test.ts` — 14 `it()` blocks proving the bootstrap skeleton: schemas, seed, workspace materialization, harness event stream, journal write path, RO enforcement, approval gate, frozen-snapshot invariant, CI gates. Uses `mockStream(...)`.
-- `e2e/wake-end-to-end.test.ts` — 13 `it()` blocks proving the live wake engine end-to-end: inbound webhook → wake → real LLM replay → tool call → approval block/approve/reject → outbound → SSE → mid-turn idempotency. Uses `createRecordedProvider('*.jsonl')`.
-- `e2e/workspace-agent-loop.test.ts` — workspace-agent bash invocations, learning-proposal observer, moderation mutator, scorer observer, card-reply round-trip, Gemini caption, threat-scan wiring.
-- `e2e/workspace-sync.test.ts` — workspace materializers (dirty writeback) + memory distill stub.
-- `e2e/agent-adapter-integration.test.ts` — pi-agent-core adapter against a real wake.
-- `e2e/live-provider-smoke.test.ts` — opt-in live Anthropic/OpenAI smoke (`USE_RECORDED_FIXTURES=false` + API keys).
-- `e2e/nightly-gemini-drift.test.ts` — nightly live Gemini drift check (`GOOGLE_API_KEY` set).
-- `tests/harness-hardening.test.ts` — harness convergence tests; no DB, no keys.
-- `modules/<module>/*.test.ts`, `server/harness/*.test.ts`, `server/runtime/*.test.ts`, `src/**/*.test.*` — unit tests colocated with their code.
+- `e2e/factory-isolation.test.ts` — proves per-organization factory services (`createFilesService`, etc.) don't leak across orgs in the same process.
+- `server/harness/agent-runner.test.ts` — end-to-end `bootWake` against the pi-agent-core engine driven by `stubStreamFn(...)`. Covers frozen snapshot, event-order translation, tool dispatch, side-load caching across sub-turns.
+- `tests/*.test.ts`, `server/harness/*.test.ts`, `server/runtime/*.test.ts`, `modules/<module>/**/*.test.ts`, `src/**/*.test.*` — unit tests colocated with their code.
+
+Stream behaviour in tests is expressed as inline `AssistantMessageEvent[]` scripts passed to `stubStreamFn`. `tests/fixtures/` is empty — no JSONL recorded-provider files; no `mockStream` / `createRecordedProvider` helpers.
 
 ### Test helpers (`tests/helpers/`)
 
 - `test-db.ts` — `connectTestDb()`, `resetAndSeedDb()`, `TestDbHandle` (pg + drizzle handles, teardown).
-- `test-harness.ts` — `buildIntegrationPorts(db)`, `wireObserverContextFor(db, spy)`, `wireApprovalMutatorCtx(db)`, `bootWakeIntegration(ports, opts, db)`.
-- `recorded-provider.ts` — `createRecordedProvider(fixtureFilename)` replays `.jsonl` stream events as an `LlmProvider`.
+- `test-harness.ts` — `buildIntegrationPorts(db)`, `bootWakeIntegration(ports, opts, db)`. `IntegrationBootOpts.mockStreamFn` takes a `StreamFnLike` (build one with `stubStreamFn`).
+- `stub-stream.ts` — `stubStreamFn(scripts, opts?)` builds a pi-agent-core `StreamFn` that replays canned `AssistantMessageEvent[]`, one array per LLM call. Missing terminal `done`/`error` is auto-synthesised.
 - `simulated-channel-web.ts` — `createSimulatedChannelWeb({ inboxPort, contactsPort })` mimics the inbound-webhook handler.
-- `mock-stream.ts` — `mockStream([events])` for unit-level harness tests.
 - `assert-event-sequence.ts` — subset matcher that tolerates 0+ `message_update` deltas.
 - `capture-side-load-hashes.ts` — snapshots per-turn sideLoad hashes for the frozen-snapshot invariant.
+- `assert-learning-flow.ts` — shared assertions for the learning-proposal observer path.
 
-### Deterministic CI via recorded fixtures
+### Provider selection in tests
 
-E2E assertions that touch a real LLM use `createRecordedProvider('<name>.jsonl')` instead of the Anthropic API. The JSONL files in `tests/fixtures/provider/` are one-event-per-line SSE replays (`meridian-hi-reply.jsonl`, `meridian-pricing-card.jsonl`, `meridian-pricing-card-reject.jsonl`). CI always replays; the nightly workflow (`.github/workflows/template-v2-nightly.yml`) swaps in the live API with `ANTHROPIC_API_KEY` to detect drift.
+Tests never hit a real LLM. Pass `streamFn: stubStreamFn([...])` to `bootWake` (or `mockStreamFn:` to `bootWakeIntegration`). `server/harness/llm-provider.ts` still runs `createModel` / `resolveApiKey` — with no `OPENAI_API_KEY` / `BIFROST_*` set, `resolveApiKey()` returns `undefined`, pi-ai skips the Authorization header, and the stub stream short-circuits before any HTTP call fires. Production selects Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set, direct OpenAI otherwise.
 
-- Unit / harness tests → `mockStream([...])`.
-- E2E wake tests → `createRecordedProvider(...)`.
-- Do **not** re-record fixtures casually — CI determinism depends on stability. Re-record only when the provider API actually changes and commit the refreshed `.jsonl` alongside the test update.
+### CI pipeline (`.github/workflows/template-v2-pr2.yml`)
 
-### CI pipeline (`.github/workflows/template-v2.yml`)
-
-Eight steps in order: `typecheck` → `lint` → `check:shape` → `db:reset` → `bun test e2e/wake-loop-bootstrap.test.ts` → `db:reset` (again — fixture isolation between suites) → `bun test e2e/wake-end-to-end.test.ts modules/ server/` → `check:bundle`. All must pass.
+Jobs: `typecheck`, `lint`, `check:tokens`, `check:no-raw-date`, `check:shape`, `check:bundle`, `theme-provider-test`, `integration-tests` (spins up Postgres service, runs `db:reset` then the e2e + modules + server suites), `smoke-staff-reply` (live dev server + `smoke:staff-reply`).
 
 ### Invariants tests enforce — do not bypass
 
 - **One-write-path.** All `messages` / `conversation_events` writes go through `InboxPort.send*Message` / `agents.service.journal.append`. Direct `.insert(messages)` outside `modules/inbox/service/` or `modules/agents/service/journal.ts` is forbidden.
 - **A3 dispatcher transport-only.** `modules/channels/*/service/dispatcher.ts` and `sender.ts` must not import drizzle or write to DB. `modules/channels/web/tests/dispatcher-transport-only.test.ts` guards this.
-- **Frozen-snapshot.** System prompt hash identical across turns; mid-wake writes appear in turn N+1, never turn N. Enforced by `e2e/wake-loop-bootstrap.test.ts` assertion 12 and `e2e/wake-end-to-end.test.ts` assertion 10 via `capture-side-load-hashes.ts`.
+- **Frozen-snapshot.** System prompt hash identical across turns; mid-wake writes appear in turn N+1, never turn N. Enforced inside `server/harness/agent-runner.test.ts` via `capture-side-load-hashes.ts`.
 - **A7 V2ChannelAdapter.** Refines core's `ChannelAdapter` via `sendOutboundEvent()`; must never override core's `send()`.
-- **Module shape.** Every module ships `module.ts`, `manifest.ts`, `schema.ts`, `state.ts`, `service/index.ts`, `handlers/index.ts`, `jobs.ts`, `seed.ts`, and `README.md` with YAML frontmatter. Handler files ≤ 200 raw lines. `applyTransition()` only in `state.ts`. `port.ts` is no longer required (the four domain ports turned out to be 1:1 pass-throughs over the module's own service — call the service directly). Channel adapters keep `port.ts` because `V2ChannelAdapter` has multiple real impls.
+- **Module shape.** Every module ships `module.ts`, `manifest.ts`, `schema.ts`, `state.ts`, `service/index.ts`, `handlers/index.ts`, `jobs.ts`, `seed.ts`, and `README.md` with YAML frontmatter. Handler files ≤ 200 raw lines. `applyTransition()` only in `state.ts`. Domain modules call each other's services directly; only channel adapters ship `port.ts` (for `V2ChannelAdapter`).
 - **Frontend bundle safety.** `src/**` must not import `@server/runtime/*` or `@server/harness/*`.
 - **`OUTBOUND_TOOL_NAMES`.** New outbound tools must be added to the const in `server/contracts/channel-event.ts` AND the switch in `modules/channels/*/service/dispatcher.ts` + `sender.ts`.
 
@@ -94,16 +86,18 @@ beforeAll(async () => {
   ports = await buildIntegrationPorts(db)
 })
 
-// boot a wake with the mock path
+// boot a wake with a stub stream (integration helper)
 const res = await bootWakeIntegration(ports, {
   organizationId, agentId, contactId, conversationId,
-  mockStreamFn: mockStream([{ type: 'finish', finishReason: 'stop' }]),
+  mockStreamFn: stubStreamFn([[
+    { type: 'done', reason: 'stop', message: { role: 'assistant', content: 'hi', stopReason: 'stop' } },
+  ]]),
 }, db)
 
-// boot a wake with a recorded provider
+// boot a wake directly (no DB) with inline stream scripts
 const res = await bootWake({
   organizationId, agentId, contactId, conversationId,
-  provider: createRecordedProvider('meridian-hi-reply.jsonl'),
+  streamFn: stubStreamFn([[ /* AssistantMessageEvent[] for turn 1 */ ]]),
   registrations: makeRegs({ tools: [...], observers: [...], mutators: [...] }),
   ports, logger: noopLogger,
 })
@@ -116,18 +110,18 @@ expect(types).toEqual([
 ])
 ```
 
-### Module conventions (post-simplification)
+### Module conventions
 
 - Factory services: `createXService({ db, organizationId })`. No file-level singletons.
 - Every journal-appending mutation wraps in `ctx.withJournaledTx`.
-- `check:shape` runs strict unconditionally. `accessGrants` and `manifest.tables` no longer exist.
-- Cross-module reads: import the service directly (`@modules/<name>/service/*`). The four domain port interfaces (`inbox`, `agents`, `contacts`, `drive`) remain only as the wiring contract for `PluginContext.ports`, not as a required facade.
+- `check:shape` runs strict unconditionally. Manifests carry `name`, `requires`, `observers`, `mutators`, `commands`, `tools` — nothing else.
+- Cross-module reads: import the service directly (`@modules/<name>/service/*`). The four domain port interfaces (`inbox`, `agents`, `contacts`, `drive`) exist only as the wiring contract for `PluginContext.ports`, not as a facade.
 
 ### Anti-patterns
 
 - Don't mock the database — every integration test uses real Postgres via Docker.
 - Don't bypass the inbox service (`appendTextMessage` / `appendCardMessage` / …) to write `messages`; the journal write-path guard fails if you do.
-- Don't re-record provider fixtures casually; CI determinism depends on them.
-- Don't add narrative Phase/Lane comments to test files (removed in the recent simplify pass).
+- Don't introduce JSONL recorded-provider fixtures — stream behaviour is expressed inline via `stubStreamFn`.
+- Don't add narrative Phase/Lane comments to test files.
 - Don't assume a write appears in the same turn it was made (frozen-snapshot discipline).
 - Don't exceed 200 raw lines per handler file; lift logic into `service/`.
