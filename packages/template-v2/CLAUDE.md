@@ -4,10 +4,10 @@ Greenfield rebuild of the template package.
 
 ## Layout
 
-- `server/` — backend infra (runtime, contracts, harness, workspace, db, server.ts bootstrap)
-- `modules/` — business domains (straddle backend + frontend per module; each conforms to the enforced module shape — see `modules/CLAUDE.md`)
-- `src/` — frontend shell (TanStack Router, shadcn/ai-elements/DiceUI)
-- `scripts/`, `docs/`, `tests/`, `db/` — supporting
+- `server/` — backend infra (runtime, contracts, harness, workspace, middlewares, dev, db, `main.ts` bootstrap). Each subdir has its own CLAUDE.md.
+- `modules/` — business domains (backend + frontend straddle per module; each conforms to the enforced module shape). See `modules/CLAUDE.md` for module shape + init order; per-module CLAUDE.md for domain rules (`agents`, `channels`, `drive`, `inbox`).
+- `src/` — frontend shell only (TanStack Router, shadcn/ai-elements/DiceUI primitives, app-wide providers/layout). No module-specific code — see `src/CLAUDE.md`.
+- `scripts/`, `docs/`, `tests/`, `e2e/`, `db/` — supporting
 
 ## Conventions
 
@@ -17,6 +17,8 @@ Greenfield rebuild of the template package.
 - Core imports: `import { auditLog, ... } from '@vobase/core'`
 - Harness: `import { Agent, type AgentEvent, type AgentTool, ... } from '@mariozechner/pi-agent-core'`; models via `@mariozechner/pi-ai` (`getModel`, `Type` for tool schemas)
 - Virtual FS: `import { Bash, InMemoryFs } from 'just-bash'`
+- Frontend data: TanStack Query hooks in `@modules/<m>/api/*`, never raw `fetch` in components. Realtime: service fires `pg_notify` after commit; `src/hooks/use-realtime-invalidation.ts` dispatches to query keys.
+- Dates/times in UI: `<RelativeTimeCard date={...} />` only — `check:no-raw-date` fails on raw `toLocaleString` / `new Date().toString()` in `.tsx`.
 
 ## Testing
 
@@ -34,25 +36,27 @@ Docker Postgres on port 5433 is required for every integration test. Run `docker
 | `bun test <path>` | single file, e.g. `bun test server/harness/agent-runner.test.ts` |
 | `bun run typecheck` | `tsc --noEmit` — must be 0 errors |
 | `bun run lint` | Biome — must be 0 errors |
+| `bun run check` | aggregate: `check:shape` + `check:bundle` + `check:no-auto-nav-tabs` + `check:no-stub-flag` + `check:tokens` |
 | `bun run check:shape` | module-shape lint (required files, handler LOC ≤ 200, journal write-path guard) |
 | `bun run check:bundle` | forbids `src/**` from importing `@server/runtime/*` or `@server/harness/*` |
+| `bun run check:tokens` | design-token lint (no raw hex colors in `.tsx`) |
+| `bun run check:no-raw-date` | forbids raw date formatting in UI — use `RelativeTimeCard` |
+| `bun run check:no-auto-nav-tabs` | forbids auto-generated nav tab files |
+| `bun run check:no-stub-flag` | forbids `STUB_*` env flags sneaking back in |
+| `bun run check:shadcn-overrides` | catches drifted shadcn component overrides |
 | `bun run db:reset` | `db:nuke` + `db:push` + `db:seed` — fresh greenfield DB |
 
 ### Test layout
 
-E2E tests (real Docker Postgres) live in `e2e/`. Unit tests live next to the code they cover under `modules/`, `server/`, and `src/`, with shared helpers in `tests/helpers/`.
-
-- `e2e/factory-isolation.test.ts` — proves per-organization factory services (`createFilesService`, etc.) don't leak across orgs in the same process.
-- `server/harness/agent-runner.test.ts` — end-to-end `bootWake` against the pi-agent-core engine driven by `stubStreamFn(...)`. Covers frozen snapshot, event-order translation, tool dispatch, side-load caching across sub-turns.
-- `tests/*.test.ts`, `server/harness/*.test.ts`, `server/runtime/*.test.ts`, `modules/<module>/**/*.test.ts`, `src/**/*.test.*` — unit tests colocated with their code.
+E2E tests (real Docker Postgres) live in `e2e/`. Unit tests live next to the code they cover under `modules/`, `server/`, and `src/`, with shared helpers in `tests/helpers/`. Multi-module integration scenarios live directly under `tests/` (`tests/phase1-green-thread.test.ts`, `tests/phase2-dogfood.test.ts`, `tests/phase3-dogfood.test.ts`, `tests/phase4-harness-hardening.test.ts`).
 
 Stream behaviour in tests is expressed as inline `AssistantMessageEvent[]` scripts passed to `stubStreamFn`. `tests/fixtures/` is empty — no JSONL recorded-provider files; no `mockStream` / `createRecordedProvider` helpers.
 
 ### Test helpers (`tests/helpers/`)
 
-- `test-db.ts` — `connectTestDb()`, `resetAndSeedDb()`, `TestDbHandle` (pg + drizzle handles, teardown).
-- `test-harness.ts` — `buildIntegrationPorts(db)`, `bootWakeIntegration(ports, opts, db)`. `IntegrationBootOpts.mockStreamFn` takes a `StreamFnLike` (build one with `stubStreamFn`).
-- `stub-stream.ts` — `stubStreamFn(scripts, opts?)` builds a pi-agent-core `StreamFn` that replays canned `AssistantMessageEvent[]`, one array per LLM call. Missing terminal `done`/`error` is auto-synthesised.
+- `test-db.ts` — `connectTestDb()`, `resetAndSeedDb()`, `TestDbHandle`.
+- `test-harness.ts` — `buildIntegrationPorts(db)`, `bootWakeIntegration(ports, opts, db)`. `IntegrationBootOpts.mockStreamFn` takes a `StreamFnLike`.
+- `stub-stream.ts` — `stubStreamFn(scripts, opts?)` replays canned `AssistantMessageEvent[]`, one array per LLM call. Missing terminal `done`/`error` is auto-synthesised.
 - `simulated-channel-web.ts` — `createSimulatedChannelWeb({ inboxPort, contactsPort })` mimics the inbound-webhook handler.
 - `assert-event-sequence.ts` — subset matcher that tolerates 0+ `message_update` deltas.
 - `capture-side-load-hashes.ts` — snapshots per-turn sideLoad hashes for the frozen-snapshot invariant.
@@ -62,21 +66,25 @@ Stream behaviour in tests is expressed as inline `AssistantMessageEvent[]` scrip
 
 Tests never hit a real LLM. Pass `streamFn: stubStreamFn([...])` to `bootWake` (or `mockStreamFn:` to `bootWakeIntegration`). `server/harness/llm-provider.ts` still runs `createModel` / `resolveApiKey` — with no `OPENAI_API_KEY` / `BIFROST_*` set, `resolveApiKey()` returns `undefined`, pi-ai skips the Authorization header, and the stub stream short-circuits before any HTTP call fires. Production selects Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set, direct OpenAI otherwise.
 
-### CI pipeline (`.github/workflows/template-v2-pr2.yml`)
+### CI pipeline (`.github/workflows/template-v2.yml`)
 
-Jobs: `typecheck`, `lint`, `check:tokens`, `check:no-raw-date`, `check:shape`, `check:bundle`, `theme-provider-test`, `integration-tests` (spins up Postgres service, runs `db:reset` then the e2e + modules + server suites), `smoke-staff-reply` (live dev server + `smoke:staff-reply`).
+One `test` job against a Postgres service. Steps: install → `typecheck` → `lint` → `check:shape` → `db:reset` + phase1 test → `db:reset` + phase2 + unit suites (`modules/`, `server/`) → phase3 test → phase4 harness-hardening test → phase4 live-smoke cache warning → `check:bundle` → deliberate-violation guard. Shell smoke workflow is `template-v2-shell.yml`; release is `release.yml`; template sync is `sync-template.yml`.
 
-### Invariants tests enforce — do not bypass
+## Invariants
 
-- **One-write-path.** All `messages` / `conversation_events` writes go through the inbox service (`send*Message`) / `agents.service.journal.append`. Direct `.insert(messages)` outside `modules/inbox/service/` or `modules/agents/service/journal.ts` is forbidden.
-- **A3 dispatcher transport-only.** `modules/channels/*/service/dispatcher.ts` and `sender.ts` must not import drizzle or write to DB. `modules/channels/web/tests/dispatcher-transport-only.test.ts` guards this.
-- **Frozen-snapshot.** System prompt hash identical across turns; mid-wake writes appear in turn N+1, never turn N. Enforced inside `server/harness/agent-runner.test.ts` via `capture-side-load-hashes.ts`.
-- **A7 V2ChannelAdapter.** Refines core's `ChannelAdapter` via `sendOutboundEvent()`; must never override core's `send()`.
-- **Module shape.** Every module ships `module.ts`, `manifest.ts`, `schema.ts`, `state.ts`, `service/index.ts`, `handlers/index.ts`, `jobs.ts`, `seed.ts`, and `README.md` with YAML frontmatter. Handler files ≤ 200 raw lines. `applyTransition()` only in `state.ts`. Domain modules call each other's services directly; only channel adapters ship `port.ts` (for `V2ChannelAdapter`).
-- **Frontend bundle safety.** `src/**` must not import `@server/runtime/*` or `@server/harness/*`.
-- **`OUTBOUND_TOOL_NAMES`.** New outbound tools must be added to the const in `server/contracts/channel-event.ts` AND the switch in `modules/channels/*/service/dispatcher.ts` + `sender.ts`.
+Covered by subfolder CLAUDE.md — read those when touching the area:
+- One-write-path (messages/events/notes), message kinds, approval flow, mentions, realtime coupling → `modules/inbox/CLAUDE.md`
+- A3 channels transport-only, `OUTBOUND_TOOL_NAMES` switch sync, whatsapp/webhook HMAC → `modules/channels/CLAUDE.md`
+- Drive scope rules, virtual-field overlay, `BUSINESS.md`, proposal flow → `modules/drive/CLAUDE.md`
+- Journal is sole writer of `conversation_events`, observer/mutator order, learning flow, wake triggers → `modules/agents/CLAUDE.md`
+- Module shape + init order, cross-module service imports → `modules/CLAUDE.md`
+- Frontend placement (module UI never in `src/`) → `src/CLAUDE.md`
+- Frozen-snapshot, wake event order, abort/steer, byte budget → `server/harness/CLAUDE.md`
+- `applyTransition` in `state.ts` only, observer vs mutator contracts, `llmCall` chokepoint → `server/runtime/CLAUDE.md`
+- Exhaustiveness gate, journal write-path guard implementation → `server/contracts/CLAUDE.md`
+- Materializers run before side-load (not system prompt), RO enforcement → `server/workspace/CLAUDE.md`
 
-### Common patterns
+## Common patterns
 
 ```ts
 // integration setup
@@ -110,18 +118,8 @@ expect(types).toEqual([
 ])
 ```
 
-### Module conventions
-
-- Factory services: `createXService({ db, organizationId })`. No file-level singletons.
-- Every journal-appending mutation wraps in `ctx.withJournaledTx`.
-- `check:shape` runs strict unconditionally. Manifests carry `name`, `requires`, `observers`, `mutators`, `commands`, `tools` — nothing else.
-- Cross-module reads: import the service directly (`@modules/<name>/service/*`). Domain types live in each module's `schema.ts`; service interface types (`InboxPort`, `AgentsPort`, `FilesService`) in each module's `service/types.ts` or `service/files.ts`.
-
-### Anti-patterns
+## Test anti-patterns (root-only)
 
 - Don't mock the database — every integration test uses real Postgres via Docker.
-- Don't bypass the inbox service (`appendTextMessage` / `appendCardMessage` / …) to write `messages`; the journal write-path guard fails if you do.
 - Don't introduce JSONL recorded-provider fixtures — stream behaviour is expressed inline via `stubStreamFn`.
 - Don't add narrative Phase/Lane comments to test files.
-- Don't assume a write appears in the same turn it was made (frozen-snapshot discipline).
-- Don't exceed 200 raw lines per handler file; lift logic into `service/`.
