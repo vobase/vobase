@@ -1,7 +1,7 @@
 /**
  * agents module schema.
  *
- * Seven tables:
+ * Nine tables:
  *   - `agent_definitions`
  *   - `conversation_events` — the append-only journal (one-write-path invariant)
  *   - `active_wakes` — UNLOGGED ephemeral coordination
@@ -9,6 +9,11 @@
  *   - `learning_proposals`
  *   - `agent_scores`
  *   - `tenant_cost_daily`
+ *   - `threads` — pi AgentMessage[] context per wake source (NOT inbox.messages — see comment)
+ *   - `messages` — individual pi AgentMessage rows keyed to threads
+ *
+ * Note: `agents.messages` stores LLM-context for pi (assistant + tool_result rows).
+ * It is NOT the customer transcript — that lives in `inbox.messages`.
  *
  * Cross-schema FKs to `inbox.conversations(id)`, `inbox.messages(id)`.
  * `conversation_events.wake_id` carries the stable wake identifier so
@@ -193,6 +198,64 @@ export const tenantCostDaily = agentsPgSchema.table(
     callCount: integer('call_count'),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.date, t.llmTask] })],
+)
+
+/**
+ * Agent threads — one row per wake source (conversation, cron job, or ad-hoc).
+ * Keyed by (agent_id, conversation_id) or (agent_id, cron_key).
+ * `parent_thread_id` supports future compaction forks without a migration.
+ */
+export const threads = agentsPgSchema.table(
+  'threads',
+  {
+    id: nanoidPrimaryKey(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agentDefinitions.id, { onDelete: 'cascade' }),
+    /** 'conversation' | 'cron' | 'adhoc' */
+    kind: text('kind').notNull(),
+    /** Set when kind='conversation'. */
+    conversationId: text('conversation_id'),
+    /** Set when kind='cron'. */
+    cronKey: text('cron_key'),
+    /** Future compaction: child thread references parent. */
+    parentThreadId: text('parent_thread_id'),
+    /** Set when this thread was replaced by a compacted child. */
+    compactedAt: timestamp('compacted_at', { withTimezone: true }),
+    messageCount: integer('message_count').notNull().default(0),
+    lastActiveAt: timestamp('last_active_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_thread_conv').on(t.agentId, t.conversationId).where(sql`${t.conversationId} IS NOT NULL`),
+    uniqueIndex('uq_thread_cron').on(t.agentId, t.cronKey).where(sql`${t.cronKey} IS NOT NULL`),
+    index('idx_thread_agent').on(t.agentId),
+  ],
+)
+
+/**
+ * Agent messages — individual pi AgentMessage rows stored in (thread_id, seq) order.
+ * One writer: the `createMessageHistoryObserver` registered per wake.
+ * `ON CONFLICT DO NOTHING` on (thread_id, seq) makes crash-mid-checkpoint retries safe.
+ */
+export const agentMessages = agentsPgSchema.table(
+  'messages',
+  {
+    id: nanoidPrimaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id, { onDelete: 'cascade' }),
+    /** Monotonically increasing within a thread. (thread_id, seq) is UNIQUE. */
+    seq: integer('seq').notNull(),
+    /** pi AgentMessage — provider-neutral shape (role inside payload). */
+    payload: jsonb('payload').notNull(),
+    payloadVersion: integer('payload_version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_agent_msg_seq').on(t.threadId, t.seq),
+    index('idx_agent_msg_thread').on(t.threadId, t.seq),
+  ],
 )
 
 /**
