@@ -1,7 +1,9 @@
+import { join } from 'node:path'
 import { INBOUND_TO_WAKE_JOB } from '@modules/channels/web/jobs'
 import type { CaptionPort } from '@server/contracts/caption-port'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import { Hono } from 'hono'
+import { serveStatic } from 'hono/bun'
 import { logger } from 'hono/logger'
 import type { Sql } from 'postgres'
 import config from '../vobase.config'
@@ -69,6 +71,21 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   await wireAuthIntoModules(auth)
 
   app.route('/api/sse', createSseRoute(ports.realtime))
+
+  // Serve built frontend (Vite outputs to dist/web). In dev the Vite dev
+  // server proxies /api here, so this block is a no-op when dist/web is
+  // absent — keeps `bun run dev:server` working pre-build.
+  const distDir = join(import.meta.dir, '..', 'dist', 'web')
+  const indexFile = Bun.file(join(distDir, 'index.html'))
+  if (await indexFile.exists()) {
+    const indexHtml = await indexFile.text()
+    app.use('/assets/*', serveStatic({ root: './dist/web' }))
+    app.use('/favicon.ico', serveStatic({ path: './dist/web/favicon.ico' }))
+    app.use('/site.webmanifest', serveStatic({ path: './dist/web/site.webmanifest' }))
+    // SPA fallback: any non-API GET falls back to index.html so TanStack
+    // Router owns client-side paths.
+    app.get('*', (c) => c.html(indexHtml))
+  }
 
   // Wake dispatch for the web channel. The pi-agent-core harness reads
   // OPENAI_API_KEY (or BIFROST_API_KEY + BIFROST_URL) from env directly — the
