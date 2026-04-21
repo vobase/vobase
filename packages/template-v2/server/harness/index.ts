@@ -5,6 +5,7 @@ export {
   type CapturedPrompt,
   type HarnessHandle,
   type ModuleRegistrationsSnapshot,
+  type StreamFnLike,
 } from './agent-runner'
 export type { BashToolArgs, BashToolResult } from './bash-tool'
 export { BASH_PREVIEW_BYTES, makeBashTool } from './bash-tool'
@@ -13,13 +14,7 @@ export {
   type FrozenPromptInput,
   type FrozenPromptResult,
 } from './frozen-prompt-builder'
-export {
-  type MockStreamEvent,
-  type MockStreamRun,
-  mockStream,
-  mockStreamTurns,
-  type StreamFn,
-} from './mock-stream'
+export { createModel, resolveApiKey } from './llm-provider'
 export {
   type CollectSideLoadOpts,
   type CustomSideLoadMaterializer,

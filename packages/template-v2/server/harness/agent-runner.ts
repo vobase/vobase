@@ -1,16 +1,38 @@
 /**
- * Wake harness — the core `bootWake()` entry point.
+ * Wake harness — `bootWake()` entry point, rewritten on top of
+ * `@mariozechner/pi-agent-core`'s stateful `Agent` class.
  *
- * Drives the full event lifecycle:
- *   `agent_start` → `turn_start` → `llm_call` → `message_start` →
- *   `message_update*` (≥1) → `message_end` → `turn_end` → `agent_end`
+ * Responsibilities (unchanged from the hand-rolled loop):
+ *   - Build the frozen system prompt ONCE and never mutate it mid-wake.
+ *   - Drain events into our contract `AgentEvent` union (with
+ *     `{ts, wakeId, conversationId, organizationId, turnIndex}`).
+ *   - Journal events serialized to preserve DB PK order.
+ *   - Register built-in + module observers.
+ *   - Preserve three-layer byte budget (L1/L2/L3) via the bash tool's
+ *     `onSpill` callback and the shared `TurnBudget`.
  *
- * Every event fans out through `ctx.events.publish(event)` so `ObserverBus`
- * observers AND the journal (`agents.service.journal.append`) receive them.
- * Tool calls run through the mutator chain (approvalMutator etc.).
+ * Translation seams (per the authoritative design decisions):
+ *   1. `llm_call` event synthesized on pi's `message_end` using
+ *      `message.usage` + `Date.now() - turnStartedAt`.
+ *   2. Abort phase tracked in a closure flag; on abort we emit `agent_aborted`
+ *      with the latest known phase.
+ *   3. "Turn" = one `agent.prompt()` call. Side-load cached per user-turn,
+ *      reused across pi sub-turns via `transformContext`. Our `turn_start`/
+ *      `turn_end` fire at user-turn boundaries only; pi's sub-turn events are
+ *      dropped from the contract stream.
+ *   4. `messageHistoryObserver` snapshots `agent.state.messages` on our
+ *      translated `turn_end`.
  */
 
-import type { AgentMessage } from '@mariozechner/pi-agent-core'
+import {
+  Agent,
+  type AgentEvent as PiAgentEvent,
+  type AgentMessage,
+  type AgentTool as PiAgentTool,
+  type AgentToolResult,
+} from '@mariozechner/pi-agent-core'
+import type { AssistantMessage } from '@mariozechner/pi-ai'
+import { Type } from '@mariozechner/pi-ai'
 import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
 import { createMessageHistoryObserver } from '@modules/agents/observers/message-history-observer'
@@ -23,18 +45,25 @@ import type { AgentsPort } from '@server/contracts/agents-port'
 import type { AgentDefinition } from '@server/contracts/domain-types'
 import type { DrivePort } from '@server/contracts/drive-port'
 import type {
+  AgentAbortedEvent,
   AgentEndEvent,
   AgentEvent,
   AgentStartEvent,
+  LlmCallEvent,
+  MessageEndEvent,
+  MessageStartEvent,
+  MessageUpdateEvent,
+  SteerInjectedEvent,
   ToolExecutionEndEvent,
   ToolExecutionStartEvent,
+  TurnEndEvent,
+  TurnStartEvent,
   WakeTrigger,
 } from '@server/contracts/event'
 import type { IterationBudget } from '@server/contracts/iteration-budget'
 import type { AgentMutator, AgentStep, MutatorContext } from '@server/contracts/mutator'
 import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
 import type { AgentTool, CommandDef, EventBus, ObserverFactory, PluginContext } from '@server/contracts/plugin-context'
-import type { LlmProvider } from '@server/contracts/provider-port'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WakeContext } from '@server/contracts/wake-context'
@@ -48,13 +77,12 @@ import { DirtyTracker } from '@server/workspace/dirty-tracker'
 import { nanoid } from 'nanoid'
 import { makeBashTool } from './bash-tool'
 import { buildFrozenPrompt } from './frozen-prompt-builder'
-import { type MockStreamEvent, mockStream, type StreamFn } from './mock-stream'
+import { createModel, resolveApiKey } from './llm-provider'
 import { createRestartRecoveryContributor } from './restart-recovery'
-import { type CustomSideLoadMaterializer, createBashHistoryMaterializer } from './side-load-collector'
+import { type CustomSideLoadMaterializer, collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
 import { TurnBudget } from './turn-budget'
-import { type BashHistoryRef, type BudgetWarningRef, runTurnLoop } from './turn-loop'
 
-// ----- types ---------------------------------------------------------------
+// ----- public types --------------------------------------------------------
 
 export interface ModuleRegistrationsSnapshot {
   tools: readonly AgentTool[]
@@ -66,63 +94,45 @@ export interface ModuleRegistrationsSnapshot {
   sideLoadContributors: readonly SideLoadContributor[]
 }
 
+/**
+ * Stream-function seam. Accepts any pi-agent-core-compatible `StreamFn`.
+ * Use `stubStreamFn(...)` from `tests/helpers/stub-stream.ts` in tests;
+ * production boots pi-ai's built-in `streamSimple`.
+ */
+export type StreamFnLike = ConstructorParameters<typeof Agent>[0] extends infer O
+  ? O extends { streamFn?: infer F }
+    ? F
+    : never
+  : never
+
 export interface BootWakeOpts {
   organizationId: string
   agentId: string
   contactId: string
   trigger?: WakeTrigger
   /**
-   * Mock stream. Required unless `provider` is set. When both are present,
-   * `provider` wins for the turn stream and `mockStreamFn` is ignored.
+   * Stream function override. When omitted, pi-agent-core boots pi-ai's
+   * default `streamSimple` (which requires a real API key). Tests pass
+   * `stubStreamFn([...])`.
    */
-  mockStreamFn?: StreamFn
-  /**
-   * Real LLM provider. When set, each turn's stream is sourced from
-   * `provider.stream(request)` — the harness drains chunks into the existing
-   * `MockStreamEvent` state machine, preserving event ordering. The terminal
-   * `LlmFinish` patches the `llm_call` event with real tokens/cost/latency/cacheHit.
-   */
-  provider?: LlmProvider
-  /**
-   * Model id passed to the provider (defaults to 'mock-llm' for the mock path
-   * and to `agentDefinition.model` when a provider is supplied).
-   */
+  streamFn?: StreamFnLike
+  /** Model id passed to `createModel`. Defaults to `agentDefinition.model`. */
   model?: string
-  /** Per-wake registrations (aggregated by the caller). */
   registrations: ModuleRegistrationsSnapshot
-  /** Supplies the agent definition + journal append + contact lookups. */
   ports: {
     agents: AgentsPort
     drive: DrivePort
     contacts: ContactsService
   }
-  /** When omitted, the runner creates a private `EventBus`. */
   events?: EventBus
-  /** When omitted, a noop logger is used. */
   logger?: Logger
-  /** Max turns to run (default 1). */
   maxTurns?: number
-  /** Minted automatically when omitted. */
   conversationId?: string
-  /** For the assertion-12 round-trip — runner writes these during a turn. */
   preWakeWrites?: ReadonlyArray<{ path: string; content: string }>
-  /**
-   * Per-wake LLM chokepoint threaded to reflection observers (memory-distill,
-   * learning-proposal). When omitted, memory-distill falls back to its
-   * deterministic stub and learning-proposal is not registered.
-   */
   observerLlmCall?: PluginContext['llmCall']
-  /** Per-wake iteration and cost budget. */
   iterationBudget?: IterationBudget
-  /** Abort coordination carrier — defaults to a fresh AbortController. */
   abortCtx?: AbortContext
-  /** Inbound steer messages drained between turns. */
   steerQueue?: SteerQueueHandle
-  /**
-   * Drizzle handle for persisting pi AgentMessage[] history to agents.messages.
-   * When provided, a `createMessageHistoryObserver` is registered automatically.
-   * When absent (unit tests / mock path), message history is silently skipped.
-   */
   db?: ScopedDb
 }
 
@@ -148,7 +158,7 @@ export interface BootWakeResult {
   wakeId: string
 }
 
-// ----- default/no-op deps --------------------------------------------------
+// ----- internal helpers ----------------------------------------------------
 
 const noopLogger: Logger = {
   debug: () => undefined,
@@ -157,8 +167,6 @@ const noopLogger: Logger = {
   error: () => undefined,
 }
 
-// ----- event helpers -------------------------------------------------------
-
 interface WakeScope {
   organizationId: string
   conversationId: string
@@ -166,7 +174,7 @@ interface WakeScope {
   turnIndex: number
 }
 
-function baseEventFields(scope: WakeScope) {
+function baseFields(scope: WakeScope) {
   return {
     ts: new Date(),
     wakeId: scope.wakeId,
@@ -174,6 +182,135 @@ function baseEventFields(scope: WakeScope) {
     organizationId: scope.organizationId,
     turnIndex: scope.turnIndex,
   }
+}
+
+function renderTriggerMessage(trigger: WakeTrigger): string {
+  switch (trigger.trigger) {
+    case 'inbound_message':
+      return 'New customer message(s). See /workspace/conversation/messages.md for context.'
+    case 'approval_resumed':
+      return trigger.decision === 'approved'
+        ? 'Your previous action was approved. Continue.'
+        : `Your previous action was rejected: ${trigger.note ?? '(no note)'}. Choose a different approach.`
+    case 'supervisor':
+      return 'Staff added an internal note. Read /workspace/conversation/internal-notes.md for context.'
+    case 'scheduled_followup':
+      return `Scheduled follow-up: ${trigger.reason}.`
+    case 'manual':
+      return `Manual wake: ${trigger.reason}.`
+    default: {
+      const exhaustive: never = trigger
+      return `Unknown trigger: ${String(exhaustive)}`
+    }
+  }
+}
+
+function stringifyResult(result: unknown): string {
+  if (result === undefined || result === null) return ''
+  if (typeof result === 'string') return result
+  try {
+    return JSON.stringify(result)
+  } catch {
+    return String(result)
+  }
+}
+
+function extractAssistantText(msg: AssistantMessage): string {
+  const c = msg.content as unknown
+  if (!c) return ''
+  if (typeof c === 'string') return c
+  if (Array.isArray(c)) {
+    let out = ''
+    for (const block of c as Array<{ type: string; text?: string }>) {
+      if (block && block.type === 'text' && typeof block.text === 'string') out += block.text
+    }
+    return out
+  }
+  return ''
+}
+
+// ----- TurnTracker ---------------------------------------------------------
+
+/**
+ * Per-wake state machine translating pi sub-turn events into the contract
+ * event sequence. See the file header for design invariants.
+ */
+class TurnTracker {
+  /** User-facing turn index. Starts at -1, increments on each `agent.prompt()`. */
+  turnIndex = -1
+  /** Side-load text block built once per user-turn, injected via transformContext. */
+  sideLoadCache: string | null = null
+  /** Abort classification flag — read when emitting `agent_aborted`. */
+  phase: 'pre_tool' | 'in_tool' | 'post_tool' = 'pre_tool'
+  /** Wall-clock timestamp of the current turn's first LLM call start. */
+  turnStartedAt = 0
+  /** First transformContext call of a user-turn primes the side-load cache. */
+  isFirstTransformOfTurn = true
+
+  beginUserTurn(): void {
+    this.turnIndex += 1
+    this.sideLoadCache = null
+    this.phase = 'pre_tool'
+    this.isFirstTransformOfTurn = true
+    this.turnStartedAt = Date.now()
+  }
+
+  onToolStart(): void {
+    this.phase = 'in_tool'
+  }
+
+  onToolEnd(): void {
+    this.phase = 'post_tool'
+  }
+}
+
+// ----- tool adapter --------------------------------------------------------
+
+interface TrackerRef {
+  current: TurnTracker
+  scope: WakeScope
+  agentId: string
+}
+
+/**
+ * Wrap our contract-style `AgentTool<TArgs, TResult>` into pi's
+ * `AgentTool<TSchema>` signature. Tools themselves stay on the contract
+ * shape — the adapter closes over the per-wake scope the contract expects.
+ */
+function adaptToolForPi(tool: AgentTool, ref: TrackerRef): PiAgentTool {
+  // Our tools author schemas as raw JSON — pi expects a TypeBox TSchema.
+  // If the tool provided a TypeBox schema it passes through; otherwise we
+  // fall back to `Type.Any()` so pi can still dispatch the call.
+  const raw = tool.inputSchema
+  const parameters =
+    raw && typeof raw === 'object' && 'type' in (raw as Record<string, unknown>)
+      ? (raw as ReturnType<typeof Type.Object>)
+      : (Type.Object({}) as ReturnType<typeof Type.Object>)
+
+  const piTool: PiAgentTool = {
+    name: tool.name,
+    label: tool.name,
+    description: tool.description,
+    parameters,
+    execute: async (toolCallId, params, signal) => {
+      const scope = ref.scope
+      const result = await tool.execute(params as unknown, {
+        organizationId: scope.organizationId,
+        conversationId: scope.conversationId,
+        wakeId: scope.wakeId,
+        agentId: ref.agentId,
+        turnIndex: ref.current.turnIndex < 0 ? 0 : ref.current.turnIndex,
+        toolCallId,
+        signal,
+      })
+      const out: AgentToolResult<unknown> = {
+        content: [{ type: 'text', text: stringifyResult(result) }],
+        details: result,
+      }
+      return out
+    },
+  }
+  return piTool
 }
 
 // ----- main entry ----------------------------------------------------------
@@ -184,13 +321,15 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   const logger = opts.logger ?? noopLogger
   const events = opts.events ?? new DefaultEventBus()
 
-  // Resolve agent definition (frozen for the wake).
   const agentDefinition: AgentDefinition = await opts.ports.agents.getAgentDefinition(opts.agentId)
+  const scope: WakeScope = {
+    organizationId: opts.organizationId,
+    conversationId,
+    wakeId,
+    turnIndex: 0,
+  }
 
   // ---- Observer bus ------------------------------------------------------
-  // The harness path doesn't wire `inbox`, `caption`, or a raw `db` handle into
-  // observers (those are unit-test seams). Throw-on-access guards turn an
-  // accidental future use into an obvious crash instead of a confusing TypeError.
   const unwiredPort = (name: string) =>
     new Proxy(
       {},
@@ -218,8 +357,6 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   const observers = new ObserverBus({ logger, observerCtx })
   for (const obs of opts.registrations.observers) observers.register(obs)
 
-  // Observer factories receive a live WakeContext so they can capture per-wake
-  // bindings (e.g. `llmCall`) that are boot-time throw-proxies.
   if (opts.registrations.observerFactories && opts.registrations.observerFactories.length > 0) {
     const llmCallForWake =
       opts.observerLlmCall ??
@@ -240,18 +377,11 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   }
 
   // ---- Message history state --------------------------------------------
-  // Shadow-built pi AgentMessage[] mirror of the transcript. The hand-rolled
-  // turn loop appends UserMessage/AssistantMessage/ToolResultMessage entries
-  // in-place so the history observer can persist them on `turn_end`. Stays a
-  // local no-op when `opts.db` is absent (unit-test seams).
   const piMessages: AgentMessage[] = []
   let historyEnabled = false
   if (opts.db) {
     try {
-      const threadId = await resolveThread(opts.db, {
-        agentId: opts.agentId,
-        conversationId,
-      })
+      const threadId = await resolveThread(opts.db, { agentId: opts.agentId, conversationId })
       const historyMessages = await loadMessages(opts.db, threadId)
       for (const m of historyMessages) piMessages.push(m)
       observers.register(
@@ -268,7 +398,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     }
   }
 
-  // Bridge EventBus → ObserverBus + journal (serialized to preserve DB PK order).
+  // Bridge EventBus → ObserverBus + journal (serialized for PK order).
   const eventLog: AgentEvent[] = []
   let journalChain: Promise<void> = Promise.resolve()
   const unsub = events.subscribe((ev) => {
@@ -317,14 +447,11 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     )
   }
 
-  // Apply any pre-wake writes the caller staged (test harness).
   for (const w of opts.preWakeWrites ?? []) {
     await workspace.innerFs.writeFile(w.path, w.content)
   }
 
   const turnBudget = new TurnBudget()
-
-  // Build the single bash tool (and allow mutator/tool-result hydration later).
   const bashTool = makeBashTool({
     bash: workspace.bash,
     innerWrite: async (path, content) => {
@@ -333,31 +460,20 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     turnBudget,
     onSpill: (ev) => events.publish(ev),
   })
+
   const toolIndex = new Map<string, AgentTool>()
   toolIndex.set('bash', bashTool as unknown as AgentTool)
   for (const t of opts.registrations.tools) toolIndex.set(t.name, t)
 
-  // ---- Mutator chain -----------------------------------------------------
   const mutators = new MutatorChain(opts.registrations.mutators)
   const capturedPrompts: CapturedPrompt[] = []
   const customSideLoad: CustomSideLoadMaterializer[] = []
-
-  // Bash commands run in turn N appear in turn N+1's side-load (frozen-snapshot
-  // invariant — mid-wake writes never affect the turn that produced them).
-  const bashHistory: BashHistoryRef = { last: [], current: [] }
-  const budgetWarning: BudgetWarningRef = { value: null }
+  const bashHistory: { last: string[]; current: string[] } = { last: [], current: [] }
   customSideLoad.push(createBashHistoryMaterializer(() => bashHistory.last))
   customSideLoad.push(createRestartRecoveryContributor(conversationId, getLastWakeTail))
-  if (opts.iterationBudget) {
-    customSideLoad.push({
-      kind: 'custom',
-      priority: 90,
-      contribute: () => budgetWarning.value ?? '',
-    })
-  }
 
-  // ---- Emit agent_start --------------------------------------------------
-  const frozen0 = await buildFrozenPrompt({
+  // ---- Frozen prompt (ONCE) ---------------------------------------------
+  const frozen = await buildFrozenPrompt({
     bash: workspace.bash,
     agentDefinition,
     organizationId: opts.organizationId,
@@ -370,77 +486,333 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     reason: 'bootWake-default',
     actorUserId: opts.agentId,
   }
+
+  // ---- Emit agent_start --------------------------------------------------
   const startEvt: AgentStartEvent = {
-    ...baseEventFields({ organizationId: opts.organizationId, conversationId, wakeId, turnIndex: 0 }),
+    ...baseFields(scope),
     type: 'agent_start',
     agentId: opts.agentId,
     trigger: trigger.trigger,
     triggerPayload: trigger,
-    systemHash: frozen0.systemHash,
+    systemHash: frozen.systemHash,
   }
   events.publish(startEvt)
 
-  // ---- Turn loop (delegated) --------------------------------------------
-  const maxTurns = opts.iterationBudget?.maxTurnsPerWake ?? opts.maxTurns ?? 1
-  const endReason = await runTurnLoop({
-    opts: {
-      organizationId: opts.organizationId,
-      agentId: opts.agentId,
-      contactId: opts.contactId,
-      trigger,
-      mockStreamFn: opts.mockStreamFn,
-      provider: opts.provider,
-      model: opts.model,
-      iterationBudget: opts.iterationBudget,
-      abortCtx: opts.abortCtx,
-      steerQueue: opts.steerQueue,
-      maxTurns,
-      sideLoadContributors: opts.registrations.sideLoadContributors,
-      ports: { agents: opts.ports.agents, drive: opts.ports.drive },
+  // ---- Build Agent + translation layer ----------------------------------
+  const tracker = new TurnTracker()
+  const trackerRef: TrackerRef = { current: tracker, scope, agentId: opts.agentId }
+
+  const piTools: PiAgentTool[] = []
+  for (const t of toolIndex.values()) piTools.push(adaptToolForPi(t, trackerRef))
+
+  const model = createModel(opts.model ?? agentDefinition.model)
+  const modelId = model.id
+  const providerName = model.provider
+
+  let currentMessageId: string | null = null
+  let assembledContent = ''
+  let firstSubTurnOfUserTurn = true
+
+  const agentOpts: ConstructorParameters<typeof Agent>[0] = {
+    initialState: {
+      systemPrompt: frozen.system,
+      model,
+      tools: piTools,
+      thinkingLevel: 'off',
     },
-    conversationId,
-    wakeId,
-    logger,
-    agentDefinition,
-    events,
-    observerCtx,
-    mutators,
-    toolIndex,
-    turnBudget,
-    workspaceBash: workspace.bash,
-    frozen0,
-    capturedPrompts,
-    customSideLoad,
-    bashHistory,
-    budgetWarning,
-    piMessages,
-    historyEnabled,
+    convertToLlm: (msgs: AgentMessage[]) => msgs as never,
+    transformContext: async (msgs: AgentMessage[]) => {
+      if (tracker.isFirstTransformOfTurn) {
+        tracker.isFirstTransformOfTurn = false
+        const sideLoadBody = await collectSideLoad({
+          ctx: {
+            organizationId: opts.organizationId,
+            conversationId,
+            agentId: opts.agentId,
+            contactId: opts.contactId,
+            turnIndex: Math.max(0, tracker.turnIndex),
+          },
+          contributors: opts.registrations.sideLoadContributors,
+          customMaterializers: customSideLoad,
+          bash: workspace.bash,
+        })
+        tracker.sideLoadCache = sideLoadBody
+      }
+      if (!tracker.sideLoadCache) return msgs
+      const lastIdx = msgs.length - 1
+      const last = msgs[lastIdx]
+      if (!last || last.role !== 'user') return msgs
+      const userText = typeof last.content === 'string' ? last.content : ''
+      const withSideLoad: AgentMessage = {
+        ...last,
+        content: `${tracker.sideLoadCache}\n\n${userText}`,
+      }
+      const out = msgs.slice(0, lastIdx)
+      out.push(withSideLoad)
+      return out
+    },
+    getApiKey: () => resolveApiKey(),
+    beforeToolCall: async (ctx) => {
+      const step: AgentStep = {
+        toolCallId: ctx.toolCall.id,
+        toolName: ctx.toolCall.name,
+        args: ctx.args,
+      }
+      const mutatorCtx: MutatorContext = {
+        ...observerCtx,
+        llmCall: async () => {
+          throw new Error('mutators must not llmCall in Phase 1')
+        },
+        persistEvent: async (ev) => {
+          events.publish(ev)
+        },
+      }
+      const decision = await mutators.runBefore(step, mutatorCtx)
+      if (decision?.action === 'block') {
+        return { block: true, reason: decision.reason }
+      }
+      return undefined
+    },
+    afterToolCall: async () => undefined,
+  }
+  if (opts.streamFn) {
+    // Narrow: pi's streamFn type is the same TSchema we pipe through.
+    ;(agentOpts as { streamFn?: unknown }).streamFn = opts.streamFn
+  }
+
+  const agent = new Agent(agentOpts)
+
+  // ---- Subscribe: pi events → contract events ---------------------------
+  agent.subscribe((piEv: PiAgentEvent) => {
+    const curScope: WakeScope = { ...scope, turnIndex: Math.max(0, tracker.turnIndex) }
+    switch (piEv.type) {
+      case 'turn_start': {
+        if (firstSubTurnOfUserTurn) {
+          firstSubTurnOfUserTurn = false
+          const ev: TurnStartEvent = { ...baseFields(curScope), type: 'turn_start' }
+          events.publish(ev)
+          turnBudget.reset()
+        }
+        break
+      }
+      case 'message_start': {
+        currentMessageId = nanoid(10)
+        assembledContent = ''
+        const ev: MessageStartEvent = {
+          ...baseFields(curScope),
+          type: 'message_start',
+          messageId: currentMessageId,
+          role: 'assistant',
+        }
+        events.publish(ev)
+        break
+      }
+      case 'message_update': {
+        if (!currentMessageId) break
+        const pev = piEv.assistantMessageEvent
+        if (pev.type === 'text_delta') {
+          assembledContent += pev.delta
+          const ev: MessageUpdateEvent = {
+            ...baseFields(curScope),
+            type: 'message_update',
+            messageId: currentMessageId,
+            delta: pev.delta,
+          }
+          events.publish(ev)
+        }
+        break
+      }
+      case 'message_end': {
+        if (!currentMessageId) break
+        const assistant = piEv.message as AssistantMessage
+        const finishReason = typeof assistant.stopReason === 'string' ? assistant.stopReason : 'stop'
+        const usage = assistant.usage
+
+        // Synthesize our llm_call on pi's message_end.
+        const llmEvt: LlmCallEvent = {
+          ...baseFields(curScope),
+          type: 'llm_call',
+          task: 'agent.turn',
+          model: modelId,
+          provider: providerName,
+          tokensIn: usage?.input ?? 0,
+          tokensOut: usage?.output ?? 0,
+          cacheReadTokens: usage?.cacheRead ?? 0,
+          costUsd: usage?.cost?.total ?? 0,
+          latencyMs: Date.now() - tracker.turnStartedAt,
+          cacheHit: (usage?.cacheRead ?? 0) > 0,
+        }
+        events.publish(llmEvt)
+
+        const textContent = assembledContent || extractAssistantText(assistant)
+        const ev: MessageEndEvent = {
+          ...baseFields(curScope),
+          type: 'message_end',
+          messageId: currentMessageId,
+          role: 'assistant',
+          content: textContent,
+          finishReason,
+          tokenCount: textContent.length,
+        }
+        events.publish(ev)
+        break
+      }
+      case 'tool_execution_start': {
+        tracker.onToolStart()
+        if (piEv.toolName === 'bash') {
+          const cmd = (piEv.args as { command?: string } | null | undefined)?.command
+          if (typeof cmd === 'string' && cmd.length > 0) bashHistory.current.push(cmd)
+        }
+        const ev: ToolExecutionStartEvent = {
+          ...baseFields(curScope),
+          type: 'tool_execution_start',
+          toolCallId: piEv.toolCallId,
+          toolName: piEv.toolName,
+          args: piEv.args,
+        }
+        events.publish(ev)
+        break
+      }
+      case 'tool_execution_end': {
+        tracker.onToolEnd()
+        const pr = piEv.result as AgentToolResult<unknown> | undefined
+        const ourResult = pr?.details ?? pr
+        const ev: ToolExecutionEndEvent = {
+          ...baseFields(curScope),
+          type: 'tool_execution_end',
+          toolCallId: piEv.toolCallId,
+          toolName: piEv.toolName,
+          result: ourResult,
+          isError: Boolean(piEv.isError),
+          latencyMs: 0,
+        }
+        events.publish(ev)
+        break
+      }
+      default:
+        // `agent_start`, `agent_end`, `turn_end`, `tool_execution_update` —
+        // we emit our own turn-bracketing events from the main loop.
+        break
+    }
   })
 
-  // agent_end
+  // ---- Run user-turns ----------------------------------------------------
+  const maxTurns = opts.iterationBudget?.maxTurnsPerWake ?? opts.maxTurns ?? 1
+  const abortSignal = opts.abortCtx?.wakeAbort.signal
+  let endReason: AgentEndEvent['reason'] = 'complete'
+  let pendingSteerText: string | null = null
+
+  if (abortSignal) {
+    abortSignal.addEventListener('abort', () => {
+      try {
+        agent.abort()
+      } catch {
+        /* agent may already be idle */
+      }
+    })
+  }
+
+  for (let t = 0; t < maxTurns; t += 1) {
+    tracker.beginUserTurn()
+    firstSubTurnOfUserTurn = true
+    const curScope: WakeScope = { ...scope, turnIndex: tracker.turnIndex }
+
+    let userText = renderTriggerMessage(trigger)
+    if (pendingSteerText !== null) {
+      const steerEvt: SteerInjectedEvent = {
+        ...baseFields(curScope),
+        type: 'steer_injected',
+        text: pendingSteerText,
+      }
+      events.publish(steerEvt)
+      userText = `${pendingSteerText}\n\n${userText}`
+      pendingSteerText = null
+    }
+
+    // Build captured-prompts snapshot (mirrors what transformContext will see).
+    const sideLoadBody = await collectSideLoad({
+      ctx: {
+        organizationId: opts.organizationId,
+        conversationId,
+        agentId: opts.agentId,
+        contactId: opts.contactId,
+        turnIndex: tracker.turnIndex,
+      },
+      contributors: opts.registrations.sideLoadContributors,
+      customMaterializers: customSideLoad,
+      bash: workspace.bash,
+    })
+    const firstUserMessage = sideLoadBody ? `${sideLoadBody}\n\n${userText}` : userText
+    capturedPrompts.push({
+      system: frozen.system,
+      systemHash: frozen.systemHash,
+      firstUserMessage,
+    })
+
+    try {
+      await agent.prompt(userText)
+      await agent.waitForIdle()
+    } catch (err) {
+      logger.error({ err }, 'agent.prompt failed')
+      endReason = 'error'
+      break
+    }
+
+    const turnEnd: TurnEndEvent = {
+      ...baseFields(curScope),
+      type: 'turn_end',
+      tokensIn: 0,
+      tokensOut: assembledContent.length,
+      costUsd: 0,
+    }
+    events.publish(turnEnd)
+
+    if (historyEnabled) {
+      piMessages.length = 0
+      for (const m of agent.state.messages) piMessages.push(m)
+    }
+
+    bashHistory.last = bashHistory.current
+    bashHistory.current = []
+
+    if (abortSignal?.aborted || agent.state.errorMessage) {
+      const abortedEvt: AgentAbortedEvent = {
+        ...baseFields(curScope),
+        type: 'agent_aborted',
+        reason: opts.abortCtx?.reason ?? agent.state.errorMessage ?? 'external',
+        abortedAt: tracker.phase,
+      }
+      events.publish(abortedEvt)
+      endReason = 'aborted'
+      break
+    }
+
+    if (opts.steerQueue) {
+      const steers = opts.steerQueue.drain()
+      if (steers.length > 0) pendingSteerText = steers.join('\n\n')
+    }
+  }
+
   const endEvt: AgentEndEvent = {
-    ...baseEventFields({ organizationId: opts.organizationId, conversationId, wakeId, turnIndex: 0 }),
+    ...baseFields({ ...scope, turnIndex: Math.max(0, tracker.turnIndex) }),
     type: 'agent_end',
     reason: endReason,
   }
   events.publish(endEvt)
 
-  // Drain observers + journal writes before returning control.
   unsub()
   await journalChain
   await observers.shutdown()
 
-  // ---- Expose handle for tests ------------------------------------------
   const handle: HarnessHandle = {
     capturedPrompts,
     events: eventLog,
     workspace,
     dirtyTracker,
     simulateToolCall: async (name, args) => {
-      // Run through the mutator chain, then the tool, and emit the tool-exec pair.
       const toolCallId = nanoid(10)
       const step: AgentStep = { toolCallId, toolName: name, args }
-      const scope: WakeScope = { organizationId: opts.organizationId, conversationId, wakeId, turnIndex: 0 }
+      const curScope: WakeScope = { ...scope, turnIndex: 0 }
       const mutatorCtx: MutatorContext = {
         ...observerCtx,
         llmCall: async () => {
@@ -453,7 +825,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       const decision = await mutators.runBefore(step, mutatorCtx)
       const eff = decision?.action === 'transform' ? decision.args : args
       const startEv: ToolExecutionStartEvent = {
-        ...baseEventFields(scope),
+        ...baseFields(curScope),
         type: 'tool_execution_start',
         toolCallId,
         toolName: name,
@@ -464,14 +836,11 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       let endEv: ToolExecutionEndEvent
       if (!tool || decision?.action === 'block') {
         endEv = {
-          ...baseEventFields(scope),
+          ...baseFields(curScope),
           type: 'tool_execution_end',
           toolCallId,
           toolName: name,
-          result: {
-            ok: false,
-            error: decision?.action === 'block' ? decision.reason : `unknown tool: ${name}`,
-          },
+          result: { ok: false, error: decision?.action === 'block' ? decision.reason : `unknown tool: ${name}` },
           isError: true,
           latencyMs: 0,
         }
@@ -486,7 +855,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
           toolCallId,
         })
         endEv = {
-          ...baseEventFields(scope),
+          ...baseFields(curScope),
           type: 'tool_execution_end',
           toolCallId,
           toolName: name,
@@ -507,8 +876,3 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
 
   return { harness: handle, conversationId, wakeId }
 }
-
-// ----- helper re-exports ---------------------------------------------------
-
-export type { MockStreamEvent, StreamFn }
-export { mockStream }

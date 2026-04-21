@@ -1,3 +1,0 @@
-{"candidates":[{"content":{"parts":[{"text":"This image "}],"role":"model"}}],"usageMetadata":{"promptTokenCount":25,"candidatesTokenCount":3,"totalTokenCount":28}}
-{"candidates":[{"content":{"parts":[{"text":"depicts a product catalog "}],"role":"model"}}],"usageMetadata":{"promptTokenCount":25,"candidatesTokenCount":8,"totalTokenCount":33}}
-{"candidates":[{"content":{"parts":[{"text":"showing various items with pricing information, suitable for sharing with customers inquiring about available products."}],"role":"model"},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":25,"candidatesTokenCount":28,"totalTokenCount":53}}
