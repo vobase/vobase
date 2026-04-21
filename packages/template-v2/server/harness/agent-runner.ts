@@ -438,7 +438,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   )
   observers.register(
     createMemoryDistillObserver({
-      contactId: opts.contactId,
+      target: { kind: 'contact', contactId: opts.contactId },
       agentId: opts.agentId,
       llmCall: opts.observerLlmCall,
     }),

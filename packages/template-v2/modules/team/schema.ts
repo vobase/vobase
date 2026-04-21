@@ -3,15 +3,16 @@
  *
  * Two tables in the `team` pgSchema:
  *   - `staff_profiles` — per-user domain profile (sectors, expertise, capacity,
- *     availability, attributes, AI working memory, assignment notes).
+ *     availability, attributes, plus a `profile` narrative (human-authored,
+ *     routing hints) and `notes` markdown (agent-authored, distilled memory).
  *   - `staff_attribute_definitions` — org-scoped schema for the `attributes` JSONB
  *     (clone of `contact_attribute_definitions`).
  *
  * Identity / auth / team-membership live in better-auth (`auth.user`,
  * `auth.member`, `auth.team_member`). Channel identities live in
- * `contacts.staff_channel_bindings`. Narrative persona (PROFILE.md) and long AI
- * notes (NOTES.md) live in Drive under `scope='staff'`. This table owns only
- * the structured domain profile.
+ * `contacts.staff_channel_bindings`. The `profile` / `notes` columns are
+ * surfaced as virtual `/PROFILE.md` + `/NOTES.md` files under Drive
+ * `scope='staff'` (mirrors the contact-scope overlay).
  */
 
 import { teamPgSchema } from '@server/db/pg-schemas'
@@ -38,15 +39,16 @@ export interface StaffProfile {
   availability: Availability
   attributes: Record<string, AttributeValue>
   /**
-   * Agent-authored short rolling memory. Rewritten in place by a memory-distill
-   * observer (wired post-T1). Surfaced to the agent as side-load.
+   * Human-authored narrative (routing hints, Mandarin-first, OOO Fridays, etc.).
+   * Mirrors `contacts.profile`. Surfaced as `staff:/PROFILE.md` in Drive.
    */
-  workingMemory: string
+  profile: string
   /**
-   * Human-authored free-text routing hints for operators / triage agents.
-   * Not surfaced to LLM prompts by default; shown on the staff detail page.
+   * Agent-authored distilled memory markdown. Rewritten section-by-section by
+   * the memory-distill observer. Mirrors `contacts.notes`. Surfaced as
+   * `staff:/NOTES.md` in Drive.
    */
-  assignmentNotes: string
+  notes: string
   /** Heartbeat for presence / offline detection (mentions notification flow). */
   lastSeenAt: Date | null
   createdAt: Date
@@ -86,8 +88,8 @@ export const staffProfiles = teamPgSchema.table(
     capacity: integer('capacity').notNull().default(10),
     availability: text('availability').notNull().default('active'),
     attributes: jsonb('attributes').$type<Record<string, AttributeValue>>().notNull().default({}),
-    workingMemory: text('working_memory').notNull().default(''),
-    assignmentNotes: text('assignment_notes').notNull().default(''),
+    profile: text('profile').notNull().default(''),
+    notes: text('notes').notNull().default(''),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })

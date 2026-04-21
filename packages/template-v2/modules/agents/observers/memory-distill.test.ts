@@ -22,6 +22,11 @@ mock.module('@modules/contacts/service/contacts', () => ({
   },
 }))
 
+mock.module('@modules/team/service/staff', () => ({
+  readNotes: async () => '',
+  upsertNotesSection: async () => {},
+}))
+
 // Must import AFTER mock.module
 const { createMemoryDistillObserver } = await import('./memory-distill')
 
@@ -130,7 +135,7 @@ describe('memoryDistillObserver — anti-lessons', () => {
       },
     ]
 
-    const obs = createMemoryDistillObserver({ contactId: 'contact-1', agentId: 'agt-1' })
+    const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' }, agentId: 'agt-1' })
     const ctx = makeCtx()
 
     await obs.handle(rejectedEvent('prop-1'), ctx)
@@ -154,7 +159,7 @@ describe('memoryDistillObserver — anti-lessons', () => {
       },
     ]
 
-    const obs = createMemoryDistillObserver({ contactId: 'contact-1' })
+    const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' } })
     const ctx = makeCtx()
 
     await obs.handle(rejectedEvent('prop-2'), ctx)
@@ -185,7 +190,7 @@ describe('memoryDistillObserver — anti-lessons', () => {
       'keep me',
     ].join('\n')
 
-    const obs = createMemoryDistillObserver({ contactId: 'contact-1', agentId: 'agt-1' })
+    const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' }, agentId: 'agt-1' })
     const ctx = makeCtx()
 
     await obs.handle(rejectedEvent('prop-3'), ctx)
@@ -210,7 +215,7 @@ describe('memoryDistillObserver — anti-lessons', () => {
       '- `[prop-3]` **agent_skill:refund** — already rejected _(rejected 2026-04-19T09:00:00.000Z)_',
     ].join('\n')
 
-    const obs = createMemoryDistillObserver({ contactId: 'contact-1', agentId: 'agt-1' })
+    const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' }, agentId: 'agt-1' })
     const ctx = makeCtx()
 
     await obs.handle(rejectedEvent('prop-4'), ctx)
@@ -224,7 +229,7 @@ describe('memoryDistillObserver — anti-lessons', () => {
   })
 
   it('skips anti-lessons write when no rejections observed', async () => {
-    const obs = createMemoryDistillObserver({ contactId: 'contact-1', agentId: 'agt-1' })
+    const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' }, agentId: 'agt-1' })
     const ctx = makeCtx()
 
     await obs.handle(assistantMessageEvent('hi'), ctx)

@@ -26,7 +26,7 @@ export function StaffDetailPage() {
         languages: values.languages,
         capacity: values.capacity,
         availability: values.availability,
-        assignmentNotes: values.assignmentNotes,
+        profile: values.profile,
       })
       toast.success('Profile updated')
       setEditOpen(false)
@@ -72,16 +72,10 @@ export function StaffDetailPage() {
         {staff && (
           <>
             <section className="shrink-0 border-b border-border px-6 py-4">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                 <ProfileStat label="Sectors" items={staff.sectors} />
                 <ProfileStat label="Expertise" items={staff.expertise} />
                 <ProfileStat label="Languages" items={staff.languages} />
-                <div>
-                  <div className="mb-1 text-xs font-medium text-muted-foreground">Assignment notes</div>
-                  <p className="whitespace-pre-wrap text-sm text-foreground">
-                    {staff.assignmentNotes || <span className="text-muted-foreground">—</span>}
-                  </p>
-                </div>
               </div>
             </section>
 

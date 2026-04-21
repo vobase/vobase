@@ -264,7 +264,11 @@ type _RequiredStaffMethods =
   | 'remove'
   | 'setAttributes'
   | 'touchLastSeen'
-  | 'setWorkingMemory'
+  | 'readNotes'
+  | 'writeNotes'
+  | 'upsertNotesSection'
+  | 'readProfile'
+  | 'writeProfile'
 type _StaffKeys = AssertTrue<AssertEqual<keyof StaffService, _RequiredStaffMethods>>
 
 type _RequiredStaffAttrDefMethods = 'list' | 'create' | 'update' | 'remove'

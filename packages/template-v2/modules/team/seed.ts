@@ -35,7 +35,7 @@ export async function seed(db: unknown): Promise<void> {
       languages: ['en', 'zh'],
       capacity: 15,
       availability: 'active',
-      assignmentNotes: 'Lead for new SMB onboardings. Fluent Mandarin — route zh-first conversations here.',
+      profile: 'Lead for new SMB onboardings. Fluent Mandarin — route zh-first conversations here.',
       attributes: { department: 'CS', seniority: 'senior', on_call: true },
     })
     .onConflictDoNothing()
@@ -52,7 +52,7 @@ export async function seed(db: unknown): Promise<void> {
       languages: ['en'],
       capacity: 20,
       availability: 'active',
-      assignmentNotes: 'Technical escalations. Covers integrations + webhook debugging.',
+      profile: 'Technical escalations. Covers integrations + webhook debugging.',
       attributes: { department: 'Eng', seniority: 'senior', on_call: false },
     })
     .onConflictDoNothing()
@@ -69,7 +69,7 @@ export async function seed(db: unknown): Promise<void> {
       languages: ['en', 'ms'],
       capacity: 10,
       availability: 'busy',
-      assignmentNotes: 'Approval authority on refunds up to SGD 500. OOO Fridays.',
+      profile: 'Approval authority on refunds up to SGD 500. OOO Fridays.',
       attributes: { department: 'Ops', seniority: 'lead', on_call: true },
     })
     .onConflictDoNothing()

@@ -43,7 +43,7 @@ export function StaffListPage() {
         languages: values.languages,
         capacity: values.capacity,
         availability: values.availability,
-        assignmentNotes: values.assignmentNotes,
+        profile: values.profile,
       })
       toast.success('Staff profile saved')
       setDialogOpen(false)

@@ -19,8 +19,8 @@ export interface UpsertStaffInput {
   capacity?: number
   availability?: Availability
   attributes?: Record<string, AttributeValue>
-  workingMemory?: string
-  assignmentNotes?: string
+  profile?: string
+  notes?: string
 }
 
 export interface UpdateStaffInput {
@@ -31,7 +31,8 @@ export interface UpdateStaffInput {
   languages?: string[]
   capacity?: number
   availability?: Availability
-  assignmentNotes?: string
+  profile?: string
+  notes?: string
 }
 
 interface StaffDeps {
@@ -47,7 +48,11 @@ export interface StaffService {
   remove(userId: string): Promise<void>
   setAttributes(userId: string, patch: Record<string, AttributeValue>): Promise<StaffProfile>
   touchLastSeen(userId: string): Promise<void>
-  setWorkingMemory(userId: string, value: string): Promise<void>
+  readNotes(userId: string): Promise<string>
+  writeNotes(userId: string, value: string): Promise<void>
+  upsertNotesSection(userId: string, heading: string, body: string): Promise<void>
+  readProfile(userId: string): Promise<string>
+  writeProfile(userId: string, value: string): Promise<void>
 }
 
 export function createStaffService(deps: StaffDeps): StaffService {
@@ -91,8 +96,8 @@ export function createStaffService(deps: StaffDeps): StaffService {
     if (input.capacity !== undefined) values.capacity = input.capacity
     if (input.availability !== undefined) values.availability = input.availability
     if (input.attributes !== undefined) values.attributes = input.attributes
-    if (input.workingMemory !== undefined) values.workingMemory = input.workingMemory
-    if (input.assignmentNotes !== undefined) values.assignmentNotes = input.assignmentNotes
+    if (input.profile !== undefined) values.profile = input.profile
+    if (input.notes !== undefined) values.notes = input.notes
 
     const update: Record<string, unknown> = { ...values }
     delete update.userId
@@ -119,7 +124,8 @@ export function createStaffService(deps: StaffDeps): StaffService {
     if (patch.languages !== undefined) set.languages = patch.languages
     if (patch.capacity !== undefined) set.capacity = patch.capacity
     if (patch.availability !== undefined) set.availability = patch.availability
-    if (patch.assignmentNotes !== undefined) set.assignmentNotes = patch.assignmentNotes
+    if (patch.profile !== undefined) set.profile = patch.profile
+    if (patch.notes !== undefined) set.notes = patch.notes
     const rows = (await db
       .update(staffProfiles)
       .set(set)
@@ -166,13 +172,99 @@ export function createStaffService(deps: StaffDeps): StaffService {
     await db.update(staffProfiles).set({ lastSeenAt: new Date() }).where(eq(staffProfiles.userId, userId))
   }
 
-  async function setWorkingMemory(userId: string, value: string): Promise<void> {
+  async function readColumn(userId: string, field: 'profile' | 'notes'): Promise<string> {
     const { staffProfiles } = await import('@modules/team/schema')
     const { eq } = await import('drizzle-orm')
-    await db.update(staffProfiles).set({ workingMemory: value }).where(eq(staffProfiles.userId, userId))
+    const rows = (await db
+      .select({ profile: staffProfiles.profile, notes: staffProfiles.notes })
+      .from(staffProfiles)
+      .where(eq(staffProfiles.userId, userId))
+      .limit(1)) as Array<{ profile: string; notes: string }>
+    const row = rows[0]
+    if (!row) throw new Error(`staff-profile not found: ${userId}`)
+    return row[field] ?? ''
   }
 
-  return { list, get, find, upsert, update, remove, setAttributes, touchLastSeen, setWorkingMemory }
+  async function writeColumn(userId: string, field: 'profile' | 'notes', value: string): Promise<void> {
+    const { staffProfiles } = await import('@modules/team/schema')
+    const { eq } = await import('drizzle-orm')
+    await db
+      .update(staffProfiles)
+      .set({ [field]: value })
+      .where(eq(staffProfiles.userId, userId))
+  }
+
+  async function readNotes(userId: string): Promise<string> {
+    return readColumn(userId, 'notes')
+  }
+  async function writeNotes(userId: string, value: string): Promise<void> {
+    await writeColumn(userId, 'notes', value)
+  }
+  async function upsertNotesSection(userId: string, heading: string, body: string): Promise<void> {
+    const current = await readNotes(userId)
+    await writeNotes(userId, setSection(current, heading, body))
+  }
+  async function readProfile(userId: string): Promise<string> {
+    return readColumn(userId, 'profile')
+  }
+  async function writeProfile(userId: string, value: string): Promise<void> {
+    await writeColumn(userId, 'profile', value)
+  }
+
+  return {
+    list,
+    get,
+    find,
+    upsert,
+    update,
+    remove,
+    setAttributes,
+    touchLastSeen,
+    readNotes,
+    writeNotes,
+    upsertNotesSection,
+    readProfile,
+    writeProfile,
+  }
+}
+
+/** Upsert a `##` section in raw markdown — preserves all other sections. Mirrors contacts. */
+function setSection(md: string, heading: string, body: string): string {
+  const lines = md.split('\n')
+  const result: string[] = []
+  let inTarget = false
+  let found = false
+
+  for (const line of lines) {
+    const m = line.match(/^##\s+(.+)/)
+    if (m) {
+      if (inTarget) inTarget = false
+      if (m[1].trim() === heading) {
+        found = true
+        inTarget = true
+        result.push(`## ${heading}`)
+        result.push('')
+        result.push(body)
+        result.push('')
+        continue
+      }
+    }
+    if (inTarget) continue
+    result.push(line)
+  }
+
+  if (!found) {
+    if (result.length > 0 && result[result.length - 1] !== '') result.push('')
+    result.push(`## ${heading}`)
+    result.push('')
+    result.push(body)
+    result.push('')
+  }
+
+  return result
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd()
 }
 
 let _current: StaffService | null = null
@@ -214,6 +306,18 @@ export function setAttributes(userId: string, patch: Record<string, AttributeVal
 export function touchLastSeen(userId: string): Promise<void> {
   return current().touchLastSeen(userId)
 }
-export function setWorkingMemory(userId: string, value: string): Promise<void> {
-  return current().setWorkingMemory(userId, value)
+export function readNotes(userId: string): Promise<string> {
+  return current().readNotes(userId)
+}
+export function writeNotes(userId: string, value: string): Promise<void> {
+  return current().writeNotes(userId, value)
+}
+export function upsertNotesSection(userId: string, heading: string, body: string): Promise<void> {
+  return current().upsertNotesSection(userId, heading, body)
+}
+export function readProfile(userId: string): Promise<string> {
+  return current().readProfile(userId)
+}
+export function writeProfile(userId: string, value: string): Promise<void> {
+  return current().writeProfile(userId, value)
 }

@@ -7,10 +7,11 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { composeVirtualContent, resolveContactVirtualField, stripVirtualHeader } from './files'
+import { composeVirtualContent, resolveContactVirtualField, resolveVirtualField, stripVirtualHeader } from './files'
 import type { DriveScope } from './types'
 
 const CONTACT_SCOPE: DriveScope = { scope: 'contact', contactId: 'ctc-1' }
+const STAFF_SCOPE: DriveScope = { scope: 'staff', userId: 'alice' }
 const ORG_SCOPE: DriveScope = { scope: 'organization' }
 
 describe('resolveContactVirtualField', () => {
@@ -31,6 +32,25 @@ describe('resolveContactVirtualField', () => {
     expect(resolveContactVirtualField(CONTACT_SCOPE, '/other.md')).toBeNull()
     expect(resolveContactVirtualField(CONTACT_SCOPE, '/profile.md')).toBeNull() // case-sensitive
     expect(resolveContactVirtualField(CONTACT_SCOPE, '/dir/PROFILE.md')).toBeNull()
+  })
+})
+
+describe('resolveVirtualField (contact + staff)', () => {
+  it('maps staff:/PROFILE.md to profile', () => {
+    expect(resolveVirtualField(STAFF_SCOPE, '/PROFILE.md')).toBe('profile')
+  })
+
+  it('maps staff:/NOTES.md to notes', () => {
+    expect(resolveVirtualField(STAFF_SCOPE, '/NOTES.md')).toBe('notes')
+  })
+
+  it('still maps contact-scope paths', () => {
+    expect(resolveVirtualField(CONTACT_SCOPE, '/PROFILE.md')).toBe('profile')
+    expect(resolveVirtualField(CONTACT_SCOPE, '/NOTES.md')).toBe('notes')
+  })
+
+  it('returns null for org scope', () => {
+    expect(resolveVirtualField(ORG_SCOPE, '/PROFILE.md')).toBeNull()
   })
 })
 

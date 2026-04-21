@@ -21,16 +21,15 @@ for routing and operations, *not* identity or auth.
 | Team membership | better-auth `teamMember` (teams plugin — wired in T2) |
 | Channel identities | `contacts.staff_channel_bindings` |
 | Domain profile (sectors, expertise, capacity, attributes) | `team.staff_profiles` |
-| Narrative persona | Drive `scope=staff, path=/PROFILE.md` (T3) |
-| AI short memory | `team.staff_profiles.working_memory` |
-| AI long notes | Drive `scope=staff, path=/NOTES.md` (T3) |
+| Narrative persona (human-authored) | `team.staff_profiles.profile` ↔ Drive `scope=staff, path=/PROFILE.md` |
+| Distilled agent memory | `team.staff_profiles.notes` ↔ Drive `scope=staff, path=/NOTES.md` |
 | Permissions | better-auth AC statement (T2) |
 
 ## Tables
 
 - `team.staff_profiles` — `userId PK`, org-scoped profile, availability check,
   GIN indexes on `sectors`/`expertise`/`languages`, `lastSeenAt` for presence,
-  `workingMemory` for the agent memory-distill observer (T7).
+  `profile` (human) + `notes` (agent, rewritten by the memory-distill observer).
 - `team.staff_attribute_definitions` — clone of `contact_attribute_definitions`.
   Deliberate duplication so the two namespaces evolve independently.
 

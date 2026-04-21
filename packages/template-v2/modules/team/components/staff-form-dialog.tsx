@@ -38,7 +38,7 @@ export interface StaffFormValues {
   languages: string[]
   capacity: number
   availability: Availability
-  assignmentNotes: string
+  profile: string
 }
 
 interface Props {
@@ -67,7 +67,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
   const [languages, setLanguages] = useState('')
   const [capacity, setCapacity] = useState('10')
   const [availability, setAvailability] = useState<Availability>('active')
-  const [assignmentNotes, setAssignmentNotes] = useState('')
+  const [profile, setProfile] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
     setLanguages(toCsv(staff?.languages ?? []))
     setCapacity(String(staff?.capacity ?? 10))
     setAvailability(staff?.availability ?? 'active')
-    setAssignmentNotes(staff?.assignmentNotes ?? '')
+    setProfile(staff?.profile ?? '')
     setError(null)
   }, [open, staff])
 
@@ -104,7 +104,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
       languages: fromCsv(languages),
       capacity: cap,
       availability,
-      assignmentNotes,
+      profile,
     })
   }
 
@@ -209,14 +209,17 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="staff-assignment-notes">Assignment notes</Label>
+            <Label htmlFor="staff-profile">Profile</Label>
             <Textarea
-              id="staff-assignment-notes"
-              rows={3}
-              value={assignmentNotes}
-              onChange={(e) => setAssignmentNotes(e.target.value)}
-              placeholder="Free-text routing hints for operators and triage agents…"
+              id="staff-profile"
+              rows={4}
+              value={profile}
+              onChange={(e) => setProfile(e.target.value)}
+              placeholder="Narrative routing hints, language preferences, OOO schedule…"
             />
+            <p className="text-xs text-muted-foreground">
+              Human-authored. Surfaced as <code>/PROFILE.md</code> in this staff member's Drive.
+            </p>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>

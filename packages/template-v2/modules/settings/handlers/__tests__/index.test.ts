@@ -1,8 +1,9 @@
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
 } from '@modules/settings/service/notification-prefs'
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import type { AppSession, SessionEnv } from '@server/middlewares/require-session'
 import { Hono } from 'hono'
 import settingsRouter from '../index'
 
@@ -29,9 +30,27 @@ afterAll(() => {
   __resetNotificationPrefsServiceForTests()
 })
 
-const app = new Hono()
+const app = new Hono<SessionEnv>()
 app.use('/settings/*', async (c, next) => {
-  c.set('session', { user: { id: 'test-user' } })
+  c.set('session', {
+    user: {
+      id: 'test-user',
+      email: 'test@example.com',
+      emailVerified: true,
+      name: 'Test User',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    session: {
+      id: 'sess-1',
+      userId: 'test-user',
+      token: 'tok',
+      expiresAt: new Date(Date.now() + 3600_000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      activeOrganizationId: null,
+    },
+  } satisfies AppSession)
   await next()
 })
 app.route('/settings', settingsRouter)

@@ -43,7 +43,8 @@ export interface UpsertStaffBody {
   languages?: string[]
   capacity?: number
   availability?: Availability
-  assignmentNotes?: string
+  profile?: string
+  notes?: string
 }
 
 export function useUpsertStaff() {

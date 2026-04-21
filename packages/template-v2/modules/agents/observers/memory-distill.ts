@@ -7,23 +7,50 @@
  * provider is wired.
  */
 
-import { readNotes, upsertNotesSection } from '@modules/contacts/service/contacts'
+import {
+  readNotes as readContactNotes,
+  upsertNotesSection as upsertContactNotesSection,
+} from '@modules/contacts/service/contacts'
+import { readNotes as readStaffNotes, upsertNotesSection as upsertStaffNotesSection } from '@modules/team/service/staff'
 import type { AgentEvent, LearningRejectedEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
 import type { PluginContext } from '@server/contracts/plugin-context'
 import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
 import { upsertMarkdownSection } from './learning-proposal'
 
+/**
+ * Target for distilled-memory writes. Contact target writes to
+ * `contacts.notes` (aka Drive `contact:/NOTES.md`); staff target writes to
+ * `staff_profiles.notes` (aka Drive `staff:/NOTES.md`).
+ */
+export type DistillTarget = { kind: 'contact'; contactId: string } | { kind: 'staff'; userId: string }
+
 export interface MemoryDistillOpts {
-  contactId: string
+  target: DistillTarget
   agentId?: string
   /** When provided, the observer calls `llmCall('memory.distill', …)` instead of the deterministic stub. */
   llmCall?: PluginContext['llmCall']
 }
 
-/** Module-level per-contact debounce map. Cleared on process restart (acceptable for Phase 2). */
+/** Module-level per-target debounce map. Cleared on process restart (acceptable for Phase 2). */
 const lastDistillTs = new Map<string, number>()
 const DEBOUNCE_MS = 10 * 60 * 1000
+
+function targetKey(t: DistillTarget): string {
+  return t.kind === 'contact' ? `contact:${t.contactId}` : `staff:${t.userId}`
+}
+
+async function readTargetNotes(t: DistillTarget): Promise<string> {
+  return t.kind === 'contact' ? readContactNotes(t.contactId) : readStaffNotes(t.userId)
+}
+
+async function upsertTargetNotesSection(t: DistillTarget, heading: string, body: string): Promise<void> {
+  if (t.kind === 'contact') {
+    await upsertContactNotesSection(t.contactId, heading, body)
+  } else {
+    await upsertStaffNotesSection(t.userId, heading, body)
+  }
+}
 
 interface WakeBuffer {
   assistantMessages: string[]
@@ -31,7 +58,8 @@ interface WakeBuffer {
 }
 
 export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObserver {
-  const { contactId, agentId, llmCall } = opts
+  const { target, agentId, llmCall } = opts
+  const tkey = targetKey(target)
 
   const wakeBuffer = new Map<string, WakeBuffer>()
 
@@ -66,14 +94,14 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
 
       if (state.assistantMessages.length === 0) return
 
-      const lastTs = lastDistillTs.get(contactId) ?? 0
+      const lastTs = lastDistillTs.get(tkey) ?? 0
       const now = Date.now()
       if (now - lastTs < DEBOUNCE_MS) return
 
       try {
         let sections: DistilledSection[]
         if (llmCall) {
-          const currentMemory = await readMemorySafe(ctx, contactId)
+          const currentMemory = await readMemorySafe(target)
           sections = await callMemoryDistill(llmCall, {
             messages: state.assistantMessages,
             currentMemory,
@@ -84,20 +112,20 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
         }
 
         for (const { heading, body } of sections) {
-          await upsertNotesSection(contactId, heading, body)
+          await upsertTargetNotesSection(target, heading, body)
         }
 
-        lastDistillTs.set(contactId, now)
+        lastDistillTs.set(tkey, now)
       } catch (err) {
-        ctx.logger.warn({ err, contactId }, 'memory-distill: failed to write distilled sections')
+        ctx.logger.warn({ err, target }, 'memory-distill: failed to write distilled sections')
       }
     },
   }
 }
 
-async function readMemorySafe(_ctx: ObserverContext, contactId: string): Promise<string> {
+async function readMemorySafe(target: DistillTarget): Promise<string> {
   try {
-    return await readNotes(contactId)
+    return await readTargetNotes(target)
   } catch {
     return ''
   }

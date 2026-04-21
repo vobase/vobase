@@ -25,7 +25,8 @@ const upsertStaffBody = z.object({
   languages: z.array(z.string().min(1)).optional(),
   capacity: z.number().int().min(0).max(1000).optional(),
   availability: availability.optional(),
-  assignmentNotes: z.string().max(4000).optional(),
+  profile: z.string().max(4000).optional(),
+  notes: z.string().max(8000).optional(),
 })
 
 const updateStaffBody = z.object({
@@ -36,7 +37,8 @@ const updateStaffBody = z.object({
   languages: z.array(z.string().min(1)).optional(),
   capacity: z.number().int().min(0).max(1000).optional(),
   availability: availability.optional(),
-  assignmentNotes: z.string().max(4000).optional(),
+  profile: z.string().max(4000).optional(),
+  notes: z.string().max(8000).optional(),
 })
 
 const app = new Hono()
