@@ -1,51 +1,51 @@
-import { ChannelInboundEventSchema } from '@server/contracts/channel-event'
+import { type ChannelInboundEvent, ChannelInboundEventSchema } from '@server/contracts/channel-event'
 import { verifyHmacWebhook } from '@server/middlewares'
 import type { Context } from 'hono'
+import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
 import { requireContacts, requireInbox, requireJobs } from '../service/state'
 
-const FALLBACK_SECRET = process.env.CHANNEL_WEB_WEBHOOK_SECRET ?? 'dev-secret'
+const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
-export async function handleInbound(c: Context): Promise<Response> {
-  const v = await verifyHmacWebhook(c, {
-    secret: (ctx) => ctx.req.header('x-channel-secret') ?? FALLBACK_SECRET,
-  })
-  if (!v.ok) return v.response
-
-  const parsed = ChannelInboundEventSchema.safeParse(v.payload)
-  if (!parsed.success) {
-    return c.json({ error: 'invalid payload', issues: parsed.error.issues }, 422)
+function resolveWebhookSecret(): string {
+  const configured = process.env.CHANNEL_WEB_WEBHOOK_SECRET
+  if (configured) return configured
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('CHANNEL_WEB_WEBHOOK_SECRET must be set in production')
   }
+  return 'dev-secret'
+}
 
-  const event = parsed.data
-  const inboxPort = requireInbox()
-  const contactsPort = requireContacts()
-  const jobs = requireJobs()
+interface InboundInput {
+  organizationId: string
+  channelInstanceId: string
+  from: string
+  displayName: string | undefined
+  content: string
+  contentType: ChannelInboundEvent['contentType']
+  externalMessageId: string
+  profileName: string
+}
 
-  const contact = await contactsPort.upsertByExternal({
-    organizationId: event.organizationId,
-    phone: `web:${event.from}`,
-    displayName: event.profileName || undefined,
+async function dispatchInbound(c: Context, input: InboundInput): Promise<Response> {
+  const contact = await requireContacts().upsertByExternal({
+    organizationId: input.organizationId,
+    phone: `web:${input.from}`,
+    displayName: input.displayName,
   })
 
-  // Require channelInstanceId from header (set by web client or gateway)
-  const channelInstanceId = c.req.header('x-channel-instance-id') ?? ''
-  if (!channelInstanceId) {
-    return c.json({ error: 'missing x-channel-instance-id header' }, 400)
-  }
-
-  const result = await inboxPort.createInboundMessage({
-    organizationId: event.organizationId,
-    channelInstanceId,
+  const result = await requireInbox().createInboundMessage({
+    organizationId: input.organizationId,
+    channelInstanceId: input.channelInstanceId,
     contactId: contact.id,
-    externalMessageId: event.externalMessageId,
-    content: event.content,
-    contentType: event.contentType,
-    profileName: event.profileName,
+    externalMessageId: input.externalMessageId,
+    content: input.content,
+    contentType: input.contentType,
+    profileName: input.profileName,
   })
 
   if (result.isNew) {
-    await jobs.send('channel-web:inbound-to-wake', {
-      organizationId: event.organizationId,
+    await requireJobs().send('channel-web:inbound-to-wake', {
+      organizationId: input.organizationId,
       conversationId: result.conversation.id,
       messageId: result.message.id,
       contactId: contact.id,
@@ -58,4 +58,66 @@ export async function handleInbound(c: Context): Promise<Response> {
     messageId: result.message.id,
     deduplicated: !result.isNew,
   })
+}
+
+async function handleSessionInbound(c: Context, session: SessionLike, channelInstanceId: string): Promise<Response> {
+  let raw: unknown
+  try {
+    raw = await c.req.json()
+  } catch {
+    return c.json({ error: 'invalid json' }, 400)
+  }
+  const parsed = BrowserInboundBodySchema.safeParse(raw)
+  if (!parsed.success) {
+    return c.json({ error: 'invalid payload', issues: parsed.error.issues }, 422)
+  }
+
+  const body = parsed.data
+  return dispatchInbound(c, {
+    organizationId: session.session.activeOrganizationId ?? DEFAULT_TENANT,
+    channelInstanceId,
+    from: session.user.id,
+    displayName: body.profileName || session.user.name || undefined,
+    content: body.content,
+    contentType: body.contentType,
+    externalMessageId: body.externalMessageId,
+    profileName: body.profileName ?? session.user.name ?? '',
+  })
+}
+
+async function handleHmacInbound(c: Context, channelInstanceId: string): Promise<Response> {
+  const v = await verifyHmacWebhook(c, {
+    secret: (ctx) => ctx.req.header('x-channel-secret') ?? resolveWebhookSecret(),
+  })
+  if (!v.ok) return v.response
+
+  const parsed = ChannelInboundEventSchema.safeParse(v.payload)
+  if (!parsed.success) {
+    return c.json({ error: 'invalid payload', issues: parsed.error.issues }, 422)
+  }
+
+  const event = parsed.data
+  return dispatchInbound(c, {
+    organizationId: event.organizationId,
+    channelInstanceId,
+    from: event.from,
+    displayName: event.profileName || undefined,
+    content: event.content,
+    contentType: event.contentType,
+    externalMessageId: event.externalMessageId,
+    profileName: event.profileName,
+  })
+}
+
+export async function handleInbound(c: Context): Promise<Response> {
+  const channelInstanceId = c.req.header('x-channel-instance-id') ?? ''
+  if (!channelInstanceId) {
+    return c.json({ error: 'missing x-channel-instance-id header' }, 400)
+  }
+
+  // Session auth takes precedence so widgets don't have to ship a shared secret.
+  const session = await getSessionFromRequest(c.req.raw.headers)
+  if (session) return handleSessionInbound(c, session, channelInstanceId)
+
+  return handleHmacInbound(c, channelInstanceId)
 }

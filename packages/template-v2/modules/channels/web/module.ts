@@ -8,10 +8,10 @@ export default defineModule({
   version: '1.0',
   requires: ['inbox', 'contacts', 'drive'],
   manifest,
-  // Inbound webhook is HMAC-authed (no session gate). The /test-web dogfood
-  // page is dev-only — prod builds skip the whole module.
+  // Inbound webhook is HMAC-authed (no session gate). Always enabled — web is
+  // the default customer surface. In production, CHANNEL_WEB_WEBHOOK_SECRET
+  // must be set (enforced in handlers/inbound.ts).
   routes: { basePath: '/api/channel-web', handler: handlers },
-  enabled: (env) => env.NODE_ENV !== 'production',
   init(ctx) {
     installChannelWebState(
       createChannelWebState({

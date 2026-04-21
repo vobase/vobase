@@ -1,8 +1,11 @@
 import { useQueries } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Check, Globe, MessageCircle, X } from 'lucide-react'
+import { Check, Copy, Globe, MessageCircle, X } from 'lucide-react'
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+
+const SEEDED_WEB_CHANNEL_INSTANCE_ID = 'chi00web00'
 
 interface ChannelHealth {
   module: string
@@ -45,6 +48,56 @@ async function fetchHealth(endpoint: string): Promise<ChannelHealth | null> {
   } catch {
     return null
   }
+}
+
+function WebEmbedSnippet({ channelInstanceId }: { channelInstanceId: string }) {
+  const [copied, setCopied] = useState(false)
+  const apiOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.com'
+  const snippet = [
+    '<script async defer',
+    `  src="${apiOrigin}/widget.js"`,
+    '  data-vobase-widget',
+    `  data-channel-instance-id="${channelInstanceId}"`,
+    '  data-bot-name="Support"',
+    '  data-color="#6b5b4e">',
+    '</script>',
+  ].join('\n')
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(snippet)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle className="text-base">Web widget embed</CardTitle>
+        <CardDescription className="text-xs">
+          Paste this snippet before <code>&lt;/body&gt;</code> on any page to embed the chat widget.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="relative">
+          <pre className="overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs text-foreground">
+            {snippet}
+          </pre>
+          <button
+            type="button"
+            onClick={copy}
+            className="absolute right-2 top-2 flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-2xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            <Copy className="size-3" />
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export function ChannelsPage() {
@@ -108,6 +161,7 @@ export function ChannelsPage() {
             )
           })}
         </div>
+        <WebEmbedSnippet channelInstanceId={SEEDED_WEB_CHANNEL_INSTANCE_ID} />
       </div>
     </div>
   )

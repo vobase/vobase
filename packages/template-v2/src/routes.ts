@@ -2,6 +2,7 @@ import { layout, physical, rootRoute, route } from '@tanstack/virtual-file-route
 
 export const routes = rootRoute('root.tsx', [
   route('/test-web', 'pages/test-web.tsx'),
+  route('/chat/$channelInstanceId', 'pages/chat.$channelInstanceId.tsx'),
   layout('auth', 'shell/auth/layout.tsx', [
     route('/auth/login', 'shell/auth/login.tsx'),
     route('/auth/pending', 'shell/auth/pending.tsx'),

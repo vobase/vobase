@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './root'
 import { Route as pagesTestWebRouteImport } from './pages/test-web'
 import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
 import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
+import { Route as pagesChatDotchannelInstanceIdRouteImport } from './pages/chat.$channelInstanceId'
 import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
 import { Route as DotDotModulesInboxPagesLayoutRouteImport } from './../modules/inbox/pages/layout'
 import { Route as shellHomeRedirectRouteImport } from './shell/home-redirect'
@@ -46,6 +47,12 @@ const shellAppLayoutRoute = shellAppLayoutRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const pagesChatDotchannelInstanceIdRoute =
+  pagesChatDotchannelInstanceIdRouteImport.update({
+    id: '/chat/$channelInstanceId',
+    path: '/chat/$channelInstanceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const DotDotModulesSettingsPagesLayoutRoute =
   DotDotModulesSettingsPagesLayoutRouteImport.update({
     id: '/settings',
@@ -154,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/test-web': typeof pagesTestWebRoute
   '/inbox': typeof DotDotModulesInboxPagesLayoutRouteWithChildren
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
+  '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/inbox/$id': typeof IdRoute
@@ -176,6 +184,7 @@ export interface FileRoutesByTo {
   '/': typeof shellHomeRedirectRoute
   '/test-web': typeof pagesTestWebRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
+  '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/inbox/$id': typeof IdRoute
@@ -202,6 +211,7 @@ export interface FileRoutesById {
   '/_app/': typeof shellHomeRedirectRoute
   '/_app/inbox': typeof DotDotModulesInboxPagesLayoutRouteWithChildren
   '/_app/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
+  '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/_app/agents/learnings': typeof AgentsLearningsRoute
   '/_app/contacts/$id': typeof ContactsIdRoute
   '/_app/inbox/$id': typeof IdRoute
@@ -227,6 +237,7 @@ export interface FileRouteTypes {
     | '/test-web'
     | '/inbox'
     | '/settings'
+    | '/chat/$channelInstanceId'
     | '/agents/learnings'
     | '/contacts/$id'
     | '/inbox/$id'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/'
     | '/test-web'
     | '/settings'
+    | '/chat/$channelInstanceId'
     | '/agents/learnings'
     | '/contacts/$id'
     | '/inbox/$id'
@@ -274,6 +286,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/inbox'
     | '/_app/settings'
+    | '/chat/$channelInstanceId'
     | '/_app/agents/learnings'
     | '/_app/contacts/$id'
     | '/_app/inbox/$id'
@@ -297,6 +310,7 @@ export interface RootRouteChildren {
   shellAppLayoutRoute: typeof shellAppLayoutRouteWithChildren
   shellAuthLayoutRoute: typeof shellAuthLayoutRouteWithChildren
   pagesTestWebRoute: typeof pagesTestWebRoute
+  pagesChatDotchannelInstanceIdRoute: typeof pagesChatDotchannelInstanceIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -320,6 +334,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof shellAppLayoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat/$channelInstanceId': {
+      id: '/chat/$channelInstanceId'
+      path: '/chat/$channelInstanceId'
+      fullPath: '/chat/$channelInstanceId'
+      preLoaderRoute: typeof pagesChatDotchannelInstanceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/settings': {
@@ -555,6 +576,7 @@ const rootRouteChildren: RootRouteChildren = {
   shellAppLayoutRoute: shellAppLayoutRouteWithChildren,
   shellAuthLayoutRoute: shellAuthLayoutRouteWithChildren,
   pagesTestWebRoute: pagesTestWebRoute,
+  pagesChatDotchannelInstanceIdRoute: pagesChatDotchannelInstanceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

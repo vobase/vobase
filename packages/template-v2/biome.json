@@ -10,6 +10,7 @@
       "!**/drizzle",
       "!**/.omc",
       "!**/db/current.sql",
+      "!public",
       "!src/components/ui",
       "!src/components/ai-elements"
     ]

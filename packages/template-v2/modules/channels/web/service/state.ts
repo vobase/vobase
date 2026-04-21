@@ -1,6 +1,7 @@
 /**
  * Module-level state for channel-web. Built during init, consumed by handlers/services.
  */
+import type { Auth } from '@server/auth'
 import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { InboxPort } from '@server/contracts/inbox-port'
 import type { RealtimeService } from '@server/contracts/plugin-context'
@@ -15,6 +16,7 @@ interface ChannelWebStateDeps {
   contacts?: ContactsPort | null
   jobs?: JobQueue | null
   realtime?: RealtimeService | null
+  auth?: Auth | null
 }
 
 export interface ChannelWebState {
@@ -22,6 +24,7 @@ export interface ChannelWebState {
   contacts: ContactsPort | null
   jobs: JobQueue | null
   realtime: RealtimeService | null
+  auth: Auth | null
 }
 
 export function createChannelWebState(deps: ChannelWebStateDeps = {}): ChannelWebState {
@@ -30,6 +33,7 @@ export function createChannelWebState(deps: ChannelWebStateDeps = {}): ChannelWe
     contacts: deps.contacts ?? null,
     jobs: deps.jobs ?? null,
     realtime: deps.realtime ?? null,
+    auth: deps.auth ?? null,
   }
 }
 
@@ -69,4 +73,20 @@ export function requireRealtime(): RealtimeService {
   const s = current()
   if (!s.realtime) throw new Error('channel-web: realtime not initialised')
   return s.realtime
+}
+/** Returns the better-auth instance if wired, null otherwise (tests that don't install it). */
+export function getAuth(): Auth | null {
+  return _currentChannelWebState?.auth ?? null
+}
+
+/**
+ * Patch the already-installed state with the better-auth handle. Called from
+ * `server/app.ts` after `createAuth(db)` — the module's own `init()` ran
+ * earlier in boot order and had no auth access.
+ */
+export function installChannelWebAuth(auth: Auth): void {
+  if (!_currentChannelWebState) {
+    throw new Error('channel-web: installChannelWebAuth must be called after installChannelWebState')
+  }
+  _currentChannelWebState.auth = auth
 }

@@ -11,6 +11,7 @@ import {
 } from '@vobase/core'
 import { type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { anonymous } from 'better-auth/plugins/anonymous'
 import { emailOTP } from 'better-auth/plugins/email-otp'
 import { organization } from 'better-auth/plugins/organization'
 import { productName } from '../branding'
@@ -45,6 +46,7 @@ export function createAuth(db: ScopedDb) {
   const multiOrg = process.env.VOBASE_MULTI_ORG === 'true'
 
   const plugins: BetterAuthPlugin[] = [
+    anonymous(),
     emailOTP({
       sendVerificationOTP: async ({ email, otp, type }) => {
         try {

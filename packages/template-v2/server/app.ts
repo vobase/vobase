@@ -2,21 +2,21 @@ import { INBOUND_TO_WAKE_JOB } from '@modules/channels/web/jobs'
 import type { CaptionPort } from '@server/contracts/caption-port'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import type { Sql } from 'postgres'
 import config from '../vobase.config'
 import { createAuth } from './auth'
+import { wireAuthIntoModules } from './auth/wire-modules'
 import { buildDevPorts } from './dev/dev-ports'
 import { createLiveAgentHandler } from './dev/live-agent'
 import { createStubAgentHandler } from './dev/stub-agent'
-import { createRequireSession } from './middlewares'
+import { createRequireSession, createWidgetCors } from './middlewares'
 import sseRoute from './routes/sse'
 import { bootModules } from './runtime/boot-modules'
 
 export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   const app = new Hono()
-  app.use('*', cors())
+  app.use('*', createWidgetCors())
   app.use('*', logger())
   app.get('/health', (c) => c.json({ ok: true }))
 
@@ -69,6 +69,8 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
     },
     requireSession,
   })
+
+  await wireAuthIntoModules(auth)
 
   app.route('/api/sse', sseRoute)
 

@@ -11,7 +11,7 @@ export const manifest: ModuleManifest = {
     owns: [{ kind: 'prefix', path: '/workspace/drive/' }],
     frozenEager: [{ kind: 'exact', path: '/workspace/drive/BUSINESS.md' }],
   },
-  tables: ['public.drive_files', 'public.learning_proposals'],
+  tables: ['public.drive_files'],
   accessGrants: [
     {
       to: 'agents',

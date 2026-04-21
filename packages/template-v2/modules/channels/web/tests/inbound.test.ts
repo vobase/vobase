@@ -7,11 +7,12 @@
  * Does NOT call real Hono app — tests the handler logic directly via a mock context.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
+import type { Auth } from '@server/auth'
 import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { Contact, Conversation, Message } from '@server/contracts/domain-types'
 import type { CreateInboundMessageInput, CreateInboundMessageResult, InboxPort } from '@server/contracts/inbox-port'
 import { signHmac } from '@vobase/core'
-import { createChannelWebState, installChannelWebState, type JobQueue } from '../service/state'
+import { createChannelWebState, installChannelWebAuth, installChannelWebState, type JobQueue } from '../service/state'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ function makeSigned(payload: unknown) {
 }
 
 // Minimal Hono context mock
-function makeCtx(body: string, sig: string, channelInstanceId = 'ch-web-1') {
+function makeCtx(body: string, sig: string, channelInstanceId = 'ch-web-1', extraHeaders: Record<string, string> = {}) {
   return {
     req: {
       text: async () => body,
@@ -150,9 +151,11 @@ function makeCtx(body: string, sig: string, channelInstanceId = 'ch-web-1') {
         if (name === 'x-hub-signature-256') return sig
         if (name === 'x-channel-secret') return SECRET
         if (name === 'x-channel-instance-id') return channelInstanceId
+        if (extraHeaders[name]) return extraHeaders[name]
         return undefined
       },
       query: () => undefined,
+      raw: { headers: new Headers(extraHeaders) },
     },
     json: (data: unknown, status = 200) => ({ _body: data, _status: status }),
     text: (t: string, s = 200) => ({ _body: t, _status: s }),
@@ -229,5 +232,33 @@ describe('handleInbound', () => {
     const ctx = makeCtx(badBody, sig)
     const res = (await handleInbound(ctx)) as unknown as { _status: number }
     expect(res._status).toBe(400)
+  })
+
+  it('session-authed browser path skips HMAC and uses user.id as from', async () => {
+    const fakeAuth = {
+      api: {
+        getSession: async () => ({
+          user: { id: 'user-anon-1', name: 'Anon' },
+          session: { activeOrganizationId: null },
+        }),
+      },
+    } as unknown as Auth
+    installChannelWebAuth(fakeAuth)
+
+    const body = JSON.stringify({
+      content: 'Hello via session',
+      contentType: 'text',
+      externalMessageId: 'br-msg-1',
+      profileName: 'Anon',
+    })
+    const ctx = makeCtx(body, 'ignored-no-hmac')
+    const { handleInbound } = await import('../handlers/inbound')
+    const res = (await handleInbound(ctx)) as unknown as { _body: Record<string, unknown>; _status: number }
+    expect(res._status).toBe(200)
+    expect(res._body.received).toBe(true)
+    const inboundCall = calls.find((c) => c.method === 'createInboundMessage') as
+      | { method: string; data: { content: string } }
+      | undefined
+    expect(inboundCall?.data.content).toBe('Hello via session')
   })
 })

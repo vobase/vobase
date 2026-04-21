@@ -4,3 +4,4 @@ export { type OrganizationEnv, requireOrganization } from './require-organizatio
 export { createRequirePermission, type PermissionCheck } from './require-permission'
 export { createRequireRole, type RoleEnv } from './require-role'
 export { type AppSession, createRequireSession, type SessionEnv } from './require-session'
+export { createWidgetCors } from './widget-cors'
