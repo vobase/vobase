@@ -9,6 +9,7 @@ export type DriveScope =
   | { scope: 'organization' }
   | { scope: 'contact'; contactId: string }
   | { scope: 'staff'; userId: string }
+  | { scope: 'agent'; agentId: string }
 
 export interface CreateFileInput {
   parentFolderId?: string | null

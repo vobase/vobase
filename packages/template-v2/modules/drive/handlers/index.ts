@@ -16,10 +16,16 @@ function scopeGate(write: boolean): MiddlewareHandler {
   return async (c: Context<OrganizationEnv>, next) => {
     const auth = getDriveAuth() as Auth | null
     if (!auth) return next()
-    // Chain requireOrganization → scopeRbac → next. Each middleware in the
-    // chain either blocks (finalizing c with c.json) or falls through to its
-    // own `next`. Returning undefined is fine — Hono checks c.finalized.
-    return requireOrganization(c, () => scopeRbac(auth, { write })(c, next) as Promise<void>)
+    // Chain requireOrganization → scopeRbac → next. `c.json(...)` creates a
+    // Response but does not set `c.res`; only the outermost `return` actually
+    // wires the Response into Hono. So we have to capture a blocking Response
+    // from either layer and surface it as our own return value.
+    let blocked: Response | undefined
+    const orgResponse = await requireOrganization(c, (async () => {
+      const rbacResponse = await scopeRbac(auth, { write })(c, next)
+      if (rbacResponse) blocked = rbacResponse
+    }) as never)
+    return orgResponse ?? blocked
   }
 }
 

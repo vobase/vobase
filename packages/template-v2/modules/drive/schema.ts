@@ -14,7 +14,7 @@
 // ─── Domain types ───────────────────────────────────────────────────────────
 
 export type DriveKind = 'folder' | 'file'
-export type DriveScopeName = 'organization' | 'contact' | 'staff'
+export type DriveScopeName = 'organization' | 'contact' | 'staff' | 'agent'
 export type DriveSource = 'customer_inbound' | 'agent_uploaded' | 'staff_uploaded' | 'admin_uploaded' | null
 export type DriveProcessingStatus = 'pending' | 'processing' | 'ready' | 'failed'
 
@@ -92,7 +92,7 @@ export const driveFiles = drivePgSchema.table(
     uniqueIndex('uq_drive_path').on(t.organizationId, t.scope, t.scopeId, t.path),
     uniqueIndex('uq_drive_parent_name').on(t.organizationId, t.scope, t.scopeId, t.parentFolderId, t.name),
     check('drive_kind_check', sql`kind IN ('folder','file')`),
-    check('drive_scope_check', sql`scope IN ('organization','contact','staff')`),
+    check('drive_scope_check', sql`scope IN ('organization','contact','staff','agent')`),
     check(
       'drive_source_check',
       sql`source IS NULL OR source IN ('customer_inbound','agent_uploaded','staff_uploaded','admin_uploaded')`,

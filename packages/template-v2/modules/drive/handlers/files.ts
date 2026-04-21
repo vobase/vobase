@@ -27,6 +27,7 @@ const scopeSchema = z.discriminatedUnion('scope', [
   z.object({ scope: z.literal('organization') }),
   z.object({ scope: z.literal('contact'), contactId: z.string().min(1) }),
   z.object({ scope: z.literal('staff'), userId: z.string().min(1) }),
+  z.object({ scope: z.literal('agent'), agentId: z.string().min(1) }),
 ])
 
 type ParsedScope = z.infer<typeof scopeSchema>
@@ -38,6 +39,7 @@ function scopeFromQuery(c: {
     scope: c.req.query('scope'),
     contactId: c.req.query('contactId'),
     userId: c.req.query('userId'),
+    agentId: c.req.query('agentId'),
   })
   if (!parsed.success) return { ok: false, issues: parsed.error.issues }
   return { ok: true, scope: toDriveScope(parsed.data) }
@@ -46,6 +48,7 @@ function scopeFromQuery(c: {
 function toDriveScope(p: ParsedScope): DriveScope {
   if (p.scope === 'organization') return { scope: 'organization' }
   if (p.scope === 'staff') return { scope: 'staff', userId: p.userId }
+  if (p.scope === 'agent') return { scope: 'agent', agentId: p.agentId }
   return { scope: 'contact', contactId: p.contactId }
 }
 

@@ -19,7 +19,7 @@ export function DrivePage() {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        <DriveProvider scope={{ scope: 'organization' }}>
+        <DriveProvider scope={{ scope: 'organization' }} rootLabel="Organization drive">
           <DriveBrowser />
         </DriveProvider>
       </div>

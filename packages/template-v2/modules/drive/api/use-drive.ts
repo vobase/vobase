@@ -13,6 +13,7 @@ export type DriveScopeArg =
   | { scope: 'organization' }
   | { scope: 'contact'; contactId: string }
   | { scope: 'staff'; userId: string }
+  | { scope: 'agent'; agentId: string }
 
 export interface ReadFileResult {
   content: string
@@ -29,18 +30,21 @@ export const driveKeys = {
 function scopeKey(s: DriveScopeArg): string {
   if (s.scope === 'organization') return 'organization'
   if (s.scope === 'staff') return `staff:${s.userId}`
+  if (s.scope === 'agent') return `agent:${s.agentId}`
   return `contact:${s.contactId}`
 }
 
 function scopeQuery(s: DriveScopeArg): string {
   if (s.scope === 'organization') return 'scope=organization'
   if (s.scope === 'staff') return `scope=staff&userId=${encodeURIComponent(s.userId)}`
+  if (s.scope === 'agent') return `scope=agent&agentId=${encodeURIComponent(s.agentId)}`
   return `scope=contact&contactId=${encodeURIComponent(s.contactId)}`
 }
 
 function scopeBody(s: DriveScopeArg): Record<string, string> {
   if (s.scope === 'organization') return { scope: 'organization' }
   if (s.scope === 'staff') return { scope: 'staff', userId: s.userId }
+  if (s.scope === 'agent') return { scope: 'agent', agentId: s.agentId }
   return { scope: 'contact', contactId: s.contactId }
 }
 
@@ -86,7 +90,7 @@ export function useWriteFile(scope: DriveScopeArg) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ path, content }: { path: string; content: string }) => {
-      const r = await fetch('/api/drive/file', {
+      const r = await fetch(`/api/drive/file?${scopeQuery(scope)}`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ...scopeBody(scope), path, content }),
@@ -105,7 +109,7 @@ export function useMkdir(scope: DriveScopeArg) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (path: string) => {
-      const r = await fetch('/api/drive/folders', {
+      const r = await fetch(`/api/drive/folders?${scopeQuery(scope)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ...scopeBody(scope), path }),

@@ -155,6 +155,32 @@ Yes. Data is processed in Singapore (primary) with EU region available for Enter
   },
 ]
 
+/** Every distinct folder segment in any seeded file path, in root→leaf order so
+ *  parents exist before children when we insert them. Deterministic folder ids
+ *  keep onConflictDoNothing idempotent across reseeds. */
+function foldersFromFiles(
+  files: FileRow[],
+): Array<{ id: string; path: string; name: string; parentPath: string | null }> {
+  const seen = new Map<string, { id: string; path: string; name: string; parentPath: string | null }>()
+  for (const f of files) {
+    const segs = f.path.split('/').filter(Boolean)
+    for (let i = 0; i < segs.length - 1; i++) {
+      const path = `/${segs.slice(0, i + 1).join('/')}`
+      if (seen.has(path)) continue
+      const name = segs[i] as string
+      const parentPath = i === 0 ? null : `/${segs.slice(0, i).join('/')}`
+      seen.set(path, { id: `drfld${hashId(path)}`, path, name, parentPath })
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.path.length - b.path.length)
+}
+
+function hashId(s: string): string {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return Math.abs(h).toString(36).padStart(6, '0').slice(0, 6)
+}
+
 export async function seed(db: unknown): Promise<void> {
   const { driveFiles } = await import('@modules/drive/schema')
 
@@ -164,7 +190,31 @@ export async function seed(db: unknown): Promise<void> {
     }
   }
 
+  const folders = foldersFromFiles(FILES)
+  const folderIdByPath = new Map<string, string>(folders.map((f) => [f.path, f.id]))
+
+  for (const folder of folders) {
+    const parentId = folder.parentPath ? (folderIdByPath.get(folder.parentPath) ?? null) : null
+    await d
+      .insert(driveFiles)
+      .values({
+        id: folder.id,
+        organizationId: MERIDIAN_ORG_ID,
+        scope: 'organization',
+        scopeId: MERIDIAN_ORG_ID,
+        kind: 'folder',
+        name: folder.name,
+        path: folder.path,
+        parentFolderId: parentId,
+        source: 'admin_uploaded',
+        processingStatus: 'ready',
+      })
+      .onConflictDoNothing()
+  }
+
   for (const file of FILES) {
+    const parentPath = parentPathOf(file.path)
+    const parentFolderId = parentPath ? (folderIdByPath.get(parentPath) ?? null) : null
     await d
       .insert(driveFiles)
       .values({
@@ -175,6 +225,7 @@ export async function seed(db: unknown): Promise<void> {
         kind: 'file',
         name: file.name,
         path: file.path,
+        parentFolderId,
         mimeType: 'text/markdown',
         extractedText: file.content,
         source: 'admin_uploaded',
@@ -182,4 +233,10 @@ export async function seed(db: unknown): Promise<void> {
       })
       .onConflictDoNothing()
   }
+}
+
+function parentPathOf(path: string): string | null {
+  const idx = path.lastIndexOf('/')
+  if (idx <= 0) return null
+  return path.slice(0, idx)
 }

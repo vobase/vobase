@@ -1,10 +1,11 @@
 /**
- * DrivePreview — read-only text/markdown view of the currently selected file.
- * The Platejs markdown editor lands in slice 5; this component is intentionally
- * render-only so the editor can slot in without reshuffling the browser layout.
+ * DrivePreview — details pane for the currently selected file. Markdown files
+ * open in the Plate editor; everything else renders read-only. A close button
+ * clears the selection so the list pane expands back to full width.
  */
 
-import { FileX } from 'lucide-react'
+import { FileX, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useDriveFile } from '../api/use-drive'
 import { DriveMarkdownEditor } from './drive-markdown-editor'
 import { useDriveContext } from './drive-provider'
@@ -14,7 +15,7 @@ function isMarkdownPath(path: string): boolean {
 }
 
 export function DrivePreview() {
-  const { scope, selectedPath } = useDriveContext()
+  const { scope, selectedPath, setSelectedPath } = useDriveContext()
   const { data, isLoading, error } = useDriveFile(scope, selectedPath)
 
   if (!selectedPath) {
@@ -24,45 +25,51 @@ export function DrivePreview() {
       </div>
     )
   }
-  if (isLoading) {
-    return <div className="p-4 text-sm text-muted-foreground">Loading…</div>
-  }
-  if (error) {
-    return <div className="p-4 text-sm text-destructive">Failed to load {selectedPath}</div>
-  }
-  if (!data) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <FileX className="size-5" />
-        Not found: {selectedPath}
-      </div>
-    )
-  }
-
-  if (isMarkdownPath(selectedPath)) {
-    return (
-      <DriveMarkdownEditor
-        key={`${selectedPath}:${data.content.length}`}
-        scope={scope}
-        path={selectedPath}
-        initialMarkdown={data.content}
-      />
-    )
-  }
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
-        <span className="font-mono text-xs text-muted-foreground">{selectedPath}</span>
-        {data.virtual && (
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            virtual
-          </span>
-        )}
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-mono text-xs text-muted-foreground">{selectedPath}</span>
+          {data?.virtual && (
+            <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              virtual
+            </span>
+          )}
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7 shrink-0"
+          onClick={() => setSelectedPath(null)}
+          aria-label="Close preview"
+        >
+          <X className="size-4" />
+        </Button>
       </header>
-      <pre className="flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-xs leading-relaxed">
-        {data.content}
-      </pre>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {isLoading && <div className="p-4 text-sm text-muted-foreground">Loading…</div>}
+        {error && <div className="p-4 text-sm text-destructive">Failed to load {selectedPath}</div>}
+        {!isLoading && !error && !data && (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+            <FileX className="size-5" />
+            Not found: {selectedPath}
+          </div>
+        )}
+        {data &&
+          (isMarkdownPath(selectedPath) ? (
+            <DriveMarkdownEditor
+              key={selectedPath}
+              scope={scope}
+              path={selectedPath}
+              initialMarkdown={data.content}
+            />
+          ) : (
+            <pre className="h-full overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-xs leading-relaxed">
+              {data.content}
+            </pre>
+          ))}
+      </div>
     </div>
   )
 }

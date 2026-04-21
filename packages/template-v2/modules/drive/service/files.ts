@@ -24,8 +24,17 @@ export const BUSINESS_MD_FALLBACK = 'No business profile configured. Ask staff t
 
 /** Sentinel line prepended to virtual-file reads; stripped on write. */
 const VIRTUAL_HEADER_PREFIX = '<!-- drive:virtual'
-const virtualHeader = (scope: 'contact' | 'staff', field: 'profile' | 'notes'): string => {
-  const source = scope === 'contact' ? `contacts.${field}` : `staff_profiles.${field}`
+type VirtualBackingScope = 'contact' | 'staff' | 'agent'
+type VirtualField = 'profile' | 'notes' | 'soul' | 'memory'
+const virtualHeader = (scope: VirtualBackingScope, field: VirtualField): string => {
+  const source =
+    scope === 'contact'
+      ? `contacts.${field}`
+      : scope === 'staff'
+        ? `staff_profiles.${field}`
+        : field === 'soul'
+          ? 'agent_definitions.soul_md'
+          : 'agent_definitions.working_memory'
   return `${VIRTUAL_HEADER_PREFIX} field=${field} source=${source} -->`
 }
 
@@ -83,18 +92,26 @@ export interface FilesServiceDeps {
   organizationId: string
 }
 
-/** If `(scope, path)` is a contact or staff virtual path, return the backing column name. */
-export function resolveVirtualField(scope: DriveScope, path: string): 'profile' | 'notes' | null {
-  if (scope.scope !== 'contact' && scope.scope !== 'staff') return null
-  if (path === '/PROFILE.md') return 'profile'
-  if (path === '/NOTES.md') return 'notes'
+/** If `(scope, path)` is a contact/staff/agent virtual path, return the logical field name. */
+export function resolveVirtualField(scope: DriveScope, path: string): VirtualField | null {
+  if (scope.scope === 'contact' || scope.scope === 'staff') {
+    if (path === '/PROFILE.md') return 'profile'
+    if (path === '/NOTES.md') return 'notes'
+    return null
+  }
+  if (scope.scope === 'agent') {
+    if (path === '/SOUL.md') return 'soul'
+    if (path === '/NOTES.md') return 'memory'
+    return null
+  }
   return null
 }
 
 /** @deprecated — use `resolveVirtualField`. Retained for tests and compatibility. */
 export function resolveContactVirtualField(scope: DriveScope, path: string): 'profile' | 'notes' | null {
   if (scope.scope !== 'contact') return null
-  return resolveVirtualField(scope, path)
+  const v = resolveVirtualField(scope, path)
+  return v === 'profile' || v === 'notes' ? v : null
 }
 
 /** Strip any `<!-- drive:virtual ... -->` sentinel lines from user-submitted content. */
@@ -108,9 +125,9 @@ export function stripVirtualHeader(content: string): string {
 
 /** Compose `header\n\nbody` for virtual-file reads. */
 export function composeVirtualContent(
-  field: 'profile' | 'notes',
+  field: VirtualField,
   body: string,
-  backingScope: 'contact' | 'staff' = 'contact',
+  backingScope: VirtualBackingScope = 'contact',
 ): string {
   const header = virtualHeader(backingScope, field)
   return body ? `${header}\n\n${body}` : `${header}\n`
@@ -127,13 +144,19 @@ function parentPathOf(path: string): string | null {
   return `/${parts.slice(0, -1).join('/')}`
 }
 
+function virtualFileName(field: VirtualField): string {
+  if (field === 'profile') return 'PROFILE.md'
+  if (field === 'soul') return 'SOUL.md'
+  return 'NOTES.md'
+}
+
 function virtualDriveFile(
   organizationId: string,
-  backingScope: 'contact' | 'staff',
+  backingScope: VirtualBackingScope,
   scopeId: string,
-  field: 'profile' | 'notes',
+  field: VirtualField,
 ): DriveFile {
-  const name = field === 'profile' ? 'PROFILE.md' : 'NOTES.md'
+  const name = virtualFileName(field)
   const now = new Date(0)
   return {
     id: `virtual:${backingScope}:${scopeId}:${field}`,
@@ -170,15 +193,17 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   function scopeId(scope: DriveScope): { scopeName: string; scopeIdVal: string } {
     if (scope.scope === 'organization') return { scopeName: 'organization', scopeIdVal: organizationId }
     if (scope.scope === 'staff') return { scopeName: 'staff', scopeIdVal: scope.userId }
+    if (scope.scope === 'agent') return { scopeName: 'agent', scopeIdVal: scope.agentId }
     return { scopeName: 'contact', scopeIdVal: scope.contactId }
   }
 
   async function readVirtualColumn(
-    backingScope: 'contact' | 'staff',
+    backingScope: VirtualBackingScope,
     scopeId: string,
-    field: 'profile' | 'notes',
+    field: VirtualField,
   ): Promise<string> {
     if (backingScope === 'contact') {
+      if (field !== 'profile' && field !== 'notes') return ''
       const { contacts } = await import('@modules/contacts/schema')
       const { and, eq } = await import('drizzle-orm')
       const rows = await db
@@ -190,25 +215,41 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
       if (!row) throw new Error(`contact not found: ${scopeId}`)
       return row[field] ?? ''
     }
-    const { staffProfiles } = await import('@modules/team/schema')
+    if (backingScope === 'staff') {
+      if (field !== 'profile' && field !== 'notes') return ''
+      const { staffProfiles } = await import('@modules/team/schema')
+      const { and, eq } = await import('drizzle-orm')
+      const rows = await db
+        .select({ profile: staffProfiles.profile, notes: staffProfiles.notes })
+        .from(staffProfiles)
+        .where(and(eq(staffProfiles.organizationId, organizationId), eq(staffProfiles.userId, scopeId)))
+        .limit(1)
+      const row = rows[0] as { profile: string; notes: string } | undefined
+      if (!row) throw new Error(`staff-profile not found: ${scopeId}`)
+      return row[field] ?? ''
+    }
+    // agent
+    if (field !== 'soul' && field !== 'memory') return ''
+    const { agentDefinitions } = await import('@modules/agents/schema')
     const { and, eq } = await import('drizzle-orm')
     const rows = await db
-      .select({ profile: staffProfiles.profile, notes: staffProfiles.notes })
-      .from(staffProfiles)
-      .where(and(eq(staffProfiles.organizationId, organizationId), eq(staffProfiles.userId, scopeId)))
+      .select({ soulMd: agentDefinitions.soulMd, workingMemory: agentDefinitions.workingMemory })
+      .from(agentDefinitions)
+      .where(and(eq(agentDefinitions.organizationId, organizationId), eq(agentDefinitions.id, scopeId)))
       .limit(1)
-    const row = rows[0] as { profile: string; notes: string } | undefined
-    if (!row) throw new Error(`staff-profile not found: ${scopeId}`)
-    return row[field] ?? ''
+    const row = rows[0] as { soulMd: string; workingMemory: string } | undefined
+    if (!row) throw new Error(`agent not found: ${scopeId}`)
+    return (field === 'soul' ? row.soulMd : row.workingMemory) ?? ''
   }
 
   async function writeVirtualColumn(
-    backingScope: 'contact' | 'staff',
+    backingScope: VirtualBackingScope,
     scopeId: string,
-    field: 'profile' | 'notes',
+    field: VirtualField,
     value: string,
   ): Promise<void> {
     if (backingScope === 'contact') {
+      if (field !== 'profile' && field !== 'notes') return
       const { contacts } = await import('@modules/contacts/schema')
       const { and, eq } = await import('drizzle-orm')
       await db
@@ -217,17 +258,31 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
         .where(and(eq(contacts.organizationId, organizationId), eq(contacts.id, scopeId)))
       return
     }
-    const { staffProfiles } = await import('@modules/team/schema')
+    if (backingScope === 'staff') {
+      if (field !== 'profile' && field !== 'notes') return
+      const { staffProfiles } = await import('@modules/team/schema')
+      const { and, eq } = await import('drizzle-orm')
+      await db
+        .update(staffProfiles)
+        .set({ [field]: value })
+        .where(and(eq(staffProfiles.organizationId, organizationId), eq(staffProfiles.userId, scopeId)))
+      return
+    }
+    // agent
+    if (field !== 'soul' && field !== 'memory') return
+    const { agentDefinitions } = await import('@modules/agents/schema')
     const { and, eq } = await import('drizzle-orm')
+    const column = field === 'soul' ? 'soulMd' : 'workingMemory'
     await db
-      .update(staffProfiles)
-      .set({ [field]: value })
-      .where(and(eq(staffProfiles.organizationId, organizationId), eq(staffProfiles.userId, scopeId)))
+      .update(agentDefinitions)
+      .set({ [column]: value })
+      .where(and(eq(agentDefinitions.organizationId, organizationId), eq(agentDefinitions.id, scopeId)))
   }
 
-  function virtualBackingOf(scope: DriveScope): { backingScope: 'contact' | 'staff'; id: string } | null {
+  function virtualBackingOf(scope: DriveScope): { backingScope: VirtualBackingScope; id: string } | null {
     if (scope.scope === 'contact') return { backingScope: 'contact', id: scope.contactId }
     if (scope.scope === 'staff') return { backingScope: 'staff', id: scope.userId }
+    if (scope.scope === 'agent') return { backingScope: 'agent', id: scope.agentId }
     return null
   }
 
@@ -272,11 +327,20 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     if (backing && parentId === null) {
       const realNames = new Set(rows.map((r) => r.name))
       const overlays: DriveFile[] = []
-      if (!realNames.has('PROFILE.md')) {
-        overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'profile'))
-      }
-      if (!realNames.has('NOTES.md')) {
-        overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'notes'))
+      if (backing.backingScope === 'agent') {
+        if (!realNames.has('SOUL.md')) {
+          overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'soul'))
+        }
+        if (!realNames.has('NOTES.md')) {
+          overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'memory'))
+        }
+      } else {
+        if (!realNames.has('PROFILE.md')) {
+          overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'profile'))
+        }
+        if (!realNames.has('NOTES.md')) {
+          overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'notes'))
+        }
       }
       return [...overlays, ...rows]
     }
@@ -285,12 +349,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
 
   async function readContent(id: string): Promise<{ content: string; spilledToPath?: string }> {
     if (id.startsWith('virtual:')) {
-      const [, backingScope, scopeIdVal, field] = id.split(':') as [
-        string,
-        'contact' | 'staff',
-        string,
-        'profile' | 'notes',
-      ]
+      const [, backingScope, scopeIdVal, field] = id.split(':') as [string, VirtualBackingScope, string, VirtualField]
       const body = await readVirtualColumn(backingScope, scopeIdVal, field)
       return { content: composeVirtualContent(field, body, backingScope) }
     }
@@ -438,7 +497,9 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
         ? { scope: 'organization' }
         : current.scope === 'staff'
           ? { scope: 'staff', userId: current.scopeId }
-          : { scope: 'contact', contactId: current.scopeId }
+          : current.scope === 'agent'
+            ? { scope: 'agent', agentId: current.scopeId }
+            : { scope: 'contact', contactId: current.scopeId }
     const parentFolderId = await resolveParentFolderId(scope, newPath)
     const { driveFiles } = await import('@modules/drive/schema')
     const { eq } = await import('drizzle-orm')
