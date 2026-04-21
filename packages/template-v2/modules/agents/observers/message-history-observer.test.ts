@@ -101,7 +101,14 @@ describe('createMessageHistoryObserver', () => {
     })
 
     for (const type of ['agent_start', 'llm_call', 'message_start', 'agent_end'] as const) {
-      await obs.handle({ type, ts: new Date(), wakeId: 'w1', conversationId: 'c1', organizationId: 'o1', turnIndex: 0 } as AgentEvent)
+      await obs.handle({
+        type,
+        ts: new Date(),
+        wakeId: 'w1',
+        conversationId: 'c1',
+        organizationId: 'o1',
+        turnIndex: 0,
+      } as AgentEvent)
     }
 
     expect(inserts).toHaveLength(0)
@@ -121,10 +128,7 @@ describe('createMessageHistoryObserver', () => {
 
   it('persists new messages on turn_end with correct seq values', async () => {
     const { db, inserts, updates } = makeMockDb()
-    const messages: AgentMessage[] = [
-      makeMessage('user', 'hello'),
-      makeMessage('assistant', 'hi there'),
-    ]
+    const messages: AgentMessage[] = [makeMessage('user', 'hello'), makeMessage('assistant', 'hi there')]
     const obs = createMessageHistoryObserver({
       db,
       threadId: 'thread-1',

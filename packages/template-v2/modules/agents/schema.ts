@@ -252,10 +252,7 @@ export const agentMessages = agentsPgSchema.table(
     payloadVersion: integer('payload_version').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    uniqueIndex('uq_agent_msg_seq').on(t.threadId, t.seq),
-    index('idx_agent_msg_thread').on(t.threadId, t.seq),
-  ],
+  (t) => [uniqueIndex('uq_agent_msg_seq').on(t.threadId, t.seq), index('idx_agent_msg_thread').on(t.threadId, t.seq)],
 )
 
 /**

@@ -24,7 +24,7 @@ import { agentMessages, threads } from '@modules/agents/schema'
 import type { AgentEvent } from '@server/contracts/event'
 import type { AgentObserver } from '@server/contracts/observer'
 import type { ScopedDb } from '@server/contracts/scoped-db'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 export interface MessageHistoryObserverOpts {

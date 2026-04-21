@@ -50,8 +50,8 @@ import type {
   PluginContext,
 } from '@server/contracts/plugin-context'
 import type { LlmFinish, LlmProvider } from '@server/contracts/provider-port'
-import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { ScopedDb } from '@server/contracts/scoped-db'
+import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WakeContext } from '@server/contracts/wake-context'
 import { EventBus as DefaultEventBus } from '@server/runtime/event-bus'
 import { assessBudget, worstCaseDeltaExceeds } from '@server/runtime/iteration-budget-runtime'
