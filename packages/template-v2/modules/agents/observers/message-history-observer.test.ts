@@ -13,7 +13,10 @@
 import { describe, expect, it } from 'bun:test'
 import type { AgentMessage } from '@mariozechner/pi-agent-core'
 import type { AgentEvent } from '@server/contracts/event'
+import type { ObserverContext } from '@server/contracts/observer'
 import { createMessageHistoryObserver } from './message-history-observer'
+
+const dummyCtx = {} as ObserverContext
 
 // ── Minimal stub db that captures insert/update calls ────────────────────────
 
@@ -108,7 +111,7 @@ describe('createMessageHistoryObserver', () => {
         conversationId: 'c1',
         organizationId: 'o1',
         turnIndex: 0,
-      } as AgentEvent)
+      } as AgentEvent, dummyCtx)
     }
 
     expect(inserts).toHaveLength(0)
@@ -122,7 +125,7 @@ describe('createMessageHistoryObserver', () => {
       getMessages: () => [],
     })
 
-    await obs.handle(turnEndEvent())
+    await obs.handle(turnEndEvent(), dummyCtx)
     expect(inserts).toHaveLength(0)
   })
 
@@ -135,7 +138,7 @@ describe('createMessageHistoryObserver', () => {
       getMessages: () => messages,
     })
 
-    await obs.handle(turnEndEvent(0))
+    await obs.handle(turnEndEvent(0), dummyCtx)
 
     // One insert (batch) and one update (thread stats)
     expect(inserts).toHaveLength(1)
@@ -157,14 +160,14 @@ describe('createMessageHistoryObserver', () => {
     })
 
     // Turn 0: 1 message persisted
-    await obs.handle(turnEndEvent(0))
+    await obs.handle(turnEndEvent(0), dummyCtx)
     expect(inserts[0]?.values).toHaveLength(1)
 
     // Add a second message (turn 1)
     messages.push(makeMessage('assistant', 'turn1-reply'))
 
     // Turn 1: only the 1 new message is inserted
-    await obs.handle(turnEndEvent(1))
+    await obs.handle(turnEndEvent(1), dummyCtx)
     expect(inserts).toHaveLength(2)
     expect(inserts[1]?.values).toHaveLength(1)
     const rows = inserts[1]?.values as Array<{ seq: number }>
@@ -187,7 +190,7 @@ describe('createMessageHistoryObserver', () => {
       initialSeq: 3, // 3 messages already persisted
     })
 
-    await obs.handle(turnEndEvent(0))
+    await obs.handle(turnEndEvent(0), dummyCtx)
 
     // Only the 4th message (index 3) should be inserted
     expect(inserts).toHaveLength(1)

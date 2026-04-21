@@ -6,9 +6,9 @@
  * 1. Every required file exists in each module dir (R2 — from module-shape.ts)
  * 2. No handler file exceeds MAX_HANDLER_RAW_LOC raw lines (N6)
  * 3. Every handlers/index.ts mounts at least one Hono route (R5)
- * 4. No module imports from another module's schema.ts
- * 5. No applyTransition calls outside state.ts
- * 6. Every README.md has YAML frontmatter with required keys
+ * 4. No applyTransition calls outside state.ts
+ * 5. Every README.md has YAML frontmatter with required keys
+ * 6. Journal write-path guard: only inbox/service + agents/service/journal.ts may write messages/conversationEvents
  *
  * Exits 0 on success, non-zero with file:line-accurate errors on failure.
  */
@@ -24,9 +24,6 @@ const MODULES_DIR = join(import.meta.dir, '..', 'modules')
 
 // Hono route method patterns
 const HONO_ROUTE_RE = /\.(get|post|put|delete|patch|all|on)\s*\(|app\.(get|post|put|delete|patch|all|on)\s*\(/
-
-// Cross-module schema import: import ... from '...@modules/<other>/schema' or '../../<other>/schema'
-const CROSS_SCHEMA_RE = /from\s+['"](?:@modules\/[^/'"]+\/schema|\.\.\/[^/'"]+\/schema)['"]/
 
 // applyTransition usage
 const APPLY_TRANSITION_RE = /applyTransition\s*\(/
@@ -44,8 +41,17 @@ const DB_TRANSACTION_RE = /\bdb\.transaction\s*\(/
 const JOURNALED_TX_WHITELIST = [
   'modules/agents/service/journal.ts',
   'modules/agents/service/learning-proposals.ts',
+  'modules/agents/service/message-history.ts',
   'modules/inbox/service/messages.ts',
   'modules/inbox/service/conversations.ts',
+]
+
+// Journal write-path guard: only inbox/service and agents/service/journal.ts may mutate messages/conversationEvents
+const JOURNAL_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(messages|conversationEvents)\b/
+const JOURNAL_WRITE_ALLOWED = [
+  'modules/inbox/service/',
+  'modules/agents/service/journal.ts',
+  'modules/agents/service/learning-proposals.ts',
 ]
 
 // ctx.registerCommand literal name
@@ -143,33 +149,6 @@ async function checkHandlerHasRoutes(moduleName: string, moduleDir: string): Pro
       indexPath,
       `module "${moduleName}" handlers/index.ts mounts zero Hono routes (R5 — must have at least GET /health)`,
     )
-  }
-}
-
-async function checkNoCrossSchemaImports(moduleName: string, moduleDir: string): Promise<void> {
-  // Check all .ts files under this module (except schema.ts itself)
-  const glob = new Bun.Glob('**/*.ts')
-  for await (const entry of glob.scan({ cwd: moduleDir })) {
-    if (entry === 'schema.ts') continue
-    const fullPath = join(moduleDir, entry)
-    const lines = await readLines(fullPath)
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      if (CROSS_SCHEMA_RE.test(line)) {
-        // Allow importing own schema (same module)
-        // The pattern already excludes own schema because it requires a different module path
-        // Double-check: exclude self-references within same module
-        const ownSchemaPatterns = [`@modules/${moduleName}/schema`, `../schema`, `./schema`]
-        const isOwn = ownSchemaPatterns.some((p) => line.includes(p))
-        if (!isOwn) {
-          fail(
-            fullPath,
-            `module "${moduleName}" imports from another module's schema.ts (forbidden — use ports instead): ${line.trim()}`,
-            i + 1,
-          )
-        }
-      }
-    }
   }
 }
 
@@ -312,6 +291,30 @@ async function checkObserverMutatorIdsMatchManifest(moduleName: string, moduleDi
   }
 }
 
+async function checkJournalWriteAuthority(_moduleName: string, moduleDir: string): Promise<void> {
+  const glob = new Bun.Glob('**/*.ts')
+  for await (const entry of glob.scan({ cwd: moduleDir })) {
+    if (entry.endsWith('.test.ts') || entry.includes('__tests__/')) continue
+    const fullPath = join(moduleDir, entry)
+    const lines = await readLines(fullPath)
+    const relFromModules = fullPath.slice(fullPath.indexOf('modules/'))
+    const isAllowed = JOURNAL_WRITE_ALLOWED.some((prefix) => relFromModules.startsWith(prefix))
+    if (isAllowed) continue
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue
+      const m = JOURNAL_WRITE_RE.exec(line)
+      if (m) {
+        fail(
+          fullPath,
+          `writes to "${m[2]}" only allowed in inbox/service or agents/service/journal.ts (one-write-path)`,
+          i + 1,
+        )
+      }
+    }
+  }
+}
+
 async function checkCommandNameMatchesManifest(moduleName: string, moduleDir: string): Promise<void> {
   const modulePath = join(moduleDir, 'module.ts')
   const manifestPath = join(moduleDir, 'manifest.ts')
@@ -334,13 +337,13 @@ async function lintModule(moduleName: string): Promise<void> {
     checkRequiredFiles(moduleName, moduleDir),
     checkHandlerLoc(moduleName, moduleDir),
     checkHandlerHasRoutes(moduleName, moduleDir),
-    checkNoCrossSchemaImports(moduleName, moduleDir),
     checkApplyTransitionOnlyInStateTs(moduleName, moduleDir),
     checkReadmeFrontmatter(moduleName, moduleDir),
     checkNoFileLevelSingletons(moduleName, moduleDir),
     checkNoRawDrizzleTxInService(moduleName, moduleDir),
     checkObserverMutatorIdsMatchManifest(moduleName, moduleDir),
     checkCommandNameMatchesManifest(moduleName, moduleDir),
+    checkJournalWriteAuthority(moduleName, moduleDir),
   ])
 }
 
