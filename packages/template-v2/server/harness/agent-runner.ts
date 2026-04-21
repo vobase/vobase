@@ -10,6 +10,7 @@
  * Tool calls run through the mutator chain (approvalMutator etc.).
  */
 
+import type { AgentMessage } from '@mariozechner/pi-agent-core'
 import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
 import { createMessageHistoryObserver } from '@modules/agents/observers/message-history-observer'
@@ -22,54 +23,36 @@ import type { AgentsPort } from '@server/contracts/agents-port'
 import type { AgentDefinition } from '@server/contracts/domain-types'
 import type { DrivePort } from '@server/contracts/drive-port'
 import type {
-  AgentAbortedEvent,
   AgentEndEvent,
   AgentEvent,
   AgentStartEvent,
-  BudgetWarningEvent,
-  LlmCallEvent,
-  MessageEndEvent,
-  MessageStartEvent,
-  MessageUpdateEvent,
-  SteerInjectedEvent,
   ToolExecutionEndEvent,
   ToolExecutionStartEvent,
-  TurnEndEvent,
-  TurnStartEvent,
   WakeTrigger,
 } from '@server/contracts/event'
-import type { BudgetState, IterationBudget } from '@server/contracts/iteration-budget'
+import type { IterationBudget } from '@server/contracts/iteration-budget'
 import type { AgentMutator, AgentStep, MutatorContext } from '@server/contracts/mutator'
 import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
-import type {
-  AgentTool,
-  CommandDef,
-  EventBus,
-  LlmRequest,
-  ObserverFactory,
-  PluginContext,
-} from '@server/contracts/plugin-context'
-import type { LlmFinish, LlmProvider } from '@server/contracts/provider-port'
+import type { AgentTool, CommandDef, EventBus, ObserverFactory, PluginContext } from '@server/contracts/plugin-context'
+import type { LlmProvider } from '@server/contracts/provider-port'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WakeContext } from '@server/contracts/wake-context'
 import { EventBus as DefaultEventBus } from '@server/runtime/event-bus'
-import { assessBudget, worstCaseDeltaExceeds } from '@server/runtime/iteration-budget-runtime'
 import { newWakeId } from '@server/runtime/llm-call'
 import { MutatorChain } from '@server/runtime/mutator-chain'
 import { ObserverBus } from '@server/runtime/observer-bus'
-import { makeResilientProvider } from '@server/runtime/resilient-provider'
 import type { SteerQueueHandle } from '@server/runtime/steer-queue'
 import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-workspace'
 import { DirtyTracker } from '@server/workspace/dirty-tracker'
 import { nanoid } from 'nanoid'
-import { drainProviderTurn } from './agent-adapter'
-import { type BashToolArgs, makeBashTool } from './bash-tool'
+import { makeBashTool } from './bash-tool'
 import { buildFrozenPrompt } from './frozen-prompt-builder'
 import { type MockStreamEvent, mockStream, type StreamFn } from './mock-stream'
 import { createRestartRecoveryContributor } from './restart-recovery'
-import { type CustomSideLoadMaterializer, collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
+import { type CustomSideLoadMaterializer, createBashHistoryMaterializer } from './side-load-collector'
 import { TurnBudget } from './turn-budget'
+import { type BashHistoryRef, type BudgetWarningRef, runTurnLoop } from './turn-loop'
 
 // ----- types ---------------------------------------------------------------
 
@@ -256,10 +239,13 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     }
   }
 
-  // ---- Message history observer -----------------------------------------
-  // When a real db handle is provided, resolve (or create) the thread row for
-  // this wake source and register the history observer. Unit tests omit `db`
-  // so this block is skipped entirely — no behaviour change for existing tests.
+  // ---- Message history state --------------------------------------------
+  // Shadow-built pi AgentMessage[] mirror of the transcript. The hand-rolled
+  // turn loop appends UserMessage/AssistantMessage/ToolResultMessage entries
+  // in-place so the history observer can persist them on `turn_end`. Stays a
+  // local no-op when `opts.db` is absent (unit-test seams).
+  const piMessages: AgentMessage[] = []
+  let historyEnabled = false
   if (opts.db) {
     try {
       const threadId = await resolveThread(opts.db, {
@@ -267,16 +253,16 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
         conversationId,
       })
       const historyMessages = await loadMessages(opts.db, threadId)
+      for (const m of historyMessages) piMessages.push(m)
       observers.register(
         createMessageHistoryObserver({
           db: opts.db,
           threadId,
-          // Hand-rolled loop: no pi AgentMessage[] yet — observer is a no-op
-          // until agentLoop replaces the turn loop (future commit).
-          getMessages: () => [],
+          getMessages: () => piMessages,
           initialSeq: historyMessages.length,
         }),
       )
+      historyEnabled = true
     } catch (err) {
       logger.warn({ err }, 'bootWake: message history setup failed — continuing without persistence')
     }
@@ -358,10 +344,17 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
 
   // Bash commands run in turn N appear in turn N+1's side-load (frozen-snapshot
   // invariant — mid-wake writes never affect the turn that produced them).
-  let lastTurnBashCmds: string[] = []
-  let currentTurnBashCmds: string[] = []
-  customSideLoad.push(createBashHistoryMaterializer(() => lastTurnBashCmds))
+  const bashHistory: BashHistoryRef = { last: [], current: [] }
+  const budgetWarning: BudgetWarningRef = { value: null }
+  customSideLoad.push(createBashHistoryMaterializer(() => bashHistory.last))
   customSideLoad.push(createRestartRecoveryContributor(conversationId, getLastWakeTail))
+  if (opts.iterationBudget) {
+    customSideLoad.push({
+      kind: 'custom',
+      priority: 90,
+      contribute: () => budgetWarning.value ?? '',
+    })
+  }
 
   // ---- Emit agent_start --------------------------------------------------
   const frozen0 = await buildFrozenPrompt({
@@ -387,390 +380,42 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   }
   events.publish(startEvt)
 
-  // ---- Turn loop ---------------------------------------------------------
+  // ---- Turn loop (delegated) --------------------------------------------
   const maxTurns = opts.iterationBudget?.maxTurnsPerWake ?? opts.maxTurns ?? 1
-  let endReason: AgentEndEvent['reason'] = 'complete'
-  const abortSignal = opts.abortCtx?.wakeAbort.signal
-  let pendingSteerText: string | null = null
-
-  let resilientTurnIndex = 0
-  const activeProvider = opts.provider
-    ? makeResilientProvider(opts.provider, {
-        events,
-        logger,
-        getScope: () => ({
-          organizationId: opts.organizationId,
-          conversationId,
-          wakeId,
-          turnIndex: resilientTurnIndex,
-        }),
-      })
-    : undefined
-
-  const budgetState: BudgetState = { turnsConsumed: 0, spentUsd: 0 }
-  // Per-input vs per-output token rates are tracked separately so the
-  // worst-case-delta check stays accurate when the model's output price diverges
-  // from input price (typical 4× spread for Anthropic). Providers that don't
-  // split cost fall back to a 50/50 split of `costUsd`.
-  let lastCostPerInputToken = 0
-  let lastCostPerOutputToken = 0
-  let budgetWarningSideLoad: string | null = null
-  if (opts.iterationBudget) {
-    customSideLoad.push({
-      kind: 'custom',
-      priority: 90,
-      contribute: () => budgetWarningSideLoad ?? '',
-    })
-  }
-
-  for (let turnIndex = 0; turnIndex < maxTurns; turnIndex += 1) {
-    const scope: WakeScope = { organizationId: opts.organizationId, conversationId, wakeId, turnIndex }
-
-    // Pre-turn worst-case delta: refuse if projected next-turn spend exceeds hard ceiling.
-    if (opts.iterationBudget && (lastCostPerInputToken > 0 || lastCostPerOutputToken > 0)) {
-      if (
-        worstCaseDeltaExceeds(opts.iterationBudget, budgetState.spentUsd, lastCostPerInputToken, lastCostPerOutputToken)
-      ) {
-        const worstCaseEvt: BudgetWarningEvent = {
-          ...baseEventFields(scope),
-          type: 'budget_warning',
-          phase: 'hard',
-          turnsConsumed: budgetState.turnsConsumed,
-          spentUsd: budgetState.spentUsd,
-        }
-        events.publish(worstCaseEvt)
-        endReason = 'blocked'
-        break
-      }
-    }
-
-    // turn_start
-    const turnStart: TurnStartEvent = { ...baseEventFields(scope), type: 'turn_start' }
-    events.publish(turnStart)
-    turnBudget.reset()
-
-    // Rebuild side-load FRESH each turn so mid-wake writes propagate (frozen-snapshot invariant).
-    const sideLoadBody = await collectSideLoad({
-      ctx: {
-        organizationId: opts.organizationId,
-        conversationId,
-        agentId: opts.agentId,
-        contactId: opts.contactId,
-        turnIndex,
-      },
-      contributors: opts.registrations.sideLoadContributors,
-      customMaterializers: customSideLoad,
-      bash: workspace.bash,
-    })
-    let firstUserMessage = sideLoadBody
-      ? `${sideLoadBody}\n\n${renderTriggerMessage(trigger)}`
-      : renderTriggerMessage(trigger)
-
-    // Inject steer text accumulated from the previous turn (before capturedPrompts snapshot).
-    if (pendingSteerText !== null) {
-      const steerEvt: SteerInjectedEvent = {
-        ...baseEventFields(scope),
-        type: 'steer_injected',
-        text: pendingSteerText,
-      }
-      events.publish(steerEvt)
-      firstUserMessage = `${pendingSteerText}\n\n${firstUserMessage}`
-      pendingSteerText = null
-    }
-
-    // Frozen prompt is computed ONCE — reuse the turn-0 snapshot for subsequent turns.
-    capturedPrompts.push({
-      system: frozen0.system,
-      systemHash: frozen0.systemHash,
-      firstUserMessage,
-    })
-
-    resilientTurnIndex = turnIndex
-    const pending: MockStreamEvent[] = []
-    let providerFinish: LlmFinish | undefined
-    let providerStreamAborted = false
-
-    if (activeProvider) {
-      const req: LlmRequest = {
-        model: opts.model ?? agentDefinition.model,
-        system: frozen0.system,
-        messages: [{ role: 'user', content: firstUserMessage }],
-        tools: Array.from(toolIndex.values()),
-        stream: true,
-        signal: abortSignal,
-      }
-      try {
-        const drained = await drainProviderTurn(activeProvider, req)
-        providerFinish = drained.finish
-        for (const ev of drained.events) pending.push(ev)
-      } catch (err) {
-        if (abortSignal?.aborted) {
-          providerStreamAborted = true
-        } else {
-          throw err
-        }
-      }
-    } else if (opts.mockStreamFn) {
-      const streamGen = opts.mockStreamFn()
-      for await (const ev of streamGen) pending.push(ev)
-    } else {
-      throw new Error('bootWake: either `provider` or `mockStreamFn` must be supplied')
-    }
-
-    const providerName = activeProvider?.name ?? 'mock'
-    const modelId = opts.model ?? (activeProvider ? agentDefinition.model : 'mock-llm')
-
-    // llm_call — mock path uses stable placeholders; provider path carries the
-    // terminal `finish` chunk metadata (real tokens/cost/latency/cacheHit).
-    const llmEvt: LlmCallEvent = {
-      ...baseEventFields(scope),
-      type: 'llm_call',
-      task: 'agent.turn',
-      model: modelId,
-      provider: providerName,
-      tokensIn: providerFinish?.tokensIn ?? firstUserMessage.length,
-      tokensOut: providerFinish?.tokensOut ?? 0,
-      cacheReadTokens: providerFinish?.cacheReadTokens ?? 0,
-      costUsd: providerFinish?.costUsd ?? 0,
-      latencyMs: providerFinish?.latencyMs ?? 0,
-      cacheHit: providerFinish?.cacheHit ?? false,
-    }
-    events.publish(llmEvt)
-
-    // message_start
-    const messageId = nanoid(10)
-    const msgStart: MessageStartEvent = {
-      ...baseEventFields(scope),
-      type: 'message_start',
-      messageId,
-      role: 'assistant',
-    }
-    events.publish(msgStart)
-
-    // Emit at least one message_update (B4 invariant).
-    let sawUpdate = false
-    let assembledContent = ''
-    for (const ev of pending) {
-      if (ev.type === 'text-delta') {
-        sawUpdate = true
-        const update: MessageUpdateEvent = {
-          ...baseEventFields(scope),
-          type: 'message_update',
-          messageId,
-          delta: ev.delta,
-        }
-        assembledContent += ev.delta
-        events.publish(update)
-      }
-    }
-    if (!sawUpdate) {
-      const update: MessageUpdateEvent = {
-        ...baseEventFields(scope),
-        type: 'message_update',
-        messageId,
-        delta: '',
-      }
-      events.publish(update)
-    }
-
-    // Find the finish event (one of them should exist; mock-stream guarantees it).
-    const finish = pending.find((e) => e.type === 'finish')
-    const finishReason = finish ? (finish as { finishReason: string }).finishReason : 'stop'
-
-    // Tool calls: run through mutator chain.
-    const toolCalls = pending.filter((e) => e.type === 'tool-call') as Array<
-      Extract<MockStreamEvent, { type: 'tool-call' }>
-    >
-    let blocked: { reason: string } | null = null
-    let abortedAt: 'pre_tool' | 'in_tool' | 'post_tool' | null = null
-    if (providerStreamAborted || abortSignal?.aborted) {
-      abortedAt = 'pre_tool'
-    }
-    for (const call of toolCalls) {
-      if (abortedAt !== null) break
-      if (abortSignal?.aborted) {
-        abortedAt = 'post_tool'
-        break
-      }
-      const toolCallId = call.toolCallId ?? nanoid(10)
-      const step: AgentStep = { toolCallId, toolName: call.toolName, args: call.args }
-      const mutatorCtx: MutatorContext = {
-        ...observerCtx,
-        llmCall: async () => {
-          throw new Error('mutators must not llmCall in Phase 1')
-        },
-        persistEvent: async (ev) => {
-          events.publish(ev)
-        },
-      }
-      const decision = await mutators.runBefore(step, mutatorCtx)
-      if (decision?.action === 'block') {
-        blocked = { reason: decision.reason }
-        break
-      }
-      const effectiveArgs = decision?.action === 'transform' ? decision.args : call.args
-
-      if (call.toolName === 'bash') {
-        const cmd = (effectiveArgs as Partial<BashToolArgs>)?.command
-        if (typeof cmd === 'string' && cmd.length > 0) currentTurnBashCmds.push(cmd)
-      }
-
-      const toolStart: ToolExecutionStartEvent = {
-        ...baseEventFields(scope),
-        type: 'tool_execution_start',
-        toolCallId,
-        toolName: call.toolName,
-        args: effectiveArgs,
-      }
-      events.publish(toolStart)
-
-      const tool = toolIndex.get(call.toolName)
-      let toolEnd: ToolExecutionEndEvent
-      if (!tool) {
-        toolEnd = {
-          ...baseEventFields(scope),
-          type: 'tool_execution_end',
-          toolCallId,
-          toolName: call.toolName,
-          result: { ok: false, error: `unknown tool: ${call.toolName}` },
-          isError: true,
-          latencyMs: 0,
-        }
-      } else {
-        const startedAt = Date.now()
-        try {
-          const result = await tool.execute(effectiveArgs, {
-            organizationId: opts.organizationId,
-            conversationId,
-            wakeId,
-            agentId: opts.agentId,
-            turnIndex,
-            toolCallId,
-            signal: abortSignal,
-          })
-          toolEnd = {
-            ...baseEventFields(scope),
-            type: 'tool_execution_end',
-            toolCallId,
-            toolName: call.toolName,
-            result,
-            isError: !result.ok,
-            latencyMs: Date.now() - startedAt,
-          }
-        } catch (err) {
-          toolEnd = {
-            ...baseEventFields(scope),
-            type: 'tool_execution_end',
-            toolCallId,
-            toolName: call.toolName,
-            result: { ok: false, error: err instanceof Error ? err.message : String(err) },
-            isError: true,
-            latencyMs: Date.now() - startedAt,
-          }
-        }
-      }
-      events.publish(toolEnd)
-      if (abortSignal?.aborted && abortedAt === null) {
-        abortedAt = 'in_tool'
-      }
-    }
-
-    // message_end
-    const msgEnd: MessageEndEvent = {
-      ...baseEventFields(scope),
-      type: 'message_end',
-      messageId,
-      role: 'assistant',
-      content: assembledContent,
-      finishReason,
-      tokenCount: assembledContent.length,
-    }
-    events.publish(msgEnd)
-
-    const turnEnd: TurnEndEvent = {
-      ...baseEventFields(scope),
-      type: 'turn_end',
-      tokensIn: llmEvt.tokensIn,
-      tokensOut: assembledContent.length,
-      costUsd: 0,
-    }
-    events.publish(turnEnd)
-
-    // Budget state update and post-turn assessment.
-    budgetState.turnsConsumed += 1
-    budgetState.spentUsd += llmEvt.costUsd
-    if (providerFinish?.inputCostUsd !== undefined && llmEvt.tokensIn > 0) {
-      lastCostPerInputToken = providerFinish.inputCostUsd / llmEvt.tokensIn
-    }
-    if (providerFinish?.outputCostUsd !== undefined && llmEvt.tokensOut > 0) {
-      lastCostPerOutputToken = providerFinish.outputCostUsd / llmEvt.tokensOut
-    }
-    if (
-      providerFinish?.inputCostUsd === undefined &&
-      providerFinish?.outputCostUsd === undefined &&
-      llmEvt.tokensIn + llmEvt.tokensOut > 0
-    ) {
-      // Provider didn't split — assume 50/50 so worst-case delta stays bounded.
-      const halfTotal = llmEvt.costUsd / 2
-      if (llmEvt.tokensIn > 0) lastCostPerInputToken = halfTotal / llmEvt.tokensIn
-      if (llmEvt.tokensOut > 0) lastCostPerOutputToken = halfTotal / llmEvt.tokensOut
-    }
-    if (!blocked && opts.iterationBudget) {
-      const budgetPhase = assessBudget(opts.iterationBudget, budgetState)
-      if (budgetPhase === 'hard') {
-        const hardEvt: BudgetWarningEvent = {
-          ...baseEventFields(scope),
-          type: 'budget_warning',
-          phase: 'hard',
-          turnsConsumed: budgetState.turnsConsumed,
-          spentUsd: budgetState.spentUsd,
-        }
-        events.publish(hardEvt)
-        blocked = { reason: 'budget.hard' }
-      } else if (budgetPhase === 'soft') {
-        const softEvt: BudgetWarningEvent = {
-          ...baseEventFields(scope),
-          type: 'budget_warning',
-          phase: 'soft',
-          turnsConsumed: budgetState.turnsConsumed,
-          spentUsd: budgetState.spentUsd,
-        }
-        events.publish(softEvt)
-        budgetWarningSideLoad = `⚠️ Approaching budget limit: ${budgetState.turnsConsumed} of ${opts.iterationBudget.maxTurnsPerWake} turns used. Please wrap up.`
-      } else {
-        budgetWarningSideLoad = null
-      }
-    }
-
-    // Roll bash history: snapshot turn N → visible to turn N+1's side-load.
-    lastTurnBashCmds = currentTurnBashCmds
-    currentTurnBashCmds = []
-
-    // Drain steer queue — accumulated texts will be injected at the next turn's start.
-    if (opts.steerQueue) {
-      const steers = opts.steerQueue.drain()
-      if (steers.length > 0) {
-        pendingSteerText = steers.join('\n\n')
-      }
-    }
-
-    if (abortedAt !== null) {
-      const abortedEvt: AgentAbortedEvent = {
-        ...baseEventFields(scope),
-        type: 'agent_aborted',
-        reason: opts.abortCtx?.reason ?? 'external',
-        abortedAt,
-      }
-      events.publish(abortedEvt)
-      endReason = 'aborted'
-      break
-    }
-
-    if (blocked) {
-      endReason = 'blocked'
-      break
-    }
-  }
+  const endReason = await runTurnLoop({
+    opts: {
+      organizationId: opts.organizationId,
+      agentId: opts.agentId,
+      contactId: opts.contactId,
+      trigger,
+      mockStreamFn: opts.mockStreamFn,
+      provider: opts.provider,
+      model: opts.model,
+      iterationBudget: opts.iterationBudget,
+      abortCtx: opts.abortCtx,
+      steerQueue: opts.steerQueue,
+      maxTurns,
+      sideLoadContributors: opts.registrations.sideLoadContributors,
+      ports: { agents: opts.ports.agents, drive: opts.ports.drive },
+    },
+    conversationId,
+    wakeId,
+    logger,
+    agentDefinition,
+    events,
+    observerCtx,
+    mutators,
+    toolIndex,
+    turnBudget,
+    workspaceBash: workspace.bash,
+    frozen0,
+    capturedPrompts,
+    customSideLoad,
+    bashHistory,
+    budgetWarning,
+    piMessages,
+    historyEnabled,
+  })
 
   // agent_end
   const endEvt: AgentEndEvent = {
@@ -861,29 +506,6 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   }
 
   return { harness: handle, conversationId, wakeId }
-}
-
-// ----- trigger rendering ---------------------------------------------------
-
-function renderTriggerMessage(trigger: WakeTrigger): string {
-  switch (trigger.trigger) {
-    case 'inbound_message':
-      return `New customer message(s). See /workspace/conversation/messages.md for context.`
-    case 'approval_resumed':
-      return trigger.decision === 'approved'
-        ? `Your previous action was approved. Continue.`
-        : `Your previous action was rejected: ${trigger.note ?? '(no note)'}. Choose a different approach.`
-    case 'supervisor':
-      return `Staff added an internal note. Read /workspace/conversation/internal-notes.md for context.`
-    case 'scheduled_followup':
-      return `Scheduled follow-up: ${trigger.reason}.`
-    case 'manual':
-      return `Manual wake: ${trigger.reason}.`
-    default: {
-      const exhaustive: never = trigger
-      return `Unknown trigger: ${String(exhaustive)}`
-    }
-  }
 }
 
 // ----- helper re-exports ---------------------------------------------------

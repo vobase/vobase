@@ -104,14 +104,17 @@ describe('createMessageHistoryObserver', () => {
     })
 
     for (const type of ['agent_start', 'llm_call', 'message_start', 'agent_end'] as const) {
-      await obs.handle({
-        type,
-        ts: new Date(),
-        wakeId: 'w1',
-        conversationId: 'c1',
-        organizationId: 'o1',
-        turnIndex: 0,
-      } as AgentEvent, dummyCtx)
+      await obs.handle(
+        {
+          type,
+          ts: new Date(),
+          wakeId: 'w1',
+          conversationId: 'c1',
+          organizationId: 'o1',
+          turnIndex: 0,
+        } as AgentEvent,
+        dummyCtx,
+      )
     }
 
     expect(inserts).toHaveLength(0)
