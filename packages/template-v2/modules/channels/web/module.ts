@@ -1,6 +1,7 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
 import { manifest } from './manifest'
+import { createWebInstancesService, installWebInstancesService } from './service/instances'
 import { createChannelWebState, installChannelWebState, type JobQueue } from './service/state'
 
 export default defineModule({
@@ -19,5 +20,6 @@ export default defineModule({
         realtime: ctx.realtime,
       }),
     )
+    installWebInstancesService(createWebInstancesService({ db: ctx.db }))
   },
 })
