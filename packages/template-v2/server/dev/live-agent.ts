@@ -2,11 +2,12 @@
  * Live agent handler — processes `channel-web:inbound-to-wake` jobs by booting
  * a real Anthropic wake via the pi-agent-core harness.
  *
- * Only `replyTool` is registered. The soul prompt still mentions `send_card`,
- * but Claude can only invoke the tools we actually expose, so it falls back to
- * plain text replies — avoiding the approval/UI loop that `send_card` would
- * trigger. Approval-gated tools remain the right path for staff workflows; for
- * the dev /test-web dogfood we want unblocked round-trips.
+ * `replyTool` and `sendCardTool` are both registered. The side-load instructs
+ * the agent to prefer `send_card` whenever the reply has structure or choices,
+ * falling back to `reply` only for pure acknowledgements and free-form
+ * questions. Card approval is off on the Meridian seed so cards flow straight
+ * to the widget without staff gating — flip `cardApprovalRequired` back on if
+ * you want the approval UX in the loop.
  *
  * Multi-turn is now enabled (maxTurns: 10). Message history is persisted via
  * createMessageHistoryObserver when a db handle is supplied to bootWake.
@@ -25,6 +26,7 @@ import type { FilesService } from '@modules/drive/service/files'
 import type { Conversation, Message } from '@modules/inbox/schema'
 import type { InboxPort } from '@modules/inbox/service/types'
 import { replyTool } from '@modules/inbox/tools/reply'
+import { sendCardTool } from '@modules/inbox/tools/send-card'
 import type { AgentObserver } from '@server/contracts/observer'
 import type { AgentTool, RealtimeService } from '@server/contracts/plugin-context'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
@@ -100,7 +102,7 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
       const instruction = [
         '# Task',
         '',
-        "Respond to the customer now using the `reply` tool. Do NOT use bash to re-explore the workspace — everything you need is already in this message. Keep the reply to 2–4 short sentences. If the answer depends on pricing or policy details you don't know, say so briefly and offer a follow-up.",
+        "Respond to the customer now. PREFER `send_card` whenever the reply has any structure or actionable choices — pricing, plans, refund confirmations, yes/no with consequences, 2+ options, next-step CTAs. Use plain `reply` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA. Do NOT use bash to re-explore the workspace — everything you need is already in this message. Keep prose replies to 2–4 short sentences. If the answer depends on pricing or policy details you don't know, say so briefly and offer a follow-up.",
       ].join('\n')
       return [
         { kind: 'custom', priority: 100, render: () => instruction },
@@ -144,7 +146,7 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
           messageIds: [data.messageId],
         },
         registrations: {
-          tools: [replyTool as unknown as AgentTool],
+          tools: [replyTool as unknown as AgentTool, sendCardTool as unknown as AgentTool],
           commands: [],
           observers: [devSseObserver],
           mutators: [],

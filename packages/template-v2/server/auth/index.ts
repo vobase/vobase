@@ -12,6 +12,7 @@ import {
 import { type BetterAuthPlugin, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { anonymous } from 'better-auth/plugins/anonymous'
+import { bearer } from 'better-auth/plugins/bearer'
 import { emailOTP } from 'better-auth/plugins/email-otp'
 import { organization } from 'better-auth/plugins/organization'
 import { productName } from '../branding'
@@ -47,6 +48,11 @@ export function createAuth(db: ScopedDb) {
   const multiOrg = process.env.VOBASE_MULTI_ORG === 'true'
 
   const plugins: BetterAuthPlugin[] = [
+    // Bearer tokens let the public /chat page authenticate via
+    // `Authorization: Bearer <token>` instead of cookies. That isolates the
+    // widget's anonymous session from the dashboard cookie session on the
+    // same origin.
+    bearer(),
     anonymous(),
     emailOTP({
       sendVerificationOTP: async ({ email, otp, type }) => {

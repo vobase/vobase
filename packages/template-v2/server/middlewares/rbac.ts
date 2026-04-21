@@ -36,7 +36,7 @@ export function requirePerm(auth: Auth, perms: PermInput): MiddlewareHandler {
   return createRequirePermission(auth, perms as Record<string, string[]>)
 }
 
-export type DriveScopeKind = 'organization' | 'contact' | 'staff'
+export type DriveScopeKind = 'organization' | 'contact' | 'staff' | 'agent'
 
 export interface ScopeRbacOptions {
   /** How to read the scope discriminator. Defaults to query param `scope`. */
@@ -59,7 +59,7 @@ export function scopeRbac(auth: Auth, opts: ScopeRbacOptions): MiddlewareHandler
 
   return async (c: Context<OrganizationEnv>, next): Promise<Response | undefined> => {
     const scope = readScope(c)
-    if (scope !== 'organization' && scope !== 'contact' && scope !== 'staff') {
+    if (scope !== 'organization' && scope !== 'contact' && scope !== 'staff' && scope !== 'agent') {
       return c.json({ error: 'invalid_scope' }, 400)
     }
 
@@ -68,8 +68,8 @@ export function scopeRbac(auth: Auth, opts: ScopeRbacOptions): MiddlewareHandler
       return (await createRequirePermission(auth, { drive: [action] })(c, next)) ?? undefined
     }
 
-    if (scope === 'contact') {
-      // Any org member may read/write their own contact-scope Drive files;
+    if (scope === 'contact' || scope === 'agent') {
+      // Any org member may read/write contact- and agent-scope Drive files;
       // session + org membership already enforced upstream.
       await next()
       return undefined
