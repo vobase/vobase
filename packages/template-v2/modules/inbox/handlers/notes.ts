@@ -1,5 +1,5 @@
-/** POST /api/inbox/conversations/:id/notes */
-import { addNote } from '@modules/inbox/service/notes'
+/** GET + POST /api/inbox/conversations/:id/notes */
+import { addNote, listNotes } from '@modules/inbox/service/notes'
 import { getConversation, notifyConversation } from '@modules/inbox/service/staff-ops'
 import { fanOutNoteMentions } from '@modules/team/service/mention-notify'
 import { Hono } from 'hono'
@@ -15,7 +15,17 @@ const noteBodySchema = z.object({
   parentNoteId: z.string().optional(),
 })
 
-const app = new Hono().post('/:id/notes', async (c) => {
+const app = new Hono()
+  .get('/:id/notes', async (c) => {
+    const id = c.req.param('id')
+    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const conv = await getConversation(id)
+    if (!conv) return c.json({ error: 'not_found' }, 404)
+    if (conv.organizationId !== organizationId) return c.json({ error: 'forbidden' }, 403)
+    const rows = await listNotes(id)
+    return c.json(rows)
+  })
+  .post('/:id/notes', async (c) => {
   const id = c.req.param('id')
   const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const raw = await c.req.json().catch(() => null)

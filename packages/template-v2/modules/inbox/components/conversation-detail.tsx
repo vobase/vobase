@@ -1,5 +1,6 @@
 import type { Contact } from '@modules/contacts/schema'
 import { useLifecycle } from '@modules/inbox/api/use-lifecycle'
+import { useNotes } from '@modules/inbox/api/use-notes'
 import { useReassign } from '@modules/inbox/api/use-reassign'
 import { deriveContactName } from '@modules/inbox/lib/contact'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -69,6 +70,8 @@ export function ConversationDetail() {
     queryKey: ['messages', id],
     queryFn: () => fetchMessages(id),
   })
+
+  const { data: notes = [] } = useNotes(id)
 
   const { data: convList = [] } = useQuery({
     queryKey: ['conversations'],
@@ -196,7 +199,7 @@ export function ConversationDetail() {
         }
       />
       <InlineApprovalBanner conversationId={id} />
-      <MessageThread messages={messages} />
+      <MessageThread messages={messages} notes={notes} />
       <Composer conversationId={id} />
     </div>
   )

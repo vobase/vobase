@@ -20,6 +20,7 @@ export function useSendNote(conversationId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['messages', conversationId] })
+      qc.invalidateQueries({ queryKey: ['notes', conversationId] })
     },
   })
 }

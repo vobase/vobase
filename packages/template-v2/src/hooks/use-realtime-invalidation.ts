@@ -33,6 +33,7 @@ export function useRealtimeInvalidation(): void {
       if (payload.id) {
         queryClient.invalidateQueries({ queryKey: ['conversation', payload.id] })
         queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })
+        queryClient.invalidateQueries({ queryKey: ['notes', payload.id] })
       }
       return
     }
