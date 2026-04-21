@@ -7,12 +7,13 @@
  *      (cross-schema FKs, UNLOGGED active_wakes, pg_trgm GIN index)
  */
 import postgres from 'postgres'
+import { processSqlFile } from './utils/process-sql-file'
 
 const url = process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2'
 
 process.stdout.write('→ applying db/current.sql fixtures\n')
 const fixturesPath = `${import.meta.dir}/../db/current.sql`
-const fixturesSql = await Bun.file(fixturesPath).text()
+const fixturesSql = await processSqlFile(fixturesPath)
 const admin = postgres(url, { max: 1 })
 try {
   await admin.unsafe(fixturesSql)

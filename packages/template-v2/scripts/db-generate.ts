@@ -14,6 +14,7 @@
  */
 import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { processSqlFile } from './utils/process-sql-file'
 
 const name = process.argv[2] ?? `migration_${Date.now()}`
 const templateDir = join(import.meta.dir, '..')
@@ -47,7 +48,7 @@ if (!newFolder) {
 
 const migrationPath = join(drizzleDir, newFolder, 'migration.sql')
 
-const fixtures = await Bun.file(join(templateDir, 'db', 'current.sql')).text()
+const fixtures = await processSqlFile(join(templateDir, 'db', 'current.sql'))
 const schema = await Bun.file(migrationPath).text()
 
 // Extras: mirror db-apply-extras.ts. FK ADD CONSTRAINT has no IF NOT EXISTS,
