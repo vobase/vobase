@@ -6,7 +6,6 @@
  */
 
 import type { LlmTask } from '@server/contracts/event'
-import type { Tx } from '@server/contracts/inbox-port'
 import type { AgentMutator } from '@server/contracts/mutator'
 import type { AgentObserver, Logger } from '@server/contracts/observer'
 import type {
@@ -24,6 +23,7 @@ import type {
   ScopedScheduler,
   ScopedStorage,
   TraceSpan,
+  Tx,
 } from '@server/contracts/plugin-context'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { ChannelAdapter } from '@vobase/core'

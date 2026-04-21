@@ -10,7 +10,9 @@
 import type { ChannelAdapter } from '@vobase/core'
 import type { CaptionPort } from './caption-port'
 import type { AgentEvent, LlmTask } from './event'
-import type { Tx } from './inbox-port'
+/** Opaque transaction handle passed through from Drizzle. */
+export type Tx = unknown
+
 import type { AgentMutator } from './mutator'
 import type { AgentObserver, Logger } from './observer'
 import type { ScopedDb } from './scoped-db'
@@ -228,4 +230,3 @@ export interface JournalSink {
 }
 
 export type { LlmTask } from './event'
-export type { Tx } from './inbox-port'

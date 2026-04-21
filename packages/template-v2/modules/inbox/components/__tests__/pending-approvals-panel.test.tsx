@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
-import type { PendingApproval } from '@server/contracts/domain-types'
 import * as realQuery from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
+import type { PendingApproval } from '../../schema'
 
 mock.module('@tanstack/react-query', () => ({
   ...realQuery,

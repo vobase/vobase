@@ -10,8 +10,8 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import type { Message } from '@modules/inbox/schema'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
-import type { Message } from '@server/contracts/domain-types'
 import type { RealtimeService } from '@server/contracts/plugin-context'
 
 type CallLog = { method: string; input: unknown }

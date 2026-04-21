@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { Conversation } from '@server/contracts/domain-types'
+import type { Conversation } from '../../schema'
 import { computeTab } from '../bucketing'
 
 type C = Pick<Conversation, 'status' | 'snoozedUntil'>

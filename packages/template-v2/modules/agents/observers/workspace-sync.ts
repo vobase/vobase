@@ -4,7 +4,7 @@
  *
  * Routing rules:
  *   `/workspace/contact/MEMORY.md` → ContactsService.upsertWorkingMemorySection (section-ops)
- *   `/workspace/contact/drive/**`  → DrivePort.create / delete  (scope='contact')
+ *   `/workspace/contact/drive/**`  → FilesService.create / delete  (scope='contact')
  *
  * Frozen-snapshot invariant: this observer ONLY fires on `agent_end`.
  * Mid-wake dirty writes accumulate in the tracker but are NOT flushed until then,
@@ -15,7 +15,8 @@
  */
 
 import { upsertWorkingMemorySection } from '@modules/contacts/service/contacts'
-import type { CreateFileInput, DrivePort, DriveScope } from '@server/contracts/drive-port'
+import type { FilesService } from '@modules/drive/service/files'
+import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
 import type { AgentEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
 import type { DirtyTracker } from '@server/workspace/dirty-tracker'
@@ -25,7 +26,7 @@ export interface WorkspaceSyncOpts {
   fs: IFileSystem
   tracker: DirtyTracker
   contactId: string
-  drive: DrivePort
+  drive: FilesService
 }
 
 export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObserver {
@@ -54,7 +55,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
         }
       }
 
-      // ── 2. Contact drive → DrivePort (scope='contact') ──────────────────
+      // ── 2. Contact drive → FilesService (scope='contact') ──────────────────
       const contactScope: DriveScope = { scope: 'contact', contactId }
 
       const toWrite = [...scoped.contactDrive.added, ...scoped.contactDrive.changed]
@@ -77,7 +78,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
             }
             await drive.create(contactScope, input)
           }
-          // Content updates on existing files are deferred to Phase 3 (no update-content on DrivePort yet).
+          // Content updates on existing files are deferred to Phase 3 (no update-content on FilesService yet).
         } catch (err) {
           ctx.logger.warn({ err, wPath }, 'workspace-sync: failed to persist contact/drive file')
         }
@@ -88,7 +89,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
           const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
           const existing = await drive.getByPath(contactScope, drivePath)
           if (existing) {
-            await drive.delete(existing.id)
+            await drive.remove(existing.id)
           }
         } catch (err) {
           ctx.logger.warn({ err, wPath }, 'workspace-sync: failed to delete contact/drive file')

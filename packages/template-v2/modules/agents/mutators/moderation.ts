@@ -10,8 +10,8 @@
  * (this mutator returns immediately on first match).
  */
 
-import type { ModerationCategory } from '@server/contracts/domain-types'
 import type { AgentMutator, AgentStep, MutatorContext, MutatorDecision } from '@server/contracts/mutator'
+import type { ModerationCategory } from '../schema'
 
 const MODERATION_TOOL_NAMES = new Set(['reply', 'send_card', 'send_file', 'create_draft'])
 

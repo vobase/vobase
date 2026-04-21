@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import type { Conversation } from '@server/contracts/domain-types'
 import { renderToStaticMarkup } from 'react-dom/server'
+import type { Conversation } from '../../schema'
 import { ConversationRow } from '../conversation-row'
 
 const base: Conversation = {

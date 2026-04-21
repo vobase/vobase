@@ -3,7 +3,7 @@
  * Button-click payload test mocks globalThis.fetch and exercises postCardReply directly.
  */
 import { afterEach, describe, expect, it, mock } from 'bun:test'
-import type { Message } from '@server/contracts/domain-types'
+import type { Message } from '@modules/inbox/schema'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 import { renderToString } from 'react-dom/server'

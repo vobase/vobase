@@ -10,7 +10,7 @@
  * check:shape rule 2 alongside `modules/agents/service/journal.ts`.
  */
 import type { OutboundToolName } from '@server/contracts/channel-event'
-import type { Message } from '@server/contracts/domain-types'
+import type { Message } from '../schema'
 
 type TxShape = { insert: InsertFn } & {
   select?: () => { from: (t: unknown) => { where: (c: unknown) => { limit: (n: number) => Promise<unknown[]> } } }

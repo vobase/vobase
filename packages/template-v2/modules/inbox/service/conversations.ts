@@ -10,13 +10,9 @@
  * returns the bound API; free-function wrappers route through the installed
  * instance to preserve the existing import surface.
  */
-import type { Conversation, Message } from '@server/contracts/domain-types'
-import type {
-  CreateConversationInput,
-  CreateInboundMessageInput,
-  CreateInboundMessageResult,
-} from '@server/contracts/inbox-port'
+import type { Conversation, Message } from '../schema'
 import { transitionConversation } from '../state'
+import type { CreateConversationInput, CreateInboundMessageInput, CreateInboundMessageResult } from './types'
 
 /** Minimal pg-boss-shaped binding — enough for snooze/unsnooze without pulling pg-boss types. */
 export interface ConversationScheduler {

@@ -9,7 +9,7 @@
  *   - `active` — everything else (includes active, resolving, awaiting_approval)
  */
 
-import type { Conversation } from '@server/contracts/domain-types'
+import type { Conversation } from '../schema'
 
 export type InboxTab = 'active' | 'later' | 'done'
 

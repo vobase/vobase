@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
-import type { Message } from '@server/contracts/domain-types'
+import type { Message } from '../../schema'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

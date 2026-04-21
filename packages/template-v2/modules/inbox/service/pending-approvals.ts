@@ -1,6 +1,7 @@
-import type { PendingApproval } from '@server/contracts/domain-types'
 import type { WakeTrigger } from '@server/contracts/event'
-import type { InsertPendingApprovalInput, Tx } from '@server/contracts/inbox-port'
+import type { Tx } from '@server/contracts/plugin-context'
+import type { PendingApproval } from '../schema'
+import type { InsertPendingApprovalInput } from './types'
 
 export class ApprovalNotPendingError extends Error {
   readonly code = 'APPROVAL_NOT_PENDING'

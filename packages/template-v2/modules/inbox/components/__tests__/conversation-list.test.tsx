@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
-import type { Conversation } from '@server/contracts/domain-types'
+import type { Conversation } from '../../schema'
 import { filterConversations } from '../conversation-list'
 import type { FilterKey } from '../filter-tab-bar'
 

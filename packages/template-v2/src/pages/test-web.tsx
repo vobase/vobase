@@ -8,7 +8,7 @@
  * ~30ms, so polling a handful of times is both simpler and plenty responsive.
  */
 
-import type { Message } from '@server/contracts/domain-types'
+import type { Message } from '@modules/inbox/schema'
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MessageCard } from '@/components/message-card'

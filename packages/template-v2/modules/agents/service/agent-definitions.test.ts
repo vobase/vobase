@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { AgentDefinition } from '@server/contracts/domain-types'
+import type { AgentDefinition } from '../schema'
 import { BUILTIN_TOOL_NAMES, resolveAllowedTools } from './agent-definitions'
 
 describe('resolveAllowedTools', () => {

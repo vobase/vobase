@@ -18,12 +18,11 @@
  * supervisor wake that also produces a staff note yields TWO signals, and the
  * observer feeds both into `learn.propose`.
  *
- * Imports the `WakeTrigger` / `InternalNote` types from
- * `@server/contracts/domain-types.ts`, never via Drizzle `InferSelectModel`.
  */
 
-import type { InternalNoteAuthorType, LearningScope } from '@server/contracts/domain-types'
+import type { InternalNoteAuthorType } from '@modules/inbox/schema'
 import type { AgentEvent } from '@server/contracts/event'
+import type { LearningScope } from '../schema'
 
 export type StaffSignalKind = 'supervisor' | 'approval_rejected' | 'internal_note' | 'reassignment_note'
 

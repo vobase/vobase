@@ -1,4 +1,4 @@
-import type { Contact } from '@server/contracts/domain-types'
+import type { Contact } from '@modules/contacts/schema'
 
 export function deriveContactName(contact: Contact | null | undefined, fallback: string): string {
   if (!contact) return fallback

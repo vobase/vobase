@@ -11,26 +11,20 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import type { AgentDefinition, ConversationEvent, LearningProposal } from '@modules/agents/schema'
+import type { AgentsPort } from '@modules/agents/service/types'
+import type { Contact, StaffBinding } from '@modules/contacts/schema'
 import type { ContactsService } from '@modules/contacts/service/contacts'
+import type { DriveFile } from '@modules/drive/schema'
+import type { FilesService } from '@modules/drive/service/files'
+import type { DriveScope } from '@modules/drive/service/types'
+import type { Conversation, InternalNote, Message, PendingApproval } from '@modules/inbox/schema'
+import type { InboxPort } from '@modules/inbox/service/types'
 import type { AbortContext } from '../abort-context'
-import type { AgentsPort } from '../agents-port'
 import type { CaptionPort } from '../caption-port'
 import type { V2ChannelAdapter } from '../channel-adapter'
 import type { ChannelInboundEvent, ChannelOutboundEvent } from '../channel-event'
 import type { ClassifiedError } from '../classified-error'
-import type {
-  AgentDefinition,
-  Contact,
-  Conversation,
-  ConversationEvent,
-  DriveFile,
-  InternalNote,
-  LearningProposal,
-  Message,
-  PendingApproval,
-  StaffBinding,
-} from '../domain-types'
-import type { DrivePort, DriveScope } from '../drive-port'
 import type {
   AgentAbortedEvent,
   AgentEvent,
@@ -50,7 +44,6 @@ import type {
   WakeTrigger,
   WakeTriggerKind,
 } from '../event'
-import type { InboxPort } from '../inbox-port'
 import type { BudgetPhase, BudgetState, IterationBudget } from '../iteration-budget'
 import type { OptionalModuleDir, RequiredModuleFile } from '../module-shape'
 import {
@@ -188,7 +181,7 @@ type _ContactsSurface = {
   [K in keyof ContactsService]: ContactsService[K]
 }
 type _DriveSurface = {
-  [K in keyof DrivePort]: DrivePort[K]
+  [K in keyof FilesService]: FilesService[K]
 }
 type _AgentsSurface = {
   [K in keyof AgentsPort]: AgentsPort[K]
@@ -241,15 +234,16 @@ type _RequiredDriveMethods =
   | 'getByPath'
   | 'listFolder'
   | 'readContent'
+  | 'getBusinessMd'
   | 'grep'
   | 'create'
   | 'mkdir'
   | 'move'
-  | 'delete'
+  | 'remove'
   | 'ingestUpload'
   | 'saveInboundMessageAttachment'
   | 'deleteScope'
-type _DriveKeys = AssertTrue<AssertEqual<keyof DrivePort, _RequiredDriveMethods>>
+type _DriveKeys = AssertTrue<AssertEqual<keyof FilesService, _RequiredDriveMethods>>
 
 type _RequiredAgentsMethods = 'getAgentDefinition' | 'appendEvent' | 'checkDailyCeiling'
 type _AgentsKeys = AssertTrue<AssertEqual<keyof AgentsPort, _RequiredAgentsMethods>>
@@ -729,8 +723,8 @@ export type {
   Conversation,
   ConversationEvent,
   DriveFile,
-  DrivePort,
   EventBus,
+  FilesService,
   InboxPort,
   InternalNote,
   LearningProposal,

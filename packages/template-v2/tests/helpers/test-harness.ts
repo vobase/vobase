@@ -10,12 +10,15 @@
 
 import { auditObserver } from '@modules/agents/observers/audit'
 import { sseObserver } from '@modules/agents/observers/sse'
+import type { AgentDefinition } from '@modules/agents/schema'
 import { append as journalAppend, setDb as setAgentsDb } from '@modules/agents/service/journal'
+import type { AgentsPort } from '@modules/agents/service/types'
+import type { Contact, StaffBinding } from '@modules/contacts/schema'
 import type { ContactsService } from '@modules/contacts/service/contacts'
+import type { DriveFile } from '@modules/drive/schema'
+import type { FilesService } from '@modules/drive/service/files'
+import type { DriveScope } from '@modules/drive/service/types'
 import { approvalMutator } from '@modules/inbox/mutators/approval'
-import type { AgentsPort } from '@server/contracts/agents-port'
-import type { AgentDefinition, Contact, DriveFile, StaffBinding } from '@server/contracts/domain-types'
-import type { DrivePort, DriveScope } from '@server/contracts/drive-port'
 import type { AgentEvent } from '@server/contracts/event'
 import type { HarnessHandle, StreamFnLike } from '@server/harness'
 import { bootWake } from '@server/harness'
@@ -47,7 +50,7 @@ export interface IntegrationBootOpts {
 export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
   agents: AgentsPort
   contacts: ContactsService
-  drive: DrivePort
+  drive: FilesService
 }> {
   setAgentsDb(db.db)
 
@@ -135,7 +138,7 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
     },
   }
 
-  const drivePort: DrivePort = {
+  const drivePort: FilesService = {
     async get(id: string): Promise<DriveFile | null> {
       const rows = await db.db.select().from(driveFiles).where(eq(driveFiles.id, id)).limit(1)
       return (rows[0] as unknown as DriveFile) ?? null
@@ -178,8 +181,12 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
     async move(): Promise<DriveFile> {
       throw new Error('not-implemented-in-phase-1')
     },
-    async delete() {
+    async remove() {
       throw new Error('not-implemented-in-phase-1')
+    },
+    async getBusinessMd() {
+      const biz = await this.getByPath({ scope: 'organization' }, '/BUSINESS.md')
+      return biz?.extractedText ?? ''
     },
     async ingestUpload(): Promise<DriveFile> {
       throw new Error('not-implemented-in-phase-1')
@@ -203,7 +210,7 @@ export async function bootWakeIntegration(
   ports: {
     agents: AgentsPort
     contacts: ContactsService
-    drive: DrivePort
+    drive: FilesService
   },
   opts: IntegrationBootOpts,
   db: TestDbHandle,

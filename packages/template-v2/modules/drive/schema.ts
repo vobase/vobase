@@ -11,6 +11,42 @@
  * pg_trgm + GIN index on (extracted_text || ' ' || caption) accelerates `grep`.
  */
 
+// ─── Domain types ───────────────────────────────────────────────────────────
+
+export type DriveKind = 'folder' | 'file'
+export type DriveScopeName = 'organization' | 'contact'
+export type DriveSource = 'customer_inbound' | 'agent_uploaded' | 'staff_uploaded' | 'admin_uploaded' | null
+export type DriveProcessingStatus = 'pending' | 'processing' | 'ready' | 'failed'
+
+export interface DriveFile {
+  id: string
+  organizationId: string
+  scope: DriveScopeName
+  scopeId: string
+  parentFolderId: string | null
+  kind: DriveKind
+  name: string
+  path: string
+  mimeType: string | null
+  sizeBytes: number | null
+  storageKey: string | null
+  caption: string | null
+  captionModel: string | null
+  captionUpdatedAt: Date | null
+  extractedText: string | null
+  source: DriveSource
+  sourceMessageId: string | null
+  tags: string[]
+  uploadedBy: string | null
+  processingStatus: DriveProcessingStatus
+  processingError: string | null
+  threatScanReport: unknown
+  createdAt: Date
+  updatedAt: Date
+}
+
+// ─── Tables ─────────────────────────────────────────────────────────────────
+
 import { drivePgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'

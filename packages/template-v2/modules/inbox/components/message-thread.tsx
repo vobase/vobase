@@ -1,9 +1,9 @@
-import type { Message, MessageRole } from '@server/contracts/domain-types'
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation'
 import { Message as AiMessage, MessageContent, MessageResponse } from '@/components/ai-elements/message'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
 import { MessageCard } from '@/components/message-card'
+import type { Message, MessageRole } from '../schema'
 
 type UiRole = 'user' | 'assistant' | 'system'
 

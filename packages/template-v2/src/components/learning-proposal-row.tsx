@@ -1,4 +1,4 @@
-import type { LearningProposal } from '@server/contracts/domain-types'
+import type { LearningProposal } from '@modules/agents/schema'
 import { useState } from 'react'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { cn } from '@/lib/utils'

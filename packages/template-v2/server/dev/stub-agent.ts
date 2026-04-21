@@ -17,7 +17,7 @@
 
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import type { InboundToWakePayload } from '@modules/channels/web/jobs'
-import type { InboxPort } from '@server/contracts/inbox-port'
+import type { InboxPort } from '@modules/inbox/service/types'
 import type { RealtimeService } from '@server/contracts/plugin-context'
 
 interface StubAgentDeps {

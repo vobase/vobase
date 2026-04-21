@@ -7,7 +7,7 @@
  *
  * Widget chrome (header) is hidden when `?embed=true`.
  */
-import type { Message } from '@server/contracts/domain-types'
+import type { Message } from '@modules/inbox/schema'
 import { createFileRoute, useParams } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MessageCard } from '@/components/message-card'

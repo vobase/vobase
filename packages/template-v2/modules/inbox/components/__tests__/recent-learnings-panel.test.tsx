@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
-import type { LearningProposal } from '@server/contracts/domain-types'
+import type { LearningProposal } from '@modules/agents/schema'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 let learningsMock: LearningProposal[] = []

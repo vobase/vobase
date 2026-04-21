@@ -14,7 +14,7 @@
  * bound API; `installAgentDefinitionsService(svc)` wires the module-scoped handle
  * used by the free-function wrappers. `setDb(db)` remains as a compatibility shim.
  */
-import type { AgentDefinition } from '@server/contracts/domain-types'
+import type { AgentDefinition } from '../schema'
 
 export const BUILTIN_TOOL_NAMES = ['bash', 'vobase'] as const
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number]

@@ -6,8 +6,8 @@
  * states; every status can cycle back via one of the listed edges.
  */
 
-import type { ConversationStatus } from '@server/contracts/domain-types'
 import { applyTransition, type TransitionTable } from '@server/runtime/apply-transition'
+import type { ConversationStatus } from './schema'
 
 export const conversationTransitions: TransitionTable<ConversationStatus> = {
   transitions: [

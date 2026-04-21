@@ -1,4 +1,3 @@
-import type { Contact } from '@server/contracts/domain-types'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft, Mail, Phone, User } from 'lucide-react'
@@ -6,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import type { Contact } from '../schema'
 
 async function fetchContact(id: string): Promise<Contact> {
   const r = await fetch(`/api/contacts/${id}`)

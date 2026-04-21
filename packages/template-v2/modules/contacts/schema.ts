@@ -13,11 +13,33 @@
  * after `drizzle-kit push` has created both schemas.
  */
 
-import type { Contact, StaffBinding } from '@server/contracts/domain-types'
 import { contactsPgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { boolean, index, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+
+// ─── Domain types ───────────────────────────────────────────────────────────
+
+export interface Contact {
+  id: string
+  organizationId: string
+  displayName: string | null
+  phone: string | null
+  email: string | null
+  workingMemory: string
+  segments: string[]
+  marketingOptOut: boolean
+  marketingOptOutAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface StaffBinding {
+  userId: string
+  channelInstanceId: string
+  externalIdentifier: string
+  createdAt: Date
+}
 
 export const contacts = contactsPgSchema.table(
   'contacts',

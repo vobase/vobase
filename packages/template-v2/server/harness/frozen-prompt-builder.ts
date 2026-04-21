@@ -7,7 +7,7 @@
  * assert `turn1.systemHash === turn3.systemHash` even after mid-wake writes.
  */
 
-import type { AgentDefinition } from '@server/contracts/domain-types'
+import type { AgentDefinition } from '@modules/agents/schema'
 import type { Bash } from 'just-bash'
 
 export interface FrozenPromptInput {

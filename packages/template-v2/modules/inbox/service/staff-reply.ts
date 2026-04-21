@@ -3,7 +3,7 @@
  * Inserts a staff message + journals tool_execution_end atomically.
  * Does NOT invoke bootWake or any agent re-run path.
  */
-import type { Message } from '@server/contracts/domain-types'
+import type { Message } from '../schema'
 import { appendStaffTextMessage } from './messages'
 
 export interface SendStaffReplyInput {

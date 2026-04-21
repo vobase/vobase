@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'bun:test'
+import type { AgentDefinition } from '@modules/agents/schema'
+import type { AgentsPort } from '@modules/agents/service/types'
+import type { Contact, StaffBinding } from '@modules/contacts/schema'
 import type { ContactsService, UpsertByExternalInput } from '@modules/contacts/service/contacts'
-import type { AgentsPort } from '@server/contracts/agents-port'
-import type { AgentDefinition, Contact, DriveFile, StaffBinding } from '@server/contracts/domain-types'
-import type { DrivePort, DriveScope, GrepMatch } from '@server/contracts/drive-port'
+import type { DriveFile } from '@modules/drive/schema'
+import type { FilesService } from '@modules/drive/service/files'
+import type { DriveScope, GrepMatch } from '@modules/drive/service/types'
 import { BUSINESS_MD_FALLBACK, createWorkspace } from './create-workspace'
 
 const AGENT_DEFINITION: AgentDefinition = {
@@ -57,7 +60,7 @@ function makeTenantFile(partial: Partial<DriveFile> & { path: string; extractedT
   }
 }
 
-function makeDriveStub(files: DriveFile[]): DrivePort {
+function makeDriveStub(files: DriveFile[]): FilesService {
   const byId = new Map(files.map((f) => [f.id, f]))
   return {
     async get(id) {
@@ -89,8 +92,12 @@ function makeDriveStub(files: DriveFile[]): DrivePort {
     async move() {
       throw new Error('not-implemented-in-phase-1')
     },
-    async delete() {
+    async remove() {
       throw new Error('not-implemented-in-phase-1')
+    },
+    async getBusinessMd() {
+      const biz = files.find((f) => f.scope === 'organization' && f.path === '/BUSINESS.md')
+      return biz?.extractedText ?? ''
     },
     async ingestUpload() {
       throw new Error('not-implemented-in-phase-1')

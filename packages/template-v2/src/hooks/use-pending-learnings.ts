@@ -1,4 +1,4 @@
-import type { LearningProposal } from '@server/contracts/domain-types'
+import type { LearningProposal } from '@modules/agents/schema'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 export async function fetchPendingLearnings(): Promise<LearningProposal[]> {

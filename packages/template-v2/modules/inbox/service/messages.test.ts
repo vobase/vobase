@@ -3,7 +3,7 @@
  * Stubs the DB to avoid a real Postgres connection.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
-import type { Message } from '@server/contracts/domain-types'
+import type { Message } from '../schema'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

@@ -20,6 +20,112 @@
  * audit/journal queries can scope by wake.
  */
 
+// ─── Domain types ───────────────────────────────────────────────────────────
+
+export interface AgentDefinition {
+  id: string
+  organizationId: string
+  name: string
+  soulMd: string
+  model: string
+  maxSteps: number | null
+  workingMemory: string
+  skillAllowlist: string[] | null
+  cardApprovalRequired: boolean
+  fileApprovalRequired: boolean
+  bookSlotApprovalRequired: boolean
+  maxOutputTokens: number | null
+  maxInputTokens: number | null
+  maxTurnsPerWake: number | null
+  softCostCeilingUsd: string | null
+  hardCostCeilingUsd: string | null
+  enabled: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type LearningScope = 'contact' | 'agent_memory' | 'agent_skill' | 'drive_doc'
+export type LearningAction = 'upsert' | 'create' | 'patch'
+export type LearningStatus = 'pending' | 'approved' | 'rejected' | 'superseded' | 'auto_written'
+
+export interface LearningProposal {
+  id: string
+  organizationId: string
+  conversationId: string
+  wakeEventId: number | null
+  scope: LearningScope
+  action: LearningAction
+  target: string
+  body: string | null
+  rationale: string | null
+  confidence: number | null
+  status: LearningStatus
+  decidedByUserId: string | null
+  decidedAt: Date | null
+  decidedNote: string | null
+  approvedWriteId: string | null
+  createdAt: Date
+}
+
+/**
+ * Markdown section materialised under `agent_memory.working_memory` whenever a
+ * learning proposal is rejected. Anti-lessons live as a `## Anti-lessons` section
+ * (not a column), keyed by `<proposal target>: <decidedNote>`.
+ */
+export interface AgentMemoryAntiLessons {
+  readonly heading: 'Anti-lessons'
+  entries: ReadonlyArray<{
+    target: string
+    scope: LearningScope
+    note: string
+    rejectedAt: string
+  }>
+}
+
+export type ModerationCategory = 'hate' | 'harassment' | 'violence' | 'sexual' | 'prompt_injection' | 'policy_violation'
+
+export interface AgentScore {
+  id: string
+  organizationId: string
+  conversationId: string
+  wakeTurnIndex: number
+  scorer: string
+  score: number
+  rationale: string | null
+  model: string | null
+  createdAt: Date
+}
+
+export interface ConversationEvent {
+  id: number
+  conversationId: string
+  organizationId: string
+  turnIndex: number
+  ts: Date
+  type: string
+  role: string | null
+  content: string | null
+  toolCallId: string | null
+  toolCalls: unknown
+  toolName: string | null
+  reasoning: string | null
+  reasoningDetails: unknown
+  tokenCount: number | null
+  finishReason: string | null
+  llmTask: string | null
+  tokensIn: number | null
+  tokensOut: number | null
+  cacheReadTokens: number | null
+  costUsd: string | null
+  latencyMs: number | null
+  model: string | null
+  provider: string | null
+  wakeId: string | null
+  payload: unknown
+}
+
+// ─── Tables ─────────────────────────────────────────────────────────────────
+
 import { agentsPgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'

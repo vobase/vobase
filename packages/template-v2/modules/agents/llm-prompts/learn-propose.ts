@@ -13,8 +13,8 @@
  *   - `agent_skill` / `drive_doc` → staff-approved
  */
 
-import type { LearningAction, LearningScope } from '@server/contracts/domain-types'
 import type { LlmRequest, LlmResult, PluginContext } from '@server/contracts/plugin-context'
+import type { LearningAction, LearningScope } from '../schema'
 import type { StaffSignal } from '../service/staff-signals'
 
 export interface ProposeInput {

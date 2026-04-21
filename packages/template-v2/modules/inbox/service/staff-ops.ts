@@ -5,7 +5,7 @@
  * Factory-DI service. Free-function wrappers route through the
  * installed instance to preserve the existing import surface.
  */
-import type { Conversation } from '@server/contracts/domain-types'
+import type { Conversation } from '../schema'
 
 type StaffOpsDb = { execute: Function; select: Function; update: Function }
 

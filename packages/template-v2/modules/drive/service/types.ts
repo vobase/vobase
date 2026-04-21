@@ -1,0 +1,47 @@
+/**
+ * Drive service types — scope discriminants and input shapes.
+ * Consumed by workspace, agents observers, channels, and the dev layer.
+ */
+
+import type { DriveFile } from '../schema'
+
+export type DriveScope = { scope: 'organization' } | { scope: 'contact'; contactId: string }
+
+export interface CreateFileInput {
+  parentFolderId?: string | null
+  kind: 'folder' | 'file'
+  name: string
+  path: string
+  mimeType?: string
+  sizeBytes?: number
+  storageKey?: string
+  extractedText?: string
+  caption?: string
+  source?: DriveFile['source']
+  sourceMessageId?: string
+  tags?: string[]
+  uploadedBy?: string
+}
+
+export interface GrepOpts {
+  limit?: number
+  caseInsensitive?: boolean
+}
+
+export interface GrepMatch {
+  fileId: string
+  path: string
+  line: number
+  excerpt: string
+}
+
+export interface IngestUploadInput {
+  scope: DriveScope
+  path: string
+  mimeType: string
+  sizeBytes: number
+  storageKey: string
+  uploadedBy: string
+  source?: DriveFile['source']
+  parentFolderId?: string | null
+}

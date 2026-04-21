@@ -5,8 +5,8 @@
  * Factory-DI service. `createFilesService({ db, organizationId })`
  * returns the bound API.
  */
-import type { DriveFile } from '@server/contracts/domain-types'
-import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInput } from '@server/contracts/drive-port'
+import type { DriveFile } from '../schema'
+import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInput } from './types'
 
 /** Fallback content when /BUSINESS.md is absent from the drive. */
 export const BUSINESS_MD_FALLBACK = 'No business profile configured. Ask staff to create /BUSINESS.md in the drive.'

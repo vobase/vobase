@@ -1,4 +1,4 @@
-import type { Message } from '@server/contracts/domain-types'
+import type { Message } from '@modules/inbox/schema'
 import { cn } from '@/lib/utils'
 import type { ButtonElement, LinkButtonElement } from './card-actions'
 import { CardActions } from './card-actions'

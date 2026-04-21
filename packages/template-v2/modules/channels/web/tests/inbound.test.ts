@@ -7,9 +7,10 @@
  * Does NOT call real Hono app — tests the handler logic directly via a mock context.
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import type { Contact } from '@modules/contacts/schema'
+import type { Conversation, Message } from '@modules/inbox/schema'
+import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@modules/inbox/service/types'
 import type { Auth } from '@server/auth'
-import type { Contact, Conversation, Message } from '@server/contracts/domain-types'
-import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@server/contracts/inbox-port'
 import { signHmac } from '@vobase/core'
 import { createChannelWebState, installChannelWebAuth, installChannelWebState, type JobQueue } from '../service/state'
 

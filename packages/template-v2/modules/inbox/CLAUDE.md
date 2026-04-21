@@ -2,7 +2,7 @@
 
 Single write path for all customer-visible messages and internal notes. Owns `conversations`, `messages`, `internal_notes`, `pending_approvals`.
 
-**One write path.** `service/messages.ts` is the ONLY place that writes to `messages`. `service/notes.ts` is the only place that writes to `internal_notes`. All channels, tools, and the harness go through `InboxPort`. Direct `.insert(messages)` outside these files is forbidden (enforced by the dispatcher-transport-only test).
+**One write path.** `service/messages.ts` is the ONLY place that writes to `messages`. `service/notes.ts` is the only place that writes to `internal_notes`. All channels, tools, and the harness go through the inbox service layer. Direct `.insert(messages)` outside these files is forbidden (enforced by the dispatcher-transport-only test).
 
 **Message kinds:** `text | image | card | card_reply`. `card` comes from `send_card` (a `CardElement` tree per chat-sdk schema); `card_reply` is the customer's button tap correlated back via the channel handler.
 

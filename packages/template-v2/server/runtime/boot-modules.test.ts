@@ -11,10 +11,7 @@ function fakeCtxInput() {
     throw new Error(`unexpected access to ${field} in test`)
   }
   return {
-    caption: new Proxy(
-      {},
-      { get: (_, p) => throwing(`caption.${String(p)}`) },
-    ) as PluginContext['caption'],
+    caption: new Proxy({}, { get: (_, p) => throwing(`caption.${String(p)}`) }) as PluginContext['caption'],
     db: {} as PluginContext['db'],
     jobs: {
       async send() {

@@ -1,7 +1,7 @@
-import type { PendingApproval } from '@server/contracts/domain-types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { ApprovalRow } from '@/components/approval-row'
+import type { PendingApproval } from '../schema'
 
 async function fetchPendingApprovals(): Promise<PendingApproval[]> {
   const res = await fetch('/api/inbox/approvals?status=pending')

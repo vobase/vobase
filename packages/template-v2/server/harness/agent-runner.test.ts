@@ -10,12 +10,12 @@
  *   4. Message history snapshots land on translated turn_end only.
  */
 
-import type { AssistantMessage, AssistantMessageEvent } from '@mariozechner/pi-ai'
-import type { AgentsPort } from '@server/contracts/agents-port'
-import type { AgentDefinition } from '@server/contracts/domain-types'
-import type { DrivePort } from '@server/contracts/drive-port'
-import type { AgentEvent } from '@server/contracts/event'
 import { describe, expect, it } from 'bun:test'
+import type { AssistantMessage, AssistantMessageEvent } from '@mariozechner/pi-ai'
+import type { AgentDefinition } from '@modules/agents/schema'
+import type { AgentsPort } from '@modules/agents/service/types'
+import type { FilesService } from '@modules/drive/service/files'
+import type { AgentEvent } from '@server/contracts/event'
 import { stubStreamFn } from '../../tests/helpers/stub-stream'
 import { bootWake } from './agent-runner'
 
@@ -46,7 +46,7 @@ const STUB_AGENTS: AgentsPort = {
   },
 }
 
-const STUB_DRIVE: DrivePort = {
+const STUB_DRIVE: FilesService = {
   async get() {
     return null
   },
@@ -71,8 +71,11 @@ const STUB_DRIVE: DrivePort = {
   async move() {
     throw new Error('stub')
   },
-  async delete() {
+  async remove() {
     throw new Error('stub')
+  },
+  async getBusinessMd() {
+    return ''
   },
   async ingestUpload() {
     throw new Error('stub')
@@ -189,9 +192,7 @@ describe('bootWake (pi-agent-core path)', () => {
       maxTurns: 1,
     })
 
-    const types = res.harness.events
-      .map((e: AgentEvent) => e.type)
-      .filter((t) => t !== 'message_update')
+    const types = res.harness.events.map((e: AgentEvent) => e.type).filter((t) => t !== 'message_update')
 
     // Brackets: agent_start, turn_start, exactly one llm_call, message_*, turn_end, agent_end.
     expect(types[0]).toBe('agent_start')

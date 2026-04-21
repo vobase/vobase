@@ -8,12 +8,19 @@
  * provider when one is present (see `runStubReply` below).
  */
 
+import type { AgentDefinition } from '@modules/agents/schema'
 import { agentDefinitions } from '@modules/agents/schema'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import { append as journalAppend, setDb as setJournalDb } from '@modules/agents/service/journal'
+import type { AgentsPort } from '@modules/agents/service/types'
+import type { Contact, StaffBinding } from '@modules/contacts/schema'
 import { contacts, staffChannelBindings } from '@modules/contacts/schema'
 import type { ContactsService } from '@modules/contacts/service/contacts'
+import type { DriveFile } from '@modules/drive/schema'
 import { driveFiles } from '@modules/drive/schema'
+import type { FilesService } from '@modules/drive/service/files'
+import type { DriveScope } from '@modules/drive/service/types'
+import type { Conversation } from '@modules/inbox/schema'
 import { conversations } from '@modules/inbox/schema'
 import {
   createInboundMessage as svcCreateInboundMessage,
@@ -27,11 +34,8 @@ import {
   list as svcListMessages,
 } from '@modules/inbox/service/messages'
 import { addNote as svcAddNote, listNotes as svcListNotes } from '@modules/inbox/service/notes'
-import type { AgentsPort } from '@server/contracts/agents-port'
-import type { AgentDefinition, Contact, Conversation, DriveFile, StaffBinding } from '@server/contracts/domain-types'
-import type { DrivePort, DriveScope } from '@server/contracts/drive-port'
+import type { InboxPort } from '@modules/inbox/service/types'
 import type { AgentEvent } from '@server/contracts/event'
-import type { InboxPort } from '@server/contracts/inbox-port'
 import type { RealtimeService, ScopedDb } from '@server/contracts/plugin-context'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
@@ -41,7 +45,7 @@ export interface DevPorts {
   inbox: InboxPort
   contacts: ContactsService
   agents: AgentsPort
-  drive: DrivePort
+  drive: FilesService
   realtime: RealtimeService
   jobs: {
     send(name: string, data: unknown, opts?: { startAfter?: Date; singletonKey?: string }): Promise<string>
@@ -283,7 +287,7 @@ function buildAgentsPort(db: DrizzleHandle): AgentsPort {
   }
 }
 
-function buildDrivePort(db: DrizzleHandle): DrivePort {
+function buildFilesService(db: DrizzleHandle): FilesService {
   const notImpl = (): never => {
     throw new Error('dev-ports/drive: write ops not implemented')
   }
@@ -322,11 +326,12 @@ function buildDrivePort(db: DrizzleHandle): DrivePort {
     create: notImpl,
     mkdir: notImpl,
     move: notImpl,
-    delete: notImpl,
+    remove: notImpl,
+    getBusinessMd: notImpl,
     ingestUpload: notImpl,
     saveInboundMessageAttachment: notImpl,
     deleteScope: notImpl,
-  } as DrivePort
+  } as FilesService
 }
 
 /**
@@ -393,7 +398,7 @@ export async function buildDevPorts(
     inbox: buildInboxPort(drizzleDb),
     contacts: buildContactsService(drizzleDb),
     agents: buildAgentsPort(drizzleDb),
-    drive: buildDrivePort(drizzleDb),
+    drive: buildFilesService(drizzleDb),
     realtime: await buildRealtime(databaseConfig, db),
     jobs: buildJobQueue(jobHandlers),
   }

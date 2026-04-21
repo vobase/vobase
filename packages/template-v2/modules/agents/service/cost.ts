@@ -8,7 +8,7 @@
  * `installCostService(svc)` wires the module-scoped handle used by the free-function
  * wrappers. `setCostDb(db)` remains as a compatibility shim.
  */
-import type { Tx } from '@server/contracts/inbox-port'
+import type { Tx } from '@server/contracts/plugin-context'
 
 type InsertChain = {
   values: (vals: unknown) => {

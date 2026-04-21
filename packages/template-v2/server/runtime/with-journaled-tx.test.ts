@@ -1,7 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
 import type { AgentEvent } from '@server/contracts/event'
-import type { Tx } from '@server/contracts/inbox-port'
-import type { ScopedDb } from '@server/contracts/plugin-context'
+import type { ScopedDb, Tx } from '@server/contracts/plugin-context'
 import { createWithJournaledTx, MissingJournalAppendError } from './with-journaled-tx'
 
 /**

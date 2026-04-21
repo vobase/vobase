@@ -37,13 +37,13 @@ import { createLearningProposalObserver } from '@modules/agents/observers/learni
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
 import { createMessageHistoryObserver } from '@modules/agents/observers/message-history-observer'
 import { createWorkspaceSyncObserver } from '@modules/agents/observers/workspace-sync'
+import type { AgentDefinition } from '@modules/agents/schema'
 import { getLastWakeTail } from '@modules/agents/service/journal'
 import { loadMessages, resolveThread } from '@modules/agents/service/message-history'
+import type { AgentsPort } from '@modules/agents/service/types'
 import type { ContactsService } from '@modules/contacts/service/contacts'
+import type { FilesService } from '@modules/drive/service/files'
 import type { AbortContext } from '@server/contracts/abort-context'
-import type { AgentsPort } from '@server/contracts/agents-port'
-import type { AgentDefinition } from '@server/contracts/domain-types'
-import type { DrivePort } from '@server/contracts/drive-port'
 import type {
   AgentAbortedEvent,
   AgentEndEvent,
@@ -121,7 +121,7 @@ export interface BootWakeOpts {
   registrations: ModuleRegistrationsSnapshot
   ports: {
     agents: AgentsPort
-    drive: DrivePort
+    drive: FilesService
     contacts: ContactsService
   }
   events?: EventBus

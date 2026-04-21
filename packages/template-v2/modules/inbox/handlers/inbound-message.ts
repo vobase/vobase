@@ -1,7 +1,7 @@
-import type { AgentsPort } from '@server/contracts/agents-port'
+import type { AgentsPort } from '@modules/agents/service/types'
 import type { WakeRefusedEvent } from '@server/contracts/event'
-import type { InboxPort } from '@server/contracts/inbox-port'
 import type { EventBus } from '@server/contracts/plugin-context'
+import type { InboxPort } from '../service/types'
 
 export interface DailyCeilingNackInput {
   organizationId: string

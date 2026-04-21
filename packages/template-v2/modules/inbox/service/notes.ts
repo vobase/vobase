@@ -7,8 +7,8 @@
  * free-function wrappers below (which preserve the existing import surface).
  */
 
-import type { InternalNote } from '@server/contracts/domain-types'
-import type { AddNoteInput } from '@server/contracts/inbox-port'
+import type { InternalNote } from '../schema'
+import type { AddNoteInput } from './types'
 
 type NotesDb = {
   insert: (t: unknown) => {

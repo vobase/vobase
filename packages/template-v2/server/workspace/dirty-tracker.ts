@@ -21,7 +21,7 @@ export interface DirtyDiff {
 
 /** Workspace paths bucketed by owning service. */
 export interface ScopedDiff {
-  /** `/workspace/contact/drive/**` — persisted via DrivePort (scope='contact'). */
+  /** `/workspace/contact/drive/**` — persisted via FilesService (scope='contact'). */
   contactDrive: DirtyDiff
   /** `/workspace/contact/MEMORY.md` — persisted via ContactsService.upsertWorkingMemorySection. */
   contactMemory: DirtyDiff

@@ -68,7 +68,7 @@ Jobs: `typecheck`, `lint`, `check:tokens`, `check:no-raw-date`, `check:shape`, `
 
 ### Invariants tests enforce — do not bypass
 
-- **One-write-path.** All `messages` / `conversation_events` writes go through `InboxPort.send*Message` / `agents.service.journal.append`. Direct `.insert(messages)` outside `modules/inbox/service/` or `modules/agents/service/journal.ts` is forbidden.
+- **One-write-path.** All `messages` / `conversation_events` writes go through the inbox service (`send*Message`) / `agents.service.journal.append`. Direct `.insert(messages)` outside `modules/inbox/service/` or `modules/agents/service/journal.ts` is forbidden.
 - **A3 dispatcher transport-only.** `modules/channels/*/service/dispatcher.ts` and `sender.ts` must not import drizzle or write to DB. `modules/channels/web/tests/dispatcher-transport-only.test.ts` guards this.
 - **Frozen-snapshot.** System prompt hash identical across turns; mid-wake writes appear in turn N+1, never turn N. Enforced inside `server/harness/agent-runner.test.ts` via `capture-side-load-hashes.ts`.
 - **A7 V2ChannelAdapter.** Refines core's `ChannelAdapter` via `sendOutboundEvent()`; must never override core's `send()`.
@@ -115,7 +115,7 @@ expect(types).toEqual([
 - Factory services: `createXService({ db, organizationId })`. No file-level singletons.
 - Every journal-appending mutation wraps in `ctx.withJournaledTx`.
 - `check:shape` runs strict unconditionally. Manifests carry `name`, `requires`, `observers`, `mutators`, `commands`, `tools` — nothing else.
-- Cross-module reads: import the service directly (`@modules/<name>/service/*`). The four domain port interfaces (`inbox`, `agents`, `contacts`, `drive`) exist only as the wiring contract for `PluginContext.ports`, not as a facade.
+- Cross-module reads: import the service directly (`@modules/<name>/service/*`). Domain types live in each module's `schema.ts`; service interface types (`InboxPort`, `AgentsPort`, `FilesService`) in each module's `service/types.ts` or `service/files.ts`.
 
 ### Anti-patterns
 

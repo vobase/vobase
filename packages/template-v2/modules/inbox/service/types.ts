@@ -1,9 +1,10 @@
 /**
- * InboxPort — consumed by other modules. All writes flow through the
- * `modules/inbox/service/` layer with transactional event-journal appends.
+ * Inbox service types — input shapes, author references, and the InboxPort interface.
+ * Consumed by channels, agents, and the harness layer.
  */
 
-import type { Conversation, InternalNote, Message, PendingApproval } from './domain-types'
+import type { Tx } from '@server/contracts/plugin-context'
+import type { Conversation, InternalNote, Message, PendingApproval } from '../schema'
 
 export interface AuthorRefAgent {
   kind: 'agent'
@@ -131,9 +132,6 @@ export interface InsertPendingApprovalInput {
   toolArgs: unknown
   agentSnapshot: unknown
 }
-
-/** Opaque transaction handle passed through from Drizzle. */
-export type Tx = unknown
 
 export interface SendCardReplyInput {
   parentMessageId: string

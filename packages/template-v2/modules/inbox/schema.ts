@@ -11,6 +11,82 @@
  * Cross-schema FKs to `contacts.contacts(id)` and are enforced post-push.
  */
 
+// ─── Domain types ───────────────────────────────────────────────────────────
+
+export type ConversationStatus = 'active' | 'resolving' | 'awaiting_approval' | 'resolved' | 'failed'
+
+export interface Conversation {
+  id: string
+  organizationId: string
+  contactId: string
+  channelInstanceId: string
+  status: ConversationStatus
+  assignee: string
+  threadKey: string
+  emailSubject: string | null
+  snoozedUntil: Date | null
+  snoozedReason: string | null
+  snoozedBy: string | null
+  snoozedAt: Date | null
+  snoozedJobId: string | null
+  lastMessageAt: Date | null
+  resolvedAt: Date | null
+  resolvedReason: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type MessageRole = 'customer' | 'agent' | 'system' | 'staff'
+export type MessageKind = 'text' | 'image' | 'card' | 'card_reply'
+
+export interface Message {
+  id: string
+  conversationId: string
+  organizationId: string
+  role: MessageRole
+  kind: MessageKind
+  content: unknown
+  parentMessageId: string | null
+  channelExternalId: string | null
+  status: string | null
+  createdAt: Date
+}
+
+export type InternalNoteAuthorType = 'agent' | 'staff' | 'system'
+
+export interface InternalNote {
+  id: string
+  organizationId: string
+  conversationId: string
+  authorType: InternalNoteAuthorType
+  authorId: string
+  body: string
+  mentions: string[]
+  parentNoteId: string | null
+  notifChannelMsgId: string | null
+  notifChannelId: string | null
+  createdAt: Date
+}
+
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired'
+
+export interface PendingApproval {
+  id: string
+  organizationId: string
+  conversationId: string
+  conversationEventId: string | null
+  toolName: string
+  toolArgs: unknown
+  status: ApprovalStatus
+  decidedByUserId: string | null
+  decidedAt: Date | null
+  decidedNote: string | null
+  agentSnapshot: unknown
+  createdAt: Date
+}
+
+// ─── Tables ─────────────────────────────────────────────────────────────────
+
 import { inboxPgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'

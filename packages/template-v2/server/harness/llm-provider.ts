@@ -47,10 +47,10 @@ export function createModel(modelId: string = DEFAULT_MODEL): Model<'openai-resp
   // back to the harness default so dev never surfaces "No API provider
   // registered for api: undefined".
   let base = getModel('openai', modelId as 'gpt-5.4') as unknown as Model<'openai-responses'> | undefined
-  if (!base || !base.api) {
+  if (!base?.api) {
     base = getModel('openai', DEFAULT_MODEL as 'gpt-5.4') as unknown as Model<'openai-responses'> | undefined
   }
-  if (!base || !base.api) {
+  if (!base?.api) {
     base = getModel('openai', FALLBACK_MODEL as 'gpt-5.4') as unknown as Model<'openai-responses'>
   }
   const model: Model<'openai-responses'> = { ...(base as Model<'openai-responses'>) }

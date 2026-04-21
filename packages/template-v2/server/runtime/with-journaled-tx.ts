@@ -13,8 +13,7 @@
  */
 
 import type { AgentEvent } from '@server/contracts/event'
-import type { Tx } from '@server/contracts/inbox-port'
-import type { JournalSink, ScopedDb } from '@server/contracts/plugin-context'
+import type { JournalSink, ScopedDb, Tx } from '@server/contracts/plugin-context'
 
 /** Signature of the raw journal-append writer supplied by `modules/agents/service/journal.ts`. */
 export type RawJournalAppend = (event: AgentEvent, tx: Tx) => Promise<void>

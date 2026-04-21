@@ -62,7 +62,7 @@ export async function seed(db: unknown): Promise<void> {
       organizationId: MERIDIAN_ORG_ID,
       name: 'meridian-support-v1',
       soulMd: SOUL_MD,
-      model: 'claude-sonnet-4-6',
+      model: 'gpt-5.4',
       maxSteps: 20,
       workingMemory: '',
       skillAllowlist: ['reply-with-card', 'de-escalate', 'cite-policy', 'escalate-to-human', 'save-customer-doc'],

@@ -9,7 +9,7 @@
  * call — so existing tests don't need to migrate their import shape.
  */
 import type { AgentEvent } from '@server/contracts/event'
-import type { Tx } from '@server/contracts/inbox-port'
+import type { Tx } from '@server/contracts/plugin-context'
 
 export interface JournalAppendInput {
   conversationId: string

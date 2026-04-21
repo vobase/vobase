@@ -12,10 +12,11 @@
  * out of the snapshot and so cannot register as "dirty".
  */
 
+import type { AgentDefinition } from '@modules/agents/schema'
+import type { AgentsPort } from '@modules/agents/service/types'
 import type { ContactsService } from '@modules/contacts/service/contacts'
-import type { AgentsPort } from '@server/contracts/agents-port'
-import type { AgentDefinition, DriveFile } from '@server/contracts/domain-types'
-import type { DrivePort } from '@server/contracts/drive-port'
+import type { DriveFile } from '@modules/drive/schema'
+import type { FilesService } from '@modules/drive/service/files'
 import type { CommandContext, CommandDef } from '@server/contracts/plugin-context'
 import type { MaterializerCtx, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WorkspacePath } from '@server/runtime/define-module'
@@ -67,7 +68,7 @@ export interface CreateWorkspaceOpts {
   /** Aggregated from every module's `registerWorkspaceMaterializer(...)`. */
   materializers: readonly WorkspaceMaterializer[]
   /** Cross-module ports — harness injects the real ones; tests can pass stubs. */
-  drivePort: DrivePort
+  drivePort: FilesService
   contactsPort: ContactsService
   agentsPort: AgentsPort
   /** Side-effect callback; fires once per non-read-only vobase subcommand. */
@@ -274,7 +275,7 @@ async function findMaterialized(
 }
 
 /** Plan R8 / test assertion 4b — BUSINESS.md falls back to the stub if the organization row is missing. */
-async function loadBusinessMd(drive: DrivePort, _tenantId: string): Promise<string> {
+async function loadBusinessMd(drive: FilesService, _tenantId: string): Promise<string> {
   try {
     const row = await drive.getByPath({ scope: 'organization' }, '/BUSINESS.md')
     if (!row) return BUSINESS_MD_FALLBACK
@@ -320,8 +321,8 @@ async function loadContactMemoryFallback(port: ContactsService, contactId: strin
 }
 
 async function safeListFolder(
-  drive: DrivePort,
-  scope: Parameters<DrivePort['listFolder']>[0],
+  drive: FilesService,
+  scope: Parameters<FilesService['listFolder']>[0],
   parentId: string | null,
 ): Promise<DriveFile[]> {
   try {

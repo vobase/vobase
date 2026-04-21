@@ -4,8 +4,8 @@
  * Verifies: payload validation, dispatcher invocation, SSE notify, transport-only discipline.
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import type { Message } from '@modules/inbox/schema'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
-import type { Message } from '@server/contracts/domain-types'
 import type { RealtimeService } from '@server/contracts/plugin-context'
 import { createChannelWebState, installChannelWebState } from '../service/state'
 

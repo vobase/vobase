@@ -1,10 +1,11 @@
 /**
- * AgentsPort — what other modules call INTO `agents`.
+ * Agents service types — the AgentsPort interface consumed by
+ * the harness, dev layer, and other modules.
  */
 
-import type { AgentDefinition } from './domain-types'
-import type { AgentEvent } from './event'
-import type { Tx } from './inbox-port'
+import type { AgentEvent } from '@server/contracts/event'
+import type { Tx } from '@server/contracts/plugin-context'
+import type { AgentDefinition } from '../schema'
 
 export interface AgentsPort {
   /** Fetch the definition used to construct `SOUL.md` + tool allowlist. */

@@ -18,13 +18,13 @@
  */
 
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
+import type { AgentsPort } from '@modules/agents/service/types'
 import type { InboundToWakePayload } from '@modules/channels/web/jobs'
 import type { ContactsService } from '@modules/contacts/service/contacts'
+import type { FilesService } from '@modules/drive/service/files'
+import type { Conversation, Message } from '@modules/inbox/schema'
+import type { InboxPort } from '@modules/inbox/service/types'
 import { replyTool } from '@modules/inbox/tools/reply'
-import type { AgentsPort } from '@server/contracts/agents-port'
-import type { Conversation, Message } from '@server/contracts/domain-types'
-import type { DrivePort } from '@server/contracts/drive-port'
-import type { InboxPort } from '@server/contracts/inbox-port'
 import type { AgentObserver } from '@server/contracts/observer'
 import type { AgentTool, RealtimeService } from '@server/contracts/plugin-context'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
@@ -34,7 +34,7 @@ interface LiveAgentDeps {
   inbox: InboxPort
   contacts: ContactsService
   agents: AgentsPort
-  drive: DrivePort
+  drive: FilesService
   realtime: RealtimeService
   /** Retained for API compatibility — the pi-agent-core harness now reads
    *  OPENAI_API_KEY / BIFROST_API_KEY from env via `resolveApiKey()`. */
@@ -122,7 +122,9 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
         const args = anyEv.args ? ` args=${JSON.stringify(anyEv.args).slice(0, 200)}` : ''
         const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
         const isError = anyEv.isError ? ' ERROR' : ''
-        console.log(`[live-agent] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`)
+        console.log(
+          `[live-agent] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`,
+        )
         if (event.type === 'tool_execution_end') {
           deps.realtime.notify({ table: 'messages', id: data.conversationId, action: 'INSERT' })
           deps.realtime.notify({ table: 'conversations', id: data.conversationId, action: 'UPDATE' })

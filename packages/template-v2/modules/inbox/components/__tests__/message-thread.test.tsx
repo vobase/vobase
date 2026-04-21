@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
-import type { Message } from '@server/contracts/domain-types'
 import { renderToStaticMarkup } from 'react-dom/server'
+import type { Message } from '../../schema'
 
 mock.module('@/components/ai-elements/conversation', () => ({
   Conversation: ({ children }: { children: React.ReactNode }) => <div data-testid="conversation">{children}</div>,

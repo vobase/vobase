@@ -1,4 +1,4 @@
-import type { Contact } from '@server/contracts/domain-types'
+import type { Contact } from '@modules/contacts/schema'
 import { useQuery } from '@tanstack/react-query'
 
 interface ProfilePanelProps {

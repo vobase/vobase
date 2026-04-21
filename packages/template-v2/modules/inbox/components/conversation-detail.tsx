@@ -1,7 +1,7 @@
+import type { Contact } from '@modules/contacts/schema'
 import { useLifecycle } from '@modules/inbox/api/use-lifecycle'
 import { useReassign } from '@modules/inbox/api/use-reassign'
 import { deriveContactName } from '@modules/inbox/lib/contact'
-import type { Contact, Conversation, Message } from '@server/contracts/domain-types'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/combobox'
 import { Status } from '@/components/ui/status'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import type { Conversation, Message } from '../schema'
 import { Composer } from './composer'
 import { InlineApprovalBanner } from './inline-approval-banner'
 import { MessageThread } from './message-thread'
@@ -76,7 +77,7 @@ export function ConversationDetail() {
 
   const { data: contact = null } = useQuery({
     queryKey: ['contact', conv?.contactId],
-    queryFn: () => fetchContact(conv!.contactId),
+    queryFn: () => fetchContact(conv?.contactId),
     enabled: Boolean(conv?.contactId),
   })
 

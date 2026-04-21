@@ -3,7 +3,7 @@
  * All other methods throw not-implemented-in-phase-1.
  */
 
-import type { Contact, StaffBinding } from '@server/contracts/domain-types'
+import type { Contact, StaffBinding } from '../schema'
 
 export interface UpsertByExternalInput {
   organizationId: string
