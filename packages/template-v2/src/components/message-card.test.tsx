@@ -66,24 +66,24 @@ describe('MessageCard — card variants', () => {
     expect(html).toContain('Pricing Options')
   })
 
-  it('renders TextElement body style', () => {
+  it('renders TextElement plain style', () => {
     const html = renderToString(
       <MessageCard
         message={makeMsg({
           kind: 'card',
-          content: { card: { children: [{ type: 'text', style: 'body', content: 'Body text here' }] } },
+          content: { card: { children: [{ type: 'text', style: 'plain', content: 'Body text here' }] } },
         })}
       />,
     )
     expect(html).toContain('Body text here')
   })
 
-  it('renders TextElement heading style', () => {
+  it('renders TextElement bold style', () => {
     const html = renderToString(
       <MessageCard
         message={makeMsg({
           kind: 'card',
-          content: { card: { children: [{ type: 'text', style: 'heading', content: 'Section Heading' }] } },
+          content: { card: { children: [{ type: 'text', style: 'bold', content: 'Section Heading' }] } },
         })}
       />,
     )
@@ -91,12 +91,12 @@ describe('MessageCard — card variants', () => {
     expect(html).toContain('font-semibold')
   })
 
-  it('renders TextElement caption style', () => {
+  it('renders TextElement muted style', () => {
     const html = renderToString(
       <MessageCard
         message={makeMsg({
           kind: 'card',
-          content: { card: { children: [{ type: 'text', style: 'caption', content: 'Fine print' }] } },
+          content: { card: { children: [{ type: 'text', style: 'muted', content: 'Fine print' }] } },
         })}
       />,
     )
@@ -151,9 +151,9 @@ describe('MessageCard — card variants', () => {
               children: [
                 {
                   type: 'fields',
-                  items: [
-                    { label: 'Plan', value: 'Pro' },
-                    { label: 'Price', value: '$29/mo' },
+                  children: [
+                    { type: 'field', label: 'Plan', value: 'Pro' },
+                    { type: 'field', label: 'Price', value: '$29/mo' },
                   ],
                 },
               ],
@@ -171,17 +171,17 @@ describe('MessageCard — card variants', () => {
 
   it('renders FieldsElement as table for ≥5 items', () => {
     const items = [
-      { label: 'A', value: '1' },
-      { label: 'B', value: '2' },
-      { label: 'C', value: '3' },
-      { label: 'D', value: '4' },
-      { label: 'E', value: '5' },
+      { type: 'field' as const, label: 'A', value: '1' },
+      { type: 'field' as const, label: 'B', value: '2' },
+      { type: 'field' as const, label: 'C', value: '3' },
+      { type: 'field' as const, label: 'D', value: '4' },
+      { type: 'field' as const, label: 'E', value: '5' },
     ]
     const html = renderToString(
       <MessageCard
         message={makeMsg({
           kind: 'card',
-          content: { card: { children: [{ type: 'fields', items }] } },
+          content: { card: { children: [{ type: 'fields', children: items }] } },
         })}
       />,
     )
@@ -201,9 +201,9 @@ describe('MessageCard — card variants', () => {
                 children: [
                   {
                     type: 'actions',
-                    buttons: [
+                    children: [
                       { type: 'button', id: 'btn-yes', label: 'Yes', value: 'yes', style: 'primary' },
-                      { type: 'button', id: 'btn-no', label: 'No', value: 'no', style: 'secondary' },
+                      { type: 'button', id: 'btn-no', label: 'No', value: 'no', style: 'default' },
                     ],
                   },
                 ],
@@ -218,7 +218,7 @@ describe('MessageCard — card variants', () => {
     expect(html).toContain('<button')
   })
 
-  it('renders ActionsElement link_button as anchor', () => {
+  it('renders ActionsElement link-button as anchor', () => {
     const html = renderToString(
       withQuery(
         <MessageCard
@@ -229,7 +229,7 @@ describe('MessageCard — card variants', () => {
                 children: [
                   {
                     type: 'actions',
-                    buttons: [{ type: 'link_button', label: 'Learn more', url: 'https://example.com' }],
+                    children: [{ type: 'link-button', label: 'Learn more', url: 'https://example.com' }],
                   },
                 ],
               },

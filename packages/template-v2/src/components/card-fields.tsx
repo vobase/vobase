@@ -1,4 +1,5 @@
 export interface FieldItem {
+  type?: 'field'
   label: string
   value: string
 }

@@ -22,7 +22,9 @@ const app = new Hono().post('/:id/reply', async (c) => {
   const conv = await getConversation(id)
   if (!conv) return c.json({ error: 'not_found' }, 404)
   if (conv.organizationId !== organizationId) return c.json({ error: 'not_found' }, 404)
-  const staffUserId = parsed.data.staffUserId ?? 'staff'
+  const session = (c as unknown as { get: (k: string) => { user?: { id?: string } } | undefined }).get('session')
+  const sessionUserId = session?.user?.id
+  const staffUserId = parsed.data.staffUserId ?? sessionUserId ?? 'staff'
   const { messageId } = await sendStaffReply({
     conversationId: id,
     organizationId,

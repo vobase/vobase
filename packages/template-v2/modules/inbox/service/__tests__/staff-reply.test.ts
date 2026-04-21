@@ -5,6 +5,11 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
+import {
+  __resetStaffServiceForTests,
+  installStaffService,
+  type StaffService,
+} from '@modules/team/service/staff'
 import type { Message } from '../../schema'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -71,10 +76,34 @@ function makeJournalDb() {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
+function makeStaffServiceStub(overrides: Partial<StaffService> = {}): StaffService {
+  const notImplemented = async () => {
+    throw new Error('not implemented in stub')
+  }
+  return {
+    list: notImplemented as StaffService['list'],
+    get: notImplemented as StaffService['get'],
+    find: (async () => null) as StaffService['find'],
+    upsert: notImplemented as StaffService['upsert'],
+    update: notImplemented as StaffService['update'],
+    remove: notImplemented as StaffService['remove'],
+    setAttributes: notImplemented as StaffService['setAttributes'],
+    touchLastSeen: (async () => undefined) as StaffService['touchLastSeen'],
+    readNotes: notImplemented as StaffService['readNotes'],
+    writeNotes: notImplemented as StaffService['writeNotes'],
+    upsertNotesSection: notImplemented as StaffService['upsertNotesSection'],
+    readProfile: notImplemented as StaffService['readProfile'],
+    writeProfile: notImplemented as StaffService['writeProfile'],
+    ...overrides,
+  }
+}
+
 describe('sendStaffReply', () => {
   beforeEach(() => {
     installMessagesService(createMessagesService({ db: makeTransactionDb(fakeMessage) }))
     setJournalDb(makeJournalDb())
+    __resetStaffServiceForTests()
+    installStaffService(makeStaffServiceStub())
   })
 
   it('returns messageId matching inserted message', async () => {
@@ -109,6 +138,49 @@ describe('sendStaffReply', () => {
     expect(capturedRole).toBe('staff')
     expect(capturedKind).toBe('text')
     expect((capturedContent as Record<string, unknown>)?.text).toBe(BODY)
+  })
+
+  it('prepends [displayName] when staff profile resolves', async () => {
+    let capturedText: unknown
+
+    installMessagesService(
+      createMessagesService({
+        db: makeTransactionDb(fakeMessage, (vals) => {
+          capturedText = (vals.content as Record<string, unknown>)?.text
+        }),
+      }),
+    )
+    installStaffService(
+      makeStaffServiceStub({
+        find: (async () => ({ displayName: 'Alice Nguyen' })) as unknown as StaffService['find'],
+      }),
+    )
+
+    const { sendStaffReply } = await import('../staff-reply')
+    await sendStaffReply({ conversationId: CONV_ID, organizationId: ORG_ID, staffUserId: STAFF_USER, body: BODY })
+    expect(capturedText).toBe(`[Alice Nguyen] ${BODY}`)
+  })
+
+  it('leaves body unchanged when it already starts with a bracketed prefix', async () => {
+    let capturedText: unknown
+
+    installMessagesService(
+      createMessagesService({
+        db: makeTransactionDb(fakeMessage, (vals) => {
+          capturedText = (vals.content as Record<string, unknown>)?.text
+        }),
+      }),
+    )
+    installStaffService(
+      makeStaffServiceStub({
+        find: (async () => ({ displayName: 'Alice Nguyen' })) as unknown as StaffService['find'],
+      }),
+    )
+
+    const prefixed = '[Override] already tagged'
+    const { sendStaffReply } = await import('../staff-reply')
+    await sendStaffReply({ conversationId: CONV_ID, organizationId: ORG_ID, staffUserId: STAFF_USER, body: prefixed })
+    expect(capturedText).toBe(prefixed)
   })
 
   it('journals tool_execution_end with toolName=staff_reply atomically', async () => {

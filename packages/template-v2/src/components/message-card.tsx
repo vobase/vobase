@@ -6,7 +6,7 @@ import { CardFields } from './card-fields'
 
 interface TextElement {
   type: 'text'
-  style?: 'body' | 'heading' | 'caption'
+  style?: 'plain' | 'bold' | 'muted'
   content: string
 }
 
@@ -20,14 +20,20 @@ interface DividerElement {
   type: 'divider'
 }
 
+interface FieldChild {
+  type: 'field'
+  label: string
+  value: string
+}
+
 interface FieldsElement {
   type: 'fields'
-  items: Array<{ label: string; value: string }>
+  children: FieldChild[]
 }
 
 interface ActionsElement {
   type: 'actions'
-  buttons: Array<ButtonElement | LinkButtonElement>
+  children: Array<ButtonElement | LinkButtonElement>
 }
 
 interface LinkElement {
@@ -77,9 +83,9 @@ function CardChildNode({
       return (
         <p
           className={cn('text-foreground break-words', {
-            'text-sm font-semibold': child.style === 'heading',
-            'text-sm': child.style === 'body' || !child.style,
-            'text-xs text-muted-foreground': child.style === 'caption',
+            'text-sm font-semibold': child.style === 'bold',
+            'text-sm': child.style === 'plain' || !child.style,
+            'text-xs text-muted-foreground': child.style === 'muted',
           })}
         >
           {child.content}
@@ -100,10 +106,10 @@ function CardChildNode({
       return <hr className="border-border" />
 
     case 'fields':
-      return <CardFields items={child.items ?? []} />
+      return <CardFields items={child.children ?? []} />
 
     case 'actions':
-      return <CardActions messageId={messageId} conversationId={conversationId} buttons={child.buttons ?? []} />
+      return <CardActions messageId={messageId} conversationId={conversationId} buttons={child.children ?? []} />
 
     case 'link':
       return (
