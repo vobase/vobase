@@ -95,6 +95,12 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
     async upsertByExternal(): Promise<Contact> {
       throw new Error('not-implemented-in-phase-1')
     },
+    async create(): Promise<Contact> {
+      throw new Error('not-implemented-in-phase-1')
+    },
+    async update(): Promise<Contact> {
+      throw new Error('not-implemented-in-phase-1')
+    },
     async readNotes(id: string): Promise<string> {
       const c = await this.get(id)
       return c.notes
@@ -168,6 +174,14 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
     async readContent(id: string): Promise<{ content: string; spilledToPath?: string }> {
       const f = await this.get(id)
       return { content: f?.extractedText ?? '' }
+    },
+    async readPath(scope: DriveScope, path: string) {
+      const f = await this.getByPath(scope, path)
+      if (!f) return null
+      return { content: f.extractedText ?? '', virtual: false, file: f }
+    },
+    async writePath(): Promise<null> {
+      throw new Error('not-implemented-in-phase-1')
     },
     async grep() {
       return []

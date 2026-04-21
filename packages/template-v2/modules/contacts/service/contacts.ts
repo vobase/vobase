@@ -12,6 +12,23 @@ export interface UpsertByExternalInput {
   displayName?: string
 }
 
+export interface CreateContactInput {
+  organizationId: string
+  displayName?: string | null
+  email?: string | null
+  phone?: string | null
+  segments?: string[]
+  marketingOptOut?: boolean
+}
+
+export interface UpdateContactInput {
+  displayName?: string | null
+  email?: string | null
+  phone?: string | null
+  segments?: string[]
+  marketingOptOut?: boolean
+}
+
 interface ContactsDeps {
   db: unknown
 }
@@ -21,6 +38,8 @@ export interface ContactsService {
   list(organizationId: string): Promise<Contact[]>
   getByPhone(organizationId: string, phone: string): Promise<Contact | null>
   getByEmail(organizationId: string, email: string): Promise<Contact | null>
+  create(input: CreateContactInput): Promise<Contact>
+  update(id: string, patch: UpdateContactInput): Promise<Contact>
   upsertByExternal(input: UpsertByExternalInput): Promise<Contact>
   resolveStaffByExternal(channelInstanceId: string, externalIdentifier: string): Promise<StaffBinding | null>
   readNotes(id: string): Promise<string>
@@ -129,11 +148,7 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   async function readNotes(id: string): Promise<string> {
     const { contacts } = await import('@modules/contacts/schema')
     const { eq } = await import('drizzle-orm')
-    const rows = await db
-      .select({ notes: contacts.notes })
-      .from(contacts)
-      .where(eq(contacts.id, id))
-      .limit(1)
+    const rows = await db.select({ notes: contacts.notes }).from(contacts).where(eq(contacts.id, id)).limit(1)
     const row = rows[0]
     if (!row) throw new Error(`contact not found: ${id}`)
     return (row as { notes: string }).notes
@@ -163,12 +178,49 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     await writeNotes(id, updated)
   }
 
-  async function setSegments(_id: string, _segments: string[]): Promise<void> {
-    throw new Error('not-implemented-in-phase-1: contacts/setSegments')
+  async function create(input: CreateContactInput): Promise<Contact> {
+    const { contacts } = await import('@modules/contacts/schema')
+    const rows = (await db
+      .insert(contacts)
+      .values({
+        organizationId: input.organizationId,
+        displayName: input.displayName ?? null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        segments: input.segments ?? [],
+        marketingOptOut: input.marketingOptOut ?? false,
+        marketingOptOutAt: input.marketingOptOut ? new Date() : null,
+      })
+      .returning()) as unknown[]
+    const row = rows[0]
+    if (!row) throw new Error('contacts/create: insert returned no rows')
+    return row as Contact
   }
 
-  async function setMarketingOptOut(_id: string, _value: boolean): Promise<void> {
-    throw new Error('not-implemented-in-phase-1: contacts/setMarketingOptOut')
+  async function update(id: string, patch: UpdateContactInput): Promise<Contact> {
+    const { contacts } = await import('@modules/contacts/schema')
+    const { eq } = await import('drizzle-orm')
+    const set: Record<string, unknown> = {}
+    if (patch.displayName !== undefined) set.displayName = patch.displayName
+    if (patch.email !== undefined) set.email = patch.email
+    if (patch.phone !== undefined) set.phone = patch.phone
+    if (patch.segments !== undefined) set.segments = patch.segments
+    if (patch.marketingOptOut !== undefined) {
+      set.marketingOptOut = patch.marketingOptOut
+      set.marketingOptOutAt = patch.marketingOptOut ? new Date() : null
+    }
+    const rows = (await db.update(contacts).set(set).where(eq(contacts.id, id)).returning()) as unknown[]
+    const row = rows[0]
+    if (!row) throw new Error(`contact not found: ${id}`)
+    return row as Contact
+  }
+
+  async function setSegments(id: string, segments: string[]): Promise<void> {
+    await update(id, { segments })
+  }
+
+  async function setMarketingOptOut(id: string, value: boolean): Promise<void> {
+    await update(id, { marketingOptOut: value })
   }
 
   async function bindStaff(
@@ -188,6 +240,8 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     list,
     getByPhone,
     getByEmail,
+    create,
+    update,
     upsertByExternal,
     resolveStaffByExternal,
     readNotes,
@@ -229,6 +283,12 @@ export function getByPhone(organizationId: string, phone: string): Promise<Conta
 }
 export function getByEmail(organizationId: string, email: string): Promise<Contact | null> {
   return current().getByEmail(organizationId, email)
+}
+export function create(input: CreateContactInput): Promise<Contact> {
+  return current().create(input)
+}
+export function update(id: string, patch: UpdateContactInput): Promise<Contact> {
+  return current().update(id, patch)
 }
 export function upsertByExternal(input: UpsertByExternalInput): Promise<Contact> {
   return current().upsertByExternal(input)

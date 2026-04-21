@@ -59,6 +59,12 @@ const STUB_DRIVE: FilesService = {
   async readContent() {
     return { content: '' }
   },
+  async readPath() {
+    return null
+  },
+  async writePath() {
+    return null
+  },
   async grep() {
     return []
   },

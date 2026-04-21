@@ -233,6 +233,8 @@ function buildContactsService(db: DrizzleHandle): ContactsService {
       if (!row) throw new Error('contacts/upsertByExternal: insert returned no rows')
       return row
     },
+    create: notImpl,
+    update: notImpl,
     readNotes: notImpl,
     upsertNotesSection: notImpl,
     appendNotes: notImpl,
@@ -323,6 +325,8 @@ function buildFilesService(db: DrizzleHandle): FilesService {
     async grep() {
       return []
     },
+    readPath: notImpl,
+    writePath: notImpl,
     create: notImpl,
     mkdir: notImpl,
     move: notImpl,

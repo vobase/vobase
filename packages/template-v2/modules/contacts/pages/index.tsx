@@ -1,13 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Mail, Phone, Search, UserPlus } from 'lucide-react'
+import { Mail, MoreHorizontal, Pencil, Phone, Search, Settings2, UserPlus } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useCreateContact, useUpdateContact } from '../api/use-contacts'
+import { ContactFormDialog, type ContactFormValues, normalizeContactForm } from '../components/contact-form-dialog'
 import type { Contact } from '../schema'
 
 async function fetchContacts(): Promise<Contact[]> {
@@ -19,6 +23,37 @@ async function fetchContacts(): Promise<Contact[]> {
 export function ContactsListPage() {
   const { data: contacts = [], isLoading, error } = useQuery({ queryKey: ['contacts'], queryFn: fetchContacts })
   const [query, setQuery] = useState('')
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<Contact | null>(null)
+  const create = useCreateContact()
+  const update = useUpdateContact()
+
+  function openCreate() {
+    setEditing(null)
+    setDialogOpen(true)
+  }
+
+  function openEdit(c: Contact) {
+    setEditing(c)
+    setDialogOpen(true)
+  }
+
+  async function handleSave(values: ContactFormValues) {
+    const payload = normalizeContactForm(values)
+    try {
+      if (editing) {
+        await update.mutateAsync({ id: editing.id, patch: payload })
+        toast.success('Contact updated')
+      } else {
+        await create.mutateAsync(payload)
+        toast.success('Contact created')
+      }
+      setDialogOpen(false)
+      setEditing(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Save failed')
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -36,10 +71,18 @@ export function ContactsListPage() {
           <h1 className="text-lg font-semibold tracking-tight">Contacts</h1>
           <p className="text-sm text-muted-foreground">Manage customer contacts and their working memory.</p>
         </div>
-        <Button size="sm" disabled>
-          <UserPlus className="mr-2 size-4" />
-          Add contact
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link to="/contacts/attributes">
+              <Settings2 className="mr-2 size-4" />
+              Attributes
+            </Link>
+          </Button>
+          <Button size="sm" onClick={openCreate}>
+            <UserPlus className="mr-2 size-4" />
+            Add contact
+          </Button>
+        </div>
       </header>
 
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-3">
@@ -74,6 +117,12 @@ export function ContactsListPage() {
               </EmptyMedia>
               <EmptyTitle>No contacts yet</EmptyTitle>
               <EmptyDescription>Contacts will appear here as they message your agent.</EmptyDescription>
+              <div className="mt-3">
+                <Button size="sm" onClick={openCreate}>
+                  <UserPlus className="mr-2 size-4" />
+                  Add contact
+                </Button>
+              </div>
             </Empty>
           </div>
         )}
@@ -86,6 +135,7 @@ export function ContactsListPage() {
                 <TableHead>Phone</TableHead>
                 <TableHead>Segments</TableHead>
                 <TableHead className="text-right">Created</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -133,12 +183,43 @@ export function ContactsListPage() {
                   <TableCell className="text-right text-xs text-muted-foreground">
                     {c.createdAt ? <RelativeTimeCard date={c.createdAt} variant="muted" /> : '—'}
                   </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-7">
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link to="/contacts/$id" params={{ id: c.id }}>
+                            View details
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEdit(c)}>
+                          <Pencil className="mr-2 size-3.5" />
+                          Edit
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
       </div>
+
+      <ContactFormDialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) setEditing(null)
+        }}
+        contact={editing}
+        onSave={handleSave}
+        isPending={create.isPending || update.isPending}
+      />
     </div>
   )
 }

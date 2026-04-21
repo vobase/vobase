@@ -1,10 +1,15 @@
+import { DriveBrowser } from '@modules/drive/components/drive-browser'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Mail, Phone, User } from 'lucide-react'
+import { ArrowLeft, FolderTree, Mail, Pencil, Phone, Settings2, ShieldOff } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { useUpdateContact } from '../api/use-contacts'
+import { AttributeTable } from '../components/attribute-table'
+import { ContactFormDialog, type ContactFormValues, normalizeContactForm } from '../components/contact-form-dialog'
 import type { Contact } from '../schema'
 
 async function fetchContact(id: string): Promise<Contact> {
@@ -13,132 +18,123 @@ async function fetchContact(id: string): Promise<Contact> {
   return (await r.json()) as Contact
 }
 
-function renderDate(value: Date | string | null): React.ReactNode {
-  if (!value) return '—'
-  return <RelativeTimeCard date={value} variant="muted" />
-}
-
 export function ContactDetailPage() {
   const { id } = useParams({ from: '/_app/contacts/$id' })
   const { data: contact, isLoading, error } = useQuery({ queryKey: ['contact', id], queryFn: () => fetchContact(id) })
+  const [editOpen, setEditOpen] = useState(false)
+  const update = useUpdateContact()
+
+  async function handleSave(values: ContactFormValues) {
+    try {
+      await update.mutateAsync({ id, patch: normalizeContactForm(values) })
+      toast.success('Contact updated')
+      setEditOpen(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Save failed')
+    }
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-4">
-        <Button asChild size="sm" variant="ghost">
-          <Link to="/contacts">
-            <ArrowLeft className="mr-1 size-4" />
-            Contacts
-          </Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold tracking-tight">{contact?.displayName ?? 'Contact'}</h1>
-          <p className="text-xs text-muted-foreground">ID: {id}</p>
+      <header className="shrink-0 border-b border-border px-6 py-4">
+        <div className="flex items-center gap-3">
+          <Button asChild size="sm" variant="ghost">
+            <Link to="/contacts">
+              <ArrowLeft className="mr-1 size-4" />
+              Contacts
+            </Link>
+          </Button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg font-semibold tracking-tight">{contact?.displayName ?? 'Contact'}</h1>
+            {contact && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {contact.email && (
+                  <span className="inline-flex items-center gap-1">
+                    <Mail className="size-3" />
+                    {contact.email}
+                  </span>
+                )}
+                {contact.phone && (
+                  <span className="inline-flex items-center gap-1">
+                    <Phone className="size-3" />
+                    {contact.phone}
+                  </span>
+                )}
+                <span>
+                  Added <RelativeTimeCard date={contact.createdAt} variant="muted" />
+                </span>
+                {contact.marketingOptOut && (
+                  <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                    <ShieldOff className="size-3" />
+                    Marketing opt-out
+                    {contact.marketingOptOutAt && (
+                      <>
+                        {' '}
+                        (<RelativeTimeCard date={contact.marketingOptOutAt} variant="muted" />)
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          {contact && contact.segments.length > 0 && (
+            <div className="hidden flex-wrap items-center gap-1 sm:flex">
+              {contact.segments.map((s) => (
+                <Badge key={s} variant="secondary" className="font-normal">
+                  {s}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {contact && (
+            <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil className="mr-1 size-3.5" />
+              Edit
+            </Button>
+          )}
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto p-6">
-        {isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {isLoading && <div className="p-6 text-sm text-muted-foreground">Loading…</div>}
         {error && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <div className="m-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             Failed to load contact
           </div>
         )}
         {contact && (
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <User className="size-4" />
-                  Profile
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <ProfileField label="Name" value={contact.displayName} />
-                <ProfileField
-                  label="Email"
-                  value={
-                    contact.email ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Mail className="size-3.5 text-muted-foreground" />
-                        {contact.email}
-                      </span>
-                    ) : null
-                  }
-                />
-                <ProfileField
-                  label="Phone"
-                  value={
-                    contact.phone ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Phone className="size-3.5 text-muted-foreground" />
-                        {contact.phone}
-                      </span>
-                    ) : null
-                  }
-                />
-                <ProfileField label="Created" value={renderDate(contact.createdAt)} />
-                <ProfileField label="Updated" value={renderDate(contact.updatedAt)} />
-              </CardContent>
-            </Card>
+          <>
+            <section className="shrink-0 border-b border-border px-6 py-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Settings2 className="size-4 text-muted-foreground" />
+                <h2 className="text-sm font-medium">Attributes</h2>
+                <span className="text-xs text-muted-foreground">Typed, org-wide custom fields.</span>
+              </div>
+              <AttributeTable contactId={id} values={contact.attributes} />
+            </section>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Segments</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {contact.segments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No segments assigned.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {contact.segments.map((s) => (
-                      <Badge key={s} variant="secondary">
-                        {s}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Marketing</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <ProfileField label="Opted out" value={contact.marketingOptOut ? 'Yes' : 'No'} />
-                {contact.marketingOptOutAt && (
-                  <ProfileField label="Opt-out at" value={renderDate(contact.marketingOptOutAt)} />
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="lg:col-span-3">
-              <CardHeader>
-                <CardTitle className="text-base">Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {contact.notes ? (
-                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
-                    {contact.notes}
-                  </pre>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No notes yet.</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+            <section className="flex min-h-0 flex-1 flex-col">
+              <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
+                <FolderTree className="size-4 text-muted-foreground" />
+                <h2 className="text-sm font-medium">Drive</h2>
+                <span className="text-xs text-muted-foreground">Per-contact uploads and notes.</span>
+              </div>
+              <div className="min-h-0 flex-1">
+                <DriveBrowser scope={{ scope: 'contact', contactId: id }} />
+              </div>
+            </section>
+          </>
         )}
       </div>
-    </div>
-  )
-}
 
-function ProfileField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="text-sm text-foreground">{value ?? <span className="text-muted-foreground">—</span>}</dd>
+      <ContactFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        contact={contact ?? null}
+        onSave={handleSave}
+        isPending={update.isPending}
+      />
     </div>
   )
 }

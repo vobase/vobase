@@ -31,6 +31,7 @@ import { Route as ApiKeysRouteImport } from './../modules/settings/pages/api-key
 import { Route as AccountRouteImport } from './../modules/settings/pages/account'
 import { Route as ApprovalsRouteImport } from './../modules/inbox/pages/approvals'
 import { Route as IdRouteImport } from './../modules/inbox/pages/$id'
+import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pages/attributes'
 import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
 import { Route as AgentsLearningsRouteImport } from './../modules/agents/pages/learnings'
 
@@ -145,6 +146,11 @@ const IdRoute = IdRouteImport.update({
   path: '/$id',
   getParentRoute: () => DotDotModulesInboxPagesLayoutRoute,
 } as any)
+const ContactsAttributesRoute = ContactsAttributesRouteImport.update({
+  id: '/contacts/attributes',
+  path: '/contacts/attributes',
+  getParentRoute: () => shellAppLayoutRoute,
+} as any)
 const ContactsIdRoute = ContactsIdRouteImport.update({
   id: '/contacts/$id',
   path: '/contacts/$id',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
+  '/contacts/attributes': typeof ContactsAttributesRoute
   '/inbox/$id': typeof IdRoute
   '/inbox/approvals': typeof ApprovalsRoute
   '/settings/account': typeof AccountRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
+  '/contacts/attributes': typeof ContactsAttributesRoute
   '/inbox/$id': typeof IdRoute
   '/inbox/approvals': typeof ApprovalsRoute
   '/settings/account': typeof AccountRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/_app/agents/learnings': typeof AgentsLearningsRoute
   '/_app/contacts/$id': typeof ContactsIdRoute
+  '/_app/contacts/attributes': typeof ContactsAttributesRoute
   '/_app/inbox/$id': typeof IdRoute
   '/_app/inbox/approvals': typeof ApprovalsRoute
   '/_app/settings/account': typeof AccountRoute
@@ -240,6 +249,7 @@ export interface FileRouteTypes {
     | '/chat/$channelInstanceId'
     | '/agents/learnings'
     | '/contacts/$id'
+    | '/contacts/attributes'
     | '/inbox/$id'
     | '/inbox/approvals'
     | '/settings/account'
@@ -263,6 +273,7 @@ export interface FileRouteTypes {
     | '/chat/$channelInstanceId'
     | '/agents/learnings'
     | '/contacts/$id'
+    | '/contacts/attributes'
     | '/inbox/$id'
     | '/inbox/approvals'
     | '/settings/account'
@@ -289,6 +300,7 @@ export interface FileRouteTypes {
     | '/chat/$channelInstanceId'
     | '/_app/agents/learnings'
     | '/_app/contacts/$id'
+    | '/_app/contacts/attributes'
     | '/_app/inbox/$id'
     | '/_app/inbox/approvals'
     | '/_app/settings/account'
@@ -469,6 +481,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IdRouteImport
       parentRoute: typeof DotDotModulesInboxPagesLayoutRoute
     }
+    '/_app/contacts/attributes': {
+      id: '/_app/contacts/attributes'
+      path: '/contacts/attributes'
+      fullPath: '/contacts/attributes'
+      preLoaderRoute: typeof ContactsAttributesRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
     '/_app/contacts/$id': {
       id: '/_app/contacts/$id'
       path: '/contacts/$id'
@@ -534,6 +553,7 @@ interface shellAppLayoutRouteChildren {
   DotDotModulesSettingsPagesLayoutRoute: typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   AgentsLearningsRoute: typeof AgentsLearningsRoute
   ContactsIdRoute: typeof ContactsIdRoute
+  ContactsAttributesRoute: typeof ContactsAttributesRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   ChannelsIndexRoute: typeof ChannelsIndexRoute
   ContactsIndexRoute: typeof ContactsIndexRoute
@@ -548,6 +568,7 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
     DotDotModulesSettingsPagesLayoutRouteWithChildren,
   AgentsLearningsRoute: AgentsLearningsRoute,
   ContactsIdRoute: ContactsIdRoute,
+  ContactsAttributesRoute: ContactsAttributesRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   ChannelsIndexRoute: ChannelsIndexRoute,
   ContactsIndexRoute: ContactsIndexRoute,

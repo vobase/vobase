@@ -80,6 +80,16 @@ function makeDriveStub(files: DriveFile[]): FilesService {
       const f = byId.get(id)
       return { content: f?.extractedText ?? '' }
     },
+    async readPath(scope, path) {
+      for (const f of files) {
+        if (f.scope !== scope.scope) continue
+        if (f.path === path) return { content: f.extractedText ?? '', virtual: false, file: f }
+      }
+      return null
+    },
+    async writePath(): Promise<null> {
+      throw new Error('not-implemented-in-phase-1')
+    },
     async grep(): Promise<GrepMatch[]> {
       throw new Error('not-implemented-in-phase-1')
     },
@@ -137,6 +147,12 @@ function makeContactsStub(): ContactsService {
       return null
     },
     async upsertByExternal(_: UpsertByExternalInput) {
+      throw new Error('not-implemented-in-phase-1')
+    },
+    async create(): Promise<Contact> {
+      throw new Error('not-implemented-in-phase-1')
+    },
+    async update(): Promise<Contact> {
       throw new Error('not-implemented-in-phase-1')
     },
     async readNotes() {

@@ -57,6 +57,13 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
+    // Drive file mutations — broad invalidate; the 'drive' key covers both
+    // tree listings and file reads under our DriveProvider.
+    if (payload.table === 'drive_files' || payload.table === 'drive.files') {
+      queryClient.invalidateQueries({ queryKey: ['drive'] })
+      return
+    }
+
     // Broad fallback
     queryClient.invalidateQueries({ queryKey: [payload.table] })
   })

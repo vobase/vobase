@@ -38,7 +38,7 @@ export const SOPHIA_CONTACT_ID = 'ctt0sophia'
 
 export async function seed(db: unknown): Promise<void> {
   const { channelInstances } = await import('@modules/inbox/schema')
-  const { contacts, staffChannelBindings } = await import('@modules/contacts/schema')
+  const { contactAttributeDefinitions, contacts, staffChannelBindings } = await import('@modules/contacts/schema')
   const { authUser } = await import('@vobase/core')
 
   const d = db as {
@@ -113,6 +113,61 @@ export async function seed(db: unknown): Promise<void> {
     .values({ userId: CAROL_USER_ID, channelInstanceId: STAFF_CHANNEL_INSTANCE_ID, externalIdentifier: '+6591110003' })
     .onConflictDoNothing()
 
+  // --- custom attribute definitions ---
+  const attrDefs: {
+    id: string
+    key: string
+    label: string
+    type: 'text' | 'number' | 'boolean' | 'date' | 'enum'
+    options: string[]
+    showInTable: boolean
+    sortOrder: number
+  }[] = [
+    {
+      id: 'cad0company',
+      key: 'company',
+      label: 'Company',
+      type: 'text',
+      options: [],
+      showInTable: true,
+      sortOrder: 10,
+    },
+    {
+      id: 'cad0plan000',
+      key: 'plan_tier',
+      label: 'Plan',
+      type: 'enum',
+      options: ['free', 'pro', 'teams', 'enterprise'],
+      showInTable: true,
+      sortOrder: 20,
+    },
+    {
+      id: 'cad0ltv0000',
+      key: 'lifetime_value',
+      label: 'Lifetime value (USD)',
+      type: 'number',
+      options: [],
+      showInTable: false,
+      sortOrder: 30,
+    },
+    {
+      id: 'cad0renew00',
+      key: 'renewal_date',
+      label: 'Renewal date',
+      type: 'date',
+      options: [],
+      showInTable: false,
+      sortOrder: 40,
+    },
+    { id: 'cad0vip0000', key: 'vip', label: 'VIP', type: 'boolean', options: [], showInTable: true, sortOrder: 50 },
+  ]
+  for (const def of attrDefs) {
+    await d
+      .insert(contactAttributeDefinitions)
+      .values({ organizationId: MERIDIAN_ORG_ID, ...def })
+      .onConflictDoNothing()
+  }
+
   // --- baseline test customer (kept stable for integration tests) ---
   await d
     .insert(contacts)
@@ -135,6 +190,13 @@ export async function seed(db: unknown): Promise<void> {
       email: 'priya@acme-labs.io',
       phone: '+6591100201',
       segments: ['pro-plan', 'long-term'],
+      attributes: {
+        company: 'Acme Labs',
+        plan_tier: 'pro',
+        lifetime_value: 14400,
+        renewal_date: '2027-02-01',
+        vip: true,
+      },
       notes: [
         '# Priya Raman',
         'Role: Head of Ops @ Acme Labs (Singapore).',
@@ -155,6 +217,12 @@ export async function seed(db: unknown): Promise<void> {
       email: 'marcus.chen@northwind.co',
       phone: '+6591100202',
       segments: ['enterprise-lead'],
+      attributes: {
+        company: 'Northwind',
+        plan_tier: 'enterprise',
+        lifetime_value: 0,
+        vip: false,
+      },
       notes: [
         '# Marcus Chen',
         'Role: VP Engineering @ Northwind (400 employees, SG HQ).',
@@ -173,6 +241,11 @@ export async function seed(db: unknown): Promise<void> {
       email: 'elena@rossi-design.studio',
       phone: '+6591100203',
       segments: ['refund-open'],
+      attributes: {
+        company: 'Rossi Design',
+        plan_tier: 'pro',
+        lifetime_value: 49,
+      },
       notes: [
         '# Elena Rossi',
         'Plan: Meridian Pro (1 seat) — asked for refund after 12 days of use.',
@@ -204,6 +277,13 @@ export async function seed(db: unknown): Promise<void> {
       email: 'sophia@nakamura-co.jp',
       phone: '+6591100205',
       segments: ['teams-plan'],
+      attributes: {
+        company: 'Nakamura & Co',
+        plan_tier: 'teams',
+        lifetime_value: 9800,
+        renewal_date: '2026-11-15',
+        vip: true,
+      },
       notes: [
         '# Sophia Nakamura',
         'Plan: Meridian Teams (8 seats). Billing in JPY via Stripe.',
