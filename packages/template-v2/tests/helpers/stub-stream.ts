@@ -11,9 +11,9 @@
  * `done` with stopReason `stop`.
  */
 
+import type { StreamFn } from '@mariozechner/pi-agent-core'
 import type { AssistantMessageEvent } from '@mariozechner/pi-ai'
 import { createAssistantMessageEventStream } from '@mariozechner/pi-ai'
-import type { StreamFn } from '@mariozechner/pi-agent-core'
 
 export interface StubStreamOptions {
   /**

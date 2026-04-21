@@ -26,10 +26,10 @@
 
 import {
   Agent,
-  type AgentEvent as PiAgentEvent,
   type AgentMessage,
-  type AgentTool as PiAgentTool,
   type AgentToolResult,
+  type AgentEvent as PiAgentEvent,
+  type AgentTool as PiAgentTool,
 } from '@mariozechner/pi-agent-core'
 import type { AssistantMessage } from '@mariozechner/pi-ai'
 import { Type } from '@mariozechner/pi-ai'
@@ -596,6 +596,10 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
         break
       }
       case 'message_start': {
+        // Pi fires message_start for every message added to the transcript
+        // (user, tool-result, assistant). Only the assistant message maps to
+        // our contract `message_start` / `llm_call` pair.
+        if (piEv.message.role !== 'assistant') break
         currentMessageId = nanoid(10)
         assembledContent = ''
         const ev: MessageStartEvent = {
@@ -609,6 +613,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       }
       case 'message_update': {
         if (!currentMessageId) break
+        if (piEv.message.role !== 'assistant') break
         const pev = piEv.assistantMessageEvent
         if (pev.type === 'text_delta') {
           assembledContent += pev.delta
@@ -624,6 +629,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       }
       case 'message_end': {
         if (!currentMessageId) break
+        if (piEv.message.role !== 'assistant') break
         const assistant = piEv.message as AssistantMessage
         const finishReason = typeof assistant.stopReason === 'string' ? assistant.stopReason : 'stop'
         const usage = assistant.usage
