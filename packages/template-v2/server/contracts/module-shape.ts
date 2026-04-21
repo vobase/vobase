@@ -12,7 +12,6 @@ export const REQUIRED_MODULE_FILES = [
   'schema.ts',
   'state.ts',
   'service/index.ts',
-  'port.ts',
   'handlers/index.ts',
   'jobs.ts',
   'seed.ts',
