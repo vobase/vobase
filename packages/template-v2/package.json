@@ -15,6 +15,7 @@
     "db:nuke": "bun run scripts/db-nuke.ts",
     "db:reset": "bun run scripts/db-reset.ts",
     "db:migrate": "bun run scripts/db-migrate.ts",
+    "db:generate": "bun run scripts/db-generate.ts",
     "db:studio": "drizzle-kit studio",
     "knip": "knip",
     "check": "conc -g bun:check:shape bun:check:bundle bun:check:no-auto-nav-tabs bun:check:no-stub-flag bun:check:tokens",
