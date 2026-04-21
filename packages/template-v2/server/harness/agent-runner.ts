@@ -29,7 +29,6 @@ import type {
   MessageEndEvent,
   MessageStartEvent,
   MessageUpdateEvent,
-  PreCompactionEvent,
   SteerInjectedEvent,
   ToolExecutionEndEvent,
   ToolExecutionStartEvent,
@@ -373,8 +372,6 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       })
     : undefined
 
-  let preCompactionEmitted = false
-
   const budgetState: BudgetState = { turnsConsumed: 0, spentUsd: 0 }
   // Per-input vs per-output token rates are tracked separately so the
   // worst-case-delta check stays accurate when the model's output price diverges
@@ -416,12 +413,6 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     const turnStart: TurnStartEvent = { ...baseEventFields(scope), type: 'turn_start' }
     events.publish(turnStart)
     turnBudget.reset()
-
-    if (turnIndex > 0 && !preCompactionEmitted) {
-      preCompactionEmitted = true
-      const preCompEvt: PreCompactionEvent = { ...baseEventFields(scope), type: 'pre_compaction' }
-      events.publish(preCompEvt)
-    }
 
     // Rebuild side-load FRESH each turn so mid-wake writes propagate (frozen-snapshot invariant).
     const sideLoadBody = await collectSideLoad({

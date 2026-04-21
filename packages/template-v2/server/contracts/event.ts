@@ -26,7 +26,6 @@ export type WakeTriggerKind = WakeTrigger['trigger']
 /** Task tag threaded through every LLM call — see `PluginContext.llmCall()`. */
 export type LlmTask =
   | 'agent.turn'
-  | 'agent.compaction'
   | 'scorer.answer_relevancy'
   | 'scorer.faithfulness'
   | 'moderation'
@@ -214,10 +213,6 @@ export type ToolResultPersistedEvent = BaseEvent & {
   originalByteLength: number
 }
 
-export type PreCompactionEvent = BaseEvent & {
-  type: 'pre_compaction'
-}
-
 export type SteerInjectedEvent = BaseEvent & {
   type: 'steer_injected'
   /** The steer text injected as the next user message. */
@@ -291,7 +286,6 @@ export type AgentEvent =
   | BudgetWarningEvent
   | ErrorClassifiedEvent
   | ToolResultPersistedEvent
-  | PreCompactionEvent
   | SteerInjectedEvent
   | WakeRefusedEvent
   | AgentAbortedEvent

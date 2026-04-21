@@ -113,8 +113,6 @@ export interface ConversationsService {
   sendText(input: unknown): Promise<unknown>
   sendCard(input: unknown): Promise<unknown>
   sendImage(input: unknown): Promise<unknown>
-  hold(conversationId: string, reason: string): Promise<void>
-  beginCompaction(conversationId: string, summary: string): Promise<{ childConversationId: string }>
 }
 
 export interface ConversationsServiceDeps {
@@ -520,15 +518,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
   async function sendImage(_input: unknown): Promise<unknown> {
     throw new Error('not-implemented: inbox/conversations.sendImage')
   }
-  async function hold(_conversationId: string, _reason: string): Promise<void> {
-    throw new Error('removed-in-model-a: inbox/conversations.hold — use snooze() instead')
-  }
-  async function beginCompaction(_conversationId: string, _summary: string): Promise<{ childConversationId: string }> {
-    throw new Error(
-      'removed-in-model-a: compaction is a workspace/materializer concern, not a conversation lifecycle state',
-    )
-  }
-
   async function list(organizationId: string, opts?: ListOpts): Promise<Conversation[]> {
     const { conversations } = await import('@modules/inbox/schema')
     const { and, desc, eq, gt, inArray, isNotNull, or, sql } = await import('drizzle-orm')
@@ -590,8 +579,6 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     sendText,
     sendCard,
     sendImage,
-    hold,
-    beginCompaction,
   }
 }
 
@@ -667,15 +654,6 @@ export async function sendCard(input: unknown): Promise<unknown> {
 }
 export async function sendImage(input: unknown): Promise<unknown> {
   return currentConversations().sendImage(input)
-}
-export async function hold(conversationId: string, reason: string): Promise<void> {
-  return currentConversations().hold(conversationId, reason)
-}
-export async function beginCompaction(
-  conversationId: string,
-  summary: string,
-): Promise<{ childConversationId: string }> {
-  return currentConversations().beginCompaction(conversationId, summary)
 }
 export async function list(organizationId: string, opts?: ListOpts): Promise<Conversation[]> {
   return currentConversations().list(organizationId, opts)

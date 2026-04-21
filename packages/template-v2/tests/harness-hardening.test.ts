@@ -15,7 +15,6 @@ import type {
   BudgetWarningEvent,
   ErrorClassifiedEvent,
   LlmCallEvent,
-  PreCompactionEvent,
   SteerInjectedEvent,
   ToolResultPersistedEvent,
 } from '@server/contracts/event'
@@ -670,52 +669,6 @@ describe('Lane F — cost/iteration budget', () => {
     for (const p of harness.capturedPrompts) {
       expect(p.systemHash).toBe(firstHash as string)
     }
-  })
-})
-
-// ── Lane G — pre_compaction event ────────────────────────────────────────────
-
-describe('Lane G — pre_compaction event', () => {
-  it('single-turn wake → no pre_compaction emitted', async () => {
-    const { harness } = await bootWake({
-      organizationId: 't1',
-      agentId: 'agent-1',
-      contactId: 'k1',
-      maxTurns: 1,
-      registrations: regs(),
-      ports: PORTS,
-      mockStreamFn: mockStream([{ type: 'finish', finishReason: 'stop' }]),
-    })
-    expect(harness.events.some((e) => e.type === 'pre_compaction')).toBe(false)
-  })
-
-  it('multi-turn wake → pre_compaction emitted exactly once before turn 1', async () => {
-    const { harness } = await bootWake({
-      organizationId: 't1',
-      agentId: 'agent-1',
-      contactId: 'k1',
-      maxTurns: 3,
-      registrations: regs(),
-      ports: PORTS,
-      mockStreamFn: mockStream([{ type: 'finish', finishReason: 'stop' }]),
-    })
-    const preComp = harness.events.filter((e) => e.type === 'pre_compaction') as PreCompactionEvent[]
-    expect(preComp).toHaveLength(1)
-    expect(preComp[0].turnIndex).toBe(1)
-  })
-
-  it('pre_compaction is idempotent within a wake: emitted at most once across 5 turns', async () => {
-    const { harness } = await bootWake({
-      organizationId: 't1',
-      agentId: 'agent-1',
-      contactId: 'k1',
-      maxTurns: 5,
-      registrations: regs(),
-      ports: PORTS,
-      mockStreamFn: mockStream([{ type: 'finish', finishReason: 'stop' }]),
-    })
-    const count = harness.events.filter((e) => e.type === 'pre_compaction').length
-    expect(count).toBe(1)
   })
 })
 

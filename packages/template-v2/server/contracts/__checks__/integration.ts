@@ -42,7 +42,6 @@ import type {
   LlmCallEvent,
   LlmTask,
   ModerationBlockedEvent,
-  PreCompactionEvent,
   ScorerRecordedEvent,
   SteerInjectedEvent,
   ToolResultPersistedEvent,
@@ -111,7 +110,6 @@ type _EventTypes = AssertEqual<
   | 'budget_warning'
   | 'error_classified'
   | 'tool_result_persisted'
-  | 'pre_compaction'
   | 'steer_injected'
   | 'wake_refused'
   | 'agent_aborted'
@@ -171,8 +169,6 @@ export function assertAgentEventExhaustive(e: AgentEvent): string {
       return e.reason + e.providerMessage + String(e.retryAttempt)
     case 'tool_result_persisted':
       return e.toolCallId + e.toolName + e.path + String(e.originalByteLength)
-    case 'pre_compaction':
-      return String(e.turnIndex)
     case 'steer_injected':
       return e.text
     case 'wake_refused':
@@ -410,7 +406,6 @@ type _LlmTaskKeep = AssertTrue<
   AssertEqual<
     LlmTask,
     | 'agent.turn'
-    | 'agent.compaction'
     | 'scorer.answer_relevancy'
     | 'scorer.faithfulness'
     | 'moderation'
@@ -665,16 +660,6 @@ const _toolPersisted: ToolResultPersistedEvent = {
   originalByteLength: 150_000,
 }
 void _toolPersisted
-
-const _preCompaction: PreCompactionEvent = {
-  type: 'pre_compaction',
-  ts: new Date(),
-  wakeId: 'w1',
-  conversationId: 'c1',
-  organizationId: 't1',
-  turnIndex: 9,
-}
-void _preCompaction
 
 const _steerInjected: SteerInjectedEvent = {
   type: 'steer_injected',
