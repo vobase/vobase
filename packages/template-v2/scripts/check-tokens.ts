@@ -17,6 +17,9 @@ const DATE_RENDERER_RE = /\.(toLocaleDateString|toLocaleTimeString|toLocaleStrin
 const DATE_EXEMPT = new Set([
   'src/components/ui/relative-time.tsx',
   'src/components/ui/relative-time-card.tsx',
+  'src/components/ui/calendar.tsx',
+  'src/components/data-table/data-table-date-filter.tsx',
+  'src/components/data-table/data-table-slider-filter.tsx',
   'src/lib/format.ts',
   'src/lib/utils.ts', // defines formatRelativeTime; Parcel S removes it
 ])

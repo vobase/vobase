@@ -33,6 +33,7 @@
     "lint:fix": "biome check --write ."
   },
   "dependencies": {
+    "@ariakit/react": "^0.4.26",
     "@diceui/combobox": "^1.2.2",
     "@diceui/mention": "^0.8.0",
     "@dnd-kit/core": "^6.3.1",
@@ -43,7 +44,9 @@
     "@mariozechner/pi-agent-core": "^0.67.68",
     "@mariozechner/pi-ai": "^0.67.68",
     "@platejs/basic-nodes": "^52.3.10",
+    "@platejs/combobox": "^52.3.10",
     "@platejs/markdown": "^52.3.22",
+    "@platejs/mention": "^52.3.10",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@react-email/components": "^1.0.12",
     "@sinclair/typebox": "^0.34.49",
@@ -77,6 +80,7 @@
     "postgres": "^3.4.9",
     "radix-ui": "^1.4.3",
     "react": "^19.2.5",
+    "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.5",
     "react-hook-form": "^7.72.1",
     "remark-gfm": "^4.0.1",
