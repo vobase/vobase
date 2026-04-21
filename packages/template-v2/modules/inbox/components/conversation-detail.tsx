@@ -1,4 +1,5 @@
 import type { Contact } from '@modules/contacts/schema'
+import { useActivity } from '@modules/inbox/api/use-activity'
 import { useLifecycle } from '@modules/inbox/api/use-lifecycle'
 import { useNotes } from '@modules/inbox/api/use-notes'
 import { useReassign } from '@modules/inbox/api/use-reassign'
@@ -110,6 +111,7 @@ export function ConversationDetail() {
   })
 
   const { data: notes = [] } = useNotes(activeConvId ?? '')
+  const { data: activity = [] } = useActivity(activeConvId ?? '')
 
   // Conversation-list nav: prev/next walks contactIds from the grouped inbox.
   const { data: grouped } = useQuery({
@@ -217,7 +219,7 @@ export function ConversationDetail() {
       </div>
 
       {activeConvId && <InlineApprovalBanner conversationId={activeConvId} />}
-      <MessageThread messages={messages} notes={notes} />
+      <MessageThread messages={messages} notes={notes} activity={activity} />
       {activeConvId && <Composer conversationId={activeConvId} />}
     </div>
   )

@@ -1,6 +1,7 @@
 import {
   get as getConversation,
   list as listConversations,
+  listActivity,
   listInboxByContact,
 } from '@modules/inbox/service/conversations'
 import { list as listMessages } from '@modules/inbox/service/messages'
@@ -52,6 +53,10 @@ const app = new Hono()
     const id = c.req.param('id')
     const limit = Number(c.req.query('limit') ?? 50)
     const rows = await listMessages(id, { limit })
+    return c.json(rows)
+  })
+  .get('/conversations/:id/activity', async (c) => {
+    const rows = await listActivity(c.req.param('id'))
     return c.json(rows)
   })
   .get('/approvals', async (c) => {

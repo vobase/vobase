@@ -137,6 +137,29 @@ async function insertNote(
     .onConflictDoNothing()
 }
 
+async function insertActivity(
+  insert: Inserter,
+  row: {
+    conversationId: string
+    type: string
+    payload: Record<string, unknown>
+    ts: Date
+  },
+) {
+  const { conversationEvents } = await import('@modules/agents/schema')
+  await insert(conversationEvents)
+    .values({
+      conversationId: row.conversationId,
+      organizationId: MERIDIAN_ORG_ID,
+      wakeId: null,
+      turnIndex: 0,
+      ts: row.ts,
+      type: row.type,
+      payload: row.payload,
+    })
+    .onConflictDoNothing()
+}
+
 async function insertApproval(
   insert: Inserter,
   row: {
@@ -380,6 +403,12 @@ export async function seed(db: unknown): Promise<void> {
     mentions: [CAROL_USER_ID],
     createdAt: mins(177),
   })
+  await insertActivity(ins, {
+    conversationId: ELENA_CONV_ID,
+    type: 'conversation.reassigned',
+    payload: { from: AGENT_ASSIGNEE, to: `user:${CAROL_USER_ID}`, reason: 'billing escalation', by: MERIDIAN_AGENT_ID },
+    ts: mins(176),
+  })
   await insertNote(ins, {
     id: 'not0elen002',
     conversationId: ELENA_CONV_ID,
@@ -507,6 +536,12 @@ export async function seed(db: unknown): Promise<void> {
     content: { text: 'Glad to help. Ping us if anything else comes up.' },
     createdAt: mins(1438),
   })
+  await insertActivity(ins, {
+    conversationId: DEREK_CONV_ID,
+    type: 'conversation.resolved',
+    payload: { by: MERIDIAN_AGENT_ID, reason: 'answered' },
+    ts: mins(1430),
+  })
 
   // ── 6. Sophia — active; Teams plan question, unassigned reply pending ──
   await insertConv(ins, {
@@ -536,5 +571,25 @@ export async function seed(db: unknown): Promise<void> {
     body: '@bob — Sophia (Teams, 8 seats) is asking about extended audit log retention. Enterprise-only feature per BUSINESS.md. Reassigning so you can quote an upgrade.',
     mentions: [BOB_USER_ID],
     createdAt: mins(93),
+  })
+  await insertActivity(ins, {
+    conversationId: SOPHIA_CONV_ID,
+    type: 'conversation.reassigned',
+    payload: { from: AGENT_ASSIGNEE, to: `user:${BOB_USER_ID}`, reason: 'enterprise upgrade quote', by: MERIDIAN_AGENT_ID },
+    ts: mins(92),
+  })
+
+  // Priya scenario: earlier snooze that expired, then resolved-then-reopened loop
+  await insertActivity(ins, {
+    conversationId: PRIYA_CONV_ID,
+    type: 'conversation.snoozed',
+    payload: { until: mins(20).toISOString(), reason: 'waiting on product for filter docs', by: ALICE_USER_ID },
+    ts: mins(60),
+  })
+  await insertActivity(ins, {
+    conversationId: PRIYA_CONV_ID,
+    type: 'conversation.snooze_expired',
+    payload: { originalUntil: mins(20).toISOString() },
+    ts: mins(20),
   })
 }

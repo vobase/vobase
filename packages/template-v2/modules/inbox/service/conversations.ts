@@ -123,6 +123,23 @@ export interface ListOpts {
   now?: Date
 }
 
+export interface ActivityEvent {
+  id: string
+  conversationId: string
+  ts: string
+  type: string
+  payload: Record<string, unknown>
+}
+
+export const TIMELINE_ACTIVITY_TYPES = [
+  'conversation.reassigned',
+  'conversation.resolved',
+  'conversation.reopened',
+  'conversation.snoozed',
+  'conversation.unsnoozed',
+  'conversation.snooze_expired',
+] as const
+
 export interface ConversationsService {
   create(input: CreateConversationInput): Promise<Conversation>
   resumeOrCreate(
@@ -132,6 +149,7 @@ export interface ConversationsService {
     threadKey?: string,
   ): Promise<{ conversation: Conversation; created: boolean }>
   get(id: string): Promise<Conversation>
+  listActivity(conversationId: string): Promise<ActivityEvent[]>
   createInboundMessage(input: CreateInboundMessageInput): Promise<CreateInboundMessageResult>
   snooze(input: SnoozeInput): Promise<Conversation>
   unsnooze(conversationId: string, by: string): Promise<Conversation>
@@ -493,6 +511,38 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     return reopen(conversationId, by, 'staff_reset')
   }
 
+  async function listActivity(conversationId: string): Promise<ActivityEvent[]> {
+    const rows = (await db
+      .select({
+        id: conversationEvents.id,
+        conversationId: conversationEvents.conversationId,
+        ts: conversationEvents.ts,
+        type: conversationEvents.type,
+        payload: conversationEvents.payload,
+      })
+      .from(conversationEvents)
+      .where(
+        and(
+          eq(conversationEvents.conversationId, conversationId),
+          inArray(conversationEvents.type, TIMELINE_ACTIVITY_TYPES as unknown as string[]),
+        ),
+      )
+      .orderBy(conversationEvents.ts)) as unknown as Array<{
+      id: bigint | string
+      conversationId: string
+      ts: Date
+      type: string
+      payload: Record<string, unknown> | null
+    }>
+    return rows.map((r) => ({
+      id: String(r.id),
+      conversationId: r.conversationId,
+      ts: r.ts.toISOString(),
+      type: r.type,
+      payload: r.payload ?? {},
+    }))
+  }
+
   async function reassign(
     conversationId: string,
     assignee: string,
@@ -647,6 +697,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     reopen,
     reset,
     reassign,
+    listActivity,
     list,
     listInboxByContact,
     sendText,
@@ -718,6 +769,9 @@ export async function reassign(
   reason?: string,
 ): Promise<Conversation> {
   return currentConversations().reassign(conversationId, assignee, by, reason)
+}
+export async function listActivity(conversationId: string): Promise<ActivityEvent[]> {
+  return currentConversations().listActivity(conversationId)
 }
 export async function sendText(input: unknown): Promise<unknown> {
   return currentConversations().sendText(input)

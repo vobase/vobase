@@ -34,6 +34,7 @@ export function useRealtimeInvalidation(): void {
         queryClient.invalidateQueries({ queryKey: ['conversation', payload.id] })
         queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })
         queryClient.invalidateQueries({ queryKey: ['notes', payload.id] })
+        queryClient.invalidateQueries({ queryKey: ['activity', payload.id] })
       }
       return
     }
