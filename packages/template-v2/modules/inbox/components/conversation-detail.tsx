@@ -10,6 +10,7 @@ import { CheckIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
 import { useQueryState } from 'nuqs'
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
+import { useCurrentUserId } from '@/hooks/use-current-user'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import type { Conversation, Message } from '../schema'
 import { AssigneeBadge } from './assignee-badge'
@@ -20,7 +21,7 @@ import { InlineApprovalBanner } from './inline-approval-banner'
 import { MessageThread } from './message-thread'
 import { SnoozeMenu } from './snooze-menu'
 
-const CURRENT_STAFF_ID = 'staff'
+const FALLBACK_STAFF_ID = 'staff'
 
 async function fetchConversationsForContact(contactId: string): Promise<Conversation[]> {
   const r = await fetch(`/api/inbox/conversations?contactId=${encodeURIComponent(contactId)}`)
@@ -55,6 +56,8 @@ export function ConversationDetail() {
   const navigate = useNavigate()
 
   const [convParam, setConvParam] = useQueryState('conv')
+  const currentUserId = useCurrentUserId()
+  const actingStaffId = currentUserId ?? FALLBACK_STAFF_ID
 
   const { data: contactConvs = [] } = useQuery({
     queryKey: ['conversations', { contactId }],
@@ -138,9 +141,9 @@ export function ConversationDetail() {
     queryClient.invalidateQueries({ queryKey: ['conversations'] })
     if (activeConvId) queryClient.invalidateQueries({ queryKey: ['conversation', activeConvId] })
   }
-  const resolveMut = useLifecycle(activeConvId ?? '', 'resolve', CURRENT_STAFF_ID)
-  const reopenMut = useLifecycle(activeConvId ?? '', 'reopen', CURRENT_STAFF_ID)
-  const resetMut = useLifecycle(activeConvId ?? '', 'reset', CURRENT_STAFF_ID)
+  const resolveMut = useLifecycle(activeConvId ?? '', 'resolve', actingStaffId)
+  const reopenMut = useLifecycle(activeConvId ?? '', 'reopen', actingStaffId)
+  const resetMut = useLifecycle(activeConvId ?? '', 'reset', actingStaffId)
 
   const title = deriveContactName(contact, contactId)
   const subline = contact?.phone ?? contact?.email ?? null
@@ -179,7 +182,7 @@ export function ConversationDetail() {
         <div className="flex-1" />
         {activeConv?.status === 'active' && activeConvId && (
           <>
-            <SnoozeMenu conversationId={activeConvId} by={CURRENT_STAFF_ID} onSnoozed={invalidate} />
+            <SnoozeMenu conversationId={activeConvId} by={actingStaffId} onSnoozed={invalidate} />
             <Button
               size="sm"
               variant="ghost"
@@ -219,7 +222,7 @@ export function ConversationDetail() {
       </div>
 
       {activeConvId && <InlineApprovalBanner conversationId={activeConvId} />}
-      <MessageThread messages={messages} notes={notes} activity={activity} />
+      <MessageThread messages={messages} notes={notes} activity={activity} currentUserId={currentUserId} />
       {activeConvId && <Composer conversationId={activeConvId} />}
     </div>
   )

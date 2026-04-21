@@ -418,6 +418,16 @@ export async function seed(db: unknown): Promise<void> {
     mentions: [],
     createdAt: mins(60),
   })
+  // Alice is the dev-login staff — authored note demonstrates "mine on right".
+  await insertNote(ins, {
+    id: 'not0elen003',
+    conversationId: ELENA_CONV_ID,
+    authorType: 'staff',
+    authorId: ALICE_USER_ID,
+    body: "+1 on Carol's plan. Looping off — I'll draft the comeback-discount copy and hand back once the refund lands.",
+    mentions: [],
+    createdAt: mins(45),
+  })
   await insertMsg(ins, {
     id: 'msg0elen003',
     conversationId: ELENA_CONV_ID,

@@ -1,9 +1,15 @@
 /**
  * contacts module seed — inserts:
  *   - 3 auth.user rows (alice, bob, carol) — staff
+ *   - 3 auth.account rows (dev provider) so the dev-login flow lands cleanly
  *   - 3 inbox.channel_instances rows (customer WA, staff WA, customer Web)
  *   - 3 contacts.staff_channel_bindings (one per staff user)
  *   - 6 contacts.contacts rows (one baseline test customer + five persona customers)
+ *
+ * Dev login: `src/shell/auth/login.tsx` posts `alice@meridian.test` to
+ * `/api/auth/dev-login`; `internalAdapter.findUserByEmail` resolves Alice to
+ * `ALICE_USER_ID`, which is also the `staff_profiles.user_id` — so
+ * `useCurrentUserId()` returns a real staff id in-browser.
  *
  * Cross-module note: channel_instances (inbox schema) are inserted here because
  * staff_channel_bindings has a FK to inbox.channel_instances and contacts seeds first
@@ -39,7 +45,7 @@ export const SOPHIA_CONTACT_ID = 'ctt0sophia'
 export async function seed(db: unknown): Promise<void> {
   const { channelInstances } = await import('@modules/inbox/schema')
   const { contactAttributeDefinitions, contacts, staffChannelBindings } = await import('@modules/contacts/schema')
-  const { authMember, authOrganization, authUser } = await import('@vobase/core')
+  const { authAccount, authMember, authOrganization, authUser } = await import('@vobase/core')
 
   const d = db as {
     insert: (t: unknown) => {
@@ -69,6 +75,18 @@ export async function seed(db: unknown): Promise<void> {
     .insert(authUser)
     .values({ id: CAROL_USER_ID, name: 'Carol', email: 'carol@meridian.test', emailVerified: true, role: 'user' })
     .onConflictDoNothing()
+
+  // --- auth accounts (dev provider) — lets /auth/dev-login resolve cleanly ---
+  for (const [accountId, userId] of [
+    ['acc0alice0', ALICE_USER_ID],
+    ['acc000bob0', BOB_USER_ID],
+    ['acc0carol0', CAROL_USER_ID],
+  ] as const) {
+    await d
+      .insert(authAccount)
+      .values({ id: accountId, accountId: userId, providerId: 'dev', userId })
+      .onConflictDoNothing()
+  }
 
   // --- auth memberships — Alice owner, Bob/Carol members ---
   await d
