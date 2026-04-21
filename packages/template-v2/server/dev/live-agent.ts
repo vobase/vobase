@@ -121,7 +121,8 @@ export function createLiveAgentHandler(_deps: LiveAgentDeps) {
         const text = anyEv.textDelta ? ` text=${String(anyEv.textDelta).slice(0, 80)}` : ''
         const args = anyEv.args ? ` args=${JSON.stringify(anyEv.args).slice(0, 200)}` : ''
         const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
-        console.log(`[live-agent] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${result}`)
+        const isError = anyEv.isError ? ' ERROR' : ''
+        console.log(`[live-agent] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`)
         if (event.type === 'tool_execution_end') {
           deps.realtime.notify({ table: 'messages', id: data.conversationId, action: 'INSERT' })
           deps.realtime.notify({ table: 'conversations', id: data.conversationId, action: 'UPDATE' })

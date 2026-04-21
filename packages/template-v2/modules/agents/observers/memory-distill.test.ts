@@ -74,7 +74,7 @@ function makeCtx(): ObserverContext {
     ports,
     db: db as unknown as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
-    realtime: { notify: () => {} },
+    realtime: { notify: () => {}, subscribe: () => () => {} },
   }
 }
 

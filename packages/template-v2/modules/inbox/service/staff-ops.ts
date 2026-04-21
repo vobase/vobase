@@ -49,7 +49,7 @@ export function createStaffOpsService(deps: StaffOpsServiceDeps): StaffOpsServic
   async function notifyConversation(id: string): Promise<void> {
     const { sql } = await import('drizzle-orm')
     const payload = JSON.stringify({ table: 'conversations', id })
-    await (db as { execute: Function }).execute(sql`SELECT pg_notify('vobase_sse', ${payload})`)
+    await (db as { execute: Function }).execute(sql`SELECT pg_notify('vobase_events', ${payload})`)
   }
 
   return { getConversation, reassignConversation, notifyConversation }

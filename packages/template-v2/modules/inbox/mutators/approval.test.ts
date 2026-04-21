@@ -94,7 +94,7 @@ function makeCtx(opts: { cardApprovalRequired: boolean; agentId?: string; conver
     ports: {} as MutatorContext['ports'],
     db: makeMockDb({ cardApprovalRequired: opts.cardApprovalRequired, agentId, conversationId }) as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
-    realtime: { notify: () => {} },
+    realtime: { notify: () => {}, subscribe: () => () => {} },
     llmCall: async () => {
       throw new Error('not expected')
     },

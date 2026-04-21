@@ -102,7 +102,7 @@ function makeInboxPort(): InboxPort {
   }
 }
 
-const noopRealtime: RealtimeService = { notify: () => {} }
+const noopRealtime: RealtimeService = { notify: () => {}, subscribe: () => () => {} }
 
 function makeEvent(toolName: ChannelOutboundEvent['toolName'], payload: unknown): ChannelOutboundEvent {
   return {
@@ -169,6 +169,7 @@ describe('dispatcher transport-only (A3 gate)', () => {
       notify: () => {
         notified = true
       },
+      subscribe: () => () => {},
     }
     const event = makeEvent('reply', { text: 'ping' })
     const result = await dispatch(event, makeInboxPort(), spyRealtime)

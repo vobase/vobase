@@ -153,6 +153,8 @@ export interface EventBus {
 
 export interface RealtimeService {
   notify(payload: { table: string; id?: string; action?: string }, tx?: Tx): void
+  /** In-process fanout for SSE consumers. Returns an unsubscribe function. */
+  subscribe(fn: (payload: string) => void): () => void
 }
 
 export interface MetricSink {

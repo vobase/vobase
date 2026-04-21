@@ -1,20 +1,26 @@
+import { Type } from '@mariozechner/pi-ai'
 import { runSubagent } from '@modules/agents/service/subagent-runner'
 import type { AgentTool, ToolContext } from '@server/contracts/tool'
 import type { ToolResult } from '@server/contracts/tool-result'
-import { z } from 'zod'
+import type { Static } from '@sinclair/typebox'
+import { Value } from '@sinclair/typebox/value'
 
-const SubagentInputSchema = z.object({
-  goal: z.string().min(1, 'goal must not be empty'),
+export const SubagentInputSchema = Type.Object({
+  goal: Type.String({ minLength: 1, description: 'Concrete focused goal for the sub-agent.' }),
   /**
    * Restricted toolset for the sub-agent. Defaults to `['bash']` so a spawned
    * sub-agent can navigate the virtual workspace out of the box.
    */
-  toolset: z.array(z.string()).optional().default(['bash']),
-  maxTurns: z.number().int().min(1).max(10).optional().default(5),
+  toolset: Type.Optional(Type.Array(Type.String(), { default: ['bash'] })),
+  maxTurns: Type.Optional(Type.Integer({ minimum: 1, maximum: 10, default: 5 })),
 })
 
-/** Input type — maxTurns is optional (defaults to 5 at parse time). */
-export type SubagentInput = z.input<typeof SubagentInputSchema>
+export type SubagentInput = Static<typeof SubagentInputSchema>
+
+function firstError(value: unknown): string {
+  const first = Value.Errors(SubagentInputSchema, value).First()
+  return first ? `${first.path || 'root'}: ${first.message}` : 'invalid input'
+}
 
 export const subagentTool: AgentTool<SubagentInput, { summary: string }> = {
   name: 'subagent',
@@ -24,23 +30,19 @@ export const subagentTool: AgentTool<SubagentInput, { summary: string }> = {
   parallelGroup: 'never',
 
   async execute(args, ctx: ToolContext): Promise<ToolResult<{ summary: string }>> {
-    const parsed = SubagentInputSchema.safeParse(args)
-    if (!parsed.success) {
+    if (!Value.Check(SubagentInputSchema, args)) {
       return {
         ok: false,
-        error: 'Invalid subagent input',
+        error: `Invalid subagent input — ${firstError(args)}`,
         errorCode: 'VALIDATION_ERROR',
-        details: parsed.error.issues,
       }
     }
 
+    const toolset = args.toolset ?? ['bash']
+    const maxTurns = args.maxTurns ?? 5
+
     try {
-      return await runSubagent({
-        goal: parsed.data.goal,
-        toolset: parsed.data.toolset,
-        maxTurns: parsed.data.maxTurns,
-        ctx,
-      })
+      return await runSubagent({ goal: args.goal, toolset, maxTurns, ctx })
     } catch (err) {
       return {
         ok: false,

@@ -67,7 +67,7 @@ function makeCtx(llmOverride?: typeof mockLlmCall): MutatorContext {
     ports: {} as MutatorContext['ports'],
     db: {} as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
-    realtime: { notify: () => {} },
+    realtime: { notify: () => {}, subscribe: () => () => {} },
     llmCall: (llmOverride ?? mockLlmCall) as MutatorContext['llmCall'],
     persistEvent: async (event: AgentEvent) => {
       persistedEvents.push(event)

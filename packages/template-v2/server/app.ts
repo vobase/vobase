@@ -11,7 +11,7 @@ import { buildDevPorts } from './dev/dev-ports'
 import { createLiveAgentHandler } from './dev/live-agent'
 import { createStubAgentHandler } from './dev/stub-agent'
 import { createRequireSession, createWidgetCors } from './middlewares'
-import sseRoute from './routes/sse'
+import { createSseRoute } from './routes/sse'
 import { bootModules } from './runtime/boot-modules'
 
 export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
@@ -28,7 +28,7 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   // Dev ports + in-process job queue drive the channel modules' wake
   // dispatch. Production replaces these with the pg-boss-backed harness.
   const jobHandlers = new Map<string, (data: unknown) => Promise<void>>()
-  const devPorts = buildDevPorts(db, sql, jobHandlers)
+  const devPorts = await buildDevPorts(db, sql, config.database, jobHandlers)
   // CaptionPort has no dev implementation — Gemini-backed only. Throw-proxy
   // keeps the PluginContext shape satisfied; modules that reach for caption
   // at boot fail loudly.
@@ -72,15 +72,13 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
 
   await wireAuthIntoModules(auth)
 
-  app.route('/api/sse', sseRoute)
+  app.route('/api/sse', createSseRoute(ports.realtime))
 
   // Dev wake dispatch: stub replies when no LLM key, real wake otherwise.
   // The pi-agent-core harness reads OPENAI_API_KEY (or BIFROST_*) directly —
   // we just gate the live handler on key presence here.
   if (process.env.NODE_ENV !== 'production') {
-    const hasLlmKey = Boolean(
-      process.env.OPENAI_API_KEY || (process.env.BIFROST_API_KEY && process.env.BIFROST_URL),
-    )
+    const hasLlmKey = Boolean(process.env.OPENAI_API_KEY || (process.env.BIFROST_API_KEY && process.env.BIFROST_URL))
     if (hasLlmKey) {
       console.log('[server] LLM key present — routing /test-web through real wake engine')
       jobHandlers.set(

@@ -349,7 +349,7 @@ export function createLearningNotifier(db: unknown): NotifyFn {
       ...parsed,
     })
     const { sql } = await import('drizzle-orm')
-    await handle.execute(sql`SELECT pg_notify('vobase_sse', ${ssePayload})` as never)
+    await handle.execute(sql`SELECT pg_notify('vobase_events', ${ssePayload})` as never)
   }
 }
 

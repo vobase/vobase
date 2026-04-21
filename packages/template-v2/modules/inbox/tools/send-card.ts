@@ -1,86 +1,83 @@
+import { Type } from '@mariozechner/pi-ai'
 import { appendCardMessage } from '@modules/inbox/service/messages'
 import type { AgentTool, ToolContext } from '@server/contracts/tool'
 import type { ToolResult } from '@server/contracts/tool-result'
-import { z } from 'zod'
+import type { Static } from '@sinclair/typebox'
+import { Value } from '@sinclair/typebox/value'
 
-// Zod mirror of CardElementSchema (TypeBox shape adopted 1:1)
-const ButtonStyleSchema = z.enum(['primary', 'danger', 'default'])
-const TextStyleSchema = z.enum(['plain', 'bold', 'muted'])
+const ButtonStyle = Type.Union([Type.Literal('primary'), Type.Literal('danger'), Type.Literal('default')])
+const TextStyle = Type.Union([Type.Literal('plain'), Type.Literal('bold'), Type.Literal('muted')])
+const ActionType = Type.Union([Type.Literal('action'), Type.Literal('modal')])
 
-const ButtonElementSchema = z.object({
-  type: z.literal('button'),
-  id: z.string().min(1),
-  label: z.string().min(1),
-  style: ButtonStyleSchema.optional(),
-  value: z.string().optional(),
-  disabled: z.boolean().optional(),
-  actionType: z.enum(['action', 'modal']).optional(),
+const ButtonElement = Type.Object({
+  type: Type.Literal('button'),
+  id: Type.String({ minLength: 1 }),
+  label: Type.String({ minLength: 1 }),
+  style: Type.Optional(ButtonStyle),
+  value: Type.Optional(Type.String()),
+  disabled: Type.Optional(Type.Boolean()),
+  actionType: Type.Optional(ActionType),
 })
 
-const LinkButtonElementSchema = z.object({
-  type: z.literal('link-button'),
-  url: z.string().url(),
-  label: z.string().min(1),
-  style: ButtonStyleSchema.optional(),
+const LinkButtonElement = Type.Object({
+  type: Type.Literal('link-button'),
+  url: Type.String({ format: 'uri' }),
+  label: Type.String({ minLength: 1 }),
+  style: Type.Optional(ButtonStyle),
 })
 
-const TextElementSchema = z.object({
-  type: z.literal('text'),
-  content: z.string(),
-  style: TextStyleSchema.optional(),
+const TextElement = Type.Object({
+  type: Type.Literal('text'),
+  content: Type.String(),
+  style: Type.Optional(TextStyle),
 })
 
-const ImageElementSchema = z.object({
-  type: z.literal('image'),
-  url: z.string().url(),
-  alt: z.string().optional(),
+const ImageElement = Type.Object({
+  type: Type.Literal('image'),
+  url: Type.String({ format: 'uri' }),
+  alt: Type.Optional(Type.String()),
 })
 
-const DividerElementSchema = z.object({ type: z.literal('divider') })
+const DividerElement = Type.Object({ type: Type.Literal('divider') })
 
-const FieldElementSchema = z.object({
-  type: z.literal('field'),
-  label: z.string(),
-  value: z.string(),
+const FieldElement = Type.Object({
+  type: Type.Literal('field'),
+  label: Type.String(),
+  value: Type.String(),
 })
 
-const FieldsElementSchema = z.object({
-  type: z.literal('fields'),
-  children: z.array(FieldElementSchema).min(1).max(10),
+const FieldsElement = Type.Object({
+  type: Type.Literal('fields'),
+  children: Type.Array(FieldElement, { minItems: 1, maxItems: 10 }),
 })
 
-const LinkElementSchema = z.object({
-  type: z.literal('link'),
-  url: z.string().url(),
-  label: z.string(),
+const LinkElement = Type.Object({
+  type: Type.Literal('link'),
+  url: Type.String({ format: 'uri' }),
+  label: Type.String(),
 })
 
-const ActionsElementSchema = z.object({
-  type: z.literal('actions'),
-  children: z
-    .array(z.union([ButtonElementSchema, LinkButtonElementSchema]))
-    .min(1)
-    .max(10),
+const ActionsElement = Type.Object({
+  type: Type.Literal('actions'),
+  children: Type.Array(Type.Union([ButtonElement, LinkButtonElement]), { minItems: 1, maxItems: 10 }),
 })
 
-const CardChildSchema = z.discriminatedUnion('type', [
-  TextElementSchema,
-  ImageElementSchema,
-  DividerElementSchema,
-  ActionsElementSchema,
-  FieldsElementSchema,
-  LinkElementSchema,
-])
+const CardChild = Type.Union([TextElement, ImageElement, DividerElement, ActionsElement, FieldsElement, LinkElement])
 
-export const CardElementSchema = z.object({
-  type: z.literal('card'),
-  title: z.string().optional(),
-  subtitle: z.string().optional(),
-  imageUrl: z.string().url().optional(),
-  children: z.array(CardChildSchema).min(1).max(20),
+export const CardElementSchema = Type.Object({
+  type: Type.Literal('card'),
+  title: Type.Optional(Type.String()),
+  subtitle: Type.Optional(Type.String()),
+  imageUrl: Type.Optional(Type.String({ format: 'uri' })),
+  children: Type.Array(CardChild, { minItems: 1, maxItems: 20 }),
 })
 
-export type CardElement = z.infer<typeof CardElementSchema>
+export type CardElement = Static<typeof CardElementSchema>
+
+function firstError(value: unknown): string {
+  const first = Value.Errors(CardElementSchema, value).First()
+  return first ? `${first.path || 'root'}: ${first.message}` : 'invalid input'
+}
 
 export const sendCardTool: AgentTool<CardElement, { messageId: string }> = {
   name: 'send_card',
@@ -91,9 +88,12 @@ export const sendCardTool: AgentTool<CardElement, { messageId: string }> = {
   requiresApproval: true,
 
   async execute(args, ctx: ToolContext): Promise<ToolResult<{ messageId: string }>> {
-    const parsed = CardElementSchema.safeParse(args)
-    if (!parsed.success) {
-      return { ok: false, error: 'Invalid card input', errorCode: 'VALIDATION_ERROR', details: parsed.error.issues }
+    if (!Value.Check(CardElementSchema, args)) {
+      return {
+        ok: false,
+        error: `Invalid card input — ${firstError(args)}`,
+        errorCode: 'VALIDATION_ERROR',
+      }
     }
 
     const msg = await appendCardMessage({
@@ -103,7 +103,7 @@ export const sendCardTool: AgentTool<CardElement, { messageId: string }> = {
       wakeId: ctx.wakeId,
       turnIndex: ctx.turnIndex,
       toolCallId: ctx.toolCallId,
-      card: parsed.data,
+      card: args,
     })
 
     return { ok: true, content: { messageId: msg.id } }

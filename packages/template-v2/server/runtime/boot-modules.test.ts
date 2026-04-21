@@ -39,7 +39,7 @@ function fakeCtxInput() {
         throw new Error('ScopedStorage not configured in this test')
       },
     },
-    realtime: { notify: () => undefined },
+    realtime: { notify: () => undefined, subscribe: () => () => {} },
     logger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
     metrics: { increment: () => undefined, gauge: () => undefined, timing: () => undefined },
   } satisfies Parameters<typeof bootModules>[0]['ctx']

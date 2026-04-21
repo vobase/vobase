@@ -1,18 +1,25 @@
+import { Type } from '@mariozechner/pi-ai'
 import { appendMediaMessage } from '@modules/inbox/service/messages'
 import type { AgentTool, ToolContext } from '@server/contracts/tool'
 import type { ToolResult } from '@server/contracts/tool-result'
-import { z } from 'zod'
+import type { Static } from '@sinclair/typebox'
+import { Value } from '@sinclair/typebox/value'
 
-const SendFileInputSchema = z.object({
-  driveFileId: z.string().min(1),
-  caption: z.string().optional(),
+export const SendFileInputSchema = Type.Object({
+  driveFileId: Type.String({ minLength: 1 }),
+  caption: Type.Optional(Type.String()),
 })
 
-export type SendFileInput = z.infer<typeof SendFileInputSchema>
+export type SendFileInput = Static<typeof SendFileInputSchema>
 
 /** Phase 2 stub — always passes. Real hermes threat-scan patterns land in Phase 2.5+. */
 async function runThreatScan(_driveFileId: string): Promise<{ ok: boolean }> {
   return { ok: true }
+}
+
+function firstError(value: unknown): string {
+  const first = Value.Errors(SendFileInputSchema, value).First()
+  return first ? `${first.path || 'root'}: ${first.message}` : 'invalid input'
 }
 
 export const sendFileTool: AgentTool<SendFileInput, { messageId: string }> = {
@@ -23,17 +30,15 @@ export const sendFileTool: AgentTool<SendFileInput, { messageId: string }> = {
   parallelGroup: 'never',
 
   async execute(args, ctx: ToolContext): Promise<ToolResult<{ messageId: string }>> {
-    const parsed = SendFileInputSchema.safeParse(args)
-    if (!parsed.success) {
+    if (!Value.Check(SendFileInputSchema, args)) {
       return {
         ok: false,
-        error: 'Invalid send_file input',
+        error: `Invalid send_file input — ${firstError(args)}`,
         errorCode: 'VALIDATION_ERROR',
-        details: parsed.error.issues,
       }
     }
 
-    const scan = await runThreatScan(parsed.data.driveFileId)
+    const scan = await runThreatScan(args.driveFileId)
     if (!scan.ok) {
       return { ok: false, error: 'File failed threat scan', errorCode: 'THREAT_SCAN_FAILED', retryable: false }
     }
@@ -45,8 +50,8 @@ export const sendFileTool: AgentTool<SendFileInput, { messageId: string }> = {
       wakeId: ctx.wakeId,
       turnIndex: ctx.turnIndex,
       toolCallId: ctx.toolCallId,
-      driveFileId: parsed.data.driveFileId,
-      caption: parsed.data.caption,
+      driveFileId: args.driveFileId,
+      caption: args.caption,
     })
 
     return { ok: true, content: { messageId: msg.id } }

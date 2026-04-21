@@ -115,6 +115,10 @@ export function ChatPage() {
         const payload = JSON.parse(e.data) as { table?: string; id?: string }
         if (payload.table === 'messages' || payload.table === 'conversations') {
           void refresh(conversationId)
+          return
+        }
+        if (payload.table === 'agent-sessions' && payload.id === conversationId) {
+          void refresh(conversationId)
         }
       } catch {
         /* ignore */

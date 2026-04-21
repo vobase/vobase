@@ -1,58 +1,40 @@
 /**
- * GET /api/sse — pg LISTEN fanout over Server-Sent Events.
+ * GET /api/sse — fanout from the singleton RealtimeService to each connected
+ * browser via Server-Sent Events.
  *
- * Connects a dedicated postgres client per SSE session, LISTENs on
- * `vobase_sse`, and forwards each NOTIFY payload as an `invalidate` event so
- * `use-realtime-invalidation.ts` can call `queryClient.invalidateQueries`.
- *
- * The connection is cleaned up when the client disconnects (AbortSignal abort).
+ * Mirrors `@vobase/core`'s app.ts SSE route (v1 pattern):
+ *   - No per-session pg connection. The one LISTEN lives inside the
+ *     RealtimeService; this route just calls `realtime.subscribe(fn)`.
+ *   - `stream.writeSSE` is fire-and-forget inside the subscriber. Awaiting it
+ *     inside a notify callback serializes writes and errors the stream on the
+ *     second burst (the bug v2 had before this rewrite).
+ *   - Keep-alive uses `stream.sleep(25_000)` rather than `setInterval` so the
+ *     loop tears down cleanly when the client aborts.
  */
+import type { RealtimeService } from '@server/contracts/plugin-context'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import postgres from 'postgres'
-import config from '../../vobase.config'
 
-const app = new Hono()
+export function createSseRoute(realtime: RealtimeService): Hono {
+  const app = new Hono()
 
-app.get('/', async (c) => {
-  return streamSSE(c, async (stream) => {
-    const sql = postgres(config.database, { max: 1 })
-
-    const { unlisten } = await sql.listen('vobase_sse', async (payload) => {
-      try {
-        await stream.writeSSE({ data: payload, event: 'invalidate' })
-      } catch {
-        // client disconnected — cleanup handled in finally
-      }
-    })
-
-    // Send initial ping so the client knows it's connected
-    await stream.writeSSE({ data: '{}', event: 'connected' })
-
-    await new Promise<void>((resolve) => {
-      if (c.req.raw.signal.aborted) {
-        resolve()
-        return
-      }
-      c.req.raw.signal.addEventListener('abort', () => resolve(), { once: true })
-      // keepalive ping every 20s
-      const timer = setInterval(async () => {
-        try {
-          await stream.writeSSE({ data: '', event: 'ping' })
-        } catch {
-          clearInterval(timer)
-          resolve()
-        }
-      }, 20_000)
-      stream.onAbort(() => {
-        clearInterval(timer)
-        resolve()
+  app.get('/', async (c) => {
+    return streamSSE(c, async (stream) => {
+      const unsub = realtime.subscribe((payload) => {
+        stream.writeSSE({ data: payload, event: 'invalidate' })
       })
+      stream.onAbort(unsub)
+
+      // Immediate ping flushes response headers through proxies so the browser's
+      // EventSource transitions CONNECTING → OPEN without waiting for a notify.
+      await stream.writeSSE({ data: '{}', event: 'connected' })
+
+      while (true) {
+        await stream.sleep(25_000)
+        await stream.writeSSE({ data: '', event: 'ping' })
+      }
     })
-
-    await unlisten()
-    await sql.end({ timeout: 2 })
   })
-})
 
-export default app
+  return app
+}

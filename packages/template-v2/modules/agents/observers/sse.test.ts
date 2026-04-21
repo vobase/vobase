@@ -16,7 +16,7 @@ function makeCtx(notifyFn: (p: { table: string; id?: string; action?: string }) 
     ports: {} as ObserverContext['ports'],
     db: {} as unknown as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
-    realtime: { notify: notifyFn },
+    realtime: { notify: notifyFn, subscribe: () => () => {} },
   }
 }
 

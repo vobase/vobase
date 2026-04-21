@@ -33,7 +33,6 @@ import {
 } from '@mariozechner/pi-agent-core'
 import type { AssistantMessage } from '@mariozechner/pi-ai'
 import { Type } from '@mariozechner/pi-ai'
-import { z } from 'zod'
 import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
 import { createMessageHistoryObserver } from '@modules/agents/observers/message-history-observer'
@@ -279,24 +278,13 @@ interface TrackerRef {
  * shape — the adapter closes over the per-wake scope the contract expects.
  */
 function adaptToolForPi(tool: AgentTool, ref: TrackerRef): PiAgentTool {
-  // Vobase tools author schemas with zod; pi/OpenAI consume JSON Schema.
-  // `z.toJSONSchema(zod)` produces a conformant JSON Schema we can hand to
-  // pi-ai as the `parameters` field. For tools that already expose a plain
-  // JSON Schema (`type` field present), pass through untouched.
+  // Tools author their schemas in TypeBox (or as plain JSON Schema for bash).
+  // Either form is AJV-compatible and can be handed to pi-ai verbatim.
   const raw = tool.inputSchema as unknown
-  let parameters: ReturnType<typeof Type.Object>
-  if (raw && typeof raw === 'object' && '_zod' in (raw as Record<string, unknown>)) {
-    parameters = z.toJSONSchema(raw as z.ZodType) as unknown as ReturnType<typeof Type.Object>
-  } else if (
-    raw &&
-    typeof raw === 'object' &&
-    'type' in (raw as Record<string, unknown>) &&
-    'properties' in (raw as Record<string, unknown>)
-  ) {
-    parameters = raw as ReturnType<typeof Type.Object>
-  } else {
-    parameters = Type.Object({}) as ReturnType<typeof Type.Object>
-  }
+  const parameters =
+    raw && typeof raw === 'object' && 'type' in (raw as Record<string, unknown>)
+      ? (raw as ReturnType<typeof Type.Object>)
+      : (Type.Object({}) as ReturnType<typeof Type.Object>)
 
   const piTool: PiAgentTool = {
     name: tool.name,
@@ -363,7 +351,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     },
     db: unwiredPort('db'),
     logger,
-    realtime: { notify: () => undefined },
+    realtime: { notify: () => undefined, subscribe: () => () => {} },
   }
   const observers = new ObserverBus({ logger, observerCtx })
   for (const obs of opts.registrations.observers) observers.register(obs)
@@ -693,7 +681,19 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       case 'tool_execution_end': {
         tracker.onToolEnd()
         const pr = piEv.result as AgentToolResult<unknown> | undefined
-        const ourResult = pr?.details ?? pr
+        // On validation/prepare failures pi synthesizes `{ content: [{text: <msg>}], details: {} }`
+        // with isError=true. Pulling only `details` there yields `{}` and drops the error text.
+        // Prefer `details` when the tool executed successfully; fall back to the text content
+        // when pi is signalling a failure, so the message reaches the logs and the LLM.
+        const detailsValue = pr?.details
+        const detailsPresent =
+          detailsValue !== undefined &&
+          !(typeof detailsValue === 'object' && detailsValue !== null && Object.keys(detailsValue).length === 0)
+        let ourResult: unknown = detailsPresent ? detailsValue : pr
+        if (piEv.isError) {
+          const text = pr?.content?.find((c): c is { type: 'text'; text: string } => c.type === 'text')?.text
+          if (text) ourResult = { ok: false, error: text }
+        }
         const ev: ToolExecutionEndEvent = {
           ...baseFields(curScope),
           type: 'tool_execution_end',

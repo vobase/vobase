@@ -64,7 +64,7 @@ function makeCtx(): ObserverContext {
     ports: {} as ObserverContext['ports'],
     db: makeMockDb() as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
-    realtime: { notify: () => {} },
+    realtime: { notify: () => {}, subscribe: () => () => {} },
   }
 }
 

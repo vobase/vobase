@@ -18,7 +18,7 @@ function makeCtx(wakeId = 'wake-test-1'): ObserverContext {
     ports: {} as ObserverContext['ports'],
     db: {} as unknown as ScopedDb,
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
-    realtime: { notify: () => {} },
+    realtime: { notify: () => {}, subscribe: () => () => {} },
   }
 }
 

@@ -329,14 +329,27 @@ function buildDrivePort(db: DrizzleHandle): DrivePort {
   } as DrivePort
 }
 
-/** pg NOTIFY realtime — fires `vobase_sse` events consumed by the SSE route. */
-function buildRealtime(sql: Sql): RealtimeService {
+/**
+ * Realtime service — thin wrapper around `@vobase/core`'s `createRealtimeService`.
+ *
+ * Core owns a singleton LISTEN connection + in-memory subscriber fanout (the
+ * same pattern v1 uses). We adapt its signature to v2's `RealtimeService`
+ * contract (sync-void `notify`) so existing call sites stay unchanged.
+ *
+ * Channel is `vobase_events` (core's default); SSE route subscribes via
+ * `realtime.subscribe(fn)` rather than opening its own pg LISTEN.
+ */
+async function buildRealtime(databaseConfig: string, db: ScopedDb): Promise<RealtimeService> {
+  const { createRealtimeService } = await import('@vobase/core')
+  const core = await createRealtimeService(databaseConfig, db as unknown as Parameters<typeof createRealtimeService>[1])
   return {
-    notify(payload: { table: string; id?: string; action?: string }) {
-      const json = JSON.stringify(payload)
-      void sql`SELECT pg_notify('vobase_sse', ${json})`.catch((err) => {
-        console.error('[realtime.notify] failed:', err)
-      })
+    notify(payload, tx) {
+      void core
+        .notify(payload, tx as unknown as Parameters<typeof core.notify>[1])
+        .catch((err) => console.error('[realtime.notify] failed:', err))
+    },
+    subscribe(fn) {
+      return core.subscribe(fn)
     },
   }
 }
@@ -366,20 +379,22 @@ function buildJobQueue(handlers: Map<string, (data: unknown) => Promise<void>>) 
   }
 }
 
-export function buildDevPorts(
+export async function buildDevPorts(
   db: ScopedDb,
   sql: Sql,
+  databaseConfig: string,
   jobHandlers: Map<string, (data: unknown) => Promise<void>>,
-): DevPorts {
+): Promise<DevPorts> {
   const drizzleDb = db as unknown as DrizzleHandle
   // Agents journal needs its db set or `appendTextMessage` will throw on the journal write.
   setJournalDb(db)
+  void sql // reserved for future direct-sql ports; kept in signature for call-site stability
   return {
     inbox: buildInboxPort(drizzleDb),
     contacts: buildContactsService(drizzleDb),
     agents: buildAgentsPort(drizzleDb),
     drive: buildDrivePort(drizzleDb),
-    realtime: buildRealtime(sql),
+    realtime: await buildRealtime(databaseConfig, db),
     jobs: buildJobQueue(jobHandlers),
   }
 }

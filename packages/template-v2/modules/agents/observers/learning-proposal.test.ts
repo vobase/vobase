@@ -125,7 +125,7 @@ function makePortsAndDb(cap: PortCapture): Pick<ObserverContext, 'ports' | 'db' 
     },
   } as unknown as ObserverContext['ports']
 
-  const realtime: ObserverContext['realtime'] = { notify: () => {} }
+  const realtime: ObserverContext['realtime'] = { notify: () => {}, subscribe: () => () => {} }
   const logger: ObserverContext['logger'] = {
     debug: () => {},
     info: () => {},

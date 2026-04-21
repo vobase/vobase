@@ -1,14 +1,21 @@
+import { Type } from '@mariozechner/pi-ai'
 import { appendTextMessage } from '@modules/inbox/service/messages'
 import type { AgentTool, ToolContext } from '@server/contracts/tool'
 import type { ToolResult } from '@server/contracts/tool-result'
-import { z } from 'zod'
+import type { Static } from '@sinclair/typebox'
+import { Value } from '@sinclair/typebox/value'
 
-const ReplyInputSchema = z.object({
-  text: z.string().min(1, 'text must not be empty'),
-  replyToMessageId: z.string().optional(),
+export const ReplyInputSchema = Type.Object({
+  text: Type.String({ minLength: 1, description: 'The reply text to send to the customer.' }),
+  replyToMessageId: Type.Optional(Type.String()),
 })
 
-export type ReplyInput = z.infer<typeof ReplyInputSchema>
+export type ReplyInput = Static<typeof ReplyInputSchema>
+
+function firstError(schema: typeof ReplyInputSchema, value: unknown): string {
+  const first = Value.Errors(schema, value).First()
+  return first ? `${first.path || 'root'}: ${first.message}` : 'invalid input'
+}
 
 export const replyTool: AgentTool<ReplyInput, { messageId: string }> = {
   name: 'reply',
@@ -17,9 +24,12 @@ export const replyTool: AgentTool<ReplyInput, { messageId: string }> = {
   parallelGroup: 'never',
 
   async execute(args, ctx: ToolContext): Promise<ToolResult<{ messageId: string }>> {
-    const parsed = ReplyInputSchema.safeParse(args)
-    if (!parsed.success) {
-      return { ok: false, error: 'Invalid reply input', errorCode: 'VALIDATION_ERROR', details: parsed.error.issues }
+    if (!Value.Check(ReplyInputSchema, args)) {
+      return {
+        ok: false,
+        error: `Invalid reply input — ${firstError(ReplyInputSchema, args)}`,
+        errorCode: 'VALIDATION_ERROR',
+      }
     }
 
     const msg = await appendTextMessage({
@@ -29,8 +39,8 @@ export const replyTool: AgentTool<ReplyInput, { messageId: string }> = {
       wakeId: ctx.wakeId,
       turnIndex: ctx.turnIndex,
       toolCallId: ctx.toolCallId,
-      text: parsed.data.text,
-      replyToMessageId: parsed.data.replyToMessageId,
+      text: args.text,
+      replyToMessageId: args.replyToMessageId,
     })
 
     return { ok: true, content: { messageId: msg.id } }

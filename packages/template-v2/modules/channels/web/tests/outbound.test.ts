@@ -79,6 +79,7 @@ function makeRealtime(): RealtimeService {
     notify: (payload) => {
       calls.push({ method: 'notify', data: payload })
     },
+    subscribe: () => () => {},
   }
 }
 

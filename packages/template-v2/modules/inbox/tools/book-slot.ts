@@ -1,14 +1,21 @@
+import { Type } from '@mariozechner/pi-ai'
 import type { AgentTool, ToolContext } from '@server/contracts/tool'
 import type { ToolResult } from '@server/contracts/tool-result'
-import { z } from 'zod'
+import type { Static } from '@sinclair/typebox'
+import { Value } from '@sinclair/typebox/value'
 
-const BookSlotInputSchema = z.object({
-  slotId: z.string().min(1),
-  contactId: z.string().min(1),
-  notes: z.string().optional(),
+export const BookSlotInputSchema = Type.Object({
+  slotId: Type.String({ minLength: 1 }),
+  contactId: Type.String({ minLength: 1 }),
+  notes: Type.Optional(Type.String()),
 })
 
-export type BookSlotInput = z.infer<typeof BookSlotInputSchema>
+export type BookSlotInput = Static<typeof BookSlotInputSchema>
+
+function firstError(value: unknown): string {
+  const first = Value.Errors(BookSlotInputSchema, value).First()
+  return first ? `${first.path || 'root'}: ${first.message}` : 'invalid input'
+}
 
 export const bookSlotTool: AgentTool<BookSlotInput, { slotId: string; confirmed: boolean }> = {
   name: 'book_slot',
@@ -18,17 +25,15 @@ export const bookSlotTool: AgentTool<BookSlotInput, { slotId: string; confirmed:
   parallelGroup: 'never',
 
   async execute(args, _ctx: ToolContext): Promise<ToolResult<{ slotId: string; confirmed: boolean }>> {
-    const parsed = BookSlotInputSchema.safeParse(args)
-    if (!parsed.success) {
+    if (!Value.Check(BookSlotInputSchema, args)) {
       return {
         ok: false,
-        error: 'Invalid book_slot input',
+        error: `Invalid book_slot input — ${firstError(args)}`,
         errorCode: 'VALIDATION_ERROR',
-        details: parsed.error.issues,
       }
     }
 
     // Phase 2 stub — calendar integration deferred to Phase 3
-    return { ok: true, content: { slotId: parsed.data.slotId, confirmed: true } }
+    return { ok: true, content: { slotId: args.slotId, confirmed: true } }
   },
 }

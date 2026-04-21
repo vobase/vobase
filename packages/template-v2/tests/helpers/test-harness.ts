@@ -278,6 +278,7 @@ export function wireObserverContextFor(
         notify: (payload: { table: string; id?: string; action?: string }) => {
           notifySpy.calls.push(payload)
         },
+        subscribe: () => () => {},
       },
     }
     return originalSseBound(event, patchedCtx)
