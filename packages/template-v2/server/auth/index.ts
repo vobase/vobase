@@ -17,6 +17,7 @@ import { organization } from 'better-auth/plugins/organization'
 import { productName } from '../branding'
 import { renderOtpEmail } from '../emails'
 import { sendEmail } from '../emails/sender'
+import { ac, roles } from './ac'
 import { devAuth } from './dev-plugin'
 import { platformAuth } from './platform-plugin'
 
@@ -70,9 +71,12 @@ export function createAuth(db: ScopedDb) {
     }),
     organization({
       allowUserToCreateOrganization: multiOrg,
-      // Teams deferred — better-auth migration-order bug (github.com/better-auth/better-auth#6832)
-      // plus we don't have a UI for them yet. Flip when both are addressed.
-      teams: { enabled: false },
+      ac,
+      roles,
+      teams: {
+        enabled: true,
+        allowRemovingAllTeams: false,
+      },
     }),
   ]
 

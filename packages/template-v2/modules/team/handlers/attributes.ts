@@ -9,12 +9,7 @@
  *   PATCH  /staff/:userId/attributes              merge staff attribute values
  */
 
-import {
-  createDef,
-  listDefs,
-  removeDef,
-  updateDef,
-} from '@modules/team/service/attribute-definitions'
+import { createDef, listDefs, removeDef, updateDef } from '@modules/team/service/attribute-definitions'
 import { setAttributes as setStaffAttributeValues } from '@modules/team/service/staff'
 import { Hono } from 'hono'
 import { z } from 'zod'

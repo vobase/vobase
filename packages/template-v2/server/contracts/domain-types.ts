@@ -4,22 +4,6 @@
  * TODO: delete once all importers point to @modules/<name>/schema.
  */
 
-// contacts
-export type { Contact, StaffBinding } from '@modules/contacts/schema'
-
-// inbox
-export type {
-  ApprovalStatus,
-  Conversation,
-  ConversationStatus,
-  InternalNote,
-  InternalNoteAuthorType,
-  Message,
-  MessageKind,
-  MessageRole,
-  PendingApproval,
-} from '@modules/inbox/schema'
-
 // agents
 export type {
   AgentDefinition,
@@ -32,6 +16,19 @@ export type {
   LearningStatus,
   ModerationCategory,
 } from '@modules/agents/schema'
-
+// contacts
+export type { Contact, StaffBinding } from '@modules/contacts/schema'
 // drive
 export type { DriveFile, DriveKind, DriveProcessingStatus, DriveScopeName, DriveSource } from '@modules/drive/schema'
+// inbox
+export type {
+  ApprovalStatus,
+  Conversation,
+  ConversationStatus,
+  InternalNote,
+  InternalNoteAuthorType,
+  Message,
+  MessageKind,
+  MessageRole,
+  PendingApproval,
+} from '@modules/inbox/schema'
