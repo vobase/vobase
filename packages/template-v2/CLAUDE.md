@@ -19,6 +19,7 @@ Greenfield rebuild of the template package.
 - Virtual FS: `import { Bash, InMemoryFs } from 'just-bash'`
 - Frontend data: TanStack Query hooks in `@modules/<m>/api/*`, never raw `fetch` in components. Realtime: service fires `pg_notify` after commit; `src/hooks/use-realtime-invalidation.ts` dispatches to query keys.
 - Dates/times in UI: `<RelativeTimeCard date={...} />` only — `check:no-raw-date` fails on raw `toLocaleString` / `new Date().toString()` in `.tsx`.
+- Agent/staff identity in UI: never render a raw agent id or user id. Resolve through `usePrincipalDirectory()` (see `modules/inbox/components/principal.tsx`) and render display name via `PrincipalAvatar` + name (purple robot for agents, blue person for staff; acts as the avatar fallback when no image is set). Applies to assignee pickers, note authors, activity events, mention chips — anywhere a principal surfaces.
 
 ## Testing
 

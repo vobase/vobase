@@ -1,5 +1,5 @@
 /**
- * agents module seed — inserts the meridian-support-v1 agent_definitions row.
+ * agents module seed — inserts the Meridian agent_definitions row.
  */
 
 import { MERIDIAN_ORG_ID } from '@modules/drive/seed'
@@ -60,7 +60,7 @@ export async function seed(db: unknown): Promise<void> {
     .values({
       id: MERIDIAN_AGENT_ID,
       organizationId: MERIDIAN_ORG_ID,
-      name: 'meridian-support-v1',
+      name: 'Meridian',
       soulMd: SOUL_MD,
       model: 'gpt-5.4',
       maxSteps: 20,
