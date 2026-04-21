@@ -14,9 +14,7 @@ const noteBodySchema = z.object({
   parentNoteId: z.string().optional(),
 })
 
-const app = new Hono()
-
-app.post('/:id/notes', async (c) => {
+const app = new Hono().post('/:id/notes', async (c) => {
   const id = c.req.param('id')
   const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const raw = await c.req.json().catch(() => null)

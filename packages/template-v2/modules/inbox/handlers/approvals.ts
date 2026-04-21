@@ -15,9 +15,7 @@ const decideBodySchema = z.object({
   note: z.string().optional(),
 })
 
-const app = new Hono()
-
-app.post('/:id', async (c) => {
+const app = new Hono().post('/:id', async (c) => {
   const id = c.req.param('id')
   const raw = await c.req.json().catch(() => null)
   const parsed = decideBodySchema.safeParse(raw)

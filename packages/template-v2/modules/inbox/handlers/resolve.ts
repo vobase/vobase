@@ -20,8 +20,6 @@ const simpleBodySchema = z.object({
   by: z.string().min(1),
 })
 
-const app = new Hono()
-
 async function guardTenant(c: import('hono').Context, id: string, organizationId: string) {
   const conv = await getConversation(id)
   if (!conv) return { err: c.json({ error: 'not_found' }, 404) }
@@ -29,58 +27,57 @@ async function guardTenant(c: import('hono').Context, id: string, organizationId
   return { conv }
 }
 
-app.post('/:id/resolve', async (c) => {
-  const id = c.req.param('id')
-  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-  const raw = await c.req.json().catch(() => ({}))
-  const parsed = resolveBodySchema.safeParse(raw)
-  if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-  const guard = await guardTenant(c, id, organizationId)
-  if (guard.err) return guard.err
-  try {
-    const conversation = await resolve(id, parsed.data.by, parsed.data.reason)
-    await notifyConversation(id).catch(() => undefined)
-    return c.json({ conversation })
-  } catch (err) {
-    if (err instanceof InvalidTransitionError) return c.json({ error: err.message, code: 'invalid_transition' }, 409)
-    throw err
-  }
-})
-
-app.post('/:id/reopen', async (c) => {
-  const id = c.req.param('id')
-  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-  const raw = await c.req.json().catch(() => ({}))
-  const parsed = simpleBodySchema.safeParse(raw)
-  if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-  const guard = await guardTenant(c, id, organizationId)
-  if (guard.err) return guard.err
-  try {
-    const conversation = await reopen(id, parsed.data.by, 'staff_reopen')
-    await notifyConversation(id).catch(() => undefined)
-    return c.json({ conversation })
-  } catch (err) {
-    if (err instanceof InvalidTransitionError) return c.json({ error: err.message, code: 'invalid_transition' }, 409)
-    throw err
-  }
-})
-
-app.post('/:id/reset', async (c) => {
-  const id = c.req.param('id')
-  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-  const raw = await c.req.json().catch(() => ({}))
-  const parsed = simpleBodySchema.safeParse(raw)
-  if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-  const guard = await guardTenant(c, id, organizationId)
-  if (guard.err) return guard.err
-  try {
-    const conversation = await reset(id, parsed.data.by)
-    await notifyConversation(id).catch(() => undefined)
-    return c.json({ conversation })
-  } catch (err) {
-    if (err instanceof InvalidTransitionError) return c.json({ error: err.message, code: 'invalid_transition' }, 409)
-    throw err
-  }
-})
+const app = new Hono()
+  .post('/:id/resolve', async (c) => {
+    const id = c.req.param('id')
+    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const raw = await c.req.json().catch(() => ({}))
+    const parsed = resolveBodySchema.safeParse(raw)
+    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
+    const guard = await guardTenant(c, id, organizationId)
+    if (guard.err) return guard.err
+    try {
+      const conversation = await resolve(id, parsed.data.by, parsed.data.reason)
+      await notifyConversation(id).catch(() => undefined)
+      return c.json({ conversation })
+    } catch (err) {
+      if (err instanceof InvalidTransitionError) return c.json({ error: err.message, code: 'invalid_transition' }, 409)
+      throw err
+    }
+  })
+  .post('/:id/reopen', async (c) => {
+    const id = c.req.param('id')
+    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const raw = await c.req.json().catch(() => ({}))
+    const parsed = simpleBodySchema.safeParse(raw)
+    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
+    const guard = await guardTenant(c, id, organizationId)
+    if (guard.err) return guard.err
+    try {
+      const conversation = await reopen(id, parsed.data.by, 'staff_reopen')
+      await notifyConversation(id).catch(() => undefined)
+      return c.json({ conversation })
+    } catch (err) {
+      if (err instanceof InvalidTransitionError) return c.json({ error: err.message, code: 'invalid_transition' }, 409)
+      throw err
+    }
+  })
+  .post('/:id/reset', async (c) => {
+    const id = c.req.param('id')
+    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const raw = await c.req.json().catch(() => ({}))
+    const parsed = simpleBodySchema.safeParse(raw)
+    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
+    const guard = await guardTenant(c, id, organizationId)
+    if (guard.err) return guard.err
+    try {
+      const conversation = await reset(id, parsed.data.by)
+      await notifyConversation(id).catch(() => undefined)
+      return c.json({ conversation })
+    } catch (err) {
+      if (err instanceof InvalidTransitionError) return c.json({ error: err.message, code: 'invalid_transition' }, 409)
+      throw err
+    }
+  })
 
 export default app

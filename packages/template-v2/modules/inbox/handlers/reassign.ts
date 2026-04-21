@@ -12,9 +12,7 @@ const reassignBodySchema = z.object({
   note: z.string().optional(),
 })
 
-const app = new Hono()
-
-app.post('/:id/reassign', async (c) => {
+const app = new Hono().post('/:id/reassign', async (c) => {
   const id = c.req.param('id')
   const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const raw = await c.req.json().catch(() => null)

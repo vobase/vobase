@@ -11,9 +11,7 @@ const replyBodySchema = z.object({
   staffUserId: z.string().min(1).optional(),
 })
 
-const app = new Hono()
-
-app.post('/:id/reply', async (c) => {
+const app = new Hono().post('/:id/reply', async (c) => {
   const id = c.req.param('id')
   const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
   const raw = await c.req.json().catch(() => null)
