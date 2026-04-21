@@ -2,12 +2,6 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-const app = new Hono()
-
-app.get('/health', (c) => c.json({ module: 'settings', status: 'ok' }))
-
-// ── Schemas ───────────────────────────────────────────────────────────────────
-
 const profileSchema = z.object({
   displayName: z.string().optional(),
   email: z.string().email().optional(),
@@ -38,8 +32,6 @@ const apiKeysSchema = z.object({
   scope: z.string().optional(),
 })
 
-// ── Handler factory ───────────────────────────────────────────────────────────
-
 async function stubPost(c: Context, schema: z.ZodTypeAny) {
   const raw = await c.req.json().catch(() => null)
   const parsed = schema.safeParse(raw)
@@ -49,13 +41,13 @@ async function stubPost(c: Context, schema: z.ZodTypeAny) {
   return c.json({ ok: true })
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-
-app.post('/profile', (c) => stubPost(c, profileSchema))
-app.post('/account', (c) => stubPost(c, accountSchema))
-app.post('/appearance', (c) => stubPost(c, appearanceSchema))
-app.post('/notifications', (c) => stubPost(c, notificationsSchema))
-app.post('/display', (c) => stubPost(c, displaySchema))
-app.post('/api-keys', (c) => stubPost(c, apiKeysSchema))
+const app = new Hono()
+  .get('/health', (c) => c.json({ module: 'settings', status: 'ok' }))
+  .post('/profile', (c) => stubPost(c, profileSchema))
+  .post('/account', (c) => stubPost(c, accountSchema))
+  .post('/appearance', (c) => stubPost(c, appearanceSchema))
+  .post('/notifications', (c) => stubPost(c, notificationsSchema))
+  .post('/display', (c) => stubPost(c, displaySchema))
+  .post('/api-keys', (c) => stubPost(c, apiKeysSchema))
 
 export default app
