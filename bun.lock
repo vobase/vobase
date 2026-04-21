@@ -175,6 +175,7 @@
         "@dnd-kit/utilities": "^3.2.2",
         "@hookform/resolvers": "^5.2.2",
         "@mariozechner/pi-agent-core": "^0.67.68",
+        "@mariozechner/pi-ai": "^0.67.68",
         "@radix-ui/react-use-controllable-state": "^1.2.2",
         "@react-email/components": "^1.0.12",
         "@sinclair/typebox": "^0.34.49",
