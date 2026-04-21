@@ -1,6 +1,7 @@
 /** POST /api/inbox/conversations/:id/notes */
 import { addNote } from '@modules/inbox/service/notes'
 import { getConversation, notifyConversation } from '@modules/inbox/service/staff-ops'
+import { fanOutNoteMentions } from '@modules/team/service/mention-notify'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -35,6 +36,11 @@ const app = new Hono().post('/:id/notes', async (c) => {
     parentNoteId: data.parentNoteId,
   })
   await notifyConversation(id).catch(() => undefined)
+  try {
+    void fanOutNoteMentions(note).catch(() => undefined)
+  } catch {
+    // service not installed in test contexts — best-effort
+  }
   return c.json(note)
 })
 

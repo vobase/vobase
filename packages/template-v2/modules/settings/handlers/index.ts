@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import notificationsHandlers from './notifications'
 
 const profileSchema = z.object({
   displayName: z.string().optional(),
@@ -15,11 +16,6 @@ const accountSchema = z.object({
 const appearanceSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),
   fontSize: z.enum(['sm', 'md', 'lg']).optional(),
-})
-
-const notificationsSchema = z.object({
-  emailEnabled: z.boolean().optional(),
-  pushEnabled: z.boolean().optional(),
 })
 
 const displaySchema = z.object({
@@ -43,10 +39,10 @@ async function stubPost(c: Context, schema: z.ZodTypeAny) {
 
 const app = new Hono()
   .get('/health', (c) => c.json({ module: 'settings', status: 'ok' }))
+  .route('/', notificationsHandlers)
   .post('/profile', (c) => stubPost(c, profileSchema))
   .post('/account', (c) => stubPost(c, accountSchema))
   .post('/appearance', (c) => stubPost(c, appearanceSchema))
-  .post('/notifications', (c) => stubPost(c, notificationsSchema))
   .post('/display', (c) => stubPost(c, displaySchema))
   .post('/api-keys', (c) => stubPost(c, apiKeysSchema))
 

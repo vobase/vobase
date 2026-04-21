@@ -10,6 +10,7 @@ import { z } from 'zod'
 import attributeHandlers from './attributes'
 import descriptionHandlers from './descriptions'
 import heartbeatHandlers from './heartbeat'
+import mentionHandlers from './mentions'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
@@ -43,6 +44,7 @@ const app = new Hono()
   .route('/', attributeHandlers)
   .route('/', descriptionHandlers)
   .route('/', heartbeatHandlers)
+  .route('/', mentionHandlers)
   .get('/staff', async (c) => {
     const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
     const rows = await listStaff(organizationId)

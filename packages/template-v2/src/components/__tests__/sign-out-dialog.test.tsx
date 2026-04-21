@@ -18,9 +18,10 @@ mock.module('@tanstack/react-router', () => ({
   useRouterState: () => '',
 }))
 
+const stubQueryClient = new realReactQuery.QueryClient()
 mock.module('@tanstack/react-query', () => ({
   ...realReactQuery,
-  useQueryClient: () => ({ clear: () => {} }),
+  useQueryClient: () => stubQueryClient,
 }))
 
 // AlertDialog uses Radix Portal which renders nothing in renderToStaticMarkup.

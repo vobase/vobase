@@ -1,3 +1,4 @@
+import { useUnreadMentionCount } from '@modules/team/api/use-unread-mentions'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Radio, Settings2, UserCog, Users } from 'lucide-react'
 import type * as React from 'react'
@@ -20,6 +21,7 @@ interface NavItemDef {
   shortcut: string
   to: string
   enabled: boolean
+  badgeCount?: number
 }
 
 const NAV_ITEMS: NavItemDef[] = [
@@ -33,8 +35,18 @@ const NAV_ITEMS: NavItemDef[] = [
   { icon: Settings2, label: 'Settings', shortcut: '⌘8', to: '/settings', enabled: true },
 ]
 
-function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
-  const baseClass = 'flex size-10 items-center justify-center rounded-md transition-colors'
+function RailItem({ icon: Icon, label, shortcut, to, enabled, badgeCount }: NavItemDef) {
+  const baseClass = 'relative flex size-10 items-center justify-center rounded-md transition-colors'
+  const badge =
+    badgeCount && badgeCount > 0 ? (
+      <span
+        role="status"
+        aria-label={`${badgeCount} unread`}
+        className="absolute right-1 top-1 flex min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground"
+      >
+        {badgeCount > 99 ? '99+' : badgeCount}
+      </span>
+    ) : null
   const trigger = enabled ? (
     <Link
       to={to}
@@ -43,6 +55,7 @@ function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
       activeProps={{ className: cn(baseClass, 'bg-accent text-foreground') }}
     >
       <Icon className="size-[18px]" />
+      {badge}
     </Link>
   ) : (
     <button
@@ -52,6 +65,7 @@ function RailItem({ icon: Icon, label, shortcut, to, enabled }: NavItemDef) {
       className={cn(baseClass, 'cursor-default text-muted-foreground opacity-40')}
     >
       <Icon className="size-[18px]" />
+      {badge}
     </button>
   )
 
@@ -70,6 +84,7 @@ function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate()
   useKeyboardNav({ context: 'shell', onNavigate: (path) => navigate({ to: path }) })
   useStaffHeartbeat()
+  const { data: unreadMentions } = useUnreadMentionCount()
 
   return (
     <TooltipProvider>
@@ -85,7 +100,11 @@ function AppShell({ children }: AppShellProps) {
 
           <nav aria-label="Module navigation" className="flex flex-col items-center gap-0.5">
             {NAV_ITEMS.map((item) => (
-              <RailItem key={item.to} {...item} />
+              <RailItem
+                key={item.to}
+                {...item}
+                badgeCount={item.to === '/inbox' ? (unreadMentions ?? 0) : undefined}
+              />
             ))}
           </nav>
 

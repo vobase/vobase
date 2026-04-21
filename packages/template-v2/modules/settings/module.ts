@@ -1,6 +1,7 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
 import { manifest } from './manifest'
+import { createNotificationPrefsService, installNotificationPrefsService } from './service/notification-prefs'
 
 export default defineModule({
   name: 'settings',
@@ -8,7 +9,7 @@ export default defineModule({
   requires: [],
   manifest,
   routes: { basePath: '/api/settings', handler: handlers, requireSession: true },
-  init(_ctx) {
-    // stub — no services to wire in Phase 1
+  init(ctx) {
+    installNotificationPrefsService(createNotificationPrefsService({ db: ctx.db }))
   },
 })

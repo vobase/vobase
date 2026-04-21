@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 mock.module('@modules/settings/pages/api/use-settings-save', () => ({
@@ -7,24 +8,29 @@ mock.module('@modules/settings/pages/api/use-settings-save', () => ({
 
 import NotificationsPage from '../notifications'
 
+function render(): string {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <NotificationsPage />
+    </QueryClientProvider>,
+  )
+}
+
 describe('NotificationsPage — render', () => {
   it('renders Notifications heading', () => {
-    const html = renderToStaticMarkup(<NotificationsPage />)
-    expect(html).toContain('Notifications')
+    expect(render()).toContain('Notifications')
   })
 
-  it('renders email notifications toggle', () => {
-    const html = renderToStaticMarkup(<NotificationsPage />)
-    expect(html).toContain('Email notifications')
+  it('renders mention notifications toggle', () => {
+    expect(render()).toContain('Mention notifications')
   })
 
-  it('renders push notifications toggle', () => {
-    const html = renderToStaticMarkup(<NotificationsPage />)
-    expect(html).toContain('Push notifications')
+  it('renders whatsapp toggle', () => {
+    expect(render()).toContain('WhatsApp')
   })
 
   it('renders save button', () => {
-    const html = renderToStaticMarkup(<NotificationsPage />)
-    expect(html).toContain('Save notifications')
+    expect(render()).toContain('Save notifications')
   })
 })

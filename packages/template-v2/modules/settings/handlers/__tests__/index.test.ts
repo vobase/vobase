@@ -1,8 +1,39 @@
-import { describe, expect, it } from 'bun:test'
+import {
+  __resetNotificationPrefsServiceForTests,
+  installNotificationPrefsService,
+} from '@modules/settings/service/notification-prefs'
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { Hono } from 'hono'
 import settingsRouter from '../index'
 
+beforeAll(() => {
+  installNotificationPrefsService({
+    get: async (userId) => ({
+      userId,
+      mentionsEnabled: true,
+      whatsappEnabled: false,
+      emailEnabled: false,
+      updatedAt: new Date(),
+    }),
+    upsert: async (userId, patch) => ({
+      userId,
+      mentionsEnabled: patch.mentionsEnabled ?? true,
+      whatsappEnabled: patch.whatsappEnabled ?? false,
+      emailEnabled: patch.emailEnabled ?? false,
+      updatedAt: new Date(),
+    }),
+  })
+})
+
+afterAll(() => {
+  __resetNotificationPrefsServiceForTests()
+})
+
 const app = new Hono()
+app.use('/settings/*', async (c, next) => {
+  c.set('session', { user: { id: 'test-user' } })
+  await next()
+})
 app.route('/settings', settingsRouter)
 
 const POST = (path: string, body: unknown) =>
@@ -60,10 +91,12 @@ describe('POST /settings/appearance', () => {
 // ── /notifications ────────────────────────────────────────────────────────────
 
 describe('POST /settings/notifications', () => {
-  it('happy path: valid body returns 200 + {ok:true}', async () => {
-    const res = await POST('/notifications', { emailEnabled: true, pushEnabled: false })
+  it('happy path: valid body returns 200 + prefs row', async () => {
+    const res = await POST('/notifications', { emailEnabled: true, whatsappEnabled: false })
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true })
+    const json = (await res.json()) as { userId: string; emailEnabled: boolean }
+    expect(json.userId).toBe('test-user')
+    expect(json.emailEnabled).toBe(true)
   })
 
   it('rejection: string where boolean expected returns 400', async () => {
