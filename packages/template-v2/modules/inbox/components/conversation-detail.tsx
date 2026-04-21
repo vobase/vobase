@@ -5,20 +5,13 @@ import { useReassign } from '@modules/inbox/api/use-reassign'
 import { deriveContactName } from '@modules/inbox/lib/contact'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
+import { CheckIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
 import { useQueryState } from 'nuqs'
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
-import {
-  Combobox,
-  ComboboxAnchor,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxTrigger,
-} from '@/components/ui/combobox'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import type { Conversation, Message } from '../schema'
+import { AssigneeBadge } from './assignee-badge'
 import type { ChannelTab } from './channel-tab-bar'
 import { ChannelTabBar } from './channel-tab-bar'
 import { Composer } from './composer'
@@ -54,12 +47,6 @@ async function fetchContact(id: string): Promise<Contact | null> {
   if (!r.ok) return null
   return r.json()
 }
-
-const STAFF_OPTIONS = [
-  { value: 'bot', label: 'Bot' },
-  { value: 'staff_1', label: 'Staff 1' },
-  { value: 'staff_2', label: 'Staff 2' },
-]
 
 export function ConversationDetail() {
   const params = useParams({ strict: false }) as { contactId: string }
@@ -159,7 +146,7 @@ export function ConversationDetail() {
   return (
     <div className="flex h-full flex-col">
       {/* Row 1: contact header + channel tabs */}
-      <div className="w-full border-b bg-background px-4 py-2 flex items-center gap-6">
+      <div className="w-full border-b bg-background px-4 py-1.5 flex items-center gap-6 min-h-[52px]">
         <div className="flex items-center gap-2.5 min-w-0">
           <h1 className="text-base font-semibold truncate">{title}</h1>
           {subline && <span className="text-xs text-muted-foreground shrink-0">{subline}</span>}
@@ -180,26 +167,13 @@ export function ConversationDetail() {
 
       {/* Row 2: action bar */}
       <div className="border-b bg-muted/20 px-4 py-1.5 flex items-center gap-2">
-        <div className="w-36">
-          <Combobox
-            value={activeConv?.assignee ?? ''}
-            onValueChange={(val) => {
-              if (val && activeConvId) reassign.mutate(val)
-            }}
-          >
-            <ComboboxAnchor className="h-7 border-0 bg-transparent px-1 shadow-none">
-              <ComboboxInput className="h-7 text-xs" placeholder="Assign to…" />
-              <ComboboxTrigger />
-            </ComboboxAnchor>
-            <ComboboxContent>
-              {STAFF_OPTIONS.map((opt) => (
-                <ComboboxItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </ComboboxItem>
-              ))}
-            </ComboboxContent>
-          </Combobox>
-        </div>
+        <AssigneeBadge
+          assignee={activeConv?.assignee ?? null}
+          disabled={!activeConvId || reassign.isPending}
+          onSelect={(val) => {
+            if (activeConvId) reassign.mutate(val)
+          }}
+        />
         <div className="flex-1" />
         {activeConv?.status === 'active' && activeConvId && (
           <>
@@ -240,26 +214,6 @@ export function ConversationDetail() {
             Retry
           </Button>
         )}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          disabled={!hasPrev}
-          className={!hasPrev ? 'opacity-30' : undefined}
-          onClick={() => hasPrev && navigateTo(distinctContactIds[idx - 1])}
-          aria-label="Previous conversation"
-        >
-          <ChevronLeftIcon className="size-4" />
-        </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          disabled={!hasNext}
-          className={!hasNext ? 'opacity-30' : undefined}
-          onClick={() => hasNext && navigateTo(distinctContactIds[idx + 1])}
-          aria-label="Next conversation"
-        >
-          <ChevronRightIcon className="size-4" />
-        </Button>
       </div>
 
       {activeConvId && <InlineApprovalBanner conversationId={activeConvId} />}
