@@ -11,9 +11,9 @@
 import { auditObserver } from '@modules/agents/observers/audit'
 import { sseObserver } from '@modules/agents/observers/sse'
 import { append as journalAppend, setDb as setAgentsDb } from '@modules/agents/service/journal'
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import { approvalMutator } from '@modules/inbox/mutators/approval'
 import type { AgentsPort } from '@server/contracts/agents-port'
-import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { AgentDefinition, Contact, DriveFile, StaffBinding } from '@server/contracts/domain-types'
 import type { DrivePort, DriveScope } from '@server/contracts/drive-port'
 import type { AgentEvent } from '@server/contracts/event'
@@ -46,7 +46,7 @@ export interface IntegrationBootOpts {
 /** Build once at the top of a test — provides the service ports wired against `db`. */
 export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
   agents: AgentsPort
-  contacts: ContactsPort
+  contacts: ContactsService
   drive: DrivePort
 }> {
   setAgentsDb(db.db)
@@ -76,7 +76,7 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
     },
   }
 
-  const contactsPort: ContactsPort = {
+  const contactsPort: ContactsService = {
     async get(id: string): Promise<Contact> {
       const rows = await db.db.select().from(contacts).where(eq(contacts.id, id)).limit(1)
       const r = rows[0]
@@ -127,7 +127,10 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
     async bindStaff(): Promise<StaffBinding> {
       throw new Error('not-implemented-in-phase-1')
     },
-    async delete() {
+    async list(): Promise<Contact[]> {
+      return []
+    },
+    async remove() {
       throw new Error('not-implemented-in-phase-1')
     },
   }
@@ -199,7 +202,7 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
 export async function bootWakeIntegration(
   ports: {
     agents: AgentsPort
-    contacts: ContactsPort
+    contacts: ContactsService
     drive: DrivePort
   },
   opts: IntegrationBootOpts,

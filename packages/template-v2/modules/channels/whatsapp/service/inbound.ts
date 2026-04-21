@@ -4,7 +4,7 @@
  * Owns all logic between "raw Meta payload validated" and "response sent".
  * Handler delegates here; handler only does: signature check → call processWebhookPayload → respond.
  *
- * A3 invariant: no drizzle imports here. Instance resolution goes through InboxPort/ContactsPort.
+ * A3 invariant: no drizzle imports here. Instance resolution goes through InboxPort/ContactsService.
  * One-write-path: all message writes via InboxPort.createInboundMessage.
  */
 import type { MetaWebhookPayload } from './parser'

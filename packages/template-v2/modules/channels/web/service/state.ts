@@ -1,8 +1,9 @@
 /**
  * Module-level state for channel-web. Built during init, consumed by handlers/services.
  */
+
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { Auth } from '@server/auth'
-import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { InboxPort } from '@server/contracts/inbox-port'
 import type { RealtimeService } from '@server/contracts/plugin-context'
 
@@ -13,7 +14,7 @@ export interface JobQueue {
 
 interface ChannelWebStateDeps {
   inbox?: InboxPort | null
-  contacts?: ContactsPort | null
+  contacts?: ContactsService | null
   jobs?: JobQueue | null
   realtime?: RealtimeService | null
   auth?: Auth | null
@@ -21,7 +22,7 @@ interface ChannelWebStateDeps {
 
 export interface ChannelWebState {
   inbox: InboxPort | null
-  contacts: ContactsPort | null
+  contacts: ContactsService | null
   jobs: JobQueue | null
   realtime: RealtimeService | null
   auth: Auth | null
@@ -59,7 +60,7 @@ export function requireInbox(): InboxPort {
   if (!s.inbox) throw new Error('channel-web: inboxPort not initialised')
   return s.inbox
 }
-export function requireContacts(): ContactsPort {
+export function requireContacts(): ContactsService {
   const s = current()
   if (!s.contacts) throw new Error('channel-web: contactsPort not initialised')
   return s.contacts

@@ -1,5 +1,5 @@
 /**
- * Development ports — minimal InboxPort / ContactsPort / RealtimeService / JobQueue
+ * Development ports — minimal InboxPort / ContactsService / RealtimeService / JobQueue
  * wired directly against drizzle for the dev server.
  *
  * Production will replace these with the full harness-driven wake-worker path
@@ -12,6 +12,7 @@ import { agentDefinitions } from '@modules/agents/schema'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import { append as journalAppend, setDb as setJournalDb } from '@modules/agents/service/journal'
 import { contacts, staffChannelBindings } from '@modules/contacts/schema'
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import { driveFiles } from '@modules/drive/schema'
 import { conversations } from '@modules/inbox/schema'
 import {
@@ -27,7 +28,6 @@ import {
 } from '@modules/inbox/service/messages'
 import { addNote as svcAddNote, listNotes as svcListNotes } from '@modules/inbox/service/notes'
 import type { AgentsPort } from '@server/contracts/agents-port'
-import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { AgentDefinition, Contact, Conversation, DriveFile, StaffBinding } from '@server/contracts/domain-types'
 import type { DrivePort, DriveScope } from '@server/contracts/drive-port'
 import type { AgentEvent } from '@server/contracts/event'
@@ -39,7 +39,7 @@ import type { Sql } from 'postgres'
 
 export interface DevPorts {
   inbox: InboxPort
-  contacts: ContactsPort
+  contacts: ContactsService
   agents: AgentsPort
   drive: DrivePort
   realtime: RealtimeService
@@ -171,7 +171,7 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
   }
 }
 
-function buildContactsPort(db: DrizzleHandle): ContactsPort {
+function buildContactsService(db: DrizzleHandle): ContactsService {
   const notImpl = (): never => {
     throw new Error('dev-ports: not implemented')
   }
@@ -249,8 +249,9 @@ function buildContactsPort(db: DrizzleHandle): ContactsPort {
       return (rows[0] as StaffBinding | undefined) ?? null
     },
     bindStaff: notImpl,
-    delete: notImpl,
-  } as ContactsPort
+    list: notImpl,
+    remove: notImpl,
+  } as ContactsService
 }
 
 function buildAgentsPort(db: DrizzleHandle): AgentsPort {
@@ -375,7 +376,7 @@ export function buildDevPorts(
   setJournalDb(db)
   return {
     inbox: buildInboxPort(drizzleDb),
-    contacts: buildContactsPort(drizzleDb),
+    contacts: buildContactsService(drizzleDb),
     agents: buildAgentsPort(drizzleDb),
     drive: buildDrivePort(drizzleDb),
     realtime: buildRealtime(sql),

@@ -28,9 +28,9 @@ import { auditObserver } from '@modules/agents/observers/audit'
 import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createScorerObserver } from '@modules/agents/observers/scorer'
 import { sseObserver } from '@modules/agents/observers/sse'
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import { approvalMutator } from '@modules/inbox/mutators/approval'
 import type { AgentsPort } from '@server/contracts/agents-port'
-import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { AgentDefinition, Contact, DriveFile, StaffBinding } from '@server/contracts/domain-types'
 import type { DrivePort, DriveScope } from '@server/contracts/drive-port'
 import type { AgentEvent } from '@server/contracts/event'
@@ -43,7 +43,7 @@ import type { StreamFn } from '@server/harness/mock-stream'
 
 export interface Phase3Ports {
   agents: AgentsPort
-  contacts: ContactsPort
+  contacts: ContactsService
   drive: DrivePort
 }
 
@@ -185,7 +185,7 @@ export function stubPhase3Ports(args: { organizationId: string; agentId: string;
   const workingMemoryByContact = new Map<string, string>()
   workingMemoryByContact.set(args.contactId, stubContact.workingMemory)
 
-  const contacts: ContactsPort = {
+  const contacts: ContactsService = {
     async get(): Promise<Contact> {
       return { ...stubContact, workingMemory: workingMemoryByContact.get(args.contactId) ?? '# Memory\n' }
     },
@@ -224,7 +224,10 @@ export function stubPhase3Ports(args: { organizationId: string; agentId: string;
     async bindStaff(): Promise<StaffBinding> {
       throw new Error('stubPhase3Ports: bindStaff not implemented')
     },
-    async delete() {
+    async list(): Promise<Contact[]> {
+      return []
+    },
+    async remove() {
       /* noop */
     },
   }

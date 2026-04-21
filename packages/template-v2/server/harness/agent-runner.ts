@@ -16,9 +16,9 @@ import { createMessageHistoryObserver } from '@modules/agents/observers/message-
 import { createWorkspaceSyncObserver } from '@modules/agents/observers/workspace-sync'
 import { getLastWakeTail } from '@modules/agents/service/journal'
 import { loadMessages, resolveThread } from '@modules/agents/service/message-history'
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { AbortContext } from '@server/contracts/abort-context'
 import type { AgentsPort } from '@server/contracts/agents-port'
-import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { AgentDefinition } from '@server/contracts/domain-types'
 import type { DrivePort } from '@server/contracts/drive-port'
 import type {
@@ -111,7 +111,7 @@ export interface BootWakeOpts {
   ports: {
     agents: AgentsPort
     drive: DrivePort
-    contacts: ContactsPort
+    contacts: ContactsService
   }
   /** When omitted, the runner creates a private `EventBus`. */
   events?: EventBus

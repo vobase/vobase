@@ -14,7 +14,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import { setDb as setLearningProposalsDb } from '@modules/agents/service/learning-proposals'
-import { createContactsPort } from '@modules/contacts/port'
 import { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import {
   createContactsService,
@@ -56,10 +55,10 @@ describe('workspaceSyncObserver', () => {
   test('contact/MEMORY.md pre-wake write → contacts.working_memory updated post-wake', async () => {
     const ports = await buildIntegrationPorts(db)
     // Real upsertWorkingMemorySection: wire real contacts service into the port
-    const realContactsPort = createContactsPort()
+    const realContactsService = createContactsService({ db: db.db })
 
     const { harness } = await bootWakeIntegration(
-      { ...ports, contacts: realContactsPort },
+      { ...ports, contacts: realContactsService },
       {
         organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,
@@ -178,13 +177,13 @@ describe('vobase drive propose CLI (C4)', () => {
 describe('memoryDistillObserver', () => {
   test('seeded wake with assistant message → stub distill → contacts row updated', async () => {
     const ports = await buildIntegrationPorts(db)
-    const realContactsPort = createContactsPort()
+    const realContactsService = createContactsService({ db: db.db })
 
     // Reset working memory first so we can detect the update clearly.
     await upsertWorkingMemorySection(SEEDED_CONTACT_ID, 'Recent Interaction', '')
 
     const { harness } = await bootWakeIntegration(
-      { ...ports, contacts: realContactsPort },
+      { ...ports, contacts: realContactsService },
       {
         organizationId: MERIDIAN_ORG_ID,
         agentId: MERIDIAN_AGENT_ID,

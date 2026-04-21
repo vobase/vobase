@@ -6,7 +6,7 @@
  *
  *   1. `supervisor` wake trigger        — staff kicked the agent awake via
  *                                          an `@staff` mention that routed through
- *                                          `ContactsPort.resolveStaffByExternal`.
+ *                                          `ContactsService.resolveStaffByExternal`.
  *   2. `approval_resumed` + rejected     — staff denied a pending tool call, with
  *                                          optional note on the trigger payload.
  *   3. `internal_note_added` w/ staff    — during-wake note from a human operator.

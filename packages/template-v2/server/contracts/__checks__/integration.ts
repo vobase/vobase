@@ -11,13 +11,13 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { AbortContext } from '../abort-context'
 import type { AgentsPort } from '../agents-port'
 import type { CaptionPort } from '../caption-port'
 import type { V2ChannelAdapter } from '../channel-adapter'
 import type { ChannelInboundEvent, ChannelOutboundEvent } from '../channel-event'
 import type { ClassifiedError } from '../classified-error'
-import type { ContactsPort } from '../contacts-port'
 import type {
   AgentDefinition,
   Contact,
@@ -186,7 +186,7 @@ type _InboxSurface = {
   [K in keyof InboxPort]: InboxPort[K]
 }
 type _ContactsSurface = {
-  [K in keyof ContactsPort]: ContactsPort[K]
+  [K in keyof ContactsService]: ContactsService[K]
 }
 type _DriveSurface = {
   [K in keyof DrivePort]: DrivePort[K]
@@ -222,6 +222,7 @@ type _InboxKeys = AssertTrue<AssertEqual<keyof InboxPort, _RequiredInboxMethods>
 
 type _RequiredContactsMethods =
   | 'get'
+  | 'list'
   | 'getByPhone'
   | 'getByEmail'
   | 'upsertByExternal'
@@ -233,8 +234,8 @@ type _RequiredContactsMethods =
   | 'setMarketingOptOut'
   | 'resolveStaffByExternal'
   | 'bindStaff'
-  | 'delete'
-type _ContactsKeys = AssertTrue<AssertEqual<keyof ContactsPort, _RequiredContactsMethods>>
+  | 'remove'
+type _ContactsKeys = AssertTrue<AssertEqual<keyof ContactsService, _RequiredContactsMethods>>
 
 type _RequiredDriveMethods =
   | 'get'
@@ -727,7 +728,7 @@ export type {
   CaptionPort,
   CommandDef,
   Contact,
-  ContactsPort,
+  ContactsService,
   Conversation,
   ConversationEvent,
   DriveFile,

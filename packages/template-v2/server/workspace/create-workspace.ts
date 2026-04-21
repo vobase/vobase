@@ -12,8 +12,8 @@
  * out of the snapshot and so cannot register as "dirty".
  */
 
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { AgentsPort } from '@server/contracts/agents-port'
-import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { AgentDefinition, DriveFile } from '@server/contracts/domain-types'
 import type { DrivePort } from '@server/contracts/drive-port'
 import type { CommandContext, CommandDef } from '@server/contracts/plugin-context'
@@ -68,7 +68,7 @@ export interface CreateWorkspaceOpts {
   materializers: readonly WorkspaceMaterializer[]
   /** Cross-module ports — harness injects the real ones; tests can pass stubs. */
   drivePort: DrivePort
-  contactsPort: ContactsPort
+  contactsPort: ContactsService
   agentsPort: AgentsPort
   /** Side-effect callback; fires once per non-read-only vobase subcommand. */
   onSideEffect?: (cmd: CommandDef) => void
@@ -290,7 +290,7 @@ async function loadBusinessMd(drive: DrivePort, _tenantId: string): Promise<stri
   }
 }
 
-async function loadContactProfileFallback(port: ContactsPort, contactId: string): Promise<string | null> {
+async function loadContactProfileFallback(port: ContactsService, contactId: string): Promise<string | null> {
   try {
     const c = await port.get(contactId)
     const lines = [
@@ -310,7 +310,7 @@ async function loadContactProfileFallback(port: ContactsPort, contactId: string)
   }
 }
 
-async function loadContactMemoryFallback(port: ContactsPort, contactId: string): Promise<string | null> {
+async function loadContactMemoryFallback(port: ContactsService, contactId: string): Promise<string | null> {
   try {
     const body = await port.readWorkingMemory(contactId)
     return body || null

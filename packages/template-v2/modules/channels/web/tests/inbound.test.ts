@@ -7,8 +7,8 @@
  * Does NOT call real Hono app — tests the handler logic directly via a mock context.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { Auth } from '@server/auth'
-import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { Contact, Conversation, Message } from '@server/contracts/domain-types'
 import type { CreateInboundMessageInput, CreateInboundMessageResult, InboxPort } from '@server/contracts/inbox-port'
 import { signHmac } from '@vobase/core'
@@ -101,7 +101,7 @@ function makeInboxPort(isNew = true) {
   } as unknown as ReturnType<typeof import('@modules/inbox/port').createInboxPort>
 }
 
-function makeContactsPort() {
+function makeContactsService() {
   return {
     upsertByExternal: async () => {
       calls.push({ method: 'upsertByExternal', data: null })
@@ -172,7 +172,7 @@ function installTestState(isNewMessage = true): void {
   installChannelWebState(
     createChannelWebState({
       inbox: makeInboxPort(isNewMessage) as unknown as InboxPort,
-      contacts: makeContactsPort() as unknown as ContactsPort,
+      contacts: makeContactsService() as unknown as ContactsService,
       jobs,
     }),
   )

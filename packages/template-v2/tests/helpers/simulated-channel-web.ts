@@ -7,7 +7,7 @@
 import { createHmac } from 'node:crypto'
 import { handleInbound } from '@modules/channels/web/handlers/inbound'
 import { createChannelWebState, installChannelWebState } from '@modules/channels/web/service/state'
-import type { ContactsPort } from '@server/contracts/contacts-port'
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { InboxPort } from '@server/contracts/inbox-port'
 import { Hono } from 'hono'
 
@@ -40,7 +40,7 @@ export interface SimulatedChannelWeb {
 
 export interface SimulatedChannelWebOpts {
   inboxPort: InboxPort
-  contactsPort: ContactsPort
+  contactsPort: ContactsService
   channelInstanceId?: string
   secret?: string
 }

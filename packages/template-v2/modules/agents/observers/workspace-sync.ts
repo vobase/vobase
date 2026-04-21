@@ -3,7 +3,7 @@
  * persists writable-zone changes to their owning module services.
  *
  * Routing rules:
- *   `/workspace/contact/MEMORY.md` → ContactsPort.upsertWorkingMemorySection (section-ops)
+ *   `/workspace/contact/MEMORY.md` → ContactsService.upsertWorkingMemorySection (section-ops)
  *   `/workspace/contact/drive/**`  → DrivePort.create / delete  (scope='contact')
  *
  * Frozen-snapshot invariant: this observer ONLY fires on `agent_end`.

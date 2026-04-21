@@ -23,7 +23,7 @@ export interface DirtyDiff {
 export interface ScopedDiff {
   /** `/workspace/contact/drive/**` — persisted via DrivePort (scope='contact'). */
   contactDrive: DirtyDiff
-  /** `/workspace/contact/MEMORY.md` — persisted via ContactsPort.upsertWorkingMemorySection. */
+  /** `/workspace/contact/MEMORY.md` — persisted via ContactsService.upsertWorkingMemorySection. */
   contactMemory: DirtyDiff
   /** `/workspace/MEMORY.md` — persisted via AgentsPort working-memory update. */
   agentMemory: DirtyDiff

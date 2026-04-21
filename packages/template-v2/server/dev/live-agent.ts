@@ -19,9 +19,9 @@
 
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import type { InboundToWakePayload } from '@modules/channels/web/jobs'
+import type { ContactsService } from '@modules/contacts/service/contacts'
 import { replyTool } from '@modules/inbox/tools/reply'
 import type { AgentsPort } from '@server/contracts/agents-port'
-import type { ContactsPort } from '@server/contracts/contacts-port'
 import type { Conversation, Message } from '@server/contracts/domain-types'
 import type { DrivePort } from '@server/contracts/drive-port'
 import type { InboxPort } from '@server/contracts/inbox-port'
@@ -33,7 +33,7 @@ import { createAnthropicProvider } from '@server/harness/providers'
 
 interface LiveAgentDeps {
   inbox: InboxPort
-  contacts: ContactsPort
+  contacts: ContactsService
   agents: AgentsPort
   drive: DrivePort
   realtime: RealtimeService

@@ -2,7 +2,7 @@
  * memoryDistillObserver — post-wake summarisation + anti-lessons feedback loop.
  * On `agent_end`: appends rejection reasons to the agent's `## Anti-lessons`
  * section so the next turn sees them, then (when the per-contact debounce has
- * elapsed) distills assistant messages into `ContactsPort` working-memory
+ * elapsed) distills assistant messages into `ContactsService` working-memory
  * sections via `llmCall('memory.distill', …)` — or the deterministic stub
  * when no provider is wired.
  */

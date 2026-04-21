@@ -6,8 +6,8 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { ContactsService, UpsertByExternalInput } from '@modules/contacts/service/contacts'
 import type { AgentsPort } from '@server/contracts/agents-port'
-import type { ContactsPort, UpsertByExternalInput } from '@server/contracts/contacts-port'
 import type { AgentDefinition, Contact, DriveFile, StaffBinding } from '@server/contracts/domain-types'
 import type { DrivePort, DriveScope, GrepMatch } from '@server/contracts/drive-port'
 import type {
@@ -105,7 +105,7 @@ function emptyDrive(): DrivePort {
   } as DrivePort
 }
 
-function emptyContacts(): ContactsPort {
+function emptyContacts(): ContactsService {
   return {
     async get(id): Promise<Contact> {
       return {
@@ -145,7 +145,10 @@ function emptyContacts(): ContactsPort {
     async bindStaff(): Promise<StaffBinding> {
       throw new Error('ni')
     },
-    async delete() {},
+    async list(): Promise<Contact[]> {
+      return []
+    },
+    async remove() {},
   }
 }
 

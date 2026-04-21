@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
+import type { ContactsService, UpsertByExternalInput } from '@modules/contacts/service/contacts'
 import type { AgentsPort } from '@server/contracts/agents-port'
-import type { ContactsPort, UpsertByExternalInput } from '@server/contracts/contacts-port'
 import type { AgentDefinition, Contact, DriveFile, StaffBinding } from '@server/contracts/domain-types'
 import type { DrivePort, DriveScope, GrepMatch } from '@server/contracts/drive-port'
 import { BUSINESS_MD_FALLBACK, createWorkspace } from './create-workspace'
@@ -104,7 +104,7 @@ function makeDriveStub(files: DriveFile[]): DrivePort {
   }
 }
 
-function makeContactsStub(): ContactsPort {
+function makeContactsStub(): ContactsService {
   return {
     async get(id): Promise<Contact> {
       return {
@@ -144,7 +144,10 @@ function makeContactsStub(): ContactsPort {
     async bindStaff(): Promise<StaffBinding> {
       throw new Error('not-implemented-in-phase-1')
     },
-    async delete() {
+    async list(): Promise<Contact[]> {
+      return []
+    },
+    async remove() {
       throw new Error('not-implemented-in-phase-1')
     },
   }

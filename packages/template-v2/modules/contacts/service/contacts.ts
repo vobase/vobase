@@ -3,8 +3,14 @@
  * All other methods throw not-implemented-in-phase-1.
  */
 
-import type { UpsertByExternalInput } from '@server/contracts/contacts-port'
 import type { Contact, StaffBinding } from '@server/contracts/domain-types'
+
+export interface UpsertByExternalInput {
+  organizationId: string
+  phone?: string
+  email?: string
+  displayName?: string
+}
 
 interface ContactsDeps {
   db: unknown

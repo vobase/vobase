@@ -4,7 +4,7 @@
  * Asserts:
  *   - Fires exactly once per qualifying wake (agent_end gate)
  *   - Skips non-qualifying wakes (no staff signals)
- *   - contact scope triggers ContactsPort.upsertWorkingMemorySection + auto_written row
+ *   - contact scope triggers ContactsService.upsertWorkingMemorySection + auto_written row
  *   - agent_skill scope inserts status=pending + emits learning_proposed (no auto-approve)
  *   - auto-write scopes emit synthetic learning_approved
  *   - Swallows single-proposal errors without crashing the batch
@@ -289,7 +289,7 @@ describe('createLearningProposalObserver', () => {
     expect(cap.contactUpserts).toEqual([])
   })
 
-  it('contact scope auto-writes via ContactsPort + emits proposed + synthetic approved', async () => {
+  it('contact scope auto-writes via ContactsService + emits proposed + synthetic approved', async () => {
     nextProposalsRaw = JSON.stringify({
       proposals: [
         {
