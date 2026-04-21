@@ -17,36 +17,16 @@ import type { AgentMutator } from './mutator'
 import type { AgentObserver, Logger } from './observer'
 import type { ScopedDb } from './scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from './side-load'
+import type { AgentTool } from './tool'
 import type { ToolResult } from './tool-result'
 import type { WakeContext } from './wake-context'
 
 export type ObserverFactory = (wake: WakeContext) => AgentObserver
 
-/**
- * Minimal AgentTool shape — matches pi-agent-core's `AgentTool<Args, Result>` contract.
- * Kept as a local stub so the contracts layer doesn't require pi-agent-core at compile
- * time; Lane D's harness layer resolves the full type via `@mariozechner/pi-agent-core`.
- */
-export interface AgentTool<TArgs = unknown, TResult = unknown> {
-  name: string
-  description: string
-  /** TypeBox or Zod schema — harness adapts. */
-  inputSchema: unknown
-  outputSchema?: unknown
-  /** Parallel execution safety — see `server/contracts/tool.ts` for full docs. */
-  parallelGroup?: 'never' | 'safe' | { kind: 'path-scoped'; pathArg: string }
-  execute: (args: TArgs, ctx: ToolExecutionContext) => Promise<ToolResult<TResult>>
-}
-
-export interface ToolExecutionContext {
-  organizationId: string
-  conversationId: string
-  wakeId: string
-  agentId: string
-  turnIndex: number
-  toolCallId: string
-  signal?: AbortSignal
-}
+// Canonical AgentTool + ToolContext live in `./tool`. Re-export so module code
+// can continue importing from `@server/contracts/plugin-context` without the
+// contracts layer carrying a duplicate stub.
+export type { AgentTool, ToolContext } from './tool'
 
 export interface CommandDef {
   name: string
@@ -66,7 +46,7 @@ export interface CommandContext {
   readWorkspace: (path: string) => Promise<string>
 }
 
-/** LLM call chokepoint — see `server/runtime/llm-call.ts`. */
+/** LLM call chokepoint — see `PluginContext.llmCall` docs below. */
 export interface LlmRequest {
   model?: string
   provider?: string

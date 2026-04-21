@@ -1,12 +1,12 @@
 import type { ToolResultPersistedEvent } from '@server/contracts/event'
-import type { ToolExecutionContext } from '@server/contracts/plugin-context'
+import type { ToolContext } from '@server/contracts/tool'
 import { L1_PREVIEW_BYTES } from './turn-budget'
 
 export interface SpillDeps {
   stdout: string
   spillPath: string
   toolName: string
-  ctx: ToolExecutionContext
+  ctx: ToolContext
   innerWrite: (path: string, content: string) => Promise<void>
   onSpill: (ev: ToolResultPersistedEvent) => void
 }

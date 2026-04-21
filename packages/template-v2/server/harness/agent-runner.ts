@@ -68,10 +68,10 @@ import type { ScopedDb } from '@server/contracts/scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WakeContext } from '@server/contracts/wake-context'
 import { EventBus as DefaultEventBus } from '@server/runtime/event-bus'
-import { newWakeId } from '@server/runtime/llm-call'
 import { MutatorChain } from '@server/runtime/mutator-chain'
 import { ObserverBus } from '@server/runtime/observer-bus'
 import type { SteerQueueHandle } from '@server/runtime/steer-queue'
+import { newWakeId } from '@server/runtime/wake-id'
 import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-workspace'
 import { DirtyTracker } from '@server/workspace/dirty-tracker'
 import { nanoid } from 'nanoid'
@@ -270,6 +270,11 @@ interface TrackerRef {
   current: TurnTracker
   scope: WakeScope
   agentId: string
+  approvalDecision?: {
+    decision: 'approved' | 'rejected'
+    note?: string
+    decidedByUserId?: string
+  }
 }
 
 /**
@@ -291,7 +296,7 @@ function adaptToolForPi(tool: AgentTool, ref: TrackerRef): PiAgentTool {
     label: tool.name,
     description: tool.description,
     parameters,
-    execute: async (toolCallId, params, signal) => {
+    execute: async (toolCallId, params) => {
       const scope = ref.scope
       const result = await tool.execute(params as unknown, {
         organizationId: scope.organizationId,
@@ -300,7 +305,7 @@ function adaptToolForPi(tool: AgentTool, ref: TrackerRef): PiAgentTool {
         agentId: ref.agentId,
         turnIndex: ref.current.turnIndex < 0 ? 0 : ref.current.turnIndex,
         toolCallId,
-        signal,
+        approvalDecision: ref.approvalDecision,
       })
       const out: AgentToolResult<unknown> = {
         content: [{ type: 'text', text: stringifyResult(result) }],
@@ -329,18 +334,24 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   }
 
   // ---- Observer bus ------------------------------------------------------
-  const observerCtx: ObserverContext = {
-    organizationId: opts.organizationId,
-    conversationId,
-    wakeId,
-    db: new Proxy(
+  // When a scoped db is supplied, observers + mutators that persist (audit,
+  // moderation) get a real handle. Without one (pure-unit tests) we install a
+  // throw-proxy so accidental writes surface instead of silently no-op'ing.
+  const observerDb: ScopedDb =
+    opts.db ??
+    (new Proxy(
       {},
       {
         get(_t, prop) {
           throw new Error(`harness observer ctx: db.${String(prop)} accessed but not wired`)
         },
       },
-    ) as never,
+    ) as never)
+  const observerCtx: ObserverContext = {
+    organizationId: opts.organizationId,
+    conversationId,
+    wakeId,
+    db: observerDb,
     logger,
     realtime: { notify: () => undefined, subscribe: () => () => {} },
   }
@@ -495,7 +506,13 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
 
   // ---- Build Agent + translation layer ----------------------------------
   const tracker = new TurnTracker()
-  const trackerRef: TrackerRef = { current: tracker, scope, agentId: opts.agentId }
+  const trackerRef: TrackerRef = {
+    current: tracker,
+    scope,
+    agentId: opts.agentId,
+    approvalDecision:
+      trigger.trigger === 'approval_resumed' ? { decision: trigger.decision, note: trigger.note } : undefined,
+  }
 
   const piTools: PiAgentTool[] = []
   for (const t of toolIndex.values()) piTools.push(adaptToolForPi(t, trackerRef))
@@ -507,6 +524,10 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
   let currentMessageId: string | null = null
   let assembledContent = ''
   let firstSubTurnOfUserTurn = true
+  // Aggregated per user-turn; reset in the outer loop at `beginUserTurn`.
+  let turnTokensIn = 0
+  let turnTokensOut = 0
+  let turnCostUsd = 0
 
   const agentOpts: ConstructorParameters<typeof Agent>[0] = {
     initialState: {
@@ -555,9 +576,11 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       }
       const mutatorCtx: MutatorContext = {
         ...observerCtx,
-        llmCall: async () => {
-          throw new Error('mutators must not llmCall in Phase 1')
-        },
+        llmCall:
+          opts.observerLlmCall ??
+          (async () => {
+            throw new Error('mutator invoked llmCall but bootWake was not supplied with `observerLlmCall`')
+          }),
         persistEvent: async (ev) => {
           events.publish(ev)
         },
@@ -630,16 +653,22 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
         const usage = assistant.usage
 
         // Synthesize our llm_call on pi's message_end.
+        const callTokensIn = usage?.input ?? 0
+        const callTokensOut = usage?.output ?? 0
+        const callCost = usage?.cost?.total ?? 0
+        turnTokensIn += callTokensIn
+        turnTokensOut += callTokensOut
+        turnCostUsd += callCost
         const llmEvt: LlmCallEvent = {
           ...baseFields(curScope),
           type: 'llm_call',
           task: 'agent.turn',
           model: modelId,
           provider: providerName,
-          tokensIn: usage?.input ?? 0,
-          tokensOut: usage?.output ?? 0,
+          tokensIn: callTokensIn,
+          tokensOut: callTokensOut,
           cacheReadTokens: usage?.cacheRead ?? 0,
-          costUsd: usage?.cost?.total ?? 0,
+          costUsd: callCost,
           latencyMs: Date.now() - tracker.turnStartedAt,
           cacheHit: (usage?.cacheRead ?? 0) > 0,
         }
@@ -732,6 +761,9 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     if (t > 0 && pendingSteerText === null) break
     tracker.beginUserTurn()
     firstSubTurnOfUserTurn = true
+    turnTokensIn = 0
+    turnTokensOut = 0
+    turnCostUsd = 0
     const curScope: WakeScope = { ...scope, turnIndex: tracker.turnIndex }
 
     let userText = renderTriggerMessage(trigger)
@@ -778,9 +810,9 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     const turnEnd: TurnEndEvent = {
       ...baseFields(curScope),
       type: 'turn_end',
-      tokensIn: 0,
-      tokensOut: assembledContent.length,
-      costUsd: 0,
+      tokensIn: turnTokensIn,
+      tokensOut: turnTokensOut,
+      costUsd: turnCostUsd,
     }
     events.publish(turnEnd)
 

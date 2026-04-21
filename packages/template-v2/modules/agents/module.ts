@@ -48,8 +48,6 @@ export default defineModule({
       )
     }
 
-    // Cast: PluginContext.registerTool uses the Phase-1 AgentTool stub (ToolExecutionContext);
-    // the full AgentTool<T,R> (ToolContext with approvalDecision) unifies in Phase 3.
-    ctx.registerTool(subagentTool as never)
+    ctx.registerTool(subagentTool)
   },
 })

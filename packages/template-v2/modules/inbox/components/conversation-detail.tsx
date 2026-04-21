@@ -77,7 +77,7 @@ export function ConversationDetail() {
 
   const { data: contact = null } = useQuery({
     queryKey: ['contact', conv?.contactId],
-    queryFn: () => fetchContact(conv?.contactId),
+    queryFn: () => (conv?.contactId ? fetchContact(conv.contactId) : null),
     enabled: Boolean(conv?.contactId),
   })
 

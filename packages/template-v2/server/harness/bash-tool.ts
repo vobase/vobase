@@ -6,7 +6,7 @@
  */
 
 import type { ToolResultPersistedEvent } from '@server/contracts/event'
-import type { AgentTool, ToolExecutionContext } from '@server/contracts/plugin-context'
+import type { AgentTool, ToolContext } from '@server/contracts/tool'
 import type { ToolResult } from '@server/contracts/tool-result'
 import type { Bash } from 'just-bash'
 import { spillToFile } from './tool-budget-spill'
@@ -82,7 +82,7 @@ export function makeBashTool(deps: BashToolDeps): AgentTool<BashToolArgs, BashTo
       },
       required: ['command'],
     },
-    async execute(args: BashToolArgs, ctx: ToolExecutionContext): Promise<ToolResult<BashToolResult>> {
+    async execute(args: BashToolArgs, ctx: ToolContext): Promise<ToolResult<BashToolResult>> {
       if (!args || typeof args.command !== 'string') {
         return { ok: false, error: 'bash: missing required `command` string' }
       }
