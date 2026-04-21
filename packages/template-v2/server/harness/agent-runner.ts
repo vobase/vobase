@@ -33,6 +33,7 @@ import {
 } from '@mariozechner/pi-agent-core'
 import type { AssistantMessage } from '@mariozechner/pi-ai'
 import { Type } from '@mariozechner/pi-ai'
+import { z } from 'zod'
 import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
 import { createMessageHistoryObserver } from '@modules/agents/observers/message-history-observer'
@@ -278,14 +279,24 @@ interface TrackerRef {
  * shape — the adapter closes over the per-wake scope the contract expects.
  */
 function adaptToolForPi(tool: AgentTool, ref: TrackerRef): PiAgentTool {
-  // Our tools author schemas as raw JSON — pi expects a TypeBox TSchema.
-  // If the tool provided a TypeBox schema it passes through; otherwise we
-  // fall back to `Type.Any()` so pi can still dispatch the call.
-  const raw = tool.inputSchema
-  const parameters =
-    raw && typeof raw === 'object' && 'type' in (raw as Record<string, unknown>)
-      ? (raw as ReturnType<typeof Type.Object>)
-      : (Type.Object({}) as ReturnType<typeof Type.Object>)
+  // Vobase tools author schemas with zod; pi/OpenAI consume JSON Schema.
+  // `z.toJSONSchema(zod)` produces a conformant JSON Schema we can hand to
+  // pi-ai as the `parameters` field. For tools that already expose a plain
+  // JSON Schema (`type` field present), pass through untouched.
+  const raw = tool.inputSchema as unknown
+  let parameters: ReturnType<typeof Type.Object>
+  if (raw && typeof raw === 'object' && '_zod' in (raw as Record<string, unknown>)) {
+    parameters = z.toJSONSchema(raw as z.ZodType) as unknown as ReturnType<typeof Type.Object>
+  } else if (
+    raw &&
+    typeof raw === 'object' &&
+    'type' in (raw as Record<string, unknown>) &&
+    'properties' in (raw as Record<string, unknown>)
+  ) {
+    parameters = raw as ReturnType<typeof Type.Object>
+  } else {
+    parameters = Type.Object({}) as ReturnType<typeof Type.Object>
+  }
 
   const piTool: PiAgentTool = {
     name: tool.name,
@@ -718,7 +729,11 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     })
   }
 
+  // A "user turn" is one `agent.prompt()` call. pi-agent-core's inner loop
+  // already handles multi-step tool use, so we only iterate this outer loop
+  // again when there's a pending steer to inject ahead of the next prompt.
   for (let t = 0; t < maxTurns; t += 1) {
+    if (t > 0 && pendingSteerText === null) break
     tracker.beginUserTurn()
     firstSubTurnOfUserTurn = true
     const curScope: WakeScope = { ...scope, turnIndex: tracker.turnIndex }

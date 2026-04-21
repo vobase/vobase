@@ -74,13 +74,15 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
 
   app.route('/api/sse', sseRoute)
 
-  // Dev wake dispatch: stub replies when there's no LLM key, real Anthropic
-  // otherwise. Lives here (not in channel-web/module.ts) because it composes
-  // runtime services — the module shouldn't know about LLM providers.
+  // Dev wake dispatch: stub replies when no LLM key, real wake otherwise.
+  // The pi-agent-core harness reads OPENAI_API_KEY (or BIFROST_*) directly —
+  // we just gate the live handler on key presence here.
   if (process.env.NODE_ENV !== 'production') {
-    const anthropicApiKey = process.env.ANTHROPIC_API_KEY
-    if (anthropicApiKey) {
-      console.log('[server] ANTHROPIC_API_KEY present — routing /test-web through real wake engine')
+    const hasLlmKey = Boolean(
+      process.env.OPENAI_API_KEY || (process.env.BIFROST_API_KEY && process.env.BIFROST_URL),
+    )
+    if (hasLlmKey) {
+      console.log('[server] LLM key present — routing /test-web through real wake engine')
       jobHandlers.set(
         INBOUND_TO_WAKE_JOB,
         createLiveAgentHandler({
@@ -89,11 +91,11 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
           agents: devPorts.agents,
           drive: devPorts.drive,
           realtime: devPorts.realtime,
-          anthropicApiKey,
+          anthropicApiKey: '',
         }),
       )
     } else {
-      console.log('[server] no ANTHROPIC_API_KEY — /test-web will use canned stub-agent replies')
+      console.log('[server] no LLM key — /test-web will use canned stub-agent replies')
       jobHandlers.set(
         INBOUND_TO_WAKE_JOB,
         createStubAgentHandler({ inbox: devPorts.inbox, realtime: devPorts.realtime }),

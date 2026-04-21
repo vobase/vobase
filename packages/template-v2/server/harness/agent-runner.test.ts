@@ -204,6 +204,11 @@ describe('bootWake (pi-agent-core path)', () => {
   })
 
   it('emits systemHash on agent_start and keeps it stable across multi-turn', async () => {
+    // Second outer turn is only reached when a steer is pending — push one
+    // ahead of bootWake so both user-turns capture a prompt.
+    const { createSteerQueue } = await import('@server/runtime/steer-queue')
+    const steerQueue = createSteerQueue()
+    steerQueue.push('steer!')
     const res = await bootWake({
       organizationId: 'org-test',
       agentId: 'agent-test',
@@ -219,6 +224,7 @@ describe('bootWake (pi-agent-core path)', () => {
       },
       ports: { agents: STUB_AGENTS, drive: STUB_DRIVE, contacts: STUB_CONTACTS },
       maxTurns: 2,
+      steerQueue,
     })
 
     // capturedPrompts records one entry per user-turn; systemHash identical.

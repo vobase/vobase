@@ -42,13 +42,18 @@ function isBifrostMode(env: ProviderEnv = readEnv()): boolean {
  */
 export function createModel(modelId: string = DEFAULT_MODEL): Model<'openai-responses'> {
   const env = readEnv()
-  let base: Model<'openai-responses'>
-  try {
-    base = getModel('openai', modelId as 'gpt-5.4') as unknown as Model<'openai-responses'>
-  } catch {
-    base = getModel('openai', FALLBACK_MODEL) as unknown as Model<'openai-responses'>
+  // pi-ai's getModel returns `undefined` (no throw) for unknown ids — if the
+  // agent row stored a legacy model like `claude-sonnet-4-6`, we quietly fall
+  // back to the harness default so dev never surfaces "No API provider
+  // registered for api: undefined".
+  let base = getModel('openai', modelId as 'gpt-5.4') as unknown as Model<'openai-responses'> | undefined
+  if (!base || !base.api) {
+    base = getModel('openai', DEFAULT_MODEL as 'gpt-5.4') as unknown as Model<'openai-responses'> | undefined
   }
-  const model: Model<'openai-responses'> = { ...base }
+  if (!base || !base.api) {
+    base = getModel('openai', FALLBACK_MODEL as 'gpt-5.4') as unknown as Model<'openai-responses'>
+  }
+  const model: Model<'openai-responses'> = { ...(base as Model<'openai-responses'>) }
   if (isBifrostMode(env) && env.bifrostUrl) {
     model.baseUrl = env.bifrostUrl
   }
