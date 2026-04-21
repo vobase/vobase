@@ -10,7 +10,7 @@ import { wireAuthIntoModules } from './auth/wire-modules'
 import { buildDevPorts } from './dev/dev-ports'
 import { createLiveAgentHandler } from './dev/live-agent'
 import { createStubAgentHandler } from './dev/stub-agent'
-import { createRequireSession, createWidgetCors } from './middlewares'
+import { createRequireSession, createWidgetCors, installOrganizationContext } from './middlewares'
 import { createSseRoute } from './routes/sse'
 import { bootModules } from './runtime/boot-modules'
 
@@ -21,6 +21,7 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   app.get('/health', (c) => c.json({ ok: true }))
 
   const auth = createAuth(db)
+  installOrganizationContext({ db, auth })
   app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
 
   const requireSession = createRequireSession(auth)

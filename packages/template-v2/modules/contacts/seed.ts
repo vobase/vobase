@@ -39,13 +39,22 @@ export const SOPHIA_CONTACT_ID = 'ctt0sophia'
 export async function seed(db: unknown): Promise<void> {
   const { channelInstances } = await import('@modules/inbox/schema')
   const { contactAttributeDefinitions, contacts, staffChannelBindings } = await import('@modules/contacts/schema')
-  const { authUser } = await import('@vobase/core')
+  const { authMember, authOrganization, authUser } = await import('@vobase/core')
 
   const d = db as {
     insert: (t: unknown) => {
       values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }
     }
   }
+
+  // --- auth organization (Meridian) + memberships ---
+  // Seeded so requireOrganization's fallback lookup can resolve a membership
+  // for every staff user, and `auth.api.setActiveOrganization` succeeds on
+  // first request after sign-in.
+  await d
+    .insert(authOrganization)
+    .values({ id: MERIDIAN_ORG_ID, name: 'Meridian', slug: 'meridian' })
+    .onConflictDoNothing()
 
   // --- auth users (alice, bob, carol) ---
   await d
@@ -59,6 +68,20 @@ export async function seed(db: unknown): Promise<void> {
   await d
     .insert(authUser)
     .values({ id: CAROL_USER_ID, name: 'Carol', email: 'carol@meridian.test', emailVerified: true, role: 'user' })
+    .onConflictDoNothing()
+
+  // --- auth memberships — Alice owner, Bob/Carol members ---
+  await d
+    .insert(authMember)
+    .values({ id: 'mbr0alice0', userId: ALICE_USER_ID, organizationId: MERIDIAN_ORG_ID, role: 'owner' })
+    .onConflictDoNothing()
+  await d
+    .insert(authMember)
+    .values({ id: 'mbr00bob00', userId: BOB_USER_ID, organizationId: MERIDIAN_ORG_ID, role: 'member' })
+    .onConflictDoNothing()
+  await d
+    .insert(authMember)
+    .values({ id: 'mbr0carol0', userId: CAROL_USER_ID, organizationId: MERIDIAN_ORG_ID, role: 'member' })
     .onConflictDoNothing()
 
   // --- channel instances (inbox schema — inserted early for FK correctness) ---

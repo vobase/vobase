@@ -3,6 +3,8 @@ import { createAuthEndpoint } from 'better-auth/api'
 import { setSessionCookie } from 'better-auth/cookies'
 import * as z from 'zod'
 
+const DEFAULT_DEV_ORG_ID = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
+
 export function devAuth(): BetterAuthPlugin {
   return {
     id: 'dev-auth',
@@ -30,6 +32,37 @@ export function devAuth(): BetterAuthPlugin {
               { providerId: 'dev', accountId: email },
             )
             user = result.user
+          }
+
+          // Ensure the user is a member of the default dev org so
+          // `requireOrganization` has something to resolve.
+          const adapter = ctx.context.adapter as unknown as {
+            findOne: (args: { model: string; where: { field: string; value: unknown }[] }) => Promise<unknown>
+            create: (args: { model: string; data: Record<string, unknown> }) => Promise<unknown>
+          }
+          const org = (await adapter.findOne({
+            model: 'organization',
+            where: [{ field: 'id', value: DEFAULT_DEV_ORG_ID }],
+          })) as { id: string } | null
+          if (org) {
+            const existingMember = await adapter.findOne({
+              model: 'member',
+              where: [
+                { field: 'userId', value: user.id },
+                { field: 'organizationId', value: DEFAULT_DEV_ORG_ID },
+              ],
+            })
+            if (!existingMember) {
+              await adapter.create({
+                model: 'member',
+                data: {
+                  userId: user.id,
+                  organizationId: DEFAULT_DEV_ORG_ID,
+                  role: 'member',
+                  createdAt: new Date(),
+                },
+              })
+            }
           }
 
           const session = await ctx.context.internalAdapter.createSession(user.id)
