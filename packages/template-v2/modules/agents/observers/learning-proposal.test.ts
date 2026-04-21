@@ -4,7 +4,7 @@
  * Asserts:
  *   - Fires exactly once per qualifying wake (agent_end gate)
  *   - Skips non-qualifying wakes (no staff signals)
- *   - contact scope triggers ContactsService.upsertWorkingMemorySection + auto_written row
+ *   - contact scope triggers ContactsService.upsertNotesSection + auto_written row
  *   - agent_skill scope inserts status=pending + emits learning_proposed (no auto-approve)
  *   - auto-write scopes emit synthetic learning_approved
  *   - Swallows single-proposal errors without crashing the batch
@@ -25,7 +25,7 @@ let upsertThrowOnCall = 0 // when > 0, throw on that call number
 
 let upsertCallCount = 0
 mock.module('@modules/contacts/service/contacts', () => ({
-  upsertWorkingMemorySection: async (contactId: string, heading: string, body: string) => {
+  upsertNotesSection: async (contactId: string, heading: string, body: string) => {
     upsertCallCount++
     if (upsertThrowOnCall > 0 && upsertCallCount === upsertThrowOnCall) throw new Error('boom')
     contactUpserts.push({ contactId, heading, body })

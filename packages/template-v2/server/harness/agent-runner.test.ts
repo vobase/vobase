@@ -97,7 +97,9 @@ const STUB_CONTACTS = {
       phone: null,
       email: null,
       segments: [],
-      workingMemory: '',
+      profile: '',
+      notes: '',
+      attributes: {},
     }
   },
   async list() {
@@ -112,16 +114,16 @@ const STUB_CONTACTS = {
   async upsertByExternal() {
     throw new Error('stub')
   },
-  async readWorkingMemory() {
+  async readNotes() {
     return ''
   },
-  async upsertWorkingMemorySection() {
+  async upsertNotesSection() {
     throw new Error('stub')
   },
-  async appendWorkingMemory() {
+  async appendNotes() {
     throw new Error('stub')
   },
-  async removeWorkingMemorySection() {
+  async removeNotesSection() {
     throw new Error('stub')
   },
   async setSegments() {

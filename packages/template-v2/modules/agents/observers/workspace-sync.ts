@@ -3,7 +3,7 @@
  * persists writable-zone changes to their owning module services.
  *
  * Routing rules:
- *   `/workspace/contact/MEMORY.md` → ContactsService.upsertWorkingMemorySection (section-ops)
+ *   `/workspace/contact/MEMORY.md` → ContactsService.upsertNotesSection (section-ops)
  *   `/workspace/contact/drive/**`  → FilesService.create / delete  (scope='contact')
  *
  * Frozen-snapshot invariant: this observer ONLY fires on `agent_end`.
@@ -14,7 +14,7 @@
  * instances (created at wake-start) so the observer has zero module-level state.
  */
 
-import { upsertWorkingMemorySection } from '@modules/contacts/service/contacts'
+import { upsertNotesSection } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
 import type { AgentEvent } from '@server/contracts/event'
@@ -48,7 +48,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
           const raw = await fs.readFile('/workspace/contact/MEMORY.md')
           const sections = parseMarkdownSections(raw)
           for (const [heading, body] of sections) {
-            await upsertWorkingMemorySection(contactId, heading, body)
+            await upsertNotesSection(contactId, heading, body)
           }
         } catch (err) {
           ctx.logger.warn({ err }, 'workspace-sync: failed to flush contact/MEMORY.md')

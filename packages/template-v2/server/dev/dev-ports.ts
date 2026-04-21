@@ -226,17 +226,17 @@ function buildContactsService(db: DrizzleHandle): ContactsService {
           displayName: input.displayName ?? null,
           phone: input.phone ?? null,
           email: input.email ?? null,
-          workingMemory: '',
+          notes: '',
         })
         .returning()
       const row = rows[0] as Contact | undefined
       if (!row) throw new Error('contacts/upsertByExternal: insert returned no rows')
       return row
     },
-    readWorkingMemory: notImpl,
-    upsertWorkingMemorySection: notImpl,
-    appendWorkingMemory: notImpl,
-    removeWorkingMemorySection: notImpl,
+    readNotes: notImpl,
+    upsertNotesSection: notImpl,
+    appendNotes: notImpl,
+    removeNotesSection: notImpl,
     setSegments: notImpl,
     setMarketingOptOut: notImpl,
     async resolveStaffByExternal(channelInstanceId, externalIdentifier) {

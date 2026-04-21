@@ -120,7 +120,9 @@ function makeContactsStub(): ContactsService {
         displayName: 'Test Customer',
         phone: '+6580000000',
         email: null,
-        workingMemory: '# Memory\n',
+        profile: '',
+        notes: '# Memory\n',
+        attributes: {},
         segments: [],
         marketingOptOut: false,
         marketingOptOutAt: null,
@@ -137,12 +139,12 @@ function makeContactsStub(): ContactsService {
     async upsertByExternal(_: UpsertByExternalInput) {
       throw new Error('not-implemented-in-phase-1')
     },
-    async readWorkingMemory() {
+    async readNotes() {
       return '# Memory\n'
     },
-    async upsertWorkingMemorySection() {},
-    async appendWorkingMemory() {},
-    async removeWorkingMemorySection() {},
+    async upsertNotesSection() {},
+    async appendNotes() {},
+    async removeNotesSection() {},
     async setSegments() {},
     async setMarketingOptOut() {},
     async resolveStaffByExternal(): Promise<StaffBinding | null> {

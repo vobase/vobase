@@ -9,7 +9,7 @@
  *      history, existing skills/drive outline, and the agent's working memory
  *      (including `## Anti-lessons` so the LLM dedupes against rejections).
  *   3. For each proposal returned, route by scope:
- *        - contact       → upsert `contact.workingMemory` + insert row status=`auto_written`
+ *        - contact       → upsert `contact.notes` + insert row status=`auto_written`
  *        - agent_memory  → upsert the agent's workingMemory + insert row status=`auto_written`
  *        - agent_skill   → insert row status=`pending` (staff approval gate)
  *        - drive_doc     → insert row status=`pending` (staff approval gate)
@@ -28,7 +28,7 @@
  * to resolve them from the event stream.
  */
 
-import { upsertWorkingMemorySection } from '@modules/contacts/service/contacts'
+import { upsertNotesSection } from '@modules/contacts/service/contacts'
 import type { AgentEvent, LearningProposedEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
 import type { PluginContext } from '@server/contracts/plugin-context'
@@ -242,7 +242,7 @@ async function writeAutoScope(
   agentId: string,
 ): Promise<void> {
   if (draft.scope === 'contact') {
-    await upsertWorkingMemorySection(contactId, draft.target, draft.body)
+    await upsertNotesSection(contactId, draft.target, draft.body)
     return
   }
 

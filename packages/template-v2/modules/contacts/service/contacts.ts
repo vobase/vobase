@@ -23,10 +23,10 @@ export interface ContactsService {
   getByEmail(organizationId: string, email: string): Promise<Contact | null>
   upsertByExternal(input: UpsertByExternalInput): Promise<Contact>
   resolveStaffByExternal(channelInstanceId: string, externalIdentifier: string): Promise<StaffBinding | null>
-  readWorkingMemory(id: string): Promise<string>
-  upsertWorkingMemorySection(id: string, heading: string, body: string): Promise<void>
-  appendWorkingMemory(id: string, line: string): Promise<void>
-  removeWorkingMemorySection(id: string, heading: string): Promise<void>
+  readNotes(id: string): Promise<string>
+  upsertNotesSection(id: string, heading: string, body: string): Promise<void>
+  appendNotes(id: string, line: string): Promise<void>
+  removeNotesSection(id: string, heading: string): Promise<void>
   setSegments(id: string, segments: string[]): Promise<void>
   setMarketingOptOut(id: string, value: boolean): Promise<void>
   bindStaff(userId: string, channelInstanceId: string, externalIdentifier: string): Promise<StaffBinding>
@@ -126,41 +126,41 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     return (rows[0] as StaffBinding) ?? null
   }
 
-  async function readWorkingMemory(id: string): Promise<string> {
+  async function readNotes(id: string): Promise<string> {
     const { contacts } = await import('@modules/contacts/schema')
     const { eq } = await import('drizzle-orm')
     const rows = await db
-      .select({ workingMemory: contacts.workingMemory })
+      .select({ notes: contacts.notes })
       .from(contacts)
       .where(eq(contacts.id, id))
       .limit(1)
     const row = rows[0]
     if (!row) throw new Error(`contact not found: ${id}`)
-    return (row as { workingMemory: string }).workingMemory
+    return (row as { notes: string }).notes
   }
 
-  async function writeWorkingMemory(id: string, value: string): Promise<void> {
+  async function writeNotes(id: string, value: string): Promise<void> {
     const { contacts } = await import('@modules/contacts/schema')
     const { eq } = await import('drizzle-orm')
-    await db.update(contacts).set({ workingMemory: value }).where(eq(contacts.id, id))
+    await db.update(contacts).set({ notes: value }).where(eq(contacts.id, id))
   }
 
-  async function upsertWorkingMemorySection(id: string, heading: string, body: string): Promise<void> {
-    const current = await readWorkingMemory(id)
+  async function upsertNotesSection(id: string, heading: string, body: string): Promise<void> {
+    const current = await readNotes(id)
     const updated = setSection(current, heading, body)
-    await writeWorkingMemory(id, updated)
+    await writeNotes(id, updated)
   }
 
-  async function appendWorkingMemory(id: string, line: string): Promise<void> {
-    const current = await readWorkingMemory(id)
+  async function appendNotes(id: string, line: string): Promise<void> {
+    const current = await readNotes(id)
     const updated = current ? `${current}\n${line}` : line
-    await writeWorkingMemory(id, updated)
+    await writeNotes(id, updated)
   }
 
-  async function removeWorkingMemorySection(id: string, heading: string): Promise<void> {
-    const current = await readWorkingMemory(id)
+  async function removeNotesSection(id: string, heading: string): Promise<void> {
+    const current = await readNotes(id)
     const updated = removeSection(current, heading)
-    await writeWorkingMemory(id, updated)
+    await writeNotes(id, updated)
   }
 
   async function setSegments(_id: string, _segments: string[]): Promise<void> {
@@ -190,10 +190,10 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     getByEmail,
     upsertByExternal,
     resolveStaffByExternal,
-    readWorkingMemory,
-    upsertWorkingMemorySection,
-    appendWorkingMemory,
-    removeWorkingMemorySection,
+    readNotes,
+    upsertNotesSection,
+    appendNotes,
+    removeNotesSection,
     setSegments,
     setMarketingOptOut,
     bindStaff,
@@ -239,17 +239,17 @@ export function resolveStaffByExternal(
 ): Promise<StaffBinding | null> {
   return current().resolveStaffByExternal(channelInstanceId, externalIdentifier)
 }
-export function readWorkingMemory(id: string): Promise<string> {
-  return current().readWorkingMemory(id)
+export function readNotes(id: string): Promise<string> {
+  return current().readNotes(id)
 }
-export function upsertWorkingMemorySection(id: string, heading: string, body: string): Promise<void> {
-  return current().upsertWorkingMemorySection(id, heading, body)
+export function upsertNotesSection(id: string, heading: string, body: string): Promise<void> {
+  return current().upsertNotesSection(id, heading, body)
 }
-export function appendWorkingMemory(id: string, line: string): Promise<void> {
-  return current().appendWorkingMemory(id, line)
+export function appendNotes(id: string, line: string): Promise<void> {
+  return current().appendNotes(id, line)
 }
-export function removeWorkingMemorySection(id: string, heading: string): Promise<void> {
-  return current().removeWorkingMemorySection(id, heading)
+export function removeNotesSection(id: string, heading: string): Promise<void> {
+  return current().removeNotesSection(id, heading)
 }
 export function setSegments(id: string, segments: string[]): Promise<void> {
   return current().setSegments(id, segments)

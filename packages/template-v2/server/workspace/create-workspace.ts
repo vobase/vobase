@@ -313,7 +313,7 @@ async function loadContactProfileFallback(port: ContactsService, contactId: stri
 
 async function loadContactMemoryFallback(port: ContactsService, contactId: string): Promise<string | null> {
   try {
-    const body = await port.readWorkingMemory(contactId)
+    const body = await port.readNotes(contactId)
     return body || null
   } catch {
     return null

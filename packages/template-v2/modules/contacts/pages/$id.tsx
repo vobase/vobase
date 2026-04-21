@@ -115,15 +115,15 @@ export function ContactDetailPage() {
 
             <Card className="lg:col-span-3">
               <CardHeader>
-                <CardTitle className="text-base">Working memory</CardTitle>
+                <CardTitle className="text-base">Notes</CardTitle>
               </CardHeader>
               <CardContent>
-                {contact.workingMemory ? (
+                {contact.notes ? (
                   <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
-                    {contact.workingMemory}
+                    {contact.notes}
                   </pre>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No working memory yet.</p>
+                  <p className="text-sm text-muted-foreground">No notes yet.</p>
                 )}
               </CardContent>
             </Card>

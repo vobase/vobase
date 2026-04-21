@@ -4,7 +4,7 @@
  * Focus: the "anti-lessons" path — when a wake records
  * `learning_rejected` events, the observer appends/merges entries into the
  * agent's `## Anti-lessons` section on agent_end. Distillation path (LLM call
- * + contact working memory upsert) is covered through the debounce stub.
+ * + contact notes upsert) is covered through the debounce stub.
  */
 
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
@@ -16,8 +16,8 @@ import { getTableName } from 'drizzle-orm'
 let contactUpserts: Array<{ heading: string; body: string }> = []
 
 mock.module('@modules/contacts/service/contacts', () => ({
-  readWorkingMemory: async () => '',
-  upsertWorkingMemorySection: async (_id: string, heading: string, body: string) => {
+  readNotes: async () => '',
+  upsertNotesSection: async (_id: string, heading: string, body: string) => {
     contactUpserts.push({ heading, body })
   },
 }))

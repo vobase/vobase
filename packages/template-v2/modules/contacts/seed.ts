@@ -121,7 +121,7 @@ export async function seed(db: unknown): Promise<void> {
       organizationId: MERIDIAN_ORG_ID,
       displayName: 'Test Customer',
       phone: '+6500000000',
-      workingMemory: '',
+      notes: '',
     })
     .onConflictDoNothing()
 
@@ -135,7 +135,7 @@ export async function seed(db: unknown): Promise<void> {
       email: 'priya@acme-labs.io',
       phone: '+6591100201',
       segments: ['pro-plan', 'long-term'],
-      workingMemory: [
+      notes: [
         '# Priya Raman',
         'Role: Head of Ops @ Acme Labs (Singapore).',
         'Plan: Meridian Pro, 12 seats, annual billing (renewed 2026-02).',
@@ -155,7 +155,7 @@ export async function seed(db: unknown): Promise<void> {
       email: 'marcus.chen@northwind.co',
       phone: '+6591100202',
       segments: ['enterprise-lead'],
-      workingMemory: [
+      notes: [
         '# Marcus Chen',
         'Role: VP Engineering @ Northwind (400 employees, SG HQ).',
         'Stage: Enterprise eval — asked for SOC 2 + per-user pricing on 2026-04-17.',
@@ -173,7 +173,7 @@ export async function seed(db: unknown): Promise<void> {
       email: 'elena@rossi-design.studio',
       phone: '+6591100203',
       segments: ['refund-open'],
-      workingMemory: [
+      notes: [
         '# Elena Rossi',
         'Plan: Meridian Pro (1 seat) — asked for refund after 12 days of use.',
         'Reason given: product did not solve onboarding flow she needed.',
@@ -191,7 +191,7 @@ export async function seed(db: unknown): Promise<void> {
       email: 'derek@okafor.dev',
       phone: '+6591100204',
       segments: ['new-signup'],
-      workingMemory: '',
+      notes: '',
     })
     .onConflictDoNothing()
 
@@ -204,7 +204,7 @@ export async function seed(db: unknown): Promise<void> {
       email: 'sophia@nakamura-co.jp',
       phone: '+6591100205',
       segments: ['teams-plan'],
-      workingMemory: [
+      notes: [
         '# Sophia Nakamura',
         'Plan: Meridian Teams (8 seats). Billing in JPY via Stripe.',
         'Wants: audit log retention bumped to 12 months (Enterprise feature).',

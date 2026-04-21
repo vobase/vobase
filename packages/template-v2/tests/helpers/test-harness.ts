@@ -95,17 +95,17 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
     async upsertByExternal(): Promise<Contact> {
       throw new Error('not-implemented-in-phase-1')
     },
-    async readWorkingMemory(id: string): Promise<string> {
+    async readNotes(id: string): Promise<string> {
       const c = await this.get(id)
-      return c.workingMemory
+      return c.notes
     },
-    async upsertWorkingMemorySection() {
+    async upsertNotesSection() {
       throw new Error('not-implemented-in-phase-1')
     },
-    async appendWorkingMemory() {
+    async appendNotes() {
       throw new Error('not-implemented-in-phase-1')
     },
-    async removeWorkingMemorySection() {
+    async removeNotesSection() {
       throw new Error('not-implemented-in-phase-1')
     },
     async setSegments() {
