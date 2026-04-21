@@ -98,7 +98,7 @@ function makeInboxPort(isNew = true) {
     insertPendingApproval: async () => {
       throw new Error('not-expected')
     },
-  } as unknown as ReturnType<typeof import('@modules/inbox/port').createInboxPort>
+  } as unknown as InboxPort
 }
 
 function makeContactsService() {
