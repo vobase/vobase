@@ -1,9 +1,8 @@
 import { useUnreadMentionCount } from '@modules/team/api/use-unread-mentions'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Bot, CheckSquare, HardDrive, Inbox, MessageCircle, Radio, Settings2, UserCog, Users } from 'lucide-react'
+import { Bot, HardDrive, Inbox, Radio, UserCog, Users } from 'lucide-react'
 import type * as React from 'react'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Kbd } from '@/components/ui/kbd'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
@@ -18,24 +17,24 @@ interface AppShellProps {
 interface NavItemDef {
   icon: React.ElementType
   label: string
-  shortcut: string
   to: string
   enabled: boolean
   badgeCount?: number
 }
 
-const NAV_ITEMS: NavItemDef[] = [
-  { icon: Inbox, label: 'Inbox', shortcut: '⌘1', to: '/inbox', enabled: true },
-  { icon: CheckSquare, label: 'Approvals', shortcut: '⌘2', to: '/inbox/approvals', enabled: true },
-  { icon: Users, label: 'Contacts', shortcut: '⌘3', to: '/contacts', enabled: true },
-  { icon: UserCog, label: 'Team', shortcut: '⌘4', to: '/team', enabled: true },
-  { icon: Bot, label: 'Agents', shortcut: '⌘5', to: '/agents', enabled: true },
-  { icon: HardDrive, label: 'Drive', shortcut: '⌘6', to: '/drive', enabled: true },
-  { icon: Radio, label: 'Channels', shortcut: '⌘7', to: '/channels', enabled: true },
-  { icon: Settings2, label: 'Settings', shortcut: '⌘8', to: '/settings', enabled: true },
+const PRIMARY_NAV: NavItemDef[] = [
+  { icon: Inbox, label: 'Inbox', to: '/inbox', enabled: true },
+  { icon: Users, label: 'Contacts', to: '/contacts', enabled: true },
+  { icon: Bot, label: 'Agents', to: '/agents', enabled: true },
+  { icon: HardDrive, label: 'Drive', to: '/drive', enabled: true },
 ]
 
-function RailItem({ icon: Icon, label, shortcut, to, enabled, badgeCount }: NavItemDef) {
+const ADMIN_NAV: NavItemDef[] = [
+  { icon: UserCog, label: 'Team', to: '/team', enabled: true },
+  { icon: Radio, label: 'Channels', to: '/channels', enabled: true },
+]
+
+function RailItem({ icon: Icon, label, to, enabled, badgeCount }: NavItemDef) {
   const baseClass = 'relative flex size-10 items-center justify-center rounded-md transition-colors'
   const badge =
     badgeCount && badgeCount > 0 ? (
@@ -72,10 +71,7 @@ function RailItem({ icon: Icon, label, shortcut, to, enabled, badgeCount }: NavI
   return (
     <Tooltip>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-      <TooltipContent side="right" className="flex items-center gap-2">
-        {label}
-        <Kbd>{shortcut}</Kbd>
-      </TooltipContent>
+      <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   )
 }
@@ -99,31 +95,20 @@ function AppShell({ children }: AppShellProps) {
           </div>
 
           <nav aria-label="Module navigation" className="flex flex-col items-center gap-0.5">
-            {NAV_ITEMS.map((item) => (
-              <RailItem
-                key={item.to}
-                {...item}
-                badgeCount={item.to === '/inbox' ? (unreadMentions ?? 0) : undefined}
-              />
+            {PRIMARY_NAV.map((item) => (
+              <RailItem key={item.to} {...item} badgeCount={item.to === '/inbox' ? (unreadMentions ?? 0) : undefined} />
             ))}
           </nav>
 
           <Separator className="my-3 w-8" />
 
-          {/* Dev tools + theme switch pinned above user */}
-          <div className="flex flex-col items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  to="/test-web"
-                  aria-label="Web channel test client"
-                  className="flex size-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <MessageCircle className="size-[18px]" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">Web channel test client</TooltipContent>
-            </Tooltip>
+          <nav aria-label="Workspace navigation" className="flex flex-col items-center gap-0.5">
+            {ADMIN_NAV.map((item) => (
+              <RailItem key={item.to} {...item} />
+            ))}
+          </nav>
+
+          <div className="mt-auto flex w-full flex-col items-center gap-1 px-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex size-10 items-center justify-center">
@@ -132,10 +117,6 @@ function AppShell({ children }: AppShellProps) {
               </TooltipTrigger>
               <TooltipContent side="right">Toggle theme</TooltipContent>
             </Tooltip>
-          </div>
-
-          {/* Nav-user at rail bottom */}
-          <div className="mt-auto w-full px-1">
             <NavUser />
           </div>
         </aside>

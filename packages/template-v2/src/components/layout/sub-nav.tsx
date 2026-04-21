@@ -29,7 +29,11 @@ function SubNav({ items }: SubNavProps) {
             '[&[aria-current=page]]:text-[var(--color-fg)]',
           )}
         >
-          {item.icon && <span className="size-4 shrink-0">{item.icon}</span>}
+          {item.icon && (
+            <span className="inline-flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">
+              {item.icon}
+            </span>
+          )}
           {item.label}
         </Link>
       ))}
