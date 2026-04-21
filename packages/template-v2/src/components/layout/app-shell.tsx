@@ -6,6 +6,7 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { useMentionBrowserNotifications } from '@/hooks/use-mention-browser-notifications'
 import { useStaffHeartbeat } from '@/hooks/use-staff-heartbeat'
 import { cn } from '@/lib/utils'
 import { NavUser } from './nav-user'
@@ -80,6 +81,7 @@ function AppShell({ children }: AppShellProps) {
   const navigate = useNavigate()
   useKeyboardNav({ context: 'shell', onNavigate: (path) => navigate({ to: path }) })
   useStaffHeartbeat()
+  useMentionBrowserNotifications()
   const { data: unreadMentions } = useUnreadMentionCount()
 
   return (

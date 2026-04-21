@@ -256,10 +256,10 @@ function renderNoteBodyWithMentions(
       <span
         key={`mention-${chipIdx++}`}
         className={cn(
-          'rounded px-1 font-medium',
+          'rounded px-1 font-semibold',
           isMe
-            ? 'bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200'
-            : 'bg-blue-100 text-blue-900 dark:bg-blue-950/60 dark:text-blue-200',
+            ? 'bg-rose-600 text-white ring-1 ring-rose-700 dark:bg-rose-500 dark:ring-rose-300'
+            : 'bg-blue-600 text-white ring-1 ring-blue-700 dark:bg-blue-500 dark:ring-blue-300',
         )}
       >
         {raw}

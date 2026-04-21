@@ -4,11 +4,12 @@ import { useLifecycle } from '@modules/inbox/api/use-lifecycle'
 import { useNotes } from '@modules/inbox/api/use-notes'
 import { useReassign } from '@modules/inbox/api/use-reassign'
 import { deriveContactName } from '@modules/inbox/lib/contact'
+import { useDismissMention, useUnreadMentions } from '@modules/team/api/use-unread-mentions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { CheckIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
 import { useQueryState } from 'nuqs'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCurrentUserId } from '@/hooks/use-current-user'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
@@ -114,6 +115,19 @@ export function ConversationDetail() {
 
   const { data: notes = [] } = useNotes(activeConvId ?? '')
   const { data: activity = [] } = useActivity(activeConvId ?? '')
+
+  // Auto-dismiss @-mentions for the current user on the active conversation.
+  // Keeps the red "@" badge in conversation-row self-clearing as staff reads.
+  const { data: unreadMentions = [] } = useUnreadMentions()
+  const dismissMention = useDismissMention()
+  useEffect(() => {
+    if (!activeConvId) return
+    const mine = unreadMentions.filter((m) => m.conversationId === activeConvId)
+    for (const m of mine) dismissMention.mutate(m.noteId)
+    // dismissMention is a stable mutation object — we only want to rerun when
+    // the list of unread mentions or the active conversation changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConvId, unreadMentions])
 
   // Conversation-list nav: prev/next walks contactIds from the grouped inbox.
   const { data: grouped } = useQuery({
