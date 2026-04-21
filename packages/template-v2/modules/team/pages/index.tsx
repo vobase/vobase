@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Settings2, UserPlus, Users } from 'lucide-react'
+import { Settings2, UserPlus, Users, Users2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -60,6 +60,12 @@ export function StaffListPage() {
           <p className="text-sm text-muted-foreground">Staff profiles — routing, capacity, and operational context.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link to="/team/teams">
+              <Users2 className="mr-2 size-4" />
+              Teams
+            </Link>
+          </Button>
           <Button asChild size="sm" variant="outline">
             <Link to="/team/attributes">
               <Settings2 className="mr-2 size-4" />

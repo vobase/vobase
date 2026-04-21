@@ -8,6 +8,7 @@ import {
 import { Hono } from 'hono'
 import { z } from 'zod'
 import attributeHandlers from './attributes'
+import descriptionHandlers from './descriptions'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
@@ -39,6 +40,7 @@ const updateStaffBody = z.object({
 const app = new Hono()
   .get('/health', (c) => c.json({ module: 'team', status: 'ok' }))
   .route('/', attributeHandlers)
+  .route('/', descriptionHandlers)
   .get('/staff', async (c) => {
     const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
     const rows = await listStaff(organizationId)

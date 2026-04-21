@@ -53,6 +53,13 @@ export interface StaffProfile {
   updatedAt: Date
 }
 
+export interface TeamDescription {
+  teamId: string
+  organizationId: string
+  description: string
+  updatedAt: Date
+}
+
 export interface StaffAttributeDefinition {
   id: string
   organizationId: string
@@ -98,6 +105,26 @@ export const staffProfiles = teamPgSchema.table(
   ],
 )
 
+/**
+ * Per-team free-text description — surfaced to agents for routing context.
+ * Keyed by `teamId` (better-auth `auth.team.id`). No FK to `auth.team` because
+ * auth tables live in a different pgSchema and deletion is handled at the app
+ * layer (see `team-descriptions/remove`).
+ */
+export const teamDescriptions = teamPgSchema.table(
+  'team_descriptions',
+  {
+    teamId: text('team_id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    description: text('description').notNull().default(''),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index('idx_team_descriptions_org').on(t.organizationId)],
+)
+
 export const staffAttributeDefinitions = teamPgSchema.table(
   'staff_attribute_definitions',
   {
@@ -130,6 +157,9 @@ type _StaffProfileAssert =
   >
     ? true
     : never
+type _TeamDescriptionAssert = InferSelectModel<typeof teamDescriptions> extends TeamDescription ? true : never
+const _teamDescOk: _TeamDescriptionAssert = true
+void _teamDescOk
 type _StaffAttrDefAssert =
   InferSelectModel<typeof staffAttributeDefinitions> extends Omit<StaffAttributeDefinition, 'type' | 'options'>
     ? true
