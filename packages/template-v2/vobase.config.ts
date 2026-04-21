@@ -1,7 +1,7 @@
 /**
- * vobase.config.ts — registers all 6 modules in dependency order.
+ * vobase.config.ts — registers all 7 modules in dependency order.
  * Order matters for init dependency resolution:
- * contacts → drive → inbox → agents → channel-web → channel-whatsapp
+ * contacts → team → drive → inbox → agents → channel-web → channel-whatsapp
  */
 
 import agents from './modules/agents/module'
@@ -11,6 +11,7 @@ import contacts from './modules/contacts/module'
 import drive from './modules/drive/module'
 import inbox from './modules/inbox/module'
 import settings from './modules/settings/module'
+import team from './modules/team/module'
 
 export default {
   database: process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2',
@@ -67,5 +68,5 @@ export default {
     },
   },
 
-  modules: [settings, contacts, drive, inbox, agents, channelWeb, channelWhatsapp],
+  modules: [settings, contacts, team, drive, inbox, agents, channelWeb, channelWhatsapp],
 }

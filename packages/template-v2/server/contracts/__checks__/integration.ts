@@ -15,6 +15,9 @@ import type { AgentDefinition, ConversationEvent, LearningProposal } from '@modu
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { Contact, StaffBinding } from '@modules/contacts/schema'
 import type { ContactsService } from '@modules/contacts/service/contacts'
+import type { StaffAttributeDefinition, StaffProfile } from '@modules/team/schema'
+import type { StaffAttrDefService } from '@modules/team/service/attribute-definitions'
+import type { StaffService } from '@modules/team/service/staff'
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
@@ -217,6 +220,8 @@ type _RequiredContactsMethods =
   | 'list'
   | 'getByPhone'
   | 'getByEmail'
+  | 'create'
+  | 'update'
   | 'upsertByExternal'
   | 'readNotes'
   | 'upsertNotesSection'
@@ -234,6 +239,8 @@ type _RequiredDriveMethods =
   | 'getByPath'
   | 'listFolder'
   | 'readContent'
+  | 'readPath'
+  | 'writePath'
   | 'getBusinessMd'
   | 'grep'
   | 'create'
@@ -247,6 +254,21 @@ type _DriveKeys = AssertTrue<AssertEqual<keyof FilesService, _RequiredDriveMetho
 
 type _RequiredAgentsMethods = 'getAgentDefinition' | 'appendEvent' | 'checkDailyCeiling'
 type _AgentsKeys = AssertTrue<AssertEqual<keyof AgentsPort, _RequiredAgentsMethods>>
+
+type _RequiredStaffMethods =
+  | 'list'
+  | 'get'
+  | 'find'
+  | 'upsert'
+  | 'update'
+  | 'remove'
+  | 'setAttributes'
+  | 'touchLastSeen'
+  | 'setWorkingMemory'
+type _StaffKeys = AssertTrue<AssertEqual<keyof StaffService, _RequiredStaffMethods>>
+
+type _RequiredStaffAttrDefMethods = 'list' | 'create' | 'update' | 'remove'
+type _StaffAttrDefKeys = AssertTrue<AssertEqual<keyof StaffAttrDefService, _RequiredStaffAttrDefMethods>>
 
 // ---------------------------------------------------------------------------
 // PluginContext registration surface — every `register*` + scoped client exists
@@ -384,6 +406,8 @@ type _DomainKeep =
   | PendingApproval
   | Contact
   | StaffBinding
+  | StaffProfile
+  | StaffAttributeDefinition
   | AgentDefinition
   | DriveFile
   | LearningProposal
