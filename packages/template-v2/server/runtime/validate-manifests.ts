@@ -5,9 +5,8 @@
  * Static checks (this file):
  * (a) no overlapping `workspace.owns` prefixes between modules
  * (b) no module `workspace.owns` overlaps `RUNTIME_OWNED_PATHS`
- * (c) `tables` values are fully-qualified `schema.table`; suffixes unique across modules for
- *     `tables`/`queues`/`buckets`
- * (d) soft command-verb prefix uniqueness (reports only in Phase 0)
+ * (c) `queues`/`buckets` suffixes unique across modules
+ * (d) soft command-verb prefix uniqueness
  *
  * Dynamic check (observer/mutator id cross-check, D4): wired at `registerObserver` /
  * `registerMutator` interception in `boot-modules.ts`. See `ManifestMismatchError`.
@@ -54,27 +53,13 @@ export class ManifestMismatchError extends Error {
   }
 }
 
-export class ManifestMalformedError extends Error {
-  constructor(
-    public readonly moduleName: string,
-    public readonly field: string,
-    public readonly value: string,
-    public readonly reason: string,
-  ) {
-    super(`manifest malformed in "${moduleName}" (${field}="${value}"): ${reason}`)
-    this.name = 'ManifestMalformedError'
-  }
-}
-
-const TABLE_QUALIFIED_RE = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/
-
 /**
  * Runs all static manifest checks. Throws on the first violation; the error
  * surface names the offending module(s) and the specific invariant.
  */
 export function validateManifests(modules: readonly ModuleInstance[]): void {
   validateWorkspaceOwnership(modules)
-  validateTablesQueuesBuckets(modules)
+  validateQueuesBuckets(modules)
   validateCommandVerbPrefixes(modules)
 }
 
@@ -115,27 +100,11 @@ function validateWorkspaceOwnership(modules: readonly ModuleInstance[]): void {
   }
 }
 
-function validateTablesQueuesBuckets(modules: readonly ModuleInstance[]): void {
-  const tableOwner = new Map<string, string>()
+function validateQueuesBuckets(modules: readonly ModuleInstance[]): void {
   const queueOwner = new Map<string, string>()
   const bucketOwner = new Map<string, string>()
 
   for (const mod of modules) {
-    for (const table of mod.manifest.tables ?? []) {
-      if (!TABLE_QUALIFIED_RE.test(table)) {
-        throw new ManifestMalformedError(
-          mod.name,
-          'tables',
-          table,
-          'must be fully qualified as "schema.table" (lowercase, underscores)',
-        )
-      }
-      const prev = tableOwner.get(table)
-      if (prev && prev !== mod.name) {
-        throw new ManifestCollisionError(prev, mod.name, `both claim table "${table}"`)
-      }
-      tableOwner.set(table, mod.name)
-    }
     for (const queue of mod.manifest.queues ?? []) {
       const prev = queueOwner.get(queue)
       if (prev && prev !== mod.name) {

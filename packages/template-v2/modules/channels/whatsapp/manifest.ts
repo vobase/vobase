@@ -6,8 +6,4 @@ export const manifest: ModuleManifest = {
   },
   permissions: [],
   workspace: { owns: [] },
-  accessGrants: [
-    { to: 'inbox', reason: 'A3 inbound via InboxPort' },
-    { to: 'contacts', reason: 'contact resolution' },
-  ],
 }

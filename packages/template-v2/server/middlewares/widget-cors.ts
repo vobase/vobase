@@ -1,5 +1,5 @@
-import { cors } from 'hono/cors'
 import type { MiddlewareHandler } from 'hono'
+import { cors } from 'hono/cors'
 
 function parseAllowedOrigins(): string[] {
   const raw = process.env.WIDGET_ALLOWED_ORIGINS ?? ''
@@ -25,13 +25,7 @@ export function createWidgetCors(): MiddlewareHandler {
       return allowedOrigins.includes(origin) ? origin : null
     },
     credentials: true,
-    allowHeaders: [
-      'content-type',
-      'authorization',
-      'x-channel-instance-id',
-      'x-channel-secret',
-      'x-hub-signature-256',
-    ],
+    allowHeaders: ['content-type', 'authorization', 'x-channel-instance-id', 'x-channel-secret', 'x-hub-signature-256'],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     exposeHeaders: ['content-type'],
   })

@@ -7,6 +7,4 @@ export const manifest: ModuleManifest = {
   },
   permissions: [],
   workspace: { owns: [] },
-  tables: ['public.contacts'],
-  accessGrants: [],
 }

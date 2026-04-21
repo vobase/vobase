@@ -86,29 +86,23 @@ describe('defineModule — extended manifest (Step 1)', () => {
     expect(m.manifest.workspace?.owns[1].kind).toBe('exact')
   })
 
-  it('accepts tables, queues, buckets, accessGrants', () => {
+  it('accepts queues and buckets', () => {
     const manifest: ModuleManifest = {
       provides: {},
       permissions: [],
-      tables: ['public.conversations', 'public.messages'],
       queues: ['snooze'],
       buckets: ['attachments'],
-      accessGrants: [{ to: 'agents', reason: 'LearningProposal builder', path: 'service/learning-proposals' }],
     }
     const m = defineModule({ ...validDef, manifest })
-    expect(m.manifest.tables).toEqual(['public.conversations', 'public.messages'])
     expect(m.manifest.queues).toEqual(['snooze'])
     expect(m.manifest.buckets).toEqual(['attachments'])
-    expect(m.manifest.accessGrants?.[0].to).toBe('agents')
   })
 
   it('keeps extended manifest fields fully optional (backward compatible)', () => {
     const m = defineModule(validDef)
     expect(m.manifest.workspace).toBeUndefined()
-    expect(m.manifest.tables).toBeUndefined()
     expect(m.manifest.queues).toBeUndefined()
     expect(m.manifest.buckets).toBeUndefined()
-    expect(m.manifest.accessGrants).toBeUndefined()
   })
 
   it('discriminated-union type narrows correctly at runtime', () => {

@@ -28,9 +28,6 @@ const HONO_ROUTE_RE = /\.(get|post|put|delete|patch|all|on)\s*\(|app\.(get|post|
 // Cross-module schema import: import ... from '...@modules/<other>/schema' or '../../<other>/schema'
 const CROSS_SCHEMA_RE = /from\s+['"](?:@modules\/[^/'"]+\/schema|\.\.\/[^/'"]+\/schema)['"]/
 
-// Cross-module service import: @modules/<other>/service/...
-const CROSS_SERVICE_RE = /from\s+['"](?:@modules\/([^/'"]+)\/service\/[^'"]+)['"]/
-
 // applyTransition usage
 const APPLY_TRANSITION_RE = /applyTransition\s*\(/
 
@@ -331,36 +328,6 @@ async function checkCommandNameMatchesManifest(moduleName: string, moduleDir: st
   }
 }
 
-async function checkAccessGrantsForCrossModuleImports(moduleName: string, moduleDir: string): Promise<void> {
-  const manifestPath = join(moduleDir, 'manifest.ts')
-  if (!(await fileExists(manifestPath))) return
-  const manifestSrc = await Bun.file(manifestPath).text()
-
-  const serviceDir = join(moduleDir, 'service')
-  const { existsSync } = await import('node:fs')
-  if (!existsSync(serviceDir)) return
-  const glob = new Bun.Glob('**/*.ts')
-  for await (const entry of glob.scan({ cwd: serviceDir })) {
-    if (entry.includes('__tests__/') || entry.endsWith('.test.ts')) continue
-    const fullPath = join(serviceDir, entry)
-    const lines = await readLines(fullPath)
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      const match = line.match(CROSS_SERVICE_RE)
-      if (!match) continue
-      const targetModule = match[1]
-      if (targetModule === moduleName) continue
-      if (!manifestSrc.includes(`to: '${targetModule}'`) && !manifestSrc.includes(`to: "${targetModule}"`)) {
-        report(
-          fullPath,
-          `module "${moduleName}" service/${entry} imports from modules/${targetModule}/service/** but manifest.accessGrants does not declare a grant to "${targetModule}"`,
-          i + 1,
-        )
-      }
-    }
-  }
-}
-
 async function lintModule(moduleName: string): Promise<void> {
   const moduleDir = join(MODULES_DIR, moduleName)
   await Promise.all([
@@ -374,7 +341,6 @@ async function lintModule(moduleName: string): Promise<void> {
     checkNoRawDrizzleTxInService(moduleName, moduleDir),
     checkObserverMutatorIdsMatchManifest(moduleName, moduleDir),
     checkCommandNameMatchesManifest(moduleName, moduleDir),
-    checkAccessGrantsForCrossModuleImports(moduleName, moduleDir),
   ])
 }
 

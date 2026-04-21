@@ -15,7 +15,5 @@ export const manifest: ModuleManifest = {
       { kind: 'exact', path: '/workspace/conversation/internal-notes.md' },
     ],
   },
-  tables: ['public.conversations', 'public.messages', 'public.internal_notes', 'public.pending_approvals'],
   queues: ['snooze'],
-  accessGrants: [],
 }

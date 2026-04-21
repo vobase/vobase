@@ -18,12 +18,4 @@ export const manifest: ModuleManifest = {
       { kind: 'exact', path: '/workspace/MEMORY.md' },
     ],
   },
-  tables: [
-    'public.conversation_events',
-    'public.agent_definitions',
-    'public.learning_proposals',
-    'public.tenant_cost_daily',
-    'public.active_wakes',
-  ],
-  accessGrants: [],
 }

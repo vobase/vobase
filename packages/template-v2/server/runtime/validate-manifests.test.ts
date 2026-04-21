@@ -3,7 +3,6 @@ import { defineModule, type ModuleInstance, type ModuleManifest } from './define
 import {
   checkProvidesId,
   ManifestCollisionError,
-  ManifestMalformedError,
   ManifestMismatchError,
   NamespaceViolationError,
   validateManifests,
@@ -75,39 +74,7 @@ describe('validateManifests — workspace ownership', () => {
   })
 })
 
-describe('validateManifests — tables / queues / buckets', () => {
-  it('rejects bare table names (must be schema-qualified)', () => {
-    const a = mk('inbox', {
-      provides: {},
-      permissions: [],
-      tables: ['conversations'],
-    })
-    expect(() => validateManifests([a])).toThrow(ManifestMalformedError)
-  })
-
-  it('accepts fully-qualified schema.table names', () => {
-    const a = mk('inbox', {
-      provides: {},
-      permissions: [],
-      tables: ['public.conversations', 'public.messages'],
-    })
-    expect(() => validateManifests([a])).not.toThrow()
-  })
-
-  it('throws when two modules claim the same table', () => {
-    const a = mk('inbox', {
-      provides: {},
-      permissions: [],
-      tables: ['public.conversations'],
-    })
-    const b = mk('other', {
-      provides: {},
-      permissions: [],
-      tables: ['public.conversations'],
-    })
-    expect(() => validateManifests([a, b])).toThrow(ManifestCollisionError)
-  })
-
+describe('validateManifests — queues / buckets', () => {
   it('throws when two modules claim the same queue suffix', () => {
     const a = mk('inbox', { provides: {}, permissions: [], queues: ['snooze'] })
     const b = mk('other', { provides: {}, permissions: [], queues: ['snooze'] })

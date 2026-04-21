@@ -47,15 +47,6 @@ export interface ModuleManifestWorkspace {
   readonly frozenEager?: readonly WorkspacePath[]
 }
 
-export interface ModuleAccessGrant {
-  /** Target module name. */
-  readonly to: string
-  /** Human-readable justification surfaced in CI lint output. */
-  readonly reason: string
-  /** Optional path inside the target module (e.g. `service/learning-proposals`). */
-  readonly path?: string
-}
-
 export interface ModuleManifest {
   /** Declarative capabilities this module advertises to other modules. */
   provides: {
@@ -71,14 +62,10 @@ export interface ModuleManifest {
   permissions: readonly string[]
   /** Virtual workspace paths this module owns + materializes. */
   workspace?: ModuleManifestWorkspace
-  /** Fully-qualified `schema.table` names owned by this module. */
-  tables?: readonly string[]
   /** Job-queue suffixes; runtime wraps each as `${moduleName}.${suffix}`. */
   queues?: readonly string[]
   /** Storage bucket suffixes; runtime wraps each as `${moduleName}-${suffix}`. */
   buckets?: readonly string[]
-  /** Declared cross-module `service/**` imports. Enforced by CI lint in Phase 0. */
-  accessGrants?: readonly ModuleAccessGrant[]
 }
 
 export interface ModuleDef {
