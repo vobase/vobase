@@ -122,7 +122,11 @@ export function ContactDetailPage() {
                 <span className="text-xs text-muted-foreground">Per-contact uploads and notes.</span>
               </div>
               <div className="min-h-0 flex-1">
-                <DriveProvider scope={{ scope: 'contact', contactId: id }}>
+                <DriveProvider
+                  scope={{ scope: 'contact', contactId: id }}
+                  rootLabel={contact.displayName ? `${contact.displayName}'s files` : 'Contact files'}
+                  initialPath="/PROFILE.md"
+                >
                   <DriveBrowser />
                 </DriveProvider>
               </div>

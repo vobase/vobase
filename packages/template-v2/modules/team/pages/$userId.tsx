@@ -95,7 +95,11 @@ export function StaffDetailPage() {
                 <span className="text-xs text-muted-foreground">PROFILE.md, NOTES.md, and personal files.</span>
               </div>
               <div className="min-h-0 flex-1">
-                <DriveProvider scope={{ scope: 'staff', userId }}>
+                <DriveProvider
+                  scope={{ scope: 'staff', userId }}
+                  rootLabel={staff.displayName ? `${staff.displayName}'s files` : 'Staff files'}
+                  initialPath="/PROFILE.md"
+                >
                   <DriveBrowser />
                 </DriveProvider>
               </div>
