@@ -69,7 +69,12 @@ mock.module('../../api/use-drive', () => ({
 describe('DriveBrowser', () => {
   it('renders tree rows and empty preview placeholder', async () => {
     const { DriveBrowser } = await import('../drive-browser')
-    const html = renderToStaticMarkup(<DriveBrowser scope={{ scope: 'organization' }} />)
+    const { DriveProvider } = await import('../drive-provider')
+    const html = renderToStaticMarkup(
+      <DriveProvider scope={{ scope: 'organization' }}>
+        <DriveBrowser />
+      </DriveProvider>,
+    )
     expect(html).toContain('policies')
     expect(html).toContain('BUSINESS.md')
     expect(html).toContain('Select a file to preview')

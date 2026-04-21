@@ -73,7 +73,7 @@ export interface FilesService {
   remove(id: string): Promise<void>
   ingestUpload(input: IngestUploadInput): Promise<DriveFile>
   saveInboundMessageAttachment(msgId: string, targetPath?: string): Promise<DriveFile>
-  deleteScope(scope: 'contact', scopeId: string): Promise<void>
+  deleteScope(scope: 'contact' | 'staff', scopeId: string): Promise<void>
 }
 
 export interface FilesServiceDeps {
@@ -151,9 +151,8 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   const organizationId = deps.organizationId
 
   function scopeId(scope: DriveScope): { scopeName: string; scopeIdVal: string } {
-    if (scope.scope === 'organization') {
-      return { scopeName: 'organization', scopeIdVal: organizationId }
-    }
+    if (scope.scope === 'organization') return { scopeName: 'organization', scopeIdVal: organizationId }
+    if (scope.scope === 'staff') return { scopeName: 'staff', scopeIdVal: scope.userId }
     return { scopeName: 'contact', scopeIdVal: scope.contactId }
   }
 
@@ -371,7 +370,11 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     const current = await get(id)
     if (!current) throw new Error(`drive file not found: ${id}`)
     const scope: DriveScope =
-      current.scope === 'organization' ? { scope: 'organization' } : { scope: 'contact', contactId: current.scopeId }
+      current.scope === 'organization'
+        ? { scope: 'organization' }
+        : current.scope === 'staff'
+          ? { scope: 'staff', userId: current.scopeId }
+          : { scope: 'contact', contactId: current.scopeId }
     const parentFolderId = await resolveParentFolderId(scope, newPath)
     const { driveFiles } = await import('@modules/drive/schema')
     const { eq } = await import('drizzle-orm')
@@ -403,7 +406,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     throw new Error('not-implemented-in-phase-1: drive/files.saveInboundMessageAttachment')
   }
 
-  async function deleteScope(_scope: 'contact', _scopeId: string): Promise<void> {
+  async function deleteScope(_scope: 'contact' | 'staff', _scopeId: string): Promise<void> {
     throw new Error('not-implemented-in-phase-1: drive/files.deleteScope')
   }
 
@@ -435,13 +438,24 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
  * `agents/agent-definitions`. Tests call `setFilesDb(db.db)` directly.
  */
 let _currentDb: unknown = null
+let _currentAuth: unknown = null
 
 export function setFilesDb(db: unknown): void {
   _currentDb = db
 }
 
+/** Installed by `server/auth/wire-modules.ts` after `createAuth(db)`. */
+export function installDriveAuth(auth: unknown): void {
+  _currentAuth = auth
+}
+
+export function getDriveAuth(): unknown {
+  return _currentAuth
+}
+
 export function __resetFilesDbForTests(): void {
   _currentDb = null
+  _currentAuth = null
 }
 
 export function filesServiceFor(organizationId: string): FilesService {

@@ -9,7 +9,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { DriveFile } from '../schema'
 
-export type DriveScopeArg = { scope: 'organization' } | { scope: 'contact'; contactId: string }
+export type DriveScopeArg =
+  | { scope: 'organization' }
+  | { scope: 'contact'; contactId: string }
+  | { scope: 'staff'; userId: string }
 
 export interface ReadFileResult {
   content: string
@@ -24,13 +27,21 @@ export const driveKeys = {
 }
 
 function scopeKey(s: DriveScopeArg): string {
-  return s.scope === 'organization' ? 'organization' : `contact:${s.contactId}`
+  if (s.scope === 'organization') return 'organization'
+  if (s.scope === 'staff') return `staff:${s.userId}`
+  return `contact:${s.contactId}`
 }
 
 function scopeQuery(s: DriveScopeArg): string {
-  return s.scope === 'organization'
-    ? 'scope=organization'
-    : `scope=contact&contactId=${encodeURIComponent(s.contactId)}`
+  if (s.scope === 'organization') return 'scope=organization'
+  if (s.scope === 'staff') return `scope=staff&userId=${encodeURIComponent(s.userId)}`
+  return `scope=contact&contactId=${encodeURIComponent(s.contactId)}`
+}
+
+function scopeBody(s: DriveScopeArg): Record<string, string> {
+  if (s.scope === 'organization') return { scope: 'organization' }
+  if (s.scope === 'staff') return { scope: 'staff', userId: s.userId }
+  return { scope: 'contact', contactId: s.contactId }
 }
 
 export function useDriveList(scope: DriveScopeArg, parentId: string | null = null) {
@@ -75,12 +86,10 @@ export function useWriteFile(scope: DriveScopeArg) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ path, content }: { path: string; content: string }) => {
-      const body =
-        scope.scope === 'organization' ? { scope: 'organization' } : { scope: 'contact', contactId: scope.contactId }
       const r = await fetch('/api/drive/file', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...body, path, content }),
+        body: JSON.stringify({ ...scopeBody(scope), path, content }),
       })
       if (!r.ok) throw new Error(`drive write failed: ${r.status}`)
       return (await r.json()) as { file: DriveFile }
@@ -96,12 +105,10 @@ export function useMkdir(scope: DriveScopeArg) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (path: string) => {
-      const body =
-        scope.scope === 'organization' ? { scope: 'organization' } : { scope: 'contact', contactId: scope.contactId }
       const r = await fetch('/api/drive/folders', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...body, path }),
+        body: JSON.stringify({ ...scopeBody(scope), path }),
       })
       if (!r.ok) throw new Error(`drive mkdir failed: ${r.status}`)
       return (await r.json()) as { file: DriveFile }

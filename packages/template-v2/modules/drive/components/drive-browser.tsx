@@ -1,31 +1,25 @@
 /**
- * DriveBrowser — master/detail composition of the drive primitives. Consumers
- * pass `scope` (organization or a specific contactId); provider + layout live
- * here so pages just drop `<DriveBrowser scope={...} />`.
+ * DriveBrowser — master/detail layout composed of the drive primitives.
+ *
+ * DriveBrowser no longer owns its scope; wrap it in `<DriveProvider scope={...}>`
+ * so the consumer (contact detail, staff detail, /drive page) controls the
+ * scope + selected path and can co-locate other panels that share state.
  */
 
-import type { DriveScopeArg } from '../api/use-drive'
 import { DrivePreview } from './drive-preview'
-import { DriveProvider } from './drive-provider'
 import { DriveTree } from './drive-tree'
 import { DriveUpload } from './drive-upload'
 
-export interface DriveBrowserProps {
-  scope: DriveScopeArg
-}
-
-export function DriveBrowser({ scope }: DriveBrowserProps) {
+export function DriveBrowser() {
   return (
-    <DriveProvider scope={scope}>
-      <div className="grid h-full grid-cols-[280px_1fr] overflow-hidden">
-        <aside className="flex flex-col border-r border-border">
-          <DriveUpload />
-          <DriveTree />
-        </aside>
-        <main className="overflow-hidden">
-          <DrivePreview />
-        </main>
-      </div>
-    </DriveProvider>
+    <div className="grid h-full grid-cols-[280px_1fr] overflow-hidden">
+      <aside className="flex flex-col border-r border-border">
+        <DriveUpload />
+        <DriveTree />
+      </aside>
+      <main className="overflow-hidden">
+        <DrivePreview />
+      </main>
+    </div>
   )
 }

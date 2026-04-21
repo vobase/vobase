@@ -26,6 +26,7 @@ const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 const scopeSchema = z.discriminatedUnion('scope', [
   z.object({ scope: z.literal('organization') }),
   z.object({ scope: z.literal('contact'), contactId: z.string().min(1) }),
+  z.object({ scope: z.literal('staff'), userId: z.string().min(1) }),
 ])
 
 type ParsedScope = z.infer<typeof scopeSchema>
@@ -36,13 +37,16 @@ function scopeFromQuery(c: {
   const parsed = scopeSchema.safeParse({
     scope: c.req.query('scope'),
     contactId: c.req.query('contactId'),
+    userId: c.req.query('userId'),
   })
   if (!parsed.success) return { ok: false, issues: parsed.error.issues }
   return { ok: true, scope: toDriveScope(parsed.data) }
 }
 
 function toDriveScope(p: ParsedScope): DriveScope {
-  return p.scope === 'organization' ? { scope: 'organization' } : { scope: 'contact', contactId: p.contactId }
+  if (p.scope === 'organization') return { scope: 'organization' }
+  if (p.scope === 'staff') return { scope: 'staff', userId: p.userId }
+  return { scope: 'contact', contactId: p.contactId }
 }
 
 const writeFileBodySchema = scopeSchema.and(

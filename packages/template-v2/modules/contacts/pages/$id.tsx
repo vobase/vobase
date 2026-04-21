@@ -1,4 +1,5 @@
 import { DriveBrowser } from '@modules/drive/components/drive-browser'
+import { DriveProvider } from '@modules/drive/components/drive-provider'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft, FolderTree, Mail, Pencil, Phone, Settings2, ShieldOff } from 'lucide-react'
@@ -121,7 +122,9 @@ export function ContactDetailPage() {
                 <span className="text-xs text-muted-foreground">Per-contact uploads and notes.</span>
               </div>
               <div className="min-h-0 flex-1">
-                <DriveBrowser scope={{ scope: 'contact', contactId: id }} />
+                <DriveProvider scope={{ scope: 'contact', contactId: id }}>
+                  <DriveBrowser />
+                </DriveProvider>
               </div>
             </section>
           </>

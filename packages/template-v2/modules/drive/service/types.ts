@@ -5,7 +5,10 @@
 
 import type { DriveFile } from '../schema'
 
-export type DriveScope = { scope: 'organization' } | { scope: 'contact'; contactId: string }
+export type DriveScope =
+  | { scope: 'organization' }
+  | { scope: 'contact'; contactId: string }
+  | { scope: 'staff'; userId: string }
 
 export interface CreateFileInput {
   parentFolderId?: string | null

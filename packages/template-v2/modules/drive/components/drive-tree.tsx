@@ -24,7 +24,11 @@ export function DriveTree() {
           <ChevronLeft className="size-3.5" /> root
         </button>
         <span className="text-xs text-muted-foreground">
-          {scope.scope === 'organization' ? 'organization' : `contact:${scope.contactId}`}
+          {scope.scope === 'organization'
+            ? 'organization'
+            : scope.scope === 'staff'
+              ? `staff:${scope.userId}`
+              : `contact:${scope.contactId}`}
         </span>
       </div>
       <div className="flex-1 overflow-auto">

@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { HardDrive } from 'lucide-react'
 import { DriveBrowser } from '../components/drive-browser'
+import { DriveProvider } from '../components/drive-provider'
 
 export function DrivePage() {
   return (
@@ -18,7 +19,9 @@ export function DrivePage() {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        <DriveBrowser scope={{ scope: 'organization' }} />
+        <DriveProvider scope={{ scope: 'organization' }}>
+          <DriveBrowser />
+        </DriveProvider>
       </div>
     </div>
   )
