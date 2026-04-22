@@ -567,7 +567,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       out.push(withSideLoad)
       return out
     },
-    getApiKey: () => resolveApiKey(),
+    getApiKey: () => resolveApiKey(model),
     beforeToolCall: async (ctx) => {
       const step: AgentStep = {
         toolCallId: ctx.toolCall.id,

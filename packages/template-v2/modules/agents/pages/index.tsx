@@ -5,6 +5,7 @@ import {
   useDeleteAgent,
   useUpdateAgent,
 } from '@modules/agents/api/use-agent-definitions'
+import { DEFAULT_CHAT_MODEL } from '@modules/agents/lib/models'
 import { MODEL_OPTIONS } from '@modules/agents/service/agent-definitions'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Bot, MoreVertical, Plus } from 'lucide-react'
@@ -91,11 +92,11 @@ function NewAgentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const navigate = useNavigate()
   const create = useCreateAgent()
   const [name, setName] = useState('')
-  const [model, setModel] = useState<string>(MODEL_OPTIONS[0]?.value ?? 'gpt-5.4')
+  const [model, setModel] = useState<string>(MODEL_OPTIONS[0]?.value ?? DEFAULT_CHAT_MODEL)
 
   function reset() {
     setName('')
-    setModel(MODEL_OPTIONS[0]?.value ?? 'gpt-5.4')
+    setModel(MODEL_OPTIONS[0]?.value ?? DEFAULT_CHAT_MODEL)
   }
 
   return (

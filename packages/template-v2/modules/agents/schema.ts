@@ -145,13 +145,14 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
+import { DEFAULT_CHAT_MODEL } from './lib/models'
 
 export const agentDefinitions = agentsPgSchema.table('agent_definitions', {
   id: nanoidPrimaryKey(),
   organizationId: text('organization_id').notNull(),
   name: text('name').notNull(),
   soulMd: text('soul_md').notNull().default(''),
-  model: text('model').notNull().default('claude-sonnet-4-6'),
+  model: text('model').notNull().default(DEFAULT_CHAT_MODEL),
   maxSteps: integer('max_steps').default(20),
   workingMemory: text('working_memory').notNull().default(''),
   skillAllowlist: text('skill_allowlist').array(),

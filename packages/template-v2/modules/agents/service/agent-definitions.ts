@@ -14,6 +14,7 @@
  * bound API; `installAgentDefinitionsService(svc)` wires the module-scoped handle
  * used by the free-function wrappers. `setDb(db)` remains as a compatibility shim.
  */
+import { DEFAULT_CHAT_MODEL, MODEL_OPTIONS } from '../lib/models'
 import type { AgentDefinition } from '../schema'
 
 export const BUILTIN_TOOL_NAMES = ['bash', 'vobase'] as const
@@ -24,11 +25,7 @@ export interface ModelOption {
   label: string
 }
 
-export const MODEL_OPTIONS: readonly ModelOption[] = [
-  { value: 'gpt-5.4', label: 'GPT-5.4' },
-  { value: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (legacy)' },
-] as const
+export { MODEL_OPTIONS }
 
 export interface CreateAgentInput {
   organizationId: string
@@ -100,7 +97,7 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
       .values({
         organizationId: input.organizationId,
         name: input.name,
-        model: input.model ?? 'gpt-5.4',
+        model: input.model ?? DEFAULT_CHAT_MODEL,
         soulMd: input.soulMd ?? '',
         workingMemory: input.workingMemory ?? '',
         enabled: input.enabled ?? true,

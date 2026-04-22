@@ -3,6 +3,7 @@
  */
 
 import { MERIDIAN_ORG_ID } from '@modules/drive/seed'
+import { models } from './lib/models'
 
 export { MERIDIAN_ORG_ID }
 
@@ -62,7 +63,7 @@ export async function seed(db: unknown): Promise<void> {
       organizationId: MERIDIAN_ORG_ID,
       name: 'Meridian',
       soulMd: SOUL_MD,
-      model: 'gpt-5.4',
+      model: models.gpt_standard,
       maxSteps: 20,
       workingMemory: '',
       skillAllowlist: ['reply-with-card', 'de-escalate', 'cite-policy', 'escalate-to-human', 'save-customer-doc'],
