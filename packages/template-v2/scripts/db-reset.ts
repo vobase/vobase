@@ -21,6 +21,7 @@ function run(label: string, script: string): void {
 }
 
 run('db:nuke', 'db-nuke.ts')
+run('db:migrate', 'db-migrate.ts')
 run('db:push', 'db-push.ts')
 run('db:seed', 'seed.ts')
 
