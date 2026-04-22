@@ -21,6 +21,12 @@ export interface PlatformAuthConfig {
   hmacSecret: string
   /** Restrict platform sign-in to specific email domains. */
   allowedEmailDomains?: string[]
+  /**
+   * Optional lookup used to bypass the domain allowlist when an admin has
+   * invited a user with an out-of-allowlist email. Returns `true` if there's
+   * a pending `authInvitation` for the given email.
+   */
+  hasPendingInvitation?: (email: string) => Promise<boolean>
 }
 
 interface PlatformProfile {
@@ -82,19 +88,34 @@ export function platformAuth(config: PlatformAuthConfig): BetterAuthPlugin {
             })
             let user: NonNullable<typeof existing>['user']
 
-            // Domain allowlist only applies to net-new users — invited users bypass it.
+            // Domain allowlist only applies to net-new users without a pending
+            // invitation. Existing users and invitees bypass it so admins can
+            // onboard external collaborators without relaxing the global gate.
             if (!existing && config.allowedEmailDomains?.length) {
               const allowed = new Set(config.allowedEmailDomains.map((d) => d.toLowerCase()))
               const domain = profile.email.split('@')[1]?.toLowerCase()
               if (!domain || !allowed.has(domain)) {
-                logger.warn('[platform] Domain not in allowlist', {
-                  email: profile.email,
-                  domain,
-                  allowed: [...allowed],
-                })
-                throw new APIError('FORBIDDEN', {
-                  message: `Sign-up is restricted to approved email domains. "${domain ?? profile.email}" is not allowed. Contact your administrator to request access.`,
-                })
+                let invited = false
+                if (config.hasPendingInvitation) {
+                  try {
+                    invited = await config.hasPendingInvitation(profile.email)
+                  } catch (err) {
+                    logger.warn('[platform] invitation lookup failed; falling back to domain gate', {
+                      error: err instanceof Error ? err.message : String(err),
+                      email: profile.email,
+                    })
+                  }
+                }
+                if (!invited) {
+                  logger.warn('[platform] Domain not in allowlist', {
+                    email: profile.email,
+                    domain,
+                    allowed: [...allowed],
+                  })
+                  throw new APIError('FORBIDDEN', {
+                    message: `Sign-up is restricted to approved email domains. "${domain ?? profile.email}" is not allowed. Contact your administrator to request access.`,
+                  })
+                }
               }
             }
 

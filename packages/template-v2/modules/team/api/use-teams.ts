@@ -6,7 +6,7 @@
  * `/api/team/descriptions`.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authClient } from '@/lib/auth-client'
 import type { TeamDescription } from '../schema'
 
@@ -50,11 +50,45 @@ export function useTeams() {
   return useQuery({
     queryKey: teamsKeys.list,
     queryFn: async (): Promise<TeamRow[]> => {
-      const { data, error } = await client.listOrganizationTeams({ query: {} })
-      if (error) throw new Error(error.message ?? 'listOrganizationTeams failed')
+      // Better Auth 1.6's dynamic client proxy kebab-cases the method name
+      // into the request path, so `listOrganizationTeams` would hit
+      // `/organization/list-organization-teams` (404). The actual server
+      // endpoint is `/organization/list-teams` — call `listTeams` instead.
+      const { data, error } = await client.listTeams({ query: {} })
+      if (error) throw new Error(error.message ?? 'listTeams failed')
       return (data ?? []) as TeamRow[]
     },
   })
+}
+
+/**
+ * Returns `userId → TeamRow[]` by fanning `listTeamMembers` across every team.
+ * N+1 queries but fine for org sizes in the hundreds. Used by the Team page
+ * to render each staff row's team memberships.
+ */
+export function useTeamsByUser(): { data: Record<string, TeamRow[]>; isLoading: boolean } {
+  const { data: teams = [], isLoading: teamsLoading } = useTeams()
+  const memberQueries = useQueries({
+    queries: teams.map((t) => ({
+      queryKey: teamsKeys.members(t.id),
+      queryFn: async (): Promise<TeamMemberRow[]> => {
+        const { data, error } = await client.listTeamMembers({ query: { teamId: t.id } })
+        if (error) throw new Error(error.message ?? 'listTeamMembers failed')
+        return (data ?? []) as TeamMemberRow[]
+      },
+    })),
+  })
+  const byUser: Record<string, TeamRow[]> = {}
+  for (let i = 0; i < teams.length; i++) {
+    const members = memberQueries[i]?.data ?? []
+    for (const m of members) {
+      const list = byUser[m.userId] ?? []
+      list.push(teams[i])
+      byUser[m.userId] = list
+    }
+  }
+  const isLoading = teamsLoading || memberQueries.some((q) => q.isLoading)
+  return { data: byUser, isLoading }
 }
 
 export function useTeamMembers(teamId: string | null) {

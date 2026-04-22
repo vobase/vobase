@@ -12,9 +12,8 @@ import {
   useReactTable,
   type VisibilityState,
 } from '@tanstack/react-table'
-import { Settings2, UserPlus, Users2 } from 'lucide-react'
+import { Send, Settings2, Users2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { toast } from 'sonner'
 import { DataTable } from '@/components/data-table/data-table'
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header'
 import { DataTableSkeleton } from '@/components/data-table/data-table-skeleton'
@@ -22,9 +21,11 @@ import { DataTableToolbar } from '@/components/data-table/data-table-toolbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { canInviteMembers, useActiveMember } from '../api/use-active-member'
 import { useAttributeDefinitions } from '../api/use-attributes'
-import { useStaffList, useUpsertStaff } from '../api/use-staff'
-import { StaffFormDialog, type StaffFormValues } from '../components/staff-form-dialog'
+import { useStaffList } from '../api/use-staff'
+import { useTeamsByUser } from '../api/use-teams'
+import { InviteMemberDialog } from '../components/invite-member-dialog'
 import type { AttributeValue, Availability, StaffAttributeDefinition, StaffProfile } from '../schema'
 
 const AVAILABILITY_TONE: Record<Availability, string> = {
@@ -61,6 +62,11 @@ function buildAttributeColumn(def: StaffAttributeDefinition): ColumnDef<StaffPro
   }
 }
 
+function tagFilter(value: unknown, rowValues: string[]) {
+  if (!Array.isArray(value) || value.length === 0) return true
+  return value.some((v) => rowValues.includes(v as string))
+}
+
 function tagsCell(values: string[]) {
   if (values.length === 0) return <span className="text-xs text-muted-foreground">—</span>
   return (
@@ -77,8 +83,10 @@ function tagsCell(values: string[]) {
 export function StaffListPage() {
   const { data: staff = [], isLoading, error } = useStaffList()
   const { data: attrDefs = [] } = useAttributeDefinitions()
-  const upsert = useUpsertStaff()
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const { data: activeMember } = useActiveMember()
+  const { data: teamsByUser } = useTeamsByUser()
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const canInvite = canInviteMembers(activeMember?.role)
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'displayName', desc: false }])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
@@ -87,31 +95,6 @@ export function StaffListPage() {
     createdAt: false,
   })
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 20 })
-
-  async function handleSave(values: StaffFormValues) {
-    try {
-      await upsert.mutateAsync({
-        userId: values.userId,
-        displayName: values.displayName || null,
-        title: values.title || null,
-        sectors: values.sectors,
-        expertise: values.expertise,
-        languages: values.languages,
-        capacity: values.capacity,
-        availability: values.availability,
-        profile: values.profile,
-      })
-      toast.success('Staff profile saved')
-      setDialogOpen(false)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Save failed')
-    }
-  }
-
-  const tagFilter = (value: unknown, rowValues: string[]) => {
-    if (!Array.isArray(value) || value.length === 0) return true
-    return value.some((v) => rowValues.includes(v as string))
-  }
 
   const sectorOptions = useMemo(() => {
     const s = new Set<string>()
@@ -137,6 +120,16 @@ export function StaffListPage() {
       .map((v) => ({ label: v, value: v }))
   }, [staff])
 
+  const teamOptions = useMemo(() => {
+    const s = new Set<string>()
+    if (teamsByUser) {
+      for (const teams of Object.values(teamsByUser)) for (const t of teams) s.add(t.name)
+    }
+    return Array.from(s)
+      .sort()
+      .map((v) => ({ label: v, value: v }))
+  }, [teamsByUser])
+
   const columns = useMemo<ColumnDef<StaffProfile>[]>(() => {
     const dynamicCols = attrDefs
       .slice()
@@ -161,6 +154,19 @@ export function StaffListPage() {
         enableColumnFilter: true,
         enableSorting: true,
         enableHiding: false,
+      },
+      {
+        id: 'teams',
+        accessorFn: (row) => (teamsByUser?.[row.userId] ?? []).map((t) => t.name),
+        header: ({ column }) => <DataTableColumnHeader column={column} label="Teams" />,
+        cell: ({ row }) => {
+          const teams = teamsByUser?.[row.original.userId] ?? []
+          return tagsCell(teams.map((t) => t.name))
+        },
+        filterFn: (row, id, value) => tagFilter(value, row.getValue<string[]>(id)),
+        meta: { label: 'Teams', variant: 'multiSelect', options: teamOptions },
+        enableColumnFilter: teamOptions.length > 0,
+        enableSorting: false,
       },
       {
         id: 'userId',
@@ -264,7 +270,7 @@ export function StaffListPage() {
     ]
 
     return [...staticCols, ...dynamicCols, ...tailCols]
-  }, [attrDefs, sectorOptions, expertiseOptions, languageOptions])
+  }, [attrDefs, sectorOptions, expertiseOptions, languageOptions, teamOptions, teamsByUser])
 
   const table = useReactTable({
     data: staff,
@@ -301,10 +307,12 @@ export function StaffListPage() {
               Attributes
             </Link>
           </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <UserPlus className="mr-2 size-4" />
-            Add staff
-          </Button>
+          {canInvite && (
+            <Button size="sm" onClick={() => setInviteOpen(true)}>
+              <Send className="mr-2 size-4" />
+              Invite member
+            </Button>
+          )}
         </div>
       </header>
 
@@ -323,13 +331,7 @@ export function StaffListPage() {
         )}
       </div>
 
-      <StaffFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        staff={null}
-        onSave={handleSave}
-        isPending={upsert.isPending}
-      />
+      <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>
   )
 }
