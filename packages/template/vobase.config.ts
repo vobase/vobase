@@ -52,6 +52,9 @@ const extraPlugins = [
 
 const config: Omit<CreateAppConfig, 'modules'> = {
   database: databaseUrl,
+  // Neon pooler breaks LISTEN/NOTIFY — set to the direct endpoint there.
+  // Self-hosted Postgres can leave this unset.
+  databaseDirect: process.env.DATABASE_URL_DIRECT,
 
   storage: {
     provider: process.env.R2_BUCKET

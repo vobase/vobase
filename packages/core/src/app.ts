@@ -36,6 +36,13 @@ import type { StorageService } from './modules/storage/service';
 export interface CreateAppConfig {
   modules: VobaseModule[];
   database: string;
+  /**
+   * Optional dedicated DSN for the LISTEN connection that powers realtime
+   * SSE. Point at the direct (non-pooler) Neon endpoint when `database`
+   * targets the pooler — PgBouncer tx mode silently drops LISTEN/NOTIFY.
+   * Leave unset on self-hosted Postgres.
+   */
+  databaseDirect?: string;
   storage?: StorageModuleConfig & {
     /** Vault provider key for S3-compatible storage override (e.g. 'cloudflare-r2'). */
     integrationProvider?: string;
@@ -58,7 +65,9 @@ export async function createApp(config: CreateAppConfig) {
   const http = createHttpClient(config.http);
 
   // === Realtime (SSE + LISTEN/NOTIFY) ===
-  const realtime = await createRealtimeService(config.database, db);
+  const realtime = await createRealtimeService(config.database, db, {
+    listenDsn: config.databaseDirect,
+  });
 
   // === Auth Module (always active) ===
   const authMod = createAuthModule(db, {
