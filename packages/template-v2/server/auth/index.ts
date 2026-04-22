@@ -9,6 +9,7 @@ import {
   authTeamMember,
   authUser,
   authVerification,
+  createNanoid,
   logger,
 } from '@vobase/core'
 import { type BetterAuthPlugin, betterAuth } from 'better-auth'
@@ -185,12 +186,15 @@ export function createAuth(db: ScopedDb) {
       .limit(1)
     if (invite) {
       await dbAny.transaction(async (tx: typeof dbAny) => {
-        await tx.insert(authMember).values({
-          id: crypto.randomUUID(),
-          userId: user.id,
-          organizationId: invite.organizationId,
-          role: invite.role,
-        })
+        await tx
+          .insert(authMember)
+          .values({
+            id: createNanoid()(),
+            userId: user.id,
+            organizationId: invite.organizationId,
+            role: invite.role,
+          })
+          .onConflictDoNothing({ target: [authMember.userId, authMember.organizationId] })
         await tx.update(authInvitation).set({ status: 'accepted' }).where(eq(authInvitation.id, invite.id))
       })
       logger.info(`[auth] Auto-accepted invitation for ${user.email}`)
@@ -210,12 +214,15 @@ export function createAuth(db: ScopedDb) {
       .from(authMember)
       .where(eq(authMember.organizationId, soleOrg.id))
       .limit(1)
-    await dbAny.insert(authMember).values({
-      id: crypto.randomUUID(),
-      userId: user.id,
-      organizationId: soleOrg.id,
-      role: firstMember ? 'member' : 'owner',
-    })
+    await dbAny
+      .insert(authMember)
+      .values({
+        id: createNanoid()(),
+        userId: user.id,
+        organizationId: soleOrg.id,
+        role: firstMember ? 'member' : 'owner',
+      })
+      .onConflictDoNothing({ target: [authMember.userId, authMember.organizationId] })
     logger.info(`[auth] Auto-enrolled ${user.email} into sole org as ${firstMember ? 'member' : 'owner'}`)
     await ensureStaffProfile(user.id, soleOrg.id)
   }
@@ -289,6 +296,8 @@ export function createAuth(db: ScopedDb) {
     },
     advanced: {
       useSecureCookies: process.env.NODE_ENV === 'production',
+      // Match our manual inserts + domain tables that use `nanoidPrimaryKey()`.
+      database: { generateId: () => createNanoid()() },
     },
   })
 }
