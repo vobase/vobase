@@ -33,11 +33,20 @@ jobs:
 
       - run: bun run typecheck
 
-      - name: Run tests
+      - name: Run tests (published packages only)
         run: |
+          # Release is gated on the packages we actually publish
+          # (@vobase/core, create-vobase). Template packages are private and
+          # have their own workflow (template-v2.yml) that provisions the
+          # Postgres service their integration tests need — running them here
+          # would fail on ECONNREFUSED to port 5433.
+          #
           # PGlite WASM keeps handles alive, causing bun test to exit 99
           # even when all tests pass. Capture output to check for real failures.
-          output=$(bunx turbo run test --force 2>&1) || true
+          output=$(bunx turbo run test \
+            --filter='@vobase/core' \
+            --filter='create-vobase' \
+            --force 2>&1) || true
           echo "$output"
           if echo "$output" | grep -qE '^\s+[1-9][0-9]* fail'; then
             echo "::error::Tests failed"
