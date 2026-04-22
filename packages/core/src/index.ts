@@ -82,6 +82,7 @@ export {
 } from './infra/queue';
 // Realtime (SSE + LISTEN/NOTIFY)
 export type {
+  CreateRealtimeOptions,
   RealtimeExecutor,
   RealtimePayload,
   RealtimeService,

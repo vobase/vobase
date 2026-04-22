@@ -30,12 +30,25 @@ export interface RealtimeService {
 
 type Subscriber = (payload: string) => void;
 
+export interface CreateRealtimeOptions {
+  /**
+   * Dedicated DSN for the LISTEN connection. Use this on Neon (or any
+   * PgBouncer-fronted deploy) where the app pool hits the `-pooler` endpoint
+   * in transaction mode — pooled sessions cannot deliver NOTIFY to a LISTEN
+   * on a different backend session. Point this at the direct (non-pooler)
+   * endpoint so the listener gets its own persistent backend. Defaults to
+   * `databaseConfig`.
+   */
+  listenDsn?: string;
+}
+
 /**
  * Create a RealtimeService backed by PostgreSQL LISTEN/NOTIFY.
  */
 export async function createRealtimeService(
   databaseConfig: string,
   db: VobaseDb,
+  opts: CreateRealtimeOptions = {},
 ): Promise<RealtimeService> {
   const subscribers = new Set<Subscriber>();
 
@@ -67,6 +80,7 @@ export async function createRealtimeService(
       db,
       subscribers,
       dispatch,
+      opts.listenDsn,
     );
   } catch (err) {
     logger.warn(
@@ -82,17 +96,52 @@ async function createPostgresRealtime(
   db: VobaseDb,
   subscribers: Set<Subscriber>,
   dispatch: (payload: string) => void,
+  listenDsn?: string,
 ): Promise<RealtimeService> {
   const postgres = (await import('postgres')).default;
-  const listenConn = postgres(databaseConfig, {
+  const dsn = listenDsn ?? databaseConfig;
+  const listenConn = postgres(dsn, {
     max: 1,
     idle_timeout: 0,
     connect_timeout: 30,
   });
 
-  await listenConn.listen(CHANNEL, (payload) => {
-    dispatch(payload);
-  });
+  // postgres.js auto-re-issues LISTEN on reconnect; `onlisten` fires on the
+  // initial subscribe AND every re-subscribe after a connection drop. We log
+  // the latter so silent LISTEN-loss becomes visible in ops.
+  let listenCount = 0;
+  await listenConn.listen(
+    CHANNEL,
+    (payload) => {
+      dispatch(payload);
+    },
+    () => {
+      listenCount++;
+      if (listenCount > 1) {
+        logger.info(
+          `[realtime] LISTEN re-established on channel ${CHANNEL} (count=${listenCount})`,
+        );
+      }
+    },
+  );
+
+  // Keepalive: on backends with compute autosuspend (Neon) or proxy idle
+  // timeouts, an idle LISTEN socket gets reaped. A periodic SELECT 1 *on the
+  // listen connection itself* keeps its TCP socket active and the upstream
+  // compute warm, preventing silent SSE blackout after idle periods.
+  const keepaliveMsRaw = Number(
+    process.env.VOBASE_REALTIME_KEEPALIVE_MS ?? 60_000,
+  );
+  const keepaliveMs = Number.isFinite(keepaliveMsRaw) ? keepaliveMsRaw : 60_000;
+  let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  if (keepaliveMs > 0) {
+    keepaliveTimer = setInterval(() => {
+      listenConn`SELECT 1`.catch((err: unknown) => {
+        logger.warn('[realtime] keepalive ping failed:', err);
+      });
+    }, keepaliveMs);
+    keepaliveTimer.unref?.();
+  }
 
   return {
     subscribe(fn) {
@@ -113,6 +162,7 @@ async function createPostgresRealtime(
     },
 
     async shutdown() {
+      if (keepaliveTimer) clearInterval(keepaliveTimer);
       await listenConn.end();
       subscribers.clear();
     },
