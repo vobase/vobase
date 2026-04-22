@@ -13,8 +13,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 function webmanifestEnv(): Plugin {
   const source = path.resolve(import.meta.dirname, 'lib/site.webmanifest.tpl')
   let env: Record<string, string> = {}
-  const render = () =>
-    fs.readFileSync(source, 'utf8').replace(/%(VITE_[A-Z0-9_]+)%/g, (_, key) => env[key] ?? '')
+  const render = () => fs.readFileSync(source, 'utf8').replace(/%(VITE_[A-Z0-9_]+)%/g, (_, key) => env[key] ?? '')
   return {
     name: 'webmanifest-env',
     configResolved(config) {

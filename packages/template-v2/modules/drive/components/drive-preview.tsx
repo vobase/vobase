@@ -58,12 +58,7 @@ export function DrivePreview() {
         )}
         {data &&
           (isMarkdownPath(selectedPath) ? (
-            <DriveMarkdownEditor
-              key={selectedPath}
-              scope={scope}
-              path={selectedPath}
-              initialMarkdown={data.content}
-            />
+            <DriveMarkdownEditor key={selectedPath} scope={scope} path={selectedPath} initialMarkdown={data.content} />
           ) : (
             <pre className="h-full overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-xs leading-relaxed">
               {data.content}

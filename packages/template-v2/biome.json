@@ -12,7 +12,9 @@
       "!**/db/current.sql",
       "!public",
       "!src/components/ui",
-      "!src/components/ai-elements"
+      "!src/components/ai-elements",
+      "!src/components/data-table",
+      "!src/routeTree.gen.ts"
     ]
   },
   "formatter": {

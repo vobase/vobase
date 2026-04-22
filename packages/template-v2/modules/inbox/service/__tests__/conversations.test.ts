@@ -167,7 +167,8 @@ describe('snooze / unsnooze / wakeSnoozed', () => {
 
     const current = await get(conversation.id)
     expect(current.snoozedAt).not.toBeNull()
-    const correctIso = current.snoozedAt!.toISOString()
+    if (!current.snoozedAt) throw new Error('snoozedAt missing')
+    const correctIso = current.snoozedAt.toISOString()
 
     // Wrong timestamp: no-op
     const stale = await wakeSnoozed(conversation.id, new Date(Date.now() - 1000).toISOString())

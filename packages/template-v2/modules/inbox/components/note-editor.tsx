@@ -1,13 +1,7 @@
 import { getMentionOnSelectItem, type TMentionItemBase } from '@platejs/mention'
 import { MentionInputPlugin, MentionPlugin } from '@platejs/mention/react'
 import type { TComboboxInputElement, Value } from 'platejs'
-import {
-  Plate,
-  PlateContent,
-  PlateElement,
-  type PlateElementProps,
-  usePlateEditor,
-} from 'platejs/react'
+import { Plate, PlateContent, PlateElement, type PlateElementProps, usePlateEditor } from 'platejs/react'
 import { useImperativeHandle, useState } from 'react'
 import {
   InlineCombobox,
@@ -51,13 +45,7 @@ function MentionInputElement(props: PlateElementProps<TComboboxInputElement>) {
 
   return (
     <PlateElement {...props} as="span">
-      <InlineCombobox
-        value={search}
-        element={element}
-        setValue={setSearch}
-        showTrigger={false}
-        trigger="@"
-      >
+      <InlineCombobox value={search} element={element} setValue={setSearch} showTrigger={false} trigger="@">
         <span className="inline-block rounded-md bg-muted px-1 align-baseline text-sm ring-ring focus-within:ring-2">
           <InlineComboboxInput />
         </span>
@@ -139,13 +127,7 @@ function serialize(value: Value): { body: string; mentions: string[] } {
   return { body: lines.join('\n').trim(), mentions: Array.from(mentions) }
 }
 
-export function NoteEditor({
-  handleRef,
-  placeholder,
-  onKeyDown,
-  onEmptyChange,
-  className,
-}: NoteEditorProps) {
+export function NoteEditor({ handleRef, placeholder, onKeyDown, onEmptyChange, className }: NoteEditorProps) {
   const editor = usePlateEditor({ plugins, value: emptyValue })
 
   useImperativeHandle(handleRef, () => ({

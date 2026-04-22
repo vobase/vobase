@@ -26,32 +26,32 @@ const app = new Hono()
     return c.json(rows)
   })
   .post('/:id/notes', async (c) => {
-  const id = c.req.param('id')
-  const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-  const raw = await c.req.json().catch(() => null)
-  const parsed = noteBodySchema.safeParse(raw)
-  if (!parsed.success) {
-    return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-  }
-  const conv = await getConversation(id)
-  if (!conv) return c.json({ error: 'not_found' }, 404)
-  if (conv.organizationId !== organizationId) return c.json({ error: 'forbidden' }, 403)
-  const { data } = parsed
-  const note = await addNote({
-    organizationId,
-    conversationId: id,
-    author: { kind: data.authorType, id: data.authorId },
-    body: data.body,
-    mentions: data.mentions,
-    parentNoteId: data.parentNoteId,
+    const id = c.req.param('id')
+    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const raw = await c.req.json().catch(() => null)
+    const parsed = noteBodySchema.safeParse(raw)
+    if (!parsed.success) {
+      return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
+    }
+    const conv = await getConversation(id)
+    if (!conv) return c.json({ error: 'not_found' }, 404)
+    if (conv.organizationId !== organizationId) return c.json({ error: 'forbidden' }, 403)
+    const { data } = parsed
+    const note = await addNote({
+      organizationId,
+      conversationId: id,
+      author: { kind: data.authorType, id: data.authorId },
+      body: data.body,
+      mentions: data.mentions,
+      parentNoteId: data.parentNoteId,
+    })
+    await notifyConversation(id).catch(() => undefined)
+    try {
+      void fanOutNoteMentions(note).catch(() => undefined)
+    } catch {
+      // service not installed in test contexts — best-effort
+    }
+    return c.json(note)
   })
-  await notifyConversation(id).catch(() => undefined)
-  try {
-    void fanOutNoteMentions(note).catch(() => undefined)
-  } catch {
-    // service not installed in test contexts — best-effort
-  }
-  return c.json(note)
-})
 
 export default app

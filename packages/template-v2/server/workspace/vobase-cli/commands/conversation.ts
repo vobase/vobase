@@ -68,9 +68,10 @@ export const conversationVerbs: readonly CommandDef[] = [
           staff.find((s) => s.userId === parsed.id) ??
           staff.find((s) => s.displayName?.toLowerCase() === parsed.id.toLowerCase())
         if (!hit) {
-          const roster = staff.length === 0
-            ? '(no staff on this organization)'
-            : staff.map((s) => `  user:${s.userId} — ${s.displayName ?? '(unnamed)'}`).join('\n')
+          const roster =
+            staff.length === 0
+              ? '(no staff on this organization)'
+              : staff.map((s) => `  user:${s.userId} — ${s.displayName ?? '(unnamed)'}`).join('\n')
           return {
             ok: false,
             error: `unknown staff: ${parsed.id}. Valid staff:\n${roster}\nUse a userId or displayName from \`vobase team list\`.`,
@@ -139,9 +140,10 @@ export const conversationVerbs: readonly CommandDef[] = [
       }
 
       if (unresolved.length > 0) {
-        const roster = staff.length === 0
-          ? '(no staff on this organization)'
-          : staff.map((s) => `  user:${s.userId} — ${s.displayName ?? '(unnamed)'}`).join('\n')
+        const roster =
+          staff.length === 0
+            ? '(no staff on this organization)'
+            : staff.map((s) => `  user:${s.userId} — ${s.displayName ?? '(unnamed)'}`).join('\n')
         return {
           ok: false,
           error: `unknown staff: ${unresolved.join(', ')}. Valid staff:\n${roster}\nUse a userId or displayName from \`vobase team list\`.`,

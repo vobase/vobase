@@ -346,17 +346,15 @@ function TeamDetail({ team, description }: { team: TeamRow; description: string 
     <div className="flex h-full flex-col overflow-auto">
       <div className="border-b border-border px-6 py-4">
         <h2 className="text-lg font-semibold">{team.name}</h2>
-        <p className="text-xs text-muted-foreground">Team id: <code className="font-mono">{team.id}</code></p>
+        <p className="text-xs text-muted-foreground">
+          Team id: <code className="font-mono">{team.id}</code>
+        </p>
       </div>
 
       <section className="border-b border-border px-6 py-4">
         <div className="mb-2 flex items-center justify-between">
           <Label htmlFor="team-description">Description (for agents)</Label>
-          <Button
-            size="sm"
-            onClick={saveDescription}
-            disabled={upsertDescription.isPending || draft === description}
-          >
+          <Button size="sm" onClick={saveDescription} disabled={upsertDescription.isPending || draft === description}>
             {upsertDescription.isPending ? 'Saving…' : 'Save'}
           </Button>
         </div>

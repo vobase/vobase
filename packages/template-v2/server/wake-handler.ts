@@ -100,7 +100,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
       const instruction = [
         '# Task',
         '',
-        "Respond to the customer now. PREFER `send_card` whenever the reply has any structure or actionable choices — pricing, plans, refund confirmations, yes/no with consequences, 2+ options, next-step CTAs. Use plain `reply` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA. Keep prose replies to 2–4 short sentences.",
+        'Respond to the customer now. PREFER `send_card` whenever the reply has any structure or actionable choices — pricing, plans, refund confirmations, yes/no with consequences, 2+ options, next-step CTAs. Use plain `reply` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA. Keep prose replies to 2–4 short sentences.',
         '',
         '# Escalation + staff consultation (via bash)',
         '',
@@ -111,7 +111,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         '',
         'Before using `conv reassign` or `conv ask-staff`, ALWAYS run `vobase team list` first to get the real userIds. Do NOT invent userIds from names the customer used.',
         '',
-        'If the answer depends on pricing or policy details you don\'t know, prefer `vobase conv ask-staff` over guessing.',
+        "If the answer depends on pricing or policy details you don't know, prefer `vobase conv ask-staff` over guessing.",
       ].join('\n')
       return [
         { kind: 'custom', priority: 100, render: () => instruction },
@@ -132,9 +132,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         const args = anyEv.args ? ` args=${JSON.stringify(anyEv.args).slice(0, 200)}` : ''
         const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
         const isError = anyEv.isError ? ' ERROR' : ''
-        console.log(
-          `[wake] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`,
-        )
+        console.log(`[wake] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`)
         if (event.type === 'tool_execution_end') {
           deps.realtime.notify({ table: 'messages', id: data.conversationId, action: 'INSERT' })
           deps.realtime.notify({ table: 'conversations', id: data.conversationId, action: 'UPDATE' })

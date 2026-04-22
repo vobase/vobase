@@ -736,13 +736,7 @@ export async function resumeOrCreate(
   threadKey = 'default',
   initialAssignee?: string | null,
 ): Promise<{ conversation: Conversation; created: boolean }> {
-  return currentConversations().resumeOrCreate(
-    organizationId,
-    contactId,
-    channelInstanceId,
-    threadKey,
-    initialAssignee,
-  )
+  return currentConversations().resumeOrCreate(organizationId, contactId, channelInstanceId, threadKey, initialAssignee)
 }
 export async function get(id: string): Promise<Conversation> {
   return currentConversations().get(id)

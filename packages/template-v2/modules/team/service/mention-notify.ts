@@ -113,9 +113,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
 
   async function fanOutNoteMentions(note: InternalNote): Promise<FanOutResult> {
     const result: FanOutResult = { notified: [], skipped: [] }
-    const staffIds = Array.from(
-      new Set(note.mentions.map(parseStaffMention).filter((x): x is string => Boolean(x))),
-    )
+    const staffIds = Array.from(new Set(note.mentions.map(parseStaffMention).filter((x): x is string => Boolean(x))))
     if (staffIds.length === 0) return result
 
     await Promise.all(
@@ -166,9 +164,7 @@ export function __resetMentionNotifyServiceForTests(): void {
 }
 function current(): MentionNotifyService {
   if (!_current) {
-    throw new Error(
-      'team/mention-notify: service not installed — call installMentionNotifyService() in module init',
-    )
+    throw new Error('team/mention-notify: service not installed — call installMentionNotifyService() in module init')
   }
   return _current
 }

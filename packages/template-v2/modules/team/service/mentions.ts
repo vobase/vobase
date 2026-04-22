@@ -44,7 +44,9 @@ export function createMentionsService(deps: MentionsDeps): MentionsService {
         mentionDismissals,
         and(eq(mentionDismissals.noteId, internalNotes.id), eq(mentionDismissals.userId, userId)),
       )
-      .where(and(sql`${internalNotes.mentions} @> ARRAY[${`staff:${userId}`}]::text[]`, isNull(mentionDismissals.noteId)))
+      .where(
+        and(sql`${internalNotes.mentions} @> ARRAY[${`staff:${userId}`}]::text[]`, isNull(mentionDismissals.noteId)),
+      )
       .orderBy(desc(internalNotes.createdAt))
       .limit(limit)) as UnreadMention[]
     return rows

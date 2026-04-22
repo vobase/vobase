@@ -75,6 +75,7 @@ function ConversationRow({
           </span>
           {hasUnreadMention ? (
             <span
+              role="img"
               className="flex shrink-0 items-center justify-center rounded-full bg-rose-600 p-0.5 text-white dark:bg-rose-500"
               aria-label="You have an unread mention in this conversation"
               title="You have an unread mention"

@@ -30,9 +30,7 @@ function SubNav({ items }: SubNavProps) {
           )}
         >
           {item.icon && (
-            <span className="inline-flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">
-              {item.icon}
-            </span>
+            <span className="inline-flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">{item.icon}</span>
           )}
           {item.label}
         </Link>

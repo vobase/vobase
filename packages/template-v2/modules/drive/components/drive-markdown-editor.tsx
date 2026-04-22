@@ -189,21 +189,21 @@ export function DriveMarkdownEditor({ scope, path, initialMarkdown }: DriveMarkd
     <div className="flex h-full flex-col">
       <Plate
         editor={editor}
-          onChange={() => {
-            const md = editor.getApi(MarkdownPlugin).markdown.serialize()
-            if (md === lastSerialized.current) return
-            if (timer.current) clearTimeout(timer.current)
-            setStatus('saving')
-            timer.current = setTimeout(async () => {
-              try {
-                await write.mutateAsync({ path, content: md })
-                lastSerialized.current = md
-                setStatus('saved')
-              } catch {
-                setStatus('error')
-              }
-            }, AUTOSAVE_DEBOUNCE_MS)
-          }}
+        onChange={() => {
+          const md = editor.getApi(MarkdownPlugin).markdown.serialize()
+          if (md === lastSerialized.current) return
+          if (timer.current) clearTimeout(timer.current)
+          setStatus('saving')
+          timer.current = setTimeout(async () => {
+            try {
+              await write.mutateAsync({ path, content: md })
+              lastSerialized.current = md
+              setStatus('saved')
+            } catch {
+              setStatus('error')
+            }
+          }, AUTOSAVE_DEBOUNCE_MS)
+        }}
       >
         <Toolbar statusLabel={savedLabel} />
         <div className="flex-1 overflow-auto">

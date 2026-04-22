@@ -195,8 +195,7 @@ function NoteRow({
   const principal = directory.resolve(note.authorType === 'agent' ? `agent:${note.authorId}` : note.authorId)
   const isMine = Boolean(currentUserId) && note.authorType === 'staff' && note.authorId === currentUserId
   const kind: PrincipalKind = principal?.kind ?? (note.authorType === 'agent' ? 'agent' : 'staff')
-  const isMentioned =
-    Boolean(currentUserId) && note.mentions.some((m) => m === `staff:${currentUserId}`)
+  const isMentioned = Boolean(currentUserId) && note.mentions.some((m) => m === `staff:${currentUserId}`)
 
   return (
     <Bubble isMine={isMine} principal={principal} kind={kind} variant="note" timestamp={note.createdAt}>
@@ -238,9 +237,7 @@ function renderNoteBodyWithMentions(
   if (nameToKey.size === 0) return [body]
 
   const out: React.ReactNode[] = []
-  const matches = Array.from(
-    body.matchAll(/@([A-Za-z][A-Za-z0-9._-]*(?:\s+[A-Za-z][A-Za-z0-9._-]*)?)/g),
-  )
+  const matches = Array.from(body.matchAll(/@([A-Za-z][A-Za-z0-9._-]*(?:\s+[A-Za-z][A-Za-z0-9._-]*)?)/g))
   let cursor = 0
   let chipIdx = 0
   for (const m of matches) {
@@ -317,9 +314,7 @@ function Bubble({
         )}
       </div>
       <div className={cn('flex min-w-0 max-w-[min(78%,560px)] flex-col gap-1', isMine ? 'items-end' : 'items-start')}>
-        <div
-          className={cn('flex items-center gap-1.5 text-xs text-muted-foreground', isMine && 'flex-row-reverse')}
-        >
+        <div className={cn('flex items-center gap-1.5 text-xs text-muted-foreground', isMine && 'flex-row-reverse')}>
           <span className="font-medium text-foreground/80">{name}</span>
           {timestamp && (
             <RelativeTimeCard

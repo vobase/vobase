@@ -127,7 +127,7 @@ export function ConversationDetail() {
     // dismissMention is a stable mutation object — we only want to rerun when
     // the list of unread mentions or the active conversation changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConvId, unreadMentions])
+  }, [activeConvId, unreadMentions, dismissMention.mutate])
 
   // Conversation-list nav: prev/next walks contactIds from the grouped inbox.
   const { data: grouped } = useQuery({

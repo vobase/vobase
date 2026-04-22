@@ -28,10 +28,7 @@ export function AssigneeBadge({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild disabled={disabled}>
-        <button
-          type="button"
-          className={cn(TRIGGER_CLASS, current ? 'text-foreground' : 'text-muted-foreground')}
-        >
+        <button type="button" className={cn(TRIGGER_CLASS, current ? 'text-foreground' : 'text-muted-foreground')}>
           {current ? <PrincipalAvatar kind={current.kind} /> : <PrincipalAvatar kind="staff" />}
           <span className="font-medium">{label}</span>
           <ChevronDownIcon className="size-3.5 opacity-40" />

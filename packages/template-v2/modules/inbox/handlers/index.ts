@@ -1,7 +1,7 @@
 import {
   get as getConversation,
-  list as listConversations,
   listActivity,
+  list as listConversations,
   listInboxByContact,
 } from '@modules/inbox/service/conversations'
 import { list as listMessages } from '@modules/inbox/service/messages'

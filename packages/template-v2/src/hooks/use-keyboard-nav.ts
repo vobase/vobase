@@ -28,7 +28,6 @@ export function createKeyboardNavHandler(opts: UseKeyboardNavOptions) {
   return function onKeyDown(e: KeyboardEvent): void {
     const target = e.target as HTMLElement
     if (IGNORED_TAGS.has(target.tagName)) return
-    // biome-ignore lint/suspicious/noExplicitAny: guard for non-browser test envs
     if (typeof document !== 'undefined' && isInsideCombobox(document.activeElement)) return
 
     // Cmd+Enter must be checked before plain Enter
@@ -74,7 +73,6 @@ export function createShellKeyboardNavHandler(opts: ShellKeyboardNavOptions) {
     handler(e: KeyboardEvent): void {
       const target = e.target as HTMLElement
       if (isEditableTarget(target)) return
-      // biome-ignore lint/suspicious/noExplicitAny: guard for non-browser test envs
       if (typeof document !== 'undefined' && isInsideCombobox(document.activeElement)) return
 
       if (e.key === 'Escape') {
