@@ -7,7 +7,6 @@
  * hardcode a bare model id at a call site.
  */
 export const models = {
-  gpt_embedding: 'openai/text-embedding-3-small',
   gpt_mini: 'openai/gpt-5.4-mini',
   gpt_standard: 'openai/gpt-5.4',
   claude_haiku: 'anthropic/claude-haiku-4-5',
@@ -18,9 +17,6 @@ export const models = {
 
 /** Default chat model for new agents and harness fallback. */
 export const DEFAULT_CHAT_MODEL: string = models.claude_sonnet
-
-/** Embedding dimensions for text-embedding-3-small. */
-export const EMBEDDING_DIMENSIONS = 1536
 
 /** Chat models selectable from the agent UI. */
 export const MODEL_OPTIONS = [
