@@ -15,6 +15,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/pglite';
 
+import { createNanoid } from './src/db/helpers';
 import { authUserFields, getAuthPlugins } from './src/modules/auth/config';
 
 const client = new PGlite();
@@ -29,4 +30,7 @@ export const auth = betterAuth({
     additionalFields: authUserFields,
   },
   plugins: getAuthPlugins(),
+  advanced: {
+    database: { generateId: () => createNanoid()() },
+  },
 });

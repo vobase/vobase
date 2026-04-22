@@ -2,7 +2,11 @@
 "@vobase/core": minor
 ---
 
-# Realtime: dedicated LISTEN DSN for pooled deployments
+# Realtime LISTEN DSN + auth id generation + idempotent auto-join
+
+Three focused core changes shipped together.
+
+## Realtime: dedicated LISTEN DSN for pooled deployments
 
 The realtime service (`createRealtimeService` / `createApp`) now accepts an
 optional dedicated DSN for its LISTEN connection. This fixes silent SSE
@@ -58,3 +62,24 @@ Postgres and PGlite deployments need no changes.
   The template's `.env.example` documents the exact format.
 - **Other PgBouncer setups**: same pattern — point `DATABASE_URL_DIRECT`
   at a connection path that preserves session state.
+
+## Auth: Better-Auth id generation aligned with domain tables
+
+`createAuthModule` now sets `advanced.database.generateId` to the same
+`createNanoid()` generator used by `nanoidPrimaryKey()`, so Better-Auth-minted
+ids (`user`, `session`, `account`, `member`, `invitation`, `team`, `verification`,
+`apikey`) use the same 8-char lowercase-alphanumeric alphabet as every domain
+table. No DB extension dependency, no schema change — new rows only. The CLI
+config at `packages/core/auth.ts` applies the same override so regenerated
+schemas match runtime behavior.
+
+## Auth: idempotent auto-join
+
+`autoJoinUser` now uses `onConflictDoNothing` on `(userId, organizationId)`
+for both the pending-invitation and sole-org domain-match insert paths. The
+`member` table carries a `uniqueIndex('member_user_org_unique_idx')`, so the
+previous plain insert raised a unique-violation whenever auto-join fired twice
+for the same signup (e.g. once from `user.create.after` and again from
+`session.create.before` in downstream configs). The guard silences the noise
+without changing semantics — one membership per (user, org) is already the
+invariant.

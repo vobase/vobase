@@ -13,6 +13,7 @@ import type {
   VerifyApiKey,
 } from '../../contracts/auth';
 import type { VobaseDb } from '../../db/client';
+import { createNanoid } from '../../db/helpers';
 import { logger } from '../../infra/logger';
 import type { VobaseModule } from '../../module';
 import { defineBuiltinModule } from '../../module';
@@ -88,12 +89,17 @@ export async function autoJoinOrganization(
 
   if (pendingInvitation) {
     await db.transaction(async (tx) => {
-      await tx.insert(authMember).values({
-        id: crypto.randomUUID(),
-        userId,
-        organizationId: pendingInvitation.organizationId,
-        role: pendingInvitation.role,
-      });
+      await tx
+        .insert(authMember)
+        .values({
+          id: createNanoid()(),
+          userId,
+          organizationId: pendingInvitation.organizationId,
+          role: pendingInvitation.role,
+        })
+        .onConflictDoNothing({
+          target: [authMember.userId, authMember.organizationId],
+        });
       await tx
         .update(authInvitation)
         .set({ status: 'accepted' })
@@ -123,12 +129,17 @@ export async function autoJoinOrganization(
           .where(eq(authMember.organizationId, soleOrg.id))
           .limit(1);
         const role = existingMember ? 'member' : 'owner';
-        await db.insert(authMember).values({
-          id: crypto.randomUUID(),
-          userId,
-          organizationId: soleOrg.id,
-          role,
-        });
+        await db
+          .insert(authMember)
+          .values({
+            id: createNanoid()(),
+            userId,
+            organizationId: soleOrg.id,
+            role,
+          })
+          .onConflictDoNothing({
+            target: [authMember.userId, authMember.organizationId],
+          });
         logger.info(
           `[auth] Auto-joined ${email} to org via domain match (${role})`,
         );
@@ -237,6 +248,10 @@ export function createAuthModule(
       // Only use Secure cookies in production. In dev, the server runs on
       // http://localhost and Secure cookies are rejected by the browser.
       useSecureCookies: process.env.NODE_ENV === 'production',
+      // Use our nanoid generator so Better-Auth-minted ids match the
+      // lowercase-alphanumeric alphabet we use for manual inserts and for
+      // domain tables via `nanoidPrimaryKey()`.
+      database: { generateId: () => createNanoid()() },
     },
   });
 
@@ -293,7 +308,7 @@ export function createAuthModule(
         await db
           .insert(authOrganization)
           .values({
-            id: crypto.randomUUID(),
+            id: createNanoid()(),
             name: orgName,
             slug: orgSlug,
           })
