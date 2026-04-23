@@ -3,7 +3,7 @@
  * Agents are stateless across wakes — no status enum on agent_definitions.
  * Stub TransitionTable to satisfy module-shape contract.
  */
-import type { TransitionTable } from '@server/runtime/apply-transition'
+import type { TransitionTable } from '@server/common/apply-transition'
 
 export type AgentStatus = never
 

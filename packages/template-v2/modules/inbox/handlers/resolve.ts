@@ -5,7 +5,7 @@
  */
 import { reopen, reset, resolve } from '@modules/inbox/service/conversations'
 import { getConversation, notifyConversation } from '@modules/inbox/service/staff-ops'
-import { InvalidTransitionError } from '@server/runtime/apply-transition'
+import { InvalidTransitionError } from '@server/common/apply-transition'
 import { Hono } from 'hono'
 import { z } from 'zod'
 

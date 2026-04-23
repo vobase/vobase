@@ -1,6 +1,4 @@
 export { newWakeId } from '@vobase/core'
-export type { TransitionTable } from './apply-transition'
-export { applyTransition, InvalidTransitionError, isTerminal } from './apply-transition'
 export type { BootModulesInput } from './boot-modules'
 export { bootModules } from './boot-modules'
 export type { ModuleDef, ModuleHttpRoutes, ModuleInstance, ModuleManifest } from './define-module'
