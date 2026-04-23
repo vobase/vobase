@@ -11,11 +11,11 @@
  */
 
 import type agentsApp from '@modules/agents/handlers/index'
-import type channelWebApp from '@modules/channels/web/handlers/index'
 import type contactsApp from '@modules/contacts/handlers/index'
 import type messagingApp from '@modules/messaging/handlers/index'
-import type settingsApp from '@modules/settings/handlers/index'
-import type systemApp from '@modules/system/handlers/index'
+import type settingsApp from '@server/admin/settings/handlers/index'
+import type systemApp from '@server/admin/system/handlers/index'
+import type channelWebApp from '@server/transports/web/handlers/index'
 import { hc } from 'hono/client'
 
 // ── Per-module typed clients ──────────────────────────────────────────────────

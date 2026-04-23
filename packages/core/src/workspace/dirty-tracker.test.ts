@@ -8,7 +8,7 @@ describe('DirtyTracker', () => {
     await fs.mkdir('/workspace/contact/drive', { recursive: true })
     await fs.mkdir('/workspace/tmp', { recursive: true })
     const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap)
+    const tracker = new DirtyTracker(snap, ['/workspace/contact/drive/', '/workspace/tmp/'])
 
     await fs.writeFile('/workspace/contact/drive/new.md', 'body')
     const diff = await tracker.diff(fs)
@@ -22,7 +22,7 @@ describe('DirtyTracker', () => {
     await fs.mkdir('/workspace/contact/drive', { recursive: true })
     await fs.writeFile('/workspace/contact/drive/x.md', 'v1')
     const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap)
+    const tracker = new DirtyTracker(snap, ['/workspace/contact/drive/', '/workspace/tmp/'])
 
     await fs.writeFile('/workspace/contact/drive/x.md', 'v2')
     const diff = await tracker.diff(fs)
@@ -35,7 +35,7 @@ describe('DirtyTracker', () => {
     await fs.writeFile('/workspace/drive/BUSINESS.md', 'v1')
     await fs.writeFile('/workspace/SOUL.md', 'v1')
     const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap)
+    const tracker = new DirtyTracker(snap, ['/workspace/contact/drive/', '/workspace/tmp/'])
 
     await fs.writeFile('/workspace/drive/BUSINESS.md', 'v2')
     await fs.writeFile('/workspace/SOUL.md', 'v2')
@@ -49,7 +49,7 @@ describe('DirtyTracker', () => {
     await fs.mkdir('/workspace/contact/drive', { recursive: true })
     await fs.writeFile('/workspace/contact/drive/gone.md', 'bye')
     const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap)
+    const tracker = new DirtyTracker(snap, ['/workspace/contact/drive/', '/workspace/tmp/'])
     await fs.rm('/workspace/contact/drive/gone.md')
     const diff = await tracker.diff(fs)
     expect(diff.deleted).toContain('/workspace/contact/drive/gone.md')

@@ -8,7 +8,18 @@
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { Contact } from '@modules/contacts/schema'
+import {
+  __resetContactsServiceForTests,
+  type ContactsService,
+  installContactsService,
+  type UpsertByExternalInput,
+} from '@modules/contacts/service/contacts'
 import type { Conversation, Message } from '@modules/messaging/schema'
+import {
+  __resetConversationsServiceForTests,
+  type ConversationsService,
+  installConversationsService,
+} from '@modules/messaging/service/conversations'
 import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@modules/messaging/service/types'
 import type { Auth } from '@server/auth'
 import { signHmac } from '@vobase/core'
@@ -73,19 +84,60 @@ const fakeMessage: Message = {
 
 let mockIsNew = true
 
-mock.module('@modules/messaging/service/conversations', () => ({
-  createInboundMessage: async (input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> => {
-    calls.push({ method: 'createInboundMessage', data: input })
-    return { conversation: fakeConversation, message: fakeMessage, isNew: mockIsNew }
-  },
-}))
+function makeContactsServiceStub(): ContactsService {
+  const notImplemented = async () => {
+    throw new Error('inbound.test: contacts-service method not stubbed')
+  }
+  return {
+    list: notImplemented as ContactsService['list'],
+    get: notImplemented as ContactsService['get'],
+    getByPhone: notImplemented as ContactsService['getByPhone'],
+    getByEmail: notImplemented as ContactsService['getByEmail'],
+    create: notImplemented as ContactsService['create'],
+    update: notImplemented as ContactsService['update'],
+    upsertByExternal: async (_input: UpsertByExternalInput): Promise<Contact> => {
+      calls.push({ method: 'upsertByExternal', data: null })
+      return fakeContact
+    },
+    resolveStaffByExternal: notImplemented as ContactsService['resolveStaffByExternal'],
+    readNotes: notImplemented as ContactsService['readNotes'],
+    upsertNotesSection: notImplemented as ContactsService['upsertNotesSection'],
+    appendNotes: notImplemented as ContactsService['appendNotes'],
+    removeNotesSection: notImplemented as ContactsService['removeNotesSection'],
+    setSegments: notImplemented as ContactsService['setSegments'],
+    setMarketingOptOut: notImplemented as ContactsService['setMarketingOptOut'],
+    bindStaff: notImplemented as ContactsService['bindStaff'],
+    remove: notImplemented as ContactsService['remove'],
+  }
+}
 
-mock.module('@modules/contacts/service/contacts', () => ({
-  upsertByExternal: async () => {
-    calls.push({ method: 'upsertByExternal', data: null })
-    return fakeContact
-  },
-}))
+function makeConversationsServiceStub(): ConversationsService {
+  const notImplemented = async () => {
+    throw new Error('inbound.test: conversations-service method not stubbed')
+  }
+  return {
+    createInboundMessage: async (input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> => {
+      calls.push({ method: 'createInboundMessage', data: input })
+      return { conversation: fakeConversation, message: fakeMessage, isNew: mockIsNew }
+    },
+    create: notImplemented as ConversationsService['create'],
+    resumeOrCreate: notImplemented as ConversationsService['resumeOrCreate'],
+    get: notImplemented as ConversationsService['get'],
+    listActivity: notImplemented as ConversationsService['listActivity'],
+    snooze: notImplemented as ConversationsService['snooze'],
+    unsnooze: notImplemented as ConversationsService['unsnooze'],
+    wakeSnoozed: notImplemented as ConversationsService['wakeSnoozed'],
+    resolve: notImplemented as ConversationsService['resolve'],
+    reopen: notImplemented as ConversationsService['reopen'],
+    reset: notImplemented as ConversationsService['reset'],
+    reassign: notImplemented as ConversationsService['reassign'],
+    list: notImplemented as ConversationsService['list'],
+    listMessagingByContact: notImplemented as ConversationsService['listMessagingByContact'],
+    sendText: notImplemented as ConversationsService['sendText'],
+    sendCard: notImplemented as ConversationsService['sendCard'],
+    sendImage: notImplemented as ConversationsService['sendImage'],
+  }
+}
 
 mock.module('../service/instances', () => ({
   getInstanceDefaultAssignee: async (id: string) => {
@@ -146,6 +198,10 @@ function installTestState(isNewMessage = true): void {
 beforeEach(() => {
   calls = []
   mockIsNew = true
+  __resetContactsServiceForTests()
+  __resetConversationsServiceForTests()
+  installContactsService(makeContactsServiceStub())
+  installConversationsService(makeConversationsServiceStub())
   installTestState()
 })
 

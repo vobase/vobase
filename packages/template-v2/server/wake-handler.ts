@@ -6,7 +6,7 @@
  * Agents only run when the conversation's assignee is an `agent:<id>`. If the
  * assignee is a user or unassigned, the wake is skipped — no fallback agent.
  * The channel instance's `defaultAssignee` config is what seeds this on first
- * inbound (see `modules/channels/web/handlers/inbound.ts`).
+ * inbound (see `server/transports/web/handlers/inbound.ts`).
  *
  * `replyTool` and `sendCardTool` are both registered. The side-load instructs
  * the agent to prefer `send_card` whenever the reply has structure or choices,
@@ -19,7 +19,6 @@
  */
 
 import type { AgentsPort } from '@modules/agents/service/types'
-import type { InboundToWakePayload } from '@modules/channels/web/jobs'
 import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
 import type { Conversation, Message } from '@modules/messaging/schema'
@@ -30,6 +29,7 @@ import type { AgentTool, RealtimeService } from '@server/common/port-types'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import { bootWake } from '@server/harness'
 import type { AgentObserver } from '@server/harness/internal-bus'
+import type { InboundToWakePayload } from '@server/transports/web/jobs'
 import { conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 
 interface WakeHandlerDeps {

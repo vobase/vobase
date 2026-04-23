@@ -7,6 +7,7 @@ import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope, GrepMatch } from '@modules/drive/service/types'
 import { BUSINESS_MD_FALLBACK, createWorkspace } from './create-workspace'
+import { DEFAULT_READ_ONLY_CONFIG } from './index'
 
 const AGENT_DEFINITION: AgentDefinition = {
   id: 'agent-1',
@@ -203,6 +204,7 @@ async function buildWorkspace(files: DriveFile[] = []) {
     drivePort: makeDriveStub(files),
     contactsPort: makeContactsStub(),
     agentsPort: makeAgentsStub(),
+    readOnlyConfig: DEFAULT_READ_ONLY_CONFIG,
   })
 }
 

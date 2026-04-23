@@ -9,8 +9,8 @@
  */
 
 import type { InternalNote } from '@modules/messaging/schema'
-import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { find as findStaff } from '@modules/team/service/staff'
+import { getPrefs } from '@server/admin/settings/service/notification-prefs'
 
 const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000
 
@@ -94,7 +94,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     const phoneNumberId = cfg.phoneNumberId ?? process.env.WA_PHONE_NUMBER_ID ?? ''
     const accessToken = cfg.accessToken ?? process.env.WA_ACCESS_TOKEN ?? ''
     if (!phoneNumberId || !accessToken) return false
-    const { sendOutbound } = await import('@modules/channels/whatsapp/service/sender')
+    const { sendOutbound } = await import('@server/transports/whatsapp/service/sender')
     const res = await sendOutbound(
       {
         toolName: 'reply',

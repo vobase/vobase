@@ -6,7 +6,7 @@ import type { Auth } from './index'
  * already installed its state.
  */
 export async function wireAuthIntoModules(auth: Auth): Promise<void> {
-  const { installChannelWebAuth } = await import('@modules/channels/web/service/state')
+  const { installChannelWebAuth } = await import('@server/transports/web/service/state')
   installChannelWebAuth(auth)
 
   const { installDriveAuth } = await import('@modules/drive/service/files')

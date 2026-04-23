@@ -71,6 +71,7 @@ import type {
   ObserverContext,
 } from '@server/harness/internal-bus'
 import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-workspace'
+import { DEFAULT_READ_ONLY_CONFIG, DEFAULT_WRITABLE_PREFIXES } from '@server/workspace/index'
 import {
   type CustomSideLoadMaterializer,
   collectSideLoad,
@@ -440,9 +441,10 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     drivePort: opts.ports.drive,
     contactsPort: opts.ports.contacts,
     agentsPort: opts.ports.agents,
+    readOnlyConfig: DEFAULT_READ_ONLY_CONFIG,
   })
 
-  const dirtyTracker = new DirtyTracker(workspace.initialSnapshot)
+  const dirtyTracker = new DirtyTracker(workspace.initialSnapshot, DEFAULT_WRITABLE_PREFIXES)
   observers.register(
     adaptListener(
       'agents:workspace-sync',

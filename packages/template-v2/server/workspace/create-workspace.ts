@@ -78,10 +78,12 @@ export interface CreateWorkspaceOpts {
    */
   frozenEagerPaths?: readonly WorkspacePath[]
   /**
-   * Effective RO/writable configuration for `ScopedFs`. Defaults to the current
-   * literals; Steps 6+ derive this from merged module manifests.
+   * Effective RO/writable configuration for `ScopedFs`. Required — template
+   * declares its writable zones (drive uploads, scratch tmp) since core no
+   * longer ships a default writable-prefix list. See `DEFAULT_WRITABLE_PREFIXES`
+   * in `@server/workspace`.
    */
-  readOnlyConfig?: ReadOnlyConfig
+  readOnlyConfig: ReadOnlyConfig
 }
 
 export interface WorkspaceHandle {
@@ -107,7 +109,7 @@ export const FROZEN_EAGER_PATHS = [
 
 export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<WorkspaceHandle> {
   const innerFs = new InMemoryFs()
-  const fs = opts.readOnlyConfig ? new ScopedFs(innerFs, opts.readOnlyConfig) : new ScopedFs(innerFs)
+  const fs = new ScopedFs(innerFs, opts.readOnlyConfig)
   // `opts.frozenEagerPaths` is a Phase 0 hook; today the eager-write block below
   // uses hardcoded paths and per-path loaders. Steps 6+ move each path to a
   // module-registered materializer resolved here via `MaterializerRegistry`.

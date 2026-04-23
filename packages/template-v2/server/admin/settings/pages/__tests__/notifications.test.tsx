@@ -2,7 +2,7 @@ import { describe, expect, it, mock } from 'bun:test'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-mock.module('@modules/settings/pages/api/use-settings-save', () => ({
+mock.module('@server/admin/settings/pages/api/use-settings-save', () => ({
   useSettingsSave: () => ({ mutate: mock(async () => {}), isPending: false }),
 }))
 

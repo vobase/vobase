@@ -4,15 +4,21 @@
  *
  * Two-layer check:
  *   1. Source-level: dispatcher.ts has no `drizzle-orm` or schema imports.
- *   2. Runtime: mocked messaging service records every call and asserts dispatcher
- *      routes the right tool name to the right service function.
+ *   2. Runtime: installed messaging service stub records every call and asserts
+ *      dispatcher routes the right tool name to the right service function.
  */
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { Message } from '@modules/messaging/schema'
+import {
+  __resetMessagesServiceForTests,
+  installMessagesService,
+  type MessagesService,
+} from '@modules/messaging/service/messages'
 import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
+import { dispatch } from '../service/dispatcher'
 
 type CallLog = { method: string; input: unknown }
 let callLog: CallLog[] = []
@@ -31,26 +37,31 @@ const fakeMsg = (): Message =>
     createdAt: new Date(),
   }) as unknown as Message
 
-mock.module('@modules/messaging/service/messages', () => ({
-  appendTextMessage: async (input: unknown) => {
-    callLog.push({ method: 'appendTextMessage', input })
-    return fakeMsg()
-  },
-  appendCardMessage: async (input: unknown) => {
-    callLog.push({ method: 'appendCardMessage', input })
-    return fakeMsg()
-  },
-  appendMediaMessage: async (input: unknown) => {
-    callLog.push({ method: 'appendMediaMessage', input })
-    return fakeMsg()
-  },
-  appendStaffTextMessage: async (input: unknown) => {
-    callLog.push({ method: 'appendStaffTextMessage', input })
-    return fakeMsg()
-  },
-}))
-
-const { dispatch } = await import('../service/dispatcher')
+function makeMessagesServiceStub(): MessagesService {
+  const notImplemented = async () => {
+    throw new Error('dispatcher-transport-only.test: messages-service method not stubbed')
+  }
+  return {
+    appendTextMessage: async (input) => {
+      callLog.push({ method: 'appendTextMessage', input })
+      return fakeMsg()
+    },
+    appendCardMessage: async (input) => {
+      callLog.push({ method: 'appendCardMessage', input })
+      return fakeMsg()
+    },
+    appendMediaMessage: async (input) => {
+      callLog.push({ method: 'appendMediaMessage', input })
+      return fakeMsg()
+    },
+    appendStaffTextMessage: async (input) => {
+      callLog.push({ method: 'appendStaffTextMessage', input })
+      return fakeMsg()
+    },
+    appendCardReplyMessage: notImplemented as MessagesService['appendCardReplyMessage'],
+    list: notImplemented as MessagesService['list'],
+  }
+}
 
 const noopRealtime: RealtimeService = { notify: () => {}, subscribe: () => () => {} }
 
@@ -68,6 +79,8 @@ function makeEvent(toolName: ChannelOutboundEvent['toolName'], payload: unknown)
 
 beforeEach(() => {
   callLog = []
+  __resetMessagesServiceForTests()
+  installMessagesService(makeMessagesServiceStub())
 })
 
 describe('dispatcher transport-only (A3 gate)', () => {

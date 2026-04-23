@@ -3,8 +3,13 @@
  *
  * Verifies: payload validation, dispatcher invocation, SSE notify, transport-only discipline.
  */
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import type { Message } from '@modules/messaging/schema'
+import {
+  __resetMessagesServiceForTests,
+  installMessagesService,
+  type MessagesService,
+} from '@modules/messaging/service/messages'
 import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
 import { createChannelWebState, installChannelWebState } from '../service/state'
@@ -27,24 +32,31 @@ const fakeMessage: Message = {
   createdAt: new Date(),
 }
 
-mock.module('@modules/messaging/service/messages', () => ({
-  appendTextMessage: async (input: unknown) => {
-    calls.push({ method: 'appendTextMessage', data: input })
-    return fakeMessage
-  },
-  appendCardMessage: async (input: unknown) => {
-    calls.push({ method: 'appendCardMessage', data: input })
-    return fakeMessage
-  },
-  appendMediaMessage: async (input: unknown) => {
-    calls.push({ method: 'appendMediaMessage', data: input })
-    return fakeMessage
-  },
-  appendStaffTextMessage: async (input: unknown) => {
-    calls.push({ method: 'appendStaffTextMessage', data: input })
-    return fakeMessage
-  },
-}))
+function makeMessagesServiceStub(): MessagesService {
+  const notImplemented = async () => {
+    throw new Error('outbound.test: messages-service method not stubbed')
+  }
+  return {
+    appendTextMessage: async (input) => {
+      calls.push({ method: 'appendTextMessage', data: input })
+      return fakeMessage
+    },
+    appendCardMessage: async (input) => {
+      calls.push({ method: 'appendCardMessage', data: input })
+      return fakeMessage
+    },
+    appendMediaMessage: async (input) => {
+      calls.push({ method: 'appendMediaMessage', data: input })
+      return fakeMessage
+    },
+    appendStaffTextMessage: async (input) => {
+      calls.push({ method: 'appendStaffTextMessage', data: input })
+      return fakeMessage
+    },
+    appendCardReplyMessage: notImplemented as MessagesService['appendCardReplyMessage'],
+    list: notImplemented as MessagesService['list'],
+  }
+}
 
 function makeRealtime(): RealtimeService {
   return {
@@ -81,6 +93,8 @@ function makeCtx(body: unknown) {
 
 beforeEach(() => {
   calls = []
+  __resetMessagesServiceForTests()
+  installMessagesService(makeMessagesServiceStub())
   installChannelWebState(createChannelWebState({ realtime: makeRealtime() }))
 })
 

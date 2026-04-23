@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
-} from '@modules/settings/service/notification-prefs'
+} from '@server/admin/settings/service/notification-prefs'
 import type { AppSession, SessionEnv } from '@server/middlewares/require-session'
 import { Hono } from 'hono'
 import settingsRouter from '../index'

@@ -8,7 +8,7 @@ import {
   listInstances,
   removeInstance,
   updateInstance,
-} from '@modules/channels/web/service/instances'
+} from '@server/transports/web/service/instances'
 import { Hono } from 'hono'
 import { z } from 'zod'
 

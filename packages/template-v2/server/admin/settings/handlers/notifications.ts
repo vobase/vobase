@@ -1,4 +1,4 @@
-import { getPrefs, upsertPrefs } from '@modules/settings/service/notification-prefs'
+import { getPrefs, upsertPrefs } from '@server/admin/settings/service/notification-prefs'
 import type { SessionEnv } from '@server/middlewares/require-session'
 import { Hono } from 'hono'
 import { z } from 'zod'

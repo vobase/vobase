@@ -5,13 +5,13 @@
  */
 
 import agents from './modules/agents/module'
-import channelWeb from './modules/channels/web/module'
-import channelWhatsapp from './modules/channels/whatsapp/module'
 import contacts from './modules/contacts/module'
 import drive from './modules/drive/module'
 import messaging from './modules/messaging/module'
-import settings from './modules/settings/module'
 import team from './modules/team/module'
+import settings from './server/admin/settings/module'
+import channelWeb from './server/transports/web/module'
+import channelWhatsapp from './server/transports/whatsapp/module'
 
 export default {
   database: process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2',

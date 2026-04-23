@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import { INBOUND_TO_WAKE_JOB } from '@modules/channels/web/jobs'
 import type { ScopedDb } from '@server/contracts/scoped-db'
+import { INBOUND_TO_WAKE_JOB } from '@server/transports/web/jobs'
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
 import { logger } from 'hono/logger'

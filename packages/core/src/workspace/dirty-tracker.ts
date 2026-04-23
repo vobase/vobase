@@ -57,7 +57,10 @@ async function safeReadFile(fs: IFileSystem, path: string): Promise<string | nul
 }
 
 export class DirtyTracker {
-  constructor(private readonly initialSnapshot: ReadonlyMap<string, string>) {}
+  constructor(
+    private readonly initialSnapshot: ReadonlyMap<string, string>,
+    private readonly writablePrefixes: readonly string[],
+  ) {}
 
   /**
    * Returns the raw dirty diff categorised by owning service scope (P2.5).
@@ -90,7 +93,7 @@ export class DirtyTracker {
     const out: DirtyDiff = { changed: [], added: [], deleted: [] }
     const seen = new Set<string>()
     for (const path of fs.getAllPaths()) {
-      if (!isWritablePath(path)) continue
+      if (!isWritablePath(path, this.writablePrefixes)) continue
       const now = await safeReadFile(fs, path)
       if (now === null) continue
       seen.add(path)
@@ -102,7 +105,7 @@ export class DirtyTracker {
       }
     }
     for (const [path] of this.initialSnapshot) {
-      if (!isWritablePath(path)) continue
+      if (!isWritablePath(path, this.writablePrefixes)) continue
       if (!seen.has(path)) out.deleted.push(path)
     }
     return out

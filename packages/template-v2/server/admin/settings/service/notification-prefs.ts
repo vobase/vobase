@@ -34,7 +34,7 @@ export function createNotificationPrefsService(deps: PrefsDeps): NotificationPre
   const db = deps.db as { select: Function; insert: Function }
 
   async function get(userId: string): Promise<UserNotificationPrefs> {
-    const { userNotificationPrefs } = await import('@modules/settings/schema')
+    const { userNotificationPrefs } = await import('@server/admin/settings/schema')
     const { eq } = await import('drizzle-orm')
     const rows = (await db
       .select()
@@ -51,7 +51,7 @@ export function createNotificationPrefsService(deps: PrefsDeps): NotificationPre
   }
 
   async function upsert(userId: string, patch: NotificationPrefsPatch): Promise<UserNotificationPrefs> {
-    const { userNotificationPrefs } = await import('@modules/settings/schema')
+    const { userNotificationPrefs } = await import('@server/admin/settings/schema')
     const values: Record<string, unknown> = { userId }
     const update: Record<string, unknown> = {}
     if (patch.mentionsEnabled !== undefined) {

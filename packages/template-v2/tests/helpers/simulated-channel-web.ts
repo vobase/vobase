@@ -5,8 +5,8 @@
  * Installs the channel-web state factory and captures enqueued jobs via an in-memory spy.
  */
 import { createHmac } from 'node:crypto'
-import { handleInbound } from '@modules/channels/web/handlers/inbound'
-import { createChannelWebState, installChannelWebState } from '@modules/channels/web/service/state'
+import { handleInbound } from '@server/transports/web/handlers/inbound'
+import { createChannelWebState, installChannelWebState } from '@server/transports/web/service/state'
 import { Hono } from 'hono'
 
 export interface CapturedJob {

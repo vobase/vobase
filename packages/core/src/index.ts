@@ -297,11 +297,11 @@ export {
 } from './workspace/dirty-tracker';
 export { MaterializerRegistry } from './workspace/materializer-registry';
 export {
+  type BuildReadOnlyConfigOpts,
   buildReadOnlyConfig,
   checkWriteAllowed,
   isWritablePath,
   type ReadOnlyConfig,
   ReadOnlyFsError,
   ScopedFs,
-  WRITABLE_PREFIXES,
 } from './workspace/ro-enforcer';

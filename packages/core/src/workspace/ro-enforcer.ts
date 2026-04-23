@@ -39,9 +39,6 @@ const DEFAULT_READ_ONLY_EXACT: readonly string[] = [
 /** Memory files are writable ONLY via `vobase memory …`, not direct `echo >`. */
 const DEFAULT_MEMORY_PATHS: readonly string[] = ['/workspace/MEMORY.md', '/workspace/contact/MEMORY.md']
 
-/** Default writable prefix allowlist. */
-const DEFAULT_WRITABLE_PREFIXES: readonly string[] = ['/workspace/contact/drive/', '/workspace/tmp/']
-
 /** Effective RO/writable configuration consumed by `checkWriteAllowed` and `ScopedFs`. */
 export interface ReadOnlyConfig {
   readOnlyPrefixes: readonly string[]
@@ -50,23 +47,28 @@ export interface ReadOnlyConfig {
   writablePrefixes: readonly string[]
 }
 
-/** Builds the default RO/writable configuration. */
-export function buildReadOnlyConfig(): ReadOnlyConfig {
+/** Options required to build a `ReadOnlyConfig`. */
+export interface BuildReadOnlyConfigOpts {
+  /**
+   * Prefix allowlist for paths the agent may write. Core ships no defaults —
+   * the template declares the writable zones its modules depend on (drive
+   * uploads, scratch tmp, etc.) and passes them here.
+   */
+  writablePrefixes: readonly string[]
+}
+
+/** Builds the RO/writable configuration from template-supplied writable prefixes. */
+export function buildReadOnlyConfig(opts: BuildReadOnlyConfigOpts): ReadOnlyConfig {
   return {
     readOnlyPrefixes: DEFAULT_READ_ONLY_PREFIXES,
     readOnlyExact: new Set(DEFAULT_READ_ONLY_EXACT),
     memoryPaths: new Set(DEFAULT_MEMORY_PATHS),
-    writablePrefixes: DEFAULT_WRITABLE_PREFIXES,
+    writablePrefixes: opts.writablePrefixes,
   }
 }
 
-const DEFAULT_CONFIG: ReadOnlyConfig = buildReadOnlyConfig()
-
-/** Back-compat re-export for callers that just want the default writable prefixes. */
-export const WRITABLE_PREFIXES: readonly string[] = DEFAULT_WRITABLE_PREFIXES
-
 /** Returns `null` if write is allowed, otherwise the spec-exact error message. */
-export function checkWriteAllowed(path: string, config: ReadOnlyConfig = DEFAULT_CONFIG): string | null {
+export function checkWriteAllowed(path: string, config: ReadOnlyConfig): string | null {
   // Memory files get their own message.
   if (config.memoryPaths.has(path)) {
     return `bash: ${path}: use \`vobase memory set|append|remove\` to mutate memory safely.`
@@ -124,7 +126,7 @@ export class ScopedFs implements IFileSystem {
   private readonly config: ReadOnlyConfig
   constructor(
     private readonly inner: IFileSystem,
-    config: ReadOnlyConfig = DEFAULT_CONFIG,
+    config: ReadOnlyConfig,
   ) {
     this.config = config
   }
@@ -223,8 +225,8 @@ export class ScopedFs implements IFileSystem {
 }
 
 /** True if `path` belongs to a writable zone — used by the dirty-tracker. */
-export function isWritablePath(path: string): boolean {
-  for (const prefix of WRITABLE_PREFIXES) {
+export function isWritablePath(path: string, writablePrefixes: readonly string[]): boolean {
+  for (const prefix of writablePrefixes) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) return true
   }
   // Memory files are writable only through `vobase memory …`, but the CLI
