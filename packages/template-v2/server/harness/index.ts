@@ -8,15 +8,6 @@ export {
   makeBashTool,
 } from '@vobase/core'
 export {
-  type BootWakeOpts,
-  type BootWakeResult,
-  bootWake,
-  type CapturedPrompt,
-  type HarnessHandle,
-  type ModuleRegistrationsSnapshot,
-  type StreamFnLike,
-} from './agent-runner'
-export {
   buildFrozenPrompt,
   type FrozenPromptInput,
   type FrozenPromptResult,

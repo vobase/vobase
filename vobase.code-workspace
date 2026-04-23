@@ -5,6 +5,10 @@
       "path": "."
     },
     {
+      "name": "core",
+      "path": "packages/core"
+    },
+    {
       "name": "template",
       "path": "packages/template"
     },

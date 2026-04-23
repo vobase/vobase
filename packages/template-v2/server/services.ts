@@ -8,11 +8,11 @@
  */
 
 import type { RealtimeService, ScopedDb } from '@server/common/port-types'
-import type { Logger } from '@server/harness/internal-bus'
+import type { HarnessLogger } from '@vobase/core'
 
 let _db: ScopedDb | undefined
 let _realtime: RealtimeService | undefined
-let _logger: Logger | undefined
+let _logger: HarnessLogger | undefined
 
 export function setDb(db: ScopedDb): void {
   _db = db
@@ -32,11 +32,11 @@ export function getRealtime(): RealtimeService {
   return _realtime
 }
 
-export function setLogger(logger: Logger): void {
+export function setLogger(logger: HarnessLogger): void {
   _logger = logger
 }
 
-export function getLogger(): Logger {
+export function getLogger(): HarnessLogger {
   if (!_logger) throw new Error('services.getLogger: setLogger() was never called — bootstrap order issue')
   return _logger
 }

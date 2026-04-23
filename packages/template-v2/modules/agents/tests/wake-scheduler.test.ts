@@ -5,22 +5,26 @@
  * (pre-wake singleton + in-wake steer), approval-resume in both polarities,
  * scheduled followup timing, and process-restart idempotency.
  *
- * Uses `createFakeWakeQueue` + `createInMemoryActiveWakes` + a stub `bootWake`
+ * Uses `createFakeWakeQueue` + `createInMemoryActiveWakes` + a stub `runHarness`
  * so the suite needs no running postgres pg-boss. The production seam (pg-boss
  * singleton + pg NOTIFY) is covered by the integration test in P2.7.
  */
 
 import { describe, expect, it } from 'bun:test'
 import type { AgentEvent, WakeTrigger } from '@server/contracts/event'
-import type { BootWakeOpts, BootWakeResult } from '@server/harness/agent-runner'
-import { EventBus } from '@server/harness/internal-bus'
-import { createInMemoryActiveWakes } from '@vobase/core'
+import { createInMemoryActiveWakes, type HarnessEvent, type OnEventListener } from '@vobase/core'
 import { nanoid } from 'nanoid'
 import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from '../service/queue-jobs'
 import { createFakeWakeQueue } from '../service/queue-port'
 import type { AgentWakeJobPayload, ScheduledFollowupPayload } from '../service/wake-scheduler'
 import { createWakeScheduler } from '../service/wake-scheduler'
-import { createInMemoryOutbound, createWakeWorker } from '../service/wake-worker'
+import {
+  createInMemoryOutbound,
+  createWakeWorker,
+  type RunHarnessFn,
+  type RunHarnessInput,
+  type RunHarnessOutput,
+} from '../service/wake-worker'
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 
@@ -50,35 +54,37 @@ function buildRig(opts: BuildDeps = {}) {
   return { queue, activeWakes, notifier, notifyLog, scheduler }
 }
 
-/** Stub bootWake that emits a canonical event set and routes outbound tool calls. */
-function makeStubBootWake(script: {
+/** Stub runHarness that emits a canonical event set through the extraOnEvent listener. */
+function makeStubRunHarness(script: {
   toolCalls?: Array<{ name: string; args: unknown; ok?: boolean; result?: unknown }>
   /** Optional side-effect hook invoked while the wake is running. */
-  onTurn?: (opts: BootWakeOpts) => Promise<void>
+  onTurn?: (input: RunHarnessInput) => Promise<void>
   throwMidTurn?: boolean
-}): (opts: BootWakeOpts) => Promise<BootWakeResult> {
-  return async (opts: BootWakeOpts): Promise<BootWakeResult> => {
+}): RunHarnessFn {
+  return async (input: RunHarnessInput): Promise<RunHarnessOutput> => {
     const wakeId = `w-${nanoid(8)}`
     const turnIndex = 0
-    const events = opts.events
     const base = {
       ts: new Date(),
       wakeId,
-      conversationId: opts.conversationId ?? CONV,
-      organizationId: opts.organizationId,
+      conversationId: input.conversationId,
+      organizationId: input.organizationId,
       turnIndex,
     }
-    events?.publish({
+    const publish = (ev: AgentEvent): void => {
+      input.extraOnEvent(ev as unknown as HarnessEvent<WakeTrigger>)
+    }
+    publish({
       ...base,
       type: 'agent_start',
-      agentId: opts.agentId,
-      trigger: (opts.trigger as WakeTrigger).trigger,
-      triggerPayload: opts.trigger as WakeTrigger,
+      agentId: input.agentId,
+      trigger: input.trigger.trigger,
+      triggerPayload: input.trigger,
       systemHash: 'h',
-    } satisfies AgentEvent)
-    events?.publish({ ...base, type: 'turn_start' } satisfies AgentEvent)
+    })
+    publish({ ...base, type: 'turn_start' })
 
-    await script.onTurn?.(opts)
+    await script.onTurn?.(input)
 
     if (script.throwMidTurn) {
       throw new Error('simulated mid-turn crash')
@@ -86,14 +92,8 @@ function makeStubBootWake(script: {
 
     for (const call of script.toolCalls ?? []) {
       const toolCallId = `tc-${nanoid(6)}`
-      events?.publish({
-        ...base,
-        type: 'tool_execution_start',
-        toolCallId,
-        toolName: call.name,
-        args: call.args,
-      } satisfies AgentEvent)
-      events?.publish({
+      publish({ ...base, type: 'tool_execution_start', toolCallId, toolName: call.name, args: call.args })
+      publish({
         ...base,
         type: 'tool_execution_end',
         toolCallId,
@@ -101,17 +101,13 @@ function makeStubBootWake(script: {
         result: call.result ?? { ok: call.ok ?? true },
         isError: call.ok === false,
         latencyMs: 1,
-      } satisfies AgentEvent)
+      })
     }
 
-    events?.publish({ ...base, type: 'turn_end', tokensIn: 0, tokensOut: 0, costUsd: 0 } satisfies AgentEvent)
-    events?.publish({ ...base, type: 'agent_end', reason: 'complete' } satisfies AgentEvent)
+    publish({ ...base, type: 'turn_end', tokensIn: 0, tokensOut: 0, costUsd: 0 })
+    publish({ ...base, type: 'agent_end', reason: 'complete' })
 
-    return {
-      harness: undefined as unknown as BootWakeResult['harness'],
-      conversationId: base.conversationId,
-      wakeId,
-    }
+    return { wakeId }
   }
 }
 
@@ -260,24 +256,11 @@ describe('wake-scheduler — approval resume', () => {
       queue,
       activeWakes: createInMemoryActiveWakes(),
       outbound,
-      bootWake: makeStubBootWake({
+      runHarness: makeStubRunHarness({
         toolCalls: [{ name: 'reply', args: { text: 'ok' } }],
-        onTurn: async (opts) => {
-          capturedTrigger = opts.trigger as WakeTrigger
+        onTurn: async (input) => {
+          capturedTrigger = input.trigger
         },
-      }),
-      buildBootOpts: () => ({
-        contactId: 'contact-x',
-        events: new EventBus(),
-        registrations: {
-          tools: [],
-          commands: [],
-          observers: [],
-          mutators: [],
-          materializers: [],
-          sideLoadContributors: [],
-        },
-        ports: { agents: {} as never, drive: {} as never, contacts: {} as never },
       }),
     })
     await worker.start()
@@ -308,23 +291,10 @@ describe('wake-scheduler — approval resume', () => {
       queue,
       activeWakes: createInMemoryActiveWakes(),
       outbound: createInMemoryOutbound(),
-      bootWake: makeStubBootWake({
-        onTurn: async (opts) => {
-          capturedTrigger = opts.trigger as WakeTrigger
+      runHarness: makeStubRunHarness({
+        onTurn: async (input) => {
+          capturedTrigger = input.trigger
         },
-      }),
-      buildBootOpts: () => ({
-        contactId: 'contact-x',
-        events: new EventBus(),
-        registrations: {
-          tools: [],
-          commands: [],
-          observers: [],
-          mutators: [],
-          materializers: [],
-          sideLoadContributors: [],
-        },
-        ports: { agents: {} as never, drive: {} as never, contacts: {} as never },
       }),
     })
     await worker.start()
@@ -351,23 +321,10 @@ describe('wake-scheduler — scheduled followup', () => {
       queue,
       activeWakes: createInMemoryActiveWakes(),
       outbound,
-      bootWake: makeStubBootWake({
+      runHarness: makeStubRunHarness({
         onTurn: async () => {
           ran = true
         },
-      }),
-      buildBootOpts: () => ({
-        contactId: 'contact-x',
-        events: new EventBus(),
-        registrations: {
-          tools: [],
-          commands: [],
-          observers: [],
-          mutators: [],
-          materializers: [],
-          sideLoadContributors: [],
-        },
-        ports: { agents: {} as never, drive: {} as never, contacts: {} as never },
       }),
     })
     await worker.start()
@@ -391,7 +348,7 @@ describe('wake-scheduler — scheduled followup', () => {
   })
 })
 
-// ─── 13–15 · Process-restart idempotency + lease + NOTIFY hook ───────────
+// ─── 13 · Process-restart idempotency ─────────────────────────────────────
 
 describe('wake-worker — idempotency', () => {
   it('mid-turn crash retries the job but outbound emits exactly once', async () => {
@@ -402,9 +359,9 @@ describe('wake-worker — idempotency', () => {
     )
     const outbound = createInMemoryOutbound()
     const emits: Array<{ toolCallId: string }> = []
-    // Every retry uses a fresh EventBus so toolCallId regenerates per attempt;
-    // we force a stable id across attempts by scripting a single tool call
-    // and stabilising the id inside the outbound adapter.
+    // Every retry uses a fresh publish listener; we force a stable id across
+    // attempts by scripting a single tool call and stabilising the id inside
+    // the outbound adapter.
     let attempts = 0
     const stableId = 'tc-stable'
     const worker = createWakeWorker({
@@ -416,30 +373,36 @@ describe('wake-worker — idempotency', () => {
           await outbound.emit({ ...input, toolCallId: stableId })
         },
       },
-      bootWake: async (opts) => {
+      runHarness: async (input) => {
         attempts += 1
-        const bus = opts.events
+        const wakeId = `w-${attempts}`
         const base = {
           ts: new Date(),
-          wakeId: `w-${attempts}`,
-          conversationId: opts.conversationId ?? CONV,
-          organizationId: opts.organizationId,
+          wakeId,
+          conversationId: input.conversationId,
+          organizationId: input.organizationId,
           turnIndex: 0,
         }
-        bus?.publish({
+        const publish: OnEventListener<WakeTrigger> = (ev) => input.extraOnEvent(ev)
+        publish({
           ...base,
           type: 'agent_start',
-          agentId: opts.agentId,
+          agentId: input.agentId,
           trigger: 'manual',
-          triggerPayload: opts.trigger as WakeTrigger,
+          triggerPayload: input.trigger,
           systemHash: 'h',
-        })
+        } as unknown as HarnessEvent<WakeTrigger>)
         if (attempts === 1) {
-          // publish half-way then throw — simulates mid-turn crash BEFORE outbound emits
           throw new Error('crash')
         }
-        bus?.publish({ ...base, type: 'tool_execution_start', toolCallId: stableId, toolName: 'reply', args: {} })
-        bus?.publish({
+        publish({
+          ...base,
+          type: 'tool_execution_start',
+          toolCallId: stableId,
+          toolName: 'reply',
+          args: {},
+        } as unknown as HarnessEvent<WakeTrigger>)
+        publish({
           ...base,
           type: 'tool_execution_end',
           toolCallId: stableId,
@@ -447,27 +410,14 @@ describe('wake-worker — idempotency', () => {
           result: { ok: true },
           isError: false,
           latencyMs: 1,
-        })
-        bus?.publish({ ...base, type: 'agent_end', reason: 'complete' })
-        return {
-          harness: undefined as unknown as BootWakeResult['harness'],
-          conversationId: base.conversationId,
-          wakeId: base.wakeId,
-        }
+        } as unknown as HarnessEvent<WakeTrigger>)
+        publish({
+          ...base,
+          type: 'agent_end',
+          reason: 'complete',
+        } as unknown as HarnessEvent<WakeTrigger>)
+        return { wakeId }
       },
-      buildBootOpts: () => ({
-        contactId: 'contact-x',
-        events: new EventBus(),
-        registrations: {
-          tools: [],
-          commands: [],
-          observers: [],
-          mutators: [],
-          materializers: [],
-          sideLoadContributors: [],
-        },
-        ports: { agents: {} as never, drive: {} as never, contacts: {} as never },
-      }),
     })
     await worker.start()
     await queue.drain()
@@ -475,30 +425,7 @@ describe('wake-worker — idempotency', () => {
     // Outbound port deduped by stable id — only 1 emit recorded in the underlying map.
     expect(outbound.log()).toHaveLength(1)
   })
-
-  it('EventBus onWakeReleased hook fires on agent_end', () => {
-    const released: Array<{ conversationId: string; wakeId: string; organizationId: string; reason: string }> = []
-    const bus = new EventBus({
-      onWakeReleased: (p) => {
-        released.push(p)
-      },
-    })
-    const base = { ts: new Date(), wakeId: 'w1', conversationId: CONV, organizationId: ORG, turnIndex: 0 }
-    bus.publish({ ...base, type: 'agent_end', reason: 'complete' })
-    expect(released).toHaveLength(1)
-    expect(released[0]).toEqual({ conversationId: CONV, wakeId: 'w1', organizationId: ORG, reason: 'complete' })
-  })
-
-  it('non-agent_end events do not invoke the wake-released hook', () => {
-    const released: unknown[] = []
-    const bus = new EventBus({
-      onWakeReleased: () => {
-        released.push(1)
-      },
-    })
-    const base = { ts: new Date(), wakeId: 'w1', conversationId: CONV, organizationId: ORG, turnIndex: 0 }
-    bus.publish({ ...base, type: 'turn_start' })
-    bus.publish({ ...base, type: 'turn_end', tokensIn: 0, tokensOut: 0, costUsd: 0 })
-    expect(released).toHaveLength(0)
-  })
 })
+
+// Silence the unused-symbol lint for imported types retained for documentation.
+void ({} as AgentEvent)

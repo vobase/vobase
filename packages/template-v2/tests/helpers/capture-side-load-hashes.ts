@@ -11,7 +11,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import type { CapturedPrompt } from '@server/harness'
+import type { CapturedPrompt } from '@vobase/core'
 
 export function hashString(s: string): string {
   return createHash('sha256').update(s).digest('hex').slice(0, 16)

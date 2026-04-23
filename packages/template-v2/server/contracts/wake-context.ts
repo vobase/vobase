@@ -9,15 +9,15 @@
  * bindings.
  */
 
-import type { Logger } from '@server/harness/internal-bus'
 import type { LlmEmitter } from '@server/harness/llm-call'
+import type { HarnessLogger } from '@vobase/core'
 
 export interface WakeContext {
   readonly organizationId: string
   readonly wakeId: string
   readonly conversationId: string
   readonly agentId: string
-  readonly logger: Logger
+  readonly logger: HarnessLogger
   /** Per-wake emitter handle populated by `createHarness({ emitEventHandle })`. */
   readonly emitter: LlmEmitter
 }

@@ -1,7 +1,7 @@
 /**
  * Wake handler — processes `channel-web:inbound-to-wake` jobs by booting a wake
- * via the pi-agent-core harness. Sole consumer of that job; sole producer of
- * agent replies on the web channel.
+ * via `createHarness` from `@vobase/core`. Sole consumer of that job; sole
+ * producer of agent replies on the web channel.
  *
  * Agents only run when the conversation's assignee is an `agent:<id>`. If the
  * assignee is a user or unassigned, the wake is skipped — no fallback agent.
@@ -13,11 +13,16 @@
  * falling back to `reply` only for pure acknowledgements and free-form
  * questions.
  *
- * One observer is registered: a custom SSE bridge that closes over the real
- * `RealtimeService` so message-producing tool calls fan out to the UI via
- * LISTEN/NOTIFY.
+ * Event listeners wired:
+ *   - SSE bridge (custom `RealtimeService` notifier)
+ *   - Workspace sync (dirty-tracker flush on agent_end)
+ *   - Message-history persistence (via `onTurnEndSnapshot`)
+ *   - Memory-distill (contact notes + anti-lessons)
  */
 
+import type { AgentMessage } from '@mariozechner/pi-agent-core'
+import { createMemoryDistillListener } from '@modules/agents/observers/memory-distill'
+import { createWorkspaceSyncListener } from '@modules/agents/observers/workspace-sync'
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
@@ -25,12 +30,33 @@ import type { Conversation, Message } from '@modules/messaging/schema'
 import type { MessagingPort } from '@modules/messaging/service/types'
 import { replyTool } from '@modules/messaging/tools/reply'
 import { sendCardTool } from '@modules/messaging/tools/send-card'
-import type { AgentTool, RealtimeService } from '@server/common/port-types'
+import type { AgentTool, RealtimeService, ScopedDb } from '@server/common/port-types'
+import type { WakeTrigger } from '@server/contracts/event'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
-import { bootWake } from '@server/harness'
-import type { AgentObserver } from '@server/harness/internal-bus'
+import { buildFrozenPrompt } from '@server/harness/frozen-prompt-builder'
+import type { LlmEmitter } from '@server/harness/llm-call'
+import { createModel, resolveApiKey } from '@server/harness/llm-provider'
 import type { InboundToWakePayload } from '@server/transports/web/jobs'
-import { conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
+import {
+  conversationVerbs,
+  DEFAULT_READ_ONLY_CONFIG,
+  DEFAULT_WRITABLE_PREFIXES,
+  driveVerbs,
+  teamVerbs,
+} from '@server/workspace'
+import { createWorkspace } from '@server/workspace/create-workspace'
+import {
+  agentMessages,
+  createHarness,
+  DirtyTracker,
+  journalGetLastWakeTail,
+  loadMessages,
+  type OnEventListener,
+  resolveThread,
+  threads,
+} from '@vobase/core'
+import { eq } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 
 interface WakeHandlerDeps {
   messaging: MessagingPort
@@ -38,6 +64,30 @@ interface WakeHandlerDeps {
   agents: AgentsPort
   drive: FilesService
   realtime: RealtimeService
+  /** Optional scoped db — when provided, enables message-history persistence. */
+  db?: ScopedDb
+}
+
+function renderTriggerMessage(trigger: WakeTrigger | undefined): string {
+  if (!trigger) return 'Manual wake.'
+  switch (trigger.trigger) {
+    case 'inbound_message':
+      return 'New customer message(s). See /workspace/conversation/messages.md for context.'
+    case 'approval_resumed':
+      return trigger.decision === 'approved'
+        ? 'Your previous action was approved. Continue.'
+        : `Your previous action was rejected: ${trigger.note ?? '(no note)'}. Choose a different approach.`
+    case 'supervisor':
+      return 'Staff added an internal note. Read /workspace/conversation/internal-notes.md for context.'
+    case 'scheduled_followup':
+      return `Scheduled follow-up: ${trigger.reason}.`
+    case 'manual':
+      return `Manual wake: ${trigger.reason}.`
+    default: {
+      const exhaustive: never = trigger
+      return `Unknown trigger: ${String(exhaustive)}`
+    }
+  }
 }
 
 export function createWakeHandler(deps: WakeHandlerDeps) {
@@ -120,56 +170,170 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
       ]
     }
 
-    // Custom SSE observer — closes over the real realtime service so we don't
-    // depend on the harness wiring `ctx.realtime` (it noops by default).
-    const sseObserver: AgentObserver = {
-      id: 'wake:sse',
-      handle(event) {
-        const anyEv = event as unknown as Record<string, unknown>
-        const detail = anyEv.toolName ? ` tool=${anyEv.toolName}` : ''
-        const reason = anyEv.reason ? ` reason=${anyEv.reason}` : ''
-        const text = anyEv.textDelta ? ` text=${String(anyEv.textDelta).slice(0, 80)}` : ''
-        const args = anyEv.args ? ` args=${JSON.stringify(anyEv.args).slice(0, 200)}` : ''
-        const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
-        const isError = anyEv.isError ? ' ERROR' : ''
-        console.log(`[wake] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`)
-        if (event.type === 'tool_execution_end') {
-          deps.realtime.notify({ table: 'messages', id: data.conversationId, action: 'INSERT' })
-          deps.realtime.notify({ table: 'conversations', id: data.conversationId, action: 'UPDATE' })
-        }
-      },
+    // SSE listener — closes over the real realtime service so we don't depend
+    // on the harness wiring realtime (it has no such hook anyway).
+    const sseListener: OnEventListener<WakeTrigger> = (event) => {
+      const anyEv = event as unknown as Record<string, unknown>
+      const detail = anyEv.toolName ? ` tool=${anyEv.toolName}` : ''
+      const reason = anyEv.reason ? ` reason=${anyEv.reason}` : ''
+      const text = anyEv.textDelta ? ` text=${String(anyEv.textDelta).slice(0, 80)}` : ''
+      const args = anyEv.args ? ` args=${JSON.stringify(anyEv.args).slice(0, 200)}` : ''
+      const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
+      const isError = anyEv.isError ? ' ERROR' : ''
+      console.log(`[wake] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`)
+      if (event.type === 'tool_execution_end') {
+        deps.realtime.notify({ table: 'messages', id: data.conversationId, action: 'INSERT' })
+        deps.realtime.notify({ table: 'conversations', id: data.conversationId, action: 'UPDATE' })
+      }
     }
 
+    const conversationId = data.conversationId
+    const wakeId = nanoid(10)
+
     try {
-      await bootWake({
+      const agentDefinition = await deps.agents.getAgentDefinition(agentId)
+
+      // Build workspace (was internal to bootWake).
+      const workspace = await createWorkspace({
         organizationId: data.organizationId,
         agentId,
         contactId: data.contactId,
-        conversationId: data.conversationId,
-        trigger: {
-          trigger: 'inbound_message',
-          conversationId: data.conversationId,
-          messageIds: [data.messageId],
+        conversationId,
+        wakeId,
+        agentDefinition,
+        commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
+        materializers: [messagesMaterializer],
+        drivePort: deps.drive,
+        contactsPort: deps.contacts,
+        agentsPort: deps.agents,
+        readOnlyConfig: DEFAULT_READ_ONLY_CONFIG,
+      })
+
+      // Frozen system prompt (was internal to bootWake).
+      const frozen = await buildFrozenPrompt({
+        bash: workspace.bash,
+        agentDefinition,
+        organizationId: data.organizationId,
+        contactId: data.contactId,
+        conversationId,
+      })
+
+      // Dirty tracker + workspace-sync listener.
+      const dirtyTracker = new DirtyTracker(workspace.initialSnapshot, DEFAULT_WRITABLE_PREFIXES)
+      const workspaceSyncListener = createWorkspaceSyncListener({
+        fs: workspace.innerFs,
+        tracker: dirtyTracker,
+        contactId: data.contactId,
+        drive: deps.drive,
+      })
+
+      // Memory-distill listener — closes over the per-wake emitter handle.
+      const emitEventHandle: LlmEmitter = {}
+      const memoryDistillListener = createMemoryDistillListener({
+        target: { kind: 'contact', contactId: data.contactId },
+        agentId,
+        useLlm: false,
+        emitter: emitEventHandle,
+      })
+
+      // Optional message-history via onTurnEndSnapshot.
+      let threadId: string | null = null
+      let seqCursor = 0
+      let loadedHistory: readonly AgentMessage[] = []
+      if (deps.db) {
+        try {
+          threadId = await resolveThread(deps.db, { agentId, conversationId })
+          const history = await loadMessages(deps.db, threadId)
+          loadedHistory = history
+          seqCursor = history.length
+        } catch (err) {
+          console.warn('[wake] message-history setup failed — continuing without persistence', err)
+        }
+      }
+
+      const trigger: WakeTrigger = {
+        trigger: 'inbound_message',
+        conversationId,
+        messageIds: [data.messageId],
+      }
+
+      const model = createModel(agentDefinition.model)
+
+      await createHarness<WakeTrigger>({
+        organizationId: data.organizationId,
+        agentId,
+        contactId: data.contactId,
+        conversationId,
+
+        agentDefinition: {
+          model: agentDefinition.model,
+          soulMd: agentDefinition.soulMd,
+          workingMemory: agentDefinition.workingMemory,
         },
-        registrations: {
-          tools: [replyTool as unknown as AgentTool, sendCardTool as unknown as AgentTool],
-          commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
-          observers: [sseObserver],
-          mutators: [],
-          materializers: [messagesMaterializer],
-          sideLoadContributors: [conversationSideLoad],
+        model,
+        getApiKey: () => resolveApiKey(model),
+
+        systemPrompt: frozen.system,
+        systemHash: frozen.systemHash,
+
+        trigger,
+        triggerKind: trigger.trigger,
+        renderTrigger: renderTriggerMessage,
+
+        workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
+
+        tools: [replyTool as unknown as AgentTool, sendCardTool as unknown as AgentTool],
+        hooks: {
+          on_event: [
+            sseListener,
+            workspaceSyncListener as OnEventListener<WakeTrigger>,
+            memoryDistillListener as OnEventListener<WakeTrigger>,
+          ],
         },
-        ports: { agents: deps.agents, contacts: deps.contacts, drive: deps.drive },
+        materializers: [messagesMaterializer],
+        sideLoadContributors: [conversationSideLoad],
+        commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
+
+        getLastWakeTail: journalGetLastWakeTail,
+        journalAppend: async (ev) => {
+          await deps.agents.appendEvent(ev as unknown as Parameters<typeof deps.agents.appendEvent>[0])
+        },
+        loadMessageHistory: loadedHistory.length > 0 ? async () => loadedHistory : undefined,
+        onTurnEndSnapshot: async (messages) => {
+          if (!deps.db || !threadId) return
+          const newMessages = messages.slice(seqCursor)
+          if (newMessages.length === 0) return
+          const rows = newMessages.map((m, i) => ({
+            id: nanoid(10),
+            threadId: threadId as string,
+            seq: seqCursor + i + 1,
+            payload: m as unknown as Record<string, unknown>,
+            payloadVersion: 1,
+            createdAt: new Date(),
+          }))
+          await deps.db
+            .insert(agentMessages)
+            .values(rows)
+            .onConflictDoNothing({ target: [agentMessages.threadId, agentMessages.seq] })
+          seqCursor += newMessages.length
+          await deps.db
+            .update(threads)
+            .set({ messageCount: seqCursor, lastActiveAt: new Date() })
+            .where(eq(threads.id, threadId as string))
+        },
+
+        emitEventHandle,
+
+        maxTurns: 10,
         logger: {
           debug: () => undefined,
           info: () => undefined,
           warn: (obj, msg) => console.warn('[wake]', msg ?? '', obj),
           error: (obj, msg) => console.error('[wake]', msg ?? '', obj),
         },
-        maxTurns: 10,
       })
     } catch (err) {
-      console.error('[wake] bootWake failed:', err)
+      console.error('[wake] createHarness failed:', err)
     }
   }
 }

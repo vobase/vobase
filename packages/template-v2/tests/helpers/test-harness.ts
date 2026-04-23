@@ -1,14 +1,13 @@
 /**
- * Phase 1 integration test harness.
+ * Integration test harness helpers — provides service ports wired against a
+ * real test DB and a `bootWakeIntegration` shim built on top of core's
+ * `createHarness`.
  *
- * Wires together the real runtime (EventBus + ObserverBus + MutatorChain + journal)
- * with real service REAL methods + the 3 shipped observers/mutators.
- *
- * Returns a `bootWakeIntegration(opts)` that runs a real wake against the real DB
- * and captures events + wakeId per wake — used by all 12 integration assertions.
+ * Currently unused by the active test suite (phase1–4 tests were removed in
+ * earlier slices), but kept compiling so ad-hoc integration tests can reach
+ * for it without re-deriving the port wiring.
  */
 
-import { sseListener } from '@modules/agents/observers/sse'
 import type { AgentDefinition } from '@modules/agents/schema'
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { Contact, StaffBinding } from '@modules/contacts/schema'
@@ -16,19 +15,29 @@ import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
-import type { AgentEvent } from '@server/contracts/event'
-import type { HarnessHandle, StreamFnLike } from '@server/harness'
-import { bootWake } from '@server/harness'
-import { journalAppend, setJournalDb as setAgentsDb } from '@vobase/core'
+import type { AgentEvent, WakeTrigger } from '@server/contracts/event'
+import { buildFrozenPrompt } from '@server/harness/frozen-prompt-builder'
+import { createModel, resolveApiKey } from '@server/harness/llm-provider'
+import { conversationVerbs, DEFAULT_READ_ONLY_CONFIG, driveVerbs, teamVerbs } from '@server/workspace'
+import { createWorkspace } from '@server/workspace/create-workspace'
+import {
+  createHarness,
+  type HarnessEvent,
+  type HarnessHandle,
+  journalAppend,
+  type OnEventListener,
+  type StreamFnLike,
+  setJournalDb as setAgentsDb,
+} from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 import type { TestDbHandle } from './test-db'
 
 export interface IntegrationHarnessHandle {
-  harness: HarnessHandle
+  harness: HarnessHandle<WakeTrigger>
   conversationId: string
   wakeId: string
-  /** Every event published during THIS wake (populated by the handle's subscribe). */
-  capturedEvents: readonly AgentEvent[]
+  /** Every event published during THIS wake. */
+  capturedEvents: readonly HarnessEvent<WakeTrigger>[]
   notifySpyCalls: Array<{ table: string; id?: string; action?: string }>
 }
 
@@ -38,9 +47,8 @@ export interface IntegrationBootOpts {
   contactId: string
   conversationId?: string
   mockStreamFn: StreamFnLike
-  trigger?: Parameters<typeof bootWake>[0]['trigger']
+  trigger?: WakeTrigger
   maxTurns?: number
-  customSideLoad?: Parameters<HarnessHandle['registerSideLoadMaterializer']>[0][]
   preWakeWrites?: Array<{ path: string; content: string }>
 }
 
@@ -215,8 +223,8 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
 }
 
 /**
- * Run a wake against the real DB with sseObserver wired.
- * Captures every event for this specific wake (B3 scoping).
+ * Run a wake against the real DB. Minimal integration helper on top of
+ * `createHarness` — captures every event for assertions.
  */
 export async function bootWakeIntegration(
   ports: {
@@ -225,29 +233,77 @@ export async function bootWakeIntegration(
     drive: FilesService
   },
   opts: IntegrationBootOpts,
-  db: TestDbHandle,
+  _db: TestDbHandle,
 ): Promise<IntegrationHarnessHandle> {
   const notifySpyCalls: Array<{ table: string; id?: string; action?: string }> = []
-  const _ctxDb = db.db
+  const capturedEvents: HarnessEvent<WakeTrigger>[] = []
 
-  const result = await bootWake({
+  const captureListener: OnEventListener<WakeTrigger> = (ev) => {
+    capturedEvents.push(ev)
+  }
+
+  const agentDefinition = await ports.agents.getAgentDefinition(opts.agentId)
+  const workspace = await createWorkspace({
     organizationId: opts.organizationId,
     agentId: opts.agentId,
     contactId: opts.contactId,
-    trigger: opts.trigger,
-    streamFn: opts.mockStreamFn,
+    conversationId: opts.conversationId ?? 'conv-integration',
+    wakeId: 'w-integration',
+    agentDefinition,
+    commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
+    materializers: [],
+    drivePort: ports.drive,
+    contactsPort: ports.contacts,
+    agentsPort: ports.agents,
+    readOnlyConfig: DEFAULT_READ_ONLY_CONFIG,
+  })
+
+  const frozen = await buildFrozenPrompt({
+    bash: workspace.bash,
+    agentDefinition,
+    organizationId: opts.organizationId,
+    contactId: opts.contactId,
+    conversationId: opts.conversationId ?? 'conv-integration',
+  })
+
+  const model = createModel(agentDefinition.model)
+
+  const result = await createHarness<WakeTrigger>({
+    organizationId: opts.organizationId,
+    agentId: opts.agentId,
+    contactId: opts.contactId,
     conversationId: opts.conversationId,
-    maxTurns: opts.maxTurns ?? 1,
-    registrations: {
-      tools: [],
-      commands: [],
-      observers: [{ id: 'agents:sse', handle: sseListener }],
-      mutators: [],
-      materializers: [],
-      sideLoadContributors: [],
+
+    agentDefinition: {
+      model: agentDefinition.model,
+      soulMd: agentDefinition.soulMd,
+      workingMemory: agentDefinition.workingMemory,
     },
-    ports,
+    model,
+    getApiKey: () => resolveApiKey(model),
+    streamFn: opts.mockStreamFn,
+
+    systemPrompt: frozen.system,
+    systemHash: frozen.systemHash,
+
+    trigger: opts.trigger,
+    triggerKind: opts.trigger?.trigger,
+    renderTrigger: (t) => (t ? `wake:${t.trigger}` : 'manual wake'),
+
+    workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
+
+    tools: [],
+    hooks: { on_event: [captureListener] },
+    materializers: [],
+    sideLoadContributors: [],
+    commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
+
+    journalAppend: async (ev) => {
+      await ports.agents.appendEvent(ev as unknown as AgentEvent)
+    },
+
     preWakeWrites: opts.preWakeWrites,
+    maxTurns: opts.maxTurns ?? 1,
     logger: {
       debug: () => undefined,
       info: () => undefined,
@@ -256,21 +312,18 @@ export async function bootWakeIntegration(
     },
   })
 
-  // The harness.events array has every AgentEvent from this wake.
   return {
     harness: result.harness,
     conversationId: result.conversationId,
     wakeId: result.wakeId,
-    capturedEvents: result.harness.events,
+    capturedEvents,
     notifySpyCalls,
   }
 }
 
 /**
  * Install the real DB + a notify spy into `server/services.ts` singletons so
- * sseObserver can be exercised against real Postgres + a capturing realtime.
- * Observers read these through `getDb()` / `getRealtime()` — no monkey-patch
- * of `handle` needed.
+ * observers can be exercised against real Postgres + a capturing realtime.
  */
 export function wireObserverContextFor(
   db: TestDbHandle,
@@ -292,7 +345,6 @@ export function wireObserverContextFor(
     warn: () => undefined,
     error: () => undefined,
   })
-  void sseListener
   return () => {
     const { __resetServicesForTests } = require('@server/services') as typeof import('@server/services')
     __resetServicesForTests()
