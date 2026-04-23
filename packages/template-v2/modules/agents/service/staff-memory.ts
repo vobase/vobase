@@ -23,11 +23,7 @@ interface StaffMemoryDeps {
 }
 
 export function createStaffMemoryService(deps: StaffMemoryDeps): StaffMemoryService {
-  const db = deps.db as {
-    select: Function
-    insert: Function
-    update: Function
-  }
+  const db = deps.db as { select: Function; insert: Function }
 
   async function read(key: StaffMemoryKey): Promise<string> {
     const { agentStaffMemory } = await import('@modules/agents/schema')

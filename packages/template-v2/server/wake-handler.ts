@@ -438,7 +438,6 @@ function buildAuthLookup(db: ScopedDb | undefined): StaffProfileLookup {
     async getAuthDisplay(staffId) {
       try {
         const { authUser } = await import('@vobase/core')
-        const { eq } = await import('drizzle-orm')
         const rows = await db
           .select({ name: authUser.name, email: authUser.email })
           .from(authUser)

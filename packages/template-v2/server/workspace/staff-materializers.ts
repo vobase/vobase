@@ -11,7 +11,6 @@
  */
 
 import { readStaffMemory } from '@modules/agents/service/staff-memory'
-import type { StaffProfile } from '@modules/team/schema'
 import { staff } from '@modules/team/service'
 import type { WorkspaceMaterializer } from '@vobase/core'
 
@@ -86,13 +85,4 @@ export function makeStaticProfileLookup(
       return rows[staffId] ?? null
     },
   }
-}
-
-/** Exported for the workspace-sync observer: pick-first identity fallback. */
-export function pickStaffDisplayName(
-  profile: StaffProfile | null,
-  auth: { name: string | null; email: string | null } | null,
-  staffId: string,
-): string {
-  return profile?.displayName ?? auth?.name ?? auth?.email ?? staffId
 }
