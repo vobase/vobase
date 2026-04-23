@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { CommandContext } from '@server/contracts/plugin-context'
+import type { CommandContext } from '@server/common/port-types'
 import { memoryVerbs } from './memory-verbs'
 
 const CTX: CommandContext = {

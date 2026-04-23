@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { BucketHandle, ScopedStorage } from '@server/contracts/plugin-context'
+import type { BucketHandle, ScopedStorage } from '@server/common/port-types'
 import { buildScopedStorage } from './scoped-storage'
 import { NamespaceViolationError } from './validate-manifests'
 

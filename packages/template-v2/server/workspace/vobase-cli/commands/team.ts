@@ -11,7 +11,7 @@
  */
 
 import { get as getStaff, list as listStaff } from '@modules/team/service/staff'
-import type { CommandDef } from '@server/contracts/plugin-context'
+import type { CommandDef } from '@server/common/port-types'
 
 function parseFlags(argv: readonly string[]): Record<string, string> {
   const flags: Record<string, string> = {}

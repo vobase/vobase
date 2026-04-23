@@ -1,7 +1,7 @@
 /**
  * Module-level state for channel-whatsapp.
  */
-import type { RealtimeService } from '@server/contracts/plugin-context'
+import type { RealtimeService } from '@server/common/port-types'
 
 export interface JobQueue {
   send(name: string, data: unknown): Promise<string>

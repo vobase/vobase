@@ -8,7 +8,7 @@
  * through unchanged — opt-in during Phase 0 migration window.
  */
 
-import type { ScheduleOpts, ScopedScheduler } from '@server/contracts/plugin-context'
+import type { ScheduleOpts, ScopedScheduler } from '@server/common/port-types'
 import { NamespaceViolationError } from './validate-manifests'
 
 export interface ScopedSchedulerInput {

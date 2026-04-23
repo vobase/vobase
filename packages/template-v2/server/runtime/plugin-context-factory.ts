@@ -5,9 +5,6 @@
  * unchanged.
  */
 
-import type { LlmTask } from '@server/contracts/event'
-import type { AgentMutator } from '@server/harness/internal-bus'
-import type { AgentObserver, Logger } from '@server/harness/internal-bus'
 import type {
   AgentTool,
   CommandDef,
@@ -24,8 +21,10 @@ import type {
   ScopedStorage,
   TraceSpan,
   Tx,
-} from '@server/contracts/plugin-context'
+} from '@server/common/port-types'
+import type { LlmTask } from '@server/contracts/event'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
+import type { AgentMutator, AgentObserver, Logger } from '@server/harness/internal-bus'
 import type { ChannelAdapter } from '@vobase/core'
 import { buildScopedScheduler } from './scoped-scheduler'
 import { buildScopedStorage } from './scoped-storage'

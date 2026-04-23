@@ -5,7 +5,7 @@
  * command is discoverable + lint-complete, but mutations are deferred to
  * Phase 2 where the markdown-section parser lands.
  */
-import type { CommandDef } from '@server/contracts/plugin-context'
+import type { CommandDef } from '@server/common/port-types'
 
 const NOT_IMPLEMENTED = 'not-implemented in Phase 1'
 

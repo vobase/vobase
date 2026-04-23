@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { PluginContext } from '@server/contracts/plugin-context'
+import type { PluginContext } from '@server/common/port-types'
 import { Hono, type MiddlewareHandler } from 'hono'
 import { bootModules } from './boot-modules'
 import { defineModule, type ModuleManifest } from './define-module'

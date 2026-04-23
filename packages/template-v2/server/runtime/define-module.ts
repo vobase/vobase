@@ -5,7 +5,7 @@
  * (shared with `scripts/check-module-shape.ts` — no duplication between
  * runtime enforcement and CI lint).
  */
-import type { PluginContext } from '@server/contracts/plugin-context'
+import type { PluginContext } from '@server/common/port-types'
 import type { Hono } from 'hono'
 
 export interface ModuleHttpRoutes {

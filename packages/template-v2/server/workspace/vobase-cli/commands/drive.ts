@@ -10,7 +10,7 @@
  */
 
 import { propose } from '@modules/drive/service/proposal'
-import type { CommandDef } from '@server/contracts/plugin-context'
+import type { CommandDef } from '@server/common/port-types'
 
 /** Parse `--key=value` flags from argv. */
 function parseFlags(argv: readonly string[]): Record<string, string> {

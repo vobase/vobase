@@ -3,7 +3,7 @@
  */
 
 import type { Auth } from '@server/auth'
-import type { RealtimeService } from '@server/contracts/plugin-context'
+import type { RealtimeService } from '@server/common/port-types'
 
 /** Minimal pg-boss shape needed for enqueuing wake jobs. */
 export interface JobQueue {

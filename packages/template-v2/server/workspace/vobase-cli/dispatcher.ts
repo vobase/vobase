@@ -7,7 +7,7 @@
  * longest-prefix command name against argv, left-to-right.
  */
 
-import type { CommandContext, CommandDef } from '@server/contracts/plugin-context'
+import type { CommandContext, CommandDef } from '@server/common/port-types'
 import type { Command, ExecResult } from 'just-bash'
 import { defineCommand } from 'just-bash'
 

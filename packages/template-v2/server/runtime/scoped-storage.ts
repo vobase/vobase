@@ -8,7 +8,7 @@
  * buckets pass through unchanged (opt-in during Phase 0).
  */
 
-import type { BucketHandle, ScopedStorage } from '@server/contracts/plugin-context'
+import type { BucketHandle, ScopedStorage } from '@server/common/port-types'
 import { NamespaceViolationError } from './validate-manifests'
 
 export interface ScopedStorageInput {

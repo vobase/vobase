@@ -26,10 +26,10 @@ import type { Conversation, Message } from '@modules/inbox/schema'
 import type { InboxPort } from '@modules/inbox/service/types'
 import { replyTool } from '@modules/inbox/tools/reply'
 import { sendCardTool } from '@modules/inbox/tools/send-card'
-import type { AgentObserver } from '@server/harness/internal-bus'
-import type { AgentTool, RealtimeService } from '@server/contracts/plugin-context'
+import type { AgentTool, RealtimeService } from '@server/common/port-types'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import { bootWake } from '@server/harness'
+import type { AgentObserver } from '@server/harness/internal-bus'
 import { conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 
 interface WakeHandlerDeps {

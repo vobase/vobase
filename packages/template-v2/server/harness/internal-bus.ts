@@ -12,10 +12,10 @@
  * `ObserverContext` types — the legacy `server/contracts/{observer,mutator}.ts`
  * files were deleted; consumers import these types from here.
  */
-import type { AgentEvent } from '@server/contracts/event'
+
+import type { LlmRequest, LlmResult, RealtimeService, Tx } from '@server/common/port-types'
+import type { AgentEvent, LlmTask } from '@server/contracts/event'
 import type { ScopedDb } from '@server/contracts/scoped-db'
-import type { LlmRequest, LlmResult, RealtimeService, Tx } from '@server/contracts/plugin-context'
-import type { LlmTask } from '@server/contracts/event'
 import type { ToolResult } from '@server/contracts/tool-result'
 
 // ─── Shared types (previously in contracts/observer.ts + contracts/mutator.ts) ──

@@ -1,0 +1,164 @@
+/**
+ * Narrow port + primitive types previously co-located in
+ * `server/contracts/plugin-context.ts`.
+ *
+ * The `PluginContext` mega-interface and `ObserverFactory` type were deleted
+ * alongside the rest of slice 2c.3's bootstrap demolition — modules no longer
+ * receive a bag-of-ports at boot. What remains here are the small types that
+ * cross module boundaries and don't live naturally anywhere else: the LLM
+ * chokepoint request/result shape, scoped scheduler/storage contracts, the
+ * command surface for the workspace CLI, and the pg NOTIFY-backed
+ * RealtimeService.
+ */
+
+import type { AgentEvent, LlmTask } from '@server/contracts/event'
+import type { AgentTool } from '@server/contracts/tool'
+import type { ToolResult } from '@server/contracts/tool-result'
+import type { ChannelAdapter } from '@vobase/core'
+
+/** Opaque transaction handle passed through from Drizzle. */
+export type Tx = unknown
+
+export type { LlmTask } from '@server/contracts/event'
+export type { ScopedDb } from '@server/contracts/scoped-db'
+export type { AgentTool, ToolContext } from '@server/contracts/tool'
+
+export interface CommandDef {
+  name: string
+  description: string
+  usage?: string
+  execute: (argv: readonly string[], ctx: CommandContext) => Promise<ToolResult<string>>
+}
+
+export interface CommandContext {
+  organizationId: string
+  conversationId: string
+  agentId: string
+  contactId: string
+  writeWorkspace: (path: string, content: string) => Promise<void>
+  readWorkspace: (path: string) => Promise<string>
+}
+
+export interface LlmRequest {
+  model?: string
+  provider?: string
+  system?: string
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+  tools?: AgentTool[]
+  stream?: boolean
+  signal?: AbortSignal
+  providerOpts?: Record<string, unknown>
+}
+
+export interface LlmResult<T = string> {
+  task: LlmTask
+  model: string
+  provider: string
+  content: T
+  tokensIn: number
+  tokensOut: number
+  cacheReadTokens: number
+  costUsd: number
+  latencyMs: number
+  cacheHit: boolean
+  finishReason?: string
+}
+
+export interface ScheduleOpts {
+  startAfter?: Date
+  singletonKey?: string
+}
+
+export interface ScopedScheduler {
+  send(name: string, data: unknown, opts?: ScheduleOpts): Promise<string>
+  cancel(jobId: string): Promise<void>
+  schedule?(name: string, cron: string, data?: unknown, opts?: ScheduleOpts): Promise<string>
+}
+
+export interface BucketHandle {
+  put(key: string, body: unknown, opts?: { contentType?: string }): Promise<void>
+  get(key: string): Promise<unknown>
+  delete(key: string): Promise<void>
+}
+
+export interface ScopedStorage {
+  getBucket(name: string): BucketHandle
+}
+
+export interface EventBus {
+  publish(event: AgentEvent): void
+  subscribe(fn: (event: AgentEvent) => void | Promise<void>): () => void
+}
+
+export interface RealtimeService {
+  notify(payload: { table: string; id?: string; action?: string }, tx?: Tx): void
+  subscribe(fn: (payload: string) => void): () => void
+}
+
+export interface MetricSink {
+  increment(name: string, value?: number, tags?: Record<string, string>): void
+  gauge(name: string, value: number, tags?: Record<string, string>): void
+  timing(name: string, ms: number, tags?: Record<string, string>): void
+}
+
+export type TraceSpan = {
+  end(): void
+  setAttribute(key: string, value: string | number | boolean): void
+}
+
+export interface JournalSink {
+  append(event: AgentEvent, tx: Tx): Promise<void>
+}
+
+/**
+ * Type handle for a channel-adapter registration. Previously lived on
+ * `PluginContext.registerChannel(type, adapter)`; the adapter surface itself
+ * comes from @vobase/core.
+ */
+export type ChannelRegistration = { type: string; adapter: ChannelAdapter }
+
+// ─── Legacy PluginContext surface ───────────────────────────────────────
+//
+// Kept narrow-surface only for the surviving `bootModules` / `defineModule`
+// path. Everything new should take concrete service singletons instead.
+
+import type { CaptionPort } from '@server/contracts/caption-port'
+import type { ScopedDb } from '@server/contracts/scoped-db'
+import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
+import type { WakeContext } from '@server/contracts/wake-context'
+import type { AgentMutator, AgentObserver, Logger } from '@server/harness/internal-bus'
+
+export type ObserverFactory = (wake: WakeContext) => AgentObserver
+
+export interface PluginContext {
+  readonly moduleName: string
+  readonly organizationId: string
+  readonly conversationId: string
+
+  readonly caption: CaptionPort
+
+  registerTool(tool: AgentTool): void
+  registerSkill(opts: { name: string; path: string }): void
+  registerCommand(cmd: CommandDef): void
+  registerChannel(type: string, adapter: ChannelAdapter): void
+  registerObserver(observer: AgentObserver): void
+  registerObserverFactory(factory: ObserverFactory): void
+  registerMutator(mutator: AgentMutator): void
+  registerWorkspaceMaterializer(m: WorkspaceMaterializer): void
+
+  contributeSideLoad(contrib: SideLoadContributor): void
+
+  readonly db: ScopedDb
+  readonly jobs: ScopedScheduler
+  readonly storage: ScopedStorage
+  readonly events: EventBus
+  readonly realtime: RealtimeService
+
+  readonly logger: Logger
+  readonly metrics: MetricSink
+  readonly trace: TraceSpan | null
+
+  llmCall<T = string>(task: LlmTask, request: LlmRequest): Promise<LlmResult<T>>
+
+  withJournaledTx<T>(fn: (tx: Tx, journal: JournalSink) => Promise<T>): Promise<T>
+}

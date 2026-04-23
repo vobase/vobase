@@ -8,8 +8,9 @@
  * wrappers. `setDb(db)` remains as a compatibility shim — constructs + installs in one
  * call — so existing tests don't need to migrate their import shape.
  */
+
+import type { Tx } from '@server/common/port-types'
 import type { AgentEvent } from '@server/contracts/event'
-import type { Tx } from '@server/contracts/plugin-context'
 
 export interface JournalAppendInput {
   conversationId: string

@@ -11,7 +11,7 @@
  *   - Keep-alive uses `stream.sleep(25_000)` rather than `setInterval` so the
  *     loop tears down cleanly when the client aborts.
  */
-import type { RealtimeService } from '@server/contracts/plugin-context'
+import type { RealtimeService } from '@server/common/port-types'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 

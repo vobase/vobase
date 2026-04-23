@@ -42,6 +42,7 @@ import { loadMessages, resolveThread } from '@modules/agents/service/message-his
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
+import type { AgentTool, CommandDef, EventBus, ObserverFactory } from '@server/common/port-types'
 import type { AbortContext } from '@server/contracts/abort-context'
 import type {
   AgentAbortedEvent,
@@ -60,12 +61,17 @@ import type {
   WakeTrigger,
 } from '@server/contracts/event'
 import type { IterationBudget } from '@server/contracts/iteration-budget'
-import type { AgentMutator, AgentStep, MutatorContext } from '@server/harness/internal-bus'
-import type { AgentObserver, Logger, ObserverContext } from '@server/harness/internal-bus'
-import type { AgentTool, CommandDef, EventBus, ObserverFactory } from '@server/contracts/plugin-context'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WakeContext } from '@server/contracts/wake-context'
+import type {
+  AgentMutator,
+  AgentObserver,
+  AgentStep,
+  Logger,
+  MutatorContext,
+  ObserverContext,
+} from '@server/harness/internal-bus'
 import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-workspace'
 import {
   type CustomSideLoadMaterializer,

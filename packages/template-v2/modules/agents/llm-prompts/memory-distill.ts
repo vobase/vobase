@@ -10,7 +10,7 @@
  * never crashes a wake (this is a reflection pass, not load-bearing).
  */
 
-import type { LlmRequest, LlmResult } from '@server/contracts/plugin-context'
+import type { LlmRequest, LlmResult } from '@server/common/port-types'
 
 export type LlmCallFn = <T>(task: 'memory.distill', request: LlmRequest) => Promise<LlmResult<T>>
 

@@ -5,8 +5,8 @@
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { Message } from '@modules/inbox/schema'
+import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
-import type { RealtimeService } from '@server/contracts/plugin-context'
 import { createChannelWebState, installChannelWebState } from '../service/state'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

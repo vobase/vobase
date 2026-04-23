@@ -5,8 +5,8 @@ import {
   appendStaffTextMessage,
   appendTextMessage,
 } from '@modules/inbox/service/messages'
+import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
-import type { RealtimeService } from '@server/contracts/plugin-context'
 import { nanoid } from 'nanoid'
 
 export interface DispatchResult {

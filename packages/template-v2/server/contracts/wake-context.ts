@@ -8,8 +8,9 @@
  * harness invokes the factory once per wake with the real, per-wake
  * bindings.
  */
-import type { LlmEmitter } from '@server/harness/llm-call'
+
 import type { Logger } from '@server/harness/internal-bus'
+import type { LlmEmitter } from '@server/harness/llm-call'
 
 export interface WakeContext {
   readonly organizationId: string

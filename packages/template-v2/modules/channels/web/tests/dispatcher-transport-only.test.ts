@@ -11,8 +11,8 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { Message } from '@modules/inbox/schema'
+import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
-import type { RealtimeService } from '@server/contracts/plugin-context'
 
 type CallLog = { method: string; input: unknown }
 let callLog: CallLog[] = []

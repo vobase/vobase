@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
-import type { ScopedScheduler } from '@server/contracts/plugin-context'
+import type { ScopedScheduler } from '@server/common/port-types'
 import { buildScopedScheduler } from './scoped-scheduler'
 import { NamespaceViolationError } from './validate-manifests'
 

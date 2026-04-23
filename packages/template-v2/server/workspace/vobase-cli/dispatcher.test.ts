@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { CommandContext, CommandDef } from '@server/contracts/plugin-context'
+import type { CommandContext, CommandDef } from '@server/common/port-types'
 import { Bash } from 'just-bash'
 import { createVobaseCommand } from './dispatcher'
 
