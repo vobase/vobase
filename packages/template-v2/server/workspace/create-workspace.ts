@@ -19,10 +19,10 @@ import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CommandContext, CommandDef } from '@server/common/port-types'
 import type { MaterializerCtx, WorkspaceMaterializer } from '@server/contracts/side-load'
-import type { WorkspacePath } from '@server/runtime/define-module'
 import { generateAgentsMd, MaterializerRegistry, type ReadOnlyConfig, ScopedFs, snapshotFs } from '@vobase/core'
 import { Bash, InMemoryFs } from 'just-bash'
 import { createVobaseCommand } from './vobase-cli/dispatcher'
+import type { WorkspacePath } from './workspace-config'
 
 /** Built-in BUSINESS.md fallback stub — shown when no organization drive row exists. */
 export const BUSINESS_MD_FALLBACK = `# Business Identity

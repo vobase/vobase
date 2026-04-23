@@ -1,6 +1,5 @@
 import { join } from 'node:path'
 import { INBOUND_TO_WAKE_JOB } from '@modules/channels/web/jobs'
-import type { CaptionPort } from '@server/contracts/caption-port'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
@@ -9,10 +8,10 @@ import type { Sql } from 'postgres'
 import config from '../vobase.config'
 import { createAuth } from './auth'
 import { wireAuthIntoModules } from './auth/wire-modules'
+import { bootModulesCollector } from './common/module-def'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from './middlewares'
 import { buildPorts } from './ports'
 import { createSseRoute } from './routes/sse'
-import { bootModules } from './runtime/boot-modules'
 import { createWakeHandler } from './wake-handler'
 
 export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
@@ -30,42 +29,20 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   // App ports + in-process job queue drive the channel modules' wake dispatch.
   const jobHandlers = new Map<string, (data: unknown) => Promise<void>>()
   const ports = await buildPorts(db, sql, config.database, jobHandlers)
-  // CaptionPort is Gemini-backed only. Throw-proxy keeps the PluginContext
-  // shape satisfied; modules that reach for caption at boot fail loudly.
-  const captionThrow = (): never => {
-    throw new Error('CaptionPort unwired — set CAPTION_PROVIDER=gemini + GOOGLE_API_KEY')
-  }
-  const caption: CaptionPort = {
-    captionImage: captionThrow,
-    captionVideo: captionThrow,
-    extractText: captionThrow,
-  }
-  await bootModules({
+
+  // Narrow ModuleInitCtx — each module's init(ctx) reads { db, organizationId,
+  // jobs, realtime } only. `organizationId` is empty at boot; services that
+  // need a real tenant guard reject the empty sentinel at first use.
+  await bootModulesCollector({
     modules: config.modules,
     app,
-    ctx: {
-      caption,
-      db,
-      jobs: ports.jobs,
-      storage: {
-        getBucket: () => {
-          throw new Error('ScopedStorage not configured — no module declared manifest.buckets')
-        },
-      },
-      realtime: ports.realtime,
-      logger: {
-        debug: () => undefined,
-        info: (obj, msg) => console.info('[boot]', msg ?? '', obj ?? ''),
-        warn: (obj, msg) => console.warn('[boot]', msg ?? '', obj ?? ''),
-        error: (obj, msg) => console.error('[boot]', msg ?? '', obj ?? ''),
-      },
-      metrics: {
-        increment: () => undefined,
-        gauge: () => undefined,
-        timing: () => undefined,
-      },
-    },
     requireSession,
+    ctx: {
+      db,
+      organizationId: '',
+      jobs: ports.jobs,
+      realtime: ports.realtime,
+    },
   })
 
   await wireAuthIntoModules(auth)

@@ -1,18 +1,10 @@
-import { defineModule } from '@server/runtime/define-module'
+import type { ModuleDef } from '@server/common/module-def'
 import handlers from './handlers'
 import { createChannelWhatsappState, installChannelWhatsappState, type JobQueue } from './service/state'
 
-export default defineModule({
+const channelWhatsapp: ModuleDef = {
   name: 'channel-whatsapp',
-  version: '1.0',
   requires: ['inbox', 'contacts', 'drive'],
-  manifest: {
-    provides: {
-      channels: ['whatsapp'],
-    },
-    permissions: [],
-    workspace: { owns: [] },
-  },
   // Meta authenticates via X-Hub-Signature-256 HMAC, not session cookies.
   routes: { basePath: '/api/channel-whatsapp', handler: handlers },
   init(ctx) {
@@ -23,4 +15,6 @@ export default defineModule({
       }),
     )
   },
-})
+}
+
+export default channelWhatsapp

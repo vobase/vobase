@@ -1,4 +1,4 @@
-import { defineModule } from '@server/runtime/define-module'
+import type { ModuleDef } from '@server/common/module-def'
 import handlers from './handlers'
 import { createStaffAttrDefService, installStaffAttrDefService } from './service/attribute-definitions'
 import { createMentionNotifyService, installMentionNotifyService } from './service/mention-notify'
@@ -6,17 +6,9 @@ import { createMentionsService, installMentionsService } from './service/mention
 import { createStaffService, installStaffService } from './service/staff'
 import { createTeamDescriptionService, installTeamDescriptionService } from './service/team-descriptions'
 
-export default defineModule({
+const team: ModuleDef = {
   name: 'team',
-  version: '1.0',
   requires: ['contacts', 'settings'],
-  manifest: {
-    provides: {
-      commands: ['team:staff:list', 'team:staff:get'],
-    },
-    permissions: [],
-    workspace: { owns: [] },
-  },
   routes: { basePath: '/api/team', handler: handlers, requireSession: true },
   init(ctx) {
     installStaffService(createStaffService({ db: ctx.db }))
@@ -25,4 +17,6 @@ export default defineModule({
     installMentionsService(createMentionsService({ db: ctx.db }))
     installMentionNotifyService(createMentionNotifyService({ db: ctx.db }))
   },
-})
+}
+
+export default team

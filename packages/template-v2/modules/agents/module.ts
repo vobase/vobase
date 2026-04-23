@@ -1,6 +1,5 @@
-import { defineModule } from '@server/runtime/define-module'
+import type { ModuleDef } from '@server/common/module-def'
 import handlers from './handlers'
-import { sseListener } from './observers/sse'
 import { createAgentDefinitionsService, installAgentDefinitionsService } from './service/agent-definitions'
 import { createCostService, installCostService } from './service/cost'
 import { createJournalService, installJournalService } from './service/journal'
@@ -9,31 +8,18 @@ import {
   createLearningProposalsService,
   installLearningProposalsService,
 } from './service/learning-proposals'
-import { subagentTool } from './tools/subagent'
 
-export default defineModule({
+/**
+ * Named exports of the agent module's tools + listeners. `server/wake-handler.ts`
+ * composes these into the per-wake `registrations` bag; module init no longer
+ * registers them through a `PluginContext` surface.
+ */
+export { sseListener } from './observers/sse'
+export { subagentTool } from './tools/subagent'
+
+const agents: ModuleDef = {
   name: 'agents',
-  version: '1.0',
   requires: ['inbox', 'contacts', 'drive'],
-  manifest: {
-    provides: {
-      tools: ['subagent'],
-      observers: ['agents:audit', 'agents:sse', 'agents:cost-aggregator', 'agents:scorer'],
-      mutators: ['agents:moderation'],
-      materializers: ['frozenPromptBuilder', 'sideLoadCollector'],
-    },
-    permissions: [],
-    workspace: {
-      owns: [
-        { kind: 'exact', path: '/workspace/SOUL.md' },
-        { kind: 'exact', path: '/workspace/MEMORY.md' },
-      ],
-      frozenEager: [
-        { kind: 'exact', path: '/workspace/SOUL.md' },
-        { kind: 'exact', path: '/workspace/MEMORY.md' },
-      ],
-    },
-  },
   routes: { basePath: '/api/agents', handler: handlers, requireSession: true },
   init(ctx) {
     installJournalService(createJournalService({ db: ctx.db }))
@@ -42,7 +28,7 @@ export default defineModule({
       createLearningProposalsService({ db: ctx.db, notifier: createLearningNotifier(ctx.db) }),
     )
     installCostService(createCostService({ db: ctx.db }))
-    ctx.registerObserver({ id: 'agents:sse', handle: sseListener })
-    ctx.registerTool(subagentTool)
   },
-})
+}
+
+export default agents

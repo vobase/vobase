@@ -1,19 +1,11 @@
-import { defineModule } from '@server/runtime/define-module'
+import type { ModuleDef } from '@server/common/module-def'
 import handlers from './handlers'
 import { createWebInstancesService, installWebInstancesService } from './service/instances'
 import { createChannelWebState, installChannelWebState, type JobQueue } from './service/state'
 
-export default defineModule({
+const channelWeb: ModuleDef = {
   name: 'channel-web',
-  version: '1.0',
   requires: ['inbox', 'contacts', 'drive'],
-  manifest: {
-    provides: {
-      channels: ['web'],
-    },
-    permissions: [],
-    workspace: { owns: [] },
-  },
   // Inbound webhook is HMAC-authed (no session gate). Always enabled — web is
   // the default customer surface. In production, CHANNEL_WEB_WEBHOOK_SECRET
   // must be set (enforced in handlers/inbound.ts).
@@ -27,4 +19,6 @@ export default defineModule({
     )
     installWebInstancesService(createWebInstancesService({ db: ctx.db }))
   },
-})
+}
+
+export default channelWeb
