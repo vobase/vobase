@@ -1,24 +1,23 @@
 /**
- * workspaceSyncObserver — on `agent_end`, flushes the dirty-tracker buffer and
- * persists writable-zone changes to their owning module services.
+ * createWorkspaceSyncListener — on `agent_end`, flushes the dirty-tracker
+ * buffer and persists writable-zone changes to their owning module services.
  *
  * Routing rules:
  *   `/workspace/contact/MEMORY.md` → ContactsService.upsertNotesSection (section-ops)
  *   `/workspace/contact/drive/**`  → FilesService.create / delete  (scope='contact')
  *
- * Frozen-snapshot invariant: this observer ONLY fires on `agent_end`.
+ * Frozen-snapshot invariant: this listener ONLY fires on `agent_end`.
  * Mid-wake dirty writes accumulate in the tracker but are NOT flushed until then,
  * so the current turn's frozen side-load never sees its own writes.
  *
  * Factory pattern: the harness injects the `IFileSystem` and `DirtyTracker`
- * instances (created at wake-start) so the observer has zero module-level state.
+ * instances (created at wake-start) so the listener has zero module-level state.
  */
 
 import { upsertNotesSection } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
 import type { AgentEvent } from '@server/contracts/event'
-import type { AgentObserver } from '@server/contracts/observer'
 import { getLogger } from '@server/services'
 import type { DirtyTracker } from '@vobase/core'
 import type { IFileSystem } from 'just-bash'
@@ -30,74 +29,72 @@ export interface WorkspaceSyncOpts {
   drive: FilesService
 }
 
-export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObserver {
+export function createWorkspaceSyncListener(
+  opts: WorkspaceSyncOpts,
+): (event: AgentEvent) => Promise<void> {
   const { fs, tracker, contactId, drive } = opts
 
-  return {
-    id: 'agents:workspace-sync',
+  return async (event: AgentEvent): Promise<void> => {
+    if (event.type !== 'agent_end') return
 
-    async handle(event: AgentEvent): Promise<void> {
-      if (event.type !== 'agent_end') return
+    const logger = getLogger()
+    const scoped = await tracker.flush(fs)
 
-      const logger = getLogger()
-      const scoped = await tracker.flush(fs)
+    // ── 1. Contact MEMORY.md → section upserts ──────────────────────────
+    const memoryDirty = scoped.contactMemory.added.length > 0 || scoped.contactMemory.changed.length > 0
 
-      // ── 1. Contact MEMORY.md → section upserts ──────────────────────────
-      const memoryDirty = scoped.contactMemory.added.length > 0 || scoped.contactMemory.changed.length > 0
-
-      if (memoryDirty) {
-        try {
-          const raw = await fs.readFile('/workspace/contact/MEMORY.md')
-          const sections = parseMarkdownSections(raw)
-          for (const [heading, body] of sections) {
-            await upsertNotesSection(contactId, heading, body)
-          }
-        } catch (err) {
-          logger.warn({ err }, 'workspace-sync: failed to flush contact/MEMORY.md')
+    if (memoryDirty) {
+      try {
+        const raw = await fs.readFile('/workspace/contact/MEMORY.md')
+        const sections = parseMarkdownSections(raw)
+        for (const [heading, body] of sections) {
+          await upsertNotesSection(contactId, heading, body)
         }
+      } catch (err) {
+        logger.warn({ err }, 'workspace-sync: failed to flush contact/MEMORY.md')
       }
+    }
 
-      // ── 2. Contact drive → FilesService (scope='contact') ──────────────────
-      const contactScope: DriveScope = { scope: 'contact', contactId }
+    // ── 2. Contact drive → FilesService (scope='contact') ──────────────────
+    const contactScope: DriveScope = { scope: 'contact', contactId }
 
-      const toWrite = [...scoped.contactDrive.added, ...scoped.contactDrive.changed]
-      for (const wPath of toWrite) {
-        try {
-          const content = await fs.readFile(wPath)
-          // Convert workspace path → scope-relative path
-          const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
-          const name = drivePath.split('/').filter(Boolean).pop() ?? drivePath
+    const toWrite = [...scoped.contactDrive.added, ...scoped.contactDrive.changed]
+    for (const wPath of toWrite) {
+      try {
+        const content = await fs.readFile(wPath)
+        // Convert workspace path → scope-relative path
+        const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
+        const name = drivePath.split('/').filter(Boolean).pop() ?? drivePath
 
-          const existing = await drive.getByPath(contactScope, drivePath)
-          if (!existing) {
-            const input: CreateFileInput = {
-              kind: 'file',
-              name,
-              path: drivePath,
-              mimeType: 'text/markdown',
-              extractedText: content,
-              source: 'agent_uploaded',
-            }
-            await drive.create(contactScope, input)
+        const existing = await drive.getByPath(contactScope, drivePath)
+        if (!existing) {
+          const input: CreateFileInput = {
+            kind: 'file',
+            name,
+            path: drivePath,
+            mimeType: 'text/markdown',
+            extractedText: content,
+            source: 'agent_uploaded',
           }
-          // Content updates on existing files are deferred to Phase 3 (no update-content on FilesService yet).
-        } catch (err) {
-          logger.warn({ err, wPath }, 'workspace-sync: failed to persist contact/drive file')
+          await drive.create(contactScope, input)
         }
+        // Content updates on existing files are deferred to Phase 3 (no update-content on FilesService yet).
+      } catch (err) {
+        logger.warn({ err, wPath }, 'workspace-sync: failed to persist contact/drive file')
       }
+    }
 
-      for (const wPath of scoped.contactDrive.deleted) {
-        try {
-          const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
-          const existing = await drive.getByPath(contactScope, drivePath)
-          if (existing) {
-            await drive.remove(existing.id)
-          }
-        } catch (err) {
-          logger.warn({ err, wPath }, 'workspace-sync: failed to delete contact/drive file')
+    for (const wPath of scoped.contactDrive.deleted) {
+      try {
+        const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
+        const existing = await drive.getByPath(contactScope, drivePath)
+        if (existing) {
+          await drive.remove(existing.id)
         }
+      } catch (err) {
+        logger.warn({ err, wPath }, 'workspace-sync: failed to delete contact/drive file')
       }
-    },
+    }
   }
 }
 

@@ -33,9 +33,9 @@ import {
 } from '@mariozechner/pi-agent-core'
 import type { AssistantMessage } from '@mariozechner/pi-ai'
 import { Type } from '@mariozechner/pi-ai'
-import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
-import { createMessageHistoryObserver } from '@modules/agents/observers/message-history-observer'
-import { createWorkspaceSyncObserver } from '@modules/agents/observers/workspace-sync'
+import { createMemoryDistillListener } from '@modules/agents/observers/memory-distill'
+import { createMessageHistoryListener } from '@modules/agents/observers/message-history-observer'
+import { createWorkspaceSyncListener } from '@modules/agents/observers/workspace-sync'
 import type { AgentDefinition } from '@modules/agents/schema'
 import { getLastWakeTail } from '@modules/agents/service/journal'
 import { loadMessages, resolveThread } from '@modules/agents/service/message-history'
@@ -160,6 +160,14 @@ export interface BootWakeResult {
 }
 
 // ----- internal helpers ----------------------------------------------------
+
+/** Wrap a plain `(ev) => void` listener in the legacy `AgentObserver` shape so
+ * the internal `ObserverBus` (moved from runtime during phase A) can consume
+ * it unchanged. Removed wholesale in phase D when `createHarness` replaces
+ * `ObserverBus`. */
+function adaptListener(id: string, listener: (ev: AgentEvent) => Promise<void> | void): AgentObserver {
+  return { id, handle: listener }
+}
 
 const noopLogger: Logger = {
   debug: () => undefined,
@@ -383,12 +391,15 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       const historyMessages = await loadMessages(opts.db, threadId)
       for (const m of historyMessages) piMessages.push(m)
       observers.register(
-        createMessageHistoryObserver({
-          db: opts.db,
-          threadId,
-          getMessages: () => piMessages,
-          initialSeq: historyMessages.length,
-        }),
+        adaptListener(
+          'agents:message-history',
+          createMessageHistoryListener({
+            db: opts.db,
+            threadId,
+            getMessages: () => piMessages,
+            initialSeq: historyMessages.length,
+          }),
+        ),
       )
       historyEnabled = true
     } catch (err) {
@@ -426,20 +437,26 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
 
   const dirtyTracker = new DirtyTracker(workspace.initialSnapshot)
   observers.register(
-    createWorkspaceSyncObserver({
-      fs: workspace.innerFs,
-      tracker: dirtyTracker,
-      contactId: opts.contactId,
-      drive: opts.ports.drive,
-    }),
+    adaptListener(
+      'agents:workspace-sync',
+      createWorkspaceSyncListener({
+        fs: workspace.innerFs,
+        tracker: dirtyTracker,
+        contactId: opts.contactId,
+        drive: opts.ports.drive,
+      }),
+    ),
   )
   observers.register(
-    createMemoryDistillObserver({
-      target: { kind: 'contact', contactId: opts.contactId },
-      agentId: opts.agentId,
-      useLlm: false,
-      emitter: wakeEmitter,
-    }),
+    adaptListener(
+      'agents:memory-distill',
+      createMemoryDistillListener({
+        target: { kind: 'contact', contactId: opts.contactId },
+        agentId: opts.agentId,
+        useLlm: false,
+        emitter: wakeEmitter,
+      }),
+    ),
   )
 
   for (const w of opts.preWakeWrites ?? []) {

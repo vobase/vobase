@@ -1,22 +1,18 @@
 /**
- * sseObserver — calls realtime.notify() on every event so the staff inbox
+ * sseListener — calls realtime.notify() on every event so the staff inbox
  * live-tails via core's SSE endpoint.
  *
- * Matches the existing useRealtimeInvalidation() hook contract from packages/template/src/hooks.
+ * Plain `OnEventListener` — closes over the `getRealtime()` service singleton
+ * and reads wake identity from the event's `HarnessBaseFields`.
  */
 
 import type { AgentEvent } from '@server/contracts/event'
-import type { AgentObserver } from '@server/contracts/observer'
 import { getRealtime } from '@server/services'
 
-export const sseObserver: AgentObserver = {
-  id: 'agents:sse',
-
-  handle(event: AgentEvent): void {
-    getRealtime().notify({
-      table: 'agent-sessions',
-      id: event.conversationId,
-      action: event.type,
-    })
-  },
+export const sseListener = (event: AgentEvent): void => {
+  getRealtime().notify({
+    table: 'agent-sessions',
+    id: event.conversationId,
+    action: event.type,
+  })
 }

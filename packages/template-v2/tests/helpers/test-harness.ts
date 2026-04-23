@@ -8,7 +8,7 @@
  * and captures events + wakeId per wake — used by all 12 integration assertions.
  */
 
-import { sseObserver } from '@modules/agents/observers/sse'
+import { sseListener } from '@modules/agents/observers/sse'
 import type { AgentDefinition } from '@modules/agents/schema'
 import { append as journalAppend, setDb as setAgentsDb } from '@modules/agents/service/journal'
 import type { AgentsPort } from '@modules/agents/service/types'
@@ -241,7 +241,7 @@ export async function bootWakeIntegration(
     registrations: {
       tools: [],
       commands: [],
-      observers: [sseObserver],
+      observers: [{ id: 'agents:sse', handle: sseListener }],
       mutators: [],
       materializers: [],
       sideLoadContributors: [],
@@ -292,7 +292,7 @@ export function wireObserverContextFor(
     warn: () => undefined,
     error: () => undefined,
   })
-  void sseObserver
+  void sseListener
   return () => {
     const { __resetServicesForTests } = require('@server/services') as typeof import('@server/services')
     __resetServicesForTests()

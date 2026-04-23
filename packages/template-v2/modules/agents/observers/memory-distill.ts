@@ -13,7 +13,6 @@ import {
 } from '@modules/contacts/service/contacts'
 import { readNotes as readStaffNotes, upsertNotesSection as upsertStaffNotesSection } from '@modules/team/service/staff'
 import type { AgentEvent, LearningRejectedEvent } from '@server/contracts/event'
-import type { AgentObserver } from '@server/contracts/observer'
 import { llmCall as harnessLlmCall, type LlmEmitter } from '@server/harness/llm-call'
 import { getDb, getLogger } from '@server/services'
 import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
@@ -83,16 +82,16 @@ interface WakeBuffer {
   rejections: LearningRejectedEvent[]
 }
 
-export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObserver {
+export function createMemoryDistillListener(
+  opts: MemoryDistillOpts,
+): (event: AgentEvent) => Promise<void> {
   const { target, agentId, useLlm, emitter } = opts
   const tkey = targetKey(target)
 
   const wakeBuffer = new Map<string, WakeBuffer>()
 
-  return {
-    id: 'agents:memory-distill',
-
-    async handle(event: AgentEvent): Promise<void> {
+  return async (event: AgentEvent): Promise<void> => {
+    {
       const logger = getLogger()
       const buf = wakeBuffer.get(event.wakeId) ?? { assistantMessages: [], rejections: [] }
 
@@ -154,7 +153,7 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
       } catch (err) {
         logger.warn({ err, target }, 'memory-distill: failed to write distilled sections')
       }
-    },
+    }
   }
 }
 

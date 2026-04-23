@@ -1,7 +1,7 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
 import { manifest } from './manifest'
-import { sseObserver } from './observers/sse'
+import { sseListener } from './observers/sse'
 import { createAgentDefinitionsService, installAgentDefinitionsService } from './service/agent-definitions'
 import { createCostService, installCostService } from './service/cost'
 import { createJournalService, installJournalService } from './service/journal'
@@ -25,7 +25,7 @@ export default defineModule({
       createLearningProposalsService({ db: ctx.db, notifier: createLearningNotifier(ctx.db) }),
     )
     installCostService(createCostService({ db: ctx.db }))
-    ctx.registerObserver(sseObserver)
+    ctx.registerObserver({ id: 'agents:sse', handle: sseListener })
     ctx.registerTool(subagentTool)
   },
 })
