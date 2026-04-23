@@ -1,6 +1,5 @@
 import { join } from 'node:path'
-import type { ScopedDb } from '@server/contracts/scoped-db'
-import { INBOUND_TO_WAKE_JOB } from '@server/transports/web/jobs'
+import type { ScopedDb } from '@server/common/scoped-db'
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
 import { logger } from 'hono/logger'
@@ -12,7 +11,7 @@ import { bootModulesCollector } from './common/module-def'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from './middlewares'
 import { buildPorts } from './module-ports'
 import { createSseRoute } from './routes/sse'
-import { createWakeHandler } from './wake-handler'
+import { createWakeHandler, INBOUND_TO_WAKE_JOB } from './wake-handler'
 
 export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   const app = new Hono()

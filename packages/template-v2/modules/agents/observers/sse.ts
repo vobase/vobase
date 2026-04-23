@@ -6,7 +6,7 @@
  * and reads wake identity from the event's `HarnessBaseFields`.
  */
 
-import type { AgentEvent } from '@server/contracts/event'
+import type { AgentEvent } from '@server/events'
 import { getRealtime } from '@server/services'
 
 export const sseListener = (event: AgentEvent): void => {

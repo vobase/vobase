@@ -6,7 +6,7 @@
  * `modules/agents/service/journal.ts` (one write path per domain).
  */
 
-import type { ClassifiedErrorReason } from './classified-error'
+import type { ClassifiedErrorReason } from '@vobase/core'
 
 export type WakeTrigger =
   | { trigger: 'inbound_message'; conversationId: string; messageIds: string[] }

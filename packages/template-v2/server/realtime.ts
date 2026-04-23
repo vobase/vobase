@@ -17,7 +17,7 @@
  */
 
 import type { RealtimeService } from '@server/common/port-types'
-import type { ScopedDb } from '@server/contracts/scoped-db'
+import type { ScopedDb } from '@server/common/scoped-db'
 
 export async function buildRealtime(databaseConfig: string, db: ScopedDb): Promise<RealtimeService> {
   const { createRealtimeService } = await import('@vobase/core')

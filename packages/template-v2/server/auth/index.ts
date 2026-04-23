@@ -1,4 +1,4 @@
-import type { ScopedDb } from '@server/contracts/scoped-db'
+import type { ScopedDb } from '@server/common/scoped-db'
 import {
   authAccount,
   authInvitation,

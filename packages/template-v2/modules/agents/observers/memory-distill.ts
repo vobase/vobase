@@ -12,7 +12,7 @@ import {
   upsertNotesSection as upsertContactNotesSection,
 } from '@modules/contacts/service/contacts'
 import { readNotes as readStaffNotes, upsertNotesSection as upsertStaffNotesSection } from '@modules/team/service/staff'
-import type { AgentEvent, LearningRejectedEvent } from '@server/contracts/event'
+import type { AgentEvent, LearningRejectedEvent } from '@server/events'
 import { llmCall as harnessLlmCall, type LlmEmitter } from '@server/harness/llm-call'
 import { getDb, getLogger } from '@server/services'
 import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'

@@ -658,6 +658,6 @@ export function ChannelsPage() {
   )
 }
 
-export const Route = createFileRoute('/_app/channels/')({
+export const Route = createFileRoute('/_app/channels')({
   component: ChannelsPage,
 })

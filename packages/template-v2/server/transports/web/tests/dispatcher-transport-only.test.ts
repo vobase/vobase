@@ -17,7 +17,7 @@ import {
   type MessagesService,
 } from '@modules/messaging/service/messages'
 import type { RealtimeService } from '@server/common/port-types'
-import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
+import type { ChannelOutboundEvent } from '@server/transports/events'
 import { dispatch } from '../service/dispatcher'
 
 type CallLog = { method: string; input: unknown }

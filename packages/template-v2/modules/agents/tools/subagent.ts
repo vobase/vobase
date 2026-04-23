@@ -1,9 +1,8 @@
 import { Type } from '@mariozechner/pi-ai'
 import { runSubagent } from '@modules/agents/service/subagent-runner'
-import type { AgentTool, ToolContext } from '@server/contracts/tool'
-import type { ToolResult } from '@server/contracts/tool-result'
 import type { Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
+import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
 
 export const SubagentInputSchema = Type.Object({
   goal: Type.String({ minLength: 1, description: 'Concrete focused goal for the sub-agent.' }),

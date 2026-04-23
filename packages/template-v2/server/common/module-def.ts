@@ -11,7 +11,7 @@
  */
 
 import type { RealtimeService, ScopedScheduler } from '@server/common/port-types'
-import type { ScopedDb } from '@server/contracts/scoped-db'
+import type { ScopedDb } from '@server/common/scoped-db'
 import type { Hono, MiddlewareHandler } from 'hono'
 
 export interface ModuleInitCtx {

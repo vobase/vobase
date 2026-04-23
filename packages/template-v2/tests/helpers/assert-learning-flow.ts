@@ -3,7 +3,7 @@
  * Reuses the subset-matcher from assert-event-sequence.ts.
  */
 import { expect } from 'bun:test'
-import type { AgentEvent } from '@server/contracts/event'
+import type { AgentEvent } from '@server/events'
 import { assertEventSubsequence } from './assert-event-sequence'
 
 export type LearningEventType = 'learning_proposed' | 'learning_approved' | 'learning_rejected'

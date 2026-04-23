@@ -2,7 +2,7 @@
  * Shared event-sequence assertion helpers — used by Phase 1 and Phase 2 integration tests.
  */
 import { expect } from 'bun:test'
-import type { AgentEvent } from '@server/contracts/event'
+import type { AgentEvent } from '@server/events'
 
 export interface AssertEventSequenceOpts {
   ignoreTypes?: string[]

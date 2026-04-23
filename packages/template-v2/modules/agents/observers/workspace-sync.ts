@@ -17,7 +17,7 @@
 import { upsertNotesSection } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
-import type { AgentEvent } from '@server/contracts/event'
+import type { AgentEvent } from '@server/events'
 import { getLogger } from '@server/services'
 import type { DirtyTracker } from '@vobase/core'
 import type { IFileSystem } from 'just-bash'

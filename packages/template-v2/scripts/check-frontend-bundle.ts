@@ -5,7 +5,8 @@
  *
  * `import type` statements are allowed (Vite strips them at build time) but
  * this script bans them too as a conservative safety measure: if a file needs
- * types from those paths, it should go through @server/contracts/* instead.
+ * types from those paths, it should go through more specific non-runtime
+ * modules (e.g. `@server/events`, `@server/common/*`, `@vobase/core`) instead.
  *
  * Exit 0 = clean. Exit 1 = violations found.
  */

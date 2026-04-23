@@ -5,7 +5,15 @@
  * so one HTTP call produces one caption.
  */
 
-import type { CaptionPort } from '@server/contracts/caption-port'
+/**
+ * CaptionPort — owned by the drive module; consumed by drive itself
+ * and by channel adapters for inbound media. Implementation wraps Gemini.
+ */
+export interface CaptionPort {
+  captionImage(url: string, hint?: string): Promise<string>
+  captionVideo(url: string, hint?: string): Promise<string>
+  extractText(url: string, mime: string): Promise<string>
+}
 
 const GEMINI_MODEL = 'gemini-2.0-flash'
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com'

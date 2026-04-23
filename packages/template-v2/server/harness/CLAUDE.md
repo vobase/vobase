@@ -8,7 +8,7 @@ The hot path: `bootWake` assembles the frozen system prompt once, drives turns t
 
 **Three-layer byte budget for tool stdout.** L1=4KB inline preview; L2=100KB per-call spill to `/workspace/tmp/tool-<callId>.txt` (emits `tool_result_persisted`); L3=200KB turn-aggregate ceiling. Read-only re-reads of spill files are exempt (whitelist: `cat head tail less more wc grep awk sed`, plus `bash -c`/`sh -c` wrapping one of those); compound commands with `;`/`&`/`|` break the exemption. Bulk output spills instead of flooding context.
 
-**Wake event order.** `agent_start → turn_start → llm_call → message_start → message_update* → message_end → (tool_execution_start → tool_execution_end)* → turn_end → … → agent_end`. Filter `message_update` when asserting sequences. Phase-4 peripherals: `budget_warning`, `error_classified`, `tool_result_persisted`, `steer_injected`, `wake_refused`, `agent_aborted`. All must stay exhaustively handled in `server/contracts/__checks__/integration.ts`.
+**Wake event order.** `agent_start → turn_start → llm_call → message_start → message_update* → message_end → (tool_execution_start → tool_execution_end)* → turn_end → … → agent_end`. Filter `message_update` when asserting sequences. Phase-4 peripherals: `budget_warning`, `error_classified`, `tool_result_persisted`, `steer_injected`, `wake_refused`, `agent_aborted`. All must stay exhaustively handled at their `switch` sites (observers/mutators).
 
 **Abort/steer between turns, never inside.** `AbortSignal` propagates to tools; `SteerQueue.drain()` runs after `tool_execution_end` and injects text ahead of the NEXT turn's user message. LLM-stream throw under `abortSignal.aborted` → `agent_aborted` (classified `pre_tool | in_tool | post_tool`), not `agent_end:'complete'`.
 

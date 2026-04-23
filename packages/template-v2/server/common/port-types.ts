@@ -1,6 +1,6 @@
 /**
  * Narrow port + primitive types previously co-located in
- * `server/contracts/plugin-context.ts`.
+ * the old `server/contracts/plugin-context.ts` (since dissolved).
  *
  * The `PluginContext` mega-interface and `ObserverFactory` type were deleted
  * alongside the rest of slice 2c.3's bootstrap demolition — modules no longer
@@ -11,17 +11,15 @@
  * RealtimeService.
  */
 
-import type { AgentEvent, LlmTask } from '@server/contracts/event'
-import type { AgentTool } from '@server/contracts/tool'
-import type { ToolResult } from '@server/contracts/tool-result'
-import type { ChannelAdapter } from '@vobase/core'
+import type { AgentEvent, LlmTask } from '@server/events'
+import type { AgentTool, ChannelAdapter, ToolResult } from '@vobase/core'
 
 /** Opaque transaction handle passed through from Drizzle. */
 export type Tx = unknown
 
-export type { LlmTask } from '@server/contracts/event'
-export type { ScopedDb } from '@server/contracts/scoped-db'
-export type { AgentTool, ToolContext } from '@server/contracts/tool'
+export type { ScopedDb } from '@server/common/scoped-db'
+export type { LlmTask } from '@server/events'
+export type { AgentTool, ToolContext } from '@vobase/core'
 
 export interface CommandDef {
   name: string

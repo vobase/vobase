@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import type { AgentEvent, WakeTrigger } from '@server/contracts/event'
+import type { AgentEvent, WakeTrigger } from '@server/events'
 import { createInMemoryActiveWakes, type HarnessEvent, type OnEventListener } from '@vobase/core'
 import { nanoid } from 'nanoid'
 import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from '../service/queue-jobs'

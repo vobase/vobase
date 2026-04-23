@@ -18,7 +18,7 @@
  */
 
 import { complete, type Message, type Model, type UserMessage } from '@mariozechner/pi-ai'
-import type { LlmTask } from '@server/contracts/event'
+import type { LlmTask } from '@server/events'
 import type { WakeScope } from '@vobase/core'
 import { createModel, resolveApiKey } from './llm-provider'
 

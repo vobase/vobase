@@ -38,7 +38,7 @@ import {
 import { addNote as svcAddNote, listNotes as svcListNotes } from '@modules/messaging/service/notes'
 import type { MessagingPort } from '@modules/messaging/service/types'
 import type { RealtimeService, ScopedDb } from '@server/common/port-types'
-import type { AgentEvent } from '@server/contracts/event'
+import type { AgentEvent } from '@server/events'
 import { buildJobQueue } from '@server/jobs'
 import { buildRealtime } from '@server/realtime'
 import { journalAppend, setJournalDb } from '@vobase/core'

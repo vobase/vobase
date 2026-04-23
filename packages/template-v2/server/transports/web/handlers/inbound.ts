@@ -1,7 +1,7 @@
 import { upsertByExternal } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
-import { type ChannelInboundEvent, ChannelInboundEventSchema } from '@server/contracts/channel-event'
 import { verifyHmacWebhook } from '@server/middlewares'
+import { type ChannelInboundEvent, ChannelInboundEventSchema } from '@server/transports/events'
 import type { Context } from 'hono'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
 import { getInstanceDefaultAssignee } from '../service/instances'

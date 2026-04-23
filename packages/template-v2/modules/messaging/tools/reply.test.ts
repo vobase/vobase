@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
-import type { ToolContext } from '@server/contracts/tool'
+import type { ToolContext } from '@vobase/core'
 import { setJournalDb } from '@vobase/core'
 import { replyTool } from './reply'
 

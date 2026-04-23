@@ -1,5 +1,5 @@
 /** WhatsApp outbound sender — transport only; persistence flows through MessagingPort. */
-import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
+import type { ChannelOutboundEvent } from '@server/transports/events'
 import type { SendResult } from '@vobase/core'
 
 const META_API_VERSION = 'v20.0'

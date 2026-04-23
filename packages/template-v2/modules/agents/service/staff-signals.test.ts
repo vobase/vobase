@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import type { AgentEvent } from '@server/contracts/event'
+import type { AgentEvent } from '@server/events'
 import { detectStaffSignals } from './staff-signals'
 
 function baseFields() {

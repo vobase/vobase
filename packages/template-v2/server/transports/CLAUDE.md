@@ -8,7 +8,7 @@ Channel adapters that connect external messaging surfaces to the messaging. Each
 
 **Transport-only rule (A3).** `service/dispatcher.ts` (web) and `service/sender.ts` (whatsapp) must NEVER import drizzle or write to DB. They are pure HTTP delivery. All state writes happen upstream in `handlers/inbound.ts` / `handlers/card-reply.ts` via the messaging service. `modules/channels/web/tests/dispatcher-transport-only.test.ts` guards this at CI — the test fails on any drizzle import or db handle in the dispatcher. Keep the write path one-way: handler writes state, dispatcher/sender delivers bytes.
 
-**Outbound switch coupling.** When you add a new outbound tool name to `server/contracts/channel-event.ts::OUTBOUND_TOOL_NAMES`, you must also add it to the switch in BOTH `web/service/dispatcher.ts` and `whatsapp/service/sender.ts` — otherwise outbound delivery silently drops on that transport.
+**Outbound switch coupling.** When you add a new outbound tool name to `server/transports/events.ts::OUTBOUND_TOOL_NAMES`, you must also add it to the switch in BOTH `web/service/dispatcher.ts` and `whatsapp/service/sender.ts` — otherwise outbound delivery silently drops on that transport.
 
 **Card-reply round trip (web).** Browser taps a card button → `POST /api/channel-web/card-reply` → messaging service `sendCardReply()` writes `kind='card_reply'` + a `channel_inbound` event atomically → wake scheduler notifies. Never write `messages` directly from the handler — always through the messaging service.
 

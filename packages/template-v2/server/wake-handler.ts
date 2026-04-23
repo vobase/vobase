@@ -31,12 +31,10 @@ import type { MessagingPort } from '@modules/messaging/service/types'
 import { replyTool } from '@modules/messaging/tools/reply'
 import { sendCardTool } from '@modules/messaging/tools/send-card'
 import type { AgentTool, RealtimeService, ScopedDb } from '@server/common/port-types'
-import type { WakeTrigger } from '@server/contracts/event'
-import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
+import type { WakeTrigger } from '@server/events'
 import { buildFrozenPrompt } from '@server/harness/frozen-prompt-builder'
 import type { LlmEmitter } from '@server/harness/llm-call'
 import { createModel, resolveApiKey } from '@server/harness/llm-provider'
-import type { InboundToWakePayload } from '@server/transports/web/jobs'
 import {
   conversationVerbs,
   DEFAULT_READ_ONLY_CONFIG,
@@ -45,6 +43,7 @@ import {
   teamVerbs,
 } from '@server/workspace'
 import { createWorkspace } from '@server/workspace/create-workspace'
+import type { SideLoadContributor, WorkspaceMaterializer } from '@vobase/core'
 import {
   agentMessages,
   createHarness,
@@ -57,6 +56,24 @@ import {
 } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { z } from 'zod'
+
+/**
+ * Job name + payload for inbound-to-wake dispatch.
+ * Producers: `server/transports/web/handlers/{inbound,card-reply}.ts`
+ * and `server/transports/whatsapp/service/inbound.ts`.
+ * Consumer: `createWakeHandler` below (registered in `server/app.ts`).
+ */
+export const INBOUND_TO_WAKE_JOB = 'channel-web:inbound-to-wake'
+
+export const InboundToWakePayloadSchema = z.object({
+  organizationId: z.string(),
+  conversationId: z.string(),
+  messageId: z.string(),
+  contactId: z.string(),
+})
+
+export type InboundToWakePayload = z.infer<typeof InboundToWakePayloadSchema>
 
 interface WakeHandlerDeps {
   messaging: MessagingPort

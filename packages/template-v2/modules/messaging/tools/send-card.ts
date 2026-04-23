@@ -1,9 +1,8 @@
 import { Type } from '@mariozechner/pi-ai'
 import { appendCardMessage } from '@modules/messaging/service/messages'
-import type { AgentTool, ToolContext } from '@server/contracts/tool'
-import type { ToolResult } from '@server/contracts/tool-result'
 import type { Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
+import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
 
 const ButtonStyle = Type.Union([Type.Literal('primary'), Type.Literal('danger'), Type.Literal('default')])
 const TextStyle = Type.Union([Type.Literal('plain'), Type.Literal('bold'), Type.Literal('muted')])

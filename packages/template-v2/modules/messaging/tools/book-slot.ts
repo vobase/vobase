@@ -1,8 +1,7 @@
 import { Type } from '@mariozechner/pi-ai'
-import type { AgentTool, ToolContext } from '@server/contracts/tool'
-import type { ToolResult } from '@server/contracts/tool-result'
 import type { Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
+import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
 
 export const BookSlotInputSchema = Type.Object({
   slotId: Type.String({ minLength: 1 }),

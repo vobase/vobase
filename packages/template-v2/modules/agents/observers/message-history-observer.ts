@@ -7,8 +7,8 @@
  */
 
 import type { AgentMessage } from '@mariozechner/pi-agent-core'
-import type { AgentEvent } from '@server/contracts/event'
-import type { ScopedDb } from '@server/contracts/scoped-db'
+import type { ScopedDb } from '@server/common/scoped-db'
+import type { AgentEvent } from '@server/events'
 import { agentMessages, threads } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'

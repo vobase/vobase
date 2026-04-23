@@ -13,7 +13,7 @@
  *    payload; the handler verifies and trusts the `organizationId` + `from`
  *    fields it carries.
  */
-import { ChannelInboundEventSchema } from '@server/contracts/channel-event'
+import { ChannelInboundEventSchema } from '@server/transports/events'
 import { z } from 'zod'
 import { getAuth } from './state'
 

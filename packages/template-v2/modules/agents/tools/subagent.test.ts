@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { ToolContext } from '@server/contracts/tool'
+import type { ToolContext } from '@vobase/core'
 import { createSubagentRunner } from '../service/subagent-runner'
 import { subagentTool } from './subagent'
 

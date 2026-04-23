@@ -21,7 +21,7 @@
  */
 
 import type { InternalNoteAuthorType } from '@modules/messaging/schema'
-import type { AgentEvent } from '@server/contracts/event'
+import type { AgentEvent } from '@server/events'
 import type { LearningScope } from '../schema'
 
 export type StaffSignalKind = 'supervisor' | 'approval_rejected' | 'internal_note' | 'reassignment_note'

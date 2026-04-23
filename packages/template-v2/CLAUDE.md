@@ -4,7 +4,7 @@ Greenfield rebuild of the template package.
 
 ## Layout
 
-- `server/` — backend infra (runtime, contracts, harness, workspace, middlewares, db, `main.ts` bootstrap, plus top-level `ports.ts` and `wake-handler.ts`). Each subdir has its own CLAUDE.md.
+- `server/` — backend infra (runtime, harness, workspace, middlewares, db, `main.ts` bootstrap, plus top-level `ports.ts`, `events.ts`, and `wake-handler.ts`). Each subdir has its own CLAUDE.md.
 - `modules/` — business domains (backend + frontend straddle per module; each conforms to the enforced module shape). See `modules/CLAUDE.md` for module shape + init order; per-module CLAUDE.md for domain rules (`agents`, `channels`, `drive`, `messaging`).
 - `src/` — frontend shell only (TanStack Router, shadcn/ai-elements/DiceUI primitives, app-wide providers/layout). No module-specific code — see `src/CLAUDE.md`.
 - `scripts/`, `docs/`, `tests/`, `e2e/`, `db/` — supporting
@@ -82,7 +82,7 @@ Covered by subfolder CLAUDE.md — read those when touching the area:
 - Frontend placement (module UI never in `src/`) → `src/CLAUDE.md`
 - Frozen-snapshot, wake event order, abort/steer, byte budget → `server/harness/CLAUDE.md`
 - `applyTransition` in `state.ts` only, observer vs mutator contracts, `llmCall` chokepoint → `server/runtime/CLAUDE.md`
-- Exhaustiveness gate, journal write-path guard implementation → `server/contracts/CLAUDE.md`
+- Journal write-path guard implementation → `scripts/check-module-shape.ts`
 - Materializers run before side-load (not system prompt), RO enforcement → `server/workspace/CLAUDE.md`
 
 ## Common patterns

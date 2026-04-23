@@ -4,7 +4,7 @@ Last in the init chain (depends on messaging/contacts/drive ports). Owns the `co
 
 **Journal is the ONLY caller to `conversation_events`.** `service/journal.ts` is the sole writer (one-write-path discipline). Every `AgentEvent` lands here in the same transaction as the domain write it co-commits.
 
-**Five wake triggers** — `inbound_message | approval_resumed | supervisor | scheduled_followup | manual`. Adding a new trigger means adding a `WakeTrigger` variant in `server/contracts/event.ts` and handling it in `__checks__/integration.ts`.
+**Five wake triggers** — `inbound_message | approval_resumed | supervisor | scheduled_followup | manual`. Adding a new trigger means adding a `WakeTrigger` variant in `server/events.ts` and handling it at every consumer `switch` site.
 
 **Observer registration order matters** (earlier runs first per dispatch): audit → sse → workspaceSync → scorer → memoryDistill → learningProposal → costAggregator. `costAggregator` is the sole writer to `tenant_cost_daily`.
 

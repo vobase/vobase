@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { ScopedDb } from '@server/contracts/scoped-db'
+import type { ScopedDb } from '@server/common/scoped-db'
 import { Hono, type MiddlewareHandler } from 'hono'
 import { createRequireRole, type RoleEnv } from './require-role'
 

@@ -1,9 +1,8 @@
 import { Type } from '@mariozechner/pi-ai'
 import { appendMediaMessage } from '@modules/messaging/service/messages'
-import type { AgentTool, ToolContext } from '@server/contracts/tool'
-import type { ToolResult } from '@server/contracts/tool-result'
 import type { Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
+import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
 
 export const SendFileInputSchema = Type.Object({
   driveFileId: Type.String({ minLength: 1 }),

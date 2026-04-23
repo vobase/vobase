@@ -1,5 +1,4 @@
-import type { ToolContext } from '@server/contracts/tool'
-import type { ToolResult } from '@server/contracts/tool-result'
+import type { ToolContext, ToolResult } from '@vobase/core'
 
 export interface SubagentRunInput {
   goal: string

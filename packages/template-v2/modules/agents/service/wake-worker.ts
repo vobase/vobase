@@ -16,8 +16,8 @@
  *      any queued triggers can proceed.
  */
 
-import { OUTBOUND_TOOL_NAME_SET } from '@server/contracts/channel-event'
-import type { AgentEvent, WakeTrigger } from '@server/contracts/event'
+import type { AgentEvent, WakeTrigger } from '@server/events'
+import { OUTBOUND_TOOL_NAME_SET } from '@server/transports/events'
 import type { ActiveWakesStore, HarnessEvent, OnEventListener } from '@vobase/core'
 import { nanoid } from 'nanoid'
 import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from './queue-jobs'
