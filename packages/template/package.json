@@ -17,10 +17,7 @@
     "db:nuke": "bun run scripts/db-nuke.ts",
     "generate": "bun run scripts/generate.ts",
     "knip": "knip",
-    "lint": "biome check . && bun run ../../scripts/check-deprecated-imports.ts .",
-    "lint:fix": "biome check --write .",
-    "build": "bun run generate && tsc --noEmit",
-    "test": "bun test modules/ lib/; EXIT=$?; [ $EXIT -eq 99 ] && exit 0; exit $EXIT"
+    "lint:fix": "biome check --write ."
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.53",

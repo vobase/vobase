@@ -5,6 +5,6 @@
     "rootDir": "./src"
   },
   "include": ["src"],
-  "exclude": ["src/modules/auth/schema.generated.ts"],
+  "exclude": ["src/schemas/auth.generated.ts"],
   "composite": true
 }

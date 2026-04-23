@@ -1,7 +1,12 @@
-// Engine
-export { type CreateAppConfig, createApp } from './app';
-// Contracts
-export type { AuthAdapter, AuthSession, AuthUser } from './contracts/auth';
+// ─── Contracts ───────────────────────────────────────────────────────
+export type {
+  AuthAdapter,
+  AuthSession,
+  AuthUser,
+  CreateApiKey,
+  RevokeApiKey,
+  VerifyApiKey,
+} from './contracts/auth';
 export type {
   ChannelAdapter,
   ChannelCapabilities,
@@ -14,7 +19,6 @@ export type {
   SendResult,
   StatusUpdateEvent,
 } from './contracts/channels';
-export type { ModuleInitContext } from './contracts/module';
 export type { OrganizationContext, Permission } from './contracts/permissions';
 export type {
   ListOptions,
@@ -27,10 +31,8 @@ export type {
   StorageObjectInfo,
   UploadOptions,
 } from './contracts/storage';
-// Context
-export type { VobaseCtx, VobaseUser } from './ctx';
-export { contextMiddleware, getCtx } from './ctx';
-// DB
+
+// ─── DB ──────────────────────────────────────────────────────────────
 export { createDatabase, type VobaseDb } from './db';
 export {
   createNanoid,
@@ -39,14 +41,32 @@ export {
   NANOID_LENGTH,
   nanoidPrimaryKey,
 } from './db/helpers';
-// PostgreSQL Schemas
 export { auditPgSchema, authPgSchema, infraPgSchema } from './db/pg-schemas';
-// Circuit Breaker
+
+// ─── Schemas ─────────────────────────────────────────────────────────
+export { auditLog, recordAudits } from './schemas/audit';
 export {
-  CircuitBreaker,
-  type CircuitBreakerOptions,
-} from './infra/circuit-breaker';
-// Errors
+  apikeyTableMap,
+  authAccount,
+  authApikey,
+  authInvitation,
+  authMember,
+  authOrganization,
+  authSession,
+  authTableMap,
+  authTeam,
+  authTeamMember,
+  authUser,
+  authVerification,
+  organizationTableMap,
+} from './schemas/auth';
+export { channelsLog, channelsTemplates } from './schemas/channels';
+export { integrationsTable } from './schemas/integrations';
+export { sequences } from './schemas/sequences';
+export { storageObjects } from './schemas/storage';
+export { webhookDedup } from './schemas/webhook-dedup';
+
+// ─── Errors ──────────────────────────────────────────────────────────
 export {
   conflict,
   ERROR_CODES,
@@ -55,152 +75,71 @@ export {
   forbidden,
   notFound,
   unauthorized,
-  VobaseError,
   validation,
-} from './infra/errors';
-// HTTP Client
+  VobaseError,
+} from './errors';
+
+// ─── Logger ──────────────────────────────────────────────────────────
+export { logger } from './logger';
+
+// ─── HTTP ────────────────────────────────────────────────────────────
+export {
+  CircuitBreaker,
+  type CircuitBreakerOptions,
+} from './http/circuit-breaker';
 export {
   createHttpClient,
   type HttpClient,
   type HttpClientOptions,
   type HttpResponse,
   type RequestOptions,
-} from './infra/http-client';
-// Jobs
-export type { JobDefinition, JobHandler, WorkerOptions } from './infra/job';
-export { createWorker, defineJob } from './infra/job';
-// Logger
-export { logger } from './infra/logger';
-// HMAC Signing
-export { signHmac } from './infra/webhooks';
-// Queue
+} from './http/client';
+
+// ─── Jobs ────────────────────────────────────────────────────────────
+export { createWorker, defineJob } from './jobs/job';
+export type { JobDefinition, JobHandler, WorkerOptions } from './jobs/job';
 export {
   createScheduler,
   type JobOptions,
   type ScheduleOptions,
   type Scheduler,
-} from './infra/queue';
-// Realtime (SSE + LISTEN/NOTIFY)
+} from './jobs/queue';
+
+// ─── Realtime (SSE + LISTEN/NOTIFY) ──────────────────────────────────
+export { createNoopRealtime, createRealtimeService } from './realtime';
 export type {
   CreateRealtimeOptions,
   RealtimeExecutor,
   RealtimePayload,
   RealtimeService,
-} from './infra/realtime';
-export { createNoopRealtime, createRealtimeService } from './infra/realtime';
-// Throw Proxy
-export { createThrowProxy } from './infra/throw-proxy';
-// Webhooks
+} from './realtime';
+
+// ─── HMAC + Webhooks ─────────────────────────────────────────────────
 export {
   createWebhookRoutes,
+  signHmac,
   verifyHmacSignature,
   type WebhookConfig,
-  webhookDedup,
-} from './infra/webhooks';
-// Module
-export type { DefineModuleConfig, VobaseModule } from './module';
-export { defineModule } from './module';
-// Module Registry
-export { registerModules } from './module-registry';
-// Built-in Modules: Audit
-export { auditLog, createAuditModule, recordAudits } from './modules/audit';
-export { requestAuditMiddleware } from './modules/audit/middleware';
-export { trackChanges } from './modules/audit/track-changes';
-// Auth Module
-export {
-  type AuthModule,
-  type AuthModuleConfig,
-  createAuthModule,
-  type SendInvitationEmail,
-  type SendVerificationOTP,
-} from './modules/auth';
-// Auth Audit Hooks (re-exported from auth module)
-export { createAuthAuditHooks } from './modules/auth/audit-hooks';
-export {
-  optionalSessionMiddleware,
-  sessionMiddleware,
-} from './modules/auth/middleware';
-// RBAC
-export {
-  requireOrg,
-  requirePermission,
-  requireRole,
-} from './modules/auth/permissions';
-// Auth Schema (tables managed by better-auth)
-export {
-  authAccount,
-  authApikey,
-  authInvitation,
-  authMember,
-  authOrganization,
-  authSession,
-  authTeam,
-  authTeamMember,
-  authUser,
-  authVerification,
-} from './modules/auth/schema';
-// Built-in Modules: Channels
-export {
-  type ChannelsModuleConfig,
-  createChannelsModule,
-  shouldUpdateStatus,
-  WA_STATUS_ORDER,
-  type EmailChannelConfig,
-  type WhatsAppChannelConfig,
-  type WhatsAppTransportConfig,
-} from './modules/channels';
+  webhookDedup as webhookDedupTable,
+} from './hmac';
+
+// ─── Adapters ────────────────────────────────────────────────────────
 export {
   createResendAdapter,
   type ResendAdapterConfig,
-} from './modules/channels/adapters/resend';
+} from './adapters/channels/resend';
 export {
   createSmtpAdapter,
   type SmtpAdapterConfig,
-} from './modules/channels/adapters/smtp';
-export { createWhatsAppAdapter } from './modules/channels/adapters/whatsapp';
-export { channelsLog, channelsTemplates } from './modules/channels/schema';
-export type { ChannelSend, ChannelsService, ProvisionChannelData } from './modules/channels/service';
-// Built-in Modules: Integrations (replaces Credentials)
+} from './adapters/channels/smtp';
 export {
-  createIntegrationsModule,
-  integrationsTable,
-} from './modules/integrations';
-export {
-  getPlatformRefresh,
-  getProviderRefreshFn,
-  getRefreshMode,
-  type PlatformRefreshFn,
-  type ProviderRefreshFn,
-  type RefreshResult,
-  registerProviderRefresh,
-  setPlatformRefresh,
-} from './modules/integrations/refresh';
-export type {
-  ConnectOptions,
-  Integration,
-  IntegrationsService,
-} from './modules/integrations/service';
-// Built-in Modules: Sequences
-export { createSequencesModule, sequences } from './modules/sequences';
-export {
-  nextSequence,
-  type SequenceOptions,
-} from './modules/sequences/next-sequence';
-// Built-in Modules: Storage
-export {
-  createStorageModule,
-  type StorageModuleConfig,
-} from './modules/storage';
-export { createLocalAdapter } from './modules/storage/adapters/local';
-export { createS3Adapter } from './modules/storage/adapters/s3';
-export { createStorageRoutes } from './modules/storage/routes';
-export { storageObjects } from './modules/storage/schema';
-export type {
-  BucketConfig,
-  BucketHandle,
-  BucketListOptions,
-  StorageObject,
-  StorageService,
-} from './modules/storage/service';
-// Schemas
-export { getActiveSchemas, type SchemaConfig } from './schemas';
+  createWhatsAppAdapter,
+  type CreateTemplateInput,
+  type WhatsAppChannelConfig,
+  type WhatsAppCtaUrlInteractive,
+  type WhatsAppTemplate,
+  type WhatsAppTransportConfig,
+  WhatsAppApiError,
+} from './adapters/channels/whatsapp';
+export { createLocalAdapter } from './adapters/storage/local';
+export { createS3Adapter } from './adapters/storage/s3';
