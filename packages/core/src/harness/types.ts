@@ -62,7 +62,7 @@ export interface ToolResultPersistedEvent {
   turnIndex: number
   toolCallId: string
   toolName: string
-  /** Absolute path inside /workspace/tmp/ where the full result was spilled. */
+  /** Absolute path inside /tmp/ where the full result was spilled. */
   path: string
   originalByteLength: number
 }

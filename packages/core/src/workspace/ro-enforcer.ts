@@ -21,23 +21,8 @@ interface DirentEntry {
   isSymbolicLink: boolean
 }
 
-/** Default RO prefixes — matches Phase 0 literals until modules opt in (Steps 6+). */
-const DEFAULT_READ_ONLY_PREFIXES: readonly string[] = [
-  '/workspace/drive/',
-  '/workspace/skills/',
-  '/workspace/conversation/',
-]
-
-/** Default RO exact paths — matches Phase 0 literals until modules opt in (Steps 6+). */
-const DEFAULT_READ_ONLY_EXACT: readonly string[] = [
-  '/workspace/SOUL.md',
-  '/workspace/AGENTS.md',
-  '/workspace/contact/profile.md',
-  '/workspace/contact/bookings.md',
-]
-
-/** Memory files are writable ONLY via `vobase memory …`, not direct `echo >`. */
-const DEFAULT_MEMORY_PATHS: readonly string[] = ['/workspace/MEMORY.md', '/workspace/contact/MEMORY.md']
+/** Default RO prefixes. `/drive/` gets the special `vobase drive propose` hint. */
+const DEFAULT_READ_ONLY_PREFIXES: readonly string[] = ['/drive/']
 
 /** Effective RO/writable configuration consumed by `checkWriteAllowed` and `ScopedFs`. */
 export interface ReadOnlyConfig {
@@ -55,14 +40,27 @@ export interface BuildReadOnlyConfigOpts {
    * uploads, scratch tmp, etc.) and passes them here.
    */
   writablePrefixes: readonly string[]
+  /**
+   * Exact RO paths (e.g. per-wake `/agents/<id>/AGENTS.md`, `/contacts/<id>/profile.md`).
+   * Template supplies these at wake start since they interpolate nanoids.
+   */
+  readOnlyExact?: readonly string[]
+  /**
+   * Memory exact paths (e.g. per-wake `/agents/<id>/MEMORY.md`, `/contacts/<id>/MEMORY.md`).
+   * Template supplies these at wake start. Writes to these paths render the
+   * `vobase memory …` hint instead of the generic RO error.
+   */
+  memoryPaths?: readonly string[]
+  /** Optional override for RO prefix list. Defaults to `['/drive/']`. */
+  readOnlyPrefixes?: readonly string[]
 }
 
-/** Builds the RO/writable configuration from template-supplied writable prefixes. */
+/** Builds the RO/writable configuration from template-supplied inputs. */
 export function buildReadOnlyConfig(opts: BuildReadOnlyConfigOpts): ReadOnlyConfig {
   return {
-    readOnlyPrefixes: DEFAULT_READ_ONLY_PREFIXES,
-    readOnlyExact: new Set(DEFAULT_READ_ONLY_EXACT),
-    memoryPaths: new Set(DEFAULT_MEMORY_PATHS),
+    readOnlyPrefixes: opts.readOnlyPrefixes ?? DEFAULT_READ_ONLY_PREFIXES,
+    readOnlyExact: new Set(opts.readOnlyExact ?? []),
+    memoryPaths: new Set(opts.memoryPaths ?? []),
     writablePrefixes: opts.writablePrefixes,
   }
 }
@@ -91,21 +89,14 @@ export function checkWriteAllowed(path: string, config: ReadOnlyConfig): string 
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) return null
   }
 
-  // Allow workspace top-level writes (e.g. creating tmp/) but nothing escaping /workspace.
-  if (!path.startsWith('/workspace/') && path !== '/workspace') {
-    return `bash: ${path}: Read-only filesystem.`
-  }
-
-  return null
+  // Default-deny: anything not explicitly writable is read-only.
+  return `bash: ${path}: Read-only filesystem.`
 }
 
 function renderRoError(path: string): string {
-  // The error must include the `vobase drive propose …` hint
-  // and should render the path as the agent wrote it.
+  // The error must include the `vobase drive propose …` hint for drive writes.
   const scope = 'organization'
-  const rel = path.startsWith('/workspace/drive/')
-    ? path.slice('/workspace/drive'.length)
-    : path.slice('/workspace'.length)
+  const rel = path.startsWith('/drive/') ? path.slice('/drive'.length) : path
   return `bash: ${path}: Read-only filesystem.\n  Use \`vobase drive propose --scope=${scope} --path=${rel} --body=...\` to suggest an addition.`
 }
 
@@ -225,13 +216,19 @@ export class ScopedFs implements IFileSystem {
 }
 
 /** True if `path` belongs to a writable zone — used by the dirty-tracker. */
-export function isWritablePath(path: string, writablePrefixes: readonly string[]): boolean {
+export function isWritablePath(
+  path: string,
+  writablePrefixes: readonly string[],
+  memoryPaths: readonly string[] = [],
+): boolean {
   for (const prefix of writablePrefixes) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) return true
   }
   // Memory files are writable only through `vobase memory …`, but the CLI
   // privileged path writes them via `innerWriteFile`, so they still count as
   // writable zones when the dirty-tracker enumerates them.
-  if (path === '/workspace/MEMORY.md' || path === '/workspace/contact/MEMORY.md') return true
+  for (const mp of memoryPaths) {
+    if (path === mp) return true
+  }
   return false
 }

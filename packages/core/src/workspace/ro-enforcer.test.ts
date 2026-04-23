@@ -2,61 +2,64 @@ import { describe, expect, it } from 'bun:test'
 import { InMemoryFs } from 'just-bash'
 import { buildReadOnlyConfig, checkWriteAllowed, isWritablePath, ReadOnlyFsError, ScopedFs } from './ro-enforcer'
 
-const WRITABLE_PREFIXES = ['/workspace/contact/drive/', '/workspace/tmp/'] as const
-const CONFIG = buildReadOnlyConfig({ writablePrefixes: WRITABLE_PREFIXES })
+const WRITABLE = ['/contacts/c_abc/drive/', '/tmp/'] as const
+const MEMORY_PATHS = ['/agents/a_xyz/MEMORY.md', '/contacts/c_abc/MEMORY.md'] as const
+const RO_EXACT = ['/agents/a_xyz/AGENTS.md', '/contacts/c_abc/profile.md'] as const
+const CONFIG = buildReadOnlyConfig({
+  writablePrefixes: WRITABLE,
+  readOnlyExact: RO_EXACT,
+  memoryPaths: MEMORY_PATHS,
+})
 
 describe('checkWriteAllowed', () => {
-  it('returns spec-exact EROFS for /workspace/drive/*', () => {
-    const err = checkWriteAllowed('/workspace/drive/refunds/updated.md', CONFIG)
-    expect(err).toContain('bash: /workspace/drive/refunds/updated.md: Read-only filesystem.')
+  it('returns spec-exact EROFS for /drive/* with drive-propose hint', () => {
+    const err = checkWriteAllowed('/drive/refunds/updated.md', CONFIG)
+    expect(err).toContain('bash: /drive/refunds/updated.md: Read-only filesystem.')
     expect(err).toContain('vobase drive propose --scope=organization --path=/refunds/updated.md --body=...')
   })
 
-  it('returns memory hint for direct MEMORY.md writes', () => {
-    const err = checkWriteAllowed('/workspace/MEMORY.md', CONFIG)
-    expect(err).toBe('bash: /workspace/MEMORY.md: use `vobase memory set|append|remove` to mutate memory safely.')
+  it('returns memory hint for agent MEMORY.md writes', () => {
+    const err = checkWriteAllowed('/agents/a_xyz/MEMORY.md', CONFIG)
+    expect(err).toBe('bash: /agents/a_xyz/MEMORY.md: use `vobase memory set|append|remove` to mutate memory safely.')
   })
 
-  it('returns memory hint for contact/MEMORY.md writes', () => {
-    const err = checkWriteAllowed('/workspace/contact/MEMORY.md', CONFIG)
+  it('returns memory hint for contact MEMORY.md writes', () => {
+    const err = checkWriteAllowed('/contacts/c_abc/MEMORY.md', CONFIG)
     expect(err).toContain('vobase memory set|append|remove')
   })
 
-  it('allows contact drive writes', () => {
-    expect(checkWriteAllowed('/workspace/contact/drive/uploads/x.md', CONFIG)).toBeNull()
-    expect(checkWriteAllowed('/workspace/tmp/tool-abc.txt', CONFIG)).toBeNull()
+  it('allows contact drive + /tmp/ writes', () => {
+    expect(checkWriteAllowed('/contacts/c_abc/drive/uploads/x.md', CONFIG)).toBeNull()
+    expect(checkWriteAllowed('/tmp/tool-abc.txt', CONFIG)).toBeNull()
   })
 
-  it('rejects SOUL.md + AGENTS.md + profile.md + bookings.md', () => {
-    for (const p of [
-      '/workspace/SOUL.md',
-      '/workspace/AGENTS.md',
-      '/workspace/contact/profile.md',
-      '/workspace/contact/bookings.md',
-    ]) {
+  it('rejects readOnlyExact paths', () => {
+    for (const p of ['/agents/a_xyz/AGENTS.md', '/contacts/c_abc/profile.md']) {
       expect(checkWriteAllowed(p, CONFIG)).toContain('Read-only')
     }
   })
 
-  it('rejects writes to /workspace/skills/', () => {
-    expect(checkWriteAllowed('/workspace/skills/new.md', CONFIG)).toContain('Read-only')
+  it('rejects writes to /drive/ root', () => {
+    expect(checkWriteAllowed('/drive/BUSINESS.md', CONFIG)).toContain('Read-only')
   })
 
-  it('rejects writes outside /workspace entirely', () => {
+  it('default-denies unmatched paths like /etc/passwd', () => {
     expect(checkWriteAllowed('/etc/passwd', CONFIG)).toContain('Read-only filesystem')
   })
 })
 
 describe('isWritablePath', () => {
   it('is true for writable zones', () => {
-    expect(isWritablePath('/workspace/contact/drive/a.md', WRITABLE_PREFIXES)).toBe(true)
-    expect(isWritablePath('/workspace/tmp/t.txt', WRITABLE_PREFIXES)).toBe(true)
-    expect(isWritablePath('/workspace/MEMORY.md', WRITABLE_PREFIXES)).toBe(true)
-    expect(isWritablePath('/workspace/contact/MEMORY.md', WRITABLE_PREFIXES)).toBe(true)
+    expect(isWritablePath('/contacts/c_abc/drive/a.md', WRITABLE)).toBe(true)
+    expect(isWritablePath('/tmp/t.txt', WRITABLE)).toBe(true)
+  })
+  it('is true for memory paths when supplied', () => {
+    expect(isWritablePath('/agents/a_xyz/MEMORY.md', WRITABLE, MEMORY_PATHS)).toBe(true)
+    expect(isWritablePath('/contacts/c_abc/MEMORY.md', WRITABLE, MEMORY_PATHS)).toBe(true)
   })
   it('is false for RO zones', () => {
-    expect(isWritablePath('/workspace/drive/BUSINESS.md', WRITABLE_PREFIXES)).toBe(false)
-    expect(isWritablePath('/workspace/SOUL.md', WRITABLE_PREFIXES)).toBe(false)
+    expect(isWritablePath('/drive/BUSINESS.md', WRITABLE)).toBe(false)
+    expect(isWritablePath('/agents/a_xyz/AGENTS.md', WRITABLE)).toBe(false)
   })
 })
 
@@ -64,27 +67,27 @@ describe('ScopedFs', () => {
   it('throws ReadOnlyFsError on blocked write', async () => {
     const inner = new InMemoryFs()
     const fs = new ScopedFs(inner, CONFIG)
-    await expect(fs.writeFile('/workspace/drive/x.md', 'x')).rejects.toBeInstanceOf(ReadOnlyFsError)
+    await expect(fs.writeFile('/drive/x.md', 'x')).rejects.toBeInstanceOf(ReadOnlyFsError)
   })
 
   it('allows inner writes that would otherwise be blocked', async () => {
     const inner = new InMemoryFs()
     const fs = new ScopedFs(inner, CONFIG)
-    await fs.innerWriteFile('/workspace/drive/BUSINESS.md', 'from-harness')
-    const read = await fs.readFile('/workspace/drive/BUSINESS.md')
+    await fs.innerWriteFile('/drive/BUSINESS.md', 'from-harness')
+    const read = await fs.readFile('/drive/BUSINESS.md')
     expect(read).toBe('from-harness')
   })
 
   it('allows writes to writable zones', async () => {
     const inner = new InMemoryFs()
     const fs = new ScopedFs(inner, CONFIG)
-    await fs.mkdir('/workspace/contact/drive/uploads', { recursive: true })
-    await fs.writeFile('/workspace/contact/drive/uploads/a.md', 'body')
-    expect(await fs.readFile('/workspace/contact/drive/uploads/a.md')).toBe('body')
+    await fs.mkdir('/contacts/c_abc/drive/uploads', { recursive: true })
+    await fs.writeFile('/contacts/c_abc/drive/uploads/a.md', 'body')
+    expect(await fs.readFile('/contacts/c_abc/drive/uploads/a.md')).toBe('body')
   })
 
-  it('uses template-supplied writable prefixes', () => {
-    expect(CONFIG.writablePrefixes).toContain('/workspace/contact/drive/')
-    expect(CONFIG.writablePrefixes).toContain('/workspace/tmp/')
+  it('config.writablePrefixes contains template-supplied prefixes', () => {
+    expect(CONFIG.writablePrefixes).toContain('/contacts/c_abc/drive/')
+    expect(CONFIG.writablePrefixes).toContain('/tmp/')
   })
 })

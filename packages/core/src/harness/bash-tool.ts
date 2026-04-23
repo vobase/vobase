@@ -1,7 +1,7 @@
 /**
  * Single typed `bash` AgentTool — the only tool the LLM sees.
  * Spill thresholds (L1/L2/L3) live in `turn-budget.ts`.
- * Commands that read /workspace/tmp/tool-*.txt bypass spill so the model can
+ * Commands that read /tmp/tool-*.txt bypass spill so the model can
  * pull its own previously-persisted output back without re-tripping the budget.
  */
 
@@ -25,7 +25,7 @@ export interface BashToolResult {
 /** Re-exported for tests that reference the preview byte cap by name. */
 export const BASH_PREVIEW_BYTES = L1_PREVIEW_BYTES
 
-const SPILL_FILE_RE = /\/workspace\/tmp\/tool-[^\s'"]*\.txt/
+const SPILL_FILE_RE = /\/tmp\/tool-[^\s'"]*\.txt/
 /** Read-only utilities that may legitimately read a spill file without re-spilling. */
 const READ_ONLY_TOKENS = new Set(['cat', 'head', 'tail', 'less', 'more', 'wc', 'grep', 'awk', 'sed'])
 
@@ -70,14 +70,14 @@ export function makeBashTool(deps: BashToolDeps): AgentTool<BashToolArgs, BashTo
   return {
     name: 'bash',
     description:
-      'Run bash commands in the virtual workspace. Read files with cat, grep; navigate with ls, find; take side-effecting actions through `vobase` subcommands. The workspace layout is documented in /workspace/AGENTS.md.',
+      'Run bash commands in the virtual workspace. Read files with cat, grep; navigate with ls, find; take side-effecting actions through `vobase` subcommands. The workspace layout is documented in your AGENTS.md (at `/agents/<your-id>/AGENTS.md`).',
     parallelGroup: 'never',
     inputSchema: {
       type: 'object',
       properties: {
         command: {
           type: 'string',
-          description: 'The bash command to run (e.g. "cat /workspace/drive/BUSINESS.md").',
+          description: 'The bash command to run (e.g. "cat /drive/BUSINESS.md").',
         },
       },
       required: ['command'],
@@ -99,7 +99,7 @@ export function makeBashTool(deps: BashToolDeps): AgentTool<BashToolArgs, BashTo
       const shouldSpill = budget.isExceeded() || budget.wouldExceed(stdoutBytes) || stdoutBytes > L2_SPILL_BYTES
 
       if (shouldSpill) {
-        const spillPath = `/workspace/tmp/tool-${ctx.toolCallId}.txt`
+        const spillPath = `/tmp/tool-${ctx.toolCallId}.txt`
         const spilled = await spillToFile({
           stdout: res.stdout,
           spillPath,

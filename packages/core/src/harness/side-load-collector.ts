@@ -21,7 +21,7 @@ import type { Bash } from 'just-bash'
 /**
  * Phase-1 extension: the harness test-handle accepts an ad-hoc "custom
  * contributor" shape that takes a side-ctx augmented with `bash` — used by
- * assertion 12 (B7/R9) to cat a counter from /workspace/tmp/counter.
+ * assertion 12 (B7/R9) to cat a counter from /tmp/counter.
  *
  * Official contributors (`SideLoadContributor`) still use the spec shape.
  */

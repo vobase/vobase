@@ -21,13 +21,13 @@ export interface DirtyDiff {
 
 /** Workspace paths bucketed by owning service. */
 export interface ScopedDiff {
-  /** `/workspace/contact/drive/**` — persisted via FilesService (scope='contact'). */
+  /** `/contacts/<id>/drive/**` — persisted via FilesService (scope='contact'). */
   contactDrive: DirtyDiff
-  /** `/workspace/contact/MEMORY.md` — persisted via ContactsService.upsertNotesSection. */
+  /** `/contacts/<id>/MEMORY.md` — persisted via ContactsService.upsertNotesSection. */
   contactMemory: DirtyDiff
-  /** `/workspace/MEMORY.md` — persisted via AgentsPort working-memory update. */
+  /** `/agents/<id>/MEMORY.md` — persisted via AgentsPort working-memory update. */
   agentMemory: DirtyDiff
-  /** `/workspace/tmp/**` — ephemeral; caller decides whether to retain. */
+  /** `/tmp/**` — ephemeral; caller decides whether to retain. */
   tmp: DirtyDiff
 }
 
@@ -35,13 +35,15 @@ function emptyDiff(): DirtyDiff {
   return { changed: [], added: [], deleted: [] }
 }
 
+const CONTACT_DRIVE_RE = /^\/contacts\/[^/]+\/drive(?:\/|$)/
+const CONTACT_MEMORY_RE = /^\/contacts\/[^/]+\/MEMORY\.md$/
+const AGENT_MEMORY_RE = /^\/agents\/[^/]+\/MEMORY\.md$/
+
 function classifyPath(path: string): keyof ScopedDiff | null {
-  if (path.startsWith('/workspace/contact/drive/') || path === '/workspace/contact/drive') {
-    return 'contactDrive'
-  }
-  if (path === '/workspace/contact/MEMORY.md') return 'contactMemory'
-  if (path === '/workspace/MEMORY.md') return 'agentMemory'
-  if (path.startsWith('/workspace/tmp/') || path === '/workspace/tmp') return 'tmp'
+  if (CONTACT_DRIVE_RE.test(path)) return 'contactDrive'
+  if (CONTACT_MEMORY_RE.test(path)) return 'contactMemory'
+  if (AGENT_MEMORY_RE.test(path)) return 'agentMemory'
+  if (path.startsWith('/tmp/') || path === '/tmp') return 'tmp'
   return null
 }
 
@@ -60,10 +62,11 @@ export class DirtyTracker {
   constructor(
     private readonly initialSnapshot: ReadonlyMap<string, string>,
     private readonly writablePrefixes: readonly string[],
+    private readonly memoryPaths: readonly string[] = [],
   ) {}
 
   /**
-   * Returns the raw dirty diff categorised by owning service scope (P2.5).
+   * Returns the raw dirty diff categorised by owning service scope.
    * Frozen-snapshot invariant: only call on `agent_end` — never mid-wake.
    */
   async flush(fs: IFileSystem): Promise<ScopedDiff> {
@@ -93,7 +96,7 @@ export class DirtyTracker {
     const out: DirtyDiff = { changed: [], added: [], deleted: [] }
     const seen = new Set<string>()
     for (const path of fs.getAllPaths()) {
-      if (!isWritablePath(path, this.writablePrefixes)) continue
+      if (!isWritablePath(path, this.writablePrefixes, this.memoryPaths)) continue
       const now = await safeReadFile(fs, path)
       if (now === null) continue
       seen.add(path)
@@ -105,7 +108,7 @@ export class DirtyTracker {
       }
     }
     for (const [path] of this.initialSnapshot) {
-      if (!isWritablePath(path, this.writablePrefixes)) continue
+      if (!isWritablePath(path, this.writablePrefixes, this.memoryPaths)) continue
       if (!seen.has(path)) out.deleted.push(path)
     }
     return out

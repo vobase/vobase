@@ -13,9 +13,21 @@ function cmd(name: string, description: string, usage?: string): CommandDef {
   }
 }
 
+const BASE = {
+  agentName: 'Test Agent',
+  agentId: 'a_test',
+  instructions: 'Be helpful.',
+} as const
+
 describe('generateAgentsMd', () => {
+  it('renders title line with agentName + agentId', () => {
+    const md = generateAgentsMd({ ...BASE, commands: [] })
+    expect(md.split('\n')[0]).toBe('# Test Agent (a_test)')
+  })
+
   it('renders commands in alphabetical order', () => {
     const md = generateAgentsMd({
+      ...BASE,
       commands: [cmd('reply', 'Send a reply.'), cmd('memory set', 'Upsert memory.'), cmd('hold', 'Put on hold.')],
     })
     const reply = md.indexOf('vobase reply')
@@ -29,11 +41,37 @@ describe('generateAgentsMd', () => {
     expect(memory).toBeLessThan(reply)
   })
 
-  it('includes layout reference + empty state', () => {
-    const md = generateAgentsMd({ commands: [] })
-    expect(md).toContain('# Vobase Workspace')
+  it('emits framework preamble + layout reference + empty state', () => {
+    const md = generateAgentsMd({ ...BASE, commands: [] })
+    expect(md).toContain('## Layout')
+    expect(md).toContain('## Commands')
     expect(md).toContain('_No commands registered._')
     expect(md).toContain('AGENTS.md')
-    expect(md).toContain('## Layout')
+  })
+
+  it('emits Instructions section with verbatim body', () => {
+    const md = generateAgentsMd({
+      ...BASE,
+      instructions: 'Line one.\n\nLine two — with punctuation!',
+      commands: [],
+    })
+    expect(md).toContain('## Instructions')
+    expect(md).toContain('Line one.\n\nLine two — with punctuation!')
+  })
+
+  it('falls back to empty-state body when instructions are blank', () => {
+    const md = generateAgentsMd({ ...BASE, instructions: '   ', commands: [] })
+    expect(md).toContain('_No instructions authored yet._')
+  })
+
+  it('never emits legacy SOUL.md / TOOLS.md / bookings.md / /workspace/ substrings', () => {
+    const md = generateAgentsMd({
+      ...BASE,
+      commands: [cmd('reply', 'Send a reply.')],
+    })
+    expect(md).not.toContain('SOUL.md')
+    expect(md).not.toContain('TOOLS.md')
+    expect(md).not.toContain('bookings.md')
+    expect(md).not.toContain('/workspace/')
   })
 })

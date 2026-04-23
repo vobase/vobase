@@ -2,43 +2,46 @@ import { describe, expect, it } from 'bun:test'
 import { InMemoryFs } from 'just-bash'
 import { DirtyTracker, snapshotFs } from './dirty-tracker'
 
+const WRITABLE = ['/contacts/c_abc/drive/', '/tmp/']
+const MEMORY_PATHS = ['/agents/a_xyz/MEMORY.md', '/contacts/c_abc/MEMORY.md']
+
 describe('DirtyTracker', () => {
   it('tracks added files in writable zones', async () => {
     const fs = new InMemoryFs()
-    await fs.mkdir('/workspace/contact/drive', { recursive: true })
-    await fs.mkdir('/workspace/tmp', { recursive: true })
+    await fs.mkdir('/contacts/c_abc/drive', { recursive: true })
+    await fs.mkdir('/tmp', { recursive: true })
     const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap, ['/workspace/contact/drive/', '/workspace/tmp/'])
+    const tracker = new DirtyTracker(snap, WRITABLE, MEMORY_PATHS)
 
-    await fs.writeFile('/workspace/contact/drive/new.md', 'body')
+    await fs.writeFile('/contacts/c_abc/drive/new.md', 'body')
     const diff = await tracker.diff(fs)
-    expect(diff.added).toContain('/workspace/contact/drive/new.md')
+    expect(diff.added).toContain('/contacts/c_abc/drive/new.md')
     expect(diff.changed).toHaveLength(0)
     expect(diff.deleted).toHaveLength(0)
   })
 
   it('tracks changed files', async () => {
     const fs = new InMemoryFs()
-    await fs.mkdir('/workspace/contact/drive', { recursive: true })
-    await fs.writeFile('/workspace/contact/drive/x.md', 'v1')
+    await fs.mkdir('/contacts/c_abc/drive', { recursive: true })
+    await fs.writeFile('/contacts/c_abc/drive/x.md', 'v1')
     const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap, ['/workspace/contact/drive/', '/workspace/tmp/'])
+    const tracker = new DirtyTracker(snap, WRITABLE, MEMORY_PATHS)
 
-    await fs.writeFile('/workspace/contact/drive/x.md', 'v2')
+    await fs.writeFile('/contacts/c_abc/drive/x.md', 'v2')
     const diff = await tracker.diff(fs)
-    expect(diff.changed).toContain('/workspace/contact/drive/x.md')
+    expect(diff.changed).toContain('/contacts/c_abc/drive/x.md')
     expect(diff.added).toHaveLength(0)
   })
 
-  it('ignores RO zone changes (drive, skills, conversation, etc.)', async () => {
+  it('ignores RO zone changes (drive, agents AGENTS.md, etc.)', async () => {
     const fs = new InMemoryFs()
-    await fs.writeFile('/workspace/drive/BUSINESS.md', 'v1')
-    await fs.writeFile('/workspace/SOUL.md', 'v1')
+    await fs.writeFile('/drive/BUSINESS.md', 'v1')
+    await fs.writeFile('/agents/a_xyz/AGENTS.md', 'v1')
     const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap, ['/workspace/contact/drive/', '/workspace/tmp/'])
+    const tracker = new DirtyTracker(snap, WRITABLE, MEMORY_PATHS)
 
-    await fs.writeFile('/workspace/drive/BUSINESS.md', 'v2')
-    await fs.writeFile('/workspace/SOUL.md', 'v2')
+    await fs.writeFile('/drive/BUSINESS.md', 'v2')
+    await fs.writeFile('/agents/a_xyz/AGENTS.md', 'v2')
     const diff = await tracker.diff(fs)
     expect(diff.changed).toHaveLength(0)
     expect(diff.added).toHaveLength(0)
@@ -46,12 +49,31 @@ describe('DirtyTracker', () => {
 
   it('tracks deleted files in writable zones', async () => {
     const fs = new InMemoryFs()
-    await fs.mkdir('/workspace/contact/drive', { recursive: true })
-    await fs.writeFile('/workspace/contact/drive/gone.md', 'bye')
+    await fs.mkdir('/contacts/c_abc/drive', { recursive: true })
+    await fs.writeFile('/contacts/c_abc/drive/gone.md', 'bye')
     const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap, ['/workspace/contact/drive/', '/workspace/tmp/'])
-    await fs.rm('/workspace/contact/drive/gone.md')
+    const tracker = new DirtyTracker(snap, WRITABLE, MEMORY_PATHS)
+    await fs.rm('/contacts/c_abc/drive/gone.md')
     const diff = await tracker.diff(fs)
-    expect(diff.deleted).toContain('/workspace/contact/drive/gone.md')
+    expect(diff.deleted).toContain('/contacts/c_abc/drive/gone.md')
+  })
+
+  it('classifies scopes for flush()', async () => {
+    const fs = new InMemoryFs()
+    await fs.mkdir('/contacts/c_abc/drive', { recursive: true })
+    await fs.mkdir('/tmp', { recursive: true })
+    const snap = await snapshotFs(fs)
+    const tracker = new DirtyTracker(snap, WRITABLE, MEMORY_PATHS)
+
+    await fs.writeFile('/contacts/c_abc/drive/doc.md', 'x')
+    await fs.writeFile('/contacts/c_abc/MEMORY.md', 'm')
+    await fs.writeFile('/agents/a_xyz/MEMORY.md', 'am')
+    await fs.writeFile('/tmp/scratch.txt', 's')
+
+    const scoped = await tracker.flush(fs)
+    expect(scoped.contactDrive.added).toContain('/contacts/c_abc/drive/doc.md')
+    expect(scoped.contactMemory.added).toContain('/contacts/c_abc/MEMORY.md')
+    expect(scoped.agentMemory.added).toContain('/agents/a_xyz/MEMORY.md')
+    expect(scoped.tmp.added).toContain('/tmp/scratch.txt')
   })
 })

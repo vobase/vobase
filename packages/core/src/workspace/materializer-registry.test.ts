@@ -9,10 +9,10 @@ function mat(path: string, phase: WorkspaceMaterializer['phase']): WorkspaceMate
 describe('MaterializerRegistry', () => {
   it('groups by phase', () => {
     const r = new MaterializerRegistry([
-      mat('/workspace/a.md', 'frozen'),
-      mat('/workspace/b.md', 'side-load'),
-      mat('/workspace/c.md', 'on-read'),
-      mat('/workspace/d.md', 'frozen'),
+      mat('/agents/a_test/a.md', 'frozen'),
+      mat('/agents/a_test/b.md', 'side-load'),
+      mat('/agents/a_test/c.md', 'on-read'),
+      mat('/agents/a_test/d.md', 'frozen'),
     ])
     expect(r.getFrozen()).toHaveLength(2)
     expect(r.getSideLoad()).toHaveLength(1)
@@ -22,8 +22,8 @@ describe('MaterializerRegistry', () => {
 
   it('add() accepts a new materializer at runtime', () => {
     const r = new MaterializerRegistry([])
-    r.add(mat('/workspace/z.md', 'on-read'))
+    r.add(mat('/agents/a_test/z.md', 'on-read'))
     expect(r.size()).toBe(1)
-    expect(r.getOnRead()[0]?.path).toBe('/workspace/z.md')
+    expect(r.getOnRead()[0]?.path).toBe('/agents/a_test/z.md')
   })
 })
