@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { AgentEvent, WakeTrigger } from '@server/contracts/event'
 import type { BootWakeOpts, BootWakeResult } from '@server/harness/agent-runner'
-import { EventBus } from '@server/runtime/event-bus'
+import { EventBus } from '@server/harness/internal-bus'
 import { nanoid } from 'nanoid'
 import { createInMemoryActiveWakes } from '../service/active-wakes'
 import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from '../service/queue-jobs'
