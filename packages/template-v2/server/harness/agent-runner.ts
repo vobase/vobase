@@ -84,6 +84,7 @@ import {
 } from '@vobase/core'
 import { nanoid } from 'nanoid'
 import { buildFrozenPrompt } from './frozen-prompt-builder'
+import type { LlmEmitter } from './llm-call'
 import { createModel, resolveApiKey } from './llm-provider'
 
 // ----- public types --------------------------------------------------------
@@ -359,22 +360,18 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     logger,
     realtime: { notify: () => undefined, subscribe: () => () => {} },
   }
-  const observers = new ObserverBus({ logger, observerCtx })
+  const wakeEmitter: LlmEmitter = {}
+  const observers = new ObserverBus({ logger })
   for (const obs of opts.registrations.observers) observers.register(obs)
 
   if (opts.registrations.observerFactories && opts.registrations.observerFactories.length > 0) {
-    const llmCallForWake =
-      opts.observerLlmCall ??
-      (async () => {
-        throw new Error('observer factory invoked llmCall but bootWake was not supplied with `observerLlmCall`')
-      })
     const wakeCtx: WakeContext = {
       organizationId: opts.organizationId,
       wakeId,
       conversationId,
       agentId: opts.agentId,
       logger,
-      llmCall: llmCallForWake as PluginContext['llmCall'],
+      emitter: wakeEmitter,
     }
     for (const factory of opts.registrations.observerFactories) {
       observers.register(factory(wakeCtx))
@@ -444,7 +441,8 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     createMemoryDistillObserver({
       target: { kind: 'contact', contactId: opts.contactId },
       agentId: opts.agentId,
-      llmCall: opts.observerLlmCall,
+      useLlm: opts.observerLlmCall != null,
+      emitter: wakeEmitter,
     }),
   )
   if (opts.observerLlmCall) {
@@ -452,7 +450,7 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       createLearningProposalObserver({
         contactId: opts.contactId,
         agentId: opts.agentId,
-        llmCall: opts.observerLlmCall,
+        emitter: wakeEmitter,
       }),
     )
   }

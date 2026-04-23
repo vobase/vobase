@@ -6,23 +6,20 @@
  * Throws inside `observer.handle()` are swallowed + logged.
  */
 import type { AgentEvent } from '@server/contracts/event'
-import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
+import type { AgentObserver, Logger } from '@server/contracts/observer'
 import { AsyncQueue } from './async-queue'
 
 export interface ObserverBusOptions {
   logger: Logger
-  observerCtx: ObserverContext
 }
 
 export class ObserverBus {
   private readonly queues = new Map<string, AsyncQueue<AgentEvent>>()
   private readonly workers = new Map<string, Promise<void>>()
   private readonly logger: Logger
-  private readonly observerCtx: ObserverContext
 
   constructor(opts: ObserverBusOptions) {
     this.logger = opts.logger
-    this.observerCtx = opts.observerCtx
   }
 
   register(observer: AgentObserver): void {
@@ -48,7 +45,7 @@ export class ObserverBus {
   private async runWorker(observer: AgentObserver, queue: AsyncQueue<AgentEvent>): Promise<void> {
     for await (const event of queue) {
       try {
-        await observer.handle(event, this.observerCtx)
+        await observer.handle(event)
       } catch (err) {
         this.logger.error(
           { observerId: observer.id, eventType: event.type, err: String(err) },

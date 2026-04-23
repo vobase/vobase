@@ -319,7 +319,7 @@ void _keepReadmeFrontmatter
 // ---------------------------------------------------------------------------
 const _observerExample: AgentObserver = {
   id: 'example',
-  handle: async (_event: AgentEvent, _ctx: ObserverContext): Promise<void> => undefined,
+  handle: async (_event: AgentEvent): Promise<void> => undefined,
 }
 void _observerExample
 

@@ -136,10 +136,10 @@ describe('memoryDistillObserver — anti-lessons', () => {
     ]
 
     const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' }, agentId: 'agt-1' })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(rejectedEvent('prop-1'), ctx)
-    await obs.handle(agentEndEvent(), ctx)
+    await obs.handle(rejectedEvent('prop-1'))
+    await obs.handle(agentEndEvent())
 
     expect(workingMemoryWrites).toHaveLength(1)
     const written = workingMemoryWrites[0] ?? ''
@@ -160,10 +160,10 @@ describe('memoryDistillObserver — anti-lessons', () => {
     ]
 
     const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' } })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(rejectedEvent('prop-2'), ctx)
-    await obs.handle(agentEndEvent(), ctx)
+    await obs.handle(rejectedEvent('prop-2'))
+    await obs.handle(agentEndEvent())
 
     expect(workingMemoryWrites).toEqual([])
   })
@@ -191,10 +191,10 @@ describe('memoryDistillObserver — anti-lessons', () => {
     ].join('\n')
 
     const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' }, agentId: 'agt-1' })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(rejectedEvent('prop-3'), ctx)
-    await obs.handle(agentEndEvent(), ctx)
+    await obs.handle(rejectedEvent('prop-3'))
+    await obs.handle(agentEndEvent())
 
     expect(workingMemoryWrites).toEqual([])
   })
@@ -216,10 +216,10 @@ describe('memoryDistillObserver — anti-lessons', () => {
     ].join('\n')
 
     const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' }, agentId: 'agt-1' })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(rejectedEvent('prop-4'), ctx)
-    await obs.handle(agentEndEvent(), ctx)
+    await obs.handle(rejectedEvent('prop-4'))
+    await obs.handle(agentEndEvent())
 
     expect(workingMemoryWrites).toHaveLength(1)
     const written = workingMemoryWrites[0] ?? ''
@@ -230,10 +230,10 @@ describe('memoryDistillObserver — anti-lessons', () => {
 
   it('skips anti-lessons write when no rejections observed', async () => {
     const obs = createMemoryDistillObserver({ target: { kind: 'contact', contactId: 'contact-1' }, agentId: 'agt-1' })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(assistantMessageEvent('hi'), ctx)
-    await obs.handle(agentEndEvent(), ctx)
+    await obs.handle(assistantMessageEvent('hi'))
+    await obs.handle(agentEndEvent())
 
     expect(workingMemoryWrites).toEqual([])
   })

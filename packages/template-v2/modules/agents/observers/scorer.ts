@@ -1,23 +1,21 @@
 /**
  * scorerObserver — fires `llmCall('scorer.answer_relevancy', ...)` + `llmCall('scorer.faithfulness', ...)`
- * on every `turn_end`, writing two rows to the existing `agent_scores` table (Phase 1).
- * First writer on a table defined in Phase 1.
+ * on every `turn_end`, writing two rows to the existing `agent_scores` table.
  *
  * Fire-and-forget discipline: the observer runs in its own AsyncQueue on the observer bus,
  * so slow LLM calls here never backpressure the hot path or other observers.
  *
- * Factory: caller injects `llmCall` + optional `emit` so module.ts wires the real EventBus
- * and tests inject mocks without touching the observer bus.
+ * Per-wake `emitter` handle is the one populated by `createHarness({ emitEventHandle })`
+ * so `llm_call` + `scorer_recorded` events surface into the stream uniformly.
  */
 
 import type { AgentEvent } from '@server/contracts/event'
-import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
-import type { PluginContext } from '@server/contracts/plugin-context'
+import type { AgentObserver } from '@server/contracts/observer'
+import { type LlmEmitter, llmCall } from '@server/harness/llm-call'
+import { getDb, getLogger } from '@server/services'
 
 export interface ScorerObserverOpts {
-  llmCall: PluginContext['llmCall']
-  /** Called with `scorer_recorded` after each successful DB write. */
-  emit?: (event: AgentEvent) => void
+  emitter?: LlmEmitter
 }
 
 interface ScoreResult {
@@ -36,8 +34,8 @@ function parseScoreResult(raw: string): ScoreResult {
   }
 }
 
-export function createScorerObserver(opts: ScorerObserverOpts): AgentObserver {
-  const { llmCall, emit } = opts
+export function createScorerObserver(opts: ScorerObserverOpts = {}): AgentObserver {
+  const { emitter } = opts
 
   /** Buffer of messages per wakeId — cleared on agent_end to prevent leaks. */
   const wakeMessages = new Map<string, Array<{ role: string; content: string }>>()
@@ -45,8 +43,7 @@ export function createScorerObserver(opts: ScorerObserverOpts): AgentObserver {
   return {
     id: 'agents:scorer',
 
-    async handle(event: AgentEvent, ctx: ObserverContext): Promise<void> {
-      // Accumulate conversation content for scoring context.
+    async handle(event: AgentEvent): Promise<void> {
       if (event.type === 'message_end' && event.content?.trim()) {
         const buf = wakeMessages.get(event.wakeId) ?? []
         buf.push({ role: event.role, content: event.content.trim() })
@@ -96,45 +93,53 @@ export function createScorerObserver(opts: ScorerObserverOpts): AgentObserver {
         },
       ]
 
+      const logger = getLogger()
+      const db = getDb()
+      const wake = {
+        organizationId: event.organizationId,
+        conversationId: event.conversationId,
+        wakeId: event.wakeId,
+        turnIndex: event.turnIndex,
+      }
+
       for (const { scorerId, task, system, userMessage } of scorers) {
         try {
-          const result = await llmCall(task, {
-            system,
-            messages: [{ role: 'user', content: userMessage }],
+          const result = await llmCall({
+            wake,
+            task,
+            request: {
+              system,
+              messages: [{ role: 'user', content: userMessage }],
+            },
+            emitter,
           })
 
           const { score, rationale } = parseScoreResult(result.content)
 
-          await (
-            ctx.db as unknown as {
-              insert: (t: unknown) => { values: (v: unknown) => Promise<unknown> }
-            }
-          )
-            .insert(agentScores)
-            .values({
-              id: nanoid(8),
-              organizationId: ctx.organizationId,
-              conversationId: ctx.conversationId,
-              wakeTurnIndex: event.turnIndex,
-              scorer: scorerId,
-              score,
-              rationale,
-              model: result.model,
-            })
+          await db.insert(agentScores).values({
+            id: nanoid(8),
+            organizationId: event.organizationId,
+            conversationId: event.conversationId,
+            wakeTurnIndex: event.turnIndex,
+            scorer: scorerId,
+            score,
+            rationale,
+            model: result.model,
+          })
 
-          emit?.({
+          emitter?.emit?.({
             type: 'scorer_recorded',
             scorerId,
             score,
             sourceLlmTask: task,
             ts: new Date(),
-            wakeId: ctx.wakeId,
-            conversationId: ctx.conversationId,
-            organizationId: ctx.organizationId,
+            wakeId: event.wakeId,
+            conversationId: event.conversationId,
+            organizationId: event.organizationId,
             turnIndex: event.turnIndex,
           })
         } catch (err) {
-          ctx.logger.warn({ err, scorerId }, 'scorer: failed to score turn — skipping')
+          logger.warn({ err, scorerId }, 'scorer: failed to score turn — skipping')
         }
       }
     },

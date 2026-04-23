@@ -3,6 +3,14 @@
  *
  * Observers run on per-observer queues; a slow observer CANNOT backpressure other
  * observers (see `server/runtime/observer-bus.ts`). Throws are swallowed + logged.
+ *
+ * Wake identity (`organizationId`, `conversationId`, `wakeId`, `turnIndex`) is
+ * read from the event itself (`HarnessBaseFields`). Services (`db`, `realtime`,
+ * `logger`) are singletons in `server/services.ts`.
+ *
+ * `ObserverContext` survives only as the parent type of `MutatorContext` (mutator
+ * still runs inside tool-call boundaries where per-wake fields matter); observers
+ * no longer consume it.
  */
 
 import type { AgentEvent } from './event'
@@ -27,5 +35,5 @@ export interface ObserverContext {
 export interface AgentObserver {
   /** Stable across restarts — used for queue identity. */
   id: string
-  handle(event: AgentEvent, ctx: ObserverContext): Promise<void> | void
+  handle(event: AgentEvent): Promise<void> | void
 }

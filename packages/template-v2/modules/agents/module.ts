@@ -42,8 +42,7 @@ export default defineModule({
       ctx.registerMutator(moderationMutator)
       ctx.registerObserverFactory((wake) =>
         createScorerObserver({
-          llmCall: wake.llmCall,
-          emit: (event) => ctx.events.publish(event),
+          emitter: wake.emitter,
         }),
       )
     }

@@ -272,11 +272,10 @@ export async function bootWakeIntegration(
 }
 
 /**
- * Observer context wiring cheat — we swap ctx.db + ctx.realtime with real ones
- * via a small monkey-patch on the observer's handle. This is done once at import
- * time so the auditObserver + sseObserver see the real DB + a notify spy.
- *
- * Simpler than threading through bootWake's API.
+ * Install the real DB + a notify spy into `server/services.ts` singletons so
+ * auditObserver + sseObserver can be exercised against real Postgres + a
+ * capturing realtime. Observers read these through `getDb()` / `getRealtime()`
+ * — no monkey-patch of `handle` needed.
  */
 export function wireObserverContextFor(
   db: TestDbHandle,
@@ -284,29 +283,26 @@ export function wireObserverContextFor(
     calls: Array<{ table: string; id?: string; action?: string }>
   },
 ): () => void {
-  const originalAudit = auditObserver.handle
-  const originalAuditBound = originalAudit.bind(auditObserver)
-  auditObserver.handle = async (event, ctx) => {
-    const patchedCtx = { ...ctx, db: db.db }
-    return originalAuditBound(event, patchedCtx)
-  }
-  const originalSse = sseObserver.handle
-  const originalSseBound = originalSse.bind(sseObserver)
-  sseObserver.handle = async (event, ctx) => {
-    const patchedCtx = {
-      ...ctx,
-      realtime: {
-        notify: (payload: { table: string; id?: string; action?: string }) => {
-          notifySpy.calls.push(payload)
-        },
-        subscribe: () => () => {},
-      },
-    }
-    return originalSseBound(event, patchedCtx)
-  }
+  const { setDb, setRealtime, setLogger } = require('@server/services') as typeof import('@server/services')
+  setDb(db.db as unknown as Parameters<typeof setDb>[0])
+  setRealtime({
+    notify: (payload: { table: string; id?: string; action?: string }) => {
+      notifySpy.calls.push(payload)
+    },
+    subscribe: () => () => {},
+  })
+  setLogger({
+    debug: () => undefined,
+    info: () => undefined,
+    warn: () => undefined,
+    error: () => undefined,
+  })
+  // Reference observer symbols so tree-shaking keeps them importable from tests.
+  void auditObserver
+  void sseObserver
   return () => {
-    auditObserver.handle = originalAudit
-    sseObserver.handle = originalSse
+    const { __resetServicesForTests } = require('@server/services') as typeof import('@server/services')
+    __resetServicesForTests()
   }
 }
 

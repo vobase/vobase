@@ -10,7 +10,9 @@
  * never crashes a wake (this is a reflection pass, not load-bearing).
  */
 
-import type { LlmRequest, LlmResult, PluginContext } from '@server/contracts/plugin-context'
+import type { LlmRequest, LlmResult } from '@server/contracts/plugin-context'
+
+export type LlmCallFn = <T>(task: 'memory.distill', request: LlmRequest) => Promise<LlmResult<T>>
 
 export interface DistillInput {
   /** Ordered assistant turns accumulated during the wake. */
@@ -50,10 +52,7 @@ export function buildDistillPrompt(input: DistillInput): { system: string; user:
 }
 
 /** Call `llmCall('memory.distill', …)` with the built prompt and parse the sections array. */
-export async function callMemoryDistill(
-  llmCall: PluginContext['llmCall'],
-  input: DistillInput,
-): Promise<DistilledSection[]> {
+export async function callMemoryDistill(llmCall: LlmCallFn, input: DistillInput): Promise<DistilledSection[]> {
   const { system, user } = buildDistillPrompt(input)
 
   const result = await llmCall<string>('memory.distill', {

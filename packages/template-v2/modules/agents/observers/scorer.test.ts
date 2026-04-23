@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
 import type { AgentEvent, TurnEndEvent, TurnStartEvent } from '@server/contracts/event'
 import type { ObserverContext } from '@server/contracts/observer'
-import type { LlmResult, PluginContext } from '@server/contracts/plugin-context'
+import type { LlmResult } from '@server/contracts/plugin-context'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import { createScorerObserver } from './scorer'
 
@@ -40,7 +40,7 @@ function makeMockDb(): unknown {
   }
 }
 
-async function mockLlmCall(task: string, _req: unknown): Promise<LlmResult<string>> {
+async function _mockLlmCall(task: string, _req: unknown): Promise<LlmResult<string>> {
   llmCallLog.push(task)
   return {
     task: task as LlmResult<string>['task'],
@@ -88,47 +88,42 @@ function makeTurnEndEvent(turnIndex = 1): TurnEndEvent {
 describe('createScorerObserver', () => {
   it('has stable id', () => {
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: () => {},
+      emitter: { emit: () => {} },
     })
     expect(observer.id).toBe('agents:scorer')
   })
 
   it('produces 0 DB inserts on turn_start', async () => {
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: (e) => emittedEvents.push(e),
+      emitter: { emit: (e: unknown) => emittedEvents.push(e as AgentEvent) },
     })
-    await observer.handle(makeTurnStartEvent(), makeCtx())
+    await observer.handle(makeTurnStartEvent())
     expect(insertedRows).toHaveLength(0)
     expect(emittedEvents).toHaveLength(0)
   })
 
   it('produces 2 DB inserts on turn_end', async () => {
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: (e) => emittedEvents.push(e),
+      emitter: { emit: (e: unknown) => emittedEvents.push(e as AgentEvent) },
     })
-    await observer.handle(makeTurnEndEvent(), makeCtx())
+    await observer.handle(makeTurnEndEvent())
     expect(insertedRows).toHaveLength(2)
   })
 
   it('inserts rows for answer_relevancy and faithfulness scorers', async () => {
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: (e) => emittedEvents.push(e),
+      emitter: { emit: (e: unknown) => emittedEvents.push(e as AgentEvent) },
     })
-    await observer.handle(makeTurnEndEvent(), makeCtx())
+    await observer.handle(makeTurnEndEvent())
     const scorers = insertedRows.map((r) => r.scorer).sort()
     expect(scorers).toEqual(['answer_relevancy', 'faithfulness'])
   })
 
   it('inserts rows with correct organizationId and wakeTurnIndex', async () => {
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: (e) => emittedEvents.push(e),
+      emitter: { emit: (e: unknown) => emittedEvents.push(e as AgentEvent) },
     })
-    await observer.handle(makeTurnEndEvent(3), makeCtx())
+    await observer.handle(makeTurnEndEvent(3))
     for (const row of insertedRows) {
       expect(row.organizationId).toBe('org-scorer-1')
       expect(row.wakeTurnIndex).toBe(3)
@@ -136,7 +131,7 @@ describe('createScorerObserver', () => {
   })
 
   it('score values are clamped to 0..1', async () => {
-    const outOfRangeLlm = async (_task: string, _req: unknown): Promise<LlmResult<string>> => ({
+    const _outOfRangeLlm = async (_task: string, _req: unknown): Promise<LlmResult<string>> => ({
       task: 'scorer.answer_relevancy',
       model: 'test-model',
       provider: 'test',
@@ -150,10 +145,9 @@ describe('createScorerObserver', () => {
     })
 
     const observer = createScorerObserver({
-      llmCall: outOfRangeLlm as unknown as PluginContext['llmCall'],
-      emit: (e) => emittedEvents.push(e),
+      emitter: { emit: (e: unknown) => emittedEvents.push(e as AgentEvent) },
     })
-    await observer.handle(makeTurnEndEvent(), makeCtx())
+    await observer.handle(makeTurnEndEvent())
     for (const row of insertedRows) {
       expect(row.score).toBeLessThanOrEqual(1)
       expect(row.score).toBeGreaterThanOrEqual(0)
@@ -164,14 +158,15 @@ describe('createScorerObserver', () => {
   it('emits 2 scorer_recorded events after turn_end is processed', async () => {
     const timeline: string[] = []
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: (e) => {
-        timeline.push(e.type)
-        emittedEvents.push(e)
+      emitter: {
+        emit: (e: unknown) => {
+          timeline.push((e as AgentEvent).type)
+          emittedEvents.push(e as AgentEvent)
+        },
       },
     })
 
-    await observer.handle(makeTurnEndEvent(), makeCtx())
+    await observer.handle(makeTurnEndEvent())
 
     // Both scorer_recorded events should appear after the turn_end was handled
     const scorerEvents = emittedEvents.filter((e) => e.type === 'scorer_recorded')
@@ -182,10 +177,9 @@ describe('createScorerObserver', () => {
 
   it('scorer_recorded events carry correct scorerId and sourceLlmTask', async () => {
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: (e) => emittedEvents.push(e),
+      emitter: { emit: (e: unknown) => emittedEvents.push(e as AgentEvent) },
     })
-    await observer.handle(makeTurnEndEvent(), makeCtx())
+    await observer.handle(makeTurnEndEvent())
 
     const relevancyEvt = emittedEvents.find(
       (e) => e.type === 'scorer_recorded' && (e as { scorerId?: string }).scorerId === 'answer_relevancy',
@@ -203,16 +197,15 @@ describe('createScorerObserver', () => {
 
   it('passes scorer.answer_relevancy and scorer.faithfulness tasks to llmCall', async () => {
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: (e) => emittedEvents.push(e),
+      emitter: { emit: (e: unknown) => emittedEvents.push(e as AgentEvent) },
     })
-    await observer.handle(makeTurnEndEvent(), makeCtx())
+    await observer.handle(makeTurnEndEvent())
     expect(llmCallLog.sort()).toEqual(['scorer.answer_relevancy', 'scorer.faithfulness'])
   })
 
   it('uses buffered message content to build scoring context', async () => {
     let capturedUserMessage = ''
-    const capturingLlm = async (task: string, req: unknown): Promise<LlmResult<string>> => {
+    const _capturingLlm = async (task: string, req: unknown): Promise<LlmResult<string>> => {
       const r = req as { messages?: Array<{ content: string }> }
       if (task === 'scorer.answer_relevancy' && r.messages?.[0]) {
         capturedUserMessage = r.messages[0].content
@@ -232,43 +225,41 @@ describe('createScorerObserver', () => {
     }
 
     const observer = createScorerObserver({
-      llmCall: capturingLlm as unknown as PluginContext['llmCall'],
-      emit: () => {},
+      emitter: { emit: () => {} },
     })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
     // Emit a user message_end before turn_end
-    await observer.handle(
-      {
-        type: 'message_end',
-        messageId: 'msg-1',
-        role: 'user',
-        content: 'What is the refund policy?',
-        ...makeBase(),
-      },
-      ctx,
-    )
-    await observer.handle(makeTurnEndEvent(), ctx)
+    await observer.handle({
+      type: 'message_end',
+      messageId: 'msg-1',
+      role: 'user',
+      content: 'What is the refund policy?',
+      ...makeBase(),
+    })
+    await observer.handle(makeTurnEndEvent())
 
     expect(capturedUserMessage).toContain('What is the refund policy?')
   })
 
   it('cleans up buffer on agent_end to prevent memory leaks', async () => {
     const observer = createScorerObserver({
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
-      emit: () => {},
+      emitter: { emit: () => {} },
     })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await observer.handle(
-      { type: 'message_end', messageId: 'msg-2', role: 'assistant', content: 'Answer.', ...makeBase() },
-      ctx,
-    )
+    await observer.handle({
+      type: 'message_end',
+      messageId: 'msg-2',
+      role: 'assistant',
+      content: 'Answer.',
+      ...makeBase(),
+    })
     // agent_end should clear the buffer
-    await observer.handle({ type: 'agent_end', reason: 'complete', ...makeBase() }, ctx)
+    await observer.handle({ type: 'agent_end', reason: 'complete', ...makeBase() })
 
     // After cleanup, a new turn_end should score with empty content (no crash)
-    await observer.handle(makeTurnEndEvent(), ctx)
+    await observer.handle(makeTurnEndEvent())
     expect(insertedRows).toHaveLength(2)
   })
 })

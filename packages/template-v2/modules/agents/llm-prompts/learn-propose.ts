@@ -13,7 +13,10 @@
  *   - `agent_skill` / `drive_doc` → staff-approved
  */
 
-import type { LlmRequest, LlmResult, PluginContext } from '@server/contracts/plugin-context'
+import type { LlmRequest, LlmResult } from '@server/contracts/plugin-context'
+
+export type LlmCallFn = <T>(task: 'learn.propose', request: LlmRequest) => Promise<LlmResult<T>>
+
 import type { LearningAction, LearningScope } from '../schema'
 import type { StaffSignal } from '../service/staff-signals'
 
@@ -83,7 +86,7 @@ export function buildProposePrompt(input: ProposeInput): { system: string; user:
 }
 
 /** Call `llmCall('learn.propose', …)` with the built prompt and parse the JSON proposals array. */
-export async function callLearnPropose(llmCall: PluginContext['llmCall'], input: ProposeInput): Promise<ProposeOutput> {
+export async function callLearnPropose(llmCall: LlmCallFn, input: ProposeInput): Promise<ProposeOutput> {
   const { system, user } = buildProposePrompt(input)
 
   const result = await llmCall<string>('learn.propose', {

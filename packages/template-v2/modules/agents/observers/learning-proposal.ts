@@ -30,9 +30,10 @@
 
 import { upsertNotesSection } from '@modules/contacts/service/contacts'
 import type { AgentEvent, LearningProposedEvent } from '@server/contracts/event'
-import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
-import type { PluginContext } from '@server/contracts/plugin-context'
-import { callLearnPropose, type LearningProposalDraft } from '../llm-prompts/learn-propose'
+import type { AgentObserver } from '@server/contracts/observer'
+import { llmCall as harnessLlmCall, type LlmEmitter } from '@server/harness/llm-call'
+import { getDb, getLogger } from '@server/services'
+import { callLearnPropose, type LearningProposalDraft, type LlmCallFn } from '../llm-prompts/learn-propose'
 import { append as journalAppend } from '../service/journal'
 import { insertProposal } from '../service/learning-proposals'
 import { detectStaffSignals } from '../service/staff-signals'
@@ -40,13 +41,8 @@ import { detectStaffSignals } from '../service/staff-signals'
 export interface LearningProposalOpts {
   contactId: string
   agentId: string
-  /**
-   * Per-wake chokepoint. Observers don't carry a `PluginContext.llmCall` on
-   * their context (ObserverContext only exposes ports + db + logger + realtime),
-   * so the caller that wires the observer into the wake threads the wake's
-   * `llmCall` in here at construction time.
-   */
-  llmCall: PluginContext['llmCall']
+  /** Per-wake emitter handle so `llm_call` events fired by `learn.propose` surface into the stream. */
+  emitter?: LlmEmitter
 }
 
 type TurnMessage = { role: 'assistant' | 'user' | 'tool' | 'system'; content: string }
@@ -60,12 +56,12 @@ const wakeEvents = new Map<string, AgentEvent[]>()
 const wakeMessages = new Map<string, TurnMessage[]>()
 
 export function createLearningProposalObserver(opts: LearningProposalOpts): AgentObserver {
-  const { contactId, agentId, llmCall } = opts
+  const { contactId, agentId, emitter } = opts
 
   return {
     id: 'agents:learning-proposal',
 
-    async handle(event: AgentEvent, ctx: ObserverContext): Promise<void> {
+    async handle(event: AgentEvent): Promise<void> {
       const buf = wakeEvents.get(event.wakeId) ?? []
       buf.push(event)
       wakeEvents.set(event.wakeId, buf)
@@ -86,29 +82,41 @@ export function createLearningProposalObserver(opts: LearningProposalOpts): Agen
       const signals = detectStaffSignals(events)
       if (signals.length === 0) return
 
+      const logger = getLogger()
+      const wake = {
+        organizationId: event.organizationId,
+        conversationId: event.conversationId,
+        wakeId: event.wakeId,
+        turnIndex: event.turnIndex,
+      }
+      const boundLlmCall: LlmCallFn = <T>(
+        task: 'learn.propose',
+        request: Parameters<typeof harnessLlmCall>[0]['request'],
+      ) => harnessLlmCall<T>({ wake, task, request, emitter })
+
       try {
-        await runProposalPass({ ctx, event, signals, history, contactId, agentId, llmCall })
+        await runProposalPass({ event, signals, history, contactId, agentId, llmCall: boundLlmCall })
       } catch (err) {
-        ctx.logger.warn({ err, wakeId: event.wakeId }, 'learning-proposal: pass failed')
+        logger.warn({ err, wakeId: event.wakeId }, 'learning-proposal: pass failed')
       }
     },
   }
 }
 
 interface ProposalPassInput {
-  ctx: ObserverContext
   event: Extract<AgentEvent, { type: 'agent_end' }>
   signals: ReturnType<typeof detectStaffSignals>
   history: TurnMessage[]
   contactId: string
   agentId: string
-  llmCall: PluginContext['llmCall']
+  llmCall: LlmCallFn
 }
 
 async function runProposalPass(input: ProposalPassInput): Promise<void> {
-  const { ctx, event, signals, history, contactId, agentId, llmCall } = input
+  const { event, signals, history, contactId, agentId, llmCall } = input
+  const logger = getLogger()
 
-  const { existingSkills, existingDrive, memory } = await gatherProposalContext(ctx, agentId)
+  const { existingSkills, existingDrive, memory } = await gatherProposalContext(agentId, event.organizationId)
 
   const { proposals } = await callLearnPropose(llmCall, {
     staffSignals: signals,
@@ -117,12 +125,12 @@ async function runProposalPass(input: ProposalPassInput): Promise<void> {
     existingDrive,
     memory,
     agentId,
-    conversationId: ctx.conversationId,
+    conversationId: event.conversationId,
   })
 
   for (const draft of proposals) {
-    await routeProposal({ ctx, event, draft, contactId, agentId }).catch((err) => {
-      ctx.logger.warn({ err, target: draft.target, scope: draft.scope }, 'learning-proposal: route failed')
+    await routeProposal({ event, draft, contactId, agentId }).catch((err) => {
+      logger.warn({ err, target: draft.target, scope: draft.scope }, 'learning-proposal: route failed')
     })
   }
 }
@@ -133,11 +141,11 @@ interface ContextSnapshot {
   memory: string
 }
 
-async function gatherProposalContext(ctx: ObserverContext, agentId: string): Promise<ContextSnapshot> {
+async function gatherProposalContext(agentId: string, organizationId: string): Promise<ContextSnapshot> {
   const { learnedSkills, agentDefinitions } = await import('@modules/agents/schema')
   const { and, eq } = await import('drizzle-orm')
 
-  const db = ctx.db as unknown as {
+  const db = getDb() as unknown as {
     select: (cols?: unknown) => {
       from: (t: unknown) => {
         where: (c: unknown) => {
@@ -150,7 +158,7 @@ async function gatherProposalContext(ctx: ObserverContext, agentId: string): Pro
   const skillRows = (await db
     .select({ name: learnedSkills.name, description: learnedSkills.description })
     .from(learnedSkills)
-    .where(and(eq(learnedSkills.organizationId, ctx.organizationId), eq(learnedSkills.agentId, agentId)))) as Array<{
+    .where(and(eq(learnedSkills.organizationId, organizationId), eq(learnedSkills.agentId, agentId)))) as Array<{
     name: string
     description: string
   }>
@@ -169,7 +177,6 @@ async function gatherProposalContext(ctx: ObserverContext, agentId: string): Pro
 }
 
 interface RouteInput {
-  ctx: ObserverContext
   event: Extract<AgentEvent, { type: 'agent_end' }>
   draft: LearningProposalDraft
   contactId: string
@@ -177,16 +184,16 @@ interface RouteInput {
 }
 
 async function routeProposal(input: RouteInput): Promise<void> {
-  const { ctx, event, draft, contactId, agentId } = input
+  const { event, draft, contactId, agentId } = input
   const autoWrite = draft.scope === 'contact' || draft.scope === 'agent_memory'
 
   if (autoWrite) {
-    await writeAutoScope(ctx, draft, contactId, agentId)
+    await writeAutoScope(draft, contactId, agentId)
   }
 
   const { id } = await insertProposal({
-    organizationId: ctx.organizationId,
-    conversationId: ctx.conversationId,
+    organizationId: event.organizationId,
+    conversationId: event.conversationId,
     scope: draft.scope,
     action: draft.action,
     target: draft.target,
@@ -235,12 +242,7 @@ async function routeProposal(input: RouteInput): Promise<void> {
   }
 }
 
-async function writeAutoScope(
-  ctx: ObserverContext,
-  draft: LearningProposalDraft,
-  contactId: string,
-  agentId: string,
-): Promise<void> {
+async function writeAutoScope(draft: LearningProposalDraft, contactId: string, agentId: string): Promise<void> {
   if (draft.scope === 'contact') {
     await upsertNotesSection(contactId, draft.target, draft.body)
     return
@@ -249,7 +251,7 @@ async function writeAutoScope(
   if (draft.scope === 'agent_memory') {
     const { agentDefinitions } = await import('@modules/agents/schema')
     const { eq } = await import('drizzle-orm')
-    const db = ctx.db as unknown as {
+    const db = getDb() as unknown as {
       select: () => {
         from: (t: unknown) => {
           where: (c: unknown) => {

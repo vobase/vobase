@@ -19,7 +19,7 @@
 
 import { complete, type Message, type Model, type UserMessage } from '@mariozechner/pi-ai'
 import type { LlmTask } from '@server/contracts/event'
-import type { HarnessEvent, WakeScope } from '@vobase/core'
+import type { WakeScope } from '@vobase/core'
 import { createModel, resolveApiKey } from './llm-provider'
 
 export interface LlmRequest {
@@ -49,9 +49,14 @@ export interface LlmResult<T = string> {
  * Handle populated by `createHarness({ emitEventHandle })`. Listeners capture
  * the handle at registration time; the harness wires `emit` before the run
  * starts, so listener invocations find it live.
+ *
+ * Generic over the event type so template callers (scorer, learning-proposal,
+ * moderation) can publish their domain-specific `AgentEvent` variants through
+ * the same handle that `llmCall` uses to surface `llm_call` events.
  */
-export interface LlmEmitter {
-  emit?: (ev: HarnessEvent) => void
+// biome-ignore lint/suspicious/noExplicitAny: emitter is write-only; variance deliberately loose so AgentEvent supersets HarnessEvent
+export interface LlmEmitter<TEvent = any> {
+  emit?: (ev: TEvent) => void
 }
 
 export interface LlmCallArgs {

@@ -13,8 +13,9 @@ import {
 } from '@modules/contacts/service/contacts'
 import { readNotes as readStaffNotes, upsertNotesSection as upsertStaffNotesSection } from '@modules/team/service/staff'
 import type { AgentEvent, LearningRejectedEvent } from '@server/contracts/event'
-import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
-import type { PluginContext } from '@server/contracts/plugin-context'
+import type { AgentObserver } from '@server/contracts/observer'
+import { llmCall as harnessLlmCall, type LlmEmitter } from '@server/harness/llm-call'
+import { getDb, getLogger } from '@server/services'
 import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
 import { upsertMarkdownSection } from './learning-proposal'
 
@@ -28,8 +29,10 @@ export type DistillTarget = { kind: 'contact'; contactId: string } | { kind: 'st
 export interface MemoryDistillOpts {
   target: DistillTarget
   agentId?: string
-  /** When provided, the observer calls `llmCall('memory.distill', …)` instead of the deterministic stub. */
-  llmCall?: PluginContext['llmCall']
+  /** When set, fires `llmCall('memory.distill', …)` instead of the deterministic stub. */
+  useLlm?: boolean
+  /** Per-wake emitter handle (from `createHarness({ emitEventHandle })`) so `llm_call` events surface. */
+  emitter?: LlmEmitter
 }
 
 /** Module-level per-target debounce map. Cleared on process restart (acceptable for Phase 2). */
@@ -58,7 +61,7 @@ interface WakeBuffer {
 }
 
 export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObserver {
-  const { target, agentId, llmCall } = opts
+  const { target, agentId, useLlm, emitter } = opts
   const tkey = targetKey(target)
 
   const wakeBuffer = new Map<string, WakeBuffer>()
@@ -66,7 +69,8 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
   return {
     id: 'agents:memory-distill',
 
-    async handle(event: AgentEvent, ctx: ObserverContext): Promise<void> {
+    async handle(event: AgentEvent): Promise<void> {
+      const logger = getLogger()
       const buf = wakeBuffer.get(event.wakeId) ?? { assistantMessages: [], rejections: [] }
 
       if (event.type === 'message_end' && event.role === 'assistant' && event.content.trim()) {
@@ -87,8 +91,8 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
       wakeBuffer.delete(event.wakeId)
 
       if (state.rejections.length > 0 && agentId) {
-        await writeAntiLessons(ctx, agentId, state.rejections).catch((err) =>
-          ctx.logger.warn({ err, agentId }, 'memory-distill: anti-lesson write failed'),
+        await writeAntiLessons(agentId, state.rejections).catch((err) =>
+          logger.warn({ err, agentId }, 'memory-distill: anti-lesson write failed'),
         )
       }
 
@@ -100,9 +104,17 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
 
       try {
         let sections: DistilledSection[]
-        if (llmCall) {
+        if (useLlm) {
           const currentMemory = await readMemorySafe(target)
-          sections = await callMemoryDistill(llmCall, {
+          const wake = {
+            organizationId: event.organizationId,
+            conversationId: event.conversationId,
+            wakeId: event.wakeId,
+            turnIndex: event.turnIndex,
+          }
+          const bound = <T>(task: 'memory.distill', request: Parameters<typeof harnessLlmCall>[0]['request']) =>
+            harnessLlmCall<T>({ wake, task, request, emitter })
+          sections = await callMemoryDistill(bound, {
             messages: state.assistantMessages,
             currentMemory,
             atIso: event.ts.toISOString(),
@@ -117,7 +129,7 @@ export function createMemoryDistillObserver(opts: MemoryDistillOpts): AgentObser
 
         lastDistillTs.set(tkey, now)
       } catch (err) {
-        ctx.logger.warn({ err, target }, 'memory-distill: failed to write distilled sections')
+        logger.warn({ err, target }, 'memory-distill: failed to write distilled sections')
       }
     },
   }
@@ -131,18 +143,15 @@ async function readMemorySafe(target: DistillTarget): Promise<string> {
   }
 }
 
-async function writeAntiLessons(
-  ctx: ObserverContext,
-  agentId: string,
-  rejections: LearningRejectedEvent[],
-): Promise<void> {
+async function writeAntiLessons(agentId: string, rejections: LearningRejectedEvent[]): Promise<void> {
   const { agentDefinitions, learningProposals } = await import('@modules/agents/schema')
   const { eq, inArray } = await import('drizzle-orm')
 
+  const db = getDb()
   const proposalIds = rejections.map((r) => r.proposalId)
 
   const [rows, agentRows] = (await Promise.all([
-    ctx.db
+    db
       .select({
         id: learningProposals.id,
         target: learningProposals.target,
@@ -152,7 +161,7 @@ async function writeAntiLessons(
       })
       .from(learningProposals)
       .where(inArray(learningProposals.id, proposalIds)),
-    ctx.db.select().from(agentDefinitions).where(eq(agentDefinitions.id, agentId)).limit(1),
+    db.select().from(agentDefinitions).where(eq(agentDefinitions.id, agentId)).limit(1),
   ])) as [
     Array<{ id: string; target: string; scope: string; decidedNote: string | null; decidedAt: Date | null }>,
     Array<{ workingMemory: string }>,
@@ -174,7 +183,7 @@ async function writeAntiLessons(
 
   const mergedBody = existingBody ? `${existingBody}\n${newEntries.join('\n')}` : newEntries.join('\n')
   const next = upsertMarkdownSection(current, 'Anti-lessons', mergedBody)
-  await ctx.db.update(agentDefinitions).set({ workingMemory: next }).where(eq(agentDefinitions.id, agentId))
+  await db.update(agentDefinitions).set({ workingMemory: next }).where(eq(agentDefinitions.id, agentId))
 }
 
 /** Each rendered line embeds `` `[<proposalId>]` `` so a repeat rejection is a no-op. */

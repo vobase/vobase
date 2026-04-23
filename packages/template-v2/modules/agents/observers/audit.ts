@@ -13,26 +13,28 @@
  */
 
 import type { AgentEvent } from '@server/contracts/event'
-import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
+import type { AgentObserver } from '@server/contracts/observer'
+import { getDb } from '@server/services'
 import { auditLog } from '@vobase/core'
 
 export const auditObserver: AgentObserver = {
   id: 'agents:audit',
 
-  async handle(event: AgentEvent, ctx: ObserverContext): Promise<void> {
+  async handle(event: AgentEvent): Promise<void> {
     const { auditWakeMap } = await import('@modules/agents/schema')
 
     const details = JSON.stringify({
-      conversationId: ctx.conversationId,
-      wakeId: ctx.wakeId,
-      organizationId: ctx.organizationId,
+      conversationId: event.conversationId,
+      wakeId: event.wakeId,
+      organizationId: event.organizationId,
       type: event.type,
       turnIndex: event.turnIndex,
       ...(event as unknown as Record<string, unknown>),
     })
 
-    // Insert into core's auditLog; use .returning() to capture the generated id
-    const auditRows = await ctx.db
+    const db = getDb()
+
+    const auditRows = await db
       .insert(auditLog)
       .values({
         event: event.type,
@@ -46,13 +48,12 @@ export const auditObserver: AgentObserver = {
     const auditLogId = auditRows[0]?.id
     if (!auditLogId) return
 
-    // Insert satellite row for per-wake scoping (B3)
-    await ctx.db.insert(auditWakeMap).values({
+    await db.insert(auditWakeMap).values({
       auditLogId,
-      wakeId: ctx.wakeId,
-      conversationId: ctx.conversationId,
+      wakeId: event.wakeId,
+      conversationId: event.conversationId,
       eventType: event.type,
-      organizationId: ctx.organizationId,
+      organizationId: event.organizationId,
     })
   },
 }

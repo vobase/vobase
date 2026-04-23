@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import type { AgentEvent } from '@server/contracts/event'
-import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
+import type { AgentObserver, Logger } from '@server/contracts/observer'
 import { ObserverBus } from './observer-bus'
 
 const silentLogger: Logger = {
@@ -8,17 +8,6 @@ const silentLogger: Logger = {
   info: () => undefined,
   warn: () => undefined,
   error: () => undefined,
-}
-
-function fakeCtx(): ObserverContext {
-  return {
-    organizationId: 't1',
-    conversationId: 'c1',
-    wakeId: 'w1',
-    db: {} as ObserverContext['db'],
-    logger: silentLogger,
-    realtime: {} as ObserverContext['realtime'],
-  }
 }
 
 function fakeEvent(): AgentEvent {
@@ -34,7 +23,7 @@ function fakeEvent(): AgentEvent {
 
 describe('ObserverBus', () => {
   it('delivers events to every registered observer', async () => {
-    const bus = new ObserverBus({ logger: silentLogger, observerCtx: fakeCtx() })
+    const bus = new ObserverBus({ logger: silentLogger })
     const a: AgentEvent[] = []
     const b: AgentEvent[] = []
     bus.register({ id: 'a', handle: (e) => void a.push(e) })
@@ -47,7 +36,7 @@ describe('ObserverBus', () => {
   })
 
   it('a slow observer does NOT backpressure a fast one', async () => {
-    const bus = new ObserverBus({ logger: silentLogger, observerCtx: fakeCtx() })
+    const bus = new ObserverBus({ logger: silentLogger })
     const fastTimestamps: number[] = []
     const slow: AgentObserver = {
       id: 'slow',
@@ -66,10 +55,8 @@ describe('ObserverBus', () => {
     const publishedAt = performance.now()
     for (let i = 0; i < 5; i++) bus.publish(fakeEvent())
 
-    // Wait for fast observer to drain
     await new Promise((r) => setTimeout(r, 20))
     expect(fastTimestamps.length).toBe(5)
-    // Even the last fast call should land well before the slow observer's first 100ms sleep
     const lastFast = fastTimestamps[fastTimestamps.length - 1] ?? 0
     expect(lastFast - publishedAt).toBeLessThan(50)
     await bus.shutdown()
@@ -83,7 +70,7 @@ describe('ObserverBus', () => {
         errorLogs++
       },
     }
-    const bus = new ObserverBus({ logger, observerCtx: fakeCtx() })
+    const bus = new ObserverBus({ logger })
     const seen: AgentEvent[] = []
     bus.register({
       id: 'throws',
@@ -100,7 +87,7 @@ describe('ObserverBus', () => {
   })
 
   it('rejects duplicate observer ids', () => {
-    const bus = new ObserverBus({ logger: silentLogger, observerCtx: fakeCtx() })
+    const bus = new ObserverBus({ logger: silentLogger })
     bus.register({ id: 'dup', handle: () => undefined })
     expect(() => bus.register({ id: 'dup', handle: () => undefined })).toThrow()
   })

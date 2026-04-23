@@ -18,7 +18,8 @@ import { upsertNotesSection } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
 import type { AgentEvent } from '@server/contracts/event'
-import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
+import type { AgentObserver } from '@server/contracts/observer'
+import { getLogger } from '@server/services'
 import type { DirtyTracker } from '@vobase/core'
 import type { IFileSystem } from 'just-bash'
 
@@ -35,9 +36,10 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
   return {
     id: 'agents:workspace-sync',
 
-    async handle(event: AgentEvent, ctx: ObserverContext): Promise<void> {
+    async handle(event: AgentEvent): Promise<void> {
       if (event.type !== 'agent_end') return
 
+      const logger = getLogger()
       const scoped = await tracker.flush(fs)
 
       // ── 1. Contact MEMORY.md → section upserts ──────────────────────────
@@ -51,7 +53,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
             await upsertNotesSection(contactId, heading, body)
           }
         } catch (err) {
-          ctx.logger.warn({ err }, 'workspace-sync: failed to flush contact/MEMORY.md')
+          logger.warn({ err }, 'workspace-sync: failed to flush contact/MEMORY.md')
         }
       }
 
@@ -80,7 +82,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
           }
           // Content updates on existing files are deferred to Phase 3 (no update-content on FilesService yet).
         } catch (err) {
-          ctx.logger.warn({ err, wPath }, 'workspace-sync: failed to persist contact/drive file')
+          logger.warn({ err, wPath }, 'workspace-sync: failed to persist contact/drive file')
         }
       }
 
@@ -92,7 +94,7 @@ export function createWorkspaceSyncObserver(opts: WorkspaceSyncOpts): AgentObser
             await drive.remove(existing.id)
           }
         } catch (err) {
-          ctx.logger.warn({ err, wPath }, 'workspace-sync: failed to delete contact/drive file')
+          logger.warn({ err, wPath }, 'workspace-sync: failed to delete contact/drive file')
         }
       }
     },

@@ -13,7 +13,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { AgentEvent } from '@server/contracts/event'
 import type { ObserverContext } from '@server/contracts/observer'
-import type { LlmResult, PluginContext } from '@server/contracts/plugin-context'
+import type { LlmResult } from '@server/contracts/plugin-context'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import { getTableName } from 'drizzle-orm'
 import { setDb as setLearningProposalsDb } from '../service/learning-proposals'
@@ -71,7 +71,7 @@ function tableNameOf(t: unknown): string {
   }
 }
 
-function mockLlmCall(...args: unknown[]): Promise<LlmResult<string>> {
+function _mockLlmCall(...args: unknown[]): Promise<LlmResult<string>> {
   const [task, req] = args as [string, { messages?: Array<{ content: string }> }]
   llmCallLog.push({ task, user: req.messages?.[0]?.content ?? '' })
   return Promise.resolve({
@@ -194,7 +194,7 @@ describe('createLearningProposalObserver', () => {
     const obs = createLearningProposalObserver({
       contactId: 'contact-1',
       agentId: 'agt-1',
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
+      emitter: { emit: () => {} },
     })
     expect(obs.id).toBe('agents:learning-proposal')
   })
@@ -203,23 +203,20 @@ describe('createLearningProposalObserver', () => {
     const obs = createLearningProposalObserver({
       contactId: 'contact-1',
       agentId: 'agt-1',
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
+      emitter: { emit: () => {} },
     })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
     // inbound_message start (not a staff signal)
-    await obs.handle(
-      {
-        type: 'agent_start',
-        ...baseFields(),
-        agentId: 'agt-1',
-        trigger: 'inbound_message',
-        triggerPayload: { trigger: 'inbound_message', conversationId: 'conv-1', messageIds: ['m1'] },
-        systemHash: 'h',
-      },
-      ctx,
-    )
-    await obs.handle(agentEnd(), ctx)
+    await obs.handle({
+      type: 'agent_start',
+      ...baseFields(),
+      agentId: 'agt-1',
+      trigger: 'inbound_message',
+      triggerPayload: { trigger: 'inbound_message', conversationId: 'conv-1', messageIds: ['m1'] },
+      systemHash: 'h',
+    })
+    await obs.handle(agentEnd())
 
     expect(llmCallLog).toEqual([])
     expect(serviceInsertCalls).toEqual([])
@@ -242,15 +239,15 @@ describe('createLearningProposalObserver', () => {
     const obs = createLearningProposalObserver({
       contactId: 'contact-1',
       agentId: 'agt-1',
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
+      emitter: { emit: () => {} },
     })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(supervisorStart(), ctx)
-    await obs.handle(agentEnd(), ctx)
+    await obs.handle(supervisorStart())
+    await obs.handle(agentEnd())
 
     // Handle agent_end AGAIN to ensure the buffer was cleared.
-    await obs.handle(agentEnd(), ctx)
+    await obs.handle(agentEnd())
 
     expect(llmCallLog).toHaveLength(1)
     expect(llmCallLog[0]?.task).toBe('learn.propose')
@@ -273,12 +270,12 @@ describe('createLearningProposalObserver', () => {
     const obs = createLearningProposalObserver({
       contactId: 'contact-1',
       agentId: 'agt-1',
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
+      emitter: { emit: () => {} },
     })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(supervisorStart(), ctx)
-    await obs.handle(agentEnd(), ctx)
+    await obs.handle(supervisorStart())
+    await obs.handle(agentEnd())
 
     expect(serviceInsertCalls).toHaveLength(1)
     expect(serviceInsertCalls[0]?.status).toBe('pending')
@@ -307,12 +304,12 @@ describe('createLearningProposalObserver', () => {
     const obs = createLearningProposalObserver({
       contactId: 'contact-1',
       agentId: 'agt-1',
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
+      emitter: { emit: () => {} },
     })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(supervisorStart(), ctx)
-    await obs.handle(agentEnd(), ctx)
+    await obs.handle(supervisorStart())
+    await obs.handle(agentEnd())
 
     expect(contactUpserts).toEqual([
       { contactId: 'contact-1', heading: 'Preferences', body: 'Likes email over phone.' },
@@ -341,12 +338,12 @@ describe('createLearningProposalObserver', () => {
     const obs = createLearningProposalObserver({
       contactId: 'contact-1',
       agentId: 'agt-1',
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
+      emitter: { emit: () => {} },
     })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
 
-    await obs.handle(supervisorStart(), ctx)
-    await obs.handle(agentEnd(), ctx)
+    await obs.handle(supervisorStart())
+    await obs.handle(agentEnd())
 
     expect(agentMemoryUpdates).toHaveLength(1)
     expect(agentMemoryUpdates[0]?.workingMemory).toContain('## Habits')
@@ -367,14 +364,14 @@ describe('createLearningProposalObserver', () => {
     const obs = createLearningProposalObserver({
       contactId: 'contact-1',
       agentId: 'agt-1',
-      llmCall: mockLlmCall as unknown as PluginContext['llmCall'],
+      emitter: { emit: () => {} },
     })
-    const ctx = makeCtx()
+    const _ctx = makeCtx()
     // Fail the first upsert, succeed the second.
     upsertThrowOnCall = 1
 
-    await obs.handle(supervisorStart(), ctx)
-    await obs.handle(agentEnd(), ctx)
+    await obs.handle(supervisorStart())
+    await obs.handle(agentEnd())
 
     // Second proposal still wrote through even though first raised.
     expect(contactUpserts).toHaveLength(1)

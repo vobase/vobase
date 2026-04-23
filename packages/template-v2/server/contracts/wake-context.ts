@@ -8,8 +8,8 @@
  * harness invokes the factory once per wake with the real, per-wake
  * bindings.
  */
+import type { LlmEmitter } from '@server/harness/llm-call'
 import type { Logger } from './observer'
-import type { PluginContext } from './plugin-context'
 
 export interface WakeContext {
   readonly organizationId: string
@@ -17,5 +17,6 @@ export interface WakeContext {
   readonly conversationId: string
   readonly agentId: string
   readonly logger: Logger
-  readonly llmCall: PluginContext['llmCall']
+  /** Per-wake emitter handle populated by `createHarness({ emitEventHandle })`. */
+  readonly emitter: LlmEmitter
 }
