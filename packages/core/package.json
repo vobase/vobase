@@ -41,7 +41,8 @@
     "better-auth": "^1.5.0",
     "@better-auth/api-key": "^1.5.0",
     "@electric-sql/pglite": "^0.4.1",
-    "pg-boss": "^12.14.0"
+    "pg-boss": "^12.14.0",
+    "just-bash": "^2.14.2"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

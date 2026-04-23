@@ -143,3 +143,71 @@ export {
 } from './adapters/channels/whatsapp';
 export { createLocalAdapter } from './adapters/storage/local';
 export { createS3Adapter } from './adapters/storage/s3';
+
+// ─── Harness primitives ──────────────────────────────────────────────────
+export {
+  BASH_PREVIEW_BYTES,
+  type BashToolArgs,
+  type BashToolResult,
+  makeBashTool,
+} from './harness/bash-tool';
+export { classifyError } from './harness/classify-error';
+export {
+  type CustomSideLoadMaterializer,
+  type CollectSideLoadOpts,
+  collectSideLoad,
+  createBashHistoryMaterializer,
+} from './harness/side-load-collector';
+export {
+  createRestartRecoveryContributor,
+  type GetLastWakeTail,
+} from './harness/restart-recovery';
+export { createSteerQueue, type SteerQueueHandle } from './harness/steer-queue';
+export {
+  L1_PREVIEW_BYTES,
+  L2_SPILL_BYTES,
+  L3_CEILING_BYTES,
+  TurnBudget,
+} from './harness/turn-budget';
+export { spillToFile, type SpillDeps, type SpillOutput } from './harness/tool-budget-spill';
+export { newWakeId } from './harness/wake-id';
+export type {
+  AbortContext,
+  AgentTool,
+  BudgetPhase,
+  BudgetState,
+  ClassifiedError,
+  ClassifiedErrorReason,
+  CommandContext,
+  CommandDef,
+  ErrResult,
+  IterationBudget,
+  MaterializerCtx,
+  MaterializerPhase,
+  OkResult,
+  SideLoadContributor,
+  SideLoadCtx,
+  SideLoadItem,
+  SideLoadKind,
+  ToolContext,
+  ToolResult,
+  ToolResultPersistedEvent,
+  WorkspaceMaterializer,
+} from './harness/types';
+
+// ─── Workspace primitives ────────────────────────────────────────────────
+export {
+  type GenerateAgentsMdOpts,
+  generateAgentsMd,
+} from './workspace/agents-md-generator';
+export { type DirtyDiff, DirtyTracker, snapshotFs } from './workspace/dirty-tracker';
+export { MaterializerRegistry } from './workspace/materializer-registry';
+export {
+  buildReadOnlyConfig,
+  checkWriteAllowed,
+  isWritablePath,
+  type ReadOnlyConfig,
+  ReadOnlyFsError,
+  ScopedFs,
+  WRITABLE_PREFIXES,
+} from './workspace/ro-enforcer';
