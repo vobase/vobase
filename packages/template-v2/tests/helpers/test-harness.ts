@@ -46,6 +46,7 @@ export interface IntegrationBootOpts {
   agentId: string
   contactId: string
   conversationId?: string
+  channelInstanceId?: string
   mockStreamFn: StreamFnLike
   trigger?: WakeTrigger
   maxTurns?: number
@@ -243,11 +244,13 @@ export async function bootWakeIntegration(
   }
 
   const agentDefinition = await ports.agents.getAgentDefinition(opts.agentId)
+  const channelInstanceId = opts.channelInstanceId ?? 'ci-integration'
   const workspace = await createWorkspace({
     organizationId: opts.organizationId,
     agentId: opts.agentId,
     contactId: opts.contactId,
     conversationId: opts.conversationId ?? 'conv-integration',
+    channelInstanceId,
     wakeId: 'w-integration',
     agentDefinition,
     commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
@@ -255,7 +258,11 @@ export async function bootWakeIntegration(
     drivePort: ports.drive,
     contactsPort: ports.contacts,
     agentsPort: ports.agents,
-    readOnlyConfig: buildDefaultReadOnlyConfig({ agentId: opts.agentId, contactId: opts.contactId }),
+    readOnlyConfig: buildDefaultReadOnlyConfig({
+      agentId: opts.agentId,
+      contactId: opts.contactId,
+      channelInstanceId,
+    }),
   })
 
   const frozen = await buildFrozenPrompt({
@@ -263,7 +270,7 @@ export async function bootWakeIntegration(
     agentDefinition,
     organizationId: opts.organizationId,
     contactId: opts.contactId,
-    conversationId: opts.conversationId ?? 'conv-integration',
+    channelInstanceId,
   })
 
   const model = createModel(agentDefinition.model)

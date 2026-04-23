@@ -30,14 +30,10 @@ export const BUSINESS_MD_FALLBACK = `# Business Identity
 No business profile configured. Ask staff to create /BUSINESS.md in the drive.
 `
 
-/** Built-in contact-profile fallback. */
-const CONTACT_PROFILE_FALLBACK = `---
----
-
-# Contact
-
-_No profile configured yet._
-`
+/** Built-in contact-profile fallback — first line carries identity (id as both name and parenthetical). */
+function contactProfileFallback(contactId: string): string {
+  return `# ${contactId} (${contactId})\n\n_No profile configured yet._\n`
+}
 
 const EMPTY_MESSAGES_MD = `# Conversation\n\n_No messages yet._\n`
 const EMPTY_NOTES_MD = `# Internal Notes\n\n_No notes yet._\n`
@@ -54,6 +50,7 @@ export interface CreateWorkspaceOpts {
   agentId: string
   contactId: string
   conversationId: string
+  channelInstanceId: string
   wakeId: string
   /** The frozen-at-wake-start agent definition; supplies the instructions body + working memory. */
   agentDefinition: AgentDefinition
@@ -98,14 +95,14 @@ export interface WorkspaceHandle {
 export function buildFrozenEagerPaths(ids: {
   agentId: string
   contactId: string
-  conversationId: string
+  channelInstanceId: string
 }): readonly string[] {
   return [
     `/agents/${ids.agentId}/AGENTS.md`,
     `/agents/${ids.agentId}/MEMORY.md`,
     `/drive/BUSINESS.md`,
-    `/conversations/${ids.conversationId}/messages.md`,
-    `/conversations/${ids.conversationId}/internal-notes.md`,
+    `/contacts/${ids.contactId}/${ids.channelInstanceId}/messages.md`,
+    `/contacts/${ids.contactId}/${ids.channelInstanceId}/internal-notes.md`,
     `/contacts/${ids.contactId}/profile.md`,
     `/contacts/${ids.contactId}/MEMORY.md`,
   ]
@@ -127,7 +124,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
 
   const agentPrefix = `/agents/${opts.agentId}`
   const contactPrefix = `/contacts/${opts.contactId}`
-  const convPrefix = `/conversations/${opts.conversationId}`
+  const contactChannelPrefix = `/contacts/${opts.contactId}/${opts.channelInstanceId}`
 
   // ---- Eager writes (frozen zone) ----
   const agentsMdSource = generateAgentsMd({
@@ -143,18 +140,18 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   const businessMd = await loadBusinessMd(opts.drivePort, opts.organizationId)
   await innerFs.writeFile('/drive/BUSINESS.md', businessMd)
 
-  // Conversation files — materializer-first, then fallback.
-  const messagesMd = await findMaterialized(mats, `${convPrefix}/messages.md`, matCtx, EMPTY_MESSAGES_MD)
-  await innerFs.writeFile(`${convPrefix}/messages.md`, messagesMd)
-  const notesMd = await findMaterialized(mats, `${convPrefix}/internal-notes.md`, matCtx, EMPTY_NOTES_MD)
-  await innerFs.writeFile(`${convPrefix}/internal-notes.md`, notesMd)
+  // Conversation content — now keyed by (contactId, channelInstanceId).
+  const messagesMd = await findMaterialized(mats, `${contactChannelPrefix}/messages.md`, matCtx, EMPTY_MESSAGES_MD)
+  await innerFs.writeFile(`${contactChannelPrefix}/messages.md`, messagesMd)
+  const notesMd = await findMaterialized(mats, `${contactChannelPrefix}/internal-notes.md`, matCtx, EMPTY_NOTES_MD)
+  await innerFs.writeFile(`${contactChannelPrefix}/internal-notes.md`, notesMd)
 
   // Contact files.
   const profileMd = await findMaterialized(
     mats,
     `${contactPrefix}/profile.md`,
     matCtx,
-    (await loadContactProfileFallback(opts.contactsPort, opts.contactId)) ?? CONTACT_PROFILE_FALLBACK,
+    (await loadContactProfileFallback(opts.contactsPort, opts.contactId)) ?? contactProfileFallback(opts.contactId),
   )
   await innerFs.writeFile(`${contactPrefix}/profile.md`, profileMd)
 
@@ -166,10 +163,27 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   )
   await innerFs.writeFile(`${contactPrefix}/MEMORY.md`, contactMemoryMd)
 
+  // Staff materializers (frozen phase). Any registered materializer whose path
+  // starts with `/staff/<id>/` is eager-written here so the agent can `cat`
+  // those paths in turn 0 without a DB round-trip.
+  const seenStaffIds = new Set<string>()
+  for (const m of mats.getFrozen()) {
+    const staffMatch = m.path.match(/^\/staff\/([^/]+)\/(profile\.md|MEMORY\.md)$/)
+    if (!staffMatch) continue
+    const staffId = staffMatch[1]
+    seenStaffIds.add(staffId)
+    const body = await Promise.resolve(m.materialize(matCtx))
+    await innerFs.writeFile(m.path, body)
+  }
+
   // Ensure writable top-level dirs exist so `ls` lists them.
   await innerFs.mkdir('/tmp', { recursive: true })
   await innerFs.mkdir(`${contactPrefix}/drive`, { recursive: true })
+  await innerFs.mkdir(contactChannelPrefix, { recursive: true })
   await innerFs.mkdir(`${agentPrefix}/skills`, { recursive: true })
+  for (const staffId of seenStaffIds) {
+    await innerFs.mkdir(`/staff/${staffId}`, { recursive: true })
+  }
 
   // Capture initialSnapshot AFTER eager writes so dirty-tracking has a baseline.
   const initialSnapshot = await snapshotFs(innerFs)
@@ -300,17 +314,12 @@ async function loadBusinessMd(drive: FilesService, _tenantId: string): Promise<s
 async function loadContactProfileFallback(port: ContactsService, contactId: string): Promise<string | null> {
   try {
     const c = await port.get(contactId)
-    const lines = [
-      `---`,
-      `id: ${c.id}`,
-      `displayName: ${c.displayName ?? ''}`,
-      `phone: ${c.phone ?? ''}`,
-      `email: ${c.email ?? ''}`,
-      `---`,
-      '',
-      `# Contact`,
-      '',
-    ]
+    const identity = c.displayName ?? c.phone ?? c.email ?? c.id
+    const lines: string[] = [`# ${identity} (${c.id})`, '']
+    if (c.displayName) lines.push(`Display Name: ${c.displayName}`)
+    if (c.phone) lines.push(`Phone: ${c.phone}`)
+    if (c.email) lines.push(`Email: ${c.email}`)
+    lines.push('')
     return lines.join('\n')
   } catch {
     return null

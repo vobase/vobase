@@ -1,12 +1,12 @@
 /**
  * Declarative workspace configuration for runtime-owned paths.
  *
- * After the unified path-space rename (slice 3d.1a), `RUNTIME_OWNED_PATHS` is
- * a documentation artefact — `createWorkspace()` builds the per-wake eager list
- * via `buildFrozenEagerPaths({ agentId, contactId, conversationId })` and uses
- * this list only for manifest-overlap validation. Entries here are static and
- * do not interpolate per-wake nanoids — they describe the shape of the runtime
- * zones, not the literal paths seen at runtime.
+ * After the unified path-space rename (slice 3d.1a/3d.1b), `RUNTIME_OWNED_PATHS`
+ * is a documentation artefact — `createWorkspace()` builds the per-wake eager
+ * list via `buildFrozenEagerPaths({ agentId, contactId, channelInstanceId })`
+ * and uses this list only for manifest-overlap validation. Entries here are
+ * static and do not interpolate per-wake nanoids — they describe the shape of
+ * the runtime zones, not the literal paths seen at runtime.
  */
 
 /**
@@ -20,8 +20,8 @@ export type WorkspacePath =
 export const RUNTIME_OWNED_PATHS: readonly WorkspacePath[] = [
   { kind: 'prefix', path: '/agents/' },
   { kind: 'prefix', path: '/contacts/' },
-  { kind: 'prefix', path: '/conversations/' },
   { kind: 'prefix', path: '/drive/' },
+  { kind: 'prefix', path: '/staff/' },
   { kind: 'prefix', path: '/tmp/' },
 ] as const
 

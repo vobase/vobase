@@ -32,11 +32,13 @@ blocked outside \`/contacts/<id>/drive/\` and \`/tmp/\`.
 - \`/agents/<id>/skills/*.md\` — how-to playbooks (read-only)
 - \`/drive/*\` — organization knowledge base (read-only; propose additions via CLI)
 - \`/drive/BUSINESS.md\` — organization brand + policies (frozen)
-- \`/conversations/<id>/messages.md\` — customer-visible timeline
-- \`/conversations/<id>/internal-notes.md\` — staff ↔ agent notes
-- \`/contacts/<id>/profile.md\` — contact identity (read-only)
+- \`/contacts/<id>/profile.md\` — contact identity (read-only; first line carries the identity)
 - \`/contacts/<id>/MEMORY.md\` — per-contact working memory (written via \`vobase memory … --scope=contact\`)
+- \`/contacts/<id>/<channelInstanceId>/messages.md\` — customer-visible timeline (read-only)
+- \`/contacts/<id>/<channelInstanceId>/internal-notes.md\` — staff ↔ agent notes (read-only)
 - \`/contacts/<id>/drive/\` — per-contact upload space (writable)
+- \`/staff/<id>/profile.md\` — staff identity (read-only; first line carries the identity)
+- \`/staff/<id>/MEMORY.md\` — per-(agent, staff) memory (written via \`vobase memory …\`)
 - \`/tmp/\` — scratch space (writable; cleared between wakes)
 `
 

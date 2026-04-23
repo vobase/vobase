@@ -8,17 +8,19 @@ Virtual filesystem backed by DB queries. Agent navigates with native bash (`ls`,
 
 **Virtual layout** (what appears in the system prompt):
 ```
-/agents/<agentId>/AGENTS.md      CLI + workspace reference (auto-generated)
-/agents/<agentId>/MEMORY.md      agent working memory (markdown sections)
-/agents/<agentId>/skills/        merged: code-shipped + learned
-/conversations/<convId>/messages.md
-/conversations/<convId>/internal-notes.md
-/contacts/<contactId>/profile.md
-/contacts/<contactId>/MEMORY.md
-/contacts/<contactId>/drive/     contact-scope (RW)
-/drive/                          organization-scope (RO, proposal for writes)
-/drive/BUSINESS.md               organization brand/products/policies, seeded at provisioning
-/tmp/tool-<callId>.txt           stdout spill files
+/agents/<agentId>/AGENTS.md                          CLI + workspace reference (auto-generated)
+/agents/<agentId>/MEMORY.md                          agent working memory (markdown sections)
+/agents/<agentId>/skills/                            merged: code-shipped + learned
+/contacts/<contactId>/profile.md                     contact identity (RO, identity-in-contents)
+/contacts/<contactId>/MEMORY.md                      per-contact working memory (via `vobase memory … --scope=contact`)
+/contacts/<contactId>/<channelInstanceId>/messages.md   customer-visible timeline (RO)
+/contacts/<contactId>/<channelInstanceId>/internal-notes.md staff ↔ agent notes (RO)
+/contacts/<contactId>/drive/                         contact-scope (RW)
+/staff/<staffId>/profile.md                          staff identity (RO, identity-in-contents)
+/staff/<staffId>/MEMORY.md                           per-(agent, staff) memory (via `vobase memory …`)
+/drive/                                              organization-scope (RO, proposal for writes)
+/drive/BUSINESS.md                                   organization brand/products/policies, seeded at provisioning
+/tmp/tool-<callId>.txt                               stdout spill files
 ```
 
 **Agents.md generator is code-driven, not hand-written.** `agents-md-generator.ts` synthesizes the CLI reference, framework preamble, and the agent's instructions from registered `AgentTool` + `CommandDef` + the `agent_definitions.instructions` column. Don't hand-edit the rendered AGENTS.md — edit registrations or the instructions column.

@@ -37,6 +37,7 @@ import type { LlmEmitter } from '@server/harness/llm-call'
 import { createModel, resolveApiKey } from '@server/harness/llm-provider'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 import { createWorkspace } from '@server/workspace/create-workspace'
+import { buildStaffMaterializers, type StaffProfileLookup } from '@server/workspace/staff-materializers'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@vobase/core'
 import {
   agentMessages,
@@ -79,17 +80,27 @@ interface WakeHandlerDeps {
   db?: ScopedDb
 }
 
-function renderTriggerMessage(trigger: WakeTrigger | undefined): string {
+/**
+ * Render the trigger message displayed to the agent as a wake-reason cue.
+ *
+ * `/contacts/<contactId>/<channelInstanceId>/` replaces the legacy
+ * `/conversations/<convId>/` folder for messages + internal-notes references.
+ */
+function renderTriggerMessage(
+  trigger: WakeTrigger | undefined,
+  refs: { contactId: string; channelInstanceId: string },
+): string {
   if (!trigger) return 'Manual wake.'
+  const convoFolder = `/contacts/${refs.contactId}/${refs.channelInstanceId}`
   switch (trigger.trigger) {
     case 'inbound_message':
-      return `New customer message(s). See /conversations/${trigger.conversationId}/messages.md for context.`
+      return `New customer message(s). See ${convoFolder}/messages.md for context.`
     case 'approval_resumed':
       return trigger.decision === 'approved'
         ? 'Your previous action was approved. Continue.'
         : `Your previous action was rejected: ${trigger.note ?? '(no note)'}. Choose a different approach.`
     case 'supervisor':
-      return `Staff added an internal note. Read /conversations/${trigger.conversationId}/internal-notes.md for context.`
+      return `Staff added an internal note. Read ${convoFolder}/internal-notes.md for context.`
     case 'scheduled_followup':
       return `Scheduled follow-up: ${trigger.reason}.`
     case 'manual':
@@ -120,6 +131,8 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
     const agentId = conv.assignee.slice('agent:'.length)
     console.log('[wake] booting wake', { agentId, contactId: data.contactId })
 
+    const channelInstanceId = conv.channelInstanceId
+
     // Render the conversation messages as a markdown transcript.
     const renderTranscript = async (conversationId: string): Promise<string> => {
       const msgs = await deps.messaging.listMessages(conversationId, { limit: 200 })
@@ -141,14 +154,34 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
       return lines.join('\n')
     }
 
-    // Materializer writes the transcript into the workspace so bash `cat
-    // /conversations/<id>/messages.md` works. Side-load contributor pushes the
-    // same content into the first user message so Claude sees the customer
-    // question without a bash call on turn 0.
+    // Render internal notes as markdown. Reads the same `listInternalNotes`
+    // MessagingPort method used by the notes UI.
+    const renderInternalNotes = async (conversationId: string): Promise<string> => {
+      const notes = await deps.messaging.listInternalNotes(conversationId).catch(() => [])
+      if (notes.length === 0) return '# Internal Notes\n\n_No notes yet._\n'
+      const lines = ['# Internal Notes', '']
+      for (const n of notes) {
+        const mentions = n.mentions.length > 0 ? ` (@${n.mentions.join(' @')})` : ''
+        lines.push(`**${n.authorType}:${n.authorId}** (${new Date(n.createdAt).toISOString()})${mentions}:`)
+        lines.push(n.body, '')
+      }
+      return lines.join('\n')
+    }
+
+    // Materializers write the transcript + internal notes into the workspace
+    // so bash `cat /contacts/<contactId>/<channelInstanceId>/messages.md` works.
+    // Side-load contributor pushes the transcript into the first user message
+    // so Claude sees the customer question without a bash call on turn 0.
+    const contactChannelFolder = `/contacts/${data.contactId}/${channelInstanceId}`
     const messagesMaterializer: WorkspaceMaterializer = {
-      path: `/conversations/${data.conversationId}/messages.md`,
+      path: `${contactChannelFolder}/messages.md`,
       phase: 'frozen',
       materialize: (ctx) => renderTranscript(ctx.conversationId),
+    }
+    const internalNotesMaterializer: WorkspaceMaterializer = {
+      path: `${contactChannelFolder}/internal-notes.md`,
+      phase: 'frozen',
+      materialize: (ctx) => renderInternalNotes(ctx.conversationId),
     }
     const conversationSideLoad: SideLoadContributor = async (ctx) => {
       const [transcript, contact] = await Promise.all([
@@ -203,7 +236,26 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 
     try {
       const agentDefinition = await deps.agents.getAgentDefinition(agentId)
-      const roConfig = buildDefaultReadOnlyConfig({ agentId, contactId: data.contactId })
+
+      // Which staff to materialize? Scope decision for slice 3d.1b:
+      // surface every staff profile in the organization. In dev/seed the staff
+      // count is bounded (single-digit); we can tighten to "conversation
+      // participants only" later without changing the materializer contract.
+      const staffIds = await resolveStaffIdsForOrg(data.organizationId)
+      const authLookup = buildAuthLookup(deps.db)
+      const staffMaterializers = buildStaffMaterializers({
+        organizationId: data.organizationId,
+        agentId,
+        staffIds,
+        authLookup,
+      })
+
+      const roConfig = buildDefaultReadOnlyConfig({
+        agentId,
+        contactId: data.contactId,
+        channelInstanceId,
+        staffIds,
+      })
 
       // Build workspace (was internal to bootWake).
       const workspace = await createWorkspace({
@@ -211,10 +263,11 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         agentId,
         contactId: data.contactId,
         conversationId,
+        channelInstanceId,
         wakeId,
         agentDefinition,
         commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
-        materializers: [messagesMaterializer],
+        materializers: [messagesMaterializer, internalNotesMaterializer, ...staffMaterializers],
         drivePort: deps.drive,
         contactsPort: deps.contacts,
         agentsPort: deps.agents,
@@ -227,7 +280,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         agentDefinition,
         organizationId: data.organizationId,
         contactId: data.contactId,
-        conversationId,
+        channelInstanceId,
       })
 
       // Dirty tracker + workspace-sync listener. Writable prefixes + memory
@@ -238,6 +291,8 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
       const workspaceSyncListener = createWorkspaceSyncListener({
         fs: workspace.innerFs,
         tracker: dirtyTracker,
+        organizationId: data.organizationId,
+        agentId,
         contactId: data.contactId,
         drive: deps.drive,
       })
@@ -293,7 +348,8 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 
         trigger,
         triggerKind: trigger.trigger,
-        renderTrigger: renderTriggerMessage,
+        renderTrigger: (t: WakeTrigger | undefined) =>
+          renderTriggerMessage(t, { contactId: data.contactId, channelInstanceId }),
 
         workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
 
@@ -305,7 +361,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
             memoryDistillListener as OnEventListener<WakeTrigger>,
           ],
         },
-        materializers: [messagesMaterializer],
+        materializers: [messagesMaterializer, internalNotesMaterializer, ...staffMaterializers],
         sideLoadContributors: [conversationSideLoad],
         commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
 
@@ -350,5 +406,50 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
     } catch (err) {
       console.error('[wake] createHarness failed:', err)
     }
+  }
+}
+
+/**
+ * Return the set of staff userIds that should be materialized under
+ * `/staff/<id>/` for this wake. Scope decision for slice 3d.1b: enumerate
+ * every staff_profiles row for the organization — small N in dev/seed.
+ * Silent-fail to `[]` when the team service isn't available yet.
+ */
+async function resolveStaffIdsForOrg(organizationId: string): Promise<readonly string[]> {
+  try {
+    const { staff } = await import('@modules/team/service')
+    const profiles = await staff.list(organizationId)
+    return profiles.map((p) => p.userId)
+  } catch {
+    return []
+  }
+}
+
+/** Authenticated-user display fallback for staff profile.md materialization. */
+function buildAuthLookup(db: ScopedDb | undefined): StaffProfileLookup {
+  if (!db) {
+    return {
+      async getAuthDisplay() {
+        return null
+      },
+    }
+  }
+  return {
+    async getAuthDisplay(staffId) {
+      try {
+        const { authUser } = await import('@vobase/core')
+        const { eq } = await import('drizzle-orm')
+        const rows = await db
+          .select({ name: authUser.name, email: authUser.email })
+          .from(authUser)
+          .where(eq(authUser.id, staffId))
+          .limit(1)
+        const row = rows[0]
+        if (!row) return null
+        return { name: row.name, email: row.email }
+      } catch {
+        return null
+      }
+    },
   }
 }

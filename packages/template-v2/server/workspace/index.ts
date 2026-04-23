@@ -33,15 +33,35 @@ export {
  *   - `/contacts/<id>/drive/` — contact upload space (direct write)
  *   - `/tmp/` — scratch (direct write)
  *
- * Memory files (`/agents/<id>/MEMORY.md`, `/contacts/<id>/MEMORY.md`) render
- * the `vobase memory …` hint on direct writes. Exact RO paths
- * (`/agents/<id>/AGENTS.md`, `/contacts/<id>/profile.md`) surface the standard
- * read-only error. Everything else defaults to RO per the core enforcer.
+ * Memory files (`/agents/<id>/MEMORY.md`, `/contacts/<id>/MEMORY.md`,
+ * `/staff/<id>/MEMORY.md`) render the `vobase memory …` hint on direct writes.
+ * Exact RO paths (`/agents/<id>/AGENTS.md`, `/contacts/<id>/profile.md`,
+ * `/contacts/<id>/<channelInstanceId>/messages.md` + `/internal-notes.md`,
+ * `/staff/<id>/profile.md`) surface the standard read-only error. Everything
+ * else defaults to RO per the core enforcer.
  */
-export function buildDefaultReadOnlyConfig(ids: { agentId: string; contactId: string }): ReadOnlyConfig {
+export function buildDefaultReadOnlyConfig(ids: {
+  agentId: string
+  contactId: string
+  channelInstanceId: string
+  staffIds?: readonly string[]
+}): ReadOnlyConfig {
+  const staffIds = ids.staffIds ?? []
+  const memoryPaths: string[] = [
+    `/agents/${ids.agentId}/MEMORY.md`,
+    `/contacts/${ids.contactId}/MEMORY.md`,
+    ...staffIds.map((s) => `/staff/${s}/MEMORY.md`),
+  ]
+  const readOnlyExact: string[] = [
+    `/agents/${ids.agentId}/AGENTS.md`,
+    `/contacts/${ids.contactId}/profile.md`,
+    `/contacts/${ids.contactId}/${ids.channelInstanceId}/messages.md`,
+    `/contacts/${ids.contactId}/${ids.channelInstanceId}/internal-notes.md`,
+    ...staffIds.map((s) => `/staff/${s}/profile.md`),
+  ]
   return buildReadOnlyConfig({
     writablePrefixes: [`/contacts/${ids.contactId}/drive/`, '/tmp/'],
-    memoryPaths: [`/agents/${ids.agentId}/MEMORY.md`, `/contacts/${ids.contactId}/MEMORY.md`],
-    readOnlyExact: [`/agents/${ids.agentId}/AGENTS.md`, `/contacts/${ids.contactId}/profile.md`],
+    memoryPaths,
+    readOnlyExact,
   })
 }

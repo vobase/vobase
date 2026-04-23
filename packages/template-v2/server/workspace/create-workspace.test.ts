@@ -12,6 +12,7 @@ import { buildDefaultReadOnlyConfig } from './index'
 const AGENT_ID = 'agent-1'
 const CONTACT_ID = 'contact-1'
 const CONV_ID = 'conv-1'
+const CHANNEL_INSTANCE_ID = 'ci-1'
 
 const AGENT_DEFINITION: AgentDefinition = {
   id: AGENT_ID,
@@ -201,6 +202,7 @@ async function buildWorkspace(files: DriveFile[] = []) {
     agentId: AGENT_ID,
     contactId: CONTACT_ID,
     conversationId: CONV_ID,
+    channelInstanceId: CHANNEL_INSTANCE_ID,
     wakeId: 'wake-1',
     agentDefinition: AGENT_DEFINITION,
     commands: [],
@@ -208,7 +210,11 @@ async function buildWorkspace(files: DriveFile[] = []) {
     drivePort: makeDriveStub(files),
     contactsPort: makeContactsStub(),
     agentsPort: makeAgentsStub(),
-    readOnlyConfig: buildDefaultReadOnlyConfig({ agentId: AGENT_ID, contactId: CONTACT_ID }),
+    readOnlyConfig: buildDefaultReadOnlyConfig({
+      agentId: AGENT_ID,
+      contactId: CONTACT_ID,
+      channelInstanceId: CHANNEL_INSTANCE_ID,
+    }),
   })
 }
 
@@ -217,18 +223,23 @@ async function runShell(ws: Awaited<ReturnType<typeof buildWorkspace>>, cmd: str
 }
 
 describe('buildFrozenEagerPaths', () => {
-  it('produces the 7 per-wake eager paths without the legacy prefix', () => {
-    const paths = buildFrozenEagerPaths({ agentId: AGENT_ID, contactId: CONTACT_ID, conversationId: CONV_ID })
+  it('produces the 7 per-wake eager paths under /contacts/<id>/<channelInstanceId>/', () => {
+    const paths = buildFrozenEagerPaths({
+      agentId: AGENT_ID,
+      contactId: CONTACT_ID,
+      channelInstanceId: CHANNEL_INSTANCE_ID,
+    })
     expect(paths).toEqual([
       `/agents/${AGENT_ID}/AGENTS.md`,
       `/agents/${AGENT_ID}/MEMORY.md`,
       `/drive/BUSINESS.md`,
-      `/conversations/${CONV_ID}/messages.md`,
-      `/conversations/${CONV_ID}/internal-notes.md`,
+      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/messages.md`,
+      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/internal-notes.md`,
       `/contacts/${CONTACT_ID}/profile.md`,
       `/contacts/${CONTACT_ID}/MEMORY.md`,
     ])
     for (const p of paths) expect(p.startsWith('/workspace')).toBe(false)
+    for (const p of paths) expect(p).not.toContain('/conversations/')
     for (const p of paths) expect(p).not.toContain('SOUL.md')
   })
 })
@@ -242,9 +253,10 @@ describe('createWorkspace', () => {
     const root = await runShell(ws, 'ls /')
     expect(root.exitCode).toBe(0)
     const topNames = root.stdout.split(/\s+/u).filter(Boolean)
-    for (const expected of ['agents', 'contacts', 'conversations', 'drive', 'tmp']) {
+    for (const expected of ['agents', 'contacts', 'drive', 'tmp']) {
       expect(topNames).toContain(expected)
     }
+    expect(topNames).not.toContain('conversations')
 
     const agentDir = await runShell(ws, `ls /agents/${AGENT_ID}`)
     const agentNames = agentDir.stdout.split(/\s+/u).filter(Boolean)
@@ -309,5 +321,24 @@ describe('createWorkspace', () => {
     const r = await runShell(ws, `echo "x" > /contacts/${CONTACT_ID}/MEMORY.md`)
     expect(r.exitCode).not.toBe(0)
     expect(r.stderr).toContain('vobase memory set|append|remove')
+  })
+
+  it('contact profile.md first line is `# <name-or-id> (<contactId>)` (identity-in-contents)', async () => {
+    const ws = await buildWorkspace([])
+    const r = await runShell(ws, `cat /contacts/${CONTACT_ID}/profile.md`)
+    expect(r.exitCode).toBe(0)
+    const firstLine = r.stdout.split('\n')[0]
+    // makeContactsStub() returns displayName 'Test Customer'.
+    expect(firstLine).toBe(`# Test Customer (${CONTACT_ID})`)
+  })
+
+  it('emits /contacts/<id>/<channelInstanceId>/messages.md and internal-notes.md in the virtual FS', async () => {
+    const ws = await buildWorkspace([])
+    const m = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/messages.md`)
+    expect(m.exitCode).toBe(0)
+    expect(m.stdout).toContain('No messages yet')
+    const n = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/internal-notes.md`)
+    expect(n.exitCode).toBe(0)
+    expect(n.stdout).toContain('No notes yet')
   })
 })
