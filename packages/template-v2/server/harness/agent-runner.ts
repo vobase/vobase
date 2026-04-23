@@ -73,14 +73,18 @@ import { ObserverBus } from '@server/runtime/observer-bus'
 import type { SteerQueueHandle } from '@server/runtime/steer-queue'
 import { newWakeId } from '@server/runtime/wake-id'
 import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-workspace'
-import { DirtyTracker } from '@server/workspace/dirty-tracker'
+import {
+  type CustomSideLoadMaterializer,
+  collectSideLoad,
+  createBashHistoryMaterializer,
+  createRestartRecoveryContributor,
+  DirtyTracker,
+  makeBashTool,
+  TurnBudget,
+} from '@vobase/core'
 import { nanoid } from 'nanoid'
-import { makeBashTool } from './bash-tool'
 import { buildFrozenPrompt } from './frozen-prompt-builder'
 import { createModel, resolveApiKey } from './llm-provider'
-import { createRestartRecoveryContributor } from './restart-recovery'
-import { type CustomSideLoadMaterializer, collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
-import { TurnBudget } from './turn-budget'
 
 // ----- public types --------------------------------------------------------
 

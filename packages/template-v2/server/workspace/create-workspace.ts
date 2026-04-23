@@ -20,11 +20,8 @@ import type { FilesService } from '@modules/drive/service/files'
 import type { CommandContext, CommandDef } from '@server/contracts/plugin-context'
 import type { MaterializerCtx, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WorkspacePath } from '@server/runtime/define-module'
+import { generateAgentsMd, MaterializerRegistry, type ReadOnlyConfig, ScopedFs, snapshotFs } from '@vobase/core'
 import { Bash, InMemoryFs } from 'just-bash'
-import { generateAgentsMd } from './agents-md-generator'
-import { snapshotFs } from './dirty-tracker'
-import { MaterializerRegistry } from './materializer-registry'
-import { type ReadOnlyConfig, ScopedFs } from './ro-enforcer'
 import { createVobaseCommand } from './vobase-cli/dispatcher'
 
 /** Built-in BUSINESS.md fallback stub — shown when no organization drive row exists. */

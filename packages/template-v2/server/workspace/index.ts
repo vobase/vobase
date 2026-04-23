@@ -1,15 +1,18 @@
-export { type GenerateAgentsMdOpts, generateAgentsMd } from './agents-md-generator'
-export type { CreateWorkspaceOpts, WorkspaceHandle } from './create-workspace'
-export { BUSINESS_MD_FALLBACK, createWorkspace } from './create-workspace'
-export { type DirtyDiff, DirtyTracker, snapshotFs } from './dirty-tracker'
-export { MaterializerRegistry } from './materializer-registry'
 export {
   checkWriteAllowed,
+  type DirtyDiff,
+  DirtyTracker,
+  type GenerateAgentsMdOpts,
+  generateAgentsMd,
   isWritablePath,
+  MaterializerRegistry,
   ReadOnlyFsError,
   ScopedFs,
+  snapshotFs,
   WRITABLE_PREFIXES,
-} from './ro-enforcer'
+} from '@vobase/core'
+export type { CreateWorkspaceOpts, WorkspaceHandle } from './create-workspace'
+export { BUSINESS_MD_FALLBACK, createWorkspace } from './create-workspace'
 export {
   conversationVerbs,
   createVobaseCommand,

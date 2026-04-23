@@ -19,7 +19,7 @@ import type { FilesService } from '@modules/drive/service/files'
 import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
 import type { AgentEvent } from '@server/contracts/event'
 import type { AgentObserver, ObserverContext } from '@server/contracts/observer'
-import type { DirtyTracker } from '@server/workspace/dirty-tracker'
+import type { DirtyTracker } from '@vobase/core'
 import type { IFileSystem } from 'just-bash'
 
 export interface WorkspaceSyncOpts {
