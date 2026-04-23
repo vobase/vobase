@@ -33,7 +33,6 @@ import {
 } from '@mariozechner/pi-agent-core'
 import type { AssistantMessage } from '@mariozechner/pi-ai'
 import { Type } from '@mariozechner/pi-ai'
-import { createLearningProposalObserver } from '@modules/agents/observers/learning-proposal'
 import { createMemoryDistillObserver } from '@modules/agents/observers/memory-distill'
 import { createMessageHistoryObserver } from '@modules/agents/observers/message-history-observer'
 import { createWorkspaceSyncObserver } from '@modules/agents/observers/workspace-sync'
@@ -63,7 +62,7 @@ import type {
 import type { IterationBudget } from '@server/contracts/iteration-budget'
 import type { AgentMutator, AgentStep, MutatorContext } from '@server/contracts/mutator'
 import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
-import type { AgentTool, CommandDef, EventBus, ObserverFactory, PluginContext } from '@server/contracts/plugin-context'
+import type { AgentTool, CommandDef, EventBus, ObserverFactory } from '@server/contracts/plugin-context'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WakeContext } from '@server/contracts/wake-context'
@@ -134,7 +133,6 @@ export interface BootWakeOpts {
   maxTurns?: number
   conversationId?: string
   preWakeWrites?: ReadonlyArray<{ path: string; content: string }>
-  observerLlmCall?: PluginContext['llmCall']
   iterationBudget?: IterationBudget
   abortCtx?: AbortContext
   steerQueue?: SteerQueueHandle
@@ -441,19 +439,10 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
     createMemoryDistillObserver({
       target: { kind: 'contact', contactId: opts.contactId },
       agentId: opts.agentId,
-      useLlm: opts.observerLlmCall != null,
+      useLlm: false,
       emitter: wakeEmitter,
     }),
   )
-  if (opts.observerLlmCall) {
-    observers.register(
-      createLearningProposalObserver({
-        contactId: opts.contactId,
-        agentId: opts.agentId,
-        emitter: wakeEmitter,
-      }),
-    )
-  }
 
   for (const w of opts.preWakeWrites ?? []) {
     await workspace.innerFs.writeFile(w.path, w.content)
@@ -578,11 +567,11 @@ export async function bootWake(opts: BootWakeOpts): Promise<BootWakeResult> {
       }
       const mutatorCtx: MutatorContext = {
         ...observerCtx,
-        llmCall:
-          opts.observerLlmCall ??
-          (async () => {
-            throw new Error('mutator invoked llmCall but bootWake was not supplied with `observerLlmCall`')
-          }),
+        llmCall: async () => {
+          throw new Error(
+            'mutator llmCall is no longer supported — route side-call LLM use through @server/harness/llm-call',
+          )
+        },
         persistEvent: async (ev) => {
           events.publish(ev)
         },

@@ -1,7 +1,6 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
 import { manifest } from './manifest'
-import { approvalMutator } from './mutators/approval'
 import {
   type ConversationScheduler,
   createConversationsService,
@@ -33,7 +32,6 @@ export default defineModule({
     installNotesService(createNotesService({ db: ctx.db }))
     installStaffOpsService(createStaffOpsService({ db: ctx.db }))
 
-    ctx.registerMutator(approvalMutator)
     for (const tool of inboxTools) {
       ctx.registerTool(tool as never)
     }

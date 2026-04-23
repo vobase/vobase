@@ -17,7 +17,30 @@ import type { AgentObserver } from '@server/contracts/observer'
 import { llmCall as harnessLlmCall, type LlmEmitter } from '@server/harness/llm-call'
 import { getDb, getLogger } from '@server/services'
 import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
-import { upsertMarkdownSection } from './learning-proposal'
+
+function upsertMarkdownSection(markdown: string, heading: string, body: string): string {
+  const header = `## ${heading}`
+  const lines = markdown.split('\n')
+  const startIdx = lines.findIndex((l) => l.trim() === header)
+  if (startIdx < 0) {
+    const trimmed = markdown.trimEnd()
+    return trimmed ? `${trimmed}\n\n${header}\n\n${body}\n` : `${header}\n\n${body}\n`
+  }
+  let endIdx = lines.length
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i] ?? '')) {
+      endIdx = i
+      break
+    }
+  }
+  const before = lines.slice(0, startIdx).join('\n')
+  const after = lines.slice(endIdx).join('\n')
+  const block = `${header}\n\n${body}\n`
+  return [before, block, after]
+    .filter((s) => s.length > 0)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+}
 
 /**
  * Target for distilled-memory writes. Contact target writes to

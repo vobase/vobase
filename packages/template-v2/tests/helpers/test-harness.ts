@@ -8,7 +8,6 @@
  * and captures events + wakeId per wake — used by all 12 integration assertions.
  */
 
-import { auditObserver } from '@modules/agents/observers/audit'
 import { sseObserver } from '@modules/agents/observers/sse'
 import type { AgentDefinition } from '@modules/agents/schema'
 import { append as journalAppend, setDb as setAgentsDb } from '@modules/agents/service/journal'
@@ -18,7 +17,6 @@ import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
-import { approvalMutator } from '@modules/inbox/mutators/approval'
 import type { AgentEvent } from '@server/contracts/event'
 import type { HarnessHandle, StreamFnLike } from '@server/harness'
 import { bootWake } from '@server/harness'
@@ -217,7 +215,7 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
 }
 
 /**
- * Run a wake against the real DB with all 3 observers + approvalMutator wired.
+ * Run a wake against the real DB with sseObserver wired.
  * Captures every event for this specific wake (B3 scoping).
  */
 export async function bootWakeIntegration(
@@ -229,10 +227,7 @@ export async function bootWakeIntegration(
   opts: IntegrationBootOpts,
   db: TestDbHandle,
 ): Promise<IntegrationHarnessHandle> {
-  // Capture SSE notify calls for assertion 10-ish (sseObserver smoke test).
   const notifySpyCalls: Array<{ table: string; id?: string; action?: string }> = []
-
-  // Stub auditObserver's ctx.db with a real `.insert(t).values(v).returning()` shape.
   const _ctxDb = db.db
 
   const result = await bootWake({
@@ -246,8 +241,8 @@ export async function bootWakeIntegration(
     registrations: {
       tools: [],
       commands: [],
-      observers: [auditObserver, sseObserver],
-      mutators: [approvalMutator],
+      observers: [sseObserver],
+      mutators: [],
       materializers: [],
       sideLoadContributors: [],
     },
@@ -273,9 +268,9 @@ export async function bootWakeIntegration(
 
 /**
  * Install the real DB + a notify spy into `server/services.ts` singletons so
- * auditObserver + sseObserver can be exercised against real Postgres + a
- * capturing realtime. Observers read these through `getDb()` / `getRealtime()`
- * — no monkey-patch of `handle` needed.
+ * sseObserver can be exercised against real Postgres + a capturing realtime.
+ * Observers read these through `getDb()` / `getRealtime()` — no monkey-patch
+ * of `handle` needed.
  */
 export function wireObserverContextFor(
   db: TestDbHandle,
@@ -297,25 +292,9 @@ export function wireObserverContextFor(
     warn: () => undefined,
     error: () => undefined,
   })
-  // Reference observer symbols so tree-shaking keeps them importable from tests.
-  void auditObserver
   void sseObserver
   return () => {
     const { __resetServicesForTests } = require('@server/services') as typeof import('@server/services')
     __resetServicesForTests()
-  }
-}
-
-/** Approval mutator needs ctx.db wired to the real drizzle handle. */
-export function wireApprovalMutatorCtx(db: TestDbHandle): () => void {
-  const original = approvalMutator.before
-  if (!original) return () => undefined
-  const originalBound = original.bind(approvalMutator)
-  approvalMutator.before = async (step, ctx) => {
-    const patchedCtx = { ...ctx, db: db.db }
-    return originalBound(step, patchedCtx)
-  }
-  return () => {
-    approvalMutator.before = original
   }
 }
