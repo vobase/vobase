@@ -1,6 +1,5 @@
 import { defineModule } from '@server/runtime/define-module'
 import handlers from './handlers'
-import { manifest } from './manifest'
 import {
   type ConversationScheduler,
   createConversationsService,
@@ -22,7 +21,23 @@ export default defineModule({
   name: 'inbox',
   version: '1.0',
   requires: ['contacts'],
-  manifest,
+  manifest: {
+    provides: {
+      tools: ['reply', 'send_card', 'send_file', 'book_slot'],
+      commands: ['inbox:list', 'inbox:get', 'inbox:resolve', 'inbox:reassign'],
+      mutators: ['inbox:approval'],
+      materializers: ['conversationMaterializer', 'internalNotesMaterializer'],
+    },
+    permissions: [],
+    workspace: {
+      owns: [{ kind: 'prefix', path: '/workspace/conversation/' }],
+      frozenEager: [
+        { kind: 'exact', path: '/workspace/conversation/messages.md' },
+        { kind: 'exact', path: '/workspace/conversation/internal-notes.md' },
+      ],
+    },
+    queues: ['snooze'],
+  },
   routes: { basePath: '/api/inbox', handler: handlers, requireSession: true },
   init(ctx) {
     const conversationScheduler = (ctx.jobs as unknown as ConversationScheduler | undefined) ?? null
