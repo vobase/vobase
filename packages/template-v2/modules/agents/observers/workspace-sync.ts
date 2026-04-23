@@ -29,9 +29,7 @@ export interface WorkspaceSyncOpts {
   drive: FilesService
 }
 
-export function createWorkspaceSyncListener(
-  opts: WorkspaceSyncOpts,
-): (event: AgentEvent) => Promise<void> {
+export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: AgentEvent) => Promise<void> {
   const { fs, tracker, contactId, drive } = opts
 
   return async (event: AgentEvent): Promise<void> => {

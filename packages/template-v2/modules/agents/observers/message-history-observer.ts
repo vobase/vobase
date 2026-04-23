@@ -25,9 +25,7 @@ export interface MessageHistoryListenerOpts {
   initialSeq?: number
 }
 
-export function createMessageHistoryListener(
-  opts: MessageHistoryListenerOpts,
-): (event: AgentEvent) => Promise<void> {
+export function createMessageHistoryListener(opts: MessageHistoryListenerOpts): (event: AgentEvent) => Promise<void> {
   const { db, threadId, getMessages } = opts
   let seqCursor = opts.initialSeq ?? 0
 

@@ -66,7 +66,6 @@ import type { AgentTool, CommandDef, EventBus, ObserverFactory } from '@server/c
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import type { WakeContext } from '@server/contracts/wake-context'
-import { EventBus as DefaultEventBus, MutatorChain, ObserverBus } from './internal-bus'
 import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-workspace'
 import {
   type CustomSideLoadMaterializer,
@@ -81,6 +80,7 @@ import {
 } from '@vobase/core'
 import { nanoid } from 'nanoid'
 import { buildFrozenPrompt } from './frozen-prompt-builder'
+import { EventBus as DefaultEventBus, MutatorChain, ObserverBus } from './internal-bus'
 import type { LlmEmitter } from './llm-call'
 import { createModel, resolveApiKey } from './llm-provider'
 

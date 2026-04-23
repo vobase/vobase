@@ -82,9 +82,7 @@ interface WakeBuffer {
   rejections: LearningRejectedEvent[]
 }
 
-export function createMemoryDistillListener(
-  opts: MemoryDistillOpts,
-): (event: AgentEvent) => Promise<void> {
+export function createMemoryDistillListener(opts: MemoryDistillOpts): (event: AgentEvent) => Promise<void> {
   const { target, agentId, useLlm, emitter } = opts
   const tkey = targetKey(target)
 
