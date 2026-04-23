@@ -1,4 +1,25 @@
 // ─── Contracts ───────────────────────────────────────────────────────
+
+// ─── Adapters ────────────────────────────────────────────────────────
+export {
+  createResendAdapter,
+  type ResendAdapterConfig,
+} from './adapters/channels/resend';
+export {
+  createSmtpAdapter,
+  type SmtpAdapterConfig,
+} from './adapters/channels/smtp';
+export {
+  type CreateTemplateInput,
+  createWhatsAppAdapter,
+  WhatsAppApiError,
+  type WhatsAppChannelConfig,
+  type WhatsAppCtaUrlInteractive,
+  type WhatsAppTemplate,
+  type WhatsAppTransportConfig,
+} from './adapters/channels/whatsapp';
+export { createLocalAdapter } from './adapters/storage/local';
+export { createS3Adapter } from './adapters/storage/s3';
 export type {
   AuthAdapter,
   AuthSession,
@@ -31,7 +52,6 @@ export type {
   StorageObjectInfo,
   UploadOptions,
 } from './contracts/storage';
-
 // ─── DB ──────────────────────────────────────────────────────────────
 export { createDatabase, type VobaseDb } from './db';
 export {
@@ -42,30 +62,6 @@ export {
   nanoidPrimaryKey,
 } from './db/helpers';
 export { auditPgSchema, authPgSchema, infraPgSchema } from './db/pg-schemas';
-
-// ─── Schemas ─────────────────────────────────────────────────────────
-export { auditLog, recordAudits } from './schemas/audit';
-export {
-  apikeyTableMap,
-  authAccount,
-  authApikey,
-  authInvitation,
-  authMember,
-  authOrganization,
-  authSession,
-  authTableMap,
-  authTeam,
-  authTeamMember,
-  authUser,
-  authVerification,
-  organizationTableMap,
-} from './schemas/auth';
-export { channelsLog, channelsTemplates } from './schemas/channels';
-export { integrationsTable } from './schemas/integrations';
-export { sequences } from './schemas/sequences';
-export { storageObjects } from './schemas/storage';
-export { webhookDedup } from './schemas/webhook-dedup';
-
 // ─── Errors ──────────────────────────────────────────────────────────
 export {
   conflict,
@@ -75,75 +71,9 @@ export {
   forbidden,
   notFound,
   unauthorized,
-  validation,
   VobaseError,
+  validation,
 } from './errors';
-
-// ─── Logger ──────────────────────────────────────────────────────────
-export { logger } from './logger';
-
-// ─── HTTP ────────────────────────────────────────────────────────────
-export {
-  CircuitBreaker,
-  type CircuitBreakerOptions,
-} from './http/circuit-breaker';
-export {
-  createHttpClient,
-  type HttpClient,
-  type HttpClientOptions,
-  type HttpResponse,
-  type RequestOptions,
-} from './http/client';
-
-// ─── Jobs ────────────────────────────────────────────────────────────
-export { createWorker, defineJob } from './jobs/job';
-export type { JobDefinition, JobHandler, WorkerOptions } from './jobs/job';
-export {
-  createScheduler,
-  type JobOptions,
-  type ScheduleOptions,
-  type Scheduler,
-} from './jobs/queue';
-
-// ─── Realtime (SSE + LISTEN/NOTIFY) ──────────────────────────────────
-export { createNoopRealtime, createRealtimeService } from './realtime';
-export type {
-  CreateRealtimeOptions,
-  RealtimeExecutor,
-  RealtimePayload,
-  RealtimeService,
-} from './realtime';
-
-// ─── HMAC + Webhooks ─────────────────────────────────────────────────
-export {
-  createWebhookRoutes,
-  signHmac,
-  verifyHmacSignature,
-  type WebhookConfig,
-  webhookDedup as webhookDedupTable,
-} from './hmac';
-
-// ─── Adapters ────────────────────────────────────────────────────────
-export {
-  createResendAdapter,
-  type ResendAdapterConfig,
-} from './adapters/channels/resend';
-export {
-  createSmtpAdapter,
-  type SmtpAdapterConfig,
-} from './adapters/channels/smtp';
-export {
-  createWhatsAppAdapter,
-  type CreateTemplateInput,
-  type WhatsAppChannelConfig,
-  type WhatsAppCtaUrlInteractive,
-  type WhatsAppTemplate,
-  type WhatsAppTransportConfig,
-  WhatsAppApiError,
-} from './adapters/channels/whatsapp';
-export { createLocalAdapter } from './adapters/storage/local';
-export { createS3Adapter } from './adapters/storage/s3';
-
 // ─── Harness primitives ──────────────────────────────────────────────────
 export {
   BASH_PREVIEW_BYTES,
@@ -158,6 +88,7 @@ export {
   type AgentStartEvent,
   type CapturedPrompt,
   type CreateHarnessOpts,
+  createHarness,
   type HarnessAgentDefinition,
   type HarnessBaseFields,
   type HarnessEvent,
@@ -183,27 +114,29 @@ export {
   type TurnEndEvent,
   type TurnStartEvent,
   type WakeScope,
-  createHarness,
 } from './harness/create-harness';
-export {
-  type CustomSideLoadMaterializer,
-  type CollectSideLoadOpts,
-  collectSideLoad,
-  createBashHistoryMaterializer,
-} from './harness/side-load-collector';
 export {
   createRestartRecoveryContributor,
   type GetLastWakeTail,
 } from './harness/restart-recovery';
+export {
+  type CollectSideLoadOpts,
+  type CustomSideLoadMaterializer,
+  collectSideLoad,
+  createBashHistoryMaterializer,
+} from './harness/side-load-collector';
 export { createSteerQueue, type SteerQueueHandle } from './harness/steer-queue';
+export {
+  type SpillDeps,
+  type SpillOutput,
+  spillToFile,
+} from './harness/tool-budget-spill';
 export {
   L1_PREVIEW_BYTES,
   L2_SPILL_BYTES,
   L3_CEILING_BYTES,
   TurnBudget,
 } from './harness/turn-budget';
-export { spillToFile, type SpillDeps, type SpillOutput } from './harness/tool-budget-spill';
-export { newWakeId } from './harness/wake-id';
 export type {
   AbortContext,
   AgentTool,
@@ -227,13 +160,87 @@ export type {
   ToolResultPersistedEvent,
   WorkspaceMaterializer,
 } from './harness/types';
-
+export { newWakeId } from './harness/wake-id';
+export {
+  createWithJournaledTx,
+  type JournaledTxDb,
+  type JournalSink,
+  MissingJournalAppendError,
+  type RawJournalAppend,
+  type Tx,
+  type WithJournaledTxInput,
+} from './harness/with-journaled-tx';
+// ─── HMAC + Webhooks ─────────────────────────────────────────────────
+export {
+  createWebhookRoutes,
+  signHmac,
+  verifyHmacSignature,
+  type WebhookConfig,
+  webhookDedup as webhookDedupTable,
+} from './hmac';
+// ─── HTTP ────────────────────────────────────────────────────────────
+export {
+  CircuitBreaker,
+  type CircuitBreakerOptions,
+} from './http/circuit-breaker';
+export {
+  createHttpClient,
+  type HttpClient,
+  type HttpClientOptions,
+  type HttpResponse,
+  type RequestOptions,
+} from './http/client';
+export type { JobDefinition, JobHandler, WorkerOptions } from './jobs/job';
+// ─── Jobs ────────────────────────────────────────────────────────────
+export { createWorker, defineJob } from './jobs/job';
+export {
+  createScheduler,
+  type JobOptions,
+  type ScheduleOptions,
+  type Scheduler,
+} from './jobs/queue';
+// ─── Logger ──────────────────────────────────────────────────────────
+export { logger } from './logger';
+export type {
+  CreateRealtimeOptions,
+  RealtimeExecutor,
+  RealtimePayload,
+  RealtimeService,
+} from './realtime';
+// ─── Realtime (SSE + LISTEN/NOTIFY) ──────────────────────────────────
+export { createNoopRealtime, createRealtimeService } from './realtime';
+// ─── Schemas ─────────────────────────────────────────────────────────
+export { auditLog, recordAudits } from './schemas/audit';
+export {
+  apikeyTableMap,
+  authAccount,
+  authApikey,
+  authInvitation,
+  authMember,
+  authOrganization,
+  authSession,
+  authTableMap,
+  authTeam,
+  authTeamMember,
+  authUser,
+  authVerification,
+  organizationTableMap,
+} from './schemas/auth';
+export { channelsLog, channelsTemplates } from './schemas/channels';
+export { integrationsTable } from './schemas/integrations';
+export { sequences } from './schemas/sequences';
+export { storageObjects } from './schemas/storage';
+export { webhookDedup } from './schemas/webhook-dedup';
 // ─── Workspace primitives ────────────────────────────────────────────────
 export {
   type GenerateAgentsMdOpts,
   generateAgentsMd,
 } from './workspace/agents-md-generator';
-export { type DirtyDiff, DirtyTracker, snapshotFs } from './workspace/dirty-tracker';
+export {
+  type DirtyDiff,
+  DirtyTracker,
+  snapshotFs,
+} from './workspace/dirty-tracker';
 export { MaterializerRegistry } from './workspace/materializer-registry';
 export {
   buildReadOnlyConfig,
