@@ -9,7 +9,7 @@
  * bindings.
  */
 import type { LlmEmitter } from '@server/harness/llm-call'
-import type { Logger } from './observer'
+import type { Logger } from '@server/harness/internal-bus'
 
 export interface WakeContext {
   readonly organizationId: string

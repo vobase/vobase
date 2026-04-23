@@ -6,11 +6,77 @@
  * Phase B rewrites observers to pure `OnEventListener` and phase D replaces
  * `MutatorChain` with `OnToolCallListener`s — at which point this file is
  * deleted.
+ *
+ * Also the post-phase-D home for `Logger`, `AgentObserver`, `AgentMutator`,
+ * `MutatorContext`, `AgentStep`, `MutatorDecision`, `StepResult`, and
+ * `ObserverContext` types — the legacy `server/contracts/{observer,mutator}.ts`
+ * files were deleted; consumers import these types from here.
  */
 import type { AgentEvent } from '@server/contracts/event'
-import type { AgentMutator, AgentStep, MutatorContext, MutatorDecision, StepResult } from '@server/contracts/mutator'
-import type { AgentObserver, Logger } from '@server/contracts/observer'
-import type { EventBus as EventBusContract } from '@server/contracts/plugin-context'
+import type { ScopedDb } from '@server/contracts/scoped-db'
+import type { LlmRequest, LlmResult, RealtimeService, Tx } from '@server/contracts/plugin-context'
+import type { LlmTask } from '@server/contracts/event'
+import type { ToolResult } from '@server/contracts/tool-result'
+
+// ─── Shared types (previously in contracts/observer.ts + contracts/mutator.ts) ──
+
+export interface Logger {
+  debug(obj: unknown, msg?: string): void
+  info(obj: unknown, msg?: string): void
+  warn(obj: unknown, msg?: string): void
+  error(obj: unknown, msg?: string): void
+}
+
+export interface ObserverContext {
+  readonly organizationId: string
+  readonly conversationId: string
+  readonly wakeId: string
+  readonly db: ScopedDb
+  readonly logger: Logger
+  readonly realtime: RealtimeService
+}
+
+export interface AgentObserver {
+  /** Stable across restarts — used for queue identity. */
+  id: string
+  handle(event: AgentEvent): Promise<void> | void
+}
+
+/** The tool call a mutator sees BEFORE the tool runs. */
+export interface AgentStep {
+  toolCallId: string
+  toolName: string
+  args: unknown
+}
+
+export interface StepResult {
+  toolCallId: string
+  toolName: string
+  result: ToolResult
+}
+
+export type MutatorDecision = { action: 'block'; reason: string } | { action: 'transform'; args: unknown }
+
+export interface MutatorContext extends ObserverContext {
+  readonly db: ScopedDb
+  readonly llmCall: <T = string>(task: LlmTask, request: LlmRequest) => Promise<LlmResult<T>>
+  /** For mutators that need to persist state (e.g. approvalMutator inserts pending_approvals). */
+  readonly persistEvent: (event: AgentEvent) => Promise<void>
+  readonly logger: Logger
+}
+
+export interface AgentMutator {
+  id: string
+  before?(step: AgentStep, ctx: MutatorContext): Promise<MutatorDecision | undefined> | MutatorDecision | undefined
+  after?(
+    step: AgentStep,
+    result: StepResult,
+    ctx: MutatorContext,
+  ): Promise<StepResult | undefined> | StepResult | undefined
+}
+
+/** `Tx` is re-exported for consumers that previously read it from observer.ts-adjacent code. */
+export type { Tx }
 
 // ─── AsyncQueue ────────────────────────────────────────────────────────────
 
@@ -68,6 +134,11 @@ export type WakeReleasedHook = (payload: {
   organizationId: string
   reason: string
 }) => void | Promise<void>
+
+export interface EventBusContract {
+  publish(event: AgentEvent): void
+  subscribe(fn: (event: AgentEvent) => void | Promise<void>): () => void
+}
 
 export class EventBus implements EventBusContract {
   private readonly subscribers = new Set<Subscriber>()

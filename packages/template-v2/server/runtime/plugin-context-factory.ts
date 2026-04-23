@@ -6,8 +6,8 @@
  */
 
 import type { LlmTask } from '@server/contracts/event'
-import type { AgentMutator } from '@server/contracts/mutator'
-import type { AgentObserver, Logger } from '@server/contracts/observer'
+import type { AgentMutator } from '@server/harness/internal-bus'
+import type { AgentObserver, Logger } from '@server/harness/internal-bus'
 import type {
   AgentTool,
   CommandDef,

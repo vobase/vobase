@@ -7,7 +7,7 @@
  * `wakeId`, `turnIndex`) is read from the event's `HarnessBaseFields`.
  */
 
-import type { Logger } from '@server/contracts/observer'
+import type { Logger } from '@server/harness/internal-bus'
 import type { RealtimeService, ScopedDb } from '@server/contracts/plugin-context'
 
 let _db: ScopedDb | undefined

@@ -13,8 +13,7 @@ import type { AgentEvent, LlmTask } from './event'
 /** Opaque transaction handle passed through from Drizzle. */
 export type Tx = unknown
 
-import type { AgentMutator } from './mutator'
-import type { AgentObserver, Logger } from './observer'
+import type { AgentMutator, AgentObserver, Logger } from '@server/harness/internal-bus'
 import type { ScopedDb } from './scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from './side-load'
 import type { AgentTool } from './tool'

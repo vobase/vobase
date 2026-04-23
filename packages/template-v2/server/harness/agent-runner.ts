@@ -60,8 +60,8 @@ import type {
   WakeTrigger,
 } from '@server/contracts/event'
 import type { IterationBudget } from '@server/contracts/iteration-budget'
-import type { AgentMutator, AgentStep, MutatorContext } from '@server/contracts/mutator'
-import type { AgentObserver, Logger, ObserverContext } from '@server/contracts/observer'
+import type { AgentMutator, AgentStep, MutatorContext } from '@server/harness/internal-bus'
+import type { AgentObserver, Logger, ObserverContext } from '@server/harness/internal-bus'
 import type { AgentTool, CommandDef, EventBus, ObserverFactory } from '@server/contracts/plugin-context'
 import type { ScopedDb } from '@server/contracts/scoped-db'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
