@@ -10,7 +10,7 @@ import { createAuth } from './auth'
 import { wireAuthIntoModules } from './auth/wire-modules'
 import { bootModulesCollector } from './common/module-def'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from './middlewares'
-import { buildPorts } from './ports'
+import { buildPorts } from './module-ports'
 import { createSseRoute } from './routes/sse'
 import { createWakeHandler } from './wake-handler'
 

@@ -1,12 +1,15 @@
 /**
- * App ports — minimal InboxPort / ContactsService / AgentsPort / FilesService /
- * RealtimeService / JobQueue wired directly against drizzle for the app server.
+ * Domain-port builders for the wake handler.
  *
- * Reads use drizzle; writes delegate to each module's service layer so the
- * one-write-path invariant holds. Several write methods throw — those paths
- * aren't exercised yet and should be filled in when a caller needs them. The
- * job queue is in-process (fire-and-forget); swap for pg-boss if/when
- * multi-process or retry-safe delivery is needed.
+ * Builds minimal InboxPort / ContactsService / AgentsPort / FilesService
+ * wired directly against drizzle. Reads use drizzle; writes delegate to each
+ * module's service layer so the one-write-path invariant holds. Several
+ * write methods throw — those paths aren't exercised yet and should be
+ * filled in when a caller needs them.
+ *
+ * The realtime service + job queue were salvaged out of this file into
+ * `server/realtime.ts` and `server/jobs.ts` respectively; `buildPorts`
+ * assembles the full bag for the wake handler.
  */
 
 import type { AgentDefinition } from '@modules/agents/schema'
@@ -37,6 +40,8 @@ import { addNote as svcAddNote, listNotes as svcListNotes } from '@modules/inbox
 import type { InboxPort } from '@modules/inbox/service/types'
 import type { RealtimeService, ScopedDb } from '@server/common/port-types'
 import type { AgentEvent } from '@server/contracts/event'
+import { buildJobQueue } from '@server/jobs'
+import { buildRealtime } from '@server/realtime'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
@@ -336,66 +341,6 @@ function buildFilesService(db: DrizzleHandle): FilesService {
     saveInboundMessageAttachment: notImpl,
     deleteScope: notImpl,
   } as FilesService
-}
-
-/**
- * Realtime service — thin wrapper around `@vobase/core`'s `createRealtimeService`.
- *
- * Core owns a singleton LISTEN connection + in-memory subscriber fanout (the
- * same pattern v1 uses). We adapt its signature to v2's `RealtimeService`
- * contract (sync-void `notify`) so existing call sites stay unchanged.
- *
- * Channel is `vobase_events` (core's default); SSE route subscribes via
- * `realtime.subscribe(fn)` rather than opening its own pg LISTEN.
- *
- * Neon: `DATABASE_URL` points at the `-pooler` endpoint (PgBouncer, tx mode)
- * so app queries get a high connection ceiling. Pooled sessions cannot deliver
- * NOTIFY to LISTEN (different backend sessions), so we route the single
- * listener at `DATABASE_URL_DIRECT` (direct endpoint) when set. Self-hosted
- * Postgres can leave it unset and the pool DSN is reused.
- */
-async function buildRealtime(databaseConfig: string, db: ScopedDb): Promise<RealtimeService> {
-  const { createRealtimeService } = await import('@vobase/core')
-  const core = await createRealtimeService(
-    databaseConfig,
-    db as unknown as Parameters<typeof createRealtimeService>[1],
-    { listenDsn: process.env.DATABASE_URL_DIRECT },
-  )
-  return {
-    notify(payload, tx) {
-      void core
-        .notify(payload, tx as unknown as Parameters<typeof core.notify>[1])
-        .catch((err) => console.error('[realtime.notify] failed:', err))
-    },
-    subscribe(fn) {
-      return core.subscribe(fn)
-    },
-  }
-}
-
-/** In-process job queue — runs handlers synchronously via `Promise.resolve()`. */
-function buildJobQueue(handlers: Map<string, (data: unknown) => Promise<void>>) {
-  return {
-    async send(name: string, data: unknown): Promise<string> {
-      const handler = handlers.get(name)
-      const jobId = `job-${nanoid(8)}`
-      if (!handler) {
-        console.warn(`[jobs] no handler registered for "${name}"; dropping`)
-        return jobId
-      }
-      console.log(`[jobs] dispatching "${name}" (${jobId})`)
-      // Fire-and-forget so the POST response isn't blocked by the whole wake.
-      void handler(data)
-        .then(() => console.log(`[jobs] "${name}" (${jobId}) complete`))
-        .catch((err) => {
-          console.error(`[jobs] handler "${name}" failed:`, err)
-        })
-      return jobId
-    },
-    async cancel(_jobId: string): Promise<void> {
-      // Dev queue is fire-and-forget; cancel is a no-op.
-    },
-  }
 }
 
 export async function buildPorts(
