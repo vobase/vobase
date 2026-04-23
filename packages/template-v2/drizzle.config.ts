@@ -9,8 +9,7 @@ const coreSrc = dirname(require.resolve('@vobase/core'))
 export default defineConfig({
   schema: [
     join(coreSrc, 'db/pg-schemas.ts'),
-    join(coreSrc, 'modules/*/schema.ts'),
-    join(coreSrc, 'infra/webhooks-schema.ts'),
+    join(coreSrc, 'schemas/*.ts'),
     './server/db/pg-schemas.ts',
     './modules/*/schema.ts',
   ],
