@@ -277,6 +277,15 @@ export interface CreateHarnessOpts<TTrigger = unknown> {
 
   /** Extra custom side-load materializers beyond bash-history + restart-recovery. */
   extraCustomSideLoad?: readonly CustomSideLoadMaterializer[]
+
+  /**
+   * Optional handle exposing the harness's internal `publish` so out-of-band
+   * code (e.g. a template-side `llmCall` helper) can surface synthesized
+   * `llm_call` events back into the harness's event stream. Populated with a
+   * closure that calls `publish(ev)` before the run starts; the same handle
+   * is returned on the result so callers can keep using it across turns.
+   */
+  emitEventHandle?: { emit?: (ev: HarnessEvent<TTrigger>) => void }
 }
 
 // ─── Handle ────────────────────────────────────────────────────────────────
@@ -446,6 +455,9 @@ export async function createHarness<TTrigger = unknown>(
           logger.error({ err, eventType: ev.type, wakeId, conversationId }, 'journal append failed')
         })
     }
+  }
+  if (opts.emitEventHandle) {
+    opts.emitEventHandle.emit = publish
   }
 
   // Pre-load message history (optional).
