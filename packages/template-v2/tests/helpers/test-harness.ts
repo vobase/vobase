@@ -276,7 +276,7 @@ export async function bootWakeIntegration(
 
     agentDefinition: {
       model: agentDefinition.model,
-      soulMd: agentDefinition.soulMd,
+      instructions: agentDefinition.instructions,
       workingMemory: agentDefinition.workingMemory,
     },
     model,

@@ -8,7 +8,7 @@ import type { AgentEvent } from '@server/events'
 import type { AgentDefinition } from '../schema'
 
 export interface AgentsPort {
-  /** Fetch the definition used to construct `SOUL.md` + tool allowlist. */
+  /** Fetch the definition used to construct the AGENTS.md composite + tool allowlist. */
   getAgentDefinition(id: string): Promise<AgentDefinition>
 
   /**

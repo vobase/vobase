@@ -4,7 +4,7 @@
  *   GET    /definitions        — list for org
  *   POST   /definitions        — create
  *   GET    /definitions/:id    — fetch single (full row)
- *   PATCH  /definitions/:id    — partial update (name/model/enabled/soulMd/workingMemory)
+ *   PATCH  /definitions/:id    — partial update (name/model/enabled/instructions/workingMemory)
  *   DELETE /definitions/:id    — delete
  */
 import {
@@ -22,7 +22,7 @@ const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 const createBody = z.object({
   name: z.string().min(1).max(120),
   model: z.string().min(1).max(120).optional(),
-  soulMd: z.string().optional(),
+  instructions: z.string().optional(),
   workingMemory: z.string().optional(),
   enabled: z.boolean().optional(),
 })
@@ -30,7 +30,7 @@ const createBody = z.object({
 const updateBody = z.object({
   name: z.string().min(1).max(120).optional(),
   model: z.string().min(1).max(120).optional(),
-  soulMd: z.string().optional(),
+  instructions: z.string().optional(),
   workingMemory: z.string().optional(),
   enabled: z.boolean().optional(),
 })

@@ -154,13 +154,13 @@ function AgentDetailPage() {
           <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
             <FolderTree className="size-4 text-muted-foreground" />
             <h2 className="text-sm font-medium">Drive</h2>
-            <span className="text-xs text-muted-foreground">Agent soul, memory, and uploaded files.</span>
+            <span className="text-xs text-muted-foreground">Agent instructions, memory, and uploaded files.</span>
           </div>
           <div className="min-h-0 flex-1">
             <DriveProvider
               scope={{ scope: 'agent', agentId: agent.id }}
               rootLabel={`${agent.name}'s files`}
-              initialPath="/SOUL.md"
+              initialPath="/instructions.md"
             >
               <DriveBrowser />
             </DriveProvider>

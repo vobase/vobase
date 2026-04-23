@@ -5,8 +5,9 @@
  * `BUILTIN_TOOL_NAMES` exposes the first-class tool slots the harness always
  * surfaces — `bash` (virtual-workspace shell, see `server/harness/bash-tool.ts`)
  * and `vobase` (skill-registered CLI dispatcher, see
- * `server/workspace/vobase-cli/dispatcher.ts`). SOUL.md's tools-allowlist stays
- * declarative: any tool whose name is in this constant is considered available to
+ * `server/workspace/vobase-cli/dispatcher.ts`). The agent's declarative tools
+ * allowlist stays in the `skillAllowlist` column: any tool whose name is in this
+ * constant is considered available to
  * the agent without requiring an explicit entry in the per-agent `skillAllowlist`
  * column.
  *
@@ -31,7 +32,7 @@ export interface CreateAgentInput {
   organizationId: string
   name: string
   model?: string
-  soulMd?: string
+  instructions?: string
   workingMemory?: string
   enabled?: boolean
 }
@@ -39,7 +40,7 @@ export interface CreateAgentInput {
 export interface UpdateAgentInput {
   name?: string
   model?: string
-  soulMd?: string
+  instructions?: string
   workingMemory?: string
   enabled?: boolean
 }
@@ -98,7 +99,7 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
         organizationId: input.organizationId,
         name: input.name,
         model: input.model ?? DEFAULT_CHAT_MODEL,
-        soulMd: input.soulMd ?? '',
+        instructions: input.instructions ?? '',
         workingMemory: input.workingMemory ?? '',
         enabled: input.enabled ?? true,
       })
@@ -114,7 +115,7 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
     const set: Record<string, unknown> = {}
     if (patch.name !== undefined) set.name = patch.name
     if (patch.model !== undefined) set.model = patch.model
-    if (patch.soulMd !== undefined) set.soulMd = patch.soulMd
+    if (patch.instructions !== undefined) set.instructions = patch.instructions
     if (patch.workingMemory !== undefined) set.workingMemory = patch.workingMemory
     if (patch.enabled !== undefined) set.enabled = patch.enabled
     if (Object.keys(set).length === 0) return getById(id)

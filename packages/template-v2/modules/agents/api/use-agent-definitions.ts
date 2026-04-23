@@ -10,7 +10,7 @@ export interface AgentDefinitionRow {
 
 export interface AgentDefinitionDetail extends AgentDefinitionRow {
   organizationId: string
-  soulMd: string
+  instructions: string
   workingMemory: string
   maxSteps: number | null
   skillAllowlist: string[] | null
@@ -23,7 +23,7 @@ export interface AgentDefinitionDetail extends AgentDefinitionRow {
 export interface CreateAgentBody {
   name: string
   model?: string
-  soulMd?: string
+  instructions?: string
   workingMemory?: string
   enabled?: boolean
 }
@@ -31,7 +31,7 @@ export interface CreateAgentBody {
 export interface UpdateAgentBody {
   name?: string
   model?: string
-  soulMd?: string
+  instructions?: string
   workingMemory?: string
   enabled?: boolean
 }

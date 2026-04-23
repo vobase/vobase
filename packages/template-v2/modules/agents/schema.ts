@@ -20,7 +20,7 @@ export interface AgentDefinition {
   id: string
   organizationId: string
   name: string
-  soulMd: string
+  instructions: string
   model: string
   maxSteps: number | null
   workingMemory: string
@@ -114,7 +114,7 @@ export const agentDefinitions = agentsPgSchema.table('agent_definitions', {
   id: nanoidPrimaryKey(),
   organizationId: text('organization_id').notNull(),
   name: text('name').notNull(),
-  soulMd: text('soul_md').notNull().default(''),
+  instructions: text('instructions').notNull().default(''),
   model: text('model').notNull().default(DEFAULT_CHAT_MODEL),
   maxSteps: integer('max_steps').default(20),
   workingMemory: text('working_memory').notNull().default(''),
