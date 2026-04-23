@@ -1,8 +1,9 @@
 /**
  * agents module schema.
  *
- * Four tables:
+ * Five tables:
  *   - `agent_definitions`
+ *   - `agent_staff_memory`
  *   - `learned_skills`
  *   - `learning_proposals`
  *   - `agent_scores`
@@ -134,6 +135,42 @@ export const agentDefinitions = agentsPgSchema.table('agent_definitions', {
     .defaultNow()
     .$onUpdate(() => new Date()),
 })
+
+/**
+ * Per-agent, per-staff memory. Written via `/staff/<staffId>/MEMORY.md`
+ * materializer + workspaceSync observer; read back by the staff-memory
+ * materializer. `staff_id` references `auth.user(id)` but is stored as a
+ * plain text column — no hard cross-schema FK (the auth schema is managed
+ * outside of drizzle-kit's push scope for domain modules).
+ */
+export const agentStaffMemory = agentsPgSchema.table(
+  'agent_staff_memory',
+  {
+    id: nanoidPrimaryKey(),
+    organizationId: text('organization_id').notNull(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agentDefinitions.id, { onDelete: 'cascade' }),
+    staffId: text('staff_id').notNull(),
+    content: text('content').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex('uq_agent_staff_memory').on(t.organizationId, t.agentId, t.staffId)],
+)
+
+export interface AgentStaffMemory {
+  id: string
+  organizationId: string
+  agentId: string
+  staffId: string
+  content: string
+  createdAt: Date
+  updatedAt: Date
+}
 
 export const learnedSkills = agentsPgSchema.table(
   'learned_skills',

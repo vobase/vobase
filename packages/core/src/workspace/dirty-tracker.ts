@@ -27,6 +27,11 @@ export interface ScopedDiff {
   contactMemory: DirtyDiff
   /** `/agents/<id>/MEMORY.md` — persisted via AgentsPort working-memory update. */
   agentMemory: DirtyDiff
+  /**
+   * `/staff/<staffId>/MEMORY.md` — persisted via AgentsPort.upsertStaffMemory.
+   * Keyed by staffId so the dispatcher can upsert per row.
+   */
+  staffMemory: Map<string, DirtyDiff>
   /** `/tmp/**` — ephemeral; caller decides whether to retain. */
   tmp: DirtyDiff
 }
@@ -38,12 +43,19 @@ function emptyDiff(): DirtyDiff {
 const CONTACT_DRIVE_RE = /^\/contacts\/[^/]+\/drive(?:\/|$)/
 const CONTACT_MEMORY_RE = /^\/contacts\/[^/]+\/MEMORY\.md$/
 const AGENT_MEMORY_RE = /^\/agents\/[^/]+\/MEMORY\.md$/
+const STAFF_MEMORY_RE = /^\/staff\/([^/]+)\/MEMORY\.md$/
 
-function classifyPath(path: string): keyof ScopedDiff | null {
-  if (CONTACT_DRIVE_RE.test(path)) return 'contactDrive'
-  if (CONTACT_MEMORY_RE.test(path)) return 'contactMemory'
-  if (AGENT_MEMORY_RE.test(path)) return 'agentMemory'
-  if (path.startsWith('/tmp/') || path === '/tmp') return 'tmp'
+type Classification =
+  | { kind: 'contactDrive' | 'contactMemory' | 'agentMemory' | 'tmp' }
+  | { kind: 'staffMemory'; staffId: string }
+
+function classifyPath(path: string): Classification | null {
+  if (CONTACT_DRIVE_RE.test(path)) return { kind: 'contactDrive' }
+  if (CONTACT_MEMORY_RE.test(path)) return { kind: 'contactMemory' }
+  if (AGENT_MEMORY_RE.test(path)) return { kind: 'agentMemory' }
+  const staffMatch = path.match(STAFF_MEMORY_RE)
+  if (staffMatch) return { kind: 'staffMemory', staffId: staffMatch[1] }
+  if (path.startsWith('/tmp/') || path === '/tmp') return { kind: 'tmp' }
   return null
 }
 
@@ -75,20 +87,29 @@ export class DirtyTracker {
       contactDrive: emptyDiff(),
       contactMemory: emptyDiff(),
       agentMemory: emptyDiff(),
+      staffMemory: new Map<string, DirtyDiff>(),
       tmp: emptyDiff(),
     }
-    for (const p of raw.changed) {
-      const k = classifyPath(p)
-      if (k) out[k].changed.push(p)
+    const getStaffBucket = (staffId: string): DirtyDiff => {
+      let existing = out.staffMemory.get(staffId)
+      if (!existing) {
+        existing = emptyDiff()
+        out.staffMemory.set(staffId, existing)
+      }
+      return existing
     }
-    for (const p of raw.added) {
-      const k = classifyPath(p)
-      if (k) out[k].added.push(p)
+    const push = (path: string, lane: keyof DirtyDiff): void => {
+      const c = classifyPath(path)
+      if (!c) return
+      if (c.kind === 'staffMemory') {
+        getStaffBucket(c.staffId)[lane].push(path)
+        return
+      }
+      out[c.kind][lane].push(path)
     }
-    for (const p of raw.deleted) {
-      const k = classifyPath(p)
-      if (k) out[k].deleted.push(p)
-    }
+    for (const p of raw.changed) push(p, 'changed')
+    for (const p of raw.added) push(p, 'added')
+    for (const p of raw.deleted) push(p, 'deleted')
     return out
   }
 

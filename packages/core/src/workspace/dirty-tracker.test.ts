@@ -3,7 +3,12 @@ import { InMemoryFs } from 'just-bash'
 import { DirtyTracker, snapshotFs } from './dirty-tracker'
 
 const WRITABLE = ['/contacts/c_abc/drive/', '/tmp/']
-const MEMORY_PATHS = ['/agents/a_xyz/MEMORY.md', '/contacts/c_abc/MEMORY.md']
+const MEMORY_PATHS = [
+  '/agents/a_xyz/MEMORY.md',
+  '/contacts/c_abc/MEMORY.md',
+  '/staff/u_s1/MEMORY.md',
+  '/staff/u_s2/MEMORY.md',
+]
 
 describe('DirtyTracker', () => {
   it('tracks added files in writable zones', async () => {
@@ -75,5 +80,19 @@ describe('DirtyTracker', () => {
     expect(scoped.contactMemory.added).toContain('/contacts/c_abc/MEMORY.md')
     expect(scoped.agentMemory.added).toContain('/agents/a_xyz/MEMORY.md')
     expect(scoped.tmp.added).toContain('/tmp/scratch.txt')
+  })
+
+  it('classifies /staff/<id>/MEMORY.md into staffMemory keyed by id', async () => {
+    const fs = new InMemoryFs()
+    const snap = await snapshotFs(fs)
+    const tracker = new DirtyTracker(snap, WRITABLE, MEMORY_PATHS)
+
+    await fs.writeFile('/staff/u_s1/MEMORY.md', 'note one')
+    await fs.writeFile('/staff/u_s2/MEMORY.md', 'note two')
+
+    const scoped = await tracker.flush(fs)
+    expect(scoped.staffMemory.get('u_s1')?.added).toContain('/staff/u_s1/MEMORY.md')
+    expect(scoped.staffMemory.get('u_s2')?.added).toContain('/staff/u_s2/MEMORY.md')
+    expect(scoped.staffMemory.size).toBe(2)
   })
 })

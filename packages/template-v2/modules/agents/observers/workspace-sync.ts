@@ -3,8 +3,9 @@
  * buffer and persists writable-zone changes to their owning module services.
  *
  * Routing rules:
- *   `/contacts/<id>/MEMORY.md` → ContactsService.upsertNotesSection (section-ops)
- *   `/contacts/<id>/drive/**`  → FilesService.create / delete  (scope='contact')
+ *   `/contacts/<id>/MEMORY.md`    → ContactsService.upsertNotesSection (section-ops)
+ *   `/contacts/<id>/drive/**`     → FilesService.create / delete  (scope='contact')
+ *   `/staff/<staffId>/MEMORY.md`  → upsertStaffMemory(org, agent, staff)
  *
  * Frozen-snapshot invariant: this listener ONLY fires on `agent_end`.
  * Mid-wake dirty writes accumulate in the tracker but are NOT flushed until then,
@@ -14,6 +15,7 @@
  * instances (created at wake-start) so the listener has zero module-level state.
  */
 
+import { upsertStaffMemory } from '@modules/agents/service/staff-memory'
 import { upsertNotesSection } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
@@ -25,18 +27,32 @@ import type { IFileSystem } from 'just-bash'
 export interface WorkspaceSyncOpts {
   fs: IFileSystem
   tracker: DirtyTracker
+  organizationId: string
+  agentId: string
   contactId: string
   drive: FilesService
 }
 
 export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: AgentEvent) => Promise<void> {
-  const { fs, tracker, contactId, drive } = opts
+  const { fs, tracker, organizationId, agentId, contactId, drive } = opts
 
   return async (event: AgentEvent): Promise<void> => {
     if (event.type !== 'agent_end') return
 
     const logger = getLogger()
     const scoped = await tracker.flush(fs)
+
+    // ── 0. Staff MEMORY.md → agent_staff_memory upserts ────────────────
+    for (const [staffId, diff] of scoped.staffMemory) {
+      const dirty = diff.added.length > 0 || diff.changed.length > 0
+      if (!dirty) continue
+      try {
+        const content = await fs.readFile(`/staff/${staffId}/MEMORY.md`)
+        await upsertStaffMemory({ organizationId, agentId, staffId }, content)
+      } catch (err) {
+        logger.warn({ err, staffId }, 'workspace-sync: failed to flush staff MEMORY.md')
+      }
+    }
 
     // ── 1. Contact MEMORY.md → section upserts ──────────────────────────
     const memoryDirty = scoped.contactMemory.added.length > 0 || scoped.contactMemory.changed.length > 0

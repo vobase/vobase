@@ -7,6 +7,7 @@ import {
   createLearningProposalsService,
   installLearningProposalsService,
 } from './service/learning-proposals'
+import { createStaffMemoryService, installStaffMemoryService } from './service/staff-memory'
 
 /**
  * Named exports of the agent module's tools + listeners. `server/wake-handler.ts`
@@ -27,6 +28,7 @@ const agents: ModuleDef = {
       createLearningProposalsService({ db: ctx.db, notifier: createLearningNotifier(ctx.db) }),
     )
     installCostService(createCostService({ db: ctx.db }))
+    installStaffMemoryService(createStaffMemoryService({ db: ctx.db }))
   },
 }
 
