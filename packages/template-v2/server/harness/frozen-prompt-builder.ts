@@ -15,7 +15,7 @@ export interface FrozenPromptInput {
   agentDefinition: AgentDefinition
   organizationId: string
   contactId: string
-  conversationId: string
+  channelInstanceId: string
   /** Optional override — tests can inject a stable prompt suffix. */
   staticInstructionsSuffix?: string
 }
@@ -39,13 +39,18 @@ const STATIC_INSTRUCTIONS = `
 /**
  * Build the active-IDs preamble rendered at the top of the system prompt.
  *
- * Conversational wakes include the conversation + contact context so the agent
- * knows which customer it's responding to. Non-conversational wakes emit only
- * the agent-self line — there are no empty-slot interpolations.
+ * Conversational wakes reference the contact + channel-instance folder pair so
+ * the agent knows where to read the customer's latest messages. Non-
+ * conversational wakes emit only the agent-self line — no empty-slot
+ * interpolations.
  */
-export function buildActiveIdsPreamble(ids: { agentId: string; contactId?: string; conversationId?: string }): string {
-  if (ids.contactId && ids.conversationId) {
-    return `You are /agents/${ids.agentId}/, working on /conversations/${ids.conversationId}/ with contact /contacts/${ids.contactId}/.`
+export function buildActiveIdsPreamble(ids: {
+  agentId: string
+  contactId?: string
+  channelInstanceId?: string
+}): string {
+  if (ids.contactId && ids.channelInstanceId) {
+    return `You are /agents/${ids.agentId}/, conversing with /contacts/${ids.contactId}/ via /contacts/${ids.contactId}/${ids.channelInstanceId}/. Latest at /contacts/${ids.contactId}/${ids.channelInstanceId}/messages.md.`
   }
   return `You are /agents/${ids.agentId}/.`
 }
@@ -105,7 +110,7 @@ export async function buildFrozenPrompt(input: FrozenPromptInput): Promise<Froze
   const preamble = buildActiveIdsPreamble({
     agentId,
     contactId: input.contactId,
-    conversationId: input.conversationId,
+    channelInstanceId: input.channelInstanceId,
   })
 
   // Markdown segments are separated by two newlines; this string IS what we
@@ -116,7 +121,7 @@ export async function buildFrozenPrompt(input: FrozenPromptInput): Promise<Froze
     '# System',
     '',
     `organization_id=${input.organizationId}`,
-    `conversation_id=${input.conversationId}`,
+    `channel_instance_id=${input.channelInstanceId}`,
     `contact_id=${input.contactId}`,
     `agent_id=${agentId}`,
     '',
