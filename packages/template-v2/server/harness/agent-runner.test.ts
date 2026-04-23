@@ -215,7 +215,7 @@ describe('bootWake (pi-agent-core path)', () => {
   it('emits systemHash on agent_start and keeps it stable across multi-turn', async () => {
     // Second outer turn is only reached when a steer is pending — push one
     // ahead of bootWake so both user-turns capture a prompt.
-    const { createSteerQueue } = await import('@server/runtime/steer-queue')
+    const { createSteerQueue } = await import('@vobase/core')
     const steerQueue = createSteerQueue()
     steerQueue.push('steer!')
     const res = await bootWake({

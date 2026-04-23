@@ -70,8 +70,6 @@ import type { WakeContext } from '@server/contracts/wake-context'
 import { EventBus as DefaultEventBus } from '@server/runtime/event-bus'
 import { MutatorChain } from '@server/runtime/mutator-chain'
 import { ObserverBus } from '@server/runtime/observer-bus'
-import type { SteerQueueHandle } from '@server/runtime/steer-queue'
-import { newWakeId } from '@server/runtime/wake-id'
 import { createWorkspace, type WorkspaceHandle } from '@server/workspace/create-workspace'
 import {
   type CustomSideLoadMaterializer,
@@ -80,6 +78,8 @@ import {
   createRestartRecoveryContributor,
   DirtyTracker,
   makeBashTool,
+  newWakeId,
+  type SteerQueueHandle,
   TurnBudget,
 } from '@vobase/core'
 import { nanoid } from 'nanoid'
