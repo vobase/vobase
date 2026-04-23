@@ -2,7 +2,7 @@
  * Typed AgentTool envelope + ToolContext.
  *
  * `AgentTool<TArgs, TResult>` is the full generic form used by tool implementors
- * (see `modules/inbox/tools/` and `modules/agents/tools/`).
+ * (see `modules/messaging/tools/` and `modules/agents/tools/`).
  *
  * `ToolContext.approvalDecision` is the approval decision carrier — the
  * harness populates it on wakes triggered by `approval_resumed` so the tool body

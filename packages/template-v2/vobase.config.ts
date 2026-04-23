@@ -1,7 +1,7 @@
 /**
  * vobase.config.ts — registers all 7 modules in dependency order.
  * Order matters for init dependency resolution:
- * contacts → team → drive → inbox → agents → channel-web → channel-whatsapp
+ * contacts → team → drive → messaging → agents → channel-web → channel-whatsapp
  */
 
 import agents from './modules/agents/module'
@@ -9,7 +9,7 @@ import channelWeb from './modules/channels/web/module'
 import channelWhatsapp from './modules/channels/whatsapp/module'
 import contacts from './modules/contacts/module'
 import drive from './modules/drive/module'
-import inbox from './modules/inbox/module'
+import messaging from './modules/messaging/module'
 import settings from './modules/settings/module'
 import team from './modules/team/module'
 
@@ -68,5 +68,5 @@ export default {
     },
   },
 
-  modules: [settings, contacts, team, drive, inbox, agents, channelWeb, channelWhatsapp],
+  modules: [settings, contacts, team, drive, messaging, agents, channelWeb, channelWhatsapp],
 }

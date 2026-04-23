@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 
 export interface UseKeyboardNavOptions {
-  context: 'inbox-list' | 'inbox-detail' | 'shell'
+  context: 'messaging-list' | 'messaging-detail' | 'shell'
   onSelectNext?: () => void
   onSelectPrev?: () => void
   onOpenSelected?: () => void
@@ -88,7 +88,7 @@ export function createShellKeyboardNavHandler(opts: ShellKeyboardNavOptions) {
           opts.onNavigate?.('/settings')
         } else if (e.key === 'i' || e.key === 'h') {
           e.preventDefault()
-          opts.onNavigate?.('/inbox')
+          opts.onNavigate?.('/messaging')
         }
         return
       }

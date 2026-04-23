@@ -1,6 +1,6 @@
 // bad: tabs auto-derived from navItems — caught by check-no-auto-nav-tabs
 const navItems = [
-  { label: 'Inbox', path: '/' },
+  { label: 'Messaging', path: '/' },
   { label: 'Approvals', path: '/approvals' },
 ]
 export const BadTabs = () => (

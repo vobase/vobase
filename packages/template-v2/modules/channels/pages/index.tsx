@@ -1,5 +1,5 @@
 import { useAgentDefinitions } from '@modules/agents/api/use-agent-definitions'
-import { PrincipalAvatar, PrincipalChip, usePrincipalDirectory } from '@modules/inbox/components/principal'
+import { PrincipalAvatar, PrincipalChip, usePrincipalDirectory } from '@modules/messaging/components/principal'
 import { useStaffList } from '@modules/team/api/use-staff'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
@@ -542,7 +542,7 @@ export function ChannelsPage() {
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Channels</h1>
           <p className="text-sm text-muted-foreground">
-            Transport adapters connecting customers to this organization's inbox.
+            Transport adapters connecting customers to this organization's messaging.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="gap-1.5">

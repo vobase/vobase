@@ -5,7 +5,7 @@ Greenfield rebuild of the template package.
 ## Layout
 
 - `server/` — backend infra (runtime, contracts, harness, workspace, middlewares, db, `main.ts` bootstrap, plus top-level `ports.ts` and `wake-handler.ts`). Each subdir has its own CLAUDE.md.
-- `modules/` — business domains (backend + frontend straddle per module; each conforms to the enforced module shape). See `modules/CLAUDE.md` for module shape + init order; per-module CLAUDE.md for domain rules (`agents`, `channels`, `drive`, `inbox`).
+- `modules/` — business domains (backend + frontend straddle per module; each conforms to the enforced module shape). See `modules/CLAUDE.md` for module shape + init order; per-module CLAUDE.md for domain rules (`agents`, `channels`, `drive`, `messaging`).
 - `src/` — frontend shell only (TanStack Router, shadcn/ai-elements/DiceUI primitives, app-wide providers/layout). No module-specific code — see `src/CLAUDE.md`.
 - `scripts/`, `docs/`, `tests/`, `e2e/`, `db/` — supporting
 
@@ -19,7 +19,7 @@ Greenfield rebuild of the template package.
 - Virtual FS: `import { Bash, InMemoryFs } from 'just-bash'`
 - Frontend data: TanStack Query hooks in `@modules/<m>/api/*`, never raw `fetch` in components. Realtime: service fires `pg_notify` after commit; `src/hooks/use-realtime-invalidation.ts` dispatches to query keys.
 - Dates/times in UI: `<RelativeTimeCard date={...} />` only — `check:no-raw-date` fails on raw `toLocaleString` / `new Date().toString()` in `.tsx`.
-- Agent/staff identity in UI: never render a raw agent id or user id. Resolve through `usePrincipalDirectory()` (see `modules/inbox/components/principal.tsx`) and render display name via `PrincipalAvatar` + name (purple robot for agents, blue person for staff; acts as the avatar fallback when no image is set). Applies to assignee pickers, note authors, activity events, mention chips — anywhere a principal surfaces.
+- Agent/staff identity in UI: never render a raw agent id or user id. Resolve through `usePrincipalDirectory()` (see `modules/messaging/components/principal.tsx`) and render display name via `PrincipalAvatar` + name (purple robot for agents, blue person for staff; acts as the avatar fallback when no image is set). Applies to assignee pickers, note authors, activity events, mention chips — anywhere a principal surfaces.
 
 ## Testing
 
@@ -58,7 +58,7 @@ Stream behaviour in tests is expressed as inline `AssistantMessageEvent[]` scrip
 - `test-db.ts` — `connectTestDb()`, `resetAndSeedDb()`, `TestDbHandle`.
 - `test-harness.ts` — `buildIntegrationPorts(db)`, `bootWakeIntegration(ports, opts, db)`. `IntegrationBootOpts.mockStreamFn` takes a `StreamFnLike`.
 - `stub-stream.ts` — `stubStreamFn(scripts, opts?)` replays canned `AssistantMessageEvent[]`, one array per LLM call. Missing terminal `done`/`error` is auto-synthesised.
-- `simulated-channel-web.ts` — `createSimulatedChannelWeb({ inboxPort, contactsPort })` mimics the inbound-webhook handler.
+- `simulated-channel-web.ts` — `createSimulatedChannelWeb({ messagingPort, contactsPort })` mimics the inbound-webhook handler.
 - `assert-event-sequence.ts` — subset matcher that tolerates 0+ `message_update` deltas.
 - `capture-side-load-hashes.ts` — snapshots per-turn sideLoad hashes for the frozen-snapshot invariant.
 - `assert-learning-flow.ts` — shared assertions for the learning-proposal observer path.
@@ -74,7 +74,7 @@ One `test` job against a Postgres service. Steps: install → `typecheck` → `l
 ## Invariants
 
 Covered by subfolder CLAUDE.md — read those when touching the area:
-- One-write-path (messages/events/notes), message kinds, approval flow, mentions, realtime coupling → `modules/inbox/CLAUDE.md`
+- One-write-path (messages/events/notes), message kinds, approval flow, mentions, realtime coupling → `modules/messaging/CLAUDE.md`
 - A3 channels transport-only, `OUTBOUND_TOOL_NAMES` switch sync, whatsapp/webhook HMAC → `modules/channels/CLAUDE.md`
 - Drive scope rules, virtual-field overlay, `BUSINESS.md`, proposal flow → `modules/drive/CLAUDE.md`
 - Journal is sole writer of `conversation_events`, observer/mutator order, learning flow, wake triggers → `modules/agents/CLAUDE.md`

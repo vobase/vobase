@@ -33,7 +33,7 @@ export function connectTestDb(): TestDbHandle {
 
 /**
  * Full reset + seed. Runs via the package's `db:reset` script so push ordering
- * (contacts → inbox → agents → drive) + extras (FKs, UNLOGGED, pg_trgm) stay in
+ * (contacts → messaging → agents → drive) + extras (FKs, UNLOGGED, pg_trgm) stay in
  * sync with the canonical pipeline.
  */
 export async function resetAndSeedDb(): Promise<void> {

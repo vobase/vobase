@@ -1,5 +1,5 @@
 import { upsertByExternal } from '@modules/contacts/service/contacts'
-import { createInboundMessage } from '@modules/inbox/service/conversations'
+import { createInboundMessage } from '@modules/messaging/service/conversations'
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '@server/contracts/channel-event'
 import { verifyHmacWebhook } from '@server/middlewares'
 import type { Context } from 'hono'

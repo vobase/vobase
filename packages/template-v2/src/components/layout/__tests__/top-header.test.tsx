@@ -17,7 +17,7 @@ Object.defineProperty(globalThis, 'window', {
   configurable: true,
 })
 
-function makeRouter(path = '/inbox') {
+function makeRouter(path = '/messaging') {
   const qc = new QueryClient()
   const rootRoute = createRootRoute({
     component: () => (
@@ -28,10 +28,10 @@ function makeRouter(path = '/inbox') {
       </QueryClientProvider>
     ),
   })
-  const inboxRoute = createRoute({ getParentRoute: () => rootRoute, path: '/inbox', component: () => null })
+  const messagingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/messaging', component: () => null })
   const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: () => null })
   const router = createRouter({
-    routeTree: rootRoute.addChildren([inboxRoute, settingsRoute]),
+    routeTree: rootRoute.addChildren([messagingRoute, settingsRoute]),
     history: createMemoryHistory({ initialEntries: [path] }),
   })
   return router

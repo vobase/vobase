@@ -2,7 +2,7 @@
  * contacts module seed — inserts:
  *   - 3 auth.user rows (alice, bob, carol) — staff
  *   - 3 auth.account rows (dev provider) so the dev-login flow lands cleanly
- *   - 3 inbox.channel_instances rows (customer WA, staff WA, customer Web)
+ *   - 3 messaging.channel_instances rows (customer WA, staff WA, customer Web)
  *   - 3 contacts.staff_channel_bindings (one per staff user)
  *   - 6 contacts.contacts rows (one baseline test customer + five persona customers)
  *
@@ -11,8 +11,8 @@
  * `ALICE_USER_ID`, which is also the `staff_profiles.user_id` — so
  * `useCurrentUserId()` returns a real staff id in-browser.
  *
- * Cross-module note: channel_instances (inbox schema) are inserted here because
- * staff_channel_bindings has a FK to inbox.channel_instances and contacts seeds first
+ * Cross-module note: channel_instances (messaging schema) are inserted here because
+ * staff_channel_bindings has a FK to messaging.channel_instances and contacts seeds first
  * in dependency order. Both instances are keyed by stable nanoid constants exported below.
  */
 
@@ -32,10 +32,10 @@ export const WEB_CHANNEL_INSTANCE_ID = 'chi00web00'
 /** Shared dev-mode webhook secret for the web channel (matches CHANNEL_WEB_WEBHOOK_SECRET fallback). */
 export const WEB_CHANNEL_WEBHOOK_SECRET = 'dev-secret'
 
-/** The baseline test customer contact — imported by inbox/seed and integration tests. */
+/** The baseline test customer contact — imported by messaging/seed and integration tests. */
 export const SEEDED_CONTACT_ID = 'ctt0test00'
 
-/** Persona customers — realistic inbox scenarios in inbox/seed.ts. */
+/** Persona customers — realistic messaging scenarios in messaging/seed.ts. */
 export const PRIYA_CONTACT_ID = 'ctt0priya0'
 export const MARCUS_CONTACT_ID = 'ctt0marcus'
 export const ELENA_CONTACT_ID = 'ctt0elena0'
@@ -43,7 +43,7 @@ export const DEREK_CONTACT_ID = 'ctt0derek0'
 export const SOPHIA_CONTACT_ID = 'ctt0sophia'
 
 export async function seed(db: unknown): Promise<void> {
-  const { channelInstances } = await import('@modules/inbox/schema')
+  const { channelInstances } = await import('@modules/messaging/schema')
   const { contactAttributeDefinitions, contacts, staffChannelBindings } = await import('@modules/contacts/schema')
   const { authAccount, authMember, authOrganization, authUser } = await import('@vobase/core')
 
@@ -102,7 +102,7 @@ export async function seed(db: unknown): Promise<void> {
     .values({ id: 'mbr0carol0', userId: CAROL_USER_ID, organizationId: MERIDIAN_ORG_ID, role: 'member' })
     .onConflictDoNothing()
 
-  // --- channel instances (inbox schema — inserted early for FK correctness) ---
+  // --- channel instances (messaging schema — inserted early for FK correctness) ---
   await d
     .insert(channelInstances)
     .values({
@@ -221,7 +221,7 @@ export async function seed(db: unknown): Promise<void> {
     })
     .onConflictDoNothing()
 
-  // --- persona customers (drive realistic inbox seed scenarios) ---
+  // --- persona customers (drive realistic messaging seed scenarios) ---
   await d
     .insert(contacts)
     .values({

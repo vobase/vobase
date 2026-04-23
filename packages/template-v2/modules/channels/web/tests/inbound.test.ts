@@ -1,15 +1,15 @@
 /**
  * channel-web inbound handler tests.
  *
- * Verifies: signature check, payload parsing, resolver call, InboxPort.createInboundMessage
+ * Verifies: signature check, payload parsing, resolver call, MessagingPort.createInboundMessage
  * delegation, wake job enqueue, dedupe (same externalMessageId → single row).
  *
  * Does NOT call real Hono app — tests the handler logic directly via a mock context.
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import type { Contact } from '@modules/contacts/schema'
-import type { Conversation, Message } from '@modules/inbox/schema'
-import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@modules/inbox/service/types'
+import type { Conversation, Message } from '@modules/messaging/schema'
+import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@modules/messaging/service/types'
 import type { Auth } from '@server/auth'
 import { signHmac } from '@vobase/core'
 import { createChannelWebState, installChannelWebAuth, installChannelWebState, type JobQueue } from '../service/state'
@@ -73,7 +73,7 @@ const fakeMessage: Message = {
 
 let mockIsNew = true
 
-mock.module('@modules/inbox/service/conversations', () => ({
+mock.module('@modules/messaging/service/conversations', () => ({
   createInboundMessage: async (input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> => {
     calls.push({ method: 'createInboundMessage', data: input })
     return { conversation: fakeConversation, message: fakeMessage, isNew: mockIsNew }

@@ -8,7 +8,7 @@
  * ~30ms, so polling a handful of times is both simpler and plenty responsive.
  */
 
-import type { Message } from '@modules/inbox/schema'
+import type { Message } from '@modules/messaging/schema'
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MessageCard } from '@/components/message-card'
@@ -80,7 +80,7 @@ async function postInbound(opts: {
 }
 
 async function fetchMessages(conversationId: string): Promise<Message[]> {
-  const res = await fetch(`/api/inbox/conversations/${conversationId}/messages?limit=100`)
+  const res = await fetch(`/api/messaging/conversations/${conversationId}/messages?limit=100`)
   if (!res.ok) throw new Error(`messages fetch failed (${res.status})`)
   return (await res.json()) as Message[]
 }

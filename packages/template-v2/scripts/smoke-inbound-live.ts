@@ -52,7 +52,7 @@ try {
     await new Promise((r) => setTimeout(r, 1000))
     const rows = await sql<{ id: string; role: string; text: string | null }[]>`
       SELECT id, role, content->>'text' as text
-      FROM inbox.messages
+      FROM messaging.messages
       WHERE conversation_id = ${conversationId}
       ORDER BY created_at ASC
     `

@@ -18,7 +18,7 @@ export { subagentTool } from './tools/subagent'
 
 const agents: ModuleDef = {
   name: 'agents',
-  requires: ['inbox', 'contacts', 'drive'],
+  requires: ['messaging', 'contacts', 'drive'],
   routes: { basePath: '/api/agents', handler: handlers, requireSession: true },
   init(ctx) {
     installJournalService(createJournalService({ db: ctx.db }))

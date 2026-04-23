@@ -1,5 +1,5 @@
-import { get as getConversation } from '@modules/inbox/service/conversations'
-import { appendCardReplyMessage } from '@modules/inbox/service/messages'
+import { get as getConversation } from '@modules/messaging/service/conversations'
+import { appendCardReplyMessage } from '@modules/messaging/service/messages'
 import type { Context } from 'hono'
 import { z } from 'zod'
 import { requireJobs } from '../service/state'

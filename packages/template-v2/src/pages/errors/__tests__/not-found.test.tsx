@@ -20,8 +20,8 @@ describe('NotFoundPage — render', () => {
     expect(html).toContain('Page not found')
   })
 
-  it('renders Back to Inbox link', () => {
+  it('renders Back to Messaging link', () => {
     const html = renderToStaticMarkup(<NotFoundPage />)
-    expect(html).toContain('Back to Inbox')
+    expect(html).toContain('Back to Messaging')
   })
 })

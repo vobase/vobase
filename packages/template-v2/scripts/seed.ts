@@ -1,6 +1,6 @@
 /**
  * Top-level seed entry point — orchestrates module seeds in dependency order:
- * contacts → team → drive → agents → inbox.
+ * contacts → team → drive → agents → messaging.
  *
  * Idempotent: running twice produces no duplicate rows (ON CONFLICT DO NOTHING in each module seed).
  *
@@ -31,9 +31,9 @@ async function main() {
   const { seed: seedAgents } = await import('@modules/agents/seed')
   await seedAgents(db)
 
-  console.log('Seeding inbox...')
-  const { seed: seedInbox } = await import('@modules/inbox/seed')
-  await seedInbox(db)
+  console.log('Seeding messaging...')
+  const { seed: seedMessaging } = await import('@modules/messaging/seed')
+  await seedMessaging(db)
 
   console.log('Seed complete.')
   await (db.$client as { end?: () => Promise<void> }).end?.()

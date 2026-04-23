@@ -70,7 +70,7 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   jobHandlers.set(
     INBOUND_TO_WAKE_JOB,
     createWakeHandler({
-      inbox: ports.inbox,
+      messaging: ports.messaging,
       contacts: ports.contacts,
       agents: ports.agents,
       drive: ports.drive,

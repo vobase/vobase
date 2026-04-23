@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Smoke test — σ5 gate for SV-REPLY: POST /api/inbox/conversations/:id/reply
+ * Smoke test — σ5 gate for SV-REPLY: POST /api/messaging/conversations/:id/reply
  * against a seeded conversation; asserts 2xx + messageId in body + SSE NOTIFY
  * received within 2s.
  *
@@ -11,7 +11,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3001'
 const ORG_ID = process.env.ORG_ID ?? 'mer0tenant'
 const CONV_ID = process.env.CONV_ID ?? 'conv_seed_1'
 const SSE_URL = process.env.SSE_URL ?? `${BASE_URL}/sse?organizationId=${ORG_ID}`
-const API = `${BASE_URL}/api/inbox/conversations/${CONV_ID}`
+const API = `${BASE_URL}/api/messaging/conversations/${CONV_ID}`
 
 function sseNotifyPromise(): { promise: Promise<void>; abort: AbortController } {
   const ctrl = new AbortController()

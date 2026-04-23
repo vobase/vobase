@@ -73,7 +73,7 @@ export const driveFiles = drivePgSchema.table(
     captionUpdatedAt: timestamp('caption_updated_at', { withTimezone: true }),
     extractedText: text('extracted_text'),
     source: text('source'),
-    /** Cross-schema FK to inbox.messages(id); enforced post-push. */
+    /** Cross-schema FK to messaging.messages(id); enforced post-push. */
     sourceMessageId: text('source_message_id'),
     tags: text('tags').array().notNull().default([]),
     uploadedBy: text('uploaded_by'),

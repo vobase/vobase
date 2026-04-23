@@ -1,5 +1,5 @@
-import type { DecideParams } from '@modules/inbox/pages/approvals'
-import type { PendingApproval } from '@modules/inbox/schema'
+import type { DecideParams } from '@modules/messaging/pages/approvals'
+import type { PendingApproval } from '@modules/messaging/schema'
 import { useState } from 'react'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { cn } from '@/lib/utils'

@@ -1,4 +1,4 @@
-/** WhatsApp outbound sender — transport only; persistence flows through InboxPort. */
+/** WhatsApp outbound sender — transport only; persistence flows through MessagingPort. */
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
 import type { SendResult } from '@vobase/core'
 

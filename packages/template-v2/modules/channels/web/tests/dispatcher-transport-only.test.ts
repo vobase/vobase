@@ -1,16 +1,16 @@
 /**
- * A3 gate — dispatcher MUST delegate persistence to the inbox service,
+ * A3 gate — dispatcher MUST delegate persistence to the messaging service,
  * never touch drizzle (or schema) directly.
  *
  * Two-layer check:
  *   1. Source-level: dispatcher.ts has no `drizzle-orm` or schema imports.
- *   2. Runtime: mocked inbox service records every call and asserts dispatcher
+ *   2. Runtime: mocked messaging service records every call and asserts dispatcher
  *      routes the right tool name to the right service function.
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import type { Message } from '@modules/inbox/schema'
+import type { Message } from '@modules/messaging/schema'
 import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
 
@@ -31,7 +31,7 @@ const fakeMsg = (): Message =>
     createdAt: new Date(),
   }) as unknown as Message
 
-mock.module('@modules/inbox/service/messages', () => ({
+mock.module('@modules/messaging/service/messages', () => ({
   appendTextMessage: async (input: unknown) => {
     callLog.push({ method: 'appendTextMessage', input })
     return fakeMsg()

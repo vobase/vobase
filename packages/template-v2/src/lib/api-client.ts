@@ -13,14 +13,14 @@
 import type agentsApp from '@modules/agents/handlers/index'
 import type channelWebApp from '@modules/channels/web/handlers/index'
 import type contactsApp from '@modules/contacts/handlers/index'
-import type inboxApp from '@modules/inbox/handlers/index'
+import type messagingApp from '@modules/messaging/handlers/index'
 import type settingsApp from '@modules/settings/handlers/index'
 import type systemApp from '@modules/system/handlers/index'
 import { hc } from 'hono/client'
 
 // ── Per-module typed clients ──────────────────────────────────────────────────
 
-export const inboxClient = hc<typeof inboxApp>('/api/inbox')
+export const messagingClient = hc<typeof messagingApp>('/api/messaging')
 
 export const agentsClient = hc<typeof agentsApp>('/api/agents')
 

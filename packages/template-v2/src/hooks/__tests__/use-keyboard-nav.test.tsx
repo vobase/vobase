@@ -15,32 +15,32 @@ function evt(key: string, extra?: { metaKey?: boolean; ctrlKey?: boolean; tagNam
 describe('createKeyboardNavHandler', () => {
   it('j → onSelectNext', () => {
     const fn = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-list', onSelectNext: fn })(evt('j'))
+    createKeyboardNavHandler({ context: 'messaging-list', onSelectNext: fn })(evt('j'))
     expect(fn).toHaveBeenCalledTimes(1)
   })
 
   it('k → onSelectPrev', () => {
     const fn = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-list', onSelectPrev: fn })(evt('k'))
+    createKeyboardNavHandler({ context: 'messaging-list', onSelectPrev: fn })(evt('k'))
     expect(fn).toHaveBeenCalledTimes(1)
   })
 
   it('Enter → onOpenSelected', () => {
     const fn = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-list', onOpenSelected: fn })(evt('Enter'))
+    createKeyboardNavHandler({ context: 'messaging-list', onOpenSelected: fn })(evt('Enter'))
     expect(fn).toHaveBeenCalledTimes(1)
   })
 
   it('Escape → onClearSelection', () => {
     const fn = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-list', onClearSelection: fn })(evt('Escape'))
+    createKeyboardNavHandler({ context: 'messaging-list', onClearSelection: fn })(evt('Escape'))
     expect(fn).toHaveBeenCalledTimes(1)
   })
 
   it('Cmd+Enter → onSubmitComposer, not onOpenSelected', () => {
     const submit = mock(() => {})
     const open = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-detail', onSubmitComposer: submit, onOpenSelected: open })(
+    createKeyboardNavHandler({ context: 'messaging-detail', onSubmitComposer: submit, onOpenSelected: open })(
       evt('Enter', { metaKey: true }),
     )
     expect(submit).toHaveBeenCalledTimes(1)
@@ -49,19 +49,19 @@ describe('createKeyboardNavHandler', () => {
 
   it('ignores j from INPUT target', () => {
     const fn = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-list', onSelectNext: fn })(evt('j', { tagName: 'INPUT' }))
+    createKeyboardNavHandler({ context: 'messaging-list', onSelectNext: fn })(evt('j', { tagName: 'INPUT' }))
     expect(fn).not.toHaveBeenCalled()
   })
 
   it('ignores j from TEXTAREA target', () => {
     const fn = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-list', onSelectNext: fn })(evt('j', { tagName: 'TEXTAREA' }))
+    createKeyboardNavHandler({ context: 'messaging-list', onSelectNext: fn })(evt('j', { tagName: 'TEXTAREA' }))
     expect(fn).not.toHaveBeenCalled()
   })
 
   it('ignores j from SELECT target', () => {
     const fn = mock(() => {})
-    createKeyboardNavHandler({ context: 'inbox-list', onSelectNext: fn })(evt('j', { tagName: 'SELECT' }))
+    createKeyboardNavHandler({ context: 'messaging-list', onSelectNext: fn })(evt('j', { tagName: 'SELECT' }))
     expect(fn).not.toHaveBeenCalled()
   })
 })
@@ -76,20 +76,20 @@ describe('createShellKeyboardNavHandler', () => {
     expect(onNavigate).toHaveBeenCalledWith('/settings')
   })
 
-  it('g i → onNavigate /inbox', () => {
+  it('g i → onNavigate /messaging', () => {
     const onNavigate = mock((_path: string) => {})
     const { handler } = createShellKeyboardNavHandler({ onNavigate })
     handler(evt('g'))
     handler(evt('i'))
-    expect(onNavigate).toHaveBeenCalledWith('/inbox')
+    expect(onNavigate).toHaveBeenCalledWith('/messaging')
   })
 
-  it('g h → onNavigate /inbox (alias)', () => {
+  it('g h → onNavigate /messaging (alias)', () => {
     const onNavigate = mock((_path: string) => {})
     const { handler } = createShellKeyboardNavHandler({ onNavigate })
     handler(evt('g'))
     handler(evt('h'))
-    expect(onNavigate).toHaveBeenCalledWith('/inbox')
+    expect(onNavigate).toHaveBeenCalledWith('/messaging')
   })
 
   it('g alone + 500ms timeout → navigate NOT fired', async () => {

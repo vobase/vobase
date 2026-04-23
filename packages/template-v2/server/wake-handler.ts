@@ -22,10 +22,10 @@ import type { AgentsPort } from '@modules/agents/service/types'
 import type { InboundToWakePayload } from '@modules/channels/web/jobs'
 import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
-import type { Conversation, Message } from '@modules/inbox/schema'
-import type { InboxPort } from '@modules/inbox/service/types'
-import { replyTool } from '@modules/inbox/tools/reply'
-import { sendCardTool } from '@modules/inbox/tools/send-card'
+import type { Conversation, Message } from '@modules/messaging/schema'
+import type { MessagingPort } from '@modules/messaging/service/types'
+import { replyTool } from '@modules/messaging/tools/reply'
+import { sendCardTool } from '@modules/messaging/tools/send-card'
 import type { AgentTool, RealtimeService } from '@server/common/port-types'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@server/contracts/side-load'
 import { bootWake } from '@server/harness'
@@ -33,7 +33,7 @@ import type { AgentObserver } from '@server/harness/internal-bus'
 import { conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 
 interface WakeHandlerDeps {
-  inbox: InboxPort
+  messaging: MessagingPort
   contacts: ContactsService
   agents: AgentsPort
   drive: FilesService
@@ -47,7 +47,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 
     let conv: Conversation
     try {
-      conv = await deps.inbox.getConversation(data.conversationId)
+      conv = await deps.messaging.getConversation(data.conversationId)
     } catch (err) {
       console.error('[wake] conversation lookup failed:', err)
       return
@@ -61,7 +61,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 
     // Render the conversation messages as a markdown transcript.
     const renderTranscript = async (conversationId: string): Promise<string> => {
-      const msgs = await deps.inbox.listMessages(conversationId, { limit: 200 })
+      const msgs = await deps.messaging.listMessages(conversationId, { limit: 200 })
       if (msgs.length === 0) return '# Conversation\n\n_No messages yet._\n'
       const lines = ['# Conversation', '']
       for (const m of msgs as Message[]) {

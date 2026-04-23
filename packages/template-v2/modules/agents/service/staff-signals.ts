@@ -20,7 +20,7 @@
  *
  */
 
-import type { InternalNoteAuthorType } from '@modules/inbox/schema'
+import type { InternalNoteAuthorType } from '@modules/messaging/schema'
 import type { AgentEvent } from '@server/contracts/event'
 import type { LearningScope } from '../schema'
 

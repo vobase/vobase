@@ -15,7 +15,7 @@ export default function NotFoundPage() {
       </EmptyHeader>
       <EmptyContent>
         <Button asChild>
-          <Link to="/inbox">Back to Inbox</Link>
+          <Link to="/messaging">Back to Messaging</Link>
         </Button>
       </EmptyContent>
     </Empty>

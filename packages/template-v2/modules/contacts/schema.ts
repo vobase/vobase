@@ -7,9 +7,9 @@
  *   - `staff_channel_bindings` — (user_id, channel_instance_id) → external_identifier
  *
  * NOTE: `staff_channel_bindings.channel_instance_id` has a CROSS-SCHEMA FK to
- * `inbox.channel_instances(id)`. That's why push order is `contacts → inbox` —
- * wait, actually staff_channel_bindings references inbox.channel_instances which
- * means inbox must exist FIRST. We resolve via a deferred FK declared with
+ * `messaging.channel_instances(id)`. That's why push order is `contacts → messaging` —
+ * wait, actually staff_channel_bindings references messaging.channel_instances which
+ * means messaging must exist FIRST. We resolve via a deferred FK declared with
  * a plain text column here; the FK is enforced by `scripts/db-apply-extras.ts`
  * after `drizzle-kit push` has created both schemas.
  */
@@ -127,7 +127,7 @@ export const staffChannelBindings = contactsPgSchema.table(
   'staff_channel_bindings',
   {
     userId: text('user_id').notNull(),
-    /** FK to inbox.channel_instances(id); enforced post-push in scripts/db-apply-extras.ts */
+    /** FK to messaging.channel_instances(id); enforced post-push in scripts/db-apply-extras.ts */
     channelInstanceId: text('channel_instance_id').notNull(),
     externalIdentifier: text('external_identifier').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

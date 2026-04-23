@@ -66,7 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_drive_text_trgm
   USING gin ((coalesce(extracted_text,'') || ' ' || coalesce(caption,'')) gin_trgm_ops);
 
 DO $$ BEGIN
-  ALTER TABLE inbox.conversations
+  ALTER TABLE messaging.conversations
     ADD CONSTRAINT fk_conv_contact
     FOREIGN KEY (contact_id) REFERENCES contacts.contacts(id) ON DELETE RESTRICT;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -74,7 +74,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE contacts.staff_channel_bindings
     ADD CONSTRAINT fk_staff_channel_instance
-    FOREIGN KEY (channel_instance_id) REFERENCES inbox.channel_instances(id) ON DELETE CASCADE;
+    FOREIGN KEY (channel_instance_id) REFERENCES messaging.channel_instances(id) ON DELETE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -86,7 +86,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE drive.files
     ADD CONSTRAINT fk_drive_source_msg
-    FOREIGN KEY (source_message_id) REFERENCES inbox.messages(id) ON DELETE SET NULL;
+    FOREIGN KEY (source_message_id) REFERENCES messaging.messages(id) ON DELETE SET NULL;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN

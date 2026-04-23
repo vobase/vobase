@@ -10,7 +10,7 @@ const app = new Hono()
     return c.json({
       version: pkg.version,
       uptime: process.uptime(),
-      modules: ['settings', 'contacts', 'drive', 'inbox', 'agents', 'channel-web', 'channel-whatsapp', 'system'],
+      modules: ['settings', 'contacts', 'drive', 'messaging', 'agents', 'channel-web', 'channel-whatsapp', 'system'],
     })
   })
   .get('/audit-log', async (c) => {

@@ -1,14 +1,14 @@
 /**
- * channel-whatsapp inbound service — parsing, instance resolution, and InboxPort dispatch.
+ * channel-whatsapp inbound service — parsing, instance resolution, and MessagingPort dispatch.
  *
  * Owns all logic between "raw Meta payload validated" and "response sent".
  * Handler delegates here; handler only does: signature check → call processWebhookPayload → respond.
  *
- * A3 invariant: no drizzle imports here. Instance resolution goes through InboxPort/ContactsService.
- * One-write-path: all message writes via InboxPort.createInboundMessage.
+ * A3 invariant: no drizzle imports here. Instance resolution goes through MessagingPort/ContactsService.
+ * One-write-path: all message writes via MessagingPort.createInboundMessage.
  */
 import { upsertByExternal } from '@modules/contacts/service/contacts'
-import { createInboundMessage } from '@modules/inbox/service/conversations'
+import { createInboundMessage } from '@modules/messaging/service/conversations'
 import type { MetaWebhookPayload } from './parser'
 import { parseWebhookPayload } from './parser'
 import { requireJobs } from './state'
@@ -23,13 +23,13 @@ export interface ProcessResult {
  *
  * Priority order:
  *   1. Explicit channelInstanceId from route param / header (already a valid internal ID)
- *   2. phone_number_id from payload metadata (looked up via InboxPort)
+ *   2. phone_number_id from payload metadata (looked up via MessagingPort)
  *   3. Fall back to env WA_CHANNEL_INSTANCE_ID
  */
 function resolveChannelInstanceId(phoneNumberId: string | undefined, explicitInstanceId: string | undefined): string {
   if (explicitInstanceId) return explicitInstanceId
   // When no explicit ID, use phoneNumberId as the lookup key.
-  // InboxPort.createInboundMessage deduplicates by externalMessageId so sending an
+  // MessagingPort.createInboundMessage deduplicates by externalMessageId so sending an
   // unresolved key is safe — it will mismatch no conversation and create a new one.
   // Full DB-backed resolution (sql config->>'phoneNumberId') is available if needed;
   // for Phase 2 we rely on the caller to pass x-channel-instance-id or route param.
@@ -38,7 +38,7 @@ function resolveChannelInstanceId(phoneNumberId: string | undefined, explicitIns
 
 /**
  * Process a validated Meta webhook payload: parse events, skip status updates,
- * upsert contacts, create inbound messages via InboxPort, enqueue wake jobs.
+ * upsert contacts, create inbound messages via MessagingPort, enqueue wake jobs.
  */
 export async function processWebhookPayload(
   payload: MetaWebhookPayload,

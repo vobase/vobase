@@ -20,8 +20,8 @@ Module-specific UI lives in `modules/<module>/pages/`. Each module owns its full
 ## What does NOT belong here
 
 - **Module-specific components.** If a component is only used by one module, it lives in `modules/<m>/pages/`. Do not create `src/features/<module>/` or `src/components/<module>/`.
-- **Module-specific pages.** Even if the URL lives at the app root (e.g. `/inbox`), the page component lives in `modules/inbox/pages/` and is imported by `src/routes.tsx`.
-- **Module-specific hooks or api clients.** A hook that calls `/api/inbox/*` lives in `modules/inbox/pages/api/`, not `src/hooks/`.
+- **Module-specific pages.** Even if the URL lives at the app root (e.g. `/messaging`), the page component lives in `modules/messaging/pages/` and is imported by `src/routes.tsx`.
+- **Module-specific hooks or api clients.** A hook that calls `/api/messaging/*` lives in `modules/messaging/pages/api/`, not `src/hooks/`.
 - **Backend-only code.** `src/**` must never import `@server/runtime/*` or `@server/harness/*`. Enforced by `bun run check:bundle`.
 
 ## The test

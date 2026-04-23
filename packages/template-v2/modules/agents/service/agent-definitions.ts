@@ -149,7 +149,7 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
     conversationId: string,
     requestingOrganizationId: string,
   ): Promise<{ memory: string | null } | null> {
-    const { conversations } = await import('@modules/inbox/schema')
+    const { conversations } = await import('@modules/messaging/schema')
     const { agentDefinitions } = await import('@modules/agents/schema')
     const { eq } = await import('drizzle-orm')
 

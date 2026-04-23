@@ -19,7 +19,7 @@ export type {
 export type { Contact, StaffBinding } from '@modules/contacts/schema'
 // drive
 export type { DriveFile, DriveKind, DriveProcessingStatus, DriveScopeName, DriveSource } from '@modules/drive/schema'
-// inbox
+// messaging
 export type {
   ApprovalStatus,
   Conversation,
@@ -30,6 +30,6 @@ export type {
   MessageKind,
   MessageRole,
   PendingApproval,
-} from '@modules/inbox/schema'
+} from '@modules/messaging/schema'
 // harness (moved to @vobase/core)
 export type { ConversationEvent } from '@vobase/core'

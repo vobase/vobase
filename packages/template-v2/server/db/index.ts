@@ -1,1 +1,1 @@
-export { agentsPgSchema, contactsPgSchema, drivePgSchema, inboxPgSchema } from './pg-schemas'
+export { agentsPgSchema, contactsPgSchema, drivePgSchema, messagingPgSchema } from './pg-schemas'

@@ -2,12 +2,12 @@
 /**
  * Post-`drizzle-kit push` extras:
  *   1. Cross-schema FKs that drizzle-kit can't express in the TypeScript DSL
- *      (inbox.conversations.contact_id → contacts.contacts.id, etc.)
+ *      (messaging.conversations.contact_id → contacts.contacts.id, etc.)
  *   2. `SET UNLOGGED` on agents.active_wakes (ephemeral coordination table)
  *   3. `CREATE EXTENSION pg_trgm` + GIN index on drive.files
  *
  * Idempotent: every statement uses `IF NOT EXISTS` / `DO ... EXCEPTION` guards.
- * Run order: contacts → inbox → agents → drive.
+ * Run order: contacts → messaging → agents → drive.
  */
 import postgres from 'postgres'
 
@@ -46,18 +46,18 @@ async function main(): Promise<void> {
      USING gin ((coalesce(extracted_text,'') || ' ' || coalesce(caption,'')) gin_trgm_ops)`,
   )
 
-  // ── Cross-schema FKs (push order: contacts → inbox → agents → drive) ──
+  // ── Cross-schema FKs (push order: contacts → messaging → agents → drive) ──
   await safeExec(
-    'FK inbox.conversations.contact_id → contacts.contacts(id)',
-    `ALTER TABLE inbox.conversations
+    'FK messaging.conversations.contact_id → contacts.contacts(id)',
+    `ALTER TABLE messaging.conversations
      ADD CONSTRAINT fk_conv_contact
      FOREIGN KEY (contact_id) REFERENCES contacts.contacts(id) ON DELETE RESTRICT`,
   )
   await safeExec(
-    'FK contacts.staff_channel_bindings.channel_instance_id → inbox.channel_instances(id)',
+    'FK contacts.staff_channel_bindings.channel_instance_id → messaging.channel_instances(id)',
     `ALTER TABLE contacts.staff_channel_bindings
      ADD CONSTRAINT fk_staff_channel_instance
-     FOREIGN KEY (channel_instance_id) REFERENCES inbox.channel_instances(id) ON DELETE CASCADE`,
+     FOREIGN KEY (channel_instance_id) REFERENCES messaging.channel_instances(id) ON DELETE CASCADE`,
   )
   await safeExec(
     'FK agents.learning_proposals.wake_event_id → harness.conversation_events(id)',
@@ -66,10 +66,10 @@ async function main(): Promise<void> {
      FOREIGN KEY (wake_event_id) REFERENCES harness.conversation_events(id) ON DELETE SET NULL`,
   )
   await safeExec(
-    'FK drive.files.source_message_id → inbox.messages(id)',
+    'FK drive.files.source_message_id → messaging.messages(id)',
     `ALTER TABLE drive.files
      ADD CONSTRAINT fk_drive_source_msg
-     FOREIGN KEY (source_message_id) REFERENCES inbox.messages(id) ON DELETE SET NULL`,
+     FOREIGN KEY (source_message_id) REFERENCES messaging.messages(id) ON DELETE SET NULL`,
   )
 
   // ── harness.threads → agents.agent_definitions (cross-schema after slice 3a) ──

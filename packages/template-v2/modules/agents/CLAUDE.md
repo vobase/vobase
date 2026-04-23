@@ -1,6 +1,6 @@
 ## modules/agents/
 
-Last in the init chain (depends on inbox/contacts/drive ports). Owns the `conversation_events` journal — the single append-only observability substrate. `server/harness/` drives the wake loop; this module supplies the domain services (definitions, journal, scheduler, proposals, cost) the harness calls into.
+Last in the init chain (depends on messaging/contacts/drive ports). Owns the `conversation_events` journal — the single append-only observability substrate. `server/harness/` drives the wake loop; this module supplies the domain services (definitions, journal, scheduler, proposals, cost) the harness calls into.
 
 **Journal is the ONLY caller to `conversation_events`.** `service/journal.ts` is the sole writer (one-write-path discipline). Every `AgentEvent` lands here in the same transaction as the domain write it co-commits.
 

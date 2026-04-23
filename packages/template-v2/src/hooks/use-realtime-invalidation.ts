@@ -27,7 +27,7 @@ export function useRealtimeInvalidation(): void {
 
     if (!payload.table) return
 
-    // Targeted invalidation: inbox conversations list + specific conversation
+    // Targeted invalidation: messaging conversations list + specific conversation
     if (payload.table === 'conversations') {
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
       // Mentions piggy-back on conversation updates — agent-authored notes fire

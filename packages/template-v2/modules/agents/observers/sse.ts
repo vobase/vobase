@@ -1,5 +1,5 @@
 /**
- * sseListener — calls realtime.notify() on every event so the staff inbox
+ * sseListener — calls realtime.notify() on every event so the staff messaging
  * live-tails via core's SSE endpoint.
  *
  * Plain `OnEventListener` — closes over the `getRealtime()` service singleton

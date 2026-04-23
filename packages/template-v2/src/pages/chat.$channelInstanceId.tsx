@@ -16,7 +16,7 @@
  * Slash commands:
  *   - `/reset` — discard the stored token and mint a fresh anonymous session.
  */
-import type { Message } from '@modules/inbox/schema'
+import type { Message } from '@modules/messaging/schema'
 import { createFileRoute, useParams } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -161,7 +161,7 @@ export function ChatPage() {
     async (id: string) => {
       try {
         const res = await fetch(
-          `/api/inbox/conversations/${id}/messages?limit=100`,
+          `/api/messaging/conversations/${id}/messages?limit=100`,
           authFetchInit(token, { method: 'GET' }),
         )
         if (!res.ok) return

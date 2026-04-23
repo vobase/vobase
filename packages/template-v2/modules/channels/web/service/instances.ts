@@ -1,7 +1,7 @@
 /**
  * Web channel instance CRUD.
  *
- * Instances live in the shared `inbox.channel_instances` table. This service
+ * Instances live in the shared `messaging.channel_instances` table. This service
  * is the only place the `/channels` page talks to for listing / creating /
  * editing / deleting customer-role web channels.
  *
@@ -10,7 +10,7 @@
  * conversations by the inbound handler (future wiring).
  */
 
-import { channelInstances } from '@modules/inbox/schema'
+import { channelInstances } from '@modules/messaging/schema'
 
 export interface WebInstance {
   id: string

@@ -5,8 +5,8 @@
  * After slice 3a moved harness persistence to `@vobase/core`, the journal
  * (`conversation_events`) is written exclusively by core's `harness/journal.ts`.
  * Template code only reaches `conversationEvents` via the core barrel, and the
- * one-write-path invariant for `inbox.messages` stays enforced here: only
- * `modules/inbox/service/**` may mutate the customer message table.
+ * one-write-path invariant for `messaging.messages` stays enforced here: only
+ * `modules/messaging/service/**` may mutate the customer message table.
  * `modules/agents/service/learning-proposals.ts` still emits learning_approved /
  * learning_rejected rows directly into `conversation_events` for the approval
  * path, so it keeps an allowlist entry.
@@ -17,7 +17,7 @@ import { join } from 'node:path'
 const MODULES_DIR = join(import.meta.dir, '..', 'modules')
 
 const JOURNAL_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(messages|conversationEvents)\b/
-const JOURNAL_WRITE_ALLOWED = ['modules/inbox/service/', 'modules/agents/service/learning-proposals.ts']
+const JOURNAL_WRITE_ALLOWED = ['modules/messaging/service/', 'modules/agents/service/learning-proposals.ts']
 
 const errors: Array<{ file: string; line: number; message: string }> = []
 
@@ -37,7 +37,7 @@ async function checkJournalWriteAuthority(): Promise<void> {
         errors.push({
           file: fullPath,
           line: i + 1,
-          message: `writes to "${m[2]}" only allowed in inbox/service or agents/service/journal.ts (one-write-path)`,
+          message: `writes to "${m[2]}" only allowed in messaging/service or agents/service/journal.ts (one-write-path)`,
         })
       }
     }

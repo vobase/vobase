@@ -1,7 +1,7 @@
 /**
  * Canonical pg-boss queue names owned by the agents module. Re-exported from
  * `jobs.ts` so the module-shape lint sees the `jobs.ts` surface; the names
- * live in their own file so other modules (inbox approval-resume path) can
+ * live in their own file so other modules (messaging approval-resume path) can
  * depend on them without pulling job handlers.
  */
 

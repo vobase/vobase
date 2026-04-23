@@ -12,7 +12,7 @@
  * (baseline) from `scripts/new-modules-baseline.txt`. Any module not in that
  * list is treated as new and linted with `CHECK_SHAPE_STRICT=true`.
  *
- * Baseline file format: one module name per line (e.g. `inbox`, `channels/web`).
+ * Baseline file format: one module name per line (e.g. `messaging`, `channels/web`).
  * Maintained manually; regenerated when Step 8 strict-flip lands and this
  * script is retired.
  */

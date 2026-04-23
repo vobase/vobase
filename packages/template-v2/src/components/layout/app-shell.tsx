@@ -24,7 +24,7 @@ interface NavItemDef {
 }
 
 const PRIMARY_NAV: NavItemDef[] = [
-  { icon: Inbox, label: 'Inbox', to: '/inbox', enabled: true },
+  { icon: Inbox, label: 'Messaging', to: '/messaging', enabled: true },
   { icon: Users, label: 'Contacts', to: '/contacts', enabled: true },
   { icon: Bot, label: 'Agents', to: '/agents', enabled: true },
   { icon: HardDrive, label: 'Drive', to: '/drive', enabled: true },
@@ -98,7 +98,11 @@ function AppShell({ children }: AppShellProps) {
 
           <nav aria-label="Module navigation" className="flex flex-col items-center gap-0.5">
             {PRIMARY_NAV.map((item) => (
-              <RailItem key={item.to} {...item} badgeCount={item.to === '/inbox' ? (unreadMentions ?? 0) : undefined} />
+              <RailItem
+                key={item.to}
+                {...item}
+                badgeCount={item.to === '/messaging' ? (unreadMentions ?? 0) : undefined}
+              />
             ))}
           </nav>
 

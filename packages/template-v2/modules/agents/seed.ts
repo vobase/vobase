@@ -7,7 +7,7 @@ import { models } from './lib/models'
 
 export { MERIDIAN_ORG_ID }
 
-/** Stable agent ID — consumed by inbox/seed and integration tests. */
+/** Stable agent ID — consumed by messaging/seed and integration tests. */
 export const MERIDIAN_AGENT_ID = 'agt0mer0v1'
 
 const SOUL_MD = `# Role: Meridian Support Agent v1

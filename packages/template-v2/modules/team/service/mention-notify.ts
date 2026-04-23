@@ -8,7 +8,7 @@
  * blocks the note insert. Never throws.
  */
 
-import type { InternalNote } from '@modules/inbox/schema'
+import type { InternalNote } from '@modules/messaging/schema'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { find as findStaff } from '@modules/team/service/staff'
 
@@ -56,7 +56,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
   const db = deps.db as { select: Function }
 
   async function findWhatsappChannel(organizationId: string): Promise<ChannelInstanceRow | null> {
-    const { channelInstances } = await import('@modules/inbox/schema')
+    const { channelInstances } = await import('@modules/messaging/schema')
     const { and, eq } = await import('drizzle-orm')
     const rows = (await db
       .select({ id: channelInstances.id, config: channelInstances.config })

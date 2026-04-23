@@ -1,7 +1,7 @@
 /**
  * Domain-port builders for the wake handler.
  *
- * Builds minimal InboxPort / ContactsService / AgentsPort / FilesService
+ * Builds minimal MessagingPort / ContactsService / AgentsPort / FilesService
  * wired directly against drizzle. Reads use drizzle; writes delegate to each
  * module's service layer so the one-write-path invariant holds. Several
  * write methods throw — those paths aren't exercised yet and should be
@@ -23,20 +23,20 @@ import type { DriveFile } from '@modules/drive/schema'
 import { driveFiles } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
-import type { Conversation } from '@modules/inbox/schema'
-import { conversations } from '@modules/inbox/schema'
+import type { Conversation } from '@modules/messaging/schema'
+import { conversations } from '@modules/messaging/schema'
 import {
   createInboundMessage as svcCreateInboundMessage,
   resumeOrCreate as svcResumeOrCreate,
-} from '@modules/inbox/service/conversations'
+} from '@modules/messaging/service/conversations'
 import {
   appendCardMessage,
   appendCardReplyMessage,
   appendTextMessage,
   list as svcListMessages,
-} from '@modules/inbox/service/messages'
-import { addNote as svcAddNote, listNotes as svcListNotes } from '@modules/inbox/service/notes'
-import type { InboxPort } from '@modules/inbox/service/types'
+} from '@modules/messaging/service/messages'
+import { addNote as svcAddNote, listNotes as svcListNotes } from '@modules/messaging/service/notes'
+import type { MessagingPort } from '@modules/messaging/service/types'
 import type { RealtimeService, ScopedDb } from '@server/common/port-types'
 import type { AgentEvent } from '@server/contracts/event'
 import { buildJobQueue } from '@server/jobs'
@@ -47,7 +47,7 @@ import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
 
 export interface Ports {
-  inbox: InboxPort
+  messaging: MessagingPort
   contacts: ContactsService
   agents: AgentsPort
   drive: FilesService
@@ -82,10 +82,10 @@ interface DrizzleHandle {
 }
 
 /**
- * Build a minimal InboxPort that delegates every write to the existing service
+ * Build a minimal MessagingPort that delegates every write to the existing service
  * layer (one-write-path). Reads use drizzle directly.
  */
-function buildInboxPort(db: DrizzleHandle): InboxPort {
+function buildMessagingPort(db: DrizzleHandle): MessagingPort {
   const stubToolCtx = () => ({
     agentId: MERIDIAN_AGENT_ID,
     wakeId: `stub:${nanoid(8)}`,
@@ -97,7 +97,7 @@ function buildInboxPort(db: DrizzleHandle): InboxPort {
     async getConversation(id) {
       const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1)
       const row = rows[0] as Conversation | undefined
-      if (!row) throw new Error(`inbox/getConversation: no conversation ${id}`)
+      if (!row) throw new Error(`messaging/getConversation: no conversation ${id}`)
       return row
     },
     async listMessages(conversationId, opts) {
@@ -354,7 +354,7 @@ export async function buildPorts(
   setJournalDb(db)
   void sql // reserved for future direct-sql ports; kept in signature for call-site stability
   return {
-    inbox: buildInboxPort(drizzleDb),
+    messaging: buildMessagingPort(drizzleDb),
     contacts: buildContactsService(drizzleDb),
     agents: buildAgentsPort(drizzleDb),
     drive: buildFilesService(drizzleDb),

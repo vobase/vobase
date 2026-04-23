@@ -4,7 +4,7 @@ import { createChannelWhatsappState, installChannelWhatsappState, type JobQueue 
 
 const channelWhatsapp: ModuleDef = {
   name: 'channel-whatsapp',
-  requires: ['inbox', 'contacts', 'drive'],
+  requires: ['messaging', 'contacts', 'drive'],
   // Meta authenticates via X-Hub-Signature-256 HMAC, not session cookies.
   routes: { basePath: '/api/channel-whatsapp', handler: handlers },
   init(ctx) {

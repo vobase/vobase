@@ -5,7 +5,7 @@ import { createChannelWebState, installChannelWebState, type JobQueue } from './
 
 const channelWeb: ModuleDef = {
   name: 'channel-web',
-  requires: ['inbox', 'contacts', 'drive'],
+  requires: ['messaging', 'contacts', 'drive'],
   // Inbound webhook is HMAC-authed (no session gate). Always enabled — web is
   // the default customer surface. In production, CHANNEL_WEB_WEBHOOK_SECRET
   // must be set (enforced in handlers/inbound.ts).

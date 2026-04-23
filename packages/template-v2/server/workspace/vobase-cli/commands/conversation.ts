@@ -1,11 +1,11 @@
 /**
  * `vobase conv …` CLI verbs for the current conversation.
  *
- * Both verbs are mutations executed against the inbox service:
- *   - `conv reassign` → `modules/inbox/service/conversations::reassign` (agent
+ * Both verbs are mutations executed against the messaging service:
+ *   - `conv reassign` → `modules/messaging/service/conversations::reassign` (agent
  *     hands the conversation off; subsequent inbounds won't wake the agent if
  *     the new assignee isn't `agent:*`).
- *   - `conv ask-staff` → `modules/inbox/service/notes::addNote` with mentions,
+ *   - `conv ask-staff` → `modules/messaging/service/notes::addNote` with mentions,
  *     which fans out via the `@-mention` pipeline: staff gets a WA ping, their
  *     reply fires a `supervisor` wake trigger that re-wakes this agent with
  *     the note body in context.
@@ -16,8 +16,8 @@
  *   vobase conv ask-staff --mention=<userId>[,<userId>...] --body="..."
  */
 
-import { reassign as reassignConversation } from '@modules/inbox/service/conversations'
-import { addNote } from '@modules/inbox/service/notes'
+import { reassign as reassignConversation } from '@modules/messaging/service/conversations'
+import { addNote } from '@modules/messaging/service/notes'
 import { list as listStaff } from '@modules/team/service/staff'
 import type { CommandDef } from '@server/common/port-types'
 

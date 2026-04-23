@@ -1,10 +1,10 @@
-/** Outbound dispatcher — transport only. Persistence flows through inbox service. */
+/** Outbound dispatcher — transport only. Persistence flows through messaging service. */
 import {
   appendCardMessage,
   appendMediaMessage,
   appendStaffTextMessage,
   appendTextMessage,
-} from '@modules/inbox/service/messages'
+} from '@modules/messaging/service/messages'
 import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/contracts/channel-event'
 import { nanoid } from 'nanoid'

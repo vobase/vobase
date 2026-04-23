@@ -14,10 +14,10 @@ import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
 import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
 import { Route as pagesChatDotchannelInstanceIdRouteImport } from './pages/chat.$channelInstanceId'
 import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
-import { Route as DotDotModulesInboxPagesLayoutRouteImport } from './../modules/inbox/pages/layout'
+import { Route as DotDotModulesInboxPagesLayoutRouteImport } from './../modules/messaging/pages/layout'
 import { Route as shellHomeRedirectRouteImport } from './shell/home-redirect'
 import { Route as TeamIndexRouteImport } from './../modules/team/pages/index'
-import { Route as IndexRouteImport } from './../modules/inbox/pages/index'
+import { Route as IndexRouteImport } from './../modules/messaging/pages/index'
 import { Route as DriveIndexRouteImport } from './../modules/drive/pages/index'
 import { Route as ContactsIndexRouteImport } from './../modules/contacts/pages/index'
 import { Route as ChannelsIndexRouteImport } from './../modules/channels/pages/index'
@@ -33,8 +33,8 @@ import { Route as DisplayRouteImport } from './../modules/settings/pages/display
 import { Route as AppearanceRouteImport } from './../modules/settings/pages/appearance'
 import { Route as ApiKeysRouteImport } from './../modules/settings/pages/api-keys'
 import { Route as AccountRouteImport } from './../modules/settings/pages/account'
-import { Route as ApprovalsRouteImport } from './../modules/inbox/pages/approvals'
-import { Route as ContactIdRouteImport } from './../modules/inbox/pages/$contactId'
+import { Route as ApprovalsRouteImport } from './../modules/messaging/pages/approvals'
+import { Route as ContactIdRouteImport } from './../modules/messaging/pages/$contactId'
 import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pages/attributes'
 import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
 import { Route as AgentsLearningsRouteImport } from './../modules/agents/pages/learnings'
@@ -67,8 +67,8 @@ const DotDotModulesSettingsPagesLayoutRoute =
   } as any)
 const DotDotModulesInboxPagesLayoutRoute =
   DotDotModulesInboxPagesLayoutRouteImport.update({
-    id: '/inbox',
-    path: '/inbox',
+    id: '/messaging',
+    path: '/messaging',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
 const shellHomeRedirectRoute = shellHomeRedirectRouteImport.update({
@@ -195,15 +195,15 @@ const AgentsIdRoute = AgentsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof shellHomeRedirectRoute
   '/test-web': typeof pagesTestWebRoute
-  '/inbox': typeof DotDotModulesInboxPagesLayoutRouteWithChildren
+  '/messaging': typeof DotDotModulesInboxPagesLayoutRouteWithChildren
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/contacts/attributes': typeof ContactsAttributesRoute
-  '/inbox/$contactId': typeof ContactIdRoute
-  '/inbox/approvals': typeof ApprovalsRoute
+  '/messaging/$contactId': typeof ContactIdRoute
+  '/messaging/approvals': typeof ApprovalsRoute
   '/settings/account': typeof AccountRoute
   '/settings/api-keys': typeof ApiKeysRoute
   '/settings/appearance': typeof AppearanceRoute
@@ -219,7 +219,7 @@ export interface FileRoutesByFullPath {
   '/channels/': typeof ChannelsIndexRoute
   '/contacts/': typeof ContactsIndexRoute
   '/drive/': typeof DriveIndexRoute
-  '/inbox/': typeof IndexRoute
+  '/messaging/': typeof IndexRoute
   '/team/': typeof TeamIndexRoute
 }
 export interface FileRoutesByTo {
@@ -231,8 +231,8 @@ export interface FileRoutesByTo {
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/contacts/attributes': typeof ContactsAttributesRoute
-  '/inbox/$contactId': typeof ContactIdRoute
-  '/inbox/approvals': typeof ApprovalsRoute
+  '/messaging/$contactId': typeof ContactIdRoute
+  '/messaging/approvals': typeof ApprovalsRoute
   '/settings/account': typeof AccountRoute
   '/settings/api-keys': typeof ApiKeysRoute
   '/settings/appearance': typeof AppearanceRoute
@@ -248,7 +248,7 @@ export interface FileRoutesByTo {
   '/channels': typeof ChannelsIndexRoute
   '/contacts': typeof ContactsIndexRoute
   '/drive': typeof DriveIndexRoute
-  '/inbox': typeof IndexRoute
+  '/messaging': typeof IndexRoute
   '/team': typeof TeamIndexRoute
 }
 export interface FileRoutesById {
@@ -257,15 +257,15 @@ export interface FileRoutesById {
   '/_auth': typeof shellAuthLayoutRouteWithChildren
   '/test-web': typeof pagesTestWebRoute
   '/_app/': typeof shellHomeRedirectRoute
-  '/_app/inbox': typeof DotDotModulesInboxPagesLayoutRouteWithChildren
+  '/_app/messaging': typeof DotDotModulesInboxPagesLayoutRouteWithChildren
   '/_app/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/_app/agents/$id': typeof AgentsIdRoute
   '/_app/agents/learnings': typeof AgentsLearningsRoute
   '/_app/contacts/$id': typeof ContactsIdRoute
   '/_app/contacts/attributes': typeof ContactsAttributesRoute
-  '/_app/inbox/$contactId': typeof ContactIdRoute
-  '/_app/inbox/approvals': typeof ApprovalsRoute
+  '/_app/messaging/$contactId': typeof ContactIdRoute
+  '/_app/messaging/approvals': typeof ApprovalsRoute
   '/_app/settings/account': typeof AccountRoute
   '/_app/settings/api-keys': typeof ApiKeysRoute
   '/_app/settings/appearance': typeof AppearanceRoute
@@ -281,7 +281,7 @@ export interface FileRoutesById {
   '/_app/channels/': typeof ChannelsIndexRoute
   '/_app/contacts/': typeof ContactsIndexRoute
   '/_app/drive/': typeof DriveIndexRoute
-  '/_app/inbox/': typeof IndexRoute
+  '/_app/messaging/': typeof IndexRoute
   '/_app/team/': typeof TeamIndexRoute
 }
 export interface FileRouteTypes {
@@ -289,15 +289,15 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/test-web'
-    | '/inbox'
+    | '/messaging'
     | '/settings'
     | '/chat/$channelInstanceId'
     | '/agents/$id'
     | '/agents/learnings'
     | '/contacts/$id'
     | '/contacts/attributes'
-    | '/inbox/$contactId'
-    | '/inbox/approvals'
+    | '/messaging/$contactId'
+    | '/messaging/approvals'
     | '/settings/account'
     | '/settings/api-keys'
     | '/settings/appearance'
@@ -313,7 +313,7 @@ export interface FileRouteTypes {
     | '/channels/'
     | '/contacts/'
     | '/drive/'
-    | '/inbox/'
+    | '/messaging/'
     | '/team/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -325,8 +325,8 @@ export interface FileRouteTypes {
     | '/agents/learnings'
     | '/contacts/$id'
     | '/contacts/attributes'
-    | '/inbox/$contactId'
-    | '/inbox/approvals'
+    | '/messaging/$contactId'
+    | '/messaging/approvals'
     | '/settings/account'
     | '/settings/api-keys'
     | '/settings/appearance'
@@ -342,7 +342,7 @@ export interface FileRouteTypes {
     | '/channels'
     | '/contacts'
     | '/drive'
-    | '/inbox'
+    | '/messaging'
     | '/team'
   id:
     | '__root__'
@@ -350,15 +350,15 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/test-web'
     | '/_app/'
-    | '/_app/inbox'
+    | '/_app/messaging'
     | '/_app/settings'
     | '/chat/$channelInstanceId'
     | '/_app/agents/$id'
     | '/_app/agents/learnings'
     | '/_app/contacts/$id'
     | '/_app/contacts/attributes'
-    | '/_app/inbox/$contactId'
-    | '/_app/inbox/approvals'
+    | '/_app/messaging/$contactId'
+    | '/_app/messaging/approvals'
     | '/_app/settings/account'
     | '/_app/settings/api-keys'
     | '/_app/settings/appearance'
@@ -374,7 +374,7 @@ export interface FileRouteTypes {
     | '/_app/channels/'
     | '/_app/contacts/'
     | '/_app/drive/'
-    | '/_app/inbox/'
+    | '/_app/messaging/'
     | '/_app/team/'
   fileRoutesById: FileRoutesById
 }
@@ -422,10 +422,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotDotModulesSettingsPagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/inbox': {
-      id: '/_app/inbox'
-      path: '/inbox'
-      fullPath: '/inbox'
+    '/_app/messaging': {
+      id: '/_app/messaging'
+      path: '/messaging'
+      fullPath: '/messaging'
       preLoaderRoute: typeof DotDotModulesInboxPagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
@@ -443,10 +443,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamIndexRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/inbox/': {
-      id: '/_app/inbox/'
+    '/_app/messaging/': {
+      id: '/_app/messaging/'
       path: '/'
-      fullPath: '/inbox/'
+      fullPath: '/messaging/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof DotDotModulesInboxPagesLayoutRoute
     }
@@ -555,17 +555,17 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
     }
-    '/_app/inbox/approvals': {
-      id: '/_app/inbox/approvals'
+    '/_app/messaging/approvals': {
+      id: '/_app/messaging/approvals'
       path: '/approvals'
-      fullPath: '/inbox/approvals'
+      fullPath: '/messaging/approvals'
       preLoaderRoute: typeof ApprovalsRouteImport
       parentRoute: typeof DotDotModulesInboxPagesLayoutRoute
     }
-    '/_app/inbox/$contactId': {
-      id: '/_app/inbox/$contactId'
+    '/_app/messaging/$contactId': {
+      id: '/_app/messaging/$contactId'
       path: '/$contactId'
-      fullPath: '/inbox/$contactId'
+      fullPath: '/messaging/$contactId'
       preLoaderRoute: typeof ContactIdRouteImport
       parentRoute: typeof DotDotModulesInboxPagesLayoutRoute
     }

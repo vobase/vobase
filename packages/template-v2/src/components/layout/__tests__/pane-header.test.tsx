@@ -4,8 +4,8 @@ import { PaneHeader } from '../pane-header'
 
 describe('PaneHeader', () => {
   it('renders title', () => {
-    const html = renderToStaticMarkup(<PaneHeader title="Inbox" />)
-    expect(html).toContain('Inbox')
+    const html = renderToStaticMarkup(<PaneHeader title="Messaging" />)
+    expect(html).toContain('Messaging')
   })
 
   it('renders meta when provided', () => {

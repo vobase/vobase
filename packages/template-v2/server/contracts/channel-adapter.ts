@@ -21,7 +21,7 @@ export interface V2ChannelAdapter extends ChannelAdapter {
   /**
    * Dispatch a v2 outbound event to the underlying channel transport.
    *
-   * Called by the outbound dispatcher AFTER InboxPort has persisted the message row
+   * Called by the outbound dispatcher AFTER MessagingPort has persisted the message row
    * (one-write-path discipline). This method is TRANSPORT-ONLY — it must not write
    * to the `messages` table directly.
    */

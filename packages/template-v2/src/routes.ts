@@ -9,7 +9,7 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'shell/home-redirect.tsx'),
-    route('/inbox', '../modules/inbox/pages/layout.tsx', [physical('/', '../modules/inbox/pages')]),
+    route('/messaging', '../modules/messaging/pages/layout.tsx', [physical('/', '../modules/messaging/pages')]),
     physical('/contacts', '../modules/contacts/pages'),
     physical('/team', '../modules/team/pages'),
     physical('/agents', '../modules/agents/pages'),
