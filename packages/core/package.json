@@ -42,7 +42,9 @@
     "@better-auth/api-key": "^1.5.0",
     "@electric-sql/pglite": "^0.4.1",
     "pg-boss": "^12.14.0",
-    "just-bash": "^2.14.2"
+    "just-bash": "^2.14.2",
+    "@mariozechner/pi-agent-core": "^0.67.68",
+    "@mariozechner/pi-ai": "^0.67.68"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -52,6 +54,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "drizzle-kit": "1.0.0-beta.22"
+    "@mariozechner/pi-agent-core": "^0.67.68",
+    "@mariozechner/pi-ai": "^0.67.68",
+    "drizzle-kit": "1.0.0-beta.22",
+    "just-bash": "^2.14.2"
   }
 }
