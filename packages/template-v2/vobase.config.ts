@@ -1,7 +1,11 @@
 /**
- * vobase.config.ts — registers all 7 modules in dependency order.
+ * vobase.config.ts — registers the 6 domain modules in dependency order.
  * Order matters for init dependency resolution:
- * contacts → team → drive → messaging → agents → channel-web → channel-whatsapp
+ * settings → contacts → team → drive → messaging → agents.
+ *
+ * Channel transports (web, whatsapp) are plain infrastructure — not modules.
+ * They are constructed directly in `server/app.ts` AFTER domain modules finish
+ * init, using their factories from `server/transports/{web,whatsapp}/index.ts`.
  */
 
 import agents from './modules/agents/module'
@@ -10,8 +14,6 @@ import drive from './modules/drive/module'
 import messaging from './modules/messaging/module'
 import team from './modules/team/module'
 import settings from './server/admin/settings/module'
-import channelWeb from './server/transports/web/module'
-import channelWhatsapp from './server/transports/whatsapp/module'
 
 export default {
   database: process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2',
@@ -68,5 +70,5 @@ export default {
     },
   },
 
-  modules: [settings, contacts, team, drive, messaging, agents, channelWeb, channelWhatsapp],
+  modules: [settings, contacts, team, drive, messaging, agents],
 }

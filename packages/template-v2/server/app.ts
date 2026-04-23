@@ -11,6 +11,8 @@ import { bootModulesCollector } from './common/module-def'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from './middlewares'
 import { buildPorts } from './module-ports'
 import { createSseRoute } from './routes/sse'
+import { createChannelWebTransport } from './transports/web'
+import { createChannelWhatsappTransport } from './transports/whatsapp'
 import { createWakeHandler, INBOUND_TO_WAKE_JOB } from './wake-handler'
 
 export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
@@ -43,6 +45,24 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
       realtime: ports.realtime,
     },
   })
+
+  // Channel transports are plain infrastructure — NOT modules. They mount
+  // AFTER `bootModulesCollector` completes so that every domain service they
+  // depend on (messaging, contacts, drive) is already installed. Ordering is
+  // enforced by the line sequence below; the old `ModuleDef.requires` edges
+  // are gone.
+  const channelWeb = createChannelWebTransport({
+    db,
+    jobs: ports.jobs,
+    realtime: ports.realtime,
+  })
+  app.route(`/api/${channelWeb.name}`, channelWeb.handlers)
+
+  const channelWhatsapp = createChannelWhatsappTransport({
+    jobs: ports.jobs,
+    realtime: ports.realtime,
+  })
+  app.route(`/api/${channelWhatsapp.name}`, channelWhatsapp.handlers)
 
   await wireAuthIntoModules(auth)
 
