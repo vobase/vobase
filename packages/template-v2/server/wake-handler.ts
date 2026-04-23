@@ -35,13 +35,7 @@ import type { WakeTrigger } from '@server/events'
 import { buildFrozenPrompt } from '@server/harness/frozen-prompt-builder'
 import type { LlmEmitter } from '@server/harness/llm-call'
 import { createModel, resolveApiKey } from '@server/harness/llm-provider'
-import {
-  buildDefaultReadOnlyConfig,
-  buildDefaultWritablePrefixes,
-  conversationVerbs,
-  driveVerbs,
-  teamVerbs,
-} from '@server/workspace'
+import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 import { createWorkspace } from '@server/workspace/create-workspace'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@vobase/core'
 import {
@@ -209,6 +203,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 
     try {
       const agentDefinition = await deps.agents.getAgentDefinition(agentId)
+      const roConfig = buildDefaultReadOnlyConfig({ agentId, contactId: data.contactId })
 
       // Build workspace (was internal to bootWake).
       const workspace = await createWorkspace({
@@ -223,7 +218,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         drivePort: deps.drive,
         contactsPort: deps.contacts,
         agentsPort: deps.agents,
-        readOnlyConfig: buildDefaultReadOnlyConfig({ agentId, contactId: data.contactId }),
+        readOnlyConfig: roConfig,
       })
 
       // Frozen system prompt (was internal to bootWake).
@@ -235,12 +230,11 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         conversationId,
       })
 
-      // Dirty tracker + workspace-sync listener.
-      const dirtyTracker = new DirtyTracker(
-        workspace.initialSnapshot,
-        buildDefaultWritablePrefixes({ contactId: data.contactId }),
-        [`/agents/${agentId}/MEMORY.md`, `/contacts/${data.contactId}/MEMORY.md`],
-      )
+      // Dirty tracker + workspace-sync listener. Writable prefixes + memory
+      // paths are taken from the per-wake RO config so we never drift.
+      const dirtyTracker = new DirtyTracker(workspace.initialSnapshot, roConfig.writablePrefixes, [
+        ...roConfig.memoryPaths,
+      ])
       const workspaceSyncListener = createWorkspaceSyncListener({
         fs: workspace.innerFs,
         tracker: dirtyTracker,

@@ -45,8 +45,3 @@ export function buildDefaultReadOnlyConfig(ids: { agentId: string; contactId: st
     readOnlyExact: [`/agents/${ids.agentId}/AGENTS.md`, `/contacts/${ids.contactId}/profile.md`],
   })
 }
-
-/** Default writable prefixes for the per-wake config; excludes memory paths (those use the memory hint). */
-export function buildDefaultWritablePrefixes(ids: { contactId: string }): readonly string[] {
-  return [`/contacts/${ids.contactId}/drive/`, '/tmp/']
-}
