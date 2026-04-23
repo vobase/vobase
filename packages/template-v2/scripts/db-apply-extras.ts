@@ -36,7 +36,7 @@ async function main(): Promise<void> {
   await safeExec('CREATE EXTENSION pg_trgm', 'CREATE EXTENSION IF NOT EXISTS pg_trgm')
 
   // ── UNLOGGED active_wakes ─────────────────────────────────────────────
-  await safeExec('SET UNLOGGED agents.active_wakes', 'ALTER TABLE agents.active_wakes SET UNLOGGED')
+  await safeExec('SET UNLOGGED harness.active_wakes', 'ALTER TABLE harness.active_wakes SET UNLOGGED')
 
   // ── Trigram GIN index on drive.files for grep acceleration ────────────
   await safeExec(
@@ -60,10 +60,10 @@ async function main(): Promise<void> {
      FOREIGN KEY (channel_instance_id) REFERENCES inbox.channel_instances(id) ON DELETE CASCADE`,
   )
   await safeExec(
-    'FK agents.learning_proposals.wake_event_id → agents.conversation_events(id)',
+    'FK agents.learning_proposals.wake_event_id → harness.conversation_events(id)',
     `ALTER TABLE agents.learning_proposals
      ADD CONSTRAINT fk_lp_wake_event
-     FOREIGN KEY (wake_event_id) REFERENCES agents.conversation_events(id) ON DELETE SET NULL`,
+     FOREIGN KEY (wake_event_id) REFERENCES harness.conversation_events(id) ON DELETE SET NULL`,
   )
   await safeExec(
     'FK drive.files.source_message_id → inbox.messages(id)',
@@ -72,10 +72,18 @@ async function main(): Promise<void> {
      FOREIGN KEY (source_message_id) REFERENCES inbox.messages(id) ON DELETE SET NULL`,
   )
 
-  // ── audit_wake_map → core _audit.audit_log (optional — core owns the table) ──
+  // ── harness.threads → agents.agent_definitions (cross-schema after slice 3a) ──
   await safeExec(
-    'FK agents.audit_wake_map.audit_log_id → audit.audit_log(id)',
-    `ALTER TABLE agents.audit_wake_map
+    'FK harness.threads.agent_id → agents.agent_definitions(id)',
+    `ALTER TABLE harness.threads
+     ADD CONSTRAINT fk_threads_agent
+     FOREIGN KEY (agent_id) REFERENCES agents.agent_definitions(id) ON DELETE CASCADE`,
+  )
+
+  // ── audit_wake_map → core _audit.audit_log (core owns audit_log) ──
+  await safeExec(
+    'FK harness.audit_wake_map.audit_log_id → audit.audit_log(id)',
+    `ALTER TABLE harness.audit_wake_map
      ADD CONSTRAINT fk_audit_wake_map_audit
      FOREIGN KEY (audit_log_id) REFERENCES audit.audit_log(id) ON DELETE CASCADE`,
   )

@@ -1,10 +1,9 @@
 /**
- * agents service barrel — re-exports REAL Phase 1 + Phase 2 wake-layer methods.
- * Scaffold methods throw `not-implemented-in-phase-1`.
+ * agents service barrel — wake scheduler/worker + definition access.
+ * Harness persistence (journal, cost, active-wakes, message-history) lives in
+ * `@vobase/core`; consumers import those directly.
  */
 
-export * as activeWakes from './active-wakes'
 export * as agentDefinitions from './agent-definitions'
-export * as journal from './journal'
 export * as wakeScheduler from './wake-scheduler'
 export * as wakeWorker from './wake-worker'

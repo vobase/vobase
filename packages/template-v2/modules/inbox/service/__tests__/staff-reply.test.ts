@@ -3,9 +3,9 @@
  * Verifies message + journal co-commit in one transaction.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
 import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
+import { setJournalDb } from '@vobase/core'
 import type { Message } from '../../schema'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────

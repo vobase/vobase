@@ -257,7 +257,8 @@ async function runThreatScan(_body: string): Promise<{ ok: true } | { ok: false;
 
 async function writeApprovedScope(db: DrizzleHandle, proposal: ProposalRow): Promise<string> {
   if (proposal.scope === 'agent_skill') {
-    const { learnedSkills, conversationEvents } = await import('@modules/agents/schema')
+    const { learnedSkills } = await import('@modules/agents/schema')
+    const { conversationEvents } = await import('@vobase/core')
     const { desc, eq, and } = await import('drizzle-orm')
     const agentRows = (await db
       .select({ payload: conversationEvents.payload, toolCalls: conversationEvents.toolCalls })
@@ -311,8 +312,7 @@ async function emitJournalEvent(
     writeId?: string
   },
 ): Promise<void> {
-  const { conversationEvents } = await import('@modules/agents/schema')
-  const { getLatestTurnIndex } = await import('./journal')
+  const { conversationEvents, journalGetLatestTurnIndex: getLatestTurnIndex } = await import('@vobase/core')
 
   const turnIndex = await getLatestTurnIndex(proposal.conversationId, db)
 

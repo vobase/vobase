@@ -37,8 +37,6 @@ import { createMemoryDistillListener } from '@modules/agents/observers/memory-di
 import { createMessageHistoryListener } from '@modules/agents/observers/message-history-observer'
 import { createWorkspaceSyncListener } from '@modules/agents/observers/workspace-sync'
 import type { AgentDefinition } from '@modules/agents/schema'
-import { getLastWakeTail } from '@modules/agents/service/journal'
-import { loadMessages, resolveThread } from '@modules/agents/service/message-history'
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
@@ -79,8 +77,11 @@ import {
   createBashHistoryMaterializer,
   createRestartRecoveryContributor,
   DirtyTracker,
+  journalGetLastWakeTail as getLastWakeTail,
+  loadMessages,
   makeBashTool,
   newWakeId,
+  resolveThread,
   type SteerQueueHandle,
   TurnBudget,
 } from '@vobase/core'

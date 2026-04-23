@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { wakeSnoozedJobHandler } from '@modules/inbox/jobs'
 import {
@@ -10,6 +9,7 @@ import {
   snooze,
 } from '@modules/inbox/service/conversations'
 import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
+import { setJournalDb } from '@vobase/core'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../tests/helpers/test-db'
 
 let db: TestDbHandle

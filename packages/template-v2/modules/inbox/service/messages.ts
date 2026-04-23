@@ -110,7 +110,7 @@ async function journalToolEnd(
     messageId: string
   },
 ): Promise<void> {
-  const { append } = await import('@modules/agents/service/journal')
+  const { journalAppend: append } = await import('@vobase/core')
   await append(
     {
       conversationId: input.conversationId,
@@ -139,7 +139,7 @@ async function journalChannelInbound(
   tx: unknown,
   input: { conversationId: string; organizationId: string; messageId: string; turnIndex: number },
 ): Promise<void> {
-  const { append } = await import('@modules/agents/service/journal')
+  const { journalAppend: append } = await import('@vobase/core')
   const wakeId = `card_reply:${input.messageId}`
   await append(
     {
@@ -289,7 +289,7 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
         },
         parentMessageId: input.parentMessageId,
       })
-      const { getLatestTurnIndex } = await import('@modules/agents/service/journal')
+      const { journalGetLatestTurnIndex: getLatestTurnIndex } = await import('@vobase/core')
       const turnIndex = await getLatestTurnIndex(parent.conversationId, tx)
       await journalChannelInbound(tx, {
         conversationId: parent.conversationId,

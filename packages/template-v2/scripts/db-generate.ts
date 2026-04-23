@@ -80,7 +80,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE agents.learning_proposals
     ADD CONSTRAINT fk_lp_wake_event
-    FOREIGN KEY (wake_event_id) REFERENCES agents.conversation_events(id) ON DELETE SET NULL;
+    FOREIGN KEY (wake_event_id) REFERENCES harness.conversation_events(id) ON DELETE SET NULL;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -90,7 +90,13 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE agents.audit_wake_map
+  ALTER TABLE harness.threads
+    ADD CONSTRAINT fk_threads_agent
+    FOREIGN KEY (agent_id) REFERENCES agents.agent_definitions(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE harness.audit_wake_map
     ADD CONSTRAINT fk_audit_wake_map_audit
     FOREIGN KEY (audit_log_id) REFERENCES audit.audit_log(id) ON DELETE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;

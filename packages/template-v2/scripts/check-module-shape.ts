@@ -2,12 +2,14 @@
 /**
  * CI lint — journal write-path guard.
  *
- * After slice 2c.3 simplified the module shape (named-export modules, no
- * manifest.ts, no define-module.ts), most of the old per-module shape checks
- * are either unenforceable or moot. The one invariant that still matters is
- * the one-write-path guard for the `messages` / `conversation_events` tables:
- * only `modules/inbox/service/**` and `modules/agents/service/journal.ts` /
- * `learning-proposals.ts` may mutate those tables.
+ * After slice 3a moved harness persistence to `@vobase/core`, the journal
+ * (`conversation_events`) is written exclusively by core's `harness/journal.ts`.
+ * Template code only reaches `conversationEvents` via the core barrel, and the
+ * one-write-path invariant for `inbox.messages` stays enforced here: only
+ * `modules/inbox/service/**` may mutate the customer message table.
+ * `modules/agents/service/learning-proposals.ts` still emits learning_approved /
+ * learning_rejected rows directly into `conversation_events` for the approval
+ * path, so it keeps an allowlist entry.
  */
 
 import { join } from 'node:path'
@@ -15,11 +17,7 @@ import { join } from 'node:path'
 const MODULES_DIR = join(import.meta.dir, '..', 'modules')
 
 const JOURNAL_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(messages|conversationEvents)\b/
-const JOURNAL_WRITE_ALLOWED = [
-  'modules/inbox/service/',
-  'modules/agents/service/journal.ts',
-  'modules/agents/service/learning-proposals.ts',
-]
+const JOURNAL_WRITE_ALLOWED = ['modules/inbox/service/', 'modules/agents/service/learning-proposals.ts']
 
 const errors: Array<{ file: string; line: number; message: string }> = []
 

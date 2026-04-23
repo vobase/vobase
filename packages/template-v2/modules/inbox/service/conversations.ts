@@ -10,7 +10,7 @@
  * returns the bound API; free-function wrappers route through the installed
  * instance to preserve the existing import surface.
  */
-import { conversationEvents } from '@modules/agents/schema'
+import { conversationEvents } from '@vobase/core'
 import { and, desc, eq, getTableColumns, gt, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import { type Conversation, channelInstances, conversations, type Message, messages } from '../schema'
 import { transitionConversation } from '../state'

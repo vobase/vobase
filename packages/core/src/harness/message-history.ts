@@ -4,26 +4,25 @@
  * Two public helpers:
  *   - `resolveThread` — UPSERT thread row by (agentId, conversationId) or
  *     (agentId, cronKey), INSERT new for adhoc. Returns the thread id.
- *   - `loadMessages` — SELECT * FROM agents.messages WHERE thread_id = ?
+ *   - `loadMessages` — SELECT * FROM harness.messages WHERE thread_id = ?
  *     ORDER BY seq, return payloads as AgentMessage[].
- *
- * The write path lives in `createMessageHistoryObserver` which listens for
- * `turn_end` events and batch-inserts new messages since the last checkpoint.
- * That keeps this file read-only and free of observer coupling.
  */
 
-import type { AgentMessage } from '@mariozechner/pi-agent-core'
-import { agentMessages, threads } from '@modules/agents/schema'
-import type { ScopedDb } from '@server/contracts/scoped-db'
-import { asc, eq, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import type { AgentMessage } from '@mariozechner/pi-agent-core';
+import { asc, eq, sql } from 'drizzle-orm';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { nanoid } from 'nanoid';
+
+import { agentMessages, threads } from '../schemas/harness';
+
+export type MessageHistoryDb = PostgresJsDatabase<Record<string, unknown>>;
 
 export interface ResolveThreadOpts {
-  agentId: string
+  agentId: string;
   /** Set when kind='conversation'. */
-  conversationId?: string
+  conversationId?: string;
   /** Set when kind='cron'. */
-  cronKey?: string
+  cronKey?: string;
 }
 
 /**
@@ -33,7 +32,10 @@ export interface ResolveThreadOpts {
  * - kind='cron': upserts on (agentId, cronKey) unique index
  * - kind='adhoc': always inserts a fresh thread
  */
-export async function resolveThread(db: ScopedDb, opts: ResolveThreadOpts): Promise<string> {
+export async function resolveThread(
+  db: MessageHistoryDb,
+  opts: ResolveThreadOpts,
+): Promise<string> {
   if (opts.conversationId) {
     const rows = await db
       .insert(threads)
@@ -50,10 +52,10 @@ export async function resolveThread(db: ScopedDb, opts: ResolveThreadOpts): Prom
         targetWhere: sql`${threads.conversationId} IS NOT NULL`,
         set: { lastActiveAt: new Date() },
       })
-      .returning({ id: threads.id })
-    const id = rows[0]?.id
-    if (!id) throw new Error('resolveThread: upsert returned no rows')
-    return id
+      .returning({ id: threads.id });
+    const id = rows[0]?.id;
+    if (!id) throw new Error('resolveThread: upsert returned no rows');
+    return id;
   }
 
   if (opts.cronKey) {
@@ -72,22 +74,21 @@ export async function resolveThread(db: ScopedDb, opts: ResolveThreadOpts): Prom
         targetWhere: sql`${threads.cronKey} IS NOT NULL`,
         set: { lastActiveAt: new Date() },
       })
-      .returning({ id: threads.id })
-    const id = rows[0]?.id
-    if (!id) throw new Error('resolveThread: upsert returned no rows')
-    return id
+      .returning({ id: threads.id });
+    const id = rows[0]?.id;
+    if (!id) throw new Error('resolveThread: upsert returned no rows');
+    return id;
   }
 
-  // adhoc — always a fresh thread
-  const id = nanoid(10)
+  const id = nanoid(10);
   await db.insert(threads).values({
     id,
     agentId: opts.agentId,
     kind: 'adhoc',
     lastActiveAt: new Date(),
     createdAt: new Date(),
-  })
-  return id
+  });
+  return id;
 }
 
 /**
@@ -95,12 +96,15 @@ export async function resolveThread(db: ScopedDb, opts: ResolveThreadOpts): Prom
  *
  * Returns [] when no messages exist (first wake for this thread).
  */
-export async function loadMessages(db: ScopedDb, threadId: string): Promise<AgentMessage[]> {
+export async function loadMessages(
+  db: MessageHistoryDb,
+  threadId: string,
+): Promise<AgentMessage[]> {
   const rows = await db
     .select({ payload: agentMessages.payload })
     .from(agentMessages)
     .where(eq(agentMessages.threadId, threadId))
-    .orderBy(asc(agentMessages.seq))
+    .orderBy(asc(agentMessages.seq));
 
-  return rows.map((r) => r.payload as AgentMessage)
+  return rows.map((r) => r.payload as AgentMessage);
 }

@@ -9,7 +9,6 @@ export type {
   AgentDefinition,
   AgentMemoryAntiLessons,
   AgentScore,
-  ConversationEvent,
   LearningAction,
   LearningProposal,
   LearningScope,
@@ -32,3 +31,5 @@ export type {
   MessageRole,
   PendingApproval,
 } from '@modules/inbox/schema'
+// harness (moved to @vobase/core)
+export type { ConversationEvent } from '@vobase/core'

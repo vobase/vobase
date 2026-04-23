@@ -7,8 +7,8 @@
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { createJournalService, installJournalService } from '@vobase/core'
 import { getTableName } from 'drizzle-orm'
-import { createJournalService, installJournalService } from './journal'
 import {
   decideProposal,
   insertProposal,

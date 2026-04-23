@@ -148,7 +148,7 @@ async function insertActivity(
     ts: Date
   },
 ) {
-  const { conversationEvents } = await import('@modules/agents/schema')
+  const { conversationEvents } = await import('@vobase/core')
   await insert(conversationEvents)
     .values({
       conversationId: row.conversationId,

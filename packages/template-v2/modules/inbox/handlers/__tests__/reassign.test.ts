@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { createConversationsService, installConversationsService } from '@modules/inbox/service/conversations'
 import { createStaffOpsService, installStaffOpsService } from '@modules/inbox/service/staff-ops'
+import { setJournalDb } from '@vobase/core'
 import { Hono } from 'hono'
 import reassignRouter from '../reassign'
 

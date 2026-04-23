@@ -1,8 +1,7 @@
 import type { ModuleDef } from '@server/common/module-def'
+import { createCostService, createJournalService, installCostService, installJournalService } from '@vobase/core'
 import handlers from './handlers'
 import { createAgentDefinitionsService, installAgentDefinitionsService } from './service/agent-definitions'
-import { createCostService, installCostService } from './service/cost'
-import { createJournalService, installJournalService } from './service/journal'
 import {
   createLearningNotifier,
   createLearningProposalsService,

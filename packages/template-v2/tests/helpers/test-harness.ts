@@ -10,7 +10,6 @@
 
 import { sseListener } from '@modules/agents/observers/sse'
 import type { AgentDefinition } from '@modules/agents/schema'
-import { append as journalAppend, setDb as setAgentsDb } from '@modules/agents/service/journal'
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { Contact, StaffBinding } from '@modules/contacts/schema'
 import type { ContactsService } from '@modules/contacts/service/contacts'
@@ -20,6 +19,7 @@ import type { DriveScope } from '@modules/drive/service/types'
 import type { AgentEvent } from '@server/contracts/event'
 import type { HarnessHandle, StreamFnLike } from '@server/harness'
 import { bootWake } from '@server/harness'
+import { journalAppend, setJournalDb as setAgentsDb } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 import type { TestDbHandle } from './test-db'
 

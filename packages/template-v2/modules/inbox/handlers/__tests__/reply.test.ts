@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
 import { createStaffOpsService, installStaffOpsService } from '@modules/inbox/service/staff-ops'
 import { OUTBOUND_TOOL_NAME_SET } from '@server/contracts/channel-event'
+import { setJournalDb } from '@vobase/core'
 import { Hono } from 'hono'
 import replyRouter from '../reply'
 

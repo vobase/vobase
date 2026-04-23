@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
 import type { ToolContext } from '@server/contracts/tool'
+import { setJournalDb } from '@vobase/core'
 import { replyTool } from './reply'
 
 type Row = Record<string, unknown>

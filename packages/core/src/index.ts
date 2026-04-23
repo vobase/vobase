@@ -61,7 +61,12 @@ export {
   NANOID_LENGTH,
   nanoidPrimaryKey,
 } from './db/helpers';
-export { auditPgSchema, authPgSchema, infraPgSchema } from './db/pg-schemas';
+export {
+  auditPgSchema,
+  authPgSchema,
+  harnessPgSchema,
+  infraPgSchema,
+} from './db/pg-schemas';
 // ─── Errors ──────────────────────────────────────────────────────────
 export {
   conflict,
@@ -211,6 +216,55 @@ export type {
 export { createNoopRealtime, createRealtimeService } from './realtime';
 // ─── Schemas ─────────────────────────────────────────────────────────
 export { auditLog, recordAudits } from './schemas/audit';
+export {
+  activeWakes,
+  agentMessages,
+  auditWakeMap,
+  type ConversationEvent,
+  conversationEvents,
+  tenantCostDaily,
+  threads,
+} from './schemas/harness';
+// ─── Harness persistence services ────────────────────────────────────
+export {
+  __resetCostServiceForTests,
+  type CostService,
+  type CostServiceDeps,
+  createCostService,
+  getDailySpend,
+  installCostService,
+  type RecordCostInput,
+  recordCostUsage,
+  setCostDb,
+} from './harness/cost';
+export {
+  __resetJournalServiceForTests,
+  append as journalAppend,
+  createJournalService,
+  getLastWakeTail as journalGetLastWakeTail,
+  getLatestTurnIndex as journalGetLatestTurnIndex,
+  installJournalService,
+  type JournalAppendInput,
+  type JournalEventLike,
+  type JournalService,
+  type JournalServiceDeps,
+  setDb as setJournalDb,
+} from './harness/journal';
+export {
+  loadMessages,
+  type MessageHistoryDb,
+  type ResolveThreadOpts,
+  resolveThread,
+} from './harness/message-history';
+export {
+  acquire as acquireActiveWake,
+  type ActiveWakesDb,
+  type ActiveWakesStore,
+  createInMemoryActiveWakes,
+  getWorker as getActiveWakeWorker,
+  release as releaseActiveWake,
+  sweepStale as sweepStaleActiveWakes,
+} from './harness/wake-registry';
 export {
   apikeyTableMap,
   authAccount,

@@ -81,8 +81,8 @@ beforeEach(async () => {
   const mod = await import('./messages')
   mod.installMessagesService(mod.createMessagesService({ db: makeDb([fakeParent], fakeReplyRow) }))
 
-  const journal = await import('@modules/agents/service/journal')
-  journal.setDb(makeJournalDb())
+  const core = await import('@vobase/core')
+  core.setJournalDb(makeJournalDb())
 })
 
 describe('appendCardReplyMessage', () => {

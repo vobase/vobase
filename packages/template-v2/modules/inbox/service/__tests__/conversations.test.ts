@@ -11,7 +11,6 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
-import { setDb as setJournalDb } from '@modules/agents/service/journal'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import {
   ConversationFailedError,
@@ -29,6 +28,7 @@ import {
   wakeSnoozed,
 } from '@modules/inbox/service/conversations'
 import { createMessagesService, installMessagesService } from '@modules/inbox/service/messages'
+import { setJournalDb } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../../tests/helpers/test-db'
 
@@ -199,7 +199,7 @@ describe('createInboundMessage lifecycle', () => {
     expect(res.conversation.status).toBe('active')
     expect(res.conversation.resolvedAt).toBeNull()
 
-    const { conversationEvents } = await import('@modules/agents/schema')
+    const { conversationEvents } = await import('@vobase/core')
     const events = await db.db
       .select()
       .from(conversationEvents)
