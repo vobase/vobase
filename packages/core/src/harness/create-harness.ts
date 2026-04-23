@@ -205,7 +205,7 @@ export interface HarnessHooks<TTrigger = unknown> {
 
 export interface HarnessAgentDefinition {
   model?: string
-  soulMd?: string
+  instructions?: string
   workingMemory?: string
 }
 

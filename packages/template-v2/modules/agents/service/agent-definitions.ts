@@ -5,7 +5,7 @@
  * `BUILTIN_TOOL_NAMES` exposes the first-class tool slots the harness always
  * surfaces — `bash` (virtual-workspace shell, see `server/harness/bash-tool.ts`)
  * and `vobase` (skill-registered CLI dispatcher, see
- * `server/workspace/vobase-cli/dispatcher.ts`). The agent's declarative tools
+ * `server/workspace-cli/dispatcher.ts`). The agent's declarative tools
  * allowlist stays in the `skillAllowlist` column: any tool whose name is in this
  * constant is considered available to
  * the agent without requiring an explicit entry in the per-agent `skillAllowlist`

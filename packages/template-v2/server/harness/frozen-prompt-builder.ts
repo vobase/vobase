@@ -1,10 +1,10 @@
 /**
  * Frozen prompt builder.
  *
- * Computes the system prompt ONCE per wake from `AGENTS.md + SOUL.md +
- * MEMORY.md + BUSINESS.md + skills metadata`. SHA-256 hash over the rendered
- * markdown string (pre-tokenization) is exposed so the integration test can
- * assert `turn1.systemHash === turn3.systemHash` even after mid-wake writes.
+ * Computes the system prompt ONCE per wake from `AGENTS.md + MEMORY.md +
+ * BUSINESS.md + skills metadata`. SHA-256 hash over the rendered markdown
+ * string (pre-tokenization) is exposed so the integration test can assert
+ * `turn1.systemHash === turn3.systemHash` even after mid-wake writes.
  */
 
 import type { AgentDefinition } from '@modules/agents/schema'
@@ -28,14 +28,27 @@ export interface FrozenPromptResult {
 const STATIC_INSTRUCTIONS = `
 # Operating Principles
 
-- Read /workspace/AGENTS.md for the CLI + layout reference (above).
-- Read /workspace/SOUL.md for your role, scope, and tool allowlist.
+- Read AGENTS.md for the CLI + layout reference (above).
 - Use \`vobase <subcommand>\` for side-effecting actions; never edit
   read-only files via \`echo >\` — the dispatcher will reject them.
 - Frozen zone rule: files in your frozen prompt were snapshotted at the
   start of this wake. Mid-wake writes persist, but only show up in the
   NEXT turn's side-load — NOT in the system prompt.
 `.trimStart()
+
+/**
+ * Build the active-IDs preamble rendered at the top of the system prompt.
+ *
+ * Conversational wakes include the conversation + contact context so the agent
+ * knows which customer it's responding to. Non-conversational wakes emit only
+ * the agent-self line — there are no empty-slot interpolations.
+ */
+export function buildActiveIdsPreamble(ids: { agentId: string; contactId?: string; conversationId?: string }): string {
+  if (ids.contactId && ids.conversationId) {
+    return `You are /agents/${ids.agentId}/, working on /conversations/${ids.conversationId}/ with contact /contacts/${ids.contactId}/.`
+  }
+  return `You are /agents/${ids.agentId}/.`
+}
 
 async function safeRead(bash: Bash, path: string): Promise<string> {
   try {
@@ -45,12 +58,9 @@ async function safeRead(bash: Bash, path: string): Promise<string> {
   }
 }
 
-async function safeListSkills(bash: Bash): Promise<Array<{ name: string; description: string }>> {
+async function safeListSkills(bash: Bash, agentId: string): Promise<Array<{ name: string; description: string }>> {
   try {
-    // Enumerate the directory tree via `ls` against the virtual FS. We want
-    // names + (if readable) the YAML frontmatter 'description' — the frozen
-    // zone carries ONLY the metadata line, not full bodies.
-    const names = await bash.fs.readdir('/workspace/skills')
+    const names = await bash.fs.readdir(`/agents/${agentId}/skills`)
     const out: Array<{ name: string; description: string }> = []
     for (const name of names) {
       out.push({ name, description: '' })
@@ -76,39 +86,43 @@ async function sha256Hex(input: string): Promise<string> {
 
 /**
  * Build the frozen system prompt + SHA-256 hash over its rendered string.
- * Called ONCE per wake at `agent_start`. N3 invariant: never re-read mid-wake.
+ * Called ONCE per wake at `agent_start`. Never re-read mid-wake.
  */
 export async function buildFrozenPrompt(input: FrozenPromptInput): Promise<FrozenPromptResult> {
-  const [agentsMd, soulMd, memoryMd, businessMd] = await Promise.all([
-    safeRead(input.bash, '/workspace/AGENTS.md'),
-    safeRead(input.bash, '/workspace/SOUL.md'),
-    safeRead(input.bash, '/workspace/MEMORY.md'),
-    safeRead(input.bash, '/workspace/drive/BUSINESS.md'),
+  const agentId = input.agentDefinition.id
+  const [agentsMd, memoryMd, businessMd] = await Promise.all([
+    safeRead(input.bash, `/agents/${agentId}/AGENTS.md`),
+    safeRead(input.bash, `/agents/${agentId}/MEMORY.md`),
+    safeRead(input.bash, '/drive/BUSINESS.md'),
   ])
-  const skills = await safeListSkills(input.bash)
+  const skills = await safeListSkills(input.bash, agentId)
 
   const skillList =
     skills.length === 0
       ? '_No skills registered._'
       : skills.map((s) => `- ${s.name}${s.description ? `: ${s.description}` : ''}`).join('\n')
 
+  const preamble = buildActiveIdsPreamble({
+    agentId,
+    contactId: input.contactId,
+    conversationId: input.conversationId,
+  })
+
   // Markdown segments are separated by two newlines; this string IS what we
-  // hash over. Hash is pre-tokenization per plan N3.
+  // hash over. Hash is pre-tokenization.
   const rendered = [
+    preamble,
+    '',
     '# System',
     '',
     `organization_id=${input.organizationId}`,
     `conversation_id=${input.conversationId}`,
     `contact_id=${input.contactId}`,
-    `agent_id=${input.agentDefinition.id}`,
+    `agent_id=${agentId}`,
     '',
     '## AGENTS.md',
     '',
     agentsMd,
-    '',
-    '## SOUL.md',
-    '',
-    soulMd,
     '',
     '## MEMORY.md (frozen snapshot at wake start)',
     '',
@@ -118,7 +132,7 @@ export async function buildFrozenPrompt(input: FrozenPromptInput): Promise<Froze
     '',
     businessMd,
     '',
-    '## Skills (metadata only; `cat /workspace/skills/<name>` for full body)',
+    `## Skills (metadata only; \`cat /agents/${agentId}/skills/<name>\` for full body)`,
     '',
     skillList,
     '',

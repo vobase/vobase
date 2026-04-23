@@ -6,13 +6,13 @@ tags: [drive, policy, citations]
 
 # Cite Policy
 
-When a customer asks about a policy (refunds, data export, account deletion, SOC2, pricing), always verify the answer against `/workspace/drive/` before replying. Do not rely on memory alone — policies change.
+When a customer asks about a policy (refunds, data export, account deletion, SOC2, pricing), always verify the answer against `/drive/` before replying. Do not rely on memory alone — policies change.
 
 ## How to cite
 
 ```bash
-grep -r "refund" /workspace/drive/ --include="*.md" -i
-cat /workspace/drive/refunds/policy.md
+grep -r "refund" /drive/ --include="*.md" -i
+cat /drive/refunds/policy.md
 ```
 
 Quote the relevant sentence verbatim in your reply, then paraphrase in plain language. Example:

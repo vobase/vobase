@@ -3,8 +3,8 @@
  * buffer and persists writable-zone changes to their owning module services.
  *
  * Routing rules:
- *   `/workspace/contact/MEMORY.md` → ContactsService.upsertNotesSection (section-ops)
- *   `/workspace/contact/drive/**`  → FilesService.create / delete  (scope='contact')
+ *   `/contacts/<id>/MEMORY.md` → ContactsService.upsertNotesSection (section-ops)
+ *   `/contacts/<id>/drive/**`  → FilesService.create / delete  (scope='contact')
  *
  * Frozen-snapshot invariant: this listener ONLY fires on `agent_end`.
  * Mid-wake dirty writes accumulate in the tracker but are NOT flushed until then,
@@ -41,15 +41,18 @@ export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: Ag
     // ── 1. Contact MEMORY.md → section upserts ──────────────────────────
     const memoryDirty = scoped.contactMemory.added.length > 0 || scoped.contactMemory.changed.length > 0
 
+    const contactDrivePrefix = `/contacts/${contactId}/drive`
+    const contactMemoryPath = `/contacts/${contactId}/MEMORY.md`
+
     if (memoryDirty) {
       try {
-        const raw = await fs.readFile('/workspace/contact/MEMORY.md')
+        const raw = await fs.readFile(contactMemoryPath)
         const sections = parseMarkdownSections(raw)
         for (const [heading, body] of sections) {
           await upsertNotesSection(contactId, heading, body)
         }
       } catch (err) {
-        logger.warn({ err }, 'workspace-sync: failed to flush contact/MEMORY.md')
+        logger.warn({ err }, 'workspace-sync: failed to flush contact MEMORY.md')
       }
     }
 
@@ -61,7 +64,7 @@ export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: Ag
       try {
         const content = await fs.readFile(wPath)
         // Convert workspace path → scope-relative path
-        const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
+        const drivePath = wPath.slice(contactDrivePrefix.length) || '/'
         const name = drivePath.split('/').filter(Boolean).pop() ?? drivePath
 
         const existing = await drive.getByPath(contactScope, drivePath)
@@ -78,19 +81,19 @@ export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: Ag
         }
         // Content updates on existing files are deferred to Phase 3 (no update-content on FilesService yet).
       } catch (err) {
-        logger.warn({ err, wPath }, 'workspace-sync: failed to persist contact/drive file')
+        logger.warn({ err, wPath }, 'workspace-sync: failed to persist contact drive file')
       }
     }
 
     for (const wPath of scoped.contactDrive.deleted) {
       try {
-        const drivePath = wPath.slice('/workspace/contact/drive'.length) || '/'
+        const drivePath = wPath.slice(contactDrivePrefix.length) || '/'
         const existing = await drive.getByPath(contactScope, drivePath)
         if (existing) {
           await drive.remove(existing.id)
         }
       } catch (err) {
-        logger.warn({ err, wPath }, 'workspace-sync: failed to delete contact/drive file')
+        logger.warn({ err, wPath }, 'workspace-sync: failed to delete contact drive file')
       }
     }
   }

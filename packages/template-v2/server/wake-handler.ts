@@ -36,9 +36,9 @@ import { buildFrozenPrompt } from '@server/harness/frozen-prompt-builder'
 import type { LlmEmitter } from '@server/harness/llm-call'
 import { createModel, resolveApiKey } from '@server/harness/llm-provider'
 import {
+  buildDefaultReadOnlyConfig,
+  buildDefaultWritablePrefixes,
   conversationVerbs,
-  DEFAULT_READ_ONLY_CONFIG,
-  DEFAULT_WRITABLE_PREFIXES,
   driveVerbs,
   teamVerbs,
 } from '@server/workspace'
@@ -89,13 +89,13 @@ function renderTriggerMessage(trigger: WakeTrigger | undefined): string {
   if (!trigger) return 'Manual wake.'
   switch (trigger.trigger) {
     case 'inbound_message':
-      return 'New customer message(s). See /workspace/conversation/messages.md for context.'
+      return `New customer message(s). See /conversations/${trigger.conversationId}/messages.md for context.`
     case 'approval_resumed':
       return trigger.decision === 'approved'
         ? 'Your previous action was approved. Continue.'
         : `Your previous action was rejected: ${trigger.note ?? '(no note)'}. Choose a different approach.`
     case 'supervisor':
-      return 'Staff added an internal note. Read /workspace/conversation/internal-notes.md for context.'
+      return `Staff added an internal note. Read /conversations/${trigger.conversationId}/internal-notes.md for context.`
     case 'scheduled_followup':
       return `Scheduled follow-up: ${trigger.reason}.`
     case 'manual':
@@ -148,11 +148,11 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
     }
 
     // Materializer writes the transcript into the workspace so bash `cat
-    // /workspace/conversation/messages.md` works. Side-load contributor pushes
-    // the same content into the first user message so Claude sees the customer
+    // /conversations/<id>/messages.md` works. Side-load contributor pushes the
+    // same content into the first user message so Claude sees the customer
     // question without a bash call on turn 0.
     const messagesMaterializer: WorkspaceMaterializer = {
-      path: '/workspace/conversation/messages.md',
+      path: `/conversations/${data.conversationId}/messages.md`,
       phase: 'frozen',
       materialize: (ctx) => renderTranscript(ctx.conversationId),
     }
@@ -223,7 +223,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         drivePort: deps.drive,
         contactsPort: deps.contacts,
         agentsPort: deps.agents,
-        readOnlyConfig: DEFAULT_READ_ONLY_CONFIG,
+        readOnlyConfig: buildDefaultReadOnlyConfig({ agentId, contactId: data.contactId }),
       })
 
       // Frozen system prompt (was internal to bootWake).
@@ -236,7 +236,11 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
       })
 
       // Dirty tracker + workspace-sync listener.
-      const dirtyTracker = new DirtyTracker(workspace.initialSnapshot, DEFAULT_WRITABLE_PREFIXES)
+      const dirtyTracker = new DirtyTracker(
+        workspace.initialSnapshot,
+        buildDefaultWritablePrefixes({ contactId: data.contactId }),
+        [`/agents/${agentId}/MEMORY.md`, `/contacts/${data.contactId}/MEMORY.md`],
+      )
       const workspaceSyncListener = createWorkspaceSyncListener({
         fs: workspace.innerFs,
         tracker: dirtyTracker,
@@ -284,7 +288,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 
         agentDefinition: {
           model: agentDefinition.model,
-          soulMd: agentDefinition.soulMd,
+          instructions: agentDefinition.instructions,
           workingMemory: agentDefinition.workingMemory,
         },
         model,

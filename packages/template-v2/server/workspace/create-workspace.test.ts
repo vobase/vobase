@@ -6,14 +6,18 @@ import type { ContactsService, UpsertByExternalInput } from '@modules/contacts/s
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope, GrepMatch } from '@modules/drive/service/types'
-import { BUSINESS_MD_FALLBACK, createWorkspace } from './create-workspace'
-import { DEFAULT_READ_ONLY_CONFIG } from './index'
+import { BUSINESS_MD_FALLBACK, buildFrozenEagerPaths, createWorkspace } from './create-workspace'
+import { buildDefaultReadOnlyConfig } from './index'
+
+const AGENT_ID = 'agent-1'
+const CONTACT_ID = 'contact-1'
+const CONV_ID = 'conv-1'
 
 const AGENT_DEFINITION: AgentDefinition = {
-  id: 'agent-1',
+  id: AGENT_ID,
   organizationId: 't1',
   name: 'meridian-support-v1',
-  soulMd: '# Role: Meridian Support Agent v1\nStay on brand.',
+  instructions: '# Role: Meridian Support Agent v1\nStay on brand.',
   model: 'mock',
   maxSteps: 4,
   workingMemory: '# Memory\n\n_empty_',
@@ -194,9 +198,9 @@ function makeAgentsStub(): AgentsPort {
 async function buildWorkspace(files: DriveFile[] = []) {
   return createWorkspace({
     organizationId: 't1',
-    agentId: 'agent-1',
-    contactId: 'contact-1',
-    conversationId: 'conv-1',
+    agentId: AGENT_ID,
+    contactId: CONTACT_ID,
+    conversationId: CONV_ID,
     wakeId: 'wake-1',
     agentDefinition: AGENT_DEFINITION,
     commands: [],
@@ -204,67 +208,105 @@ async function buildWorkspace(files: DriveFile[] = []) {
     drivePort: makeDriveStub(files),
     contactsPort: makeContactsStub(),
     agentsPort: makeAgentsStub(),
-    readOnlyConfig: DEFAULT_READ_ONLY_CONFIG,
+    readOnlyConfig: buildDefaultReadOnlyConfig({ agentId: AGENT_ID, contactId: CONTACT_ID }),
   })
 }
 
-async function run(ws: Awaited<ReturnType<typeof buildWorkspace>>, cmd: string) {
+async function runShell(ws: Awaited<ReturnType<typeof buildWorkspace>>, cmd: string) {
   return ws.bash.exec(cmd)
 }
 
+describe('buildFrozenEagerPaths', () => {
+  it('produces the 7 per-wake eager paths without the legacy prefix', () => {
+    const paths = buildFrozenEagerPaths({ agentId: AGENT_ID, contactId: CONTACT_ID, conversationId: CONV_ID })
+    expect(paths).toEqual([
+      `/agents/${AGENT_ID}/AGENTS.md`,
+      `/agents/${AGENT_ID}/MEMORY.md`,
+      `/drive/BUSINESS.md`,
+      `/conversations/${CONV_ID}/messages.md`,
+      `/conversations/${CONV_ID}/internal-notes.md`,
+      `/contacts/${CONTACT_ID}/profile.md`,
+      `/contacts/${CONTACT_ID}/MEMORY.md`,
+    ])
+    for (const p of paths) expect(p.startsWith('/workspace')).toBe(false)
+    for (const p of paths) expect(p).not.toContain('SOUL.md')
+  })
+})
+
 describe('createWorkspace', () => {
-  it('seeds the expected 8 eager paths and ls lists them', async () => {
+  it('seeds expected directories with the unified path space', async () => {
     const ws = await buildWorkspace([
       makeTenantFile({ path: '/BUSINESS.md', extractedText: '# Meridian\n\nBrand voice.' }),
       makeTenantFile({ path: '/pricing.md', extractedText: '# Pricing' }),
     ])
-    const res = await run(ws, 'ls /workspace')
-    expect(res.exitCode).toBe(0)
-    const names = res.stdout.split(/\s+/u).filter(Boolean)
-    for (const expected of ['AGENTS.md', 'SOUL.md', 'MEMORY.md', 'skills', 'drive', 'conversation', 'contact', 'tmp']) {
-      expect(names).toContain(expected)
+    const root = await runShell(ws, 'ls /')
+    expect(root.exitCode).toBe(0)
+    const topNames = root.stdout.split(/\s+/u).filter(Boolean)
+    for (const expected of ['agents', 'contacts', 'conversations', 'drive', 'tmp']) {
+      expect(topNames).toContain(expected)
     }
+
+    const agentDir = await runShell(ws, `ls /agents/${AGENT_ID}`)
+    const agentNames = agentDir.stdout.split(/\s+/u).filter(Boolean)
+    expect(agentNames).toContain('AGENTS.md')
+    expect(agentNames).toContain('MEMORY.md')
+    expect(agentNames).toContain('skills')
+    expect(agentNames).not.toContain('SOUL.md')
   })
 
-  it('cat /workspace/drive/BUSINESS.md returns the seeded content', async () => {
+  it('bash starts in /agents/<id>/ (pwd)', async () => {
+    const ws = await buildWorkspace([])
+    const r = await runShell(ws, 'pwd')
+    expect(r.exitCode).toBe(0)
+    expect(r.stdout.trim()).toBe(`/agents/${AGENT_ID}`)
+  })
+
+  it('cat /drive/BUSINESS.md returns the seeded content', async () => {
     const ws = await buildWorkspace([
       makeTenantFile({ path: '/BUSINESS.md', extractedText: '# Meridian Business\n\nBrand details.' }),
     ])
-    const r = await run(ws, 'cat /workspace/drive/BUSINESS.md')
+    const r = await runShell(ws, 'cat /drive/BUSINESS.md')
     expect(r.exitCode).toBe(0)
     expect(r.stdout).toContain('Meridian Business')
   })
 
-  it('falls back to BUSINESS_MD_FALLBACK when the organization row is missing (R8)', async () => {
+  it('falls back to BUSINESS_MD_FALLBACK when the organization row is missing', async () => {
     const ws = await buildWorkspace([])
-    const r = await run(ws, 'cat /workspace/drive/BUSINESS.md')
+    const r = await runShell(ws, 'cat /drive/BUSINESS.md')
     expect(r.stdout).toContain('No business profile configured')
     expect(r.stdout).toContain('Ask staff to create /BUSINESS.md')
     expect(BUSINESS_MD_FALLBACK).toContain('No business profile configured')
   })
 
-  it('rejects writes to /workspace/drive with the spec-exact EROFS error', async () => {
+  it('rejects writes to /drive with the spec-exact EROFS error', async () => {
     const ws = await buildWorkspace([])
-    const r = await run(ws, 'echo "x" > /workspace/drive/evil.md')
+    const r = await runShell(ws, 'echo "x" > /drive/evil.md')
     expect(r.exitCode).not.toBe(0)
     expect(r.stderr).toContain('Read-only filesystem')
     expect(r.stderr).toContain('vobase drive propose')
   })
 
-  it('allows writes to /workspace/contact/drive/uploads/', async () => {
+  it('allows writes to /contacts/<id>/drive/uploads/', async () => {
     const ws = await buildWorkspace([])
-    const mk = await run(ws, 'mkdir -p /workspace/contact/drive/uploads')
+    const mk = await runShell(ws, `mkdir -p /contacts/${CONTACT_ID}/drive/uploads`)
     expect(mk.exitCode).toBe(0)
-    const w = await run(ws, 'echo "hi" > /workspace/contact/drive/uploads/test.md')
+    const w = await runShell(ws, `echo "hi" > /contacts/${CONTACT_ID}/drive/uploads/test.md`)
     expect(w.exitCode).toBe(0)
-    const r = await run(ws, 'cat /workspace/contact/drive/uploads/test.md')
+    const r = await runShell(ws, `cat /contacts/${CONTACT_ID}/drive/uploads/test.md`)
     expect(r.exitCode).toBe(0)
     expect(r.stdout.trim()).toBe('hi')
   })
 
-  it('rejects direct writes to MEMORY.md with the vobase memory hint', async () => {
+  it('rejects direct writes to agent MEMORY.md with the vobase memory hint', async () => {
     const ws = await buildWorkspace([])
-    const r = await run(ws, 'echo "x" > /workspace/MEMORY.md')
+    const r = await runShell(ws, `echo "x" > /agents/${AGENT_ID}/MEMORY.md`)
+    expect(r.exitCode).not.toBe(0)
+    expect(r.stderr).toContain('vobase memory set|append|remove')
+  })
+
+  it('rejects direct writes to contact MEMORY.md with the vobase memory hint', async () => {
+    const ws = await buildWorkspace([])
+    const r = await runShell(ws, `echo "x" > /contacts/${CONTACT_ID}/MEMORY.md`)
     expect(r.exitCode).not.toBe(0)
     expect(r.stderr).toContain('vobase memory set|append|remove')
   })

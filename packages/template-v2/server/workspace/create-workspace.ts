@@ -2,14 +2,14 @@
  * Workspace factory.
  *
  * Assembles the `just-bash` `Bash` instance against an `InMemoryFs` wrapped in
- * `ScopedFs` (RO enforcer per plan B6). Eager-writes the frozen-zone files at
- * construction, captures the `initialSnapshot` for the dirty-tracker, and
- * registers lazy materializers for `drive/**`, `contact/drive/**`, `skills/**`,
- * and `contact/bookings.md`.
+ * `ScopedFs` (RO enforcer). Eager-writes the frozen-zone files at construction,
+ * captures the `initialSnapshot` for the dirty-tracker, and registers lazy
+ * materializers for `/drive/**`, `/contacts/<id>/drive/**`, and
+ * `/agents/<id>/skills/**`.
  *
  * Principle: mid-wake writes persist to disk immediately but are invisible to
- * the current turn's frozen zone (frozen-snapshot invariant). Lazy paths that are never `cat`ed stay
- * out of the snapshot and so cannot register as "dirty".
+ * the current turn's frozen zone (frozen-snapshot invariant). Lazy paths that
+ * are never `cat`ed stay out of the snapshot and so cannot register as "dirty".
  */
 
 import type { AgentDefinition } from '@modules/agents/schema'
@@ -48,7 +48,6 @@ const EMPTY_MEMORY_MD = `---
 
 _empty_
 `
-const EMPTY_BOOKINGS_MD = `# Bookings\n\n_No appointments yet._\n`
 
 export interface CreateWorkspaceOpts {
   organizationId: string
@@ -56,7 +55,7 @@ export interface CreateWorkspaceOpts {
   contactId: string
   conversationId: string
   wakeId: string
-  /** The frozen-at-wake-start agent definition; determines `SOUL.md` + `MEMORY.md`. */
+  /** The frozen-at-wake-start agent definition; supplies the instructions body + working memory. */
   agentDefinition: AgentDefinition
   /** Used by `CommandContext.writeWorkspace` and `readWorkspace`. */
   commandCtx?: Partial<CommandContext>
@@ -73,15 +72,15 @@ export interface CreateWorkspaceOpts {
   /** Optional env passed through to `Bash`. */
   env?: Record<string, string>
   /**
-   * Paths to eagerly materialize at wake turn-0. Phase 0 default is the literal
-   * `FROZEN_EAGER_PATHS` list; Steps 6+ source this from merged module manifests.
+   * Paths to eagerly materialize at wake turn-0. Default is the list produced by
+   * `buildFrozenEagerPaths({ agentId, contactId, conversationId })`; later phases
+   * source this from merged module manifests.
    */
   frozenEagerPaths?: readonly WorkspacePath[]
   /**
    * Effective RO/writable configuration for `ScopedFs`. Required — template
    * declares its writable zones (drive uploads, scratch tmp) since core no
-   * longer ships a default writable-prefix list. See `DEFAULT_WRITABLE_PREFIXES`
-   * in `@server/workspace`.
+   * longer ships a default writable-prefix list.
    */
   readOnlyConfig: ReadOnlyConfig
 }
@@ -95,24 +94,26 @@ export interface WorkspaceHandle {
   materializers: MaterializerRegistry
 }
 
-/** The 8 top-level `/workspace/…` paths that eager-materialize at wake start. */
-export const FROZEN_EAGER_PATHS = [
-  '/workspace/AGENTS.md',
-  '/workspace/SOUL.md',
-  '/workspace/MEMORY.md',
-  '/workspace/drive/BUSINESS.md',
-  '/workspace/conversation/messages.md',
-  '/workspace/conversation/internal-notes.md',
-  '/workspace/contact/profile.md',
-  '/workspace/contact/MEMORY.md',
-] as const
+/** The per-wake set of paths that eager-materialize at turn 0. */
+export function buildFrozenEagerPaths(ids: {
+  agentId: string
+  contactId: string
+  conversationId: string
+}): readonly string[] {
+  return [
+    `/agents/${ids.agentId}/AGENTS.md`,
+    `/agents/${ids.agentId}/MEMORY.md`,
+    `/drive/BUSINESS.md`,
+    `/conversations/${ids.conversationId}/messages.md`,
+    `/conversations/${ids.conversationId}/internal-notes.md`,
+    `/contacts/${ids.contactId}/profile.md`,
+    `/contacts/${ids.contactId}/MEMORY.md`,
+  ]
+}
 
 export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<WorkspaceHandle> {
   const innerFs = new InMemoryFs()
   const fs = new ScopedFs(innerFs, opts.readOnlyConfig)
-  // `opts.frozenEagerPaths` is a Phase 0 hook; today the eager-write block below
-  // uses hardcoded paths and per-path loaders. Steps 6+ move each path to a
-  // module-registered materializer resolved here via `MaterializerRegistry`.
   void opts.frozenEagerPaths
 
   const mats = new MaterializerRegistry(opts.materializers)
@@ -124,43 +125,51 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
     turnIndex: 0,
   }
 
-  // ---- Eager writes (frozen zone) ----
-  const agentsMdSource = generateAgentsMd({ commands: opts.commands })
-  await innerFs.writeFile('/workspace/AGENTS.md', agentsMdSource)
-  await innerFs.writeFile('/workspace/SOUL.md', opts.agentDefinition.soulMd ?? '')
-  await innerFs.writeFile('/workspace/MEMORY.md', opts.agentDefinition.workingMemory || EMPTY_MEMORY_MD)
+  const agentPrefix = `/agents/${opts.agentId}`
+  const contactPrefix = `/contacts/${opts.contactId}`
+  const convPrefix = `/conversations/${opts.conversationId}`
 
-  // BUSINESS.md — materializer may override; otherwise look up by convention (R8).
+  // ---- Eager writes (frozen zone) ----
+  const agentsMdSource = generateAgentsMd({
+    agentName: opts.agentDefinition.name,
+    agentId: opts.agentId,
+    commands: opts.commands,
+    instructions: opts.agentDefinition.instructions ?? '',
+  })
+  await innerFs.writeFile(`${agentPrefix}/AGENTS.md`, agentsMdSource)
+  await innerFs.writeFile(`${agentPrefix}/MEMORY.md`, opts.agentDefinition.workingMemory || EMPTY_MEMORY_MD)
+
+  // BUSINESS.md — materializer may override; otherwise look up by convention.
   const businessMd = await loadBusinessMd(opts.drivePort, opts.organizationId)
-  await innerFs.writeFile('/workspace/drive/BUSINESS.md', businessMd)
+  await innerFs.writeFile('/drive/BUSINESS.md', businessMd)
 
   // Conversation files — materializer-first, then fallback.
-  const messagesMd = await findMaterialized(mats, '/workspace/conversation/messages.md', matCtx, EMPTY_MESSAGES_MD)
-  await innerFs.writeFile('/workspace/conversation/messages.md', messagesMd)
-  const notesMd = await findMaterialized(mats, '/workspace/conversation/internal-notes.md', matCtx, EMPTY_NOTES_MD)
-  await innerFs.writeFile('/workspace/conversation/internal-notes.md', notesMd)
+  const messagesMd = await findMaterialized(mats, `${convPrefix}/messages.md`, matCtx, EMPTY_MESSAGES_MD)
+  await innerFs.writeFile(`${convPrefix}/messages.md`, messagesMd)
+  const notesMd = await findMaterialized(mats, `${convPrefix}/internal-notes.md`, matCtx, EMPTY_NOTES_MD)
+  await innerFs.writeFile(`${convPrefix}/internal-notes.md`, notesMd)
 
   // Contact files.
   const profileMd = await findMaterialized(
     mats,
-    '/workspace/contact/profile.md',
+    `${contactPrefix}/profile.md`,
     matCtx,
     (await loadContactProfileFallback(opts.contactsPort, opts.contactId)) ?? CONTACT_PROFILE_FALLBACK,
   )
-  await innerFs.writeFile('/workspace/contact/profile.md', profileMd)
+  await innerFs.writeFile(`${contactPrefix}/profile.md`, profileMd)
 
   const contactMemoryMd = await findMaterialized(
     mats,
-    '/workspace/contact/MEMORY.md',
+    `${contactPrefix}/MEMORY.md`,
     matCtx,
     (await loadContactMemoryFallback(opts.contactsPort, opts.contactId)) ?? EMPTY_MEMORY_MD,
   )
-  await innerFs.writeFile('/workspace/contact/MEMORY.md', contactMemoryMd)
+  await innerFs.writeFile(`${contactPrefix}/MEMORY.md`, contactMemoryMd)
 
   // Ensure writable top-level dirs exist so `ls` lists them.
-  await innerFs.mkdir('/workspace/tmp', { recursive: true })
-  await innerFs.mkdir('/workspace/contact/drive', { recursive: true })
-  await innerFs.mkdir('/workspace/skills', { recursive: true })
+  await innerFs.mkdir('/tmp', { recursive: true })
+  await innerFs.mkdir(`${contactPrefix}/drive`, { recursive: true })
+  await innerFs.mkdir(`${agentPrefix}/skills`, { recursive: true })
 
   // Capture initialSnapshot AFTER eager writes so dirty-tracking has a baseline.
   const initialSnapshot = await snapshotFs(innerFs)
@@ -178,8 +187,8 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
 
   for (const file of tenantTree) {
     if (file.kind !== 'file') continue
-    const wsPath = `/workspace/drive${file.path}`
-    if (wsPath === '/workspace/drive/BUSINESS.md') continue
+    const wsPath = `/drive${file.path}`
+    if (wsPath === '/drive/BUSINESS.md') continue
     const id = file.id
     innerFs.writeFileLazy(wsPath, async () => {
       const body = await opts.drivePort.readContent(id)
@@ -189,7 +198,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
 
   for (const file of contactTree) {
     if (file.kind !== 'file') continue
-    const wsPath = `/workspace/contact/drive${file.path}`
+    const wsPath = `${contactPrefix}/drive${file.path}`
     const id = file.id
     innerFs.writeFileLazy(wsPath, async () => {
       const body = await opts.drivePort.readContent(id)
@@ -201,16 +210,13 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   try {
     const skills = await safeListSkills(opts.agentsPort, opts.agentId)
     for (const skill of skills) {
-      const wsPath = `/workspace/skills/${skill.name}`
+      const wsPath = `${agentPrefix}/skills/${skill.name}`
       const getBody = skill.getBody
       innerFs.writeFileLazy(wsPath, async () => getBody())
     }
   } catch {
-    /* skills optional in Phase 1 */
+    /* skills optional */
   }
-
-  // ---- Lazy bookings.md ----
-  innerFs.writeFileLazy('/workspace/contact/bookings.md', async () => EMPTY_BOOKINGS_MD)
 
   // ---- Build the Bash instance ----
   const commandCtx: CommandContext = {
@@ -229,10 +235,12 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
     onSideEffect: opts.onSideEffect,
   })
 
+  // Start the virtual shell at `/agents/<id>/` so relative paths resolve there.
   const bash = new Bash({
     fs,
     customCommands: [vobaseCmd],
     env: opts.env,
+    cwd: agentPrefix,
   })
 
   // Wrap `bash.exec` so filesystem errors from `ScopedFs` surface as stderr
@@ -273,7 +281,6 @@ async function findMaterialized(
   return fallback
 }
 
-/** Plan R8 / test assertion 4b — BUSINESS.md falls back to the stub if the organization row is missing. */
 async function loadBusinessMd(drive: FilesService, _tenantId: string): Promise<string> {
   try {
     const row = await drive.getByPath({ scope: 'organization' }, '/BUSINESS.md')
@@ -337,8 +344,8 @@ interface SkillRef {
 }
 
 async function safeListSkills(port: AgentsPort, _agentId: string): Promise<SkillRef[]> {
-  // Phase 1: AgentsPort does not yet expose skill listing — Phase 2 adds it.
-  // Harness can still register lazy skills via a materializer with `path: '/workspace/skills/<name>.md'`.
+  // AgentsPort does not yet expose skill listing — harness can still register
+  // lazy skills via a materializer with `path: '/agents/<id>/skills/<name>.md'`.
   void port
   return []
 }

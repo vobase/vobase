@@ -18,7 +18,7 @@ import type { DriveScope } from '@modules/drive/service/types'
 import type { AgentEvent, WakeTrigger } from '@server/events'
 import { buildFrozenPrompt } from '@server/harness/frozen-prompt-builder'
 import { createModel, resolveApiKey } from '@server/harness/llm-provider'
-import { conversationVerbs, DEFAULT_READ_ONLY_CONFIG, driveVerbs, teamVerbs } from '@server/workspace'
+import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 import { createWorkspace } from '@server/workspace/create-workspace'
 import {
   createHarness,
@@ -255,7 +255,7 @@ export async function bootWakeIntegration(
     drivePort: ports.drive,
     contactsPort: ports.contacts,
     agentsPort: ports.agents,
-    readOnlyConfig: DEFAULT_READ_ONLY_CONFIG,
+    readOnlyConfig: buildDefaultReadOnlyConfig({ agentId: opts.agentId, contactId: opts.contactId }),
   })
 
   const frozen = await buildFrozenPrompt({

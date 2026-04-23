@@ -18,17 +18,17 @@ Do NOT save: sensitive personal documents (passports, credit cards), anything th
 
 ## How to save
 
-Files sent via the channel are automatically placed in `/workspace/contact/drive/uploads/` by the inbound media pipeline. You can reference them with:
+Files sent via the channel are automatically placed in `/contacts/<contactId>/drive/uploads/` by the inbound media pipeline (the active `contactId` is in your wake preamble). You can reference them with:
 
 ```bash
-ls /workspace/contact/drive/uploads/
-cat /workspace/contact/drive/uploads/<filename>
+ls /contacts/<contactId>/drive/uploads/
+cat /contacts/<contactId>/drive/uploads/<filename>
 ```
 
 To move to a more descriptive path:
 
 ```bash
-mv /workspace/contact/drive/uploads/<filename> /workspace/contact/drive/<descriptive-name>.pdf
+mv /contacts/<contactId>/drive/uploads/<filename> /contacts/<contactId>/drive/<descriptive-name>.pdf
 ```
 
 Add a note in contact memory about what was saved and why, using `vobase memory set "Documents" "..."`.

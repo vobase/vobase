@@ -208,7 +208,7 @@ export type ToolResultPersistedEvent = BaseEvent & {
   type: 'tool_result_persisted'
   toolCallId: string
   toolName: string
-  /** Absolute path inside /workspace/tmp/ where the full result was spilled. */
+  /** Absolute path inside /tmp/ where the full result was spilled. */
   path: string
   originalByteLength: number
 }

@@ -16,7 +16,7 @@ export {
   snapshotFs,
 } from '@vobase/core'
 export type { CreateWorkspaceOpts, WorkspaceHandle } from './create-workspace'
-export { BUSINESS_MD_FALLBACK, createWorkspace } from './create-workspace'
+export { BUSINESS_MD_FALLBACK, buildFrozenEagerPaths, createWorkspace } from './create-workspace'
 export {
   conversationVerbs,
   createVobaseCommand,
@@ -27,14 +27,26 @@ export {
 } from './vobase-cli'
 
 /**
- * Template-level default list of writable workspace zones. Core no longer ships
- * a default — apps declare the zones their modules depend on. Drive uploads
- * (`contact/drive/**`) and scratch (`tmp/**`) are the two zones every vobase
- * template ships with.
+ * Build the per-wake read-only configuration for the virtual workspace.
+ *
+ * The template declares writable zones its modules depend on:
+ *   - `/contacts/<id>/drive/` — contact upload space (direct write)
+ *   - `/tmp/` — scratch (direct write)
+ *
+ * Memory files (`/agents/<id>/MEMORY.md`, `/contacts/<id>/MEMORY.md`) render
+ * the `vobase memory …` hint on direct writes. Exact RO paths
+ * (`/agents/<id>/AGENTS.md`, `/contacts/<id>/profile.md`) surface the standard
+ * read-only error. Everything else defaults to RO per the core enforcer.
  */
-export const DEFAULT_WRITABLE_PREFIXES: readonly string[] = ['/workspace/contact/drive/', '/workspace/tmp/']
+export function buildDefaultReadOnlyConfig(ids: { agentId: string; contactId: string }): ReadOnlyConfig {
+  return buildReadOnlyConfig({
+    writablePrefixes: [`/contacts/${ids.contactId}/drive/`, '/tmp/'],
+    memoryPaths: [`/agents/${ids.agentId}/MEMORY.md`, `/contacts/${ids.contactId}/MEMORY.md`],
+    readOnlyExact: [`/agents/${ids.agentId}/AGENTS.md`, `/contacts/${ids.contactId}/profile.md`],
+  })
+}
 
-/** Pre-built read-only config using the template defaults. */
-export const DEFAULT_READ_ONLY_CONFIG: ReadOnlyConfig = buildReadOnlyConfig({
-  writablePrefixes: DEFAULT_WRITABLE_PREFIXES,
-})
+/** Default writable prefixes for the per-wake config; excludes memory paths (those use the memory hint). */
+export function buildDefaultWritablePrefixes(ids: { contactId: string }): readonly string[] {
+  return [`/contacts/${ids.contactId}/drive/`, '/tmp/']
+}
