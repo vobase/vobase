@@ -8,6 +8,7 @@
 
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { getTableName } from 'drizzle-orm'
+import { createJournalService, installJournalService } from './journal'
 import {
   decideProposal,
   insertProposal,
@@ -138,8 +139,11 @@ beforeEach(() => {
   recentProposals = []
   agentStartRows = []
   turnIndexRows = [{ turnIndex: 2 }]
-  setDb(makeDb())
+  const db = makeDb()
+  setDb(db)
   setNotifier(mockNotifier())
+  // biome-ignore lint/suspicious/noExplicitAny: mock db satisfies runtime shape, not full Drizzle types
+  installJournalService(createJournalService({ db: db as any }))
 })
 
 describe('insertProposal', () => {
