@@ -1,11 +1,15 @@
 /**
- * AgentsMdEditor — single Plate.js composite editor for an agent's `AGENTS.md`.
- * Renders the auto-generated framework preamble + command reference as a
- * **locked void block** at the top, followed by the editable `agent.instructions`
- * region. Save extracts only the non-locked nodes and persists via `useUpdateAgent`.
+ * AgentsMdEditor — composite `AGENTS.md` view for an agent. The auto-generated
+ * framework preamble renders as a **sibling above** the editable Plate surface
+ * (not as a void node inside it) because two Slate trees in one `PlateContent`
+ * subtree confuses `toSlateNode` during selection resolution and crashes the
+ * editor. Sharing the scroll container still makes the two halves scroll as
+ * one document, and both render through the same `contentPlugins` so the
+ * typography is byte-identical.
  *
- * Mirrors plugin choices from `modules/drive/components/drive-markdown-editor.tsx`
- * so typography stays consistent between the two surfaces.
+ * Save serialises `editor.children` back to markdown and writes via
+ * `useUpdateAgent`; the drive's `/AGENTS.md` query is invalidated on success
+ * so the browser preview reflects the new content.
  */
 
 import { useAgentsMd, useUpdateAgent } from '@modules/agents/api/use-agent-definitions'
@@ -36,9 +40,8 @@ import {
   Strikethrough,
   Underline,
 } from 'lucide-react'
-import { createSlateEditor, type Descendant, type Value } from 'platejs'
+import { createSlateEditor, type Value } from 'platejs'
 import {
-  createPlatePlugin,
   Plate,
   PlateContent,
   PlateElement,
@@ -55,19 +58,6 @@ import remarkGfm from 'remark-gfm'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-
-const LOCKED_TYPE = 'locked_preamble'
-
-interface LockedPreambleElement {
-  type: typeof LOCKED_TYPE
-  preamble: string
-  children: [{ text: '' }]
-  [key: string]: unknown
-}
-
-function isLocked(node: Descendant): boolean {
-  return (node as { type?: string }).type === LOCKED_TYPE
-}
 
 const BoldLeaf = (props: PlateLeafProps) => <PlateLeaf {...props} as="strong" />
 const ItalicLeaf = (props: PlateLeafProps) => <PlateLeaf {...props} as="em" />
@@ -94,44 +84,6 @@ const BlockquoteElement = (props: PlateElementProps) => (
   />
 )
 
-/**
- * Read-only markdown view that passes through the SAME Plate plugins used by
- * the editable editor below, so headings, lists, inline code, blockquotes —
- * every element component — render byte-identically in both halves of the
- * composite. Uses `createSlateEditor` + `PlateStatic` (the official pattern
- * for server/RSC-friendly read-only rendering) rather than an HTML markdown
- * library, which would diverge visually.
- */
-function PreambleView({ preamble }: { preamble: string }) {
-  const editor = useMemo(() => {
-    const ed = createSlateEditor({ plugins: contentPlugins })
-    ed.children = ed.getApi(MarkdownPlugin).markdown.deserialize(preamble, { memoize: true }) as Value
-    return ed
-  }, [preamble])
-  return <PlateStatic editor={editor} />
-}
-
-const LockedPreambleElement = (props: PlateElementProps) => {
-  const preamble = (props.element as unknown as LockedPreambleElement).preamble
-  return (
-    <PlateElement {...props} className="select-text">
-      <div
-        contentEditable={false}
-        className="-mx-4 mb-4 border-border border-b bg-muted/40 px-4 py-3 text-muted-foreground text-sm leading-relaxed"
-      >
-        <div className="mb-2 flex items-center gap-1.5 font-medium text-[11px] uppercase tracking-wide">
-          <Lock className="size-3" />
-          Auto-generated framework context — read-only
-        </div>
-        <PreambleView preamble={preamble} />
-      </div>
-      {props.children}
-    </PlateElement>
-  )
-}
-
-// Shared by the editable editor AND the PreambleView. Keeping them in one
-// array is what guarantees both halves render with identical typography.
 const contentPlugins = [
   BoldPlugin.withComponent(BoldLeaf),
   ItalicPlugin.withComponent(ItalicLeaf),
@@ -145,12 +97,22 @@ const contentPlugins = [
   MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm, remarkMdx] } }),
 ]
 
-const LockedPreamblePlugin = createPlatePlugin({
-  key: LOCKED_TYPE,
-  node: { isElement: true, isVoid: true, isSelectable: false },
-}).withComponent(LockedPreambleElement)
-
-const plugins = [...contentPlugins, LockedPreamblePlugin]
+function PreambleView({ preamble }: { preamble: string }) {
+  const editor = useMemo(() => {
+    const ed = createSlateEditor({ plugins: contentPlugins })
+    ed.children = ed.getApi(MarkdownPlugin).markdown.deserialize(preamble, { memoize: true }) as Value
+    return ed
+  }, [preamble])
+  return (
+    <div className="border-border border-b bg-muted/40 px-4 py-3 text-muted-foreground text-sm leading-relaxed">
+      <div className="mb-2 flex items-center gap-1.5 font-medium text-[11px] uppercase tracking-wide">
+        <Lock className="size-3" />
+        Auto-generated framework context — read-only
+      </div>
+      <PlateStatic editor={editor} />
+    </div>
+  )
+}
 
 function MarkButton({ markKey, icon, label }: { markKey: string; icon: ReactNode; label: string }) {
   const editor = useEditorRef()
@@ -248,20 +210,11 @@ export function AgentsMdEditor({ agentId, agentName, initialInstructions }: Agen
 
   const editor = usePlateEditor(
     {
-      plugins,
-      value: (ed) => {
-        const lockedNode: LockedPreambleElement = {
-          type: LOCKED_TYPE,
-          preamble,
-          children: [{ text: '' }],
-        }
-        const deserialized = ed
-          .getApi(MarkdownPlugin)
-          .markdown.deserialize(initialInstructions || '_No instructions yet._')
-        return [lockedNode, ...deserialized] as Value
-      },
+      plugins: contentPlugins,
+      value: (ed) =>
+        ed.getApi(MarkdownPlugin).markdown.deserialize(initialInstructions || '_No instructions yet._') as Value,
     },
-    [agentId, preamble],
+    [agentId],
   )
 
   // Drive cache invalidator — `/AGENTS.md` is a virtual file backed by
@@ -276,7 +229,12 @@ export function AgentsMdEditor({ agentId, agentName, initialInstructions }: Agen
   return (
     <div className="flex h-full flex-col">
       <Plate editor={editor}>
-        <EditorBody initialInstructions={initialInstructions} update={update} onSaved={invalidateDriveFile} />
+        <EditorBody
+          preamble={preamble}
+          initialInstructions={initialInstructions}
+          update={update}
+          onSaved={invalidateDriveFile}
+        />
       </Plate>
     </div>
   )
@@ -285,14 +243,16 @@ export function AgentsMdEditor({ agentId, agentName, initialInstructions }: Agen
 /**
  * Inner body rendered inside `<Plate>`. All hooks that read editor state via
  * `useEditorRef` / `useEditorSelector` must live below the Plate provider —
- * calling them from `AgentsMdEditor` throws "Plate hooks must be used
- * inside a Plate or PlateController".
+ * calling them from `AgentsMdEditor` throws "Plate hooks must be used inside
+ * a Plate or PlateController".
  */
 function EditorBody({
+  preamble,
   initialInstructions,
   update,
   onSaved,
 }: {
+  preamble: string
   initialInstructions: string
   update: ReturnType<typeof useUpdateAgent>
   onSaved: () => void
@@ -301,8 +261,10 @@ function EditorBody({
   const dirty = useEditorSelector(
     (ed) => {
       try {
-        const editable = (ed.children as Descendant[]).filter((n) => !isLocked(n))
-        const current = ed.getApi(MarkdownPlugin).markdown.serialize({ value: editable }).trim()
+        const current = ed
+          .getApi(MarkdownPlugin)
+          .markdown.serialize({ value: ed.children as Value })
+          .trim()
         return current !== (initialInstructions ?? '').trim()
       } catch {
         return false
@@ -312,8 +274,7 @@ function EditorBody({
   )
 
   const handleSave = () => {
-    const editableNodes = (editor.children as Descendant[]).filter((n) => !isLocked(n))
-    const md = editor.getApi(MarkdownPlugin).markdown.serialize({ value: editableNodes })
+    const md = editor.getApi(MarkdownPlugin).markdown.serialize({ value: editor.children as Value })
     update.mutate({ instructions: md }, { onSuccess: onSaved })
   }
 
@@ -329,6 +290,7 @@ function EditorBody({
     <>
       <Toolbar statusLabel={status} onSave={handleSave} saving={update.isPending} dirty={dirty} />
       <div className="flex-1 overflow-auto">
+        <PreambleView preamble={preamble} />
         <PlateContent
           className="min-h-full px-4 py-3 text-sm leading-relaxed outline-none"
           placeholder="Describe how this agent should behave…"
