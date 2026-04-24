@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path'); if echo \"$f\" | grep -qE '(bun\\.lock|routeTree\\.gen\\.ts|node_modules/)'; then echo 'BLOCK: Do not edit generated files' >&2; exit 2; fi; exit 0"
+            "command": "\"$CLAUDE_PROJECT_DIR/scripts/claude-pre-edit-hook.sh\""
           }
         ]
       }
@@ -18,11 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path'); out=$(\"$CLAUDE_PROJECT_DIR/node_modules/.bin/biome\" check --write \"$f\" 2>&1); ec=$?; if [ $ec -ne 0 ] && ! echo \"$out\" | grep -q 'No files were processed'; then echo \"$out\" >&2; exit 2; fi"
-          },
-          {
-            "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path'); if [[ \"$f\" =~ \\.(ts|tsx)$ ]]; then bun run \"$CLAUDE_PROJECT_DIR/scripts/check-deprecated-imports.ts\" \"$f\" >&2 || exit 2; fi"
+            "command": "\"$CLAUDE_PROJECT_DIR/scripts/claude-biome-hook.sh\""
           }
         ]
       }
