@@ -7,23 +7,16 @@
  *
  * Items are priority-ordered DESCENDING (higher priority appears first) and
  * joined with `---` separators. Contributors that return `[]` are skipped.
- *
- * Phase 3: `createBashHistoryMaterializer` records every `bash`
- * command executed during the previous turn as a trailing `## Last turn
- * side-effects` markdown section. The reader returns the snapshot fresh per
- * turn (closure over the agent-runner buffer), so commands issued in turn N
- * land in turn N+1's side-load — never the current turn's FROZEN prompt.
  */
 
 import type { SideLoadContributor, SideLoadCtx, SideLoadItem } from './types'
 import type { Bash } from 'just-bash'
 
 /**
- * Phase-1 extension: the harness test-handle accepts an ad-hoc "custom
- * contributor" shape that takes a side-ctx augmented with `bash` — used by
- * assertion 12 (B7/R9) to cat a counter from /tmp/counter.
- *
- * Official contributors (`SideLoadContributor`) still use the spec shape.
+ * Ad-hoc contributor shape used by the harness test-handle: the ctx is
+ * augmented with `bash` so the contributor can execute commands (e.g. cat a
+ * file from the test sandbox). Official contributors (`SideLoadContributor`)
+ * use the spec shape.
  */
 export interface CustomSideLoadMaterializer {
   kind: 'custom'
@@ -84,7 +77,8 @@ export async function collectSideLoad(opts: CollectSideLoadOpts): Promise<string
 }
 
 /**
- * Phase 3 — trailing `## Last turn side-effects` section.
+ * Trailing `## Last turn side-effects` section listing the bash commands
+ * executed during the previous turn.
  *
  * `getHistory()` is called ONCE per turn when the collector materializes.
  * Callers (agent-runner) wire it to a mutable buffer they swap at turn

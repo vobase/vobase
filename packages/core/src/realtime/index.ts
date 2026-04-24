@@ -1,3 +1,4 @@
+import type { PGlite } from '@electric-sql/pglite';
 import { type SQL, sql } from 'drizzle-orm';
 
 import type { VobaseDb } from '../db/client';
@@ -98,6 +99,7 @@ async function createPostgresRealtime(
   dispatch: (payload: string) => void,
   listenDsn?: string,
 ): Promise<RealtimeService> {
+  // biome-ignore lint/plugin/no-dynamic-import: skip loading the `postgres` driver when PGlite or no-op paths are taken at boot
   const postgres = (await import('postgres')).default;
   const dsn = listenDsn ?? databaseConfig;
   const listenConn = postgres(dsn, {
@@ -170,7 +172,7 @@ async function createPostgresRealtime(
 }
 
 async function createPgliteRealtime(
-  pglite: import('@electric-sql/pglite').PGlite,
+  pglite: PGlite,
   db: VobaseDb,
   subscribers: Set<Subscriber>,
   dispatch: (payload: string) => void,

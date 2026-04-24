@@ -14,6 +14,8 @@
  */
 import type { PGlite } from '@electric-sql/pglite';
 
+import { createDatabase, getPgliteClient } from './db/client';
+
 let shared: PGlite | null = null;
 
 const CORE_SCHEMAS = ['auth', 'audit', 'infra'] as const;
@@ -26,7 +28,6 @@ const CORE_SCHEMAS = ['auth', 'audit', 'infra'] as const;
  */
 export async function getSharedPGlite(): Promise<PGlite> {
   if (!shared) {
-    const { createDatabase, getPgliteClient } = await import('./db/client');
     createDatabase('memory://');
     // biome-ignore lint/style/noNonNullAssertion: guaranteed to exist after createDatabase
     shared = getPgliteClient('memory://')!;

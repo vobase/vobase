@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { drizzle } from 'drizzle-orm/pglite';
 
-import type { VobaseDb } from '../db/client';
+import { type VobaseDb, getPgliteClient } from '../db/client';
 import { createTestPGlite } from '../test-helpers';
 import type { Scheduler } from '../jobs/queue';
 import {
@@ -112,7 +112,6 @@ describe('verifyHmacSignature', () => {
 
 describe('webhook deduplication', () => {
   beforeEach(async () => {
-    const { getPgliteClient } = await import('../db/client');
     const pg = getPgliteClient('memory://');
     await pg?.query('DELETE FROM "infra"."webhook_dedup"');
   });
@@ -167,7 +166,6 @@ describe('createWebhookRoutes', () => {
   const payload = JSON.stringify({ event: 'test', id: 'evt_1' });
 
   beforeEach(async () => {
-    const { getPgliteClient } = await import('../db/client');
     const pg = getPgliteClient('memory://');
     await pg?.query('DELETE FROM "infra"."webhook_dedup"');
   });
