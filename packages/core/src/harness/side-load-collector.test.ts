@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { Bash } from 'just-bash'
 
-import {
-  type CustomSideLoadMaterializer,
-  collectSideLoad,
-  createBashHistoryMaterializer,
-} from './side-load-collector'
+import { type CustomSideLoadMaterializer, collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
 import type { SideLoadContributor, SideLoadCtx, SideLoadItem } from './types'
 
 function makeCtx(): SideLoadCtx {

@@ -42,7 +42,7 @@ export function createWhatsAppAdapter(
   registerWebhook(callbackUrl: string, verifyToken: string): Promise<void>
   deregisterWebhook(): Promise<void>
 } {
-  const { phoneNumberId, accessToken, appSecret } = config
+  const { phoneNumberId, appSecret } = config
   const transport = config.transport
 
   // Compose sub-modules

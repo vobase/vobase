@@ -9,9 +9,9 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
+import type { VobaseDb } from '../../src/db/client'
 import { createCostService } from '../../src/harness/cost'
 import { tenantCostDaily } from '../../src/schemas/harness'
-import type { VobaseDb } from '../../src/db/client'
 import { createTenantCostDailyTable, freshDb } from '../helpers/pglite'
 
 let db: VobaseDb

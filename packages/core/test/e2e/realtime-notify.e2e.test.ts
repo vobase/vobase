@@ -8,9 +8,9 @@
 
 import { beforeAll, describe, expect, it } from 'bun:test'
 
+import type { VobaseDb } from '../../src/db/client'
 import { createRealtimeService, type RealtimePayload } from '../../src/realtime'
 import { freshDb } from '../helpers/pglite'
-import type { VobaseDb } from '../../src/db/client'
 
 let db: VobaseDb
 

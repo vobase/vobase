@@ -1,16 +1,10 @@
-import { createHmac } from 'node:crypto'
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 import { drizzle } from 'drizzle-orm/pglite'
 
 import { getPgliteClient, type VobaseDb } from '../db/client'
 import type { Scheduler } from '../jobs/queue'
 import { createTestPGlite } from '../test-helpers'
-import { checkAndRecordWebhook, createWebhookRoutes, verifyHmacSignature, type WebhookConfig } from '.'
-
-/** Helper: compute a valid HMAC-SHA256 hex signature for a given payload + secret */
-function computeSignature(payload: string, secret: string): string {
-  return createHmac('sha256', secret).update(payload).digest('hex')
-}
+import { checkAndRecordWebhook, createWebhookRoutes, signHmac, verifyHmacSignature, type WebhookConfig } from '.'
 
 let db: VobaseDb
 
@@ -60,12 +54,12 @@ describe('verifyHmacSignature', () => {
   const payload = '{"event":"payment.completed","id":"evt_123"}'
 
   test('verifies valid HMAC-SHA256 signature', () => {
-    const signature = computeSignature(payload, secret)
+    const signature = signHmac(payload, secret)
     expect(verifyHmacSignature(payload, signature, secret)).toBe(true)
   })
 
   test('rejects invalid signature', () => {
-    const signature = computeSignature(payload, secret)
+    const signature = signHmac(payload, secret)
     const tampered = signature.slice(0, -1) + (signature.endsWith('0') ? '1' : '0')
     expect(verifyHmacSignature(payload, tampered, secret)).toBe(false)
   })
@@ -80,7 +74,7 @@ describe('verifyHmacSignature', () => {
   })
 
   test('uses timing-safe comparison (not ===)', () => {
-    const valid = computeSignature(payload, secret)
+    const valid = signHmac(payload, secret)
     expect(verifyHmacSignature(payload, valid, secret)).toBe(true)
     const sameLength = 'f'.repeat(valid.length)
     expect(verifyHmacSignature(payload, sameLength, secret)).toBe(false)
@@ -88,8 +82,8 @@ describe('verifyHmacSignature', () => {
 
   test('handles different payloads correctly', () => {
     const payload2 = '{"different":"data"}'
-    const sig1 = computeSignature(payload, secret)
-    const sig2 = computeSignature(payload2, secret)
+    const sig1 = signHmac(payload, secret)
+    const sig2 = signHmac(payload2, secret)
 
     expect(verifyHmacSignature(payload, sig1, secret)).toBe(true)
     expect(verifyHmacSignature(payload2, sig2, secret)).toBe(true)
@@ -149,10 +143,6 @@ function createMockScheduler(): Scheduler & {
   }
 }
 
-function computeHmac(payload: string, secret: string): string {
-  return createHmac('sha256', secret).update(payload).digest('hex')
-}
-
 describe('createWebhookRoutes', () => {
   const secret = 'test-secret'
   const payload = JSON.stringify({ event: 'test', id: 'evt_1' })
@@ -179,7 +169,7 @@ describe('createWebhookRoutes', () => {
       scheduler,
     )
 
-    const sig = computeHmac(payload, secret)
+    const sig = signHmac(payload, secret)
     const res = await app.request('/webhooks/stripe', {
       method: 'POST',
       body: payload,
@@ -240,7 +230,7 @@ describe('createWebhookRoutes', () => {
       scheduler,
     )
 
-    const sig = computeHmac(payload, secret)
+    const sig = signHmac(payload, secret)
     const headers = {
       'x-webhook-signature': sig,
       'x-webhook-id': 'wh_dup',
@@ -279,7 +269,7 @@ describe('createWebhookRoutes', () => {
       scheduler,
     )
 
-    const sig = computeHmac(payload, secret)
+    const sig = signHmac(payload, secret)
     const headers = {
       'x-webhook-signature': sig,
       'x-webhook-id': 'wh_nodup',
@@ -313,7 +303,7 @@ describe('createWebhookRoutes', () => {
       scheduler,
     )
 
-    const sig = computeHmac(payload, secret)
+    const sig = signHmac(payload, secret)
     const res = await app.request('/webhooks/github', {
       method: 'POST',
       body: payload,
@@ -341,7 +331,7 @@ describe('createWebhookRoutes', () => {
       scheduler,
     )
 
-    const sig = computeHmac(payload, secret)
+    const sig = signHmac(payload, secret)
     const headers = {
       'x-webhook-signature': sig,
       'x-github-delivery': 'gh_dup',
@@ -377,7 +367,7 @@ describe('createWebhookRoutes', () => {
     )
 
     const rawBody = 'plain text payload'
-    const sig = computeHmac(rawBody, secret)
+    const sig = signHmac(rawBody, secret)
     const res = await app.request('/webhooks/stripe', {
       method: 'POST',
       body: rawBody,

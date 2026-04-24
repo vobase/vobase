@@ -101,6 +101,7 @@ export function makeBashTool(deps: BashToolDeps): AgentTool<BashToolArgs, BashTo
         const spillPath = `/tmp/tool-${ctx.toolCallId}.txt`
         const spilled = await spillToFile({
           stdout: res.stdout,
+          stdoutBytes,
           spillPath,
           toolName: 'bash',
           ctx,

@@ -1,28 +1,8 @@
 /**
  * Generic wake harness — `createHarness()` wraps `@mariozechner/pi-agent-core`'s
- * stateful `Agent` and translates its event stream into a `HarnessEvent` union.
- *
- * Responsibilities (lifted from template-v2's `bootWake`, with domain coupling
- * removed):
- *   - Drive user-turns through `agent.prompt()` and `agent.waitForIdle()`.
- *   - Cache side-load per user-turn via `transformContext`; drop pi sub-turn
- *     `turn_start`/`turn_end` events in favour of our user-turn brackets.
- *   - Synthesise `llm_call` on pi's `message_end` using `message.usage`.
- *   - Compose multi-listener `on_tool_call` / `on_tool_result` / `on_event`
- *     hooks over pi-agent's single-slot `beforeToolCall`/`afterToolCall` +
- *     multi-listener `agent.subscribe()`.
- *   - Steer and abort between turns (never inside).
- *
- * Caller owns:
- *   - Workspace construction (Bash + InMemoryFs provided via `workspace`).
- *   - Frozen system prompt + hash (provided; harness does not rebuild mid-wake).
- *   - Journal persistence (`journalAppend` callback).
- *   - Message history load/save (`loadMessageHistory` + `onTurnEndSnapshot`).
- *   - Trigger rendering (`renderTrigger` — opaque `trigger` shape).
- *   - Model construction + API key (`model` + `getApiKey`).
- *
- * Event union is generic: `HarnessEvent` covers every variant this harness
- * emits. Apps compose broader unions (approval_*, learning_*, channel_*) on top.
+ * stateful `Agent` and translates its event stream into the `HarnessEvent` union.
+ * Side-load is computed once per user-turn (same value surfaces in both
+ * `capturedPrompts` and the LLM input); steer/abort are observed between turns.
  */
 
 import {
@@ -358,13 +338,11 @@ class TurnTracker {
   sideLoadCache: string | null = null
   phase: 'pre_tool' | 'in_tool' | 'post_tool' = 'pre_tool'
   turnStartedAt = 0
-  isFirstTransformOfTurn = true
 
   beginUserTurn(): void {
     this.turnIndex += 1
     this.sideLoadCache = null
     this.phase = 'pre_tool'
-    this.isFirstTransformOfTurn = true
     this.turnStartedAt = Date.now()
   }
 
@@ -546,22 +524,6 @@ export async function createHarness<TTrigger = unknown>(
     },
     convertToLlm: (msgs: AgentMessage[]) => msgs as never,
     transformContext: async (msgs: AgentMessage[]) => {
-      if (tracker.isFirstTransformOfTurn) {
-        tracker.isFirstTransformOfTurn = false
-        const sideLoadBody = await collectSideLoad({
-          ctx: {
-            organizationId: opts.organizationId,
-            conversationId,
-            agentId: opts.agentId,
-            contactId: opts.contactId,
-            turnIndex: Math.max(0, tracker.turnIndex),
-          },
-          contributors: opts.sideLoadContributors ?? [],
-          customMaterializers: customSideLoad,
-          bash: opts.workspace.bash,
-        })
-        tracker.sideLoadCache = sideLoadBody
-      }
       if (!tracker.sideLoadCache) return msgs
       const lastIdx = msgs.length - 1
       const last = msgs[lastIdx]
@@ -779,7 +741,6 @@ export async function createHarness<TTrigger = unknown>(
       pendingSteerText = null
     }
 
-    // Mirror transformContext for captured-prompts.
     const sideLoadBody = await collectSideLoad({
       ctx: {
         organizationId: opts.organizationId,
@@ -792,6 +753,7 @@ export async function createHarness<TTrigger = unknown>(
       customMaterializers: customSideLoad,
       bash: opts.workspace.bash,
     })
+    tracker.sideLoadCache = sideLoadBody
     const firstUserMessage = sideLoadBody ? `${sideLoadBody}\n\n${userText}` : userText
     capturedPrompts.push({
       system: opts.systemPrompt,

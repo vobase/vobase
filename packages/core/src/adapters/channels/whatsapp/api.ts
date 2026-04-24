@@ -137,7 +137,7 @@ export type GraphApiResponse = {
 }
 
 export function createApiClient(config: WhatsAppChannelConfig, httpClient?: HttpClient) {
-  const { phoneNumberId, accessToken } = config
+  const { accessToken } = config
   const apiVersion = config.apiVersion ?? 'v22.0'
   const transport = config.transport
 

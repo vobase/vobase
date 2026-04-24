@@ -80,6 +80,32 @@ export async function createRealtimeService(
   }
 }
 
+function buildRealtimeService(
+  db: VobaseDb,
+  subscribers: Set<Subscriber>,
+  teardown: () => Promise<void> | void,
+): RealtimeService {
+  return {
+    subscribe(fn) {
+      subscribers.add(fn)
+      return () => {
+        subscribers.delete(fn)
+      }
+    },
+
+    async notify(payload, tx) {
+      const json = JSON.stringify(payload)
+      const notifyQuery = sql`SELECT pg_notify(${CHANNEL}, ${json})`
+      await (tx ?? db).execute(notifyQuery)
+    },
+
+    async shutdown() {
+      await teardown()
+      subscribers.clear()
+    },
+  }
+}
+
 async function createPostgresRealtime(
   databaseConfig: string,
   db: VobaseDb,
@@ -129,30 +155,10 @@ async function createPostgresRealtime(
     keepaliveTimer.unref?.()
   }
 
-  return {
-    subscribe(fn) {
-      subscribers.add(fn)
-      return () => {
-        subscribers.delete(fn)
-      }
-    },
-
-    async notify(payload, tx) {
-      const json = JSON.stringify(payload)
-      const notifyQuery = sql`SELECT pg_notify(${CHANNEL}, ${json})`
-      if (tx) {
-        await tx.execute(notifyQuery)
-      } else {
-        await db.execute(notifyQuery)
-      }
-    },
-
-    async shutdown() {
-      if (keepaliveTimer) clearInterval(keepaliveTimer)
-      await listenConn.end()
-      subscribers.clear()
-    },
-  }
+  return buildRealtimeService(db, subscribers, async () => {
+    if (keepaliveTimer) clearInterval(keepaliveTimer)
+    await listenConn.end()
+  })
 }
 
 async function createPgliteRealtime(
@@ -164,30 +170,7 @@ async function createPgliteRealtime(
   const unsub = await pglite.listen(CHANNEL, (payload) => {
     dispatch(payload)
   })
-
-  return {
-    subscribe(fn) {
-      subscribers.add(fn)
-      return () => {
-        subscribers.delete(fn)
-      }
-    },
-
-    async notify(payload, tx) {
-      const json = JSON.stringify(payload)
-      const notifyQuery = sql`SELECT pg_notify(${CHANNEL}, ${json})`
-      if (tx) {
-        await tx.execute(notifyQuery)
-      } else {
-        await db.execute(notifyQuery)
-      }
-    },
-
-    async shutdown() {
-      unsub()
-      subscribers.clear()
-    },
-  }
+  return buildRealtimeService(db, subscribers, unsub)
 }
 
 /** No-op fallback when LISTEN/NOTIFY initialization fails at boot. */

@@ -3,6 +3,8 @@ import type { ToolContext, ToolResultPersistedEvent } from './types'
 
 export interface SpillDeps {
   stdout: string
+  /** Pre-computed UTF-8 byte length — callers already know it from the spill decision. */
+  stdoutBytes?: number
   spillPath: string
   toolName: string
   ctx: ToolContext
@@ -18,7 +20,7 @@ export interface SpillOutput {
 
 /** Write stdout to spillPath, emit ToolResultPersistedEvent, return preview + persisted metadata. */
 export async function spillToFile(deps: SpillDeps): Promise<SpillOutput> {
-  const byteLength = Buffer.byteLength(deps.stdout, 'utf8')
+  const byteLength = deps.stdoutBytes ?? Buffer.byteLength(deps.stdout, 'utf8')
   const preview = deps.stdout.slice(0, L1_PREVIEW_BYTES)
   try {
     await deps.innerWrite(deps.spillPath, deps.stdout)

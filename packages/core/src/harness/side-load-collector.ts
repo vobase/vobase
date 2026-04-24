@@ -95,7 +95,7 @@ export function createBashHistoryMaterializer(getHistory: () => readonly string[
     priority: 0,
     contribute: () => {
       const hist = getHistory()
-      if (!hist || hist.length === 0) return ''
+      if (hist.length === 0) return ''
       const lines = hist.map((cmd) => `- \`${cmd}\``).join('\n')
       return `## Last turn side-effects\n\n${lines}`
     },

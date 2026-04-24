@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 
 import type { VobaseDb } from '../db/client'
@@ -57,29 +56,21 @@ export function signHmac(payload: string, secret: string): string {
 }
 
 /**
- * Check whether a webhook has already been processed and record it if not.
- *
- * Checks for existing record first, then inserts if not found.
+ * Record a webhook and report whether it is a duplicate. Single round-trip
+ * upsert — the conflict branch returns zero rows, which atomically classifies
+ * the arrival as a duplicate without a separate SELECT (closing the TOCTOU
+ * window between two concurrent identical deliveries).
  *
  * @returns `true` if the webhook is a duplicate, `false` if it's new.
  */
 export async function checkAndRecordWebhook(db: VobaseDb, webhookId: string, source: string): Promise<boolean> {
-  const [existing] = await db
-    .select({ id: webhookDedup.id })
-    .from(webhookDedup)
-    .where(and(eq(webhookDedup.id, webhookId), eq(webhookDedup.source, source)))
+  const inserted = await db
+    .insert(webhookDedup)
+    .values({ id: webhookId, source, receivedAt: new Date() })
+    .onConflictDoNothing()
+    .returning({ id: webhookDedup.id })
 
-  if (existing) {
-    return true
-  }
-
-  await db.insert(webhookDedup).values({
-    id: webhookId,
-    source,
-    receivedAt: new Date(),
-  })
-
-  return false
+  return inserted.length === 0
 }
 
 /**
