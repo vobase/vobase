@@ -92,6 +92,7 @@
           "options": {
             "groups": [
               [":NODE:"],
+              [":BUN:"],
               [":URL:", ":PACKAGE:", ":PACKAGE_WITH_PROTOCOL:"],
               ":BLANK_LINE:",
               ["#*", "#*/**", ":ALIAS:"],
