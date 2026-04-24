@@ -44,6 +44,7 @@
   "linter": {
     "enabled": true,
     "domains": {
+      "drizzle": "recommended",
       "project": "recommended",
       "react": "recommended",
       "test": "recommended",
@@ -54,7 +55,7 @@
       "suspicious": {
         "noExplicitAny": "error",
         "noTsIgnore": "error",
-        "useAwait": "error",
+        "useAwait": "warn",
         "noFocusedTests": "error"
       },
       "style": {
@@ -109,6 +110,25 @@
     {
       "includes": ["src/**", "modules/**/pages/**"],
       "plugins": ["./.biome/plugins/no-raw-fetch.grit"]
+    },
+    {
+      "includes": [
+        "**/routes/**",
+        "**/*.config.ts",
+        "**/handlers/**",
+        "**/pages/**",
+        "**/modules/**/module.ts",
+        "**/modules/**/seed.ts",
+        "**/server.ts",
+        "**/server/**/module.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          }
+        }
+      }
     }
   ]
 }
