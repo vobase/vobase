@@ -18,7 +18,7 @@ import { createDatabase, getPgliteClient } from './db/client'
 
 let shared: PGlite | null = null
 
-const CORE_SCHEMAS = ['auth', 'audit', 'infra'] as const
+const CORE_SCHEMAS = ['auth', 'audit', 'infra', 'harness'] as const
 
 /**
  * Returns a process-wide singleton PGlite instance with pgcrypto + vector
