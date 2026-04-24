@@ -16,7 +16,10 @@
       "!**/*.generated.ts"
     ]
   },
-  "plugins": ["./.biome/plugins/no-dynamic-import.grit"],
+  "plugins": [
+    "./.biome/plugins/no-dynamic-import.grit",
+    "./.biome/plugins/no-raw-sql-statement.grit"
+  ],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -50,12 +53,16 @@
       "recommended": true,
       "suspicious": {
         "noExplicitAny": "error",
-        "noTsIgnore": "error"
+        "noTsIgnore": "error",
+        "useAwait": "error",
+        "noFocusedTests": "error"
       },
       "style": {
         "noNonNullAssertion": "error",
         "useImportType": "error",
-        "useNodejsImportProtocol": "error"
+        "useNodejsImportProtocol": "error",
+        "useThrowOnlyError": "error",
+        "noDefaultExport": "error"
       },
       "complexity": {
         "noBannedTypes": "off"
@@ -63,6 +70,15 @@
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "useSortedClasses": {
+          "level": "error",
+          "options": {
+            "functions": ["cn", "clsx", "cva", "tw"]
+          }
+        }
       }
     }
   },

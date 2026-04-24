@@ -1,0 +1,32 @@
+// Flags tagged template literals whose first token is a SQL verb (SELECT,
+// INSERT, UPDATE, DELETE, WITH, CREATE, DROP, ALTER, TRUNCATE). Use the
+// drizzle query builder for standalone statements; reserve `sql\`...\`` for
+// sub-expressions (inside .where(), .set({}), partial-index predicates,
+// upsert arithmetic, scalar functions like pg_notify()). Suppress per-line
+// with `// biome-ignore lint/plugin/no-raw-sql-statement: <reason>` when no
+// builder equivalent exists (LISTEN/NOTIFY, DDL in tests, etc).
+//
+// NOTE (2026-04-24): Biome 2.4's GritQL implementation does not yet reliably
+// match nested tagged templates by prefix (see biomejs/biome issues around
+// tagged_template_expression snippet matching). This plugin is intentionally
+// conservative — it will match some but not all raw-statement cases. The
+// convention is documented in CLAUDE.md and enforced via review as well.
+language js;
+
+or {
+  `sql\`SELECT $_\``,
+  `sql\`INSERT $_\``,
+  `sql\`UPDATE $_\``,
+  `sql\`DELETE $_\``,
+  `sql\`WITH $_\``,
+  `sql\`CREATE $_\``,
+  `sql\`DROP $_\``,
+  `sql\`ALTER $_\``,
+  `sql\`TRUNCATE $_\``
+} as $tmpl where {
+  register_diagnostic(
+    span = $tmpl,
+    message = "Raw SQL statement in a `sql\\`...\\`` template. Use the drizzle query builder for standalone statements and reserve the tag for sub-expressions. Suppress with `// biome-ignore lint/plugin/no-raw-sql-statement: <reason>` when no builder equivalent exists.",
+    severity = "error"
+  )
+}

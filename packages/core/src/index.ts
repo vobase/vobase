@@ -198,7 +198,6 @@ export type {
 } from './harness/types'
 export { newWakeId } from './harness/wake-id'
 export {
-  type ActiveWakesDb,
   type ActiveWakesStore,
   acquire as acquireActiveWake,
   createInMemoryActiveWakes,

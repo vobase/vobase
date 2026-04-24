@@ -5,76 +5,74 @@
  * Every wake acquires a lease keyed by conversation_id; inbound messages that
  * arrive while a lease is held are steered via `pg_notify('wake:<worker>')`
  * instead of enqueuing a fresh job.
- *
- * Operations are written as raw SQL so the driver stays drizzle-free — callers
- * pass in the `postgres.Sql` handle already on ctx.db.
  */
 
-export interface ActiveWakesDb {
-  /** Minimal tagged-template `postgres` Sql interface. */
-  <T extends Record<string, unknown> = Record<string, unknown>>(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ): Promise<T[]>
-  unsafe?: (stmt: string, values?: unknown[]) => Promise<unknown>
-}
+import { and, eq, lt, sql } from 'drizzle-orm'
+
+import type { VobaseDb } from '../db/client'
+import { activeWakes } from '../schemas/harness'
 
 /**
  * Atomically acquire (or reclaim a stale) lease for a conversation. Returns
  * `true` when the caller holds the lease.
  */
 export async function acquire(
-  sql: ActiveWakesDb,
+  db: VobaseDb,
   conversationId: string,
   workerId: string,
   debounceMs: number,
 ): Promise<boolean> {
   const debounceSeconds = Math.max(1, Math.round(debounceMs / 1000))
-  const rows = await sql<{ acquired: boolean }>`
-    INSERT INTO harness.active_wakes (conversation_id, worker_id, debounce_until)
-    VALUES (${conversationId}, ${workerId}, now() + (${debounceSeconds} || ' seconds')::interval)
-    ON CONFLICT (conversation_id) DO UPDATE SET
-      worker_id = EXCLUDED.worker_id,
-      started_at = now(),
-      debounce_until = EXCLUDED.debounce_until
-      WHERE harness.active_wakes.debounce_until < now()
-    RETURNING worker_id = ${workerId} AS acquired
-  `
+  const debounceUntil = sql`now() + make_interval(secs => ${debounceSeconds})`
+
+  const rows = await db
+    .insert(activeWakes)
+    .values({
+      conversationId,
+      workerId,
+      debounceUntil: debounceUntil as unknown as Date,
+    })
+    .onConflictDoUpdate({
+      target: activeWakes.conversationId,
+      set: {
+        workerId: sql`excluded.worker_id`,
+        startedAt: sql`now()`,
+        debounceUntil: sql`excluded.debounce_until`,
+      },
+      setWhere: lt(activeWakes.debounceUntil, sql`now()`),
+    })
+    .returning({ acquired: sql<boolean>`${activeWakes.workerId} = ${workerId}` })
+
   return rows[0]?.acquired === true
 }
 
 /** Release the lease (called when the wake completes or aborts). */
-export async function release(sql: ActiveWakesDb, conversationId: string, workerId: string): Promise<void> {
-  await sql`
-    DELETE FROM harness.active_wakes
-    WHERE conversation_id = ${conversationId} AND worker_id = ${workerId}
-  `
+export async function release(db: VobaseDb, conversationId: string, workerId: string): Promise<void> {
+  await db
+    .delete(activeWakes)
+    .where(and(eq(activeWakes.conversationId, conversationId), eq(activeWakes.workerId, workerId)))
 }
 
 /**
  * Lookup the worker currently holding the lease for a conversation. Returns
  * `null` when the lease is free or expired.
  */
-export async function getWorker(sql: ActiveWakesDb, conversationId: string): Promise<string | null> {
-  const rows = await sql<{ worker_id: string }>`
-    SELECT worker_id FROM harness.active_wakes
-    WHERE conversation_id = ${conversationId} AND debounce_until > now()
-    LIMIT 1
-  `
-  return rows[0]?.worker_id ?? null
+export async function getWorker(db: VobaseDb, conversationId: string): Promise<string | null> {
+  const rows = await db
+    .select({ workerId: activeWakes.workerId })
+    .from(activeWakes)
+    .where(and(eq(activeWakes.conversationId, conversationId), sql`${activeWakes.debounceUntil} > now()`))
+    .limit(1)
+  return rows[0]?.workerId ?? null
 }
 
 /** Sweep leases left behind by crashed workers (>1m past their debounce). */
-export async function sweepStale(sql: ActiveWakesDb): Promise<number> {
-  const rows = await sql<{ count: string }>`
-    WITH deleted AS (
-      DELETE FROM harness.active_wakes
-      WHERE debounce_until < now() - interval '1 minute'
-      RETURNING conversation_id
-    )
-    SELECT count(*)::text AS count FROM deleted
-  `
-  return Number(rows[0]?.count ?? '0')
+export async function sweepStale(db: VobaseDb): Promise<number> {
+  const deleted = await db
+    .delete(activeWakes)
+    .where(lt(activeWakes.debounceUntil, sql`now() - interval '1 minute'`))
+    .returning({ conversationId: activeWakes.conversationId })
+  return deleted.length
 }
 
 /**
@@ -92,24 +90,27 @@ export function createInMemoryActiveWakes(): ActiveWakesStore {
   const leases = new Map<string, { workerId: string; debounceUntil: number }>()
   let clock = 0
   return {
-    async acquire(conversationId, workerId, debounceMs): Promise<boolean> {
+    acquire(conversationId, workerId, debounceMs): Promise<boolean> {
       const existing = leases.get(conversationId)
-      if (existing && existing.debounceUntil > clock) return existing.workerId === workerId
+      if (existing && existing.debounceUntil > clock) {
+        return Promise.resolve(existing.workerId === workerId)
+      }
       leases.set(conversationId, {
         workerId,
         debounceUntil: clock + debounceMs,
       })
-      return true
+      return Promise.resolve(true)
     },
-    async release(conversationId, workerId): Promise<void> {
+    release(conversationId, workerId): Promise<void> {
       const existing = leases.get(conversationId)
       if (existing && existing.workerId === workerId) leases.delete(conversationId)
+      return Promise.resolve()
     },
-    async getWorker(conversationId): Promise<string | null> {
+    getWorker(conversationId): Promise<string | null> {
       const existing = leases.get(conversationId)
-      if (!existing) return null
-      if (existing.debounceUntil <= clock) return null
-      return existing.workerId
+      if (!existing) return Promise.resolve(null)
+      if (existing.debounceUntil <= clock) return Promise.resolve(null)
+      return Promise.resolve(existing.workerId)
     },
     advance(ms: number): void {
       clock += ms
