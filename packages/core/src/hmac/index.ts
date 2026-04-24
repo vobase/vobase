@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
 
 import type { VobaseDb } from '../db/client'
@@ -30,7 +30,7 @@ export interface WebhookConfig {
  */
 export function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
   try {
-    const expected = createHmac('sha256', secret).update(payload).digest('hex')
+    const expected = new Bun.CryptoHasher('sha256', secret).update(payload).digest('hex')
 
     if (signature.length !== expected.length) {
       return false
@@ -52,7 +52,7 @@ export function verifyHmacSignature(payload: string, signature: string, secret: 
 
 /** Sign a payload with HMAC-SHA256. Symmetric to verifyHmacSignature. */
 export function signHmac(payload: string, secret: string): string {
-  return createHmac('sha256', secret).update(payload).digest('hex')
+  return new Bun.CryptoHasher('sha256', secret).update(payload).digest('hex')
 }
 
 /**

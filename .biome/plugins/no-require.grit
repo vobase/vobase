@@ -1,0 +1,14 @@
+// Bans CommonJS `require(...)` calls. The monorepo is ESM (`"type": "module"`)
+// and uses Bun — static `import` is the canonical form, and dynamic `import()`
+// handles the rare cases where lazy loading is required. Suppress per-line with
+// `// biome-ignore lint/plugin/no-require: <reason>` when interop with a
+// genuinely CJS-only dep is unavoidable.
+language js;
+
+`require($args)` where {
+  register_diagnostic(
+    span = $args,
+    message = "CommonJS `require()` is banned. Use a static `import` statement (or a justified dynamic `import()`). Suppress with `// biome-ignore lint/plugin/no-require: <reason>` only for unavoidable CJS interop.",
+    severity = "error"
+  )
+}

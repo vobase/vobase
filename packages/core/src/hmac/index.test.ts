@@ -1,15 +1,17 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test'
+import type { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
 
-import { getPgliteClient, type VobaseDb } from '../db/client'
+import type { VobaseDb } from '../db/client'
 import type { Scheduler } from '../jobs/queue'
 import { createTestPGlite } from '../test-helpers'
 import { checkAndRecordWebhook, createWebhookRoutes, signHmac, verifyHmacSignature, type WebhookConfig } from '.'
 
 let db: VobaseDb
+let pglite: PGlite
 
 beforeAll(async () => {
-  const pglite = await createTestPGlite()
+  pglite = await createTestPGlite()
   await pglite.exec(`
     CREATE TABLE "infra"."webhook_dedup" (
       id TEXT NOT NULL,
@@ -98,8 +100,7 @@ describe('verifyHmacSignature', () => {
 
 describe('webhook deduplication', () => {
   beforeEach(async () => {
-    const pg = getPgliteClient('memory://')
-    await pg?.query('DELETE FROM "infra"."webhook_dedup"')
+    await pglite.query('DELETE FROM "infra"."webhook_dedup"')
   })
 
   test('first webhook ID is not a duplicate', async () => {
@@ -148,8 +149,7 @@ describe('createWebhookRoutes', () => {
   const payload = JSON.stringify({ event: 'test', id: 'evt_1' })
 
   beforeEach(async () => {
-    const pg = getPgliteClient('memory://')
-    await pg?.query('DELETE FROM "infra"."webhook_dedup"')
+    await pglite.query('DELETE FROM "infra"."webhook_dedup"')
   })
 
   function createWebhookTestApp(configs: Record<string, WebhookConfig>, mockScheduler: Scheduler) {

@@ -1,6 +1,8 @@
+import { SQL } from 'bun'
 import { PGlite } from '@electric-sql/pglite'
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
 import { vector } from '@electric-sql/pglite/vector'
+import { drizzle as drizzleBunSql } from 'drizzle-orm/bun-sql'
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite'
 
 export type VobaseDb = ReturnType<typeof drizzlePglite>
@@ -16,9 +18,6 @@ export function getPgliteClient(dbPath: string): PGlite | undefined {
 
 export function createDatabase(dbPath: string): VobaseDb {
   if (dbPath.startsWith('postgres://') || dbPath.startsWith('postgresql://')) {
-    // Lazy import bun:sql — only available in Bun runtime, not in Node/drizzle-kit
-    const { SQL } = require('bun')
-    const { drizzle: drizzleBunSql } = require('drizzle-orm/bun-sql')
     const client = new SQL({
       url: dbPath,
       max: 20,

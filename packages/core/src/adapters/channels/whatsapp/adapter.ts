@@ -1,4 +1,4 @@
-import crypto from 'node:crypto'
+import { timingSafeEqual } from 'node:crypto'
 
 import type {
   ChannelAdapter,
@@ -144,11 +144,11 @@ export function createWhatsAppAdapter(
     if (!signature.startsWith('sha256=')) return false
 
     const rawBody = await request.clone().text()
-    const expectedSig = crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex')
+    const expectedSig = new Bun.CryptoHasher('sha256', appSecret).update(rawBody).digest('hex')
     const expected = `sha256=${expectedSig}`
 
     try {
-      return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+      return timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
     } catch {
       return false
     }

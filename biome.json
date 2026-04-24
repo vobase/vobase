@@ -18,7 +18,8 @@
   },
   "plugins": [
     "./.biome/plugins/no-dynamic-import.grit",
-    "./.biome/plugins/no-raw-sql-statement.grit"
+    "./.biome/plugins/no-raw-sql-statement.grit",
+    "./.biome/plugins/no-require.grit"
   ],
   "formatter": {
     "enabled": true,
