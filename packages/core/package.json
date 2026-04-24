@@ -54,9 +54,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@mariozechner/pi-agent-core": "^0.67.68",
-    "@mariozechner/pi-ai": "^0.67.68",
-    "drizzle-kit": "1.0.0-beta.22",
+    "@mariozechner/pi-agent-core": "^0.70.0",
+    "@mariozechner/pi-ai": "^0.70.0",
+    "drizzle-kit": "1.0.0-beta.23",
     "just-bash": "^2.14.2"
   }
 }
