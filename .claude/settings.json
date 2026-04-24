@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path'); if echo \"$f\" | grep -qE '(bun\\.lock|routeTree\\.gen\\.ts|node_modules/)'; then echo 'BLOCK: Do not edit generated files' >&2; exit 2; fi; exit 0"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path'); biome check --write \"$f\" 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path'); [[ \"$f\" =~ \\.(ts|tsx)$ ]] && bun run \"$CLAUDE_PROJECT_DIR/scripts/check-deprecated-imports.ts\" \"$f\" || true"
+          }
+        ]
+      }
+    ]
+  }
+}
