@@ -63,11 +63,11 @@ for (const file of glob.scanSync({ cwd: `${import.meta.dir}/..` })) {
 }
 
 if (violations.length > 0) {
-  console.error('[check:tokens] ✗ Raw-color / date-renderer violations found:\n')
+  console.error('✗ Raw-color / date-renderer violations found:\n')
   for (const v of violations) console.error(`  ${v.file}:${v.line}  ${v.text}`)
   process.exit(1)
 }
-console.log('[check:tokens] ✓ No raw colors or date-renderer violations in src/')
+console.log('✓ No raw colors or date-renderer violations in src/')
 
 // --- two-palette coverage check ---
 const CSS_PATH = `${import.meta.dir}/../src/styles/app.css`
@@ -119,9 +119,9 @@ for (const t of usedTokens) {
 }
 
 if (paletteViolations.length > 0) {
-  console.error('[check:tokens] ✗ Palette coverage violations:\n')
+  console.error('✗ Palette coverage violations:\n')
   for (const v of paletteViolations) console.error(v)
   process.exit(1)
 }
-console.log('[check:tokens] ✓ Both palettes cover all var(--color-*) token references')
+console.log('✓ Both palettes cover all var(--color-*) token references')
 process.exit(0)

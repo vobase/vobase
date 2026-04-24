@@ -78,10 +78,10 @@ for (const override of lock.allowed_overrides) {
 }
 
 if (errors.length === 0) {
-  console.log('[check:shadcn-overrides] ✓ All registry components match lock SHAs')
+  console.log('✓ All registry components match lock SHAs')
   process.exit(0)
 }
 
-console.error('[check:shadcn-overrides] ✗ Override violations:\n')
+console.error('✗ Override violations:\n')
 for (const e of errors) console.error(`  ${e}`)
 process.exit(1)

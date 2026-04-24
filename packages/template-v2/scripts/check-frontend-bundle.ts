@@ -35,11 +35,11 @@ for (const file of glob.scanSync({ cwd: `${import.meta.dir}/..` })) {
 }
 
 if (violations.length === 0) {
-  console.log('[check:bundle] ✓ No forbidden server imports in src/')
+  console.log('✓ No forbidden server imports in src/')
   process.exit(0)
 }
 
-console.error('[check:bundle] ✗ Forbidden imports found in src/ — these would break the Vite bundle:\n')
+console.error('✗ Forbidden imports found in src/ — these would break the Vite bundle:\n')
 for (const v of violations) {
   console.error(`  ${v.file}:${v.line}  ${v.text}`)
 }

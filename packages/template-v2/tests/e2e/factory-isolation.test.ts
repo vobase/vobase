@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { driveFiles } from '@modules/drive/schema'
 import { createFilesService } from '@modules/drive/service/files'
 
-import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../tests/helpers/test-db'
+import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
 const ORG_A = 'org0alpha0'
 const ORG_B = 'org0bravo00'

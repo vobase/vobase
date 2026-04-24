@@ -53,5 +53,5 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-console.log('check-module-shape: journal-write-path guard OK')
+console.log('journal-write-path guard OK')
 process.exit(0)

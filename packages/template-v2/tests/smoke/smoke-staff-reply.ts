@@ -4,7 +4,7 @@
  * against a seeded conversation; asserts 2xx + messageId in body + SSE NOTIFY
  * received within 2s.
  *
- * Usage: BASE_URL=http://localhost:3001 CONV_ID=conv_seed_1 bun run scripts/smoke-staff-reply.ts
+ * Usage: BASE_URL=http://localhost:3001 CONV_ID=conv_seed_1 bun run tests/smoke/smoke-staff-reply.ts
  */
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3001'

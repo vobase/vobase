@@ -31,7 +31,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "test": "bun test src/ test/; EXIT=$?; [ $EXIT -eq 99 ] && exit 0; exit $EXIT",
+    "test": "bun test src/ tests/; EXIT=$?; [ $EXIT -eq 99 ] && exit 0; exit $EXIT",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc --noEmit"

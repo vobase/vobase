@@ -52,10 +52,10 @@ for (const rel of targets) {
 }
 
 if (violations.length === 0) {
-  console.log('[check:no-auto-nav-tabs] ✓ No auto-derived nav tabs found')
+  console.log('✓ No auto-derived nav tabs found')
   process.exit(0)
 }
 
-console.error('[check:no-auto-nav-tabs] ✗ Auto-derived nav tab violations:\n')
+console.error('✗ Auto-derived nav tab violations:\n')
 for (const v of violations) console.error(`  ${v.file}:${v.line}  ${v.text}`)
 process.exit(1)

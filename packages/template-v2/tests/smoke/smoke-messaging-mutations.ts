@@ -4,7 +4,7 @@
  * asserts 200 + SSE NOTIFY received within 2s.
  * Run on integration/template-v2-pr1 BEFORE σ5 stub-flag removal.
  *
- * Usage: BASE_URL=http://localhost:3001 CONV_ID=conv_seed_1 bun run scripts/smoke-messaging-mutations.ts
+ * Usage: BASE_URL=http://localhost:3001 CONV_ID=conv_seed_1 bun run tests/smoke/smoke-messaging-mutations.ts
  */
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3001'
