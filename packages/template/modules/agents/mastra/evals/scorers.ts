@@ -1,8 +1,8 @@
-import { createScorer } from '@mastra/core/evals';
+import { createScorer } from '@mastra/core/evals'
 
-import { models } from '../lib/models';
-import { agentModel } from '../lib/provider';
-import { coerce } from './coerce';
+import { models } from '../lib/models'
+import { agentModel } from '../lib/provider'
+import { coerce } from './coerce'
 
 /**
  * Scorer registry — conversation-aware eval scorers.
@@ -17,11 +17,11 @@ import { coerce } from './coerce';
  * in score-conversation.ts and the quality dashboard.
  */
 
-const judgeModel = agentModel(models.gpt_mini);
+const judgeModel = agentModel(models.gpt_mini)
 
 interface KbSnippet {
-  documentTitle: string;
-  content: string;
+  documentTitle: string
+  content: string
 }
 
 function isKbSnippet(v: unknown): v is KbSnippet {
@@ -30,20 +30,17 @@ function isKbSnippet(v: unknown): v is KbSnippet {
     v !== null &&
     typeof (v as { documentTitle?: unknown }).documentTitle === 'string' &&
     typeof (v as { content?: unknown }).content === 'string'
-  );
+  )
 }
 
 /** Format KB snippets from requestContext for inclusion in a judge prompt. */
 function formatKbSnippets(run: { requestContext?: unknown }): string {
-  const ctx = run.requestContext;
+  const ctx = run.requestContext
   const raw =
-    ctx && typeof ctx === 'object' && 'kbSnippets' in ctx
-      ? (ctx as { kbSnippets?: unknown }).kbSnippets
-      : undefined;
-  const snippets = Array.isArray(raw) ? raw.filter(isKbSnippet) : [];
-  if (snippets.length === 0)
-    return '(no relevant knowledge base snippets found)';
-  return snippets.map((s) => `- [${s.documentTitle}] ${s.content}`).join('\n');
+    ctx && typeof ctx === 'object' && 'kbSnippets' in ctx ? (ctx as { kbSnippets?: unknown }).kbSnippets : undefined
+  const snippets = Array.isArray(raw) ? raw.filter(isKbSnippet) : []
+  if (snippets.length === 0) return '(no relevant knowledge base snippets found)'
+  return snippets.map((s) => `- [${s.documentTitle}] ${s.content}`).join('\n')
 }
 
 // ─── Answer Relevancy ───────────────────────────────────────────────
@@ -97,15 +94,14 @@ a reply that ignores an obviously relevant snippet is less relevant than one tha
         '',
         'Explain in 1-2 sentences why this score was given for relevancy, referencing the KB snippets if they were pertinent.',
       ].join('\n'),
-  });
+  })
 
 // ─── Faithfulness ───────────────────────────────────────────────────
 
 const faithfulness = createScorer({
   id: 'faithfulness',
   name: 'Faithfulness',
-  description:
-    'Evaluates whether the agent reply contains only factual, verifiable claims without hallucination.',
+  description: 'Evaluates whether the agent reply contains only factual, verifiable claims without hallucination.',
   judge: {
     model: judgeModel,
     instructions: `You are a faithfulness evaluator for a customer-facing agent.
@@ -139,15 +135,15 @@ If the reply is a simple acknowledgment or greeting with no factual claims, scor
         '',
         'Explain in 1-2 sentences what claims were unsupported, or confirm no hallucination was found.',
       ].join('\n'),
-  });
+  })
 
-export const scorers = [answerRelevancy, faithfulness] as const;
+export const scorers = [answerRelevancy, faithfulness] as const
 
 export function getScorerMeta() {
   return scorers.map((s) => {
-    let steps: Array<{ name: string; type: string; description?: string }> = [];
+    let steps: Array<{ name: string; type: string; description?: string }> = []
     try {
-      steps = s.getSteps();
+      steps = s.getSteps()
     } catch {
       // Some scorers have steps without description — getSteps() throws
     }
@@ -157,6 +153,6 @@ export function getScorerMeta() {
       description: s.description,
       hasJudge: !!s.judge,
       steps,
-    };
-  });
+    }
+  })
 }

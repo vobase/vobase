@@ -4,11 +4,11 @@
 export {
   createResendAdapter,
   type ResendAdapterConfig,
-} from './adapters/channels/resend';
+} from './adapters/channels/resend'
 export {
   createSmtpAdapter,
   type SmtpAdapterConfig,
-} from './adapters/channels/smtp';
+} from './adapters/channels/smtp'
 export {
   type CreateTemplateInput,
   createWhatsAppAdapter,
@@ -17,9 +17,9 @@ export {
   type WhatsAppCtaUrlInteractive,
   type WhatsAppTemplate,
   type WhatsAppTransportConfig,
-} from './adapters/channels/whatsapp';
-export { createLocalAdapter } from './adapters/storage/local';
-export { createS3Adapter } from './adapters/storage/s3';
+} from './adapters/channels/whatsapp'
+export { createLocalAdapter } from './adapters/storage/local'
+export { createS3Adapter } from './adapters/storage/s3'
 export type {
   AuthAdapter,
   AuthSession,
@@ -27,7 +27,7 @@ export type {
   CreateApiKey,
   RevokeApiKey,
   VerifyApiKey,
-} from './contracts/auth';
+} from './contracts/auth'
 export type {
   ChannelAdapter,
   ChannelCapabilities,
@@ -39,8 +39,8 @@ export type {
   ReactionEvent,
   SendResult,
   StatusUpdateEvent,
-} from './contracts/channels';
-export type { OrganizationContext, Permission } from './contracts/permissions';
+} from './contracts/channels'
+export type { OrganizationContext, Permission } from './contracts/permissions'
 export type {
   ListOptions,
   LocalAdapterConfig,
@@ -51,22 +51,22 @@ export type {
   StorageListResult,
   StorageObjectInfo,
   UploadOptions,
-} from './contracts/storage';
+} from './contracts/storage'
 // ─── DB ──────────────────────────────────────────────────────────────
-export { createDatabase, type VobaseDb } from './db';
+export { createDatabase, type VobaseDb } from './db'
 export {
   createNanoid,
   DEFAULT_COLUMNS,
   NANOID_ALPHABET,
   NANOID_LENGTH,
   nanoidPrimaryKey,
-} from './db/helpers';
+} from './db/helpers'
 export {
   auditPgSchema,
   authPgSchema,
   harnessPgSchema,
   infraPgSchema,
-} from './db/pg-schemas';
+} from './db/pg-schemas'
 // ─── Errors ──────────────────────────────────────────────────────────
 export {
   conflict,
@@ -78,15 +78,27 @@ export {
   unauthorized,
   VobaseError,
   validation,
-} from './errors';
+} from './errors'
 // ─── Harness primitives ──────────────────────────────────────────────────
 export {
   BASH_PREVIEW_BYTES,
   type BashToolArgs,
   type BashToolResult,
   makeBashTool,
-} from './harness/bash-tool';
-export { classifyError } from './harness/classify-error';
+} from './harness/bash-tool'
+export { classifyError } from './harness/classify-error'
+// ─── Harness persistence services ────────────────────────────────────
+export {
+  __resetCostServiceForTests,
+  type CostService,
+  type CostServiceDeps,
+  createCostService,
+  getDailySpend,
+  installCostService,
+  type RecordCostInput,
+  recordCostUsage,
+  setCostDb,
+} from './harness/cost'
 export {
   type AgentAbortedEvent,
   type AgentEndEvent,
@@ -119,29 +131,48 @@ export {
   type TurnEndEvent,
   type TurnStartEvent,
   type WakeScope,
-} from './harness/create-harness';
+} from './harness/create-harness'
+export {
+  __resetJournalServiceForTests,
+  append as journalAppend,
+  createJournalService,
+  getLastWakeTail as journalGetLastWakeTail,
+  getLatestTurnIndex as journalGetLatestTurnIndex,
+  installJournalService,
+  type JournalAppendInput,
+  type JournalEventLike,
+  type JournalService,
+  type JournalServiceDeps,
+  setDb as setJournalDb,
+} from './harness/journal'
+export {
+  loadMessages,
+  type MessageHistoryDb,
+  type ResolveThreadOpts,
+  resolveThread,
+} from './harness/message-history'
 export {
   createRestartRecoveryContributor,
   type GetLastWakeTail,
-} from './harness/restart-recovery';
+} from './harness/restart-recovery'
 export {
   type CollectSideLoadOpts,
   type CustomSideLoadMaterializer,
   collectSideLoad,
   createBashHistoryMaterializer,
-} from './harness/side-load-collector';
-export { createSteerQueue, type SteerQueueHandle } from './harness/steer-queue';
+} from './harness/side-load-collector'
+export { createSteerQueue, type SteerQueueHandle } from './harness/steer-queue'
 export {
   type SpillDeps,
   type SpillOutput,
   spillToFile,
-} from './harness/tool-budget-spill';
+} from './harness/tool-budget-spill'
 export {
   L1_PREVIEW_BYTES,
   L2_SPILL_BYTES,
   L3_CEILING_BYTES,
   TurnBudget,
-} from './harness/turn-budget';
+} from './harness/turn-budget'
 export type {
   AbortContext,
   AgentTool,
@@ -164,8 +195,17 @@ export type {
   ToolResult,
   ToolResultPersistedEvent,
   WorkspaceMaterializer,
-} from './harness/types';
-export { newWakeId } from './harness/wake-id';
+} from './harness/types'
+export { newWakeId } from './harness/wake-id'
+export {
+  type ActiveWakesDb,
+  type ActiveWakesStore,
+  acquire as acquireActiveWake,
+  createInMemoryActiveWakes,
+  getWorker as getActiveWakeWorker,
+  release as releaseActiveWake,
+  sweepStale as sweepStaleActiveWakes,
+} from './harness/wake-registry'
 export {
   createWithJournaledTx,
   type JournaledTxDb,
@@ -174,7 +214,7 @@ export {
   type RawJournalAppend,
   type Tx,
   type WithJournaledTxInput,
-} from './harness/with-journaled-tx';
+} from './harness/with-journaled-tx'
 // ─── HMAC + Webhooks ─────────────────────────────────────────────────
 export {
   createWebhookRoutes,
@@ -182,89 +222,40 @@ export {
   verifyHmacSignature,
   type WebhookConfig,
   webhookDedup as webhookDedupTable,
-} from './hmac';
+} from './hmac'
 // ─── HTTP ────────────────────────────────────────────────────────────
 export {
   CircuitBreaker,
   type CircuitBreakerOptions,
-} from './http/circuit-breaker';
+} from './http/circuit-breaker'
 export {
   createHttpClient,
   type HttpClient,
   type HttpClientOptions,
   type HttpResponse,
   type RequestOptions,
-} from './http/client';
-export type { JobDefinition, JobHandler, WorkerOptions } from './jobs/job';
+} from './http/client'
+export type { JobDefinition, JobHandler, WorkerOptions } from './jobs/job'
 // ─── Jobs ────────────────────────────────────────────────────────────
-export { createWorker, defineJob } from './jobs/job';
+export { createWorker, defineJob } from './jobs/job'
 export {
   createScheduler,
   type JobOptions,
   type ScheduleOptions,
   type Scheduler,
-} from './jobs/queue';
+} from './jobs/queue'
 // ─── Logger ──────────────────────────────────────────────────────────
-export { logger } from './logger';
+export { logger } from './logger'
 export type {
   CreateRealtimeOptions,
   RealtimeExecutor,
   RealtimePayload,
   RealtimeService,
-} from './realtime';
+} from './realtime'
 // ─── Realtime (SSE + LISTEN/NOTIFY) ──────────────────────────────────
-export { createNoopRealtime, createRealtimeService } from './realtime';
+export { createNoopRealtime, createRealtimeService } from './realtime'
 // ─── Schemas ─────────────────────────────────────────────────────────
-export { auditLog, recordAudits } from './schemas/audit';
-export {
-  activeWakes,
-  agentMessages,
-  auditWakeMap,
-  type ConversationEvent,
-  conversationEvents,
-  tenantCostDaily,
-  threads,
-} from './schemas/harness';
-// ─── Harness persistence services ────────────────────────────────────
-export {
-  __resetCostServiceForTests,
-  type CostService,
-  type CostServiceDeps,
-  createCostService,
-  getDailySpend,
-  installCostService,
-  type RecordCostInput,
-  recordCostUsage,
-  setCostDb,
-} from './harness/cost';
-export {
-  __resetJournalServiceForTests,
-  append as journalAppend,
-  createJournalService,
-  getLastWakeTail as journalGetLastWakeTail,
-  getLatestTurnIndex as journalGetLatestTurnIndex,
-  installJournalService,
-  type JournalAppendInput,
-  type JournalEventLike,
-  type JournalService,
-  type JournalServiceDeps,
-  setDb as setJournalDb,
-} from './harness/journal';
-export {
-  loadMessages,
-  type MessageHistoryDb,
-  type ResolveThreadOpts,
-  resolveThread,
-} from './harness/message-history';
-export {
-  acquire as acquireActiveWake,
-  type ActiveWakesDb,
-  type ActiveWakesStore,
-  createInMemoryActiveWakes,
-  getWorker as getActiveWakeWorker,
-  release as releaseActiveWake,
-  sweepStale as sweepStaleActiveWakes,
-} from './harness/wake-registry';
+export { auditLog, recordAudits } from './schemas/audit'
 export {
   apikeyTableMap,
   authAccount,
@@ -279,23 +270,32 @@ export {
   authUser,
   authVerification,
   organizationTableMap,
-} from './schemas/auth';
-export { channelsLog, channelsTemplates } from './schemas/channels';
-export { integrationsTable } from './schemas/integrations';
-export { sequences } from './schemas/sequences';
-export { storageObjects } from './schemas/storage';
-export { webhookDedup } from './schemas/webhook-dedup';
+} from './schemas/auth'
+export { channelsLog, channelsTemplates } from './schemas/channels'
+export {
+  activeWakes,
+  agentMessages,
+  auditWakeMap,
+  type ConversationEvent,
+  conversationEvents,
+  tenantCostDaily,
+  threads,
+} from './schemas/harness'
+export { integrationsTable } from './schemas/integrations'
+export { sequences } from './schemas/sequences'
+export { storageObjects } from './schemas/storage'
+export { webhookDedup } from './schemas/webhook-dedup'
 // ─── Workspace primitives ────────────────────────────────────────────────
 export {
   type GenerateAgentsMdOpts,
   generateAgentsMd,
-} from './workspace/agents-md-generator';
+} from './workspace/agents-md-generator'
 export {
   type DirtyDiff,
   DirtyTracker,
   snapshotFs,
-} from './workspace/dirty-tracker';
-export { MaterializerRegistry } from './workspace/materializer-registry';
+} from './workspace/dirty-tracker'
+export { MaterializerRegistry } from './workspace/materializer-registry'
 export {
   type BuildReadOnlyConfigOpts,
   buildReadOnlyConfig,
@@ -304,4 +304,4 @@ export {
   type ReadOnlyConfig,
   ReadOnlyFsError,
   ScopedFs,
-} from './workspace/ro-enforcer';
+} from './workspace/ro-enforcer'

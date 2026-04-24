@@ -1,4 +1,5 @@
 import type { ModuleDef } from '@server/common/module-def'
+
 import handlers from './handlers'
 import { createSystemService, installSystemService } from './service'
 

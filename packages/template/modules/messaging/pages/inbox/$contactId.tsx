@@ -1,57 +1,50 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { parseAsString, useQueryState } from 'nuqs';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { parseAsString, useQueryState } from 'nuqs'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Skeleton } from '@/components/ui/skeleton';
-import { authClient } from '@/lib/auth-client';
-import { useInboxDetailStore } from '@/stores/inbox-detail-store';
-import { BlockView } from './_components/block-view';
-import { ChannelTabBar } from './_components/channel-tab-bar';
-import { FlatTimeline } from './_components/flat-timeline';
-import { InboxSidebar } from './_components/inbox-sidebar';
-import { useConversationScores } from './_hooks/use-conversation-scores';
-import {
-  markContactRead,
-  useInboxMutations,
-} from './_hooks/use-inbox-mutations';
-import { useInboxTimeline } from './_hooks/use-inbox-timeline';
+import { Skeleton } from '@/components/ui/skeleton'
+import { authClient } from '@/lib/auth-client'
+import { useInboxDetailStore } from '@/stores/inbox-detail-store'
+import { BlockView } from './_components/block-view'
+import { ChannelTabBar } from './_components/channel-tab-bar'
+import { FlatTimeline } from './_components/flat-timeline'
+import { InboxSidebar } from './_components/inbox-sidebar'
+import { useConversationScores } from './_hooks/use-conversation-scores'
+import { markContactRead, useInboxMutations } from './_hooks/use-inbox-mutations'
+import { useInboxTimeline } from './_hooks/use-inbox-timeline'
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function InboxDetailPage() {
-  const { contactId } = Route.useParams() as { contactId: string };
-  const { data: session } = authClient.useSession();
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () => localStorage.getItem('inbox-sidebar') === 'open',
-  );
+  const { contactId } = Route.useParams() as { contactId: string }
+  const { data: session } = authClient.useSession()
+  const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('inbox-sidebar') === 'open')
   useEffect(() => {
-    localStorage.setItem('inbox-sidebar', sidebarOpen ? 'open' : 'closed');
-  }, [sidebarOpen]);
+    localStorage.setItem('inbox-sidebar', sidebarOpen ? 'open' : 'closed')
+  }, [sidebarOpen])
 
   // ── URL state (nuqs) ───────────────────────────────────────────────
   const [conversation, setConversation] = useQueryState(
     'conversation',
     parseAsString.withOptions({ history: 'replace' }),
-  );
+  )
 
   // ── Zustand store (individual selectors) ──────────────────────────
-  const expandedConversationIds = useInboxDetailStore(
-    (s) => s.expandedConversationIds,
-  );
-  const toggleBlock = useInboxDetailStore((s) => s.toggleBlock);
-  const setDefaultExpansion = useInboxDetailStore((s) => s.setDefaultExpansion);
-  const expandBlock = useInboxDetailStore((s) => s.expandBlock);
-  const switchContact = useInboxDetailStore((s) => s.switchContact);
-  const storeContactId = useInboxDetailStore((s) => s.contactId);
-  const channelTab = useInboxDetailStore((s) => s.channelTab);
-  const setChannelTab = useInboxDetailStore((s) => s.setChannelTab);
+  const expandedConversationIds = useInboxDetailStore((s) => s.expandedConversationIds)
+  const toggleBlock = useInboxDetailStore((s) => s.toggleBlock)
+  const setDefaultExpansion = useInboxDetailStore((s) => s.setDefaultExpansion)
+  const expandBlock = useInboxDetailStore((s) => s.expandBlock)
+  const switchContact = useInboxDetailStore((s) => s.switchContact)
+  const storeContactId = useInboxDetailStore((s) => s.contactId)
+  const channelTab = useInboxDetailStore((s) => s.channelTab)
+  const setChannelTab = useInboxDetailStore((s) => s.setChannelTab)
 
   // Switch contact atomically when URL changes
   useEffect(() => {
     if (storeContactId !== contactId) {
-      switchContact(contactId);
+      switchContact(contactId)
     }
-  }, [contactId, storeContactId, switchContact]);
+  }, [contactId, storeContactId, switchContact])
 
   const {
     contact,
@@ -73,111 +66,97 @@ function InboxDetailPage() {
     agents,
     teamMembers,
     resolveName,
-  } = useInboxTimeline(contactId, channelTab, session);
+  } = useInboxTimeline(contactId, channelTab, session)
 
-  const {
-    replyMutation,
-    updateConversationMutation,
-    newConversationMutation,
-    retryMutation,
-  } = useInboxMutations(contactId);
+  const { replyMutation, updateConversationMutation, newConversationMutation, retryMutation } =
+    useInboxMutations(contactId)
 
   // Fetch quality scores only for visible conversations
   const visibleConversationIds = useMemo(
-    () =>
-      (effectiveChannelId ? filteredConversations : allConversations).map(
-        (c) => c.id,
-      ),
+    () => (effectiveChannelId ? filteredConversations : allConversations).map((c) => c.id),
     [effectiveChannelId, filteredConversations, allConversations],
-  );
-  const scoresMap = useConversationScores(visibleConversationIds);
+  )
+  const scoresMap = useConversationScores(visibleConversationIds)
 
   // ── Scroll to bottom on channel tab switch ─────────────────────────
-  const channelScrollRef = useRef<HTMLDivElement>(null);
+  const channelScrollRef = useRef<HTMLDivElement>(null)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on tab switch / new messages
   useEffect(() => {
     if (channelScrollRef.current && effectiveChannelId) {
-      channelScrollRef.current.scrollTop =
-        channelScrollRef.current.scrollHeight;
+      channelScrollRef.current.scrollTop = channelScrollRef.current.scrollHeight
     }
-  }, [effectiveChannelId, channelFlatMessages.length]);
+  }, [effectiveChannelId, channelFlatMessages.length])
 
   // ── Effects ────────────────────────────────────────────────────────
 
   // Set default expansion once per contact when conversations first load
-  const defaultExpansionContactRef = useRef<string | null>(null);
+  const defaultExpansionContactRef = useRef<string | null>(null)
   useEffect(() => {
-    if (
-      allConversations.length > 0 &&
-      defaultExpansionContactRef.current !== contactId
-    ) {
-      defaultExpansionContactRef.current = contactId;
-      setDefaultExpansion(allConversations);
+    if (allConversations.length > 0 && defaultExpansionContactRef.current !== contactId) {
+      defaultExpansionContactRef.current = contactId
+      setDefaultExpansion(allConversations)
     }
-  }, [allConversations, contactId, setDefaultExpansion]);
+  }, [allConversations, contactId, setDefaultExpansion])
 
   // Scroll to first active block on initial load (threads view)
-  const hasScrolledRef = useRef(false);
+  const hasScrolledRef = useRef(false)
   useEffect(() => {
-    if (hasScrolledRef.current || sortedConversations.length === 0) return;
-    hasScrolledRef.current = true;
-    const firstActive = sortedConversations.find((i) => i.status === 'active');
-    if (!firstActive) return;
-    const el = document.getElementById(`block-${firstActive.id}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [sortedConversations]);
+    if (hasScrolledRef.current || sortedConversations.length === 0) return
+    hasScrolledRef.current = true
+    const firstActive = sortedConversations.find((i) => i.status === 'active')
+    if (!firstActive) return
+    const el = document.getElementById(`block-${firstActive.id}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [sortedConversations])
 
   // ── Deep-link to specific conversation via ?conversation= param ────
-  const conversationScrolledRef = useRef<string | null>(null);
+  const conversationScrolledRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!conversation || conversationScrolledRef.current === conversation)
-      return;
-    if (sortedConversations.length === 0) return;
-    const el = document.getElementById(`block-${conversation}`);
+    if (!conversation || conversationScrolledRef.current === conversation) return
+    if (sortedConversations.length === 0) return
+    const el = document.getElementById(`block-${conversation}`)
     if (el) {
-      conversationScrolledRef.current = conversation;
-      expandBlock(conversation);
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setConversation(null);
+      conversationScrolledRef.current = conversation
+      expandBlock(conversation)
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setConversation(null)
     }
-  }, [conversation, sortedConversations, expandBlock, setConversation]);
+  }, [conversation, sortedConversations, expandBlock, setConversation])
 
   // Mark contact as read
-  const lastMsgId = allMessages[allMessages.length - 1]?.id;
-  const hasMarkedRef = useRef<string | null>(null);
+  const lastMsgId = allMessages[allMessages.length - 1]?.id
+  const hasMarkedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!lastMsgId || hasMarkedRef.current === lastMsgId) return;
-    hasMarkedRef.current = lastMsgId;
-    markContactRead(contactId).catch(() => {});
-  }, [contactId, lastMsgId]);
+    if (!lastMsgId || hasMarkedRef.current === lastMsgId) return
+    hasMarkedRef.current = lastMsgId
+    markContactRead(contactId).catch(() => {})
+  }, [contactId, lastMsgId])
 
   // ── Sidebar visible block tracking ────────────────────────────────
-  const [visibleBlockId, setVisibleBlockId] = useState<string | null>(null);
+  const [visibleBlockId, setVisibleBlockId] = useState<string | null>(null)
   useEffect(() => {
-    if (sortedConversations.length === 0) return;
+    if (sortedConversations.length === 0) return
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            const id = entry.target.getAttribute('data-block-id');
-            if (id) setVisibleBlockId(id);
+            const id = entry.target.getAttribute('data-block-id')
+            if (id) setVisibleBlockId(id)
           }
         }
       },
       { threshold: 0.3 },
-    );
+    )
     for (const conv of sortedConversations) {
-      const el = document.getElementById(`block-${conv.id}`);
-      if (el) observer.observe(el);
+      const el = document.getElementById(`block-${conv.id}`)
+      if (el) observer.observe(el)
     }
-    return () => observer.disconnect();
-  }, [sortedConversations]);
+    return () => observer.disconnect()
+  }, [sortedConversations])
 
   const scrollToBlock = useCallback((conversationId: string) => {
-    document
-      .getElementById(`block-${conversationId}`)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+    document.getElementById(`block-${conversationId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
 
   // Hard error
   if (contactError && !contact) {
@@ -185,7 +164,7 @@ function InboxDetailPage() {
       <div className="flex h-full items-center justify-center">
         <p className="text-sm text-muted-foreground">Contact not found</p>
       </div>
-    );
+    )
   }
 
   return (
@@ -199,20 +178,11 @@ function InboxDetailPage() {
               {contact ? (
                 <>
                   <h1 className="text-base font-semibold truncate">
-                    {contact.name ??
-                      contact.phone ??
-                      contact.email ??
-                      'Unknown'}
+                    {contact.name ?? contact.phone ?? contact.email ?? 'Unknown'}
                   </h1>
-                  {contact.phone && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {contact.phone}
-                    </span>
-                  )}
+                  {contact.phone && <span className="text-xs text-muted-foreground shrink-0">{contact.phone}</span>}
                   {contact.email && !contact.phone && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {contact.email}
-                    </span>
+                    <span className="text-xs text-muted-foreground shrink-0">{contact.email}</span>
                   )}
                 </>
               ) : (
@@ -279,9 +249,7 @@ function InboxDetailPage() {
                 messageId,
               })
             }
-            onUpdateConversation={(id, body) =>
-              updateConversationMutation.mutate({ id, body })
-            }
+            onUpdateConversation={(id, body) => updateConversationMutation.mutate({ id, body })}
             replyPending={replyMutation.isPending}
             replyError={replyMutation.isError}
             newConversationPending={newConversationMutation.isPending}
@@ -301,9 +269,7 @@ function InboxDetailPage() {
             resolveName={resolveName}
             contactLoading={contactLoading}
             onToggleBlock={toggleBlock}
-            onUpdateConversation={(convId, body) =>
-              updateConversationMutation.mutate({ id: convId, body })
-            }
+            onUpdateConversation={(convId, body) => updateConversationMutation.mutate({ id: convId, body })}
             onRetry={(convId, messageId) =>
               retryMutation.mutate({
                 conversationId: convId,
@@ -329,9 +295,9 @@ function InboxDetailPage() {
         onScrollToBlock={scrollToBlock}
       />
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/messaging/inbox/$contactId')({
   component: InboxDetailPage,
-});
+})

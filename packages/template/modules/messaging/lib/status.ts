@@ -1,26 +1,13 @@
-import type {
-  ReactionEvent,
-  RealtimeService,
-  StatusUpdateEvent,
-  VobaseDb,
-} from '@vobase/core';
-import { logger, shouldUpdateStatus } from '@vobase/core';
-import { eq, sql } from 'drizzle-orm';
+import type { ReactionEvent, RealtimeService, StatusUpdateEvent, VobaseDb } from '@vobase/core'
+import { logger, shouldUpdateStatus } from '@vobase/core'
+import { eq, sql } from 'drizzle-orm'
 
-import {
-  automationExecutions,
-  automationRecipients,
-  broadcastRecipients,
-  broadcasts,
-  messages,
-} from '../schema';
-import { getModuleDeps } from './deps';
-import { insertMessage } from './messages';
+import { automationExecutions, automationRecipients, broadcastRecipients, broadcasts, messages } from '../schema'
+import { getModuleDeps } from './deps'
+import { insertMessage } from './messages'
 
-export async function handleStatusUpdate(
-  event: StatusUpdateEvent,
-): Promise<void> {
-  const { db, realtime } = getModuleDeps();
+export async function handleStatusUpdate(event: StatusUpdateEvent): Promise<void> {
+  const { db, realtime } = getModuleDeps()
 
   const [message] = await db
     .select({
@@ -29,29 +16,21 @@ export async function handleStatusUpdate(
       status: messages.status,
     })
     .from(messages)
-    .where(eq(messages.externalMessageId, event.messageId));
+    .where(eq(messages.externalMessageId, event.messageId))
 
   if (!message) {
     // Layer 2: check broadcast recipients (messages wins if same externalMessageId exists in multiple tables)
-    const broadcastHandled = await handleBroadcastStatusUpdate(
-      db,
-      realtime,
-      event,
-    );
-    if (broadcastHandled) return;
+    const broadcastHandled = await handleBroadcastStatusUpdate(db, realtime, event)
+    if (broadcastHandled) return
     // Layer 3: check automation recipients
-    const automationHandled = await handleAutomationStatusUpdate(
-      db,
-      realtime,
-      event,
-    );
+    const automationHandled = await handleAutomationStatusUpdate(db, realtime, event)
     if (!automationHandled) {
       logger.warn('[messaging] status_update: message not found', {
         externalMessageId: event.messageId,
         status: event.status,
-      });
+      })
     }
-    return;
+    return
   }
 
   // Only advance status — never go backwards (failed is always accepted)
@@ -60,14 +39,11 @@ export async function handleStatusUpdate(
       externalMessageId: event.messageId,
       current: message.status,
       incoming: event.status,
-    });
-    return;
+    })
+    return
   }
 
-  await db
-    .update(messages)
-    .set({ status: event.status })
-    .where(eq(messages.id, message.id));
+  await db.update(messages).set({ status: event.status }).where(eq(messages.id, message.id))
 
   // Insert system activity if the message was deleted on the sender's device
   if (event.metadata?.deleted === true) {
@@ -82,7 +58,7 @@ export async function handleStatusUpdate(
       },
       senderId: 'system',
       senderType: 'system',
-    }).catch(() => {});
+    }).catch(() => {})
   }
 
   // Log delivery errors reported alongside the status update
@@ -91,7 +67,7 @@ export async function handleStatusUpdate(
       externalMessageId: event.messageId,
       messageId: message.id,
       errors: event.metadata.errors,
-    });
+    })
   }
 
   await realtime
@@ -100,17 +76,17 @@ export async function handleStatusUpdate(
       id: message.conversationId,
       action: 'update',
     })
-    .catch(() => {});
+    .catch(() => {})
 
   logger.info('[messaging] status_update', {
     messageId: message.id,
     externalMessageId: event.messageId,
     status: event.status,
-  });
+  })
 }
 
 export async function handleReaction(event: ReactionEvent): Promise<void> {
-  const { db, realtime } = getModuleDeps();
+  const { db, realtime } = getModuleDeps()
 
   const [message] = await db
     .select({
@@ -119,22 +95,20 @@ export async function handleReaction(event: ReactionEvent): Promise<void> {
       contentData: messages.contentData,
     })
     .from(messages)
-    .where(eq(messages.externalMessageId, event.messageId));
+    .where(eq(messages.externalMessageId, event.messageId))
 
   if (!message) {
     logger.warn('[messaging] reaction: message not found', {
       externalMessageId: event.messageId,
-    });
-    return;
+    })
+    return
   }
 
-  const currentData = (message.contentData ?? {}) as Record<string, unknown>;
-  const existing = (currentData.reactions ?? []) as Array<
-    Record<string, unknown>
-  >;
+  const currentData = (message.contentData ?? {}) as Record<string, unknown>
+  const existing = (currentData.reactions ?? []) as Array<Record<string, unknown>>
 
   // Dedup by from — remove any prior reaction from this sender, then re-add unless removing
-  const filtered = existing.filter((r) => r.from !== event.from);
+  const filtered = existing.filter((r) => r.from !== event.from)
   const updatedReactions =
     event.action === 'remove'
       ? filtered
@@ -146,12 +120,12 @@ export async function handleReaction(event: ReactionEvent): Promise<void> {
             action: event.action ?? 'add',
             timestamp: event.timestamp,
           },
-        ];
+        ]
 
   await db
     .update(messages)
     .set({ contentData: { ...currentData, reactions: updatedReactions } })
-    .where(eq(messages.id, message.id));
+    .where(eq(messages.id, message.id))
 
   await realtime
     .notify({
@@ -159,14 +133,14 @@ export async function handleReaction(event: ReactionEvent): Promise<void> {
       id: message.conversationId,
       action: 'update',
     })
-    .catch(() => {});
+    .catch(() => {})
 
   logger.info('[messaging] reaction', {
     messageId: message.id,
     from: event.from,
     emoji: event.emoji,
     action: event.action,
-  });
+  })
 }
 
 // ─── Broadcast Status Fallback ────────────────────────────────────
@@ -180,7 +154,7 @@ export type DeliveryStatus =
   | 'failed'
   | 'skipped'
   | 'replied'
-  | 'chaser_paused';
+  | 'chaser_paused'
 
 const STATUS_ORDER: Record<DeliveryStatus, number> = {
   queued: 0,
@@ -191,7 +165,7 @@ const STATUS_ORDER: Record<DeliveryStatus, number> = {
   skipped: 4, // terminal non-delivery — same weight as failed
   replied: 3, // engagement outcome — same weight as read
   chaser_paused: 1, // mid-progress pause — same weight as sent
-};
+}
 
 async function handleBroadcastStatusUpdate(
   db: VobaseDb,
@@ -206,43 +180,39 @@ async function handleBroadcastStatusUpdate(
     })
     .from(broadcastRecipients)
     .where(eq(broadcastRecipients.externalMessageId, event.messageId))
-    .limit(1);
+    .limit(1)
 
-  if (!recipient) return false;
+  if (!recipient) return false
 
   // Only advance status (never go backwards), except failed always accepted
   // as DeliveryStatus: status comes from DB as string; schema CHECK constraint guarantees valid values
-  const currentOrder = STATUS_ORDER[recipient.status as DeliveryStatus] ?? -1;
-  const newOrder = STATUS_ORDER[event.status as DeliveryStatus] ?? -1;
-  if (event.status !== 'failed' && newOrder <= currentOrder) return true;
+  const currentOrder = STATUS_ORDER[recipient.status as DeliveryStatus] ?? -1
+  const newOrder = STATUS_ORDER[event.status as DeliveryStatus] ?? -1
+  if (event.status !== 'failed' && newOrder <= currentOrder) return true
 
-  const now = new Date();
+  const now = new Date()
   const updates: Partial<typeof broadcastRecipients.$inferInsert> = {
     status: event.status,
-  };
-  if (event.status === 'delivered') updates.deliveredAt = now;
+  }
+  if (event.status === 'delivered') updates.deliveredAt = now
   if (event.status === 'read') {
-    updates.readAt = now;
+    updates.readAt = now
     if (!recipient.status || recipient.status === 'sent') {
-      updates.deliveredAt = now;
+      updates.deliveredAt = now
     }
   }
 
-  await db
-    .update(broadcastRecipients)
-    .set(updates)
-    .where(eq(broadcastRecipients.id, recipient.id));
+  await db.update(broadcastRecipients).set(updates).where(eq(broadcastRecipients.id, recipient.id))
 
   // Atomically increment broadcast counters
   if (event.status === 'delivered') {
     await db
       .update(broadcasts)
       .set({ deliveredCount: sql`${broadcasts.deliveredCount} + 1` })
-      .where(eq(broadcasts.id, recipient.broadcastId));
+      .where(eq(broadcasts.id, recipient.broadcastId))
   } else if (event.status === 'read') {
     // If skipping delivered → read, increment both counters
-    const skippedDelivered =
-      recipient.status === 'sent' || recipient.status === 'queued';
+    const skippedDelivered = recipient.status === 'sent' || recipient.status === 'queued'
     await db
       .update(broadcasts)
       .set({
@@ -251,7 +221,7 @@ async function handleBroadcastStatusUpdate(
           deliveredCount: sql`${broadcasts.deliveredCount} + 1`,
         }),
       })
-      .where(eq(broadcasts.id, recipient.broadcastId));
+      .where(eq(broadcasts.id, recipient.broadcastId))
   }
 
   await realtime
@@ -260,16 +230,16 @@ async function handleBroadcastStatusUpdate(
       id: recipient.broadcastId,
       action: 'update',
     })
-    .catch(() => {});
+    .catch(() => {})
 
   logger.info('[broadcast] status_update', {
     recipientId: recipient.id,
     broadcastId: recipient.broadcastId,
     externalMessageId: event.messageId,
     status: event.status,
-  });
+  })
 
-  return true;
+  return true
 }
 
 // ─── Automation Status Fallback ───────────────────────────────────
@@ -287,48 +257,43 @@ async function handleAutomationStatusUpdate(
     })
     .from(automationRecipients)
     .where(eq(automationRecipients.externalMessageId, event.messageId))
-    .limit(1);
+    .limit(1)
 
-  if (!recipient) return false;
+  if (!recipient) return false
 
   // as DeliveryStatus: status comes from DB as string; schema CHECK constraint guarantees valid values
-  const currentOrder = STATUS_ORDER[recipient.status as DeliveryStatus] ?? -1;
-  const newOrder = STATUS_ORDER[event.status as DeliveryStatus] ?? -1;
-  if (event.status !== 'failed' && newOrder <= currentOrder) return true;
+  const currentOrder = STATUS_ORDER[recipient.status as DeliveryStatus] ?? -1
+  const newOrder = STATUS_ORDER[event.status as DeliveryStatus] ?? -1
+  if (event.status !== 'failed' && newOrder <= currentOrder) return true
 
-  const now = new Date();
+  const now = new Date()
   const updates: Partial<typeof automationRecipients.$inferInsert> = {
     status: event.status,
-  };
-  if (event.status === 'sent') updates.sentAt = now;
-  if (event.status === 'delivered') updates.deliveredAt = now;
+  }
+  if (event.status === 'sent') updates.sentAt = now
+  if (event.status === 'delivered') updates.deliveredAt = now
   if (event.status === 'read') {
-    updates.readAt = now;
+    updates.readAt = now
     if (recipient.status === 'sent' || recipient.status === 'queued') {
-      updates.deliveredAt = now;
+      updates.deliveredAt = now
     }
   }
 
-  await db
-    .update(automationRecipients)
-    .set(updates)
-    .where(eq(automationRecipients.id, recipient.id));
+  await db.update(automationRecipients).set(updates).where(eq(automationRecipients.id, recipient.id))
 
   // Atomically increment execution counters — no read-modify-write
-  const skippedDelivered =
-    event.status === 'read' &&
-    (recipient.status === 'sent' || recipient.status === 'queued');
+  const skippedDelivered = event.status === 'read' && (recipient.status === 'sent' || recipient.status === 'queued')
 
   if (event.status === 'sent') {
     await db
       .update(automationExecutions)
       .set({ sentCount: sql`${automationExecutions.sentCount} + 1` })
-      .where(eq(automationExecutions.id, recipient.executionId));
+      .where(eq(automationExecutions.id, recipient.executionId))
   } else if (event.status === 'delivered') {
     await db
       .update(automationExecutions)
       .set({ deliveredCount: sql`${automationExecutions.deliveredCount} + 1` })
-      .where(eq(automationExecutions.id, recipient.executionId));
+      .where(eq(automationExecutions.id, recipient.executionId))
   } else if (event.status === 'read') {
     await db
       .update(automationExecutions)
@@ -338,12 +303,12 @@ async function handleAutomationStatusUpdate(
           deliveredCount: sql`${automationExecutions.deliveredCount} + 1`,
         }),
       })
-      .where(eq(automationExecutions.id, recipient.executionId));
+      .where(eq(automationExecutions.id, recipient.executionId))
   } else if (event.status === 'failed') {
     await db
       .update(automationExecutions)
       .set({ failedCount: sql`${automationExecutions.failedCount} + 1` })
-      .where(eq(automationExecutions.id, recipient.executionId));
+      .where(eq(automationExecutions.id, recipient.executionId))
   }
 
   await realtime
@@ -352,14 +317,14 @@ async function handleAutomationStatusUpdate(
       id: recipient.executionId,
       action: 'update',
     })
-    .catch(() => {});
+    .catch(() => {})
 
   logger.info('[automation] status_update', {
     recipientId: recipient.id,
     executionId: recipient.executionId,
     externalMessageId: event.messageId,
     status: event.status,
-  });
+  })
 
-  return true;
+  return true
 }

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowLeft, Sparkles } from 'lucide-react'
+
 import { LearningProposalRow } from '@/components/learning-proposal-row'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

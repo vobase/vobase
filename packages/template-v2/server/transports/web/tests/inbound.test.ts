@@ -23,6 +23,7 @@ import {
 import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@modules/messaging/service/types'
 import type { Auth } from '@server/auth'
 import { signHmac } from '@vobase/core'
+
 import { createChannelWebState, installChannelWebAuth, installChannelWebState, type JobQueue } from '../service/state'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

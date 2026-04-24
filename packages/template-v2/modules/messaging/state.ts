@@ -7,6 +7,7 @@
  */
 
 import { applyTransition, type TransitionTable } from '@server/common/apply-transition'
+
 import type { ConversationStatus } from './schema'
 
 export const conversationTransitions: TransitionTable<ConversationStatus> = {

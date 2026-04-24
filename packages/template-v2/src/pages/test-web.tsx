@@ -11,6 +11,7 @@
 import type { Message } from '@modules/messaging/schema'
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { MessageCard } from '@/components/message-card'
 
 const ORG_ID = 'mer0tenant'

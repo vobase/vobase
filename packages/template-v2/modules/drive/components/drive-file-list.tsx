@@ -7,6 +7,7 @@
 
 import { ChevronRight, File, FilePlus, FileText, Folder, FolderPlus, Image as ImageIcon, Plus } from 'lucide-react'
 import { useState } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'

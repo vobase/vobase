@@ -3,6 +3,7 @@ import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { NuqsAdapter } from 'nuqs/adapters/tanstack-router'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+
 import { ThemeProvider } from './components/theme-provider'
 import { SearchProvider } from './providers/search-provider'
 import { routeTree } from './routeTree.gen'

@@ -7,9 +7,10 @@
  *   2. Runtime: installed messaging service stub records every call and asserts
  *      dispatcher routes the right tool name to the right service function.
  */
-import { beforeEach, describe, expect, it } from 'bun:test'
+
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import type { Message } from '@modules/messaging/schema'
 import {
   __resetMessagesServiceForTests,
@@ -18,6 +19,7 @@ import {
 } from '@modules/messaging/service/messages'
 import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/transports/events'
+
 import { dispatch } from '../service/dispatcher'
 
 type CallLog = { method: string; input: unknown }

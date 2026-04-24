@@ -1,4 +1,5 @@
 import type { ModuleDef } from '@server/common/module-def'
+
 import handlers from './handlers'
 import { createStaffAttrDefService, installStaffAttrDefService } from './service/attribute-definitions'
 import { createMentionNotifyService, installMentionNotifyService } from './service/mention-notify'

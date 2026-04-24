@@ -1,52 +1,40 @@
-import { CheckIcon, PauseIcon, PlayIcon } from 'lucide-react';
-import { memo, type RefObject } from 'react';
+import { CheckIcon, PauseIcon, PlayIcon } from 'lucide-react'
+import { memo, type RefObject } from 'react'
 
-import { AssigneeBadge } from '@/components/conversation-badges';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { ResolveParticipantName } from '@/lib/activity-helpers';
-import { filterAndSortMessages } from '../../../lib/filter-sort-messages';
-import { BlockReplyInput } from '../../conversations/_components/block-reply-input';
-import { BlockMessageItem } from '../../conversations/_components/conversation-block';
-import type {
-  MessageRow,
-  SenderInfo,
-  TimelineConversationFull,
-} from '../../conversations/_components/types';
-import type { ConversationScoresByMessage } from '../_hooks/use-conversation-scores';
+import { AssigneeBadge } from '@/components/conversation-badges'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { ResolveParticipantName } from '@/lib/activity-helpers'
+import { filterAndSortMessages } from '../../../lib/filter-sort-messages'
+import { BlockReplyInput } from '../../conversations/_components/block-reply-input'
+import { BlockMessageItem } from '../../conversations/_components/conversation-block'
+import type { MessageRow, SenderInfo, TimelineConversationFull } from '../../conversations/_components/types'
+import type { ConversationScoresByMessage } from '../_hooks/use-conversation-scores'
 
 interface FlatTimelineProps {
-  channelFlatMessages: Array<MessageRow & { _conversationId: string }>;
-  conversationBoundaries: Set<string>;
-  filteredConversations: TimelineConversationFull[];
-  activeChannelConversation: TimelineConversationFull | null;
-  selectedChannel: { id: string; type: string; label: string | null } | null;
-  channelId: string;
-  senderMap: Map<string, SenderInfo>;
-  currentUserId?: string;
-  agents: Array<{ id: string; name: string }>;
-  teamMembers?: Array<{ id: string; name: string }>;
-  resolveName: ResolveParticipantName;
-  contactLoading: boolean;
-  scrollRef: RefObject<HTMLDivElement | null>;
-  onReply: (
-    conversationId: string,
-    content: string,
-    isInternal: boolean,
-  ) => void;
-  onNewConversation: (
-    channelInstanceId: string,
-    content: string,
-    isInternal: boolean,
-  ) => void;
-  onRetry: (conversationId: string, messageId: string) => void;
-  onUpdateConversation: (id: string, body: Record<string, unknown>) => void;
-  replyPending: boolean;
-  replyError: boolean;
-  newConversationPending: boolean;
-  newConversationError: boolean;
+  channelFlatMessages: Array<MessageRow & { _conversationId: string }>
+  conversationBoundaries: Set<string>
+  filteredConversations: TimelineConversationFull[]
+  activeChannelConversation: TimelineConversationFull | null
+  selectedChannel: { id: string; type: string; label: string | null } | null
+  channelId: string
+  senderMap: Map<string, SenderInfo>
+  currentUserId?: string
+  agents: Array<{ id: string; name: string }>
+  teamMembers?: Array<{ id: string; name: string }>
+  resolveName: ResolveParticipantName
+  contactLoading: boolean
+  scrollRef: RefObject<HTMLDivElement | null>
+  onReply: (conversationId: string, content: string, isInternal: boolean) => void
+  onNewConversation: (channelInstanceId: string, content: string, isInternal: boolean) => void
+  onRetry: (conversationId: string, messageId: string) => void
+  onUpdateConversation: (id: string, body: Record<string, unknown>) => void
+  replyPending: boolean
+  replyError: boolean
+  newConversationPending: boolean
+  newConversationError: boolean
   /** Quality scores keyed by conversation → agent message ID. */
-  scoresMap?: Map<string, ConversationScoresByMessage>;
+  scoresMap?: Map<string, ConversationScoresByMessage>
 }
 
 export const FlatTimeline = memo(function FlatTimeline({
@@ -83,8 +71,7 @@ export const FlatTimeline = memo(function FlatTimeline({
           assignee={activeChannelConversation?.assignee ?? null}
           variant="field"
           onSelect={(v) =>
-            activeChannelConversation &&
-            onUpdateConversation(activeChannelConversation.id, { assignee: v })
+            activeChannelConversation && onUpdateConversation(activeChannelConversation.id, { assignee: v })
           }
           agents={agents}
           teamMembers={teamMembers}
@@ -135,10 +122,9 @@ export const FlatTimeline = memo(function FlatTimeline({
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="px-4 py-4 flex flex-col gap-6">
           {filterAndSortMessages(channelFlatMessages).map((msg, idx, arr) => {
-            const msgDate = new Date(msg.createdAt).toDateString();
-            const prevDate =
-              idx > 0 ? new Date(arr[idx - 1].createdAt).toDateString() : null;
-            const showDateDivider = idx === 0 || msgDate !== prevDate;
+            const msgDate = new Date(msg.createdAt).toDateString()
+            const prevDate = idx > 0 ? new Date(arr[idx - 1].createdAt).toDateString() : null
+            const showDateDivider = idx === 0 || msgDate !== prevDate
 
             return (
               <div key={msg.id}>
@@ -170,13 +156,13 @@ export const FlatTimeline = memo(function FlatTimeline({
                   currentUserId={currentUserId}
                   channelType={filteredConversations[0]?.channelType ?? 'web'}
                   onRetry={(messageId) => {
-                    onRetry(msg._conversationId, messageId);
+                    onRetry(msg._conversationId, messageId)
                   }}
                   scores={scoresMap?.get(msg._conversationId)?.get(msg.id)}
                   resolveName={resolveName}
                 />
               </div>
-            );
+            )
           })}
 
           {contactLoading && (
@@ -193,9 +179,7 @@ export const FlatTimeline = memo(function FlatTimeline({
         {activeChannelConversation ? (
           <BlockReplyInput
             channelType={activeChannelConversation.channelType}
-            onSend={(content, isInternal) =>
-              onReply(activeChannelConversation.id, content, isInternal)
-            }
+            onSend={(content, isInternal) => onReply(activeChannelConversation.id, content, isInternal)}
             isPending={replyPending}
             error={replyError ? 'Failed to send reply' : null}
           />
@@ -206,17 +190,13 @@ export const FlatTimeline = memo(function FlatTimeline({
             </p>
             <BlockReplyInput
               channelType={selectedChannel.type}
-              onSend={(content, isInternal) =>
-                onNewConversation(channelId, content, isInternal)
-              }
+              onSend={(content, isInternal) => onNewConversation(channelId, content, isInternal)}
               isPending={newConversationPending}
-              error={
-                newConversationError ? 'Failed to start conversation' : null
-              }
+              error={newConversationError ? 'Failed to start conversation' : null}
             />
           </>
         ) : null}
       </div>
     </div>
-  );
-});
+  )
+})

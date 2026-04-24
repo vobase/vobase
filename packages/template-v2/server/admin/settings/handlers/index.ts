@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { z } from 'zod'
+
 import notificationsHandlers from './notifications'
 
 const profileSchema = z.object({

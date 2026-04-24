@@ -9,6 +9,7 @@ import { Link } from '@tanstack/react-router'
 import { Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { useAttributeDefinitions, useSetContactAttributes } from '../api/use-attributes'

@@ -7,6 +7,7 @@
  * origin. Response never sets a cookie — `Set-Cookie` is stripped.
  */
 import type { Context } from 'hono'
+
 import { getAuth } from '../service/state'
 
 // Plugin methods aren't reflected on the erased `BetterAuthPlugin[]` type the

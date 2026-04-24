@@ -1,12 +1,12 @@
-import { memo } from 'react';
+import { memo } from 'react'
 
-import { MessageResponse } from '@/components/ai-elements/message';
-import { Badge } from '@/components/ui/badge';
-import { MediaContent, parseMedia } from './media-content';
-import type { MessageRow } from './types';
+import { MessageResponse } from '@/components/ai-elements/message'
+import { Badge } from '@/components/ui/badge'
+import { MediaContent, parseMedia } from './media-content'
+import type { MessageRow } from './types'
 
 interface WhatsAppOutgoingContentProps {
-  message: MessageRow;
+  message: MessageRow
 }
 
 /** WhatsApp-specific content: templates, interactive buttons, and echo attribution. */
@@ -15,49 +15,40 @@ export const WhatsAppOutgoingContent = memo(function WhatsAppOutgoingContent({
 }: WhatsAppOutgoingContentProps) {
   const interactive = message.contentData?.interactive as
     | {
-        type: string;
-        body?: { text: string };
+        type: string
+        body?: { text: string }
         action?: {
-          buttons?: Array<{ reply: { id: string; title: string } }>;
-        };
+          buttons?: Array<{ reply: { id: string; title: string } }>
+        }
       }
-    | undefined;
-  const replyButtons = interactive?.action?.buttons;
+    | undefined
+  const replyButtons = interactive?.action?.buttons
 
   const template = message.contentData?.template as
     | {
-        name?: string;
-        language?: { code?: string };
+        name?: string
+        language?: { code?: string }
         components?: Array<{
-          type: string;
-          parameters?: Array<{ type: string; text?: string }>;
-        }>;
+          type: string
+          parameters?: Array<{ type: string; text?: string }>
+        }>
       }
-    | undefined;
+    | undefined
   const templateBodyParams = template?.components
     ?.find((c) => c.type === 'body')
     ?.parameters?.filter((p) => p.type === 'text' && p.text != null)
-    ?.map((p) => p.text as string);
+    ?.map((p) => p.text as string)
 
   if (template) {
     return (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-1.5">
-          <Badge
-            variant="secondary"
-            className="h-4 px-1.5 text-[10px] font-medium"
-          >
+          <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-medium">
             Template
           </Badge>
-          {template.name && (
-            <span className="text-xs text-muted-foreground font-mono">
-              {template.name}
-            </span>
-          )}
+          {template.name && <span className="text-xs text-muted-foreground font-mono">{template.name}</span>}
         </div>
-        {message.content && (
-          <MessageResponse>{message.content}</MessageResponse>
-        )}
+        {message.content && <MessageResponse>{message.content}</MessageResponse>}
         {templateBodyParams && templateBodyParams.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-0.5">
             {templateBodyParams.map((param, i) => (
@@ -72,15 +63,13 @@ export const WhatsAppOutgoingContent = memo(function WhatsAppOutgoingContent({
           </div>
         )}
       </div>
-    );
+    )
   }
 
   return (
     <>
       {(interactive?.body?.text ?? message.content) && (
-        <MessageResponse>
-          {interactive?.body?.text ?? message.content}
-        </MessageResponse>
+        <MessageResponse>{interactive?.body?.text ?? message.content}</MessageResponse>
       )}
       {replyButtons && replyButtons.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -94,28 +83,17 @@ export const WhatsAppOutgoingContent = memo(function WhatsAppOutgoingContent({
           ))}
         </div>
       )}
-      <MediaContent
-        contentType={message.contentType}
-        media={parseMedia(message.contentData)}
-      />
+      <MediaContent contentType={message.contentType} media={parseMedia(message.contentData)} />
     </>
-  );
-});
+  )
+})
 
 /** Returns true if this message has WhatsApp-specific content to render. */
 export function isWhatsAppContent(message: MessageRow): boolean {
-  return !!(
-    message.contentData?.template ||
-    message.contentData?.interactive ||
-    message.senderId === 'echo'
-  );
+  return !!(message.contentData?.template || message.contentData?.interactive || message.senderId === 'echo')
 }
 
 /** Echo attribution for messages sent via WhatsApp Business App. */
 export function WhatsAppEchoAttribution() {
-  return (
-    <span className="text-xs text-muted-foreground">
-      Sent via WhatsApp Business App
-    </span>
-  );
+  return <span className="text-xs text-muted-foreground">Sent via WhatsApp Business App</span>
 }

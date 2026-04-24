@@ -1,6 +1,6 @@
-import type { Context } from 'hono';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { ZodError } from 'zod';
+import type { Context } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { ZodError } from 'zod'
 
 export const ERROR_CODES = {
   UNAUTHORIZED: 'UNAUTHORIZED',
@@ -9,9 +9,9 @@ export const ERROR_CODES = {
   VALIDATION: 'VALIDATION',
   CONFLICT: 'CONFLICT',
   INTERNAL: 'INTERNAL',
-} as const;
+} as const
 
-export type ErrorCode = keyof typeof ERROR_CODES;
+export type ErrorCode = keyof typeof ERROR_CODES
 
 export class VobaseError extends Error {
   constructor(
@@ -20,25 +20,21 @@ export class VobaseError extends Error {
     public readonly statusCode: ContentfulStatusCode,
     public readonly details?: object,
   ) {
-    super(message);
-    this.name = 'VobaseError';
+    super(message)
+    this.name = 'VobaseError'
   }
 }
 
-export const unauthorized = (message = 'Unauthorized') =>
-  new VobaseError(message, 'UNAUTHORIZED', 401);
+export const unauthorized = (message = 'Unauthorized') => new VobaseError(message, 'UNAUTHORIZED', 401)
 
-export const forbidden = (message = 'Forbidden') =>
-  new VobaseError(message, 'FORBIDDEN', 403);
+export const forbidden = (message = 'Forbidden') => new VobaseError(message, 'FORBIDDEN', 403)
 
-export const notFound = (resource: string) =>
-  new VobaseError(`${resource} not found`, 'NOT_FOUND', 404);
+export const notFound = (resource: string) => new VobaseError(`${resource} not found`, 'NOT_FOUND', 404)
 
 export const validation = (details: object, message = 'Validation failed') =>
-  new VobaseError(message, 'VALIDATION', 400, details);
+  new VobaseError(message, 'VALIDATION', 400, details)
 
-export const conflict = (resource: string) =>
-  new VobaseError(`${resource} already exists`, 'CONFLICT', 409);
+export const conflict = (resource: string) => new VobaseError(`${resource} already exists`, 'CONFLICT', 409)
 
 export const errorHandler = (err: Error, c: Context): Response => {
   if (err instanceof VobaseError) {
@@ -51,7 +47,7 @@ export const errorHandler = (err: Error, c: Context): Response => {
         },
       },
       err.statusCode,
-    );
+    )
   }
   if (err instanceof ZodError) {
     return c.json(
@@ -63,11 +59,8 @@ export const errorHandler = (err: Error, c: Context): Response => {
         },
       },
       400,
-    );
+    )
   }
-  console.error('Unhandled error:', err);
-  return c.json(
-    { error: { code: 'INTERNAL', message: 'Internal server error' } },
-    500,
-  );
-};
+  console.error('Unhandled error:', err)
+  return c.json({ error: { code: 'INTERNAL', message: 'Internal server error' } }, 500)
+}

@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test'
+
 import { createKeyboardNavHandler, createShellKeyboardNavHandler } from '../use-keyboard-nav'
 
 function evt(key: string, extra?: { metaKey?: boolean; ctrlKey?: boolean; tagName?: string }) {

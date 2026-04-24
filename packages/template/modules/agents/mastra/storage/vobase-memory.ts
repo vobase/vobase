@@ -5,11 +5,8 @@
  * Threads → conversations, Messages → messages, Resources → contacts.
  * Mastra's own PostgresStore-managed memory tables become unnecessary.
  */
-import type {
-  MastraDBMessage,
-  MastraMessageContentV2,
-} from '@mastra/core/agent';
-import type { StorageThreadType } from '@mastra/core/memory';
+import type { MastraDBMessage, MastraMessageContentV2 } from '@mastra/core/agent'
+import type { StorageThreadType } from '@mastra/core/memory'
 import type {
   CreateObservationalMemoryInput,
   CreateReflectionGenerationInput,
@@ -26,43 +23,43 @@ import type {
   UpdateActiveObservationsInput,
   UpdateBufferedObservationsInput,
   UpdateBufferedReflectionInput,
-} from '@mastra/core/storage';
-import { MemoryStorage } from '@mastra/core/storage';
-import type { VobaseDb } from '@vobase/core';
-import { logger } from '@vobase/core';
-import { and, asc, desc, eq, gt, gte, inArray, lt, lte } from 'drizzle-orm';
+} from '@mastra/core/storage'
+import { MemoryStorage } from '@mastra/core/storage'
+import type { VobaseDb } from '@vobase/core'
+import { logger } from '@vobase/core'
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte } from 'drizzle-orm'
 
-import { contacts, conversations, messages } from '../../../messaging/schema';
+import { contacts, conversations, messages } from '../../../messaging/schema'
 
 // ─── Role Mapping ──────────────────────────────────────────────────
 // Mastra role → Vobase senderType + messageType
 
 function mastraRoleToVobase(role: MastraDBMessage['role']): {
-  senderType: string;
-  messageType: string;
+  senderType: string
+  messageType: string
 } {
   switch (role) {
     case 'user':
-      return { senderType: 'contact', messageType: 'incoming' };
+      return { senderType: 'contact', messageType: 'incoming' }
     case 'assistant':
-      return { senderType: 'agent', messageType: 'outgoing' };
+      return { senderType: 'agent', messageType: 'outgoing' }
     case 'system':
-      return { senderType: 'system', messageType: 'activity' };
+      return { senderType: 'system', messageType: 'activity' }
     default:
-      return { senderType: 'agent', messageType: 'activity' };
+      return { senderType: 'agent', messageType: 'activity' }
   }
 }
 
 function vobaseToMastraRole(senderType: string): MastraDBMessage['role'] {
   switch (senderType) {
     case 'contact':
-      return 'user';
+      return 'user'
     case 'agent':
-      return 'assistant';
+      return 'assistant'
     case 'system':
-      return 'system';
+      return 'system'
     default:
-      return 'assistant';
+      return 'assistant'
   }
 }
 
@@ -70,26 +67,26 @@ function vobaseToMastraRole(senderType: string): MastraDBMessage['role'] {
 
 function extractPlainText(content: MastraMessageContentV2): string {
   if (content.content && typeof content.content === 'string') {
-    return content.content;
+    return content.content
   }
-  if (!content.parts) return '';
+  if (!content.parts) return ''
   return content.parts
     .map((p) => {
-      if ('text' in p && typeof p.text === 'string') return p.text;
-      return '';
+      if ('text' in p && typeof p.text === 'string') return p.text
+      return ''
     })
     .filter(Boolean)
-    .join('\n');
+    .join('\n')
 }
 
 // ─── Row → Mastra Conversions ──────────────────────────────────────
 
-type MessageRow = typeof messages.$inferSelect;
-type ConversationRow = typeof conversations.$inferSelect;
-type ContactRow = typeof contacts.$inferSelect;
+type MessageRow = typeof messages.$inferSelect
+type ConversationRow = typeof conversations.$inferSelect
+type ContactRow = typeof contacts.$inferSelect
 
 function rowToMastraMessage(row: MessageRow): MastraDBMessage {
-  const mastraContent = row.mastraContent as MastraMessageContentV2 | null;
+  const mastraContent = row.mastraContent as MastraMessageContentV2 | null
   return {
     id: row.id,
     role: vobaseToMastraRole(row.senderType),
@@ -101,7 +98,7 @@ function rowToMastraMessage(row: MessageRow): MastraDBMessage {
     threadId: row.conversationId,
     resourceId: row.senderId,
     type: row.contentType,
-  };
+  }
 }
 
 function rowToStorageThread(row: ConversationRow): StorageThreadType {
@@ -112,7 +109,7 @@ function rowToStorageThread(row: ConversationRow): StorageThreadType {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     metadata: (row.metadata as Record<string, unknown>) ?? {},
-  };
+  }
 }
 
 function rowToStorageResource(row: ContactRow): StorageResourceType {
@@ -122,15 +119,13 @@ function rowToStorageResource(row: ContactRow): StorageResourceType {
     metadata: {},
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-  };
+  }
 }
 
 // ─── Strip "contact:" prefix ───────────────────────────────────────
 
 function stripContactPrefix(resourceId: string): string {
-  return resourceId.startsWith('contact:')
-    ? resourceId.slice('contact:'.length)
-    : resourceId;
+  return resourceId.startsWith('contact:') ? resourceId.slice('contact:'.length) : resourceId
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -138,14 +133,14 @@ function stripContactPrefix(resourceId: string): string {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export class VobaseMemoryStorage extends MemoryStorage {
-  override readonly supportsObservationalMemory = true;
-  private db: VobaseDb;
-  private omDelegate: MemoryStorage;
+  override readonly supportsObservationalMemory = true
+  private db: VobaseDb
+  private omDelegate: MemoryStorage
 
   constructor(db: VobaseDb, omDelegate: MemoryStorage) {
-    super();
-    this.db = db;
-    this.omDelegate = omDelegate;
+    super()
+    this.db = db
+    this.omDelegate = omDelegate
   }
 
   /**
@@ -154,7 +149,7 @@ export class VobaseMemoryStorage extends MemoryStorage {
    * Format: agent-{agentId}-conv-{conversationId}
    */
   private isAgentThread(threadId: string): boolean {
-    return threadId.startsWith('agent-');
+    return threadId.startsWith('agent-')
   }
 
   override async init(): Promise<void> {
@@ -163,39 +158,25 @@ export class VobaseMemoryStorage extends MemoryStorage {
 
   override async dangerouslyClearAll(): Promise<void> {
     // Not implementing — too dangerous for production tables
-    throw new Error(
-      'dangerouslyClearAll is not supported on VobaseMemoryStorage',
-    );
+    throw new Error('dangerouslyClearAll is not supported on VobaseMemoryStorage')
   }
 
   // ─── Thread Methods (conversations table) ──────────────────────
 
-  override async getThreadById({
-    threadId,
-  }: {
-    threadId: string;
-  }): Promise<StorageThreadType | null> {
+  override async getThreadById({ threadId }: { threadId: string }): Promise<StorageThreadType | null> {
     if (this.isAgentThread(threadId)) {
-      return this.omDelegate.getThreadById({ threadId });
+      return this.omDelegate.getThreadById({ threadId })
     }
-    logger.debug('[VobaseMemoryStorage.getThreadById]', { threadId });
-    const rows = await this.db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, threadId))
-      .limit(1);
-    return rows[0] ? rowToStorageThread(rows[0]) : null;
+    logger.debug('[VobaseMemoryStorage.getThreadById]', { threadId })
+    const rows = await this.db.select().from(conversations).where(eq(conversations.id, threadId)).limit(1)
+    return rows[0] ? rowToStorageThread(rows[0]) : null
   }
 
-  override async saveThread({
-    thread,
-  }: {
-    thread: StorageThreadType;
-  }): Promise<StorageThreadType> {
+  override async saveThread({ thread }: { thread: StorageThreadType }): Promise<StorageThreadType> {
     if (this.isAgentThread(thread.id)) {
-      return this.omDelegate.saveThread({ thread });
+      return this.omDelegate.saveThread({ thread })
     }
-    const contactId = stripContactPrefix(thread.resourceId);
+    const contactId = stripContactPrefix(thread.resourceId)
     // Upsert — if the conversation already exists, update it
     const rows = await this.db
       .insert(conversations)
@@ -205,11 +186,9 @@ export class VobaseMemoryStorage extends MemoryStorage {
         title: thread.title ?? null,
         metadata: thread.metadata ?? {},
         // Required fields with defaults for Mastra-created threads
-        channelRoutingId:
-          (thread.metadata?.channelRoutingId as string) ?? 'web',
+        channelRoutingId: (thread.metadata?.channelRoutingId as string) ?? 'web',
         agentId: (thread.metadata?.agentId as string) ?? 'default',
-        channelInstanceId:
-          (thread.metadata?.channelInstanceId as string) ?? 'web',
+        channelInstanceId: (thread.metadata?.channelInstanceId as string) ?? 'web',
         assignee: `agent:${(thread.metadata?.agentId as string) ?? 'default'}`,
       })
       .onConflictDoUpdate({
@@ -219,9 +198,9 @@ export class VobaseMemoryStorage extends MemoryStorage {
           metadata: thread.metadata ?? {},
         },
       })
-      .returning();
-    if (!rows[0]) throw new Error('upsertThread: insert returned no rows');
-    return rowToStorageThread(rows[0]);
+      .returning()
+    if (!rows[0]) throw new Error('upsertThread: insert returned no rows')
+    return rowToStorageThread(rows[0])
   }
 
   override async updateThread({
@@ -229,55 +208,44 @@ export class VobaseMemoryStorage extends MemoryStorage {
     title,
     metadata,
   }: {
-    id: string;
-    title: string;
-    metadata: Record<string, unknown>;
+    id: string
+    title: string
+    metadata: Record<string, unknown>
   }): Promise<StorageThreadType> {
     if (this.isAgentThread(id)) {
-      return this.omDelegate.updateThread({ id, title, metadata });
+      return this.omDelegate.updateThread({ id, title, metadata })
     }
     const rows = await this.db
       .update(conversations)
       .set({ title, metadata })
       .where(eq(conversations.id, id))
-      .returning();
-    if (!rows[0]) throw new Error(`Thread ${id} not found`);
-    return rowToStorageThread(rows[0]);
+      .returning()
+    if (!rows[0]) throw new Error(`Thread ${id} not found`)
+    return rowToStorageThread(rows[0])
   }
 
-  override async deleteThread({
-    threadId,
-  }: {
-    threadId: string;
-  }): Promise<void> {
+  override async deleteThread({ threadId }: { threadId: string }): Promise<void> {
     if (this.isAgentThread(threadId)) {
-      return this.omDelegate.deleteThread({ threadId });
+      return this.omDelegate.deleteThread({ threadId })
     }
     // Soft delete — set status to resolved rather than destroying data
-    await this.db
-      .update(conversations)
-      .set({ status: 'resolved' })
-      .where(eq(conversations.id, threadId));
+    await this.db.update(conversations).set({ status: 'resolved' }).where(eq(conversations.id, threadId))
   }
 
-  override async listThreads(
-    args: StorageListThreadsInput,
-  ): Promise<StorageListThreadsOutput> {
-    const page = args.page ?? 0;
-    const perPage =
-      args.perPage === false ? Number.MAX_SAFE_INTEGER : (args.perPage ?? 100);
-    const direction = args.orderBy?.direction ?? 'DESC';
-    const field = args.orderBy?.field ?? 'createdAt';
+  override async listThreads(args: StorageListThreadsInput): Promise<StorageListThreadsOutput> {
+    const page = args.page ?? 0
+    const perPage = args.perPage === false ? Number.MAX_SAFE_INTEGER : (args.perPage ?? 100)
+    const direction = args.orderBy?.direction ?? 'DESC'
+    const field = args.orderBy?.field ?? 'createdAt'
 
-    const conditions = [];
+    const conditions = []
     if (args.filter?.resourceId) {
-      const contactId = stripContactPrefix(args.filter.resourceId);
-      conditions.push(eq(conversations.contactId, contactId));
+      const contactId = stripContactPrefix(args.filter.resourceId)
+      conditions.push(eq(conversations.contactId, contactId))
     }
 
-    const orderCol =
-      field === 'updatedAt' ? conversations.updatedAt : conversations.createdAt;
-    const orderFn = direction === 'ASC' ? asc : desc;
+    const orderCol = field === 'updatedAt' ? conversations.updatedAt : conversations.createdAt
+    const orderFn = direction === 'ASC' ? asc : desc
 
     const rows = await this.db
       .select()
@@ -285,12 +253,10 @@ export class VobaseMemoryStorage extends MemoryStorage {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(orderFn(orderCol))
       .limit(perPage + 1) // fetch one extra to check hasMore
-      .offset(page * perPage);
+      .offset(page * perPage)
 
-    const hasMore = rows.length > perPage;
-    const threads = (hasMore ? rows.slice(0, perPage) : rows).map(
-      rowToStorageThread,
-    );
+    const hasMore = rows.length > perPage
+    const threads = (hasMore ? rows.slice(0, perPage) : rows).map(rowToStorageThread)
 
     return {
       threads,
@@ -298,7 +264,7 @@ export class VobaseMemoryStorage extends MemoryStorage {
       page,
       perPage: args.perPage === false ? false : perPage,
       hasMore,
-    };
+    }
   }
 
   // ─── Message Methods (messages table) ──────────────────────────
@@ -306,36 +272,32 @@ export class VobaseMemoryStorage extends MemoryStorage {
   override async saveMessages({
     messages: msgs,
   }: {
-    messages: MastraDBMessage[];
+    messages: MastraDBMessage[]
   }): Promise<{ messages: MastraDBMessage[] }> {
-    if (msgs.length === 0) return { messages: [] };
+    if (msgs.length === 0) return { messages: [] }
 
     // Route agent-thread messages to delegate PostgresStore
-    const agentMsgs = msgs.filter(
-      (m) => m.threadId && this.isAgentThread(m.threadId),
-    );
-    const convMsgs = msgs.filter(
-      (m) => !m.threadId || !this.isAgentThread(m.threadId),
-    );
+    const agentMsgs = msgs.filter((m) => m.threadId && this.isAgentThread(m.threadId))
+    const convMsgs = msgs.filter((m) => !m.threadId || !this.isAgentThread(m.threadId))
 
     if (agentMsgs.length > 0 && convMsgs.length === 0) {
-      return this.omDelegate.saveMessages({ messages: agentMsgs });
+      return this.omDelegate.saveMessages({ messages: agentMsgs })
     }
     if (agentMsgs.length > 0) {
-      await this.omDelegate.saveMessages({ messages: agentMsgs });
+      await this.omDelegate.saveMessages({ messages: agentMsgs })
     }
-    if (convMsgs.length === 0) return { messages: [] };
+    if (convMsgs.length === 0) return { messages: [] }
 
     // Continue with conversation-table messages
     logger.debug('[VobaseMemoryStorage.saveMessages]', {
       count: convMsgs.length,
       threadIds: [...new Set(convMsgs.map((m) => m.threadId))],
       roles: convMsgs.map((m) => m.role),
-    });
+    })
 
     const values = convMsgs.map((msg) => {
-      const { senderType, messageType } = mastraRoleToVobase(msg.role);
-      const plainText = extractPlainText(msg.content);
+      const { senderType, messageType } = mastraRoleToVobase(msg.role)
+      const plainText = extractPlainText(msg.content)
       return {
         id: msg.id,
         conversationId: msg.threadId ?? '',
@@ -346,63 +308,49 @@ export class VobaseMemoryStorage extends MemoryStorage {
         mastraContent: msg.content as unknown as Record<string, unknown>,
         senderId: msg.resourceId ?? 'system',
         senderType,
-      };
-    });
+      }
+    })
 
     try {
-      await this.db.insert(messages).values(values);
+      await this.db.insert(messages).values(values)
       logger.debug('[VobaseMemoryStorage.saveMessages] INSERT OK', {
         ids: values.map((v) => v.id),
-      });
+      })
     } catch (err) {
-      logger.error('[VobaseMemoryStorage.saveMessages] INSERT FAILED', { err });
-      throw err;
+      logger.error('[VobaseMemoryStorage.saveMessages] INSERT FAILED', { err })
+      throw err
     }
 
-    return { messages: [...agentMsgs, ...convMsgs] };
+    return { messages: [...agentMsgs, ...convMsgs] }
   }
 
-  override async listMessages(
-    args: StorageListMessagesInput,
-  ): Promise<StorageListMessagesOutput> {
-    const threadIds = Array.isArray(args.threadId)
-      ? args.threadId
-      : [args.threadId];
+  override async listMessages(args: StorageListMessagesInput): Promise<StorageListMessagesOutput> {
+    const threadIds = Array.isArray(args.threadId) ? args.threadId : [args.threadId]
 
     // Route agent-thread queries to delegate PostgresStore
     if (threadIds.every((id) => this.isAgentThread(id))) {
-      return this.omDelegate.listMessages(args);
+      return this.omDelegate.listMessages(args)
     }
-    const page = args.page ?? 0;
-    const perPage =
-      args.perPage === false ? Number.MAX_SAFE_INTEGER : (args.perPage ?? 40);
-    const direction = args.orderBy?.direction ?? 'DESC';
+    const page = args.page ?? 0
+    const perPage = args.perPage === false ? Number.MAX_SAFE_INTEGER : (args.perPage ?? 40)
+    const direction = args.orderBy?.direction ?? 'DESC'
 
     const conditions = [
       inArray(messages.conversationId, threadIds),
       eq(messages.private, false), // Exclude private/internal messages from recall
-    ];
+    ]
 
     if (args.filter?.dateRange) {
-      const { start, end, startExclusive, endExclusive } =
-        args.filter.dateRange;
+      const { start, end, startExclusive, endExclusive } = args.filter.dateRange
       if (start) {
-        conditions.push(
-          startExclusive
-            ? gt(messages.createdAt, start)
-            : gte(messages.createdAt, start),
-        );
+        conditions.push(startExclusive ? gt(messages.createdAt, start) : gte(messages.createdAt, start))
       }
       if (end) {
-        conditions.push(
-          endExclusive
-            ? lt(messages.createdAt, end)
-            : lte(messages.createdAt, end),
-        );
+        conditions.push(endExclusive ? lt(messages.createdAt, end) : lte(messages.createdAt, end))
       }
     }
 
-    const orderFn = direction === 'ASC' ? asc : desc;
+    const orderFn = direction === 'ASC' ? asc : desc
 
     const rows = await this.db
       .select()
@@ -410,12 +358,10 @@ export class VobaseMemoryStorage extends MemoryStorage {
       .where(and(...conditions))
       .orderBy(orderFn(messages.createdAt))
       .limit(perPage + 1)
-      .offset(page * perPage);
+      .offset(page * perPage)
 
-    const hasMore = rows.length > perPage;
-    const result = (hasMore ? rows.slice(0, perPage) : rows).map(
-      rowToMastraMessage,
-    );
+    const hasMore = rows.length > perPage
+    const result = (hasMore ? rows.slice(0, perPage) : rows).map(rowToMastraMessage)
 
     return {
       messages: result,
@@ -423,113 +369,76 @@ export class VobaseMemoryStorage extends MemoryStorage {
       page,
       perPage: args.perPage === false ? false : perPage,
       hasMore,
-    };
+    }
   }
 
-  override async listMessagesById({
-    messageIds,
-  }: {
-    messageIds: string[];
-  }): Promise<{ messages: MastraDBMessage[] }> {
-    if (messageIds.length === 0) return { messages: [] };
-    const rows = await this.db
-      .select()
-      .from(messages)
-      .where(inArray(messages.id, messageIds));
-    return { messages: rows.map(rowToMastraMessage) };
+  override async listMessagesById({ messageIds }: { messageIds: string[] }): Promise<{ messages: MastraDBMessage[] }> {
+    if (messageIds.length === 0) return { messages: [] }
+    const rows = await this.db.select().from(messages).where(inArray(messages.id, messageIds))
+    return { messages: rows.map(rowToMastraMessage) }
   }
 
   override async updateMessages({
     messages: updates,
   }: {
     messages: (Partial<Omit<MastraDBMessage, 'createdAt'>> & {
-      id: string;
+      id: string
       content?: {
-        metadata?: MastraMessageContentV2['metadata'];
-        content?: MastraMessageContentV2['content'];
-      };
-    })[];
+        metadata?: MastraMessageContentV2['metadata']
+        content?: MastraMessageContentV2['content']
+      }
+    })[]
   }): Promise<MastraDBMessage[]> {
-    const results: MastraDBMessage[] = [];
+    const results: MastraDBMessage[] = []
     for (const update of updates) {
-      const set: Record<string, unknown> = {};
+      const set: Record<string, unknown> = {}
       if (update.content?.content) {
-        set.mastraContent = update.content as unknown as Record<
-          string,
-          unknown
-        >;
+        set.mastraContent = update.content as unknown as Record<string, unknown>
       }
       if (Object.keys(set).length > 0) {
-        await this.db
-          .update(messages)
-          .set(set)
-          .where(eq(messages.id, update.id));
+        await this.db.update(messages).set(set).where(eq(messages.id, update.id))
       }
       // Fetch the updated row
-      const rows = await this.db
-        .select()
-        .from(messages)
-        .where(eq(messages.id, update.id))
-        .limit(1);
-      if (rows[0]) results.push(rowToMastraMessage(rows[0]));
+      const rows = await this.db.select().from(messages).where(eq(messages.id, update.id)).limit(1)
+      if (rows[0]) results.push(rowToMastraMessage(rows[0]))
     }
-    return results;
+    return results
   }
 
   override async deleteMessages(messageIds: string[]): Promise<void> {
-    if (messageIds.length === 0) return;
-    await this.db.delete(messages).where(inArray(messages.id, messageIds));
+    if (messageIds.length === 0) return
+    await this.db.delete(messages).where(inArray(messages.id, messageIds))
   }
 
   // ─── Resource Methods (contacts table) ─────────────────────────
 
-  override async getResourceById({
-    resourceId,
-  }: {
-    resourceId: string;
-  }): Promise<StorageResourceType | null> {
-    const contactId = stripContactPrefix(resourceId);
-    const rows = await this.db
-      .select()
-      .from(contacts)
-      .where(eq(contacts.id, contactId))
-      .limit(1);
-    return rows[0] ? rowToStorageResource(rows[0]) : null;
+  override async getResourceById({ resourceId }: { resourceId: string }): Promise<StorageResourceType | null> {
+    const contactId = stripContactPrefix(resourceId)
+    const rows = await this.db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1)
+    return rows[0] ? rowToStorageResource(rows[0]) : null
   }
 
-  override async saveResource({
-    resource,
-  }: {
-    resource: StorageResourceType;
-  }): Promise<StorageResourceType> {
-    const contactId = stripContactPrefix(resource.id);
+  override async saveResource({ resource }: { resource: StorageResourceType }): Promise<StorageResourceType> {
+    const contactId = stripContactPrefix(resource.id)
     // workingMemory and resourceMetadata columns have been dropped — no-op write
-    const rows = await this.db
-      .select()
-      .from(contacts)
-      .where(eq(contacts.id, contactId))
-      .limit(1);
-    if (!rows[0]) throw new Error(`Contact ${contactId} not found`);
-    return rowToStorageResource(rows[0]);
+    const rows = await this.db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1)
+    if (!rows[0]) throw new Error(`Contact ${contactId} not found`)
+    return rowToStorageResource(rows[0])
   }
 
   override async updateResource({
     resourceId,
   }: {
-    resourceId: string;
-    workingMemory?: string;
-    metadata?: Record<string, unknown>;
+    resourceId: string
+    workingMemory?: string
+    metadata?: Record<string, unknown>
   }): Promise<StorageResourceType> {
-    const contactId = stripContactPrefix(resourceId);
+    const contactId = stripContactPrefix(resourceId)
     // workingMemory and resourceMetadata columns have been dropped — no-op write
 
-    const rows = await this.db
-      .select()
-      .from(contacts)
-      .where(eq(contacts.id, contactId))
-      .limit(1);
-    if (!rows[0]) throw new Error(`Contact ${contactId} not found`);
-    return rowToStorageResource(rows[0]);
+    const rows = await this.db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1)
+    if (!rows[0]) throw new Error(`Contact ${contactId} not found`)
+    return rowToStorageResource(rows[0])
   }
 
   // ─── Observational Memory Delegation ──────────────────────────
@@ -539,14 +448,14 @@ export class VobaseMemoryStorage extends MemoryStorage {
   override async listMessagesByResourceId(
     args: StorageListMessagesByResourceIdInput,
   ): Promise<StorageListMessagesOutput> {
-    return this.omDelegate.listMessagesByResourceId(args);
+    return this.omDelegate.listMessagesByResourceId(args)
   }
 
   override async getObservationalMemory(
     threadId: string | null,
     resourceId: string,
   ): Promise<ObservationalMemoryRecord | null> {
-    return this.omDelegate.getObservationalMemory(threadId, resourceId);
+    return this.omDelegate.getObservationalMemory(threadId, resourceId)
   }
 
   override async getObservationalMemoryHistory(
@@ -554,67 +463,49 @@ export class VobaseMemoryStorage extends MemoryStorage {
     resourceId: string,
     limit?: number,
   ): Promise<ObservationalMemoryRecord[]> {
-    return this.omDelegate.getObservationalMemoryHistory(
-      threadId,
-      resourceId,
-      limit,
-    );
+    return this.omDelegate.getObservationalMemoryHistory(threadId, resourceId, limit)
   }
 
   override async initializeObservationalMemory(
     input: CreateObservationalMemoryInput,
   ): Promise<ObservationalMemoryRecord> {
-    return this.omDelegate.initializeObservationalMemory(input);
+    return this.omDelegate.initializeObservationalMemory(input)
   }
 
-  override async updateActiveObservations(
-    input: UpdateActiveObservationsInput,
-  ): Promise<void> {
-    return this.omDelegate.updateActiveObservations(input);
+  override async updateActiveObservations(input: UpdateActiveObservationsInput): Promise<void> {
+    return this.omDelegate.updateActiveObservations(input)
   }
 
-  override async updateBufferedObservations(
-    input: UpdateBufferedObservationsInput,
-  ): Promise<void> {
-    return this.omDelegate.updateBufferedObservations(input);
+  override async updateBufferedObservations(input: UpdateBufferedObservationsInput): Promise<void> {
+    return this.omDelegate.updateBufferedObservations(input)
   }
 
-  override async swapBufferedToActive(
-    input: SwapBufferedToActiveInput,
-  ): Promise<SwapBufferedToActiveResult> {
-    return this.omDelegate.swapBufferedToActive(input);
+  override async swapBufferedToActive(input: SwapBufferedToActiveInput): Promise<SwapBufferedToActiveResult> {
+    return this.omDelegate.swapBufferedToActive(input)
   }
 
   override async createReflectionGeneration(
     input: CreateReflectionGenerationInput,
   ): Promise<ObservationalMemoryRecord> {
-    return this.omDelegate.createReflectionGeneration(input);
+    return this.omDelegate.createReflectionGeneration(input)
   }
 
-  override async updateBufferedReflection(
-    input: UpdateBufferedReflectionInput,
-  ): Promise<void> {
-    return this.omDelegate.updateBufferedReflection(input);
+  override async updateBufferedReflection(input: UpdateBufferedReflectionInput): Promise<void> {
+    return this.omDelegate.updateBufferedReflection(input)
   }
 
   override async swapBufferedReflectionToActive(
     input: SwapBufferedReflectionToActiveInput,
   ): Promise<ObservationalMemoryRecord> {
-    return this.omDelegate.swapBufferedReflectionToActive(input);
+    return this.omDelegate.swapBufferedReflectionToActive(input)
   }
 
-  override async setReflectingFlag(
-    id: string,
-    isReflecting: boolean,
-  ): Promise<void> {
-    return this.omDelegate.setReflectingFlag(id, isReflecting);
+  override async setReflectingFlag(id: string, isReflecting: boolean): Promise<void> {
+    return this.omDelegate.setReflectingFlag(id, isReflecting)
   }
 
-  override async setObservingFlag(
-    id: string,
-    isObserving: boolean,
-  ): Promise<void> {
-    return this.omDelegate.setObservingFlag(id, isObserving);
+  override async setObservingFlag(id: string, isObserving: boolean): Promise<void> {
+    return this.omDelegate.setObservingFlag(id, isObserving)
   }
 
   override async setBufferingObservationFlag(
@@ -622,37 +513,22 @@ export class VobaseMemoryStorage extends MemoryStorage {
     isBuffering: boolean,
     lastBufferedAtTokens?: number,
   ): Promise<void> {
-    return this.omDelegate.setBufferingObservationFlag(
-      id,
-      isBuffering,
-      lastBufferedAtTokens,
-    );
+    return this.omDelegate.setBufferingObservationFlag(id, isBuffering, lastBufferedAtTokens)
   }
 
-  override async setBufferingReflectionFlag(
-    id: string,
-    isBuffering: boolean,
-  ): Promise<void> {
-    return this.omDelegate.setBufferingReflectionFlag(id, isBuffering);
+  override async setBufferingReflectionFlag(id: string, isBuffering: boolean): Promise<void> {
+    return this.omDelegate.setBufferingReflectionFlag(id, isBuffering)
   }
 
-  override async insertObservationalMemoryRecord(
-    record: ObservationalMemoryRecord,
-  ): Promise<void> {
-    return this.omDelegate.insertObservationalMemoryRecord(record);
+  override async insertObservationalMemoryRecord(record: ObservationalMemoryRecord): Promise<void> {
+    return this.omDelegate.insertObservationalMemoryRecord(record)
   }
 
-  override async clearObservationalMemory(
-    threadId: string | null,
-    resourceId: string,
-  ): Promise<void> {
-    return this.omDelegate.clearObservationalMemory(threadId, resourceId);
+  override async clearObservationalMemory(threadId: string | null, resourceId: string): Promise<void> {
+    return this.omDelegate.clearObservationalMemory(threadId, resourceId)
   }
 
-  override async setPendingMessageTokens(
-    id: string,
-    tokenCount: number,
-  ): Promise<void> {
-    return this.omDelegate.setPendingMessageTokens(id, tokenCount);
+  override async setPendingMessageTokens(id: string, tokenCount: number): Promise<void> {
+    return this.omDelegate.setPendingMessageTokens(id, tokenCount)
   }
 }

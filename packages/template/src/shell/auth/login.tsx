@@ -1,94 +1,82 @@
-import {
-  createFileRoute,
-  useNavigate,
-  useRouter,
-  useSearch,
-} from '@tanstack/react-router';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { z } from 'zod';
+import { createFileRoute, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { z } from 'zod'
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSeparator,
-  InputOTPSlot,
-} from '@/components/ui/input-otp';
-import { Separator } from '@/components/ui/separator';
-import { authClient } from '@/lib/auth-client';
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from '@/components/ui/input-otp'
+import { Separator } from '@/components/ui/separator'
+import { authClient } from '@/lib/auth-client'
 
-const emailSchema = z.string().email('Please enter a valid email address');
+const emailSchema = z.string().email('Please enter a valid email address')
 
-const platformUrl = import.meta.env.VITE_PLATFORM_URL;
-const tenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG;
+const platformUrl = import.meta.env.VITE_PLATFORM_URL
+const tenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG
 
 const loginSearchSchema = z.object({
   invitationId: z.string().optional(),
-});
+})
 
 function LoginPage() {
-  const router = useRouter();
-  const navigate = useNavigate();
-  const { invitationId } = useSearch({ from: '/_auth/login' });
+  const router = useRouter()
+  const navigate = useNavigate()
+  const { invitationId } = useSearch({ from: '/_auth/login' })
 
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'email' | 'otp'>('email');
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('')
+  const [otp, setOtp] = useState('')
+  const [step, setStep] = useState<'email' | 'otp'>('email')
+  const [loading, setLoading] = useState(false)
 
   async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    const result = emailSchema.safeParse(email);
+    e.preventDefault()
+    const result = emailSchema.safeParse(email)
     if (!result.success) {
-      toast.error(result.error.issues[0].message);
-      return;
+      toast.error(result.error.issues[0].message)
+      return
     }
 
-    setLoading(true);
+    setLoading(true)
     const { error } = await authClient.emailOtp.sendVerificationOtp({
       email,
       type: 'sign-in',
-    });
-    setLoading(false);
+    })
+    setLoading(false)
 
     if (error) {
-      toast.error(error.message ?? 'Failed to send code.');
-      return;
+      toast.error(error.message ?? 'Failed to send code.')
+      return
     }
 
-    setStep('otp');
-    toast.success('Check your email for a verification code.');
+    setStep('otp')
+    toast.success('Check your email for a verification code.')
   }
 
   async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
+    e.preventDefault()
     if (otp.length !== 6) {
-      toast.error('Please enter the 6-digit code.');
-      return;
+      toast.error('Please enter the 6-digit code.')
+      return
     }
 
-    setLoading(true);
-    const { error } = await authClient.signIn.emailOtp({ email, otp });
-    setLoading(false);
+    setLoading(true)
+    const { error } = await authClient.signIn.emailOtp({ email, otp })
+    setLoading(false)
 
     if (error) {
-      toast.error(error.message ?? 'Invalid or expired code.');
-      return;
+      toast.error(error.message ?? 'Invalid or expired code.')
+      return
     }
 
     // Server-side hook auto-accepts pending invitations on sign-in.
     // Client-side fallback for edge cases (existing user, invitation not yet matched).
     if (invitationId) {
-      await authClient.organization
-        .acceptInvitation({ invitationId })
-        .catch(() => {});
+      await authClient.organization.acceptInvitation({ invitationId }).catch(() => {})
     }
 
-    await router.invalidate();
-    navigate({ to: '/' });
+    await router.invalidate()
+    navigate({ to: '/' })
   }
 
   return (
@@ -111,15 +99,10 @@ function LoginPage() {
               variant="outline"
               className="w-full"
               onClick={() => {
-                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/google/initiate?tenant=${tenantSlug}&redirect=${encodeURIComponent(window.location.origin)}`;
+                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/google/initiate?tenant=${tenantSlug}&redirect=${encodeURIComponent(window.location.origin)}`
               }}
             >
-              <svg
-                className="mr-2 size-4"
-                viewBox="0 0 24 24"
-                role="img"
-                aria-label="Google"
-              >
+              <svg className="mr-2 size-4" viewBox="0 0 24 24" role="img" aria-label="Google">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
                   fill="#4285F4"
@@ -143,15 +126,10 @@ function LoginPage() {
               variant="outline"
               className="w-full"
               onClick={() => {
-                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/microsoft/initiate?tenant=${tenantSlug}&redirect=${encodeURIComponent(window.location.origin)}`;
+                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/microsoft/initiate?tenant=${tenantSlug}&redirect=${encodeURIComponent(window.location.origin)}`
               }}
             >
-              <svg
-                className="mr-2 size-4"
-                viewBox="0 0 21 21"
-                role="img"
-                aria-label="Microsoft"
-              >
+              <svg className="mr-2 size-4" viewBox="0 0 21 21" role="img" aria-label="Microsoft">
                 <rect x="1" y="1" width="9" height="9" fill="#F25022" />
                 <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
                 <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
@@ -204,8 +182,8 @@ function LoginPage() {
               variant="ghost"
               className="w-full"
               onClick={() => {
-                setStep('email');
-                setOtp('');
+                setStep('email')
+                setOtp('')
               }}
             >
               Use a different email
@@ -224,20 +202,20 @@ function LoginPage() {
               className="w-full border-2 border-dashed border-yellow-500 bg-[repeating-linear-gradient(-45deg,transparent,transparent_8px,rgba(234,179,8,0.08)_8px,rgba(234,179,8,0.08)_16px)] text-yellow-600 hover:border-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-500 dark:border-yellow-600 dark:text-yellow-500 dark:hover:border-yellow-500"
               disabled={loading}
               onClick={async () => {
-                setLoading(true);
+                setLoading(true)
                 // biome-ignore lint/style/noRestrictedGlobals: dev-only endpoint, no RPC type
                 const res = await fetch('/api/auth/dev-login', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ email: 'admin@example.com' }),
-                });
-                setLoading(false);
+                })
+                setLoading(false)
                 if (!res.ok) {
-                  toast.error('Dev login failed.');
-                  return;
+                  toast.error('Dev login failed.')
+                  return
                 }
-                await router.invalidate();
-                navigate({ to: '/' });
+                await router.invalidate()
+                navigate({ to: '/' })
               }}
             >
               Sign in as Admin (dev)
@@ -246,10 +224,10 @@ function LoginPage() {
         )}
       </CardContent>
     </Card>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_auth/login')({
   component: LoginPage,
   validateSearch: loginSearchSchema,
-});
+})

@@ -1,32 +1,27 @@
 // Shared broadcast UI helpers
 
-export type StatusVariant =
-  | 'default'
-  | 'success'
-  | 'warning'
-  | 'error'
-  | 'info';
+export type StatusVariant = 'default' | 'success' | 'warning' | 'error' | 'info'
 
 export function broadcastStatusVariant(status: string): StatusVariant {
   switch (status) {
     case 'draft':
-      return 'default';
+      return 'default'
     case 'scheduled':
-      return 'info';
+      return 'info'
     case 'sending':
-      return 'warning';
+      return 'warning'
     case 'completed':
-      return 'success';
+      return 'success'
     case 'failed':
-      return 'error';
+      return 'error'
     case 'paused':
     case 'cancelled':
-      return 'default';
+      return 'default'
     default:
-      return 'default';
+      return 'default'
   }
 }
 
 export function statusLabel(status: string): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return status.charAt(0).toUpperCase() + status.slice(1)
 }

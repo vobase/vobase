@@ -30,6 +30,7 @@ import {
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import { setJournalDb } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
+
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../../tests/helpers/test-db'
 
 let db: TestDbHandle

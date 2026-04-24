@@ -1,13 +1,8 @@
-import { beforeEach, describe, expect, it } from 'bun:test';
-import type {
-  ChannelsService,
-  RealtimeService,
-  Scheduler,
-  VobaseDb,
-} from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import { beforeEach, describe, expect, it } from 'bun:test'
+import type { ChannelsService, RealtimeService, Scheduler, VobaseDb } from '@vobase/core'
+import { eq } from 'drizzle-orm'
 
-import { createTestDb } from '../../../lib/test-helpers';
+import { createTestDb } from '../../../lib/test-helpers'
 import {
   automationExecutions,
   automationRecipients,
@@ -18,69 +13,69 @@ import {
   contacts,
   conversations,
   messages,
-} from '../schema';
-import { setModuleDeps } from './deps';
-import { handleStatusUpdate } from './status';
+} from '../schema'
+import { setModuleDeps } from './deps'
+import { handleStatusUpdate } from './status'
 
 // ─── Mock infrastructure ──────────────────────────────────────────
 
-const mockRealtime: RealtimeService = { notify: async () => {} } as never;
+const mockRealtime: RealtimeService = { notify: async () => {} } as never
 const mockScheduler = {
   async add() {
-    return { id: 'job-1' };
+    return { id: 'job-1' }
   },
   async send() {
-    return null;
+    return null
   },
   async schedule() {},
   async unschedule() {},
   async stop() {},
-} as unknown as Scheduler;
+} as unknown as Scheduler
 const mockChannels = {
   email: { send: async () => ({ success: true, messageId: 'e-1' }) },
   whatsapp: { send: async () => ({ success: true, messageId: 'w-1' }) },
   on() {},
   get() {
-    return undefined;
+    return undefined
   },
   getAdapter() {
-    return undefined;
+    return undefined
   },
   registerAdapter() {},
   unregisterAdapter() {},
   onProvision() {},
   async provision() {
-    throw new Error('not implemented');
+    throw new Error('not implemented')
   },
-} as unknown as ChannelsService;
+} as unknown as ChannelsService
 
-let db: VobaseDb;
+let db: VobaseDb
 
-const CI_ID = 'st-ci';
+const CI_ID = 'st-ci'
 
 beforeEach(async () => {
-  const result = await createTestDb({ withAutomation: true });
-  db = result.db;
+  const result = await createTestDb({ withAutomation: true })
+  db = result.db
   setModuleDeps({
     db,
     scheduler: mockScheduler,
     channels: mockChannels,
     realtime: mockRealtime,
-  });
+  })
 
   await db.insert(channelInstances).values({
     id: CI_ID,
     type: 'whatsapp',
     label: 'WA',
     source: 'env',
-  });
+  })
 
   await db.insert(contacts).values({
     id: 'st-contact',
     phone: '+6591000001',
     role: 'customer',
-  });
-});
+  })
+})
 
 // ─── Layer 1: messages table ──────────────────────────────────────
 
@@ -94,7 +89,7 @@ describe('Layer 1 — messages table', () => {
       channelInstanceId: CI_ID,
       assignee: 'agent',
       status: 'active',
-    } as never);
+    } as never)
 
     await db.insert(messages).values({
       id: 'msg-st1',
@@ -106,7 +101,7 @@ describe('Layer 1 — messages table', () => {
       senderType: 'user',
       externalMessageId: 'ext-layer1',
       status: 'sent',
-    });
+    })
 
     await handleStatusUpdate({
       type: 'status_update',
@@ -114,15 +109,12 @@ describe('Layer 1 — messages table', () => {
       status: 'delivered',
       channel: 'whatsapp',
       timestamp: Date.now(),
-    });
+    })
 
-    const [msg] = await db
-      .select({ status: messages.status })
-      .from(messages)
-      .where(eq(messages.id, 'msg-st1'));
-    expect(msg.status).toBe('delivered');
-  });
-});
+    const [msg] = await db.select({ status: messages.status }).from(messages).where(eq(messages.id, 'msg-st1'))
+    expect(msg.status).toBe('delivered')
+  })
+})
 
 // ─── Layer 2: broadcastRecipients fallback ────────────────────────
 
@@ -140,7 +132,7 @@ describe('Layer 2 — broadcastRecipients fallback', () => {
         createdBy: 'system',
         sentCount: 1,
       })
-      .returning();
+      .returning()
 
     await db.insert(broadcastRecipients).values({
       broadcastId: broadcast.id,
@@ -149,7 +141,7 @@ describe('Layer 2 — broadcastRecipients fallback', () => {
       variables: {},
       status: 'sent',
       externalMessageId: 'ext-layer2',
-    } as never);
+    } as never)
 
     await handleStatusUpdate({
       type: 'status_update',
@@ -157,21 +149,21 @@ describe('Layer 2 — broadcastRecipients fallback', () => {
       status: 'delivered',
       channel: 'whatsapp',
       timestamp: Date.now(),
-    });
+    })
 
     const [br] = await db
       .select({ status: broadcastRecipients.status })
       .from(broadcastRecipients)
-      .where(eq(broadcastRecipients.externalMessageId, 'ext-layer2'));
-    expect(br.status).toBe('delivered');
+      .where(eq(broadcastRecipients.externalMessageId, 'ext-layer2'))
+    expect(br.status).toBe('delivered')
 
     const [b] = await db
       .select({ deliveredCount: broadcasts.deliveredCount })
       .from(broadcasts)
-      .where(eq(broadcasts.id, broadcast.id));
-    expect(b.deliveredCount).toBe(1);
-  });
-});
+      .where(eq(broadcasts.id, broadcast.id))
+    expect(b.deliveredCount).toBe(1)
+  })
+})
 
 // ─── Layer 3: automationRecipients fallback ───────────────────────
 
@@ -189,18 +181,18 @@ describe('Layer 3 — automationRecipients fallback', () => {
         timezone: 'UTC',
         createdBy: 'system',
       })
-      .returning();
+      .returning()
 
     const [execution] = await db
       .insert(automationExecutions)
       .values({ ruleId: rule.id, stepSequence: 1, status: 'running' })
-      .returning();
+      .returning()
 
-    return { rule, execution };
+    return { rule, execution }
   }
 
   it('updates automation recipient when no message or broadcast matches', async () => {
-    const { execution } = await seedExecution();
+    const { execution } = await seedExecution()
 
     await db.insert(automationRecipients).values({
       executionId: execution.id,
@@ -210,7 +202,7 @@ describe('Layer 3 — automationRecipients fallback', () => {
       variables: {},
       status: 'sent',
       externalMessageId: 'ext-layer3',
-    } as never);
+    } as never)
 
     await handleStatusUpdate({
       type: 'status_update',
@@ -218,23 +210,23 @@ describe('Layer 3 — automationRecipients fallback', () => {
       status: 'delivered',
       channel: 'whatsapp',
       timestamp: Date.now(),
-    });
+    })
 
     const [ar] = await db
       .select({ status: automationRecipients.status })
       .from(automationRecipients)
-      .where(eq(automationRecipients.externalMessageId, 'ext-layer3'));
-    expect(ar.status).toBe('delivered');
+      .where(eq(automationRecipients.externalMessageId, 'ext-layer3'))
+    expect(ar.status).toBe('delivered')
 
     const [ae] = await db
       .select({ deliveredCount: automationExecutions.deliveredCount })
       .from(automationExecutions)
-      .where(eq(automationExecutions.id, execution.id));
-    expect(ae.deliveredCount).toBe(1);
-  });
+      .where(eq(automationExecutions.id, execution.id))
+    expect(ae.deliveredCount).toBe(1)
+  })
 
   it('increments both readCount and deliveredCount when skipping sent→read', async () => {
-    const { execution } = await seedExecution();
+    const { execution } = await seedExecution()
 
     await db.insert(automationRecipients).values({
       executionId: execution.id,
@@ -244,7 +236,7 @@ describe('Layer 3 — automationRecipients fallback', () => {
       variables: {},
       status: 'sent',
       externalMessageId: 'ext-layer3-read',
-    } as never);
+    } as never)
 
     await handleStatusUpdate({
       type: 'status_update',
@@ -252,7 +244,7 @@ describe('Layer 3 — automationRecipients fallback', () => {
       status: 'read',
       channel: 'whatsapp',
       timestamp: Date.now(),
-    });
+    })
 
     const [ae] = await db
       .select({
@@ -260,13 +252,13 @@ describe('Layer 3 — automationRecipients fallback', () => {
         deliveredCount: automationExecutions.deliveredCount,
       })
       .from(automationExecutions)
-      .where(eq(automationExecutions.id, execution.id));
-    expect(ae.readCount).toBe(1);
-    expect(ae.deliveredCount).toBe(1); // skipped delivered → also incremented
-  });
+      .where(eq(automationExecutions.id, execution.id))
+    expect(ae.readCount).toBe(1)
+    expect(ae.deliveredCount).toBe(1) // skipped delivered → also incremented
+  })
 
   it('Layer 1 wins over Layer 3 when same externalMessageId exists in both', async () => {
-    const { execution } = await seedExecution();
+    const { execution } = await seedExecution()
 
     // Insert message with same external ID
     await db.insert(conversations).values({
@@ -276,7 +268,7 @@ describe('Layer 3 — automationRecipients fallback', () => {
       channelInstanceId: CI_ID,
       assignee: 'agent',
       status: 'active',
-    } as never);
+    } as never)
 
     await db.insert(messages).values({
       id: 'msg-l1win',
@@ -288,7 +280,7 @@ describe('Layer 3 — automationRecipients fallback', () => {
       senderType: 'user',
       externalMessageId: 'ext-l1-wins',
       status: 'sent',
-    });
+    })
 
     await db.insert(automationRecipients).values({
       executionId: execution.id,
@@ -298,7 +290,7 @@ describe('Layer 3 — automationRecipients fallback', () => {
       variables: {},
       status: 'sent',
       externalMessageId: 'ext-l1-wins',
-    } as never);
+    } as never)
 
     await handleStatusUpdate({
       type: 'status_update',
@@ -306,20 +298,17 @@ describe('Layer 3 — automationRecipients fallback', () => {
       status: 'delivered',
       channel: 'whatsapp',
       timestamp: Date.now(),
-    });
+    })
 
     // Message updated
-    const [msg] = await db
-      .select({ status: messages.status })
-      .from(messages)
-      .where(eq(messages.id, 'msg-l1win'));
-    expect(msg.status).toBe('delivered');
+    const [msg] = await db.select({ status: messages.status }).from(messages).where(eq(messages.id, 'msg-l1win'))
+    expect(msg.status).toBe('delivered')
 
     // Automation execution counters untouched (Layer 1 won)
     const [ae] = await db
       .select({ deliveredCount: automationExecutions.deliveredCount })
       .from(automationExecutions)
-      .where(eq(automationExecutions.id, execution.id));
-    expect(ae.deliveredCount).toBe(0);
-  });
-});
+      .where(eq(automationExecutions.id, execution.id))
+    expect(ae.deliveredCount).toBe(0)
+  })
+})

@@ -1,53 +1,49 @@
-import { useQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
-import { ChevronDownIcon, ShieldCheckIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import { ChevronDownIcon, ShieldCheckIcon } from 'lucide-react'
+import { useState } from 'react'
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { agentsClient } from '@/lib/api-client';
-import { GuardrailsLogList } from './-guardrails-log-list';
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { agentsClient } from '@/lib/api-client'
+import { GuardrailsLogList } from './-guardrails-log-list'
 
 interface GuardrailRule {
-  id: string;
-  name: string;
-  type: string;
-  config: { blocklist: string[]; maxLength: number };
-  appliedTo: string;
+  id: string
+  name: string
+  type: string
+  config: { blocklist: string[]; maxLength: number }
+  appliedTo: string
 }
 
 async function fetchConfig(): Promise<{ rules: GuardrailRule[] }> {
-  const res = await agentsClient.guardrails.config.$get();
-  if (!res.ok) throw new Error('Failed to fetch guardrails config');
-  return res.json();
+  const res = await agentsClient.guardrails.config.$get()
+  if (!res.ok) throw new Error('Failed to fetch guardrails config')
+  return res.json()
 }
 
 function ConfigSection() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['guardrails-config'],
     queryFn: fetchConfig,
-  });
+  })
 
-  const [showBlocklist, setShowBlocklist] = useState(false);
+  const [showBlocklist, setShowBlocklist] = useState(false)
 
   if (isLoading) {
-    return <Skeleton className="h-32 w-full rounded-lg" />;
+    return <Skeleton className="h-32 w-full rounded-lg" />
   }
 
   if (isError || !data) {
-    return (
-      <p className="text-sm text-destructive">
-        Failed to load guardrail configuration.
-      </p>
-    );
+    return <p className="text-sm text-destructive">Failed to load guardrail configuration.</p>
   }
 
-  const rule = data.rules[0];
-  if (!rule) return null;
+  const rule = data.rules[0]
+  if (!rule) return null
 
-  const blocklistCount = rule.config.blocklist.length;
+  const blocklistCount = rule.config.blocklist.length
 
   return (
     <Card>
@@ -60,28 +56,19 @@ function ConfigSection() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="font-semibold text-sm">{rule.name}</p>
-                <Badge
-                  variant="outline"
-                  className="text-xs text-green-600 border-green-300"
-                >
+                <Badge variant="outline" className="text-xs text-green-600 border-green-300">
                   Active
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Applied to all AI agents
-              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Applied to all AI agents</p>
             </div>
           </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="rounded-md border bg-muted/30 p-3">
-            <p className="text-xs text-muted-foreground mb-1">
-              Max Message Length
-            </p>
-            <p className="text-sm font-medium">
-              {rule.config.maxLength.toLocaleString()} characters
-            </p>
+            <p className="text-xs text-muted-foreground mb-1">Max Message Length</p>
+            <p className="text-sm font-medium">{rule.config.maxLength.toLocaleString()} characters</p>
           </div>
 
           <div className="rounded-md border bg-muted/30 p-3">
@@ -95,15 +82,8 @@ function ConfigSection() {
                 </p>
               </div>
               {blocklistCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2"
-                  onClick={() => setShowBlocklist(!showBlocklist)}
-                >
-                  <ChevronDownIcon
-                    className={`size-3.5 transition-transform ${showBlocklist ? 'rotate-180' : ''}`}
-                  />
+                <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => setShowBlocklist(!showBlocklist)}>
+                  <ChevronDownIcon className={`size-3.5 transition-transform ${showBlocklist ? 'rotate-180' : ''}`} />
                 </Button>
               )}
             </div>
@@ -120,7 +100,7 @@ function ConfigSection() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 function GuardrailsPage() {
@@ -133,9 +113,9 @@ function GuardrailsPage() {
         <GuardrailsLogList />
       </div>
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/agents/guardrails')({
   component: GuardrailsPage,
-});
+})

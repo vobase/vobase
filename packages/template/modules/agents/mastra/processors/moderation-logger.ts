@@ -1,16 +1,16 @@
-import type { RealtimeService, VobaseDb } from '@vobase/core';
-import { logger } from '@vobase/core';
+import type { RealtimeService, VobaseDb } from '@vobase/core'
+import { logger } from '@vobase/core'
 
-import { createActivityMessage } from '../../../messaging/lib/messages';
-import { aiModerationLogs } from '../../schema';
-import type { OnBlockCallback } from './moderation';
+import { createActivityMessage } from '../../../messaging/lib/messages'
+import { aiModerationLogs } from '../../schema'
+import type { OnBlockCallback } from './moderation'
 
 interface ModerationLogContext {
-  agentId: string;
-  channel: string;
-  userId?: string | null;
-  contactId?: string | null;
-  conversationId?: string | null;
+  agentId: string
+  channel: string
+  userId?: string | null
+  contactId?: string | null
+  conversationId?: string | null
 }
 
 export function createModerationLogger(
@@ -33,8 +33,8 @@ export function createModerationLogger(
       .catch((err) => {
         logger.warn('[guardrails] Failed to log moderation event', {
           error: err,
-        });
-      });
+        })
+      })
 
     if (realtime && context.conversationId) {
       createActivityMessage(db, realtime, {
@@ -52,8 +52,8 @@ export function createModerationLogger(
       }).catch((err: unknown) => {
         logger.error('[guardrails] Failed to emit guardrail.block event', {
           error: err,
-        });
-      });
+        })
+      })
     }
-  };
+  }
 }

@@ -1,33 +1,24 @@
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import {
-  activityDescription,
-  activityIcon,
-  type ResolveParticipantName,
-} from '@/lib/activity-helpers';
-import { cn } from '@/lib/utils';
-import type { MessageRow } from './types';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { activityDescription, activityIcon, type ResolveParticipantName } from '@/lib/activity-helpers'
+import { cn } from '@/lib/utils'
+import type { MessageRow } from './types'
 
 interface ActivityMessageProps {
-  message: MessageRow;
-  className?: string;
-  resolveName?: ResolveParticipantName;
+  message: MessageRow
+  className?: string
+  resolveName?: ResolveParticipantName
 }
 
-export function ActivityMessage({
-  message,
-  className,
-  resolveName,
-}: ActivityMessageProps) {
-  const eventType = (message.contentData as Record<string, unknown>)
-    ?.eventType as string | undefined;
+export function ActivityMessage({ message, className, resolveName }: ActivityMessageProps) {
+  const eventType = (message.contentData as Record<string, unknown>)?.eventType as string | undefined
   const description = activityDescription(
     {
       content: eventType ?? message.content,
       contentData: message.contentData,
     },
     resolveName,
-  );
-  const icon = activityIcon(eventType ?? message.content);
+  )
+  const icon = activityIcon(eventType ?? message.content)
 
   return (
     <div className={cn('flex items-center justify-center py-0.5', className)}>
@@ -37,5 +28,5 @@ export function ActivityMessage({
         <RelativeTimeCard date={message.createdAt} />
       </div>
     </div>
-  );
+  )
 }

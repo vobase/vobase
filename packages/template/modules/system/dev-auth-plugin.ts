@@ -6,10 +6,10 @@
  * Intentionally bypasses allowedEmailDomains for testing convenience.
  * Used by: db-seed.ts, E2E tests, /agent-browser automation.
  */
-import type { BetterAuthPlugin } from 'better-auth';
-import { createAuthEndpoint } from 'better-auth/api';
-import { setSessionCookie } from 'better-auth/cookies';
-import * as z from 'zod';
+import type { BetterAuthPlugin } from 'better-auth'
+import { createAuthEndpoint } from 'better-auth/api'
+import { setSessionCookie } from 'better-auth/cookies'
+import * as z from 'zod'
 
 export function devAuth(): BetterAuthPlugin {
   return {
@@ -26,24 +26,18 @@ export function devAuth(): BetterAuthPlugin {
         },
         async (ctx) => {
           if (process.env.NODE_ENV === 'production') {
-            return ctx.json(
-              { error: 'Not available in production' },
-              { status: 404 },
-            );
+            return ctx.json({ error: 'Not available in production' }, { status: 404 })
           }
 
-          const { email, name } = ctx.body;
+          const { email, name } = ctx.body
 
           // Find or create user
-          const existing = await ctx.context.internalAdapter.findUserByEmail(
-            email,
-            { includeAccounts: true },
-          );
+          const existing = await ctx.context.internalAdapter.findUserByEmail(email, { includeAccounts: true })
 
-          let user: NonNullable<typeof existing>['user'];
+          let user: NonNullable<typeof existing>['user']
 
           if (existing) {
-            user = existing.user;
+            user = existing.user
           } else {
             const result = await ctx.context.internalAdapter.createOAuthUser(
               {
@@ -55,21 +49,19 @@ export function devAuth(): BetterAuthPlugin {
                 providerId: 'dev',
                 accountId: email,
               },
-            );
-            user = result.user;
+            )
+            user = result.user
           }
 
           // Create session and set cookie
-          const session = await ctx.context.internalAdapter.createSession(
-            user.id,
-          );
-          await setSessionCookie(ctx, { session, user });
+          const session = await ctx.context.internalAdapter.createSession(user.id)
+          await setSessionCookie(ctx, { session, user })
 
           return ctx.json({
             user: { id: user.id, email: user.email, name: user.name },
-          });
+          })
         },
       ),
     },
-  } satisfies BetterAuthPlugin;
+  } satisfies BetterAuthPlugin
 }

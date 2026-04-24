@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+
 import type { CommandDef } from '../harness/types'
 import { generateAgentsMd } from './agents-md-generator'
 

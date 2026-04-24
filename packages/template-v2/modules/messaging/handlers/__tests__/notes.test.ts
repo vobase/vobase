@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { createNotesService, installNotesService } from '@modules/messaging/service/notes'
 import { createStaffOpsService, installStaffOpsService } from '@modules/messaging/service/staff-ops'
 import { Hono } from 'hono'
+
 import notesRouter from '../notes'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────

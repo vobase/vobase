@@ -4,16 +4,10 @@
  * Parses a CSV file, normalises phone numbers, resolves or creates contacts,
  * and inserts broadcastRecipients rows ready for dispatch.
  */
-import type { VobaseDb } from '@vobase/core';
-import { eq, sql } from 'drizzle-orm';
+import type { VobaseDb } from '@vobase/core'
+import { eq, sql } from 'drizzle-orm'
 
-import {
-  broadcastRecipients,
-  broadcasts,
-  contactLabels,
-  contacts,
-  labels,
-} from '../schema';
+import { broadcastRecipients, broadcasts, contactLabels, contacts, labels } from '../schema'
 
 // ─── CSV Parser ───────────────────────────────────────────────────────
 
@@ -23,23 +17,23 @@ import {
  * Returns the header row separately; all data rows follow.
  */
 export function parseCSV(text: string): {
-  headers: string[];
-  rows: string[][];
+  headers: string[]
+  rows: string[][]
 } {
-  const lines = splitCSVLines(text);
-  if (lines.length === 0) return { headers: [], rows: [] };
+  const lines = splitCSVLines(text)
+  if (lines.length === 0) return { headers: [], rows: [] }
 
-  const headers = parseCSVRow(lines[0]).map((h) => h.trim());
-  const rows: string[][] = [];
+  const headers = parseCSVRow(lines[0]).map((h) => h.trim())
+  const rows: string[][] = []
 
   for (let i = 1; i < lines.length; i++) {
-    const row = parseCSVRow(lines[i]).map((cell) => cell.trim());
+    const row = parseCSVRow(lines[i]).map((cell) => cell.trim())
     // Skip blank rows (all cells empty)
-    if (row.every((cell) => cell === '')) continue;
-    rows.push(row);
+    if (row.every((cell) => cell === '')) continue
+    rows.push(row)
   }
 
-  return { headers, rows };
+  return { headers, rows }
 }
 
 /**
@@ -47,35 +41,35 @@ export function parseCSV(text: string): {
  * span multiple lines.
  */
 function splitCSVLines(text: string): string[] {
-  const lines: string[] = [];
-  let current = '';
-  let inQuotes = false;
+  const lines: string[] = []
+  let current = ''
+  let inQuotes = false
 
   for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i + 1];
+    const ch = text[i]
+    const next = text[i + 1]
 
     if (ch === '"') {
       if (inQuotes && next === '"') {
         // Escaped quote inside quoted field
-        current += '"';
-        i++;
+        current += '"'
+        i++
       } else {
-        inQuotes = !inQuotes;
-        current += ch;
+        inQuotes = !inQuotes
+        current += ch
       }
     } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
       // Skip \r in \r\n
-      if (ch === '\r' && next === '\n') i++;
-      if (current.trim() !== '') lines.push(current);
-      current = '';
+      if (ch === '\r' && next === '\n') i++
+      if (current.trim() !== '') lines.push(current)
+      current = ''
     } else {
-      current += ch;
+      current += ch
     }
   }
 
-  if (current.trim() !== '') lines.push(current);
-  return lines;
+  if (current.trim() !== '') lines.push(current)
+  return lines
 }
 
 /**
@@ -83,31 +77,31 @@ function splitCSVLines(text: string): string[] {
  * Strips surrounding quotes and unescapes doubled quotes.
  */
 function parseCSVRow(line: string): string[] {
-  const fields: string[] = [];
-  let field = '';
-  let inQuotes = false;
+  const fields: string[] = []
+  let field = ''
+  let inQuotes = false
 
   for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    const next = line[i + 1];
+    const ch = line[i]
+    const next = line[i + 1]
 
     if (ch === '"') {
       if (inQuotes && next === '"') {
-        field += '"';
-        i++;
+        field += '"'
+        i++
       } else {
-        inQuotes = !inQuotes;
+        inQuotes = !inQuotes
       }
     } else if (ch === ',' && !inQuotes) {
-      fields.push(field);
-      field = '';
+      fields.push(field)
+      field = ''
     } else {
-      field += ch;
+      field += ch
     }
   }
 
-  fields.push(field);
-  return fields;
+  fields.push(field)
+  return fields
 }
 
 // ─── Phone Normalisation ──────────────────────────────────────────────
@@ -126,34 +120,32 @@ function parseCSVRow(line: string): string[] {
  */
 export function normalizeSGPhone(phone: string): string | null {
   // Strip spaces, dashes, parentheses
-  const stripped = phone.replace(/[\s\-()]/g, '');
+  const stripped = phone.replace(/[\s\-()]/g, '')
 
   // International — keep as-is (starts with +, at least 7 digits)
   if (stripped.startsWith('+')) {
-    return /^\+\d{7,15}$/.test(stripped) ? stripped : null;
+    return /^\+\d{7,15}$/.test(stripped) ? stripped : null
   }
 
   // 10-digit starting with "65" → +65XXXXXXXX
   if (/^65\d{8}$/.test(stripped)) {
-    return `+${stripped}`;
+    return `+${stripped}`
   }
 
   // 8-digit starting with 8 or 9 → +65XXXXXXXX
   if (/^[89]\d{7}$/.test(stripped)) {
-    return `+65${stripped}`;
+    return `+65${stripped}`
   }
 
-  return null;
+  return null
 }
 
 // ─── Phone Column Detection ───────────────────────────────────────────
 
-const PHONE_HEADER_PATTERNS = ['phone', 'phone_number', 'mobile', 'whatsapp'];
+const PHONE_HEADER_PATTERNS = ['phone', 'phone_number', 'mobile', 'whatsapp']
 
 function findPhoneColumnIndex(headers: string[]): number {
-  return headers.findIndex((h) =>
-    PHONE_HEADER_PATTERNS.includes(h.toLowerCase()),
-  );
+  return headers.findIndex((h) => PHONE_HEADER_PATTERNS.includes(h.toLowerCase()))
 }
 
 // ─── Variable Resolution ──────────────────────────────────────────────
@@ -171,28 +163,26 @@ function resolveVariables(
   headers: string[],
   variableMapping: Record<string, string>,
 ): Record<string, string> {
-  const resolved: Record<string, string> = {};
+  const resolved: Record<string, string> = {}
 
   for (const [position, columnName] of Object.entries(variableMapping)) {
-    const colIndex = headers.findIndex(
-      (h) => h.toLowerCase() === columnName.toLowerCase(),
-    );
+    const colIndex = headers.findIndex((h) => h.toLowerCase() === columnName.toLowerCase())
     if (colIndex !== -1 && colIndex < row.length) {
-      resolved[position] = row[colIndex] ?? '';
+      resolved[position] = row[colIndex] ?? ''
     }
   }
 
-  return resolved;
+  return resolved
 }
 
 // ─── Main Function ────────────────────────────────────────────────────
 
 export interface ParseAndCreateRecipientsResult {
-  created: number;
-  skipped: number;
-  invalid: number;
-  errors: string[];
-  label?: { id: string; title: string };
+  created: number
+  skipped: number
+  invalid: number
+  errors: string[]
+  label?: { id: string; title: string }
 }
 
 /**
@@ -216,66 +206,60 @@ export async function parseAndCreateRecipients(
   variableMapping: Record<string, string>,
   options?: { saveAsLabel?: string },
 ): Promise<ParseAndCreateRecipientsResult> {
-  const { headers, rows } = parseCSV(csvText);
+  const { headers, rows } = parseCSV(csvText)
 
   const result: ParseAndCreateRecipientsResult = {
     created: 0,
     skipped: 0,
     invalid: 0,
     errors: [],
-  };
+  }
 
-  const contactIds: string[] = [];
+  const contactIds: string[] = []
 
   if (headers.length === 0) {
-    result.errors.push('CSV has no headers');
-    return result;
+    result.errors.push('CSV has no headers')
+    return result
   }
 
-  const MAX_RECIPIENTS = 5000;
+  const MAX_RECIPIENTS = 5000
   if (rows.length > MAX_RECIPIENTS) {
-    result.errors.push(
-      `CSV exceeds maximum of ${MAX_RECIPIENTS} recipients (got ${rows.length})`,
-    );
-    return result;
+    result.errors.push(`CSV exceeds maximum of ${MAX_RECIPIENTS} recipients (got ${rows.length})`)
+    return result
   }
 
-  const phoneColIndex = findPhoneColumnIndex(headers);
+  const phoneColIndex = findPhoneColumnIndex(headers)
   if (phoneColIndex === -1) {
-    result.errors.push(
-      `No phone column found. Expected one of: ${PHONE_HEADER_PATTERNS.join(', ')}`,
-    );
-    return result;
+    result.errors.push(`No phone column found. Expected one of: ${PHONE_HEADER_PATTERNS.join(', ')}`)
+    return result
   }
 
   // Phase 1: Validate and normalize all rows, resolve contacts in chunks
-  const CHUNK_SIZE = 100;
+  const CHUNK_SIZE = 100
   const pendingRecipients: Array<{
-    contactId: string;
-    phone: string;
-    variables: Record<string, string>;
-  }> = [];
+    contactId: string
+    phone: string
+    variables: Record<string, string>
+  }> = []
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-    const row = rows[rowIndex];
-    const rowNumber = rowIndex + 2; // +1 for header, +1 for 1-based display
+    const row = rows[rowIndex]
+    const rowNumber = rowIndex + 2 // +1 for header, +1 for 1-based display
 
-    const rawPhone = row[phoneColIndex] ?? '';
+    const rawPhone = row[phoneColIndex] ?? ''
 
     if (rawPhone === '') {
-      result.invalid++;
-      result.errors.push(`Row ${rowNumber}: empty phone number`);
-      continue;
+      result.invalid++
+      result.errors.push(`Row ${rowNumber}: empty phone number`)
+      continue
     }
 
-    const normalizedPhone = normalizeSGPhone(rawPhone);
+    const normalizedPhone = normalizeSGPhone(rawPhone)
 
     if (normalizedPhone === null) {
-      result.invalid++;
-      result.errors.push(
-        `Row ${rowNumber}: invalid phone number "${rawPhone}"`,
-      );
-      continue;
+      result.invalid++
+      result.errors.push(`Row ${rowNumber}: invalid phone number "${rawPhone}"`)
+      continue
     }
 
     // Find or create contact (upsert requires individual calls for returning)
@@ -292,30 +276,30 @@ export async function parseAndCreateRecipients(
           updatedAt: new Date(),
         },
       })
-      .returning();
+      .returning()
 
     if (!contact) {
-      result.invalid++;
-      result.errors.push(`Row ${rowNumber}: failed to resolve contact`);
-      continue;
+      result.invalid++
+      result.errors.push(`Row ${rowNumber}: failed to resolve contact`)
+      continue
     }
 
     if (contact.marketingOptOut) {
-      result.skipped++;
-      continue;
+      result.skipped++
+      continue
     }
 
-    const variables = resolveVariables(row, headers, variableMapping);
+    const variables = resolveVariables(row, headers, variableMapping)
     pendingRecipients.push({
       contactId: contact.id,
       phone: normalizedPhone,
       variables,
-    });
+    })
   }
 
   // Phase 2: Batch-insert recipients in chunks
   for (let i = 0; i < pendingRecipients.length; i += CHUNK_SIZE) {
-    const chunk = pendingRecipients.slice(i, i + CHUNK_SIZE);
+    const chunk = pendingRecipients.slice(i, i + CHUNK_SIZE)
     const inserted = await db
       .insert(broadcastRecipients)
       .values(
@@ -331,11 +315,11 @@ export async function parseAndCreateRecipients(
       .returning({
         id: broadcastRecipients.id,
         contactId: broadcastRecipients.contactId,
-      });
+      })
 
     for (const row of inserted) {
-      result.created++;
-      contactIds.push(row.contactId);
+      result.created++
+      contactIds.push(row.contactId)
     }
   }
 
@@ -345,33 +329,24 @@ export async function parseAndCreateRecipients(
     .set({
       totalRecipients: sql`${broadcasts.totalRecipients} + ${result.created}`,
     })
-    .where(eq(broadcasts.id, broadcastId));
+    .where(eq(broadcasts.id, broadcastId))
 
   if (options?.saveAsLabel) {
-    let [label] = await db
-      .select()
-      .from(labels)
-      .where(eq(labels.title, options.saveAsLabel))
-      .limit(1);
+    let [label] = await db.select().from(labels).where(eq(labels.title, options.saveAsLabel)).limit(1)
 
     if (!label) {
-      [label] = await db
-        .insert(labels)
-        .values({ title: options.saveAsLabel })
-        .returning();
+      ;[label] = await db.insert(labels).values({ title: options.saveAsLabel }).returning()
     }
 
     if (contactIds.length > 0) {
       await db
         .insert(contactLabels)
-        .values(
-          contactIds.map((contactId) => ({ contactId, labelId: label.id })),
-        )
-        .onConflictDoNothing();
+        .values(contactIds.map((contactId) => ({ contactId, labelId: label.id })))
+        .onConflictDoNothing()
     }
 
-    result.label = { id: label.id, title: label.title };
+    result.label = { id: label.id, title: label.title }
   }
 
-  return result;
+  return result
 }

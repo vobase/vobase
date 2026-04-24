@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+
 import { AppShell } from '@/components/layout/app-shell'
 import { useRealtimeInvalidation } from '@/hooks/use-realtime-invalidation'
 import { authClient } from '@/lib/auth-client'

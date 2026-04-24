@@ -12,6 +12,7 @@ import {
 } from '@modules/messaging/service/messages'
 import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/transports/events'
+
 import { createChannelWebState, installChannelWebState } from '../service/state'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -14,15 +14,15 @@
  */
 
 /** Opaque transaction handle passed through from drizzle. */
-export type Tx = unknown;
+export type Tx = unknown
 
 /** Minimal drizzle-shaped DB handle. `PostgresJsDatabase<Schema>` satisfies this. */
 export interface JournaledTxDb {
-  transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
+  transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>
 }
 
 /** Signature of the raw journal-append writer supplied by the caller. */
-export type RawJournalAppend<TEvent> = (event: TEvent, tx: Tx) => Promise<void>;
+export type RawJournalAppend<TEvent> = (event: TEvent, tx: Tx) => Promise<void>
 
 /**
  * Journal sink handed to the inner callback of `withJournaledTx`. Calling
@@ -30,22 +30,20 @@ export type RawJournalAppend<TEvent> = (event: TEvent, tx: Tx) => Promise<void>;
  * cause the tx wrapper to throw at commit time.
  */
 export interface JournalSink<TEvent> {
-  append(event: TEvent, tx: Tx): Promise<void>;
+  append(event: TEvent, tx: Tx): Promise<void>
 }
 
 /** Thrown if `fn` never called `journal.append(...)` inside the tx. */
 export class MissingJournalAppendError extends Error {
-  override readonly name = 'MissingJournalAppendError';
+  override readonly name = 'MissingJournalAppendError'
   constructor() {
-    super(
-      'withJournaledTx: fn committed without invoking journal.append(event, tx)',
-    );
+    super('withJournaledTx: fn committed without invoking journal.append(event, tx)')
   }
 }
 
 export interface WithJournaledTxInput<TEvent> {
-  db: JournaledTxDb;
-  rawAppend: RawJournalAppend<TEvent>;
+  db: JournaledTxDb
+  rawAppend: RawJournalAppend<TEvent>
 }
 
 /**
@@ -56,23 +54,21 @@ export interface WithJournaledTxInput<TEvent> {
 export function createWithJournaledTx<TEvent>(
   input: WithJournaledTxInput<TEvent>,
 ): <T>(fn: (tx: Tx, journal: JournalSink<TEvent>) => Promise<T>) => Promise<T> {
-  const { db, rawAppend } = input;
-  return async function withJournaledTx<T>(
-    fn: (tx: Tx, journal: JournalSink<TEvent>) => Promise<T>,
-  ): Promise<T> {
+  const { db, rawAppend } = input
+  return async function withJournaledTx<T>(fn: (tx: Tx, journal: JournalSink<TEvent>) => Promise<T>): Promise<T> {
     return db.transaction(async (tx: Tx) => {
-      let journaled = false;
+      let journaled = false
       const sink: JournalSink<TEvent> = {
         async append(event: TEvent, innerTx: Tx): Promise<void> {
-          journaled = true;
-          await rawAppend(event, innerTx);
+          journaled = true
+          await rawAppend(event, innerTx)
         },
-      };
-      const result = await fn(tx, sink);
-      if (!journaled) {
-        throw new MissingJournalAppendError();
       }
-      return result;
-    });
-  };
+      const result = await fn(tx, sink)
+      if (!journaled) {
+        throw new MissingJournalAppendError()
+      }
+      return result
+    })
+  }
 }

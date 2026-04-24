@@ -1,19 +1,19 @@
-import type { ModuleDeps } from '@modules/messaging/lib/deps';
-import type { VobaseDb } from '@vobase/core';
+import type { ModuleDeps } from '@modules/messaging/lib/deps'
+import type { VobaseDb } from '@vobase/core'
 
 /** Result shape returned by all command handlers. */
 export interface CommandResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
+  stdout: string
+  stderr: string
+  exitCode: number
 }
 
 /** Parsed arguments from a vobase subcommand invocation. */
 export interface ParsedArgs {
   /** Named flags extracted from --key value pairs. */
-  flags: Record<string, string>;
+  flags: Record<string, string>
   /** Remaining positional arguments after flag extraction. */
-  positional: string[];
+  positional: string[]
 }
 
 /**
@@ -22,15 +22,15 @@ export interface ParsedArgs {
  */
 export interface WakeContext {
   /** Database connection. */
-  db: VobaseDb;
+  db: VobaseDb
   /** Full module dependencies (db, scheduler, channels, realtime, storage). */
-  deps: ModuleDeps;
+  deps: ModuleDeps
   /** Active conversation ID the agent is operating on. */
-  conversationId: string;
+  conversationId: string
   /** Contact ID for the current conversation's customer. */
-  contactId: string;
+  contactId: string
   /** Agent ID (Mastra agent identifier). */
-  agentId: string;
+  agentId: string
 }
 
 /**
@@ -41,14 +41,14 @@ export type CommandHandler = (
   positional: string[],
   flags: Record<string, string>,
   ctx: WakeContext,
-) => Promise<CommandResult>;
+) => Promise<CommandResult>
 
 /** Success result. */
 export function ok(stdout: string): CommandResult {
-  return { stdout, stderr: '', exitCode: 0 };
+  return { stdout, stderr: '', exitCode: 0 }
 }
 
 /** Failure result. */
 export function err(stderr: string): CommandResult {
-  return { stdout: '', stderr, exitCode: 1 };
+  return { stdout: '', stderr, exitCode: 1 }
 }

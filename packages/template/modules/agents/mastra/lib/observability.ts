@@ -9,7 +9,7 @@
  * that tracing is desired — a full OTel SDK setup can be wired in later.
  */
 export function configureTracing(): { enabled: boolean } {
-  const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT
 
   if (endpoint) {
     console.log(
@@ -18,12 +18,11 @@ export function configureTracing(): { enabled: boolean } {
         module: 'ai',
         event: 'tracing_configured',
         endpoint,
-        message:
-          'OTEL endpoint detected. Structured logging active. Install @opentelemetry/sdk-node for full tracing.',
+        message: 'OTEL endpoint detected. Structured logging active. Install @opentelemetry/sdk-node for full tracing.',
       }),
-    );
-    return { enabled: true };
+    )
+    return { enabled: true }
   }
 
-  return { enabled: false };
+  return { enabled: false }
 }

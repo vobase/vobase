@@ -1,4 +1,5 @@
 import type { ModuleDef } from '@server/common/module-def'
+
 import handlers from './handlers'
 import { setFilesDb } from './service/files'
 import { createProposalService, installProposalService } from './service/proposal'

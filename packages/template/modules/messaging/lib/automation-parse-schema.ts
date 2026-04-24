@@ -1,7 +1,7 @@
-import { z } from 'zod';
+import { z } from 'zod'
 
-import { audienceFilterSchema } from './audience-filter';
-import { ParameterSchema } from './parameter-schema';
+import { audienceFilterSchema } from './audience-filter'
+import { ParameterSchema } from './parameter-schema'
 
 export const DraftRuleStepSchema = z.object({
   sequence: z.number().int().min(1),
@@ -14,7 +14,7 @@ export const DraftRuleStepSchema = z.object({
   templateSuggestion: z.string().min(1),
   variableMapping: z.record(z.string(), z.string()).optional(),
   isFinal: z.boolean().optional(),
-});
+})
 
 export const DraftRuleSchema = z.object({
   name: z.string().min(1),
@@ -28,7 +28,7 @@ export const DraftRuleSchema = z.object({
   steps: z.array(DraftRuleStepSchema).min(1),
   parameters: z.record(z.string(), z.unknown()).optional(),
   parameterSchema: ParameterSchema.optional(),
-});
+})
 
-export type DraftRuleStep = z.infer<typeof DraftRuleStepSchema>;
-export type DraftRule = z.infer<typeof DraftRuleSchema>;
+export type DraftRuleStep = z.infer<typeof DraftRuleStepSchema>
+export type DraftRule = z.infer<typeof DraftRuleSchema>

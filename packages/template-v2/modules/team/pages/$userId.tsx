@@ -4,6 +4,7 @@ import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft, FolderTree, Pencil, Settings2, Users } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useStaff, useUpdateStaff } from '../api/use-staff'

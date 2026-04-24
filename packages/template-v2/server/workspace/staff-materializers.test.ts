@@ -13,6 +13,7 @@ import {
 } from '@modules/agents/service/staff-memory'
 import type { StaffProfile } from '@modules/team/schema'
 import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
+
 import { makeStaticProfileLookup, renderStaffMemory, renderStaffProfile } from './staff-materializers'
 
 const STAFF_ID = 'u_alice'

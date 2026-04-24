@@ -1,5 +1,6 @@
 import { verifyHmacSignature } from '@vobase/core'
 import type { Context } from 'hono'
+
 import { parseHubSignature } from './hub-signature'
 
 export interface HmacWebhookOptions {

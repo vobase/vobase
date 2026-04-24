@@ -6,6 +6,7 @@ import {
 } from '@modules/contacts/service/contacts'
 import { Hono } from 'hono'
 import { z } from 'zod'
+
 import attributeHandlers from './attributes'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'

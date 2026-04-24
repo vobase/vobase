@@ -3,9 +3,10 @@
 // Services are constructed via factory functions (createXService({ db, organizationId })).
 // Phase 0: non-strict — reports violations but does not fail the suite until each
 // module migrates. Step 8 (strict flip) promotes this to failing.
-import { describe, expect, it } from 'bun:test'
+
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { describe, expect, it } from 'bun:test'
 
 const MODULES_DIR = join(import.meta.dir, '..')
 const STRICT = process.env.CHECK_SHAPE_STRICT === 'true'

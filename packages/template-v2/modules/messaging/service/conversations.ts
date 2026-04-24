@@ -12,6 +12,7 @@
  */
 import { conversationEvents } from '@vobase/core'
 import { and, desc, eq, getTableColumns, gt, inArray, isNotNull, or, sql } from 'drizzle-orm'
+
 import { type Conversation, channelInstances, conversations, type Message, messages } from '../schema'
 import { transitionConversation } from '../state'
 import { computeTab } from './bucketing'

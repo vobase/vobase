@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+
 import type { InternalNote } from '../schema'
 
 export function useNotes(conversationId: string) {

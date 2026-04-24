@@ -3,9 +3,10 @@
 // ctx.withJournaledTx(fn) which enforces a mandatory journal append.
 // Whitelist: modules/agents/service/journal.ts is the sole raw-tx writer
 // (one-write-path for conversation_events). Phase 0: non-strict.
-import { describe, expect, it } from 'bun:test'
+
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { describe, expect, it } from 'bun:test'
 
 const MODULES_DIR = join(import.meta.dir, '..')
 const STRICT = process.env.CHECK_SHAPE_STRICT === 'true'

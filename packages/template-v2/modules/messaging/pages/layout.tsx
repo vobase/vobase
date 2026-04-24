@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useQueryState } from 'nuqs'
 import { useEffect, useMemo, useRef } from 'react'
+
 import { ListDetailLayout } from '@/components/layout/list-detail-layout'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 

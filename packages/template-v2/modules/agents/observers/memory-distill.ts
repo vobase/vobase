@@ -15,6 +15,7 @@ import { readNotes as readStaffNotes, upsertNotesSection as upsertStaffNotesSect
 import type { AgentEvent, LearningRejectedEvent } from '@server/events'
 import { llmCall as harnessLlmCall, type LlmEmitter } from '@server/harness/llm-call'
 import { getDb, getLogger } from '@server/services'
+
 import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
 
 function upsertMarkdownSection(markdown: string, heading: string, body: string): string {

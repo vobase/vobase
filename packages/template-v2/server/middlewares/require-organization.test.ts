@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { Hono, type MiddlewareHandler } from 'hono'
+
 import { type OrganizationEnv, requireOrganization } from './require-organization'
 import type { AppSession } from './require-session'
 

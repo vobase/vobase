@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import type * as React from 'react'
 import { renderToString } from 'react-dom/server'
+
 import { NavUser } from '../nav-user'
 
 function makeRouter(component: React.FC) {

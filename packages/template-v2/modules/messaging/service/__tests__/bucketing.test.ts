@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+
 import type { Conversation } from '../../schema'
 import { computeTab } from '../bucketing'
 

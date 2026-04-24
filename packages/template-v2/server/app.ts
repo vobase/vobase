@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
 import { logger } from 'hono/logger'
 import type { Sql } from 'postgres'
+
 import config from '../vobase.config'
 import { createAuth } from './auth'
 import { wireAuthIntoModules } from './auth/wire-modules'

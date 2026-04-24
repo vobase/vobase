@@ -5,6 +5,7 @@ import {
 } from '@server/admin/settings/service/notification-prefs'
 import type { AppSession, SessionEnv } from '@server/middlewares/require-session'
 import { Hono } from 'hono'
+
 import settingsRouter from '../index'
 
 beforeAll(() => {

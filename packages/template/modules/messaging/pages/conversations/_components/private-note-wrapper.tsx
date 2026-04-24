@@ -1,16 +1,13 @@
-import { LockIcon } from 'lucide-react';
+import { LockIcon } from 'lucide-react'
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils'
 
 interface PrivateNoteWrapperProps {
-  children: React.ReactNode;
-  className?: string;
+  children: React.ReactNode
+  className?: string
 }
 
-export function PrivateNoteWrapper({
-  children,
-  className,
-}: PrivateNoteWrapperProps) {
+export function PrivateNoteWrapper({ children, className }: PrivateNoteWrapperProps) {
   return (
     <div
       className={cn(
@@ -24,5 +21,5 @@ export function PrivateNoteWrapper({
       </div>
       {children}
     </div>
-  );
+  )
 }

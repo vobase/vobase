@@ -1,34 +1,18 @@
-import {
-  AlertTriangleIcon,
-  CheckCheckIcon,
-  CheckIcon,
-  ClockIcon,
-  RefreshCwIcon,
-} from 'lucide-react';
+import { AlertTriangleIcon, CheckCheckIcon, CheckIcon, ClockIcon, RefreshCwIcon } from 'lucide-react'
 
-import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 interface DeliveryStatusProps {
-  status: string | null;
-  failureReason?: string | null;
-  onRetry?: () => void;
-  className?: string;
+  status: string | null
+  failureReason?: string | null
+  onRetry?: () => void
+  className?: string
 }
 
-export function DeliveryStatus({
-  status,
-  failureReason,
-  onRetry,
-  className,
-}: DeliveryStatusProps) {
-  if (!status) return null;
+export function DeliveryStatus({ status, failureReason, onRetry, className }: DeliveryStatusProps) {
+  if (!status) return null
 
   if (status === 'failed') {
     return (
@@ -36,12 +20,7 @@ export function DeliveryStatus({
         <span className="inline-flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <AlertTriangleIcon
-                className={cn(
-                  'size-3 text-destructive cursor-default',
-                  className,
-                )}
-              />
+              <AlertTriangleIcon className={cn('size-3 text-destructive cursor-default', className)} />
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
               <p className="text-xs">{failureReason || 'Delivery failed'}</p>
@@ -66,7 +45,7 @@ export function DeliveryStatus({
           )}
         </span>
       </TooltipProvider>
-    );
+    )
   }
 
   const Icon =
@@ -76,22 +55,16 @@ export function DeliveryStatus({
         ? CheckIcon
         : status === 'delivered' || status === 'read'
           ? CheckCheckIcon
-          : null;
+          : null
 
-  if (!Icon) return null;
+  if (!Icon) return null
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <span className="inline-flex items-center">
-            <Icon
-              className={cn(
-                'size-3',
-                status === 'read' ? 'text-blue-500' : 'text-muted-foreground',
-                className,
-              )}
-            />
+            <Icon className={cn('size-3', status === 'read' ? 'text-blue-500' : 'text-muted-foreground', className)} />
           </span>
         </TooltipTrigger>
         <TooltipContent>
@@ -99,5 +72,5 @@ export function DeliveryStatus({
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
+  )
 }

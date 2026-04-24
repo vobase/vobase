@@ -9,6 +9,7 @@
  * unchanged.
  */
 import { find as findStaff } from '@modules/team/service/staff'
+
 import type { Message } from '../schema'
 import { appendStaffTextMessage } from './messages'
 

@@ -1,19 +1,7 @@
-import {
-  createFileRoute,
-  Link,
-  Outlet,
-  redirect,
-} from '@tanstack/react-router';
-import {
-  BellIcon,
-  KeyIcon,
-  MonitorIcon,
-  PaletteIcon,
-  UserIcon,
-  WrenchIcon,
-} from 'lucide-react';
+import { createFileRoute, Link, Outlet, redirect } from '@tanstack/react-router'
+import { BellIcon, KeyIcon, MonitorIcon, PaletteIcon, UserIcon, WrenchIcon } from 'lucide-react'
 
-import { PageLayout } from '@/components/layout/page-layout';
+import { PageLayout } from '@/components/layout/page-layout'
 
 const settingsNav = [
   { label: 'Profile', to: '/settings/profile', icon: UserIcon },
@@ -22,16 +10,14 @@ const settingsNav = [
   { label: 'Notifications', to: '/settings/notifications', icon: BellIcon },
   { label: 'Display', to: '/settings/display', icon: MonitorIcon },
   { label: 'API Keys', to: '/settings/api-keys', icon: KeyIcon },
-] as const;
+] as const
 
 function SettingsLayout() {
   return (
     <PageLayout>
       <div className="flex min-h-0 flex-1 gap-8 p-6">
         <nav className="w-[200px] shrink-0">
-          <p className="mb-2 px-2 text-xs font-medium tracking-widest text-muted-foreground uppercase">
-            Settings
-          </p>
+          <p className="mb-2 px-2 text-xs font-medium tracking-widest text-muted-foreground uppercase">Settings</p>
           <ul className="flex flex-col gap-0.5">
             {settingsNav.map(({ label, to, icon: Icon }) => (
               <li key={to}>
@@ -55,17 +41,14 @@ function SettingsLayout() {
         </div>
       </div>
     </PageLayout>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/settings')({
   beforeLoad: ({ location }) => {
-    if (
-      location.pathname === '/settings' ||
-      location.pathname === '/settings/'
-    ) {
-      throw redirect({ to: '/settings/profile' });
+    if (location.pathname === '/settings' || location.pathname === '/settings/') {
+      throw redirect({ to: '/settings/profile' })
     }
   },
   component: SettingsLayout,
-});
+})

@@ -1,27 +1,22 @@
-import { Link, type LinkProps } from '@tanstack/react-router';
-import { Menu } from 'lucide-react';
+import { Link, type LinkProps } from '@tanstack/react-router'
+import { Menu } from 'lucide-react'
 
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 interface TopNavLink {
-  title: string;
-  href: string;
-  isActive: boolean;
-  disabled?: boolean;
+  title: string
+  href: string
+  isActive: boolean
+  disabled?: boolean
 }
 
 interface TopNavProps extends React.HTMLAttributes<HTMLElement> {
-  links: TopNavLink[];
+  links: TopNavLink[]
 }
 
-export type { TopNavLink };
+export type { TopNavLink }
 
 export function TopNav({ className, links, ...props }: TopNavProps) {
   return (
@@ -49,10 +44,7 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
         </DropdownMenu>
       </div>
 
-      <nav
-        className={cn('hidden items-center gap-4 lg:flex xl:gap-6', className)}
-        {...props}
-      >
+      <nav className={cn('hidden items-center gap-4 lg:flex xl:gap-6', className)} {...props}>
         {links.map(({ title, href, isActive, disabled }) => (
           <Link
             key={`${title}-${href}`}
@@ -68,5 +60,5 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
         ))}
       </nav>
     </>
-  );
+  )
 }

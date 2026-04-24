@@ -1,32 +1,27 @@
-import type { RealtimeService, VobaseDb } from '@vobase/core';
+import type { RealtimeService, VobaseDb } from '@vobase/core'
 
-import { messages } from '../schema';
-import type {
-  ContentType,
-  MessageType,
-  ResolutionStatus,
-  SenderType,
-} from './message-types';
+import { messages } from '../schema'
+import type { ContentType, MessageType, ResolutionStatus, SenderType } from './message-types'
 
 // ─── Insert Message ────────────────────────────────────────────────
 
 interface InsertMessageInput {
-  conversationId: string;
-  messageType: MessageType;
-  contentType: ContentType;
-  content: string;
-  contentData?: Record<string, unknown>;
-  status?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
-  failureReason?: string | null;
-  senderId: string;
-  senderType: SenderType;
-  externalMessageId?: string | null;
-  channelType?: string | null;
-  private?: boolean;
-  withdrawn?: boolean;
-  replyToMessageId?: string | null;
-  resolutionStatus?: ResolutionStatus | null;
-  mentions?: Array<{ targetId: string; targetType: 'user' | 'agent' }>;
+  conversationId: string
+  messageType: MessageType
+  contentType: ContentType
+  content: string
+  contentData?: Record<string, unknown>
+  status?: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null
+  failureReason?: string | null
+  senderId: string
+  senderType: SenderType
+  externalMessageId?: string | null
+  channelType?: string | null
+  private?: boolean
+  withdrawn?: boolean
+  replyToMessageId?: string | null
+  resolutionStatus?: ResolutionStatus | null
+  mentions?: Array<{ targetId: string; targetType: 'user' | 'agent' }>
 }
 
 export async function insertMessage(
@@ -54,7 +49,7 @@ export async function insertMessage(
       resolutionStatus: input.resolutionStatus ?? null,
       mentions: input.mentions ?? [],
     })
-    .returning();
+    .returning()
 
   // SSE notify
   await realtime
@@ -63,27 +58,27 @@ export async function insertMessage(
       id: input.conversationId,
       action: 'insert',
     })
-    .catch(() => {});
+    .catch(() => {})
   await realtime
     .notify({
       table: 'conversations',
       id: input.conversationId,
       action: 'update',
     })
-    .catch(() => {});
+    .catch(() => {})
 
-  return message;
+  return message
 }
 
 // ─── Create Activity Message ───────────────────────────────────────
 
 interface CreateActivityMessageInput {
-  conversationId: string;
-  eventType: string;
-  actor?: string;
-  actorType?: SenderType;
-  data?: Record<string, unknown>;
-  resolutionStatus?: ResolutionStatus | null;
+  conversationId: string
+  eventType: string
+  actor?: string
+  actorType?: SenderType
+  data?: Record<string, unknown>
+  resolutionStatus?: ResolutionStatus | null
 }
 
 export async function createActivityMessage(
@@ -91,8 +86,8 @@ export async function createActivityMessage(
   realtime: RealtimeService,
   input: CreateActivityMessageInput,
 ): Promise<typeof messages.$inferSelect> {
-  const senderId = input.actor ?? 'system';
-  const senderType = input.actorType ?? 'system';
+  const senderId = input.actor ?? 'system'
+  const senderType = input.actorType ?? 'system'
 
   const message = await insertMessage(db, realtime, {
     conversationId: input.conversationId,
@@ -108,17 +103,13 @@ export async function createActivityMessage(
     senderId,
     senderType,
     resolutionStatus: input.resolutionStatus ?? null,
-  });
+  })
 
   // Additional SSE for attention/dashboard
   if (input.resolutionStatus === 'pending') {
-    await realtime
-      .notify({ table: 'conversations-attention', action: 'insert' })
-      .catch(() => {});
+    await realtime.notify({ table: 'conversations-attention', action: 'insert' }).catch(() => {})
   }
-  await realtime
-    .notify({ table: 'conversations-dashboard', action: 'update' })
-    .catch(() => {});
+  await realtime.notify({ table: 'conversations-dashboard', action: 'update' }).catch(() => {})
 
-  return message;
+  return message
 }

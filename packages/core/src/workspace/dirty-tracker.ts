@@ -11,6 +11,7 @@
  * re-implementing the prefix logic.
  */
 import type { IFileSystem } from 'just-bash'
+
 import { isWritablePath } from './ro-enforcer'
 
 export interface DirtyDiff {

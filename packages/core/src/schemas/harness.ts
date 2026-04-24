@@ -15,7 +15,7 @@
  *   - `audit_wake_map.audit_log_id → audit.audit_log(id)`
  */
 
-import { sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm'
 import {
   bigint,
   bigserial,
@@ -28,37 +28,37 @@ import {
   text,
   timestamp,
   uniqueIndex,
-} from 'drizzle-orm/pg-core';
+} from 'drizzle-orm/pg-core'
 
-import { nanoidPrimaryKey } from '../db/helpers';
-import { harnessPgSchema } from '../db/pg-schemas';
+import { nanoidPrimaryKey } from '../db/helpers'
+import { harnessPgSchema } from '../db/pg-schemas'
 
 export interface ConversationEvent {
-  id: number;
-  conversationId: string;
-  organizationId: string;
-  turnIndex: number;
-  ts: Date;
-  type: string;
-  role: string | null;
-  content: string | null;
-  toolCallId: string | null;
-  toolCalls: unknown;
-  toolName: string | null;
-  reasoning: string | null;
-  reasoningDetails: unknown;
-  tokenCount: number | null;
-  finishReason: string | null;
-  llmTask: string | null;
-  tokensIn: number | null;
-  tokensOut: number | null;
-  cacheReadTokens: number | null;
-  costUsd: string | null;
-  latencyMs: number | null;
-  model: string | null;
-  provider: string | null;
-  wakeId: string | null;
-  payload: unknown;
+  id: number
+  conversationId: string
+  organizationId: string
+  turnIndex: number
+  ts: Date
+  type: string
+  role: string | null
+  content: string | null
+  toolCallId: string | null
+  toolCalls: unknown
+  toolName: string | null
+  reasoning: string | null
+  reasoningDetails: unknown
+  tokenCount: number | null
+  finishReason: string | null
+  llmTask: string | null
+  tokensIn: number | null
+  tokensOut: number | null
+  cacheReadTokens: number | null
+  costUsd: string | null
+  latencyMs: number | null
+  model: string | null
+  provider: string | null
+  wakeId: string | null
+  payload: unknown
 }
 
 export const conversationEvents = harnessPgSchema.table(
@@ -96,7 +96,7 @@ export const conversationEvents = harnessPgSchema.table(
     index('idx_convev_wake').on(t.wakeId).where(sql`${t.wakeId} IS NOT NULL`),
     index('idx_convev_llm_task').on(t.llmTask, t.ts).where(sql`${t.llmTask} IS NOT NULL`),
   ],
-);
+)
 
 /**
  * UNLOGGED table — ephemeral coordination, no WAL overhead.
@@ -106,11 +106,9 @@ export const conversationEvents = harnessPgSchema.table(
 export const activeWakes = harnessPgSchema.table('active_wakes', {
   conversationId: text('conversation_id').primaryKey(),
   workerId: text('worker_id').notNull(),
-  startedAt: timestamp('started_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
   debounceUntil: timestamp('debounce_until', { withTimezone: true }).notNull(),
-});
+})
 
 export const threads = harnessPgSchema.table(
   'threads',
@@ -123,23 +121,15 @@ export const threads = harnessPgSchema.table(
     parentThreadId: text('parent_thread_id'),
     compactedAt: timestamp('compacted_at', { withTimezone: true }),
     messageCount: integer('message_count').notNull().default(0),
-    lastActiveAt: timestamp('last_active_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    lastActiveAt: timestamp('last_active_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('uq_thread_conv')
-      .on(t.agentId, t.conversationId)
-      .where(sql`${t.conversationId} IS NOT NULL`),
-    uniqueIndex('uq_thread_cron')
-      .on(t.agentId, t.cronKey)
-      .where(sql`${t.cronKey} IS NOT NULL`),
+    uniqueIndex('uq_thread_conv').on(t.agentId, t.conversationId).where(sql`${t.conversationId} IS NOT NULL`),
+    uniqueIndex('uq_thread_cron').on(t.agentId, t.cronKey).where(sql`${t.cronKey} IS NOT NULL`),
     index('idx_thread_agent').on(t.agentId),
   ],
-);
+)
 
 export const agentMessages = harnessPgSchema.table(
   'messages',
@@ -151,15 +141,10 @@ export const agentMessages = harnessPgSchema.table(
     seq: integer('seq').notNull(),
     payload: jsonb('payload').notNull(),
     payloadVersion: integer('payload_version').notNull().default(1),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    uniqueIndex('uq_agent_msg_seq').on(t.threadId, t.seq),
-    index('idx_agent_msg_thread').on(t.threadId, t.seq),
-  ],
-);
+  (t) => [uniqueIndex('uq_agent_msg_seq').on(t.threadId, t.seq), index('idx_agent_msg_thread').on(t.threadId, t.seq)],
+)
 
 export const tenantCostDaily = harnessPgSchema.table(
   'tenant_cost_daily',
@@ -173,10 +158,8 @@ export const tenantCostDaily = harnessPgSchema.table(
     costUsd: numeric('cost_usd', { precision: 12, scale: 4 }),
     callCount: integer('call_count'),
   },
-  (t) => [
-    primaryKey({ columns: [t.organizationId, t.date, t.llmTask] }),
-  ],
-);
+  (t) => [primaryKey({ columns: [t.organizationId, t.date, t.llmTask] })],
+)
 
 export const auditWakeMap = harnessPgSchema.table(
   'audit_wake_map',
@@ -186,12 +169,7 @@ export const auditWakeMap = harnessPgSchema.table(
     conversationId: text('conversation_id').notNull(),
     eventType: text('event_type').notNull(),
     organizationId: text('organization_id').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index('idx_audit_wake_map_wake').on(t.wakeId),
-    index('idx_audit_wake_map_conv').on(t.conversationId),
-  ],
-);
+  (t) => [index('idx_audit_wake_map_wake').on(t.wakeId), index('idx_audit_wake_map_conv').on(t.conversationId)],
+)

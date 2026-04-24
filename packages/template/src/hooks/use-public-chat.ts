@@ -1,22 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { agentsClient } from '@/lib/api-client';
-import { authClient } from '@/lib/auth-client';
+import { agentsClient } from '@/lib/api-client'
+import { authClient } from '@/lib/auth-client'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface StartResponse {
-  conversationId: string;
-  agentId: string | null;
+  conversationId: string
+  agentId: string | null
 }
 
 interface UsePublicChatResult {
-  conversationId: string | null;
-  loading: boolean;
-  error: string | null;
-  errorRetryable: boolean;
-  retry: () => void;
-  newTopic: () => Promise<void>;
+  conversationId: string | null
+  loading: boolean
+  error: string | null
+  errorRetryable: boolean
+  retry: () => void
+  newTopic: () => Promise<void>
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -27,9 +27,9 @@ interface UsePublicChatResult {
  * Otherwise, signs in anonymously via better-auth.
  */
 async function ensureAnonymousSession(): Promise<void> {
-  const { data: session } = await authClient.getSession();
-  if (session) return;
-  await authClient.signIn.anonymous();
+  const { data: session } = await authClient.getSession()
+  if (session) return
+  await authClient.signIn.anonymous()
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────
@@ -40,91 +40,88 @@ async function ensureAnonymousSession(): Promise<void> {
  * existing active conversation for the current session user, or creates one.
  */
 export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [errorRetryable, setErrorRetryable] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const initRef = useRef(false);
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [errorRetryable, setErrorRetryable] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const initRef = useRef(false)
 
   const initChat = useCallback(async () => {
-    if (initRef.current) return;
-    initRef.current = true;
+    if (initRef.current) return
+    initRef.current = true
 
     try {
-      await ensureAnonymousSession();
+      await ensureAnonymousSession()
 
-      const startRes = await agentsClient.chat[':channelRoutingId'].start.$post(
-        {
-          param: { channelRoutingId },
-        },
-      );
+      const startRes = await agentsClient.chat[':channelRoutingId'].start.$post({
+        param: { channelRoutingId },
+      })
 
       if (!startRes.ok) {
-        const errData = await startRes.json().catch(() => ({}));
-        const msg =
-          (errData as { message?: string }).message ?? 'Chat unavailable';
+        const errData = await startRes.json().catch(() => ({}))
+        const msg = (errData as { message?: string }).message ?? 'Chat unavailable'
         if (startRes.status === 404) {
-          setError('This chat is unavailable.');
-          setErrorRetryable(false);
+          setError('This chat is unavailable.')
+          setErrorRetryable(false)
         } else {
-          setError(msg);
-          setErrorRetryable(true);
+          setError(msg)
+          setErrorRetryable(true)
         }
-        setLoading(false);
-        return;
+        setLoading(false)
+        return
       }
 
-      const startData = (await startRes.json()) as StartResponse;
-      setConversationId(startData.conversationId);
-      setLoading(false);
+      const startData = (await startRes.json()) as StartResponse
+      setConversationId(startData.conversationId)
+      setLoading(false)
     } catch {
-      setError('Failed to connect to chat');
-      setLoading(false);
+      setError('Failed to connect to chat')
+      setLoading(false)
     }
-  }, [channelRoutingId]);
+  }, [channelRoutingId])
 
   const retry = useCallback(() => {
-    initRef.current = false;
-    setError(null);
-    setErrorRetryable(true);
-    setLoading(true);
-    initChat();
-  }, [initChat]);
+    initRef.current = false
+    setError(null)
+    setErrorRetryable(true)
+    setLoading(true)
+    initChat()
+  }, [initChat])
 
   const newTopic = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
+      setLoading(true)
+      setError(null)
       const res = await agentsClient.chat[':channelRoutingId'].reset.$post({
         param: { channelRoutingId },
-      });
+      })
 
       if (!res.ok) {
-        setError('Failed to start new topic');
-        setErrorRetryable(true);
-        setLoading(false);
-        return;
+        setError('Failed to start new topic')
+        setErrorRetryable(true)
+        setLoading(false)
+        return
       }
 
-      const data = (await res.json()) as StartResponse;
-      setConversationId(data.conversationId);
-      setLoading(false);
+      const data = (await res.json()) as StartResponse
+      setConversationId(data.conversationId)
+      setLoading(false)
     } catch {
-      setError('Failed to start new topic');
-      setErrorRetryable(true);
-      setLoading(false);
+      setError('Failed to start new topic')
+      setErrorRetryable(true)
+      setLoading(false)
     }
-  }, [channelRoutingId]);
+  }, [channelRoutingId])
 
   // Reset init guard when channelRoutingId changes (e.g. route navigation)
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on channelRoutingId change
   useEffect(() => {
-    initRef.current = false;
-  }, [channelRoutingId]);
+    initRef.current = false
+  }, [channelRoutingId])
 
   useEffect(() => {
-    initChat();
-  }, [initChat]);
+    initChat()
+  }, [initChat])
 
   return {
     conversationId,
@@ -133,5 +130,5 @@ export function usePublicChat(channelRoutingId: string): UsePublicChatResult {
     errorRetryable,
     retry,
     newTopic,
-  };
+  }
 }

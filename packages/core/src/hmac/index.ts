@@ -1,26 +1,26 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { createHmac, timingSafeEqual } from 'node:crypto'
+import { and, eq } from 'drizzle-orm'
+import { Hono } from 'hono'
 
-import type { VobaseDb } from '../db/client';
-import type { Scheduler } from '../jobs/queue';
-import { webhookDedup } from '../schemas/webhook-dedup';
+import type { VobaseDb } from '../db/client'
+import type { Scheduler } from '../jobs/queue'
+import { webhookDedup } from '../schemas/webhook-dedup'
 
-export { webhookDedup } from '../schemas/webhook-dedup';
+export { webhookDedup } from '../schemas/webhook-dedup'
 
 export interface WebhookConfig {
   /** Route path, e.g. '/webhooks/stripe' */
-  path: string;
+  path: string
   /** HMAC secret for signature verification */
-  secret: string;
+  secret: string
   /** Job name to enqueue, e.g. 'system:processWebhook' */
-  handler: string;
+  handler: string
   /** Header containing the signature (default: 'x-webhook-signature') */
-  signatureHeader?: string;
+  signatureHeader?: string
   /** Whether to deduplicate webhooks (default: true) */
-  dedup?: boolean;
+  dedup?: boolean
   /** Header containing the webhook delivery ID (default: 'x-webhook-id') */
-  idHeader?: string;
+  idHeader?: string
 }
 
 /**
@@ -29,35 +29,31 @@ export interface WebhookConfig {
  * Uses timing-safe comparison to prevent timing attacks.
  * Returns false for any malformed or invalid signature (never throws).
  */
-export function verifyHmacSignature(
-  payload: string,
-  signature: string,
-  secret: string,
-): boolean {
+export function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
   try {
-    const expected = createHmac('sha256', secret).update(payload).digest('hex');
+    const expected = createHmac('sha256', secret).update(payload).digest('hex')
 
     if (signature.length !== expected.length) {
-      return false;
+      return false
     }
 
-    const sigBuffer = Buffer.from(signature, 'hex');
-    const expectedBuffer = Buffer.from(expected, 'hex');
+    const sigBuffer = Buffer.from(signature, 'hex')
+    const expectedBuffer = Buffer.from(expected, 'hex')
 
     // If the hex decode produced different lengths (malformed hex), reject
     if (sigBuffer.length !== expectedBuffer.length) {
-      return false;
+      return false
     }
 
-    return timingSafeEqual(sigBuffer, expectedBuffer);
+    return timingSafeEqual(sigBuffer, expectedBuffer)
   } catch {
-    return false;
+    return false
   }
 }
 
 /** Sign a payload with HMAC-SHA256. Symmetric to verifyHmacSignature. */
 export function signHmac(payload: string, secret: string): string {
-  return createHmac('sha256', secret).update(payload).digest('hex');
+  return createHmac('sha256', secret).update(payload).digest('hex')
 }
 
 /**
@@ -67,29 +63,23 @@ export function signHmac(payload: string, secret: string): string {
  *
  * @returns `true` if the webhook is a duplicate, `false` if it's new.
  */
-export async function checkAndRecordWebhook(
-  db: VobaseDb,
-  webhookId: string,
-  source: string,
-): Promise<boolean> {
+export async function checkAndRecordWebhook(db: VobaseDb, webhookId: string, source: string): Promise<boolean> {
   const [existing] = await db
     .select({ id: webhookDedup.id })
     .from(webhookDedup)
-    .where(
-      and(eq(webhookDedup.id, webhookId), eq(webhookDedup.source, source)),
-    );
+    .where(and(eq(webhookDedup.id, webhookId), eq(webhookDedup.source, source)))
 
   if (existing) {
-    return true;
+    return true
   }
 
   await db.insert(webhookDedup).values({
     id: webhookId,
     source,
     receivedAt: new Date(),
-  });
+  })
 
-  return false;
+  return false
 }
 
 /**
@@ -104,48 +94,48 @@ export function createWebhookRoutes(
   configs: Record<string, WebhookConfig>,
   deps: { db: VobaseDb; scheduler: Scheduler },
 ): Hono {
-  const { db, scheduler } = deps;
+  const { db, scheduler } = deps
 
-  const router = new Hono();
+  const router = new Hono()
 
   for (const [source, config] of Object.entries(configs)) {
     router.post(config.path, async (c) => {
-      const body = await c.req.text();
+      const body = await c.req.text()
 
-      const sigHeader = config.signatureHeader ?? 'x-webhook-signature';
-      const signature = c.req.header(sigHeader) ?? '';
+      const sigHeader = config.signatureHeader ?? 'x-webhook-signature'
+      const signature = c.req.header(sigHeader) ?? ''
 
       if (!verifyHmacSignature(body, signature, config.secret)) {
-        return c.json({ error: 'Invalid signature' }, 401);
+        return c.json({ error: 'Invalid signature' }, 401)
       }
 
-      const dedupEnabled = config.dedup !== false;
+      const dedupEnabled = config.dedup !== false
 
       if (dedupEnabled) {
-        const idHeader = config.idHeader ?? 'x-webhook-id';
-        const webhookId = c.req.header(idHeader) ?? '';
+        const idHeader = config.idHeader ?? 'x-webhook-id'
+        const webhookId = c.req.header(idHeader) ?? ''
 
         if (webhookId && (await checkAndRecordWebhook(db, webhookId, source))) {
-          return c.json({ received: true, deduplicated: true }, 200);
+          return c.json({ received: true, deduplicated: true }, 200)
         }
       }
 
-      let payload: unknown;
+      let payload: unknown
       try {
-        payload = JSON.parse(body);
+        payload = JSON.parse(body)
       } catch {
-        payload = body;
+        payload = body
       }
 
       await scheduler.add(config.handler, {
         source,
         webhookId: c.req.header(config.idHeader ?? 'x-webhook-id') ?? '',
         payload,
-      });
+      })
 
-      return c.json({ received: true }, 200);
-    });
+      return c.json({ received: true }, 200)
+    })
   }
 
-  return router;
+  return router
 }

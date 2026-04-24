@@ -1,10 +1,10 @@
-import { dirname, join } from 'node:path';
-import { defineConfig } from 'drizzle-kit';
+import { dirname, join } from 'node:path'
+import { defineConfig } from 'drizzle-kit'
 
-const url = process.env.DATABASE_URL ?? 'postgres://localhost:5432/vobase';
+const url = process.env.DATABASE_URL ?? 'postgres://localhost:5432/vobase'
 
 // Resolve core schema paths dynamically — works in both monorepo and standalone
-const coreSrc = dirname(require.resolve('@vobase/core'));
+const coreSrc = dirname(require.resolve('@vobase/core'))
 
 export default defineConfig({
   schema: [
@@ -16,4 +16,4 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: { url },
-});
+})

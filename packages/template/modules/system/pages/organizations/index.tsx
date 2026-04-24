@@ -1,11 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
-import { BuildingIcon, SendIcon, UserMinusIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { z } from 'zod';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import { BuildingIcon, SendIcon, UserMinusIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { z } from 'zod'
 
-import { PageHeader } from '@/components/page-header';
+import { PageHeader } from '@/components/page-header'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,179 +16,139 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { authClient } from '@/lib/auth-client';
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { authClient } from '@/lib/auth-client'
 
-const ROLES = ['owner', 'admin', 'member'] as const;
+const ROLES = ['owner', 'admin', 'member'] as const
 
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   owner: 'default',
   admin: 'secondary',
   member: 'outline',
-};
+}
 
 const inviteSchema = z.object({
   email: z.string().email('Valid email required'),
   role: z.enum(['admin', 'member']),
-});
+})
 
-const ORG_DETAIL_KEY = ['organization-detail'] as const;
+const ORG_DETAIL_KEY = ['organization-detail'] as const
 
 const allowedEmailDomains = import.meta.env.VITE_ALLOWED_EMAIL_DOMAINS
   ? (import.meta.env.VITE_ALLOWED_EMAIL_DOMAINS as string)
       .split(',')
       .map((d: string) => d.trim())
       .filter(Boolean)
-  : [];
+  : []
 
 function OrganizationPage() {
-  const queryClient = useQueryClient();
-  const { data: session } = authClient.useSession();
-  const currentUserId = session?.user?.id;
-  const activeOrgId = session?.session?.activeOrganizationId;
+  const queryClient = useQueryClient()
+  const { data: session } = authClient.useSession()
+  const currentUserId = session?.user?.id
+  const activeOrgId = session?.session?.activeOrganizationId
 
   // Auto-activate first org if user has orgs but none is active
   const listQuery = useQuery({
     queryKey: ['organization-list'],
     queryFn: async () => {
-      const result = await authClient.organization.list();
-      if (result.error) return [];
-      return result.data ?? [];
+      const result = await authClient.organization.list()
+      if (result.error) return []
+      return result.data ?? []
     },
     enabled: !activeOrgId,
-  });
+  })
 
-  const firstOrgId = (listQuery.data ?? [])[0]?.id;
+  const firstOrgId = (listQuery.data ?? [])[0]?.id
 
   useEffect(() => {
     if (firstOrgId && !activeOrgId) {
-      authClient.organization.setActive({ organizationId: firstOrgId });
+      authClient.organization.setActive({ organizationId: firstOrgId })
     }
-  }, [firstOrgId, activeOrgId]);
+  }, [firstOrgId, activeOrgId])
 
   // Fetch active org with members + invitations
   const orgQuery = useQuery({
     queryKey: ORG_DETAIL_KEY,
     queryFn: async () => {
-      const result = await authClient.organization.getFullOrganization();
-      if (result.error) return null;
-      return result.data;
+      const result = await authClient.organization.getFullOrganization()
+      if (result.error) return null
+      return result.data
     },
     enabled: !!activeOrgId,
-  });
+  })
 
-  const org = orgQuery.data;
-  const members = org?.members ?? [];
-  const invitations = (org?.invitations ?? []).filter(
-    (i: { status: string }) => i.status === 'pending',
-  );
+  const org = orgQuery.data
+  const members = org?.members ?? []
+  const invitations = (org?.invitations ?? []).filter((i: { status: string }) => i.status === 'pending')
 
   // --- Update org ---
-  const [editOpen, setEditOpen] = useState(false);
-  const [editName, setEditName] = useState('');
+  const [editOpen, setEditOpen] = useState(false)
+  const [editName, setEditName] = useState('')
 
   const updateMutation = useMutation({
     mutationFn: async (newName: string) => {
       const result = await authClient.organization.update({
         data: { name: newName },
-      });
-      if (result.error) throw new Error(result.error.message);
-      return result.data;
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
     },
     onSuccess: () => {
-      toast.success('Organization updated');
-      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY });
-      setEditOpen(false);
+      toast.success('Organization updated')
+      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY })
+      setEditOpen(false)
     },
     onError: (err: Error) => toast.error(err.message),
-  });
+  })
 
   // --- Role change ---
   const updateRoleMutation = useMutation({
-    mutationFn: async ({
-      memberId,
-      role,
-    }: {
-      memberId: string;
-      role: string;
-    }) => {
+    mutationFn: async ({ memberId, role }: { memberId: string; role: string }) => {
       const result = await authClient.organization.updateMemberRole({
         memberId,
         role,
-      });
-      if (result.error) throw new Error(result.error.message);
-      return result.data;
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
     },
     onSuccess: () => {
-      toast.success('Member role updated');
-      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY });
+      toast.success('Member role updated')
+      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY })
     },
     onError: (err: Error) => toast.error(err.message),
-  });
+  })
 
   // --- Remove member ---
   const removeMemberMutation = useMutation({
     mutationFn: async (memberIdOrEmail: string) => {
       const result = await authClient.organization.removeMember({
         memberIdOrEmail,
-      });
-      if (result.error) throw new Error(result.error.message);
-      return result.data;
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
     },
     onSuccess: () => {
-      toast.success('Member removed');
-      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY });
+      toast.success('Member removed')
+      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY })
     },
     onError: (err: Error) => toast.error(err.message),
-  });
+  })
 
   // --- Invite ---
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member')
 
   const inviteMutation = useMutation({
     mutationFn: async (input: { email: string; role: 'admin' | 'member' }) => {
@@ -196,30 +156,30 @@ function OrganizationPage() {
         email: input.email,
         role: input.role,
         resend: true,
-      });
-      if (result.error) throw new Error(result.error.message);
-      return result.data;
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
     },
     onSuccess: () => {
-      toast.success('Invitation sent');
-      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY });
-      setInviteOpen(false);
-      setInviteEmail('');
-      setInviteRole('member');
+      toast.success('Invitation sent')
+      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY })
+      setInviteOpen(false)
+      setInviteEmail('')
+      setInviteRole('member')
     },
     onError: (err: Error) => toast.error(err.message),
-  });
+  })
 
   function handleInvite() {
     const parsed = inviteSchema.safeParse({
       email: inviteEmail,
       role: inviteRole,
-    });
+    })
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
-      return;
+      toast.error(parsed.error.issues[0].message)
+      return
     }
-    inviteMutation.mutate(parsed.data);
+    inviteMutation.mutate(parsed.data)
   }
 
   // --- Resend invitation ---
@@ -229,77 +189,65 @@ function OrganizationPage() {
         email: inv.email,
         role: inv.role,
         resend: true,
-      });
-      if (result.error) throw new Error(result.error.message);
-      return result.data;
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
     },
     onSuccess: () => {
-      toast.success('Invitation resent');
+      toast.success('Invitation resent')
     },
     onError: (err: Error) => toast.error(err.message),
-  });
+  })
 
   // --- Cancel invitation ---
   const cancelInviteMutation = useMutation({
     mutationFn: async (invitationId: string) => {
       const result = await authClient.organization.cancelInvitation({
         invitationId,
-      });
-      if (result.error) throw new Error(result.error.message);
-      return result.data;
+      })
+      if (result.error) throw new Error(result.error.message)
+      return result.data
     },
     onSuccess: () => {
-      toast.success('Invitation cancelled');
-      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY });
+      toast.success('Invitation cancelled')
+      queryClient.invalidateQueries({ queryKey: ORG_DETAIL_KEY })
     },
     onError: (err: Error) => toast.error(err.message),
-  });
+  })
 
   // --- No org ---
   if (!activeOrgId && !firstOrgId && !listQuery.isLoading) {
     return (
       <div className="flex flex-col gap-6 p-6 lg:p-10">
-        <PageHeader
-          title="Organization"
-          description="Manage your organization and members"
-        />
+        <PageHeader title="Organization" description="Manage your organization and members" />
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <BuildingIcon />
             </EmptyMedia>
             <EmptyTitle>No organization</EmptyTitle>
-            <EmptyDescription>
-              An organization is created automatically during setup.
-            </EmptyDescription>
+            <EmptyDescription>An organization is created automatically during setup.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       </div>
-    );
+    )
   }
 
   // --- Loading ---
-  if (
-    listQuery.isLoading ||
-    (!activeOrgId && firstOrgId) ||
-    orgQuery.isLoading
-  ) {
+  if (listQuery.isLoading || (!activeOrgId && firstOrgId) || orgQuery.isLoading) {
     return (
       <div className="flex flex-col gap-6 p-6 lg:p-10">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-40 w-full" />
       </div>
-    );
+    )
   }
 
   // --- Active org view ---
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-10">
-      <PageHeader
-        title="Organization"
-        description="Manage your organization and members"
-      />
+      <PageHeader title="Organization" description="Manage your organization and members" />
 
       {/* General Settings */}
       <Card>
@@ -312,9 +260,7 @@ function OrganizationPage() {
         <CardContent className="flex flex-col gap-4">
           {allowedEmailDomains.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-sm text-muted-foreground">
-                Allowed email domains
-              </p>
+              <p className="text-sm text-muted-foreground">Allowed email domains</p>
               <div className="flex flex-wrap gap-1.5">
                 {allowedEmailDomains.map((domain) => (
                   <Badge key={domain} variant="secondary">
@@ -323,18 +269,13 @@ function OrganizationPage() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                Users with these email domains are automatically added when they
-                sign in.
+                Users with these email domains are automatically added when they sign in.
               </p>
             </div>
           )}
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
             <DialogTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditName(org?.name ?? '')}
-              >
+              <Button variant="outline" size="sm" onClick={() => setEditName(org?.name ?? '')}>
                 Edit Name
               </Button>
             </DialogTrigger>
@@ -344,18 +285,12 @@ function OrganizationPage() {
               </DialogHeader>
               <div className="flex flex-col gap-2 py-4">
                 <Label htmlFor="edit-name">Name</Label>
-                <Input
-                  id="edit-name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                />
+                <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} />
               </div>
               <DialogFooter>
                 <Button
                   onClick={() => updateMutation.mutate(editName)}
-                  disabled={
-                    updateMutation.isPending || editName.trim().length === 0
-                  }
+                  disabled={updateMutation.isPending || editName.trim().length === 0}
                 >
                   Save
                 </Button>
@@ -398,12 +333,7 @@ function OrganizationPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Role</Label>
-                  <Select
-                    value={inviteRole}
-                    onValueChange={(v) =>
-                      setInviteRole(v as 'admin' | 'member')
-                    }
-                  >
+                  <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as 'admin' | 'member')}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -415,10 +345,7 @@ function OrganizationPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button
-                  onClick={handleInvite}
-                  disabled={inviteMutation.isPending}
-                >
+                <Button onClick={handleInvite} disabled={inviteMutation.isPending}>
                   {inviteMutation.isPending ? 'Sending...' : 'Send Invitation'}
                 </Button>
               </DialogFooter>
@@ -440,12 +367,8 @@ function OrganizationPage() {
               <TableBody>
                 {members.map((member) => (
                   <TableRow key={member.id}>
-                    <TableCell className="font-medium">
-                      {member.user.name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {member.user.email}
-                    </TableCell>
+                    <TableCell className="font-medium">{member.user.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{member.user.email}</TableCell>
                     <TableCell>
                       <Select
                         value={member.role}
@@ -459,13 +382,7 @@ function OrganizationPage() {
                       >
                         <SelectTrigger className="w-[110px]">
                           <SelectValue>
-                            <Badge
-                              variant={
-                                roleBadgeVariant[member.role] ?? 'outline'
-                              }
-                            >
-                              {member.role}
-                            </Badge>
+                            <Badge variant={roleBadgeVariant[member.role] ?? 'outline'}>{member.role}</Badge>
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
@@ -481,39 +398,29 @@ function OrganizationPage() {
                       <RelativeTimeCard date={member.createdAt} />
                     </TableCell>
                     <TableCell>
-                      {member.role !== 'owner' &&
-                        member.user.id !== currentUserId && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <UserMinusIcon className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Remove member?
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  {member.user.name} will be removed from this
-                                  organization.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() =>
-                                    removeMemberMutation.mutate(
-                                      member.user.email,
-                                    )
-                                  }
-                                >
-                                  Remove
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
+                      {member.role !== 'owner' && member.user.id !== currentUserId && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <UserMinusIcon className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove member?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {member.user.name} will be removed from this organization.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => removeMemberMutation.mutate(member.user.email)}>
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -546,11 +453,7 @@ function OrganizationPage() {
                     <TableRow key={inv.id}>
                       <TableCell className="font-medium">{inv.email}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={roleBadgeVariant[inv.role] ?? 'outline'}
-                        >
-                          {inv.role}
-                        </Badge>
+                        <Badge variant={roleBadgeVariant[inv.role] ?? 'outline'}>{inv.role}</Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         <RelativeTimeCard date={inv.expiresAt} />
@@ -589,9 +492,9 @@ function OrganizationPage() {
         </Card>
       )}
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/system/organizations/')({
   component: OrganizationPage,
-});
+})

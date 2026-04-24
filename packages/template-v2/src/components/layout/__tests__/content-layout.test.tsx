@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
+
 import { ContentLayout } from '../content-layout'
 
 describe('ContentLayout', () => {

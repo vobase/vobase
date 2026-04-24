@@ -5,6 +5,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
 import type { AttributeType, AttributeValue, StaffAttributeDefinition, StaffProfile } from '../schema'
 
 export const attrKeys = {

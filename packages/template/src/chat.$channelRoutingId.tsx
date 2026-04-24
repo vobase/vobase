@@ -1,66 +1,50 @@
-import type { CardElement } from '@modules/messaging/lib/card-serialization';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, useParams } from '@tanstack/react-router';
-import { ArrowUpIcon, Bot } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CardElement } from '@modules/messaging/lib/card-serialization'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, useParams } from '@tanstack/react-router'
+import { ArrowUpIcon, Bot } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { CardRenderer } from '@/components/ai-elements/card-renderer';
-import {
-  Message,
-  MessageContent,
-  MessageResponse,
-} from '@/components/ai-elements/message';
-import { Shimmer } from '@/components/ai-elements/shimmer';
-import { TypingIndicator } from '@/components/chat/typing-indicator';
-import { Button } from '@/components/ui/button';
-import { usePublicChat } from '@/hooks/use-public-chat';
-import {
-  type RealtimePayload,
-  subscribeToPayloads,
-  useRealtimeInvalidation,
-} from '@/hooks/use-realtime';
-import { agentsClient } from '@/lib/api-client';
-import { extractText } from '@/lib/normalize-message';
+import { CardRenderer } from '@/components/ai-elements/card-renderer'
+import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
+import { Shimmer } from '@/components/ai-elements/shimmer'
+import { TypingIndicator } from '@/components/chat/typing-indicator'
+import { Button } from '@/components/ui/button'
+import { usePublicChat } from '@/hooks/use-public-chat'
+import { type RealtimePayload, subscribeToPayloads, useRealtimeInvalidation } from '@/hooks/use-realtime'
+import { agentsClient } from '@/lib/api-client'
+import { extractText } from '@/lib/normalize-message'
 
 // ─── Types ──────────────────────────────────────────────────────────
 
 interface ConversationMessage {
-  id: string;
-  role: string;
-  parts: Array<{ type: string; text?: string; [key: string]: unknown }>;
-  createdAt: string;
+  id: string
+  role: string
+  parts: Array<{ type: string; text?: string; [key: string]: unknown }>
+  createdAt: string
 }
 
 // ─── Chat View ──────────────────────────────────────────────────────
 
-function PublicChatView({
-  channelRoutingId,
-  conversationId,
-}: {
-  channelRoutingId: string;
-  conversationId: string;
-}) {
-  useRealtimeInvalidation();
-  const queryClient = useQueryClient();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [input, setInput] = useState('');
-  const [sseTyping, setSseTyping] = useState(false);
+function PublicChatView({ channelRoutingId, conversationId }: { channelRoutingId: string; conversationId: string }) {
+  useRealtimeInvalidation()
+  const queryClient = useQueryClient()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [input, setInput] = useState('')
+  const [sseTyping, setSseTyping] = useState(false)
 
   const { data: messages = [] } = useQuery({
     queryKey: ['public-chat-messages', conversationId],
     queryFn: async () => {
-      const res = await agentsClient.chat[':channelRoutingId'].conversations[
-        ':conversationId'
-      ].$get({
+      const res = await agentsClient.chat[':channelRoutingId'].conversations[':conversationId'].$get({
         param: { channelRoutingId, conversationId },
-      });
-      if (!res.ok) return [];
-      const data = (await res.json()) as { messages: ConversationMessage[] };
-      return data.messages;
+      })
+      if (!res.ok) return []
+      const data = (await res.json()) as { messages: ConversationMessage[] }
+      return data.messages
     },
     refetchInterval: false,
     refetchOnWindowFocus: false,
-  });
+  })
 
   const { mutate: sendMessage, isPending } = useMutation({
     mutationFn: async (content: string) => {
@@ -70,112 +54,91 @@ function PublicChatView({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ content }),
-      });
-      if (!res.ok) throw new Error('Failed to send message');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to send message')
+      return res.json()
     },
     onMutate: (content) => {
-      const previous = queryClient.getQueryData<ConversationMessage[]>([
-        'public-chat-messages',
-        conversationId,
-      ]);
-      queryClient.setQueryData<ConversationMessage[]>(
-        ['public-chat-messages', conversationId],
-        (old = []) => [
-          ...old,
-          {
-            id: `optimistic-${Date.now()}`,
-            role: 'user',
-            parts: [{ type: 'text', text: content }],
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      );
-      return { previous };
+      const previous = queryClient.getQueryData<ConversationMessage[]>(['public-chat-messages', conversationId])
+      queryClient.setQueryData<ConversationMessage[]>(['public-chat-messages', conversationId], (old = []) => [
+        ...old,
+        {
+          id: `optimistic-${Date.now()}`,
+          role: 'user',
+          parts: [{ type: 'text', text: content }],
+          createdAt: new Date().toISOString(),
+        },
+      ])
+      return { previous }
     },
     onError: (_err, _content, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(
-          ['public-chat-messages', conversationId],
-          context.previous,
-        );
+        queryClient.setQueryData(['public-chat-messages', conversationId], context.previous)
       }
     },
-  });
+  })
 
-  const isAgentTyping = isPending || sseTyping;
+  const isAgentTyping = isPending || sseTyping
 
   useEffect(() => {
     const unsubscribe = subscribeToPayloads((payload: RealtimePayload) => {
-      if (
-        payload.table === 'conversations-messages' &&
-        payload.id === conversationId
-      ) {
+      if (payload.table === 'conversations-messages' && payload.id === conversationId) {
         queryClient.invalidateQueries({
           queryKey: ['public-chat-messages', conversationId],
-        });
-        setSseTyping(false);
+        })
+        setSseTyping(false)
       }
-      if (
-        payload.table === 'conversations' &&
-        payload.id === conversationId &&
-        payload.action === 'typing'
-      ) {
-        setSseTyping(true);
+      if (payload.table === 'conversations' && payload.id === conversationId && payload.action === 'typing') {
+        setSseTyping(true)
       }
-    });
-    return unsubscribe;
-  }, [conversationId, queryClient]);
+    })
+    return unsubscribe
+  }, [conversationId, queryClient])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on new messages / typing state
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: 'smooth',
-    });
-  }, [messages.length, isAgentTyping]);
+    })
+  }, [messages.length, isAgentTyping])
 
   const handleSubmit = useCallback(() => {
-    const trimmed = input.trim();
-    if (!trimmed || isPending) return;
-    setInput('');
-    sendMessage(trimmed);
-  }, [input, isPending, sendMessage]);
+    const trimmed = input.trim()
+    if (!trimmed || isPending) return
+    setInput('')
+    sendMessage(trimmed)
+  }, [input, isPending, sendMessage])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSubmit();
+        e.preventDefault()
+        handleSubmit()
       }
     },
     [handleSubmit],
-  );
+  )
 
-  const trimmedInput = input.trim();
+  const trimmedInput = input.trim()
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto max-w-2xl space-y-4">
           {messages.map((msg) => {
-            const textContent = extractText(msg.parts);
-            const cardPart = msg.parts.find(
-              (p: { type: string }) => p.type === 'card',
-            ) as { type: string; card?: CardElement } | undefined;
+            const textContent = extractText(msg.parts)
+            const cardPart = msg.parts.find((p: { type: string }) => p.type === 'card') as
+              | { type: string; card?: CardElement }
+              | undefined
 
-            if (!textContent && !cardPart) return null;
+            if (!textContent && !cardPart) return null
 
             // Hide system/activity messages (e.g., conversation.created)
-            if (msg.role === 'system') return null;
-            if (
-              msg.role === 'assistant' &&
-              textContent &&
-              /^conversation\.\w+$/.test(textContent)
-            )
-              return null;
+            if (msg.role === 'system') return null
+            if (msg.role === 'assistant' && textContent && /^conversation\.\w+$/.test(textContent)) return null
 
-            const from = msg.role === 'user' ? 'user' : 'assistant';
+            const from = msg.role === 'user' ? 'user' : 'assistant'
             return (
               <Message key={msg.id} from={from}>
                 <MessageContent>
@@ -189,18 +152,16 @@ function PublicChatView({
                       card={cardPart.card}
                       onAction={(_actionId, value) => {
                         // Send the button label as a user message
-                        if (value && !isPending) sendMessage(value);
+                        if (value && !isPending) sendMessage(value)
                       }}
                       className="border-0 shadow-none p-0"
                     />
                   )}
                 </MessageContent>
               </Message>
-            );
+            )
           })}
-          {isAgentTyping && (
-            <TypingIndicator conversationId={conversationId} isAiThinking />
-          )}
+          {isAgentTyping && <TypingIndicator conversationId={conversationId} isAiThinking />}
         </div>
       </div>
 
@@ -233,24 +194,21 @@ function PublicChatView({
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // ─── Main Page ──────────────────────────────────────────────────────
 
 function PublicChatPage() {
-  const { channelRoutingId } = useParams({ from: '/chat/$channelRoutingId' });
-  const { conversationId, loading, error, errorRetryable, retry } =
-    usePublicChat(channelRoutingId);
+  const { channelRoutingId } = useParams({ from: '/chat/$channelRoutingId' })
+  const { conversationId, loading, error, errorRetryable, retry } = usePublicChat(channelRoutingId)
 
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
-        <Shimmer className="text-sm text-muted-foreground">
-          Connecting...
-        </Shimmer>
+        <Shimmer className="text-sm text-muted-foreground">Connecting...</Shimmer>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -266,10 +224,10 @@ function PublicChatPage() {
           )}
         </div>
       </div>
-    );
+    )
   }
 
-  if (!conversationId) return null;
+  if (!conversationId) return null
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -278,14 +236,11 @@ function PublicChatPage() {
         <span className="text-sm font-medium">Chat</span>
       </div>
 
-      <PublicChatView
-        channelRoutingId={channelRoutingId}
-        conversationId={conversationId}
-      />
+      <PublicChatView channelRoutingId={channelRoutingId} conversationId={conversationId} />
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/chat/$channelRoutingId')({
   component: PublicChatPage,
-});
+})

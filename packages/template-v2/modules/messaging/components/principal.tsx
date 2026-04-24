@@ -11,6 +11,7 @@ import { useAgentDefinitions } from '@modules/agents/api/use-agent-definitions'
 import { useStaffList } from '@modules/team/api/use-staff'
 import { BotIcon, UserIcon } from 'lucide-react'
 import { useMemo } from 'react'
+
 import { cn } from '@/lib/utils'
 
 export type PrincipalKind = 'agent' | 'staff'

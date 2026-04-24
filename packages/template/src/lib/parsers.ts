@@ -1,49 +1,39 @@
-import { createParser } from 'nuqs/server';
-import { z } from 'zod';
+import { createParser } from 'nuqs/server'
+import { z } from 'zod'
 
-import { dataTableConfig } from '@/config/data-table';
-import type { ExtendedColumnSort } from '@/types/data-table';
+import { dataTableConfig } from '@/config/data-table'
+import type { ExtendedColumnSort } from '@/types/data-table'
 
 const sortingItemSchema = z.object({
   id: z.string(),
   desc: z.boolean(),
-});
+})
 
-export const getSortingStateParser = <TData>(
-  columnIds?: string[] | Set<string>,
-) => {
-  const validKeys = columnIds
-    ? columnIds instanceof Set
-      ? columnIds
-      : new Set(columnIds)
-    : null;
+export const getSortingStateParser = <TData>(columnIds?: string[] | Set<string>) => {
+  const validKeys = columnIds ? (columnIds instanceof Set ? columnIds : new Set(columnIds)) : null
 
   return createParser({
     parse: (value) => {
       try {
-        const parsed = JSON.parse(value);
-        const result = z.array(sortingItemSchema).safeParse(parsed);
+        const parsed = JSON.parse(value)
+        const result = z.array(sortingItemSchema).safeParse(parsed)
 
-        if (!result.success) return null;
+        if (!result.success) return null
 
         if (validKeys && result.data.some((item) => !validKeys.has(item.id))) {
-          return null;
+          return null
         }
 
-        return result.data as ExtendedColumnSort<TData>[];
+        return result.data as ExtendedColumnSort<TData>[]
       } catch {
-        return null;
+        return null
       }
     },
     serialize: (value) => JSON.stringify(value),
     eq: (a, b) =>
-      a.length === b.length &&
-      a.every(
-        (item, index) =>
-          item.id === b[index]?.id && item.desc === b[index]?.desc,
-      ),
-  });
-};
+      a.length === b.length && a.every((item, index) => item.id === b[index]?.id && item.desc === b[index]?.desc),
+  })
+}
 
 const filterItemSchema = z.object({
   id: z.string(),
@@ -51,6 +41,6 @@ const filterItemSchema = z.object({
   variant: z.enum(dataTableConfig.filterVariants),
   operator: z.enum(dataTableConfig.operators),
   filterId: z.string(),
-});
+})
 
-export type FilterItemSchema = z.infer<typeof filterItemSchema>;
+export type FilterItemSchema = z.infer<typeof filterItemSchema>

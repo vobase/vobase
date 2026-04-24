@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+
 import { composeVirtualContent, resolveContactVirtualField, resolveVirtualField, stripVirtualHeader } from './files'
 import type { DriveScope } from './types'
 

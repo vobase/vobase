@@ -1,67 +1,62 @@
-import { join } from 'node:path';
-import { MastraServer } from '@mastra/hono';
-import { createApp } from '@vobase/core';
-import { serveStatic } from 'hono/bun';
+import { join } from 'node:path'
+import { MastraServer } from '@mastra/hono'
+import { createApp } from '@vobase/core'
+import { serveStatic } from 'hono/bun'
 
-import { modules } from './modules';
-import { getMastra, initMastra } from './modules/agents/mastra';
-import { getModuleDeps } from './modules/messaging/lib/deps';
-import config from './vobase.config';
+import { modules } from './modules'
+import { getMastra, initMastra } from './modules/agents/mastra'
+import { getModuleDeps } from './modules/messaging/lib/deps'
+import config from './vobase.config'
 
-const app = await createApp({ ...config, modules });
+const app = await createApp({ ...config, modules })
 
 // Initialize Mastra after createApp (init hook sets deps synchronously, but Mastra init is async)
 try {
-  const { db } = getModuleDeps();
-  await initMastra(db as unknown as { $client: unknown });
+  const { db } = getModuleDeps()
+  await initMastra(db as unknown as { $client: unknown })
 
-  const mastra = getMastra();
+  const mastra = getMastra()
   const mastraServer = new MastraServer({
     // MastraServer expects its own Hono type; our app is compatible at runtime
     app: app as unknown as ConstructorParameters<typeof MastraServer>[0]['app'],
     mastra,
     prefix: '/api/mastra',
-  });
-  await mastraServer.init();
+  })
+  await mastraServer.init()
 } catch (err) {
-  console.warn('[server] Mastra routes not mounted:', (err as Error).message);
+  console.warn('[server] Mastra routes not mounted:', (err as Error).message)
 }
 
 // Mount Mastra Studio SPA (dev-only)
 if (process.env.NODE_ENV !== 'production') {
-  const { createStudioMiddleware } = await import(
-    './modules/agents/mastra/studio'
-  );
-  app.route('/studio', createStudioMiddleware());
+  const { createStudioMiddleware } = await import('./modules/agents/mastra/studio')
+  app.route('/studio', createStudioMiddleware())
 }
 
-const distPath = join(import.meta.dir, 'dist');
-const indexFile = Bun.file(join(distPath, 'index.html'));
-const hasIndex = await indexFile.exists();
-const indexHtml = hasIndex ? await indexFile.text() : null;
+const distPath = join(import.meta.dir, 'dist')
+const indexFile = Bun.file(join(distPath, 'index.html'))
+const hasIndex = await indexFile.exists()
+const indexHtml = hasIndex ? await indexFile.text() : null
 
 // Serve static assets from Vite build
-app.use(
-  '/assets/*',
-  serveStatic({ root: distPath, rewriteRequestPath: (path) => path }),
-);
+app.use('/assets/*', serveStatic({ root: distPath, rewriteRequestPath: (path) => path }))
 
 // SPA fallback — return index.html for any non-API route
 app.get('*', (c) => {
   if (indexHtml) {
-    return c.html(indexHtml);
+    return c.html(indexHtml)
   }
-  return c.text('Frontend not built. Run: bun run build', 404);
-});
+  return c.text('Frontend not built. Run: bun run build', 404)
+})
 
-const port = Number(process.env.PORT) || 3000;
+const port = Number(process.env.PORT) || 3000
 
 export default {
   port,
   fetch: app.fetch,
   idleTimeout: 255, // seconds (max) — prevent Bun from killing long-running AI streams
-};
+}
 
 // Re-export the generated AppType which preserves Hono's literal route types
 // for use with hc<AppType>() in the frontend
-export type { AppType } from './src/api-types.generated';
+export type { AppType } from './src/api-types.generated'

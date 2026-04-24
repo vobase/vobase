@@ -10,6 +10,7 @@
  * check:shape rule 2 alongside `modules/agents/service/journal.ts`.
  */
 import type { OutboundToolName } from '@server/transports/events'
+
 import type { Message } from '../schema'
 
 type TxShape = { insert: InsertFn } & {

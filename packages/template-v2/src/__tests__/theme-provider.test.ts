@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { describe, expect, it } from 'bun:test'
 
 const INDEX_HTML = readFileSync(join(import.meta.dir, '../../index.html'), 'utf8')
 const STORAGE_KEY = 'template-v2-theme'

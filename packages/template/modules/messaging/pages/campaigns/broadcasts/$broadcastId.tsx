@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowLeftIcon,
   CalendarIcon,
@@ -11,9 +11,9 @@ import {
   UploadIcon,
   UsersIcon,
   XIcon,
-} from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
+} from 'lucide-react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import {
   AlertDialog,
@@ -25,224 +25,202 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
-import { Switch } from '@/components/ui/switch';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { messagingClient } from '@/lib/api-client';
-import {
-  broadcastStatusVariant,
-  type StatusVariant,
-  statusLabel,
-} from './_lib/helpers';
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status'
+import { Switch } from '@/components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { messagingClient } from '@/lib/api-client'
+import { broadcastStatusVariant, type StatusVariant, statusLabel } from './_lib/helpers'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
 interface Broadcast {
-  id: string;
-  name: string;
-  channelInstanceId: string;
-  templateId: string;
-  templateName: string;
-  templateLanguage: string;
-  variableMapping: Record<string, string> | null;
-  status: string;
-  scheduledAt: string | null;
-  timezone: string | null;
-  totalRecipients: number;
-  sentCount: number;
-  deliveredCount: number;
-  readCount: number;
-  failedCount: number;
-  startedAt: string | null;
-  completedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  name: string
+  channelInstanceId: string
+  templateId: string
+  templateName: string
+  templateLanguage: string
+  variableMapping: Record<string, string> | null
+  status: string
+  scheduledAt: string | null
+  timezone: string | null
+  totalRecipients: number
+  sentCount: number
+  deliveredCount: number
+  readCount: number
+  failedCount: number
+  startedAt: string | null
+  completedAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 interface Template {
-  id: string;
-  name: string;
-  language: string;
-  category: string | null;
-  status: string | null;
-  components: string | null;
+  id: string
+  name: string
+  language: string
+  category: string | null
+  status: string | null
+  components: string | null
 }
 
 interface Recipient {
-  id: string;
-  contactId: string;
-  phone: string;
-  variables: Record<string, string> | null;
-  status: string;
-  failureReason: string | null;
-  sentAt: string | null;
+  id: string
+  contactId: string
+  phone: string
+  variables: Record<string, string> | null
+  status: string
+  failureReason: string | null
+  sentAt: string | null
 }
 
 interface UploadSummary {
-  created: number;
-  skipped: number;
-  invalid: number;
-  errors: string[];
+  created: number
+  skipped: number
+  invalid: number
+  errors: string[]
 }
 
 interface AvailableLabel {
-  id: string;
-  title: string;
-  color: string | null;
+  id: string
+  title: string
+  color: string | null
 }
 
 interface AttributeDefinition {
-  id: string;
-  key: string;
-  label: string;
-  type: string;
+  id: string
+  key: string
+  label: string
+  type: string
 }
 
 interface AudiencePreview {
-  total: number;
+  total: number
   sample: Array<{
-    id: string;
-    name: string | null;
-    phone: string | null;
-    role: string;
-  }>;
+    id: string
+    name: string | null
+    phone: string | null
+    role: string
+  }>
 }
 
-type AttributeOperator = 'eq' | '!=' | '>=' | '<=' | 'contains';
+type AttributeOperator = 'eq' | '!=' | '>=' | '<=' | 'contains'
 
-const ATTRIBUTE_OPERATORS: Array<{ value: AttributeOperator; label: string }> =
-  [
-    { value: 'eq', label: '=' },
-    { value: '!=', label: '≠' },
-    { value: '>=', label: '≥' },
-    { value: '<=', label: '≤' },
-    { value: 'contains', label: 'contains' },
-  ];
+const ATTRIBUTE_OPERATORS: Array<{ value: AttributeOperator; label: string }> = [
+  { value: 'eq', label: '=' },
+  { value: '!=', label: '≠' },
+  { value: '>=', label: '≥' },
+  { value: '<=', label: '≤' },
+  { value: 'contains', label: 'contains' },
+]
 
 interface AudienceFilter {
-  roles: string[];
-  labelIds: string[];
-  attributes: Array<{ key: string; value: string; op?: AttributeOperator }>;
-  excludeOptedOut: boolean;
+  roles: string[]
+  labelIds: string[]
+  attributes: Array<{ key: string; value: string; op?: AttributeOperator }>
+  excludeOptedOut: boolean
 }
 
 function recipientStatusVariant(status: string): StatusVariant {
   switch (status) {
     case 'queued':
-      return 'default';
+      return 'default'
     case 'sent':
-      return 'info';
+      return 'info'
     case 'delivered':
-      return 'success';
+      return 'success'
     case 'read':
-      return 'success';
+      return 'success'
     case 'failed':
-      return 'error';
+      return 'error'
     case 'skipped':
-      return 'warning';
+      return 'warning'
     default:
-      return 'default';
+      return 'default'
   }
 }
 
 // ─── Template helpers ───────────────────────────────────────────────
 
 function extractTemplateVariables(components: string | null): string[] {
-  if (!components) return [];
+  if (!components) return []
   try {
     const parsed = JSON.parse(components) as Array<{
-      type: string;
-      text?: string;
-    }>;
-    const vars: string[] = [];
+      type: string
+      text?: string
+    }>
+    const vars: string[] = []
     for (const comp of parsed) {
       if (comp.text) {
-        const matches = comp.text.match(/\{\{\d+\}\}/g);
+        const matches = comp.text.match(/\{\{\d+\}\}/g)
         if (matches) {
           for (const m of matches) {
-            if (!vars.includes(m)) vars.push(m);
+            if (!vars.includes(m)) vars.push(m)
           }
         }
       }
     }
-    return vars.sort();
+    return vars.sort()
   } catch {
-    return [];
+    return []
   }
 }
 
 function getTemplateBodyPreview(components: string | null): string {
-  if (!components) return '';
+  if (!components) return ''
   try {
     const parsed = JSON.parse(components) as Array<{
-      type: string;
-      text?: string;
-    }>;
-    const body = parsed.find((c) => c.type === 'BODY');
-    return body?.text ?? '';
+      type: string
+      text?: string
+    }>
+    const body = parsed.find((c) => c.type === 'BODY')
+    return body?.text ?? ''
   } catch {
-    return '';
+    return ''
   }
 }
 
 function parseCsvHeaders(csvText: string): string[] {
-  const firstLine = csvText.split('\n')[0];
-  if (!firstLine) return [];
-  return firstLine.split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
+  const firstLine = csvText.split('\n')[0]
+  if (!firstLine) return []
+  return firstLine.split(',').map((h) => h.trim().replace(/^"|"$/g, ''))
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function BroadcastDetailPage() {
-  const { broadcastId } = Route.useParams();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { broadcastId } = Route.useParams()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [audienceMode, setAudienceMode] = useState<'csv' | 'filter'>('csv');
+  const [audienceMode, setAudienceMode] = useState<'csv' | 'filter'>('csv')
   const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>({
     roles: [],
     labelIds: [],
     attributes: [],
     excludeOptedOut: true,
-  });
-  const [csvText, setCsvText] = useState<string | null>(null);
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(
-    null,
-  );
-  const [variableMapping, setVariableMapping] = useState<
-    Record<string, string>
-  >({});
-  const [saveAsLabel, setSaveAsLabel] = useState(false);
-  const [labelName, setLabelName] = useState('');
-  const [scheduleMode, setScheduleMode] = useState(false);
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [editingName, setEditingName] = useState<string | null>(null);
+  })
+  const [csvText, setCsvText] = useState<string | null>(null)
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+  const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null)
+  const [variableMapping, setVariableMapping] = useState<Record<string, string>>({})
+  const [saveAsLabel, setSaveAsLabel] = useState(false)
+  const [labelName, setLabelName] = useState('')
+  const [scheduleMode, setScheduleMode] = useState(false)
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [editingName, setEditingName] = useState<string | null>(null)
 
   // ─── Queries ─────────────────────────────────────────────────────
 
@@ -251,70 +229,66 @@ function BroadcastDetailPage() {
     queryFn: async () => {
       const res = await messagingClient.broadcasts[':id'].$get({
         param: { id: broadcastId },
-      });
-      if (!res.ok) throw new Error('Failed to fetch broadcast');
-      return res.json() as Promise<Broadcast>;
+      })
+      if (!res.ok) throw new Error('Failed to fetch broadcast')
+      return res.json() as Promise<Broadcast>
     },
     refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === 'sending' ? 3000 : false;
+      const status = query.state.data?.status
+      return status === 'sending' ? 3000 : false
     },
-  });
+  })
 
   const { data: templatesData } = useQuery({
     queryKey: ['messaging-templates'],
     queryFn: async () => {
-      const res = await messagingClient.templates.$get();
-      if (!res.ok) throw new Error('Failed to fetch templates');
-      const json = (await res.json()) as { templates: Template[] };
-      return json.templates;
+      const res = await messagingClient.templates.$get()
+      if (!res.ok) throw new Error('Failed to fetch templates')
+      const json = (await res.json()) as { templates: Template[] }
+      return json.templates
     },
-  });
+  })
 
   const { data: recipientsData } = useQuery({
     queryKey: ['broadcasts', broadcastId, 'recipients'],
     queryFn: async () => {
       const res = await messagingClient.broadcasts[':id'].recipients.$get({
         param: { id: broadcastId },
-      });
-      if (!res.ok) throw new Error('Failed to fetch recipients');
-      return res.json() as Promise<{ data: Recipient[]; total: number }>;
+      })
+      if (!res.ok) throw new Error('Failed to fetch recipients')
+      return res.json() as Promise<{ data: Recipient[]; total: number }>
     },
     enabled: !!broadcast,
-  });
+  })
 
   const { data: allLabels = [] } = useQuery({
     queryKey: ['labels'],
     queryFn: async () => {
-      const res = await messagingClient.labels.$get();
-      if (!res.ok) return [];
-      return res.json() as unknown as Promise<AvailableLabel[]>;
+      const res = await messagingClient.labels.$get()
+      if (!res.ok) return []
+      return res.json() as unknown as Promise<AvailableLabel[]>
     },
     staleTime: 300_000,
-  });
+  })
 
   const { data: attrDefs = [] } = useQuery({
     queryKey: ['attribute-definitions'],
     queryFn: async () => {
-      const res = await messagingClient['attribute-definitions'].$get();
-      if (!res.ok) return [];
-      const json = (await res.json()) as { data: AttributeDefinition[] };
-      return json.data;
+      const res = await messagingClient['attribute-definitions'].$get()
+      if (!res.ok) return []
+      const json = (await res.json()) as { data: AttributeDefinition[] }
+      return json.data
     },
     staleTime: 300_000,
-  });
+  })
 
   const hasActiveFilter =
-    audienceFilter.roles.length > 0 ||
-    audienceFilter.labelIds.length > 0 ||
-    audienceFilter.attributes.length > 0;
+    audienceFilter.roles.length > 0 || audienceFilter.labelIds.length > 0 || audienceFilter.attributes.length > 0
 
   const { data: audiencePreview, isFetching: isPreviewFetching } = useQuery({
     queryKey: ['broadcasts', broadcastId, 'audience-preview', audienceFilter],
     queryFn: async () => {
-      const res = await messagingClient.broadcasts[':id'][
-        'audience-preview'
-      ].$post(
+      const res = await messagingClient.broadcasts[':id']['audience-preview'].$post(
         { param: { id: broadcastId } },
         {
           init: {
@@ -322,69 +296,58 @@ function BroadcastDetailPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to preview audience');
-      return res.json() as Promise<AudiencePreview>;
+      )
+      if (!res.ok) throw new Error('Failed to preview audience')
+      return res.json() as Promise<AudiencePreview>
     },
     enabled: !!broadcast && hasActiveFilter,
-  });
+  })
 
-  const templates = templatesData ?? [];
-  const approvedTemplates = useMemo(
-    () => templates.filter((t) => t.status === 'APPROVED'),
-    [templates],
-  );
-  const recipients = recipientsData?.data ?? [];
-  const isDraft = broadcast?.status === 'draft';
-  const hasTemplate =
-    broadcast?.templateName && broadcast.templateName !== '_placeholder';
+  const templates = templatesData ?? []
+  const approvedTemplates = useMemo(() => templates.filter((t) => t.status === 'APPROVED'), [templates])
+  const recipients = recipientsData?.data ?? []
+  const isDraft = broadcast?.status === 'draft'
+  const hasTemplate = broadcast?.templateName && broadcast.templateName !== '_placeholder'
 
   const selectedTemplate = useMemo(
     () =>
       broadcast && hasTemplate
-        ? templates.find(
-            (t) =>
-              t.name === broadcast.templateName &&
-              t.language === broadcast.templateLanguage,
-          )
+        ? templates.find((t) => t.name === broadcast.templateName && t.language === broadcast.templateLanguage)
         : null,
     [broadcast, hasTemplate, templates],
-  );
+  )
 
-  const templateVars = useMemo(
-    () => extractTemplateVariables(selectedTemplate?.components ?? null),
-    [selectedTemplate],
-  );
+  const templateVars = useMemo(() => extractTemplateVariables(selectedTemplate?.components ?? null), [selectedTemplate])
 
   const bodyPreview = useMemo(() => {
-    const raw = getTemplateBodyPreview(selectedTemplate?.components ?? null);
-    if (!raw || Object.keys(variableMapping).length === 0) return raw;
-    let preview = raw;
+    const raw = getTemplateBodyPreview(selectedTemplate?.components ?? null)
+    if (!raw || Object.keys(variableMapping).length === 0) return raw
+    let preview = raw
     for (const [variable, column] of Object.entries(variableMapping)) {
       if (column) {
-        preview = preview.replace(variable, `[${column}]`);
+        preview = preview.replace(variable, `[${column}]`)
       }
     }
-    return preview;
-  }, [selectedTemplate, variableMapping]);
+    return preview
+  }, [selectedTemplate, variableMapping])
 
   // ─── Mutations ───────────────────────────────────────────────────
 
   const invalidateBroadcast = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['broadcasts', broadcastId] });
-    queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
-  }, [queryClient, broadcastId]);
+    queryClient.invalidateQueries({ queryKey: ['broadcasts', broadcastId] })
+    queryClient.invalidateQueries({ queryKey: ['broadcasts'] })
+  }, [queryClient, broadcastId])
 
   const updateMutation = useMutation({
     mutationFn: async (
       data: Partial<{
-        name: string;
-        templateId: string;
-        templateName: string;
-        templateLanguage: string;
-        variableMapping: Record<string, string>;
-        scheduledAt: string;
-        timezone: string;
+        name: string
+        templateId: string
+        templateName: string
+        templateLanguage: string
+        variableMapping: Record<string, string>
+        scheduledAt: string
+        timezone: string
       }>,
     ) => {
       const res = await messagingClient.broadcasts[':id'].$put(
@@ -395,25 +358,21 @@ function BroadcastDetailPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to update broadcast');
-      return res.json();
+      )
+      if (!res.ok) throw new Error('Failed to update broadcast')
+      return res.json()
     },
     onSuccess: () => {
-      invalidateBroadcast();
-      setEditingName(null);
+      invalidateBroadcast()
+      setEditingName(null)
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const uploadRecipientsMutation = useMutation({
-    mutationFn: async (payload: {
-      csvText: string;
-      variableMapping: Record<string, string>;
-      saveAsLabel?: string;
-    }) => {
+    mutationFn: async (payload: { csvText: string; variableMapping: Record<string, string>; saveAsLabel?: string }) => {
       const res = await messagingClient.broadcasts[':id'].recipients.$post(
         { param: { id: broadcastId } },
         {
@@ -422,27 +381,27 @@ function BroadcastDetailPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to upload recipients');
-      return res.json() as Promise<UploadSummary>;
+      )
+      if (!res.ok) throw new Error('Failed to upload recipients')
+      return res.json() as Promise<UploadSummary>
     },
     onSuccess: (summary) => {
-      setUploadSummary(summary);
-      invalidateBroadcast();
+      setUploadSummary(summary)
+      invalidateBroadcast()
       queryClient.invalidateQueries({
         queryKey: ['broadcasts', broadcastId, 'recipients'],
-      });
+      })
       if (summary.created > 0) {
-        toast.success(`${summary.created} recipients added`);
+        toast.success(`${summary.created} recipients added`)
       }
       if (summary.invalid > 0) {
-        toast.warning(`${summary.invalid} rows had invalid phone numbers`);
+        toast.warning(`${summary.invalid} rows had invalid phone numbers`)
       }
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const addFromFilterMutation = useMutation({
     mutationFn: async (filter: AudienceFilter) => {
@@ -454,45 +413,45 @@ function BroadcastDetailPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to add recipients from filter');
+      )
+      if (!res.ok) throw new Error('Failed to add recipients from filter')
       return res.json() as Promise<{
-        added: number;
-        skipped: number;
-        total: number;
-      }>;
+        added: number
+        skipped: number
+        total: number
+      }>
     },
     onSuccess: (result) => {
-      invalidateBroadcast();
+      invalidateBroadcast()
       queryClient.invalidateQueries({
         queryKey: ['broadcasts', broadcastId, 'recipients'],
-      });
-      toast.success(`${result.added} recipients added from filter`);
+      })
+      toast.success(`${result.added} recipients added from filter`)
       if (result.skipped > 0) {
-        toast.info(`${result.skipped} skipped (duplicates or no phone)`);
+        toast.info(`${result.skipped} skipped (duplicates or no phone)`)
       }
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const sendMutation = useMutation({
     mutationFn: async () => {
       const res = await messagingClient.broadcasts[':id'].send.$post({
         param: { id: broadcastId },
-      });
-      if (!res.ok) throw new Error('Failed to send broadcast');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to send broadcast')
+      return res.json()
     },
     onSuccess: () => {
-      invalidateBroadcast();
-      toast.success('Broadcast sending started');
+      invalidateBroadcast()
+      toast.success('Broadcast sending started')
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const scheduleMutation = useMutation({
     mutationFn: async (payload: { scheduledAt: string; timezone?: string }) => {
@@ -504,119 +463,115 @@ function BroadcastDetailPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to schedule broadcast');
-      return res.json();
+      )
+      if (!res.ok) throw new Error('Failed to schedule broadcast')
+      return res.json()
     },
     onSuccess: () => {
-      invalidateBroadcast();
-      toast.success('Broadcast scheduled');
+      invalidateBroadcast()
+      toast.success('Broadcast scheduled')
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
       const res = await messagingClient.broadcasts[':id'].cancel.$post({
         param: { id: broadcastId },
-      });
-      if (!res.ok) throw new Error('Failed to cancel broadcast');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to cancel broadcast')
+      return res.json()
     },
     onSuccess: () => {
-      invalidateBroadcast();
-      toast.success('Broadcast cancelled');
+      invalidateBroadcast()
+      toast.success('Broadcast cancelled')
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const retryMutation = useMutation({
     mutationFn: async () => {
-      const res = await messagingClient.broadcasts[':id']['retry-failed'].$post(
-        { param: { id: broadcastId } },
-      );
-      if (!res.ok) throw new Error('Failed to retry');
-      return res.json() as Promise<{ ok: boolean; retryCount: number }>;
+      const res = await messagingClient.broadcasts[':id']['retry-failed'].$post({ param: { id: broadcastId } })
+      if (!res.ok) throw new Error('Failed to retry')
+      return res.json() as Promise<{ ok: boolean; retryCount: number }>
     },
     onSuccess: (data) => {
-      invalidateBroadcast();
+      invalidateBroadcast()
       queryClient.invalidateQueries({
         queryKey: ['broadcasts', broadcastId, 'recipients'],
-      });
-      toast.success(`Retrying ${data.retryCount} failed recipients`);
+      })
+      toast.success(`Retrying ${data.retryCount} failed recipients`)
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const res = await messagingClient.broadcasts[':id'].$delete({
         param: { id: broadcastId },
-      });
-      if (!res.ok) throw new Error('Failed to delete broadcast');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to delete broadcast')
+      return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
-      toast.success('Broadcast deleted');
-      navigate({ to: '/messaging/campaigns/broadcasts' });
+      queryClient.invalidateQueries({ queryKey: ['broadcasts'] })
+      toast.success('Broadcast deleted')
+      navigate({ to: '/messaging/campaigns/broadcasts' })
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   // ─── Handlers ────────────────────────────────────────────────────
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
     reader.onload = () => {
-      const text = reader.result as string;
-      setCsvText(text);
-      setCsvHeaders(parseCsvHeaders(text));
-      setUploadSummary(null);
-    };
-    reader.readAsText(file);
+      const text = reader.result as string
+      setCsvText(text)
+      setCsvHeaders(parseCsvHeaders(text))
+      setUploadSummary(null)
+    }
+    reader.readAsText(file)
   }
 
   function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    const reader = new FileReader();
+    e.preventDefault()
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    const reader = new FileReader()
     reader.onload = () => {
-      const text = reader.result as string;
-      setCsvText(text);
-      setCsvHeaders(parseCsvHeaders(text));
-      setUploadSummary(null);
-    };
-    reader.readAsText(file);
+      const text = reader.result as string
+      setCsvText(text)
+      setCsvHeaders(parseCsvHeaders(text))
+      setUploadSummary(null)
+    }
+    reader.readAsText(file)
   }
 
   function handleUploadRecipients() {
-    if (!csvText) return;
+    if (!csvText) return
     uploadRecipientsMutation.mutate({
       csvText,
       variableMapping,
       saveAsLabel: saveAsLabel && labelName ? labelName : undefined,
-    });
+    })
   }
 
   function handleTemplateSelect(templateKey: string) {
     // templateKey is "name::language" to handle uniqueness
-    const [name, language] = templateKey.split('::');
-    const tmpl = approvedTemplates.find(
-      (t) => t.name === name && t.language === language,
-    );
-    if (!tmpl || !broadcast) return;
+    const [name, language] = templateKey.split('::')
+    const tmpl = approvedTemplates.find((t) => t.name === name && t.language === language)
+    if (!tmpl || !broadcast) return
 
     updateMutation.mutate({
       templateId: tmpl.id,
@@ -624,13 +579,13 @@ function BroadcastDetailPage() {
       templateLanguage: tmpl.language,
       // Auto-update name if still untitled
       ...(broadcast.name === 'Untitled Broadcast' && { name: tmpl.name }),
-    });
+    })
     // Reset variable mapping when template changes
-    setVariableMapping({});
+    setVariableMapping({})
   }
 
   function handleSendNow() {
-    sendMutation.mutate();
+    sendMutation.mutate()
   }
 
   // ─── Loading ─────────────────────────────────────────────────────
@@ -640,35 +595,27 @@ function BroadcastDetailPage() {
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="text-muted-foreground">Loading broadcast...</div>
       </div>
-    );
+    )
   }
 
   const progressPercent =
-    broadcast.totalRecipients > 0
-      ? Math.round((broadcast.sentCount / broadcast.totalRecipients) * 100)
-      : 0;
+    broadcast.totalRecipients > 0 ? Math.round((broadcast.sentCount / broadcast.totalRecipients) * 100) : 0
 
   const showProgress =
     broadcast.status === 'sending' ||
     broadcast.status === 'completed' ||
     broadcast.status === 'paused' ||
-    broadcast.status === 'failed';
+    broadcast.status === 'failed'
 
-  const canSend = isDraft && hasTemplate && broadcast.totalRecipients > 0;
+  const canSend = isDraft && hasTemplate && broadcast.totalRecipients > 0
 
-  const canCancel =
-    broadcast.status === 'scheduled' || broadcast.status === 'sending';
+  const canCancel = broadcast.status === 'scheduled' || broadcast.status === 'sending'
 
-  const canDelete =
-    broadcast.status === 'draft' || broadcast.status === 'cancelled';
+  const canDelete = broadcast.status === 'draft' || broadcast.status === 'cancelled'
 
-  const canRetry =
-    broadcast.failedCount > 0 &&
-    (broadcast.status === 'completed' || broadcast.status === 'failed');
+  const canRetry = broadcast.failedCount > 0 && (broadcast.status === 'completed' || broadcast.status === 'failed')
 
-  const templateKey = hasTemplate
-    ? `${broadcast.templateName}::${broadcast.templateLanguage}`
-    : undefined;
+  const templateKey = hasTemplate ? `${broadcast.templateName}::${broadcast.templateLanguage}` : undefined
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
@@ -695,16 +642,16 @@ function BroadcastDetailPage() {
                   onChange={(e) => setEditingName(e.target.value)}
                   onBlur={() => {
                     if (editingName && editingName !== broadcast.name) {
-                      updateMutation.mutate({ name: editingName });
+                      updateMutation.mutate({ name: editingName })
                     } else {
-                      setEditingName(null);
+                      setEditingName(null)
                     }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && editingName) {
-                      updateMutation.mutate({ name: editingName });
+                      updateMutation.mutate({ name: editingName })
                     }
-                    if (e.key === 'Escape') setEditingName(null);
+                    if (e.key === 'Escape') setEditingName(null)
                   }}
                   className="text-xl font-bold h-auto py-1 px-2"
                   autoFocus
@@ -717,8 +664,8 @@ function BroadcastDetailPage() {
                   onClick={() => isDraft && setEditingName(broadcast.name)}
                   onKeyDown={(e) => {
                     if (isDraft && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault();
-                      setEditingName(broadcast.name);
+                      e.preventDefault()
+                      setEditingName(broadcast.name)
                     }
                   }}
                 >
@@ -746,10 +693,7 @@ function BroadcastDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {isDraft ? (
-                <Select
-                  value={templateKey}
-                  onValueChange={handleTemplateSelect}
-                >
+                <Select value={templateKey} onValueChange={handleTemplateSelect}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a template" />
                   </SelectTrigger>
@@ -757,24 +701,15 @@ function BroadcastDetailPage() {
                     {approvedTemplates.length === 0 ? (
                       <div className="p-3 text-sm text-muted-foreground text-center">
                         No approved templates.{' '}
-                        <Link
-                          to="/messaging/templates"
-                          className="underline hover:text-foreground"
-                        >
+                        <Link to="/messaging/templates" className="underline hover:text-foreground">
                           Sync or create templates
                         </Link>{' '}
                         first.
                       </div>
                     ) : (
                       approvedTemplates.map((t) => (
-                        <SelectItem
-                          key={`${t.name}::${t.language}`}
-                          value={`${t.name}::${t.language}`}
-                        >
-                          {t.name}{' '}
-                          <span className="text-muted-foreground">
-                            ({t.language})
-                          </span>
+                        <SelectItem key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>
+                          {t.name} <span className="text-muted-foreground">({t.language})</span>
                         </SelectItem>
                       ))
                     )}
@@ -782,24 +717,17 @@ function BroadcastDetailPage() {
                 </Select>
               ) : (
                 <div className="text-sm">
-                  <span className="font-mono font-medium">
-                    {broadcast.templateName}
-                  </span>
-                  <span className="text-muted-foreground ml-1.5">
-                    ({broadcast.templateLanguage})
-                  </span>
+                  <span className="font-mono font-medium">{broadcast.templateName}</span>
+                  <span className="text-muted-foreground ml-1.5">({broadcast.templateLanguage})</span>
                 </div>
               )}
               {selectedTemplate && (
                 <div className="rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">
-                  {bodyPreview ||
-                    getTemplateBodyPreview(selectedTemplate.components)}
+                  {bodyPreview || getTemplateBodyPreview(selectedTemplate.components)}
                 </div>
               )}
               {isDraft && !hasTemplate && (
-                <p className="text-sm text-muted-foreground">
-                  Select an approved template to continue.
-                </p>
+                <p className="text-sm text-muted-foreground">Select an approved template to continue.</p>
               )}
             </CardContent>
           </Card>
@@ -821,9 +749,7 @@ function BroadcastDetailPage() {
                       CSV Upload
                     </Button>
                     <Button
-                      variant={
-                        audienceMode === 'filter' ? 'secondary' : 'ghost'
-                      }
+                      variant={audienceMode === 'filter' ? 'secondary' : 'ghost'}
                       size="sm"
                       className="h-7 text-xs gap-1.5"
                       onClick={() => setAudienceMode('filter')}
@@ -846,13 +772,10 @@ function BroadcastDetailPage() {
                     >
                       <UploadIcon className="size-6 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
-                        {csvText
-                          ? `CSV loaded (${csvHeaders.length} columns)`
-                          : 'Drop a CSV file or click to upload'}
+                        {csvText ? `CSV loaded (${csvHeaders.length} columns)` : 'Drop a CSV file or click to upload'}
                       </p>
                       <p className="text-xs text-muted-foreground/70">
-                        CSV must have a column named phone, phone_number,
-                        mobile, or whatsapp
+                        CSV must have a column named phone, phone_number, mobile, or whatsapp
                       </p>
                     </button>
                     <input
@@ -867,14 +790,10 @@ function BroadcastDetailPage() {
                       <>
                         {templateVars.length > 0 && (
                           <div className="space-y-3">
-                            <Label className="text-sm font-medium">
-                              Variable Mapping
-                            </Label>
+                            <Label className="text-sm font-medium">Variable Mapping</Label>
                             {templateVars.map((v) => (
                               <div key={v} className="flex items-center gap-3">
-                                <span className="text-sm font-mono w-16 shrink-0">
-                                  {v}
-                                </span>
+                                <span className="text-sm font-mono w-16 shrink-0">{v}</span>
                                 <Select
                                   value={variableMapping[v] ?? ''}
                                   onValueChange={(col) =>
@@ -904,14 +823,9 @@ function BroadcastDetailPage() {
                           <Checkbox
                             id="save-label"
                             checked={saveAsLabel}
-                            onCheckedChange={(checked) =>
-                              setSaveAsLabel(checked === true)
-                            }
+                            onCheckedChange={(checked) => setSaveAsLabel(checked === true)}
                           />
-                          <Label
-                            htmlFor="save-label"
-                            className="text-sm text-muted-foreground cursor-pointer"
-                          >
+                          <Label htmlFor="save-label" className="text-sm text-muted-foreground cursor-pointer">
                             Save imported contacts as label
                           </Label>
                           {saveAsLabel && (
@@ -930,9 +844,7 @@ function BroadcastDetailPage() {
                           disabled={uploadRecipientsMutation.isPending}
                         >
                           <UploadIcon className="size-3.5 mr-1.5" />
-                          {uploadRecipientsMutation.isPending
-                            ? 'Uploading...'
-                            : 'Upload Recipients'}
+                          {uploadRecipientsMutation.isPending ? 'Uploading...' : 'Upload Recipients'}
                         </Button>
                       </>
                     )}
@@ -940,24 +852,17 @@ function BroadcastDetailPage() {
                     {uploadSummary && (
                       <div className="rounded-md border p-3 text-sm space-y-1">
                         <p>
-                          <span className="font-medium">
-                            {uploadSummary.created}
-                          </span>{' '}
-                          added
+                          <span className="font-medium">{uploadSummary.created}</span> added
                           {uploadSummary.skipped > 0 && (
                             <>
                               {' / '}
-                              <span className="text-muted-foreground">
-                                {uploadSummary.skipped} opted-out
-                              </span>
+                              <span className="text-muted-foreground">{uploadSummary.skipped} opted-out</span>
                             </>
                           )}
                           {uploadSummary.invalid > 0 && (
                             <>
                               {' / '}
-                              <span className="text-destructive">
-                                {uploadSummary.invalid} invalid
-                              </span>
+                              <span className="text-destructive">{uploadSummary.invalid} invalid</span>
                             </>
                           )}
                         </p>
@@ -971,9 +876,7 @@ function BroadcastDetailPage() {
                                 <li key={err}>{err}</li>
                               ))}
                               {uploadSummary.errors.length > 10 && (
-                                <li>
-                                  ...and {uploadSummary.errors.length - 10} more
-                                </li>
+                                <li>...and {uploadSummary.errors.length - 10} more</li>
                               )}
                             </ul>
                           </details>
@@ -986,51 +889,38 @@ function BroadcastDetailPage() {
                   <div className="space-y-4">
                     {/* Role filter */}
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium">
-                        Filter by role
-                      </Label>
+                      <Label className="text-sm font-medium">Filter by role</Label>
                       <div className="flex flex-wrap gap-2">
-                        {(['customer', 'lead', 'staff'] as const).map(
-                          (role) => {
-                            const selected =
-                              audienceFilter.roles.includes(role);
-                            return (
-                              <button
-                                key={role}
-                                type="button"
-                                onClick={() =>
-                                  setAudienceFilter((prev) => ({
-                                    ...prev,
-                                    roles: selected
-                                      ? prev.roles.filter((r) => r !== role)
-                                      : [...prev.roles, role],
-                                  }))
-                                }
-                                className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
-                                  selected
-                                    ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'hover:bg-muted'
-                                }`}
-                              >
-                                {role}
-                              </button>
-                            );
-                          },
-                        )}
+                        {(['customer', 'lead', 'staff'] as const).map((role) => {
+                          const selected = audienceFilter.roles.includes(role)
+                          return (
+                            <button
+                              key={role}
+                              type="button"
+                              onClick={() =>
+                                setAudienceFilter((prev) => ({
+                                  ...prev,
+                                  roles: selected ? prev.roles.filter((r) => r !== role) : [...prev.roles, role],
+                                }))
+                              }
+                              className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
+                                selected ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'
+                              }`}
+                            >
+                              {role}
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
 
                     {/* Label filter */}
                     {allLabels.length > 0 && (
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">
-                          Filter by labels
-                        </Label>
+                        <Label className="text-sm font-medium">Filter by labels</Label>
                         <div className="flex flex-wrap gap-1.5">
                           {allLabels.map((label) => {
-                            const selected = audienceFilter.labelIds.includes(
-                              label.id,
-                            );
+                            const selected = audienceFilter.labelIds.includes(label.id)
                             return (
                               <button
                                 key={label.id}
@@ -1039,16 +929,12 @@ function BroadcastDetailPage() {
                                   setAudienceFilter((prev) => ({
                                     ...prev,
                                     labelIds: selected
-                                      ? prev.labelIds.filter(
-                                          (id) => id !== label.id,
-                                        )
+                                      ? prev.labelIds.filter((id) => id !== label.id)
                                       : [...prev.labelIds, label.id],
                                   }))
                                 }
                                 className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
-                                  selected
-                                    ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'hover:bg-muted'
+                                  selected ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'
                                 }`}
                               >
                                 <span
@@ -1059,7 +945,7 @@ function BroadcastDetailPage() {
                                 />
                                 {label.title}
                               </button>
-                            );
+                            )
                           })}
                         </div>
                       </div>
@@ -1068,22 +954,15 @@ function BroadcastDetailPage() {
                     {/* Attribute filters */}
                     {attrDefs.length > 0 && (
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">
-                          Filter by attributes
-                        </Label>
+                        <Label className="text-sm font-medium">Filter by attributes</Label>
                         {audienceFilter.attributes.map((attr, idx) => (
-                          <div
-                            key={`attr-${idx.toString()}`}
-                            className="flex items-center gap-2"
-                          >
+                          <div key={`attr-${idx.toString()}`} className="flex items-center gap-2">
                             <Select
                               value={attr.key}
                               onValueChange={(key) =>
                                 setAudienceFilter((prev) => ({
                                   ...prev,
-                                  attributes: prev.attributes.map((a, i) =>
-                                    i === idx ? { ...a, key } : a,
-                                  ),
+                                  attributes: prev.attributes.map((a, i) => (i === idx ? { ...a, key } : a)),
                                 }))
                               }
                             >
@@ -1104,9 +983,7 @@ function BroadcastDetailPage() {
                                 setAudienceFilter((prev) => ({
                                   ...prev,
                                   attributes: prev.attributes.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, op: op as AttributeOperator }
-                                      : a,
+                                    i === idx ? { ...a, op: op as AttributeOperator } : a,
                                   ),
                                 }))
                               }
@@ -1128,9 +1005,7 @@ function BroadcastDetailPage() {
                                 setAudienceFilter((prev) => ({
                                   ...prev,
                                   attributes: prev.attributes.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, value: e.target.value }
-                                      : a,
+                                    i === idx ? { ...a, value: e.target.value } : a,
                                   ),
                                 }))
                               }
@@ -1144,9 +1019,7 @@ function BroadcastDetailPage() {
                               onClick={() =>
                                 setAudienceFilter((prev) => ({
                                   ...prev,
-                                  attributes: prev.attributes.filter(
-                                    (_, i) => i !== idx,
-                                  ),
+                                  attributes: prev.attributes.filter((_, i) => i !== idx),
                                 }))
                               }
                             >
@@ -1189,10 +1062,7 @@ function BroadcastDetailPage() {
                           }))
                         }
                       />
-                      <Label
-                        htmlFor="exclude-opted-out"
-                        className="text-sm text-muted-foreground cursor-pointer"
-                      >
+                      <Label htmlFor="exclude-opted-out" className="text-sm text-muted-foreground cursor-pointer">
                         Exclude marketing opt-outs
                       </Label>
                     </div>
@@ -1206,39 +1076,26 @@ function BroadcastDetailPage() {
                           <div className="flex items-center gap-2">
                             <UsersIcon className="size-4 text-muted-foreground" />
                             <span className="text-sm font-medium">
-                              {isPreviewFetching
-                                ? 'Counting...'
-                                : `${audiencePreview?.total ?? 0} contacts match`}
+                              {isPreviewFetching ? 'Counting...' : `${audiencePreview?.total ?? 0} contacts match`}
                             </span>
                           </div>
                         </div>
-                        {audiencePreview &&
-                          audiencePreview.sample.length > 0 && (
-                            <div className="text-xs text-muted-foreground space-y-0.5">
-                              {audiencePreview.sample.slice(0, 5).map((c) => (
-                                <div
-                                  key={c.id}
-                                  className="flex items-center gap-2"
-                                >
-                                  <span className="font-medium text-foreground">
-                                    {c.name ?? c.phone ?? c.id}
-                                  </span>
-                                  <span>{c.phone}</span>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] capitalize"
-                                  >
-                                    {c.role}
-                                  </Badge>
-                                </div>
-                              ))}
-                              {audiencePreview.total > 5 && (
-                                <p className="text-muted-foreground/60">
-                                  ...and {audiencePreview.total - 5} more
-                                </p>
-                              )}
-                            </div>
-                          )}
+                        {audiencePreview && audiencePreview.sample.length > 0 && (
+                          <div className="text-xs text-muted-foreground space-y-0.5">
+                            {audiencePreview.sample.slice(0, 5).map((c) => (
+                              <div key={c.id} className="flex items-center gap-2">
+                                <span className="font-medium text-foreground">{c.name ?? c.phone ?? c.id}</span>
+                                <span>{c.phone}</span>
+                                <Badge variant="outline" className="text-[10px] capitalize">
+                                  {c.role}
+                                </Badge>
+                              </div>
+                            ))}
+                            {audiencePreview.total > 5 && (
+                              <p className="text-muted-foreground/60">...and {audiencePreview.total - 5} more</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1250,9 +1107,7 @@ function BroadcastDetailPage() {
 
                     <Button
                       size="sm"
-                      onClick={() =>
-                        addFromFilterMutation.mutate(audienceFilter)
-                      }
+                      onClick={() => addFromFilterMutation.mutate(audienceFilter)}
                       disabled={
                         !hasActiveFilter ||
                         addFromFilterMutation.isPending ||
@@ -1261,9 +1116,7 @@ function BroadcastDetailPage() {
                       }
                     >
                       <UsersIcon className="size-3.5 mr-1.5" />
-                      {addFromFilterMutation.isPending
-                        ? 'Adding...'
-                        : `Add ${audiencePreview?.total ?? 0} recipients`}
+                      {addFromFilterMutation.isPending ? 'Adding...' : `Add ${audiencePreview?.total ?? 0} recipients`}
                     </Button>
                   </div>
                 )}
@@ -1275,9 +1128,7 @@ function BroadcastDetailPage() {
           {recipients.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">
-                  Recipients ({recipientsData?.total ?? recipients.length})
-                </CardTitle>
+                <CardTitle className="text-base">Recipients ({recipientsData?.total ?? recipients.length})</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border">
@@ -1293,9 +1144,7 @@ function BroadcastDetailPage() {
                     <TableBody>
                       {recipients.map((r) => (
                         <TableRow key={r.id}>
-                          <TableCell className="font-mono text-sm">
-                            {r.phone}
-                          </TableCell>
+                          <TableCell className="font-mono text-sm">{r.phone}</TableCell>
                           <TableCell>
                             <Status variant={recipientStatusVariant(r.status)}>
                               <StatusIndicator />
@@ -1303,9 +1152,7 @@ function BroadcastDetailPage() {
                             </Status>
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
-                            {r.variables
-                              ? Object.values(r.variables).join(', ')
-                              : '-'}
+                            {r.variables ? Object.values(r.variables).join(', ') : '-'}
                           </TableCell>
                           <TableCell>
                             {r.sentAt ? (
@@ -1335,15 +1182,8 @@ function BroadcastDetailPage() {
               {canSend && (
                 <>
                   <div className="flex items-center gap-2">
-                    <Switch
-                      id="schedule-toggle"
-                      checked={scheduleMode}
-                      onCheckedChange={setScheduleMode}
-                    />
-                    <Label
-                      htmlFor="schedule-toggle"
-                      className="text-sm flex items-center gap-1.5 cursor-pointer"
-                    >
+                    <Switch id="schedule-toggle" checked={scheduleMode} onCheckedChange={setScheduleMode} />
+                    <Label htmlFor="schedule-toggle" className="text-sm flex items-center gap-1.5 cursor-pointer">
                       <CalendarIcon className="size-3.5" />
                       Schedule for later
                     </Label>
@@ -1358,8 +1198,7 @@ function BroadcastDetailPage() {
                         min={new Date().toISOString().slice(0, 16)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Your timezone:{' '}
-                        {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                        Your timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
                       </p>
                     </div>
                   )}
@@ -1370,16 +1209,13 @@ function BroadcastDetailPage() {
                       onClick={() =>
                         scheduleMutation.mutate({
                           scheduledAt: new Date(scheduledAt).toISOString(),
-                          timezone:
-                            Intl.DateTimeFormat().resolvedOptions().timeZone,
+                          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                         })
                       }
                       disabled={scheduleMutation.isPending || !scheduledAt}
                     >
                       <CalendarIcon className="size-3.5" />
-                      {scheduleMutation.isPending
-                        ? 'Scheduling...'
-                        : 'Schedule Broadcast'}
+                      {scheduleMutation.isPending ? 'Scheduling...' : 'Schedule Broadcast'}
                     </Button>
                   ) : (
                     <AlertDialog>
@@ -1394,21 +1230,14 @@ function BroadcastDetailPage() {
                           <AlertDialogTitle>Send broadcast?</AlertDialogTitle>
                           <AlertDialogDescription>
                             This will send the template message to{' '}
-                            <span className="font-medium text-foreground">
-                              {broadcast.totalRecipients}
-                            </span>{' '}
-                            recipients. This action cannot be undone.
+                            <span className="font-medium text-foreground">{broadcast.totalRecipients}</span> recipients.
+                            This action cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={handleSendNow}
-                            disabled={sendMutation.isPending}
-                          >
-                            {sendMutation.isPending
-                              ? 'Starting...'
-                              : 'Send Now'}
+                          <AlertDialogAction onClick={handleSendNow} disabled={sendMutation.isPending}>
+                            {sendMutation.isPending ? 'Starting...' : 'Send Now'}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -1418,15 +1247,11 @@ function BroadcastDetailPage() {
               )}
 
               {isDraft && !hasTemplate && (
-                <p className="text-sm text-muted-foreground text-center py-2">
-                  Select a template to get started.
-                </p>
+                <p className="text-sm text-muted-foreground text-center py-2">Select a template to get started.</p>
               )}
 
               {isDraft && hasTemplate && broadcast.totalRecipients === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-2">
-                  Upload a CSV to add recipients.
-                </p>
+                <p className="text-sm text-muted-foreground text-center py-2">Upload a CSV to add recipients.</p>
               )}
 
               {broadcast.status === 'scheduled' && broadcast.scheduledAt && (
@@ -1474,8 +1299,7 @@ function BroadcastDetailPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete broadcast?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will permanently delete this broadcast and all its
-                        recipient data.
+                        This will permanently delete this broadcast and all its recipient data.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -1512,34 +1336,24 @@ function BroadcastDetailPage() {
                 <Separator />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="text-center">
-                    <p className="text-2xl font-bold tabular-nums">
-                      {broadcast.totalRecipients}
-                    </p>
+                    <p className="text-2xl font-bold tabular-nums">{broadcast.totalRecipients}</p>
                     <p className="text-xs text-muted-foreground">Total</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold tabular-nums">
-                      {broadcast.sentCount}
-                    </p>
+                    <p className="text-2xl font-bold tabular-nums">{broadcast.sentCount}</p>
                     <p className="text-xs text-muted-foreground">Sent</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold tabular-nums">
-                      {broadcast.deliveredCount}
-                    </p>
+                    <p className="text-2xl font-bold tabular-nums">{broadcast.deliveredCount}</p>
                     <p className="text-xs text-muted-foreground">Delivered</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold tabular-nums">
-                      {broadcast.readCount}
-                    </p>
+                    <p className="text-2xl font-bold tabular-nums">{broadcast.readCount}</p>
                     <p className="text-xs text-muted-foreground">Read</p>
                   </div>
                   {broadcast.failedCount > 0 && (
                     <div className="text-center col-span-2">
-                      <p className="text-2xl font-bold tabular-nums text-destructive">
-                        {broadcast.failedCount}
-                      </p>
+                      <p className="text-2xl font-bold tabular-nums text-destructive">{broadcast.failedCount}</p>
                       <p className="text-xs text-muted-foreground">Failed</p>
                     </div>
                   )}
@@ -1550,11 +1364,9 @@ function BroadcastDetailPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export const Route = createFileRoute(
-  '/_app/messaging/campaigns/broadcasts/$broadcastId',
-)({
+export const Route = createFileRoute('/_app/messaging/campaigns/broadcasts/$broadcastId')({
   component: BroadcastDetailPage,
-});
+})

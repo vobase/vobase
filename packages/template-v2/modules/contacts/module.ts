@@ -1,4 +1,5 @@
 import type { ModuleDef } from '@server/common/module-def'
+
 import handlers from './handlers'
 import { createAttrDefService, installAttrDefService } from './service/attribute-definitions'
 import { createContactsService, installContactsService } from './service/contacts'

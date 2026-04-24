@@ -1,24 +1,14 @@
-import { nanoidPrimaryKey } from '@vobase/core/schema';
-import { sql } from 'drizzle-orm';
-import {
-  check,
-  customType,
-  index,
-  integer,
-  jsonb,
-  pgSchema,
-  text,
-  timestamp,
-  vector,
-} from 'drizzle-orm/pg-core';
+import { nanoidPrimaryKey } from '@vobase/core/schema'
+import { sql } from 'drizzle-orm'
+import { check, customType, index, integer, jsonb, pgSchema, text, timestamp, vector } from 'drizzle-orm/pg-core'
 
 const tsvector = customType<{ data: string }>({
   dataType() {
-    return 'tsvector';
+    return 'tsvector'
   },
-});
+})
 
-export const kbPgSchema = pgSchema('kb');
+export const kbPgSchema = pgSchema('kb')
 
 export const kbSources = kbPgSchema.table(
   'sources',
@@ -30,9 +20,7 @@ export const kbSources = kbPgSchema.table(
     syncSchedule: text('sync_schedule'), // cron expression
     lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
     status: text('status').notNull().default('idle'), // idle | syncing | error
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()
@@ -40,13 +28,10 @@ export const kbSources = kbPgSchema.table(
   },
   (table) => [
     index('sources_status_idx').on(table.status),
-    check(
-      'sources_type_check',
-      sql`type IN ('crawl', 'google-drive', 'sharepoint')`,
-    ),
+    check('sources_type_check', sql`type IN ('crawl', 'google-drive', 'sharepoint')`),
     check('sources_status_check', sql`status IN ('idle', 'syncing', 'error')`),
   ],
-);
+)
 
 export const kbDocuments = kbPgSchema.table(
   'documents',
@@ -65,9 +50,7 @@ export const kbDocuments = kbPgSchema.table(
     metadata: text('metadata'), // JSON
     content: jsonb('content'), // Plate Value (JSON AST)
     rawContent: jsonb('raw_content'), // immutable original extraction
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()
@@ -76,19 +59,11 @@ export const kbDocuments = kbPgSchema.table(
   (table) => [
     index('documents_source_id_idx').on(table.sourceId),
     index('documents_folder_idx').on(table.folder),
-    index('documents_pending_idx')
-      .on(table.status)
-      .where(sql`status IN ('pending', 'processing')`),
-    check(
-      'documents_status_check',
-      sql`status IN ('pending', 'processing', 'ready', 'error', 'needs_ocr')`,
-    ),
-    check(
-      'documents_source_type_check',
-      sql`source_type IN ('upload', 'crawl', 'google-drive', 'sharepoint')`,
-    ),
+    index('documents_pending_idx').on(table.status).where(sql`status IN ('pending', 'processing')`),
+    check('documents_status_check', sql`status IN ('pending', 'processing', 'ready', 'error', 'needs_ocr')`),
+    check('documents_source_type_check', sql`source_type IN ('upload', 'crawl', 'google-drive', 'sharepoint')`),
   ],
-);
+)
 
 export const kbChunks = kbPgSchema.table(
   'chunks',
@@ -102,22 +77,15 @@ export const kbChunks = kbPgSchema.table(
     tokenCount: integer('token_count').notNull().default(0),
     metadata: text('metadata'), // JSON
     embedding: vector('embedding', { dimensions: 1536 }),
-    searchVector: tsvector('search_vector').generatedAlwaysAs(
-      sql`to_tsvector('english', content)`,
-    ),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    searchVector: tsvector('search_vector').generatedAlwaysAs(sql`to_tsvector('english', content)`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('chunks_document_id_idx').on(table.documentId),
-    index('chunks_embedding_idx').using(
-      'hnsw',
-      table.embedding.op('vector_cosine_ops'),
-    ),
+    index('chunks_embedding_idx').using('hnsw', table.embedding.op('vector_cosine_ops')),
     index('chunks_search_vector_idx').using('gin', table.searchVector),
   ],
-);
+)
 
 export const kbSyncLogs = kbPgSchema.table(
   'sync_logs',
@@ -129,16 +97,11 @@ export const kbSyncLogs = kbPgSchema.table(
     status: text('status').notNull(), // running | completed | error
     documentsProcessed: integer('documents_processed').notNull().default(0),
     errors: text('errors'), // JSON
-    startedAt: timestamp('started_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),
   },
   (table) => [
     index('sync_logs_source_id_idx').on(table.sourceId),
-    check(
-      'sync_logs_status_check',
-      sql`status IN ('running', 'completed', 'error')`,
-    ),
+    check('sync_logs_status_check', sql`status IN ('running', 'completed', 'error')`),
   ],
-);
+)

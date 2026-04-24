@@ -1,20 +1,20 @@
-import { type CreateAppConfig, createSmtpAdapter } from '@vobase/core';
+import { type CreateAppConfig, createSmtpAdapter } from '@vobase/core'
 
-import { devAuth } from './modules/system/dev-auth-plugin';
-import { renderInvitationEmail, renderOtpEmail } from './modules/system/emails';
-import { platformAuth } from './modules/system/platform-auth-plugin';
+import { devAuth } from './modules/system/dev-auth-plugin'
+import { renderInvitationEmail, renderOtpEmail } from './modules/system/emails'
+import { platformAuth } from './modules/system/platform-auth-plugin'
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error('DATABASE_URL is required');
+const databaseUrl = process.env.DATABASE_URL
+if (!databaseUrl) throw new Error('DATABASE_URL is required')
 
-const smtpHost = process.env.SMTP_HOST;
-const smtpPort = Number(process.env.SMTP_PORT || 1025);
-const smtpFrom = process.env.SMTP_FROM || 'noreply@vobase.local';
+const smtpHost = process.env.SMTP_HOST
+const smtpPort = Number(process.env.SMTP_PORT || 1025)
+const smtpFrom = process.env.SMTP_FROM || 'noreply@vobase.local'
 
 if (!smtpHost) {
   console.warn(
     '⚠ SMTP_HOST is not set — email OTP sign-in will not work. Set SMTP_HOST in .env (use MailDev for local dev).',
-  );
+  )
 }
 
 const smtpAdapter = smtpHost
@@ -29,10 +29,10 @@ const smtpAdapter = smtpHost
         },
       }),
     })
-  : null;
+  : null
 
 /** Server-side branding. See also: src/lib/branding.ts (client-side equivalent). */
-export const productName = process.env.VITE_PRODUCT_NAME || 'Vobase';
+export const productName = process.env.VITE_PRODUCT_NAME || 'Vobase'
 
 const extraPlugins = [
   ...(process.env.NODE_ENV !== 'production' ? [devAuth()] : []),
@@ -41,14 +41,12 @@ const extraPlugins = [
         platformAuth({
           hmacSecret: process.env.PLATFORM_HMAC_SECRET,
           ...(process.env.VITE_ALLOWED_EMAIL_DOMAINS && {
-            allowedEmailDomains: process.env.VITE_ALLOWED_EMAIL_DOMAINS.split(
-              ',',
-            ).map((d) => d.trim()),
+            allowedEmailDomains: process.env.VITE_ALLOWED_EMAIL_DOMAINS.split(',').map((d) => d.trim()),
           }),
         }),
       ]
     : []),
-];
+]
 
 const config: Omit<CreateAppConfig, 'modules'> = {
   database: databaseUrl,
@@ -81,38 +79,31 @@ const config: Omit<CreateAppConfig, 'modules'> = {
     multiOrg: process.env.MULTI_ORG === 'true',
     teams: true,
     ...(process.env.VITE_ALLOWED_EMAIL_DOMAINS && {
-      allowedEmailDomains: process.env.VITE_ALLOWED_EMAIL_DOMAINS.split(
-        ',',
-      ).map((d) => d.trim()),
+      allowedEmailDomains: process.env.VITE_ALLOWED_EMAIL_DOMAINS.split(',').map((d) => d.trim()),
     }),
     ...(extraPlugins.length > 0 && { extraPlugins }),
     ...(smtpAdapter && {
       sendVerificationOTP: async ({ email, otp, type }) => {
-        const html = await renderOtpEmail({ otp, type });
+        const html = await renderOtpEmail({ otp, type })
         await smtpAdapter.send({
           to: email,
           subject: `[${productName}] Your sign-in verification code`,
           html,
-        });
+        })
       },
-      sendInvitationEmail: async ({
-        email,
-        inviterName,
-        organizationName,
-        invitationId,
-      }) => {
-        const baseUrl = process.env.BETTER_AUTH_URL || 'http://localhost:5173';
-        const signInUrl = `${baseUrl}/login?invitationId=${invitationId}`;
+      sendInvitationEmail: async ({ email, inviterName, organizationName, invitationId }) => {
+        const baseUrl = process.env.BETTER_AUTH_URL || 'http://localhost:5173'
+        const signInUrl = `${baseUrl}/login?invitationId=${invitationId}`
         const html = await renderInvitationEmail({
           inviterName,
           organizationName,
           signInUrl,
-        });
+        })
         await smtpAdapter.send({
           to: email,
           subject: `[${productName}] You've been invited to ${organizationName}`,
           html,
-        });
+        })
       },
     }),
   },
@@ -149,6 +140,6 @@ const config: Omit<CreateAppConfig, 'modules'> = {
   //     dedup: true,
   //   },
   // },
-};
+}
 
-export default config;
+export default config

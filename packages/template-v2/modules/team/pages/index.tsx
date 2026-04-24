@@ -14,6 +14,7 @@ import {
 } from '@tanstack/react-table'
 import { Send, Settings2, Users2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+
 import { DataTable } from '@/components/data-table/data-table'
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header'
 import { DataTableSkeleton } from '@/components/data-table/data-table-skeleton'

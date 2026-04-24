@@ -1,62 +1,47 @@
-import { useMutation } from '@tanstack/react-query';
-import { FlaskConicalIcon } from 'lucide-react';
-import { toast } from 'sonner';
+import { useMutation } from '@tanstack/react-query'
+import { FlaskConicalIcon } from 'lucide-react'
+import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import { messagingClient } from '@/lib/api-client';
-import { ChaserTimeline, type SimulateResult } from './chaser-timeline';
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
+import { messagingClient } from '@/lib/api-client'
+import { ChaserTimeline, type SimulateResult } from './chaser-timeline'
 
 interface SimulateDialogProps {
-  ruleId: string;
-  ruleName: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  ruleId: string
+  ruleName: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-export function SimulateDialog({
-  ruleId,
-  ruleName,
-  open,
-  onOpenChange,
-}: SimulateDialogProps) {
+export function SimulateDialog({ ruleId, ruleName, open, onOpenChange }: SimulateDialogProps) {
   const simulateMutation = useMutation({
     mutationFn: async (): Promise<SimulateResult> => {
       const res = await messagingClient.automation.rules[':id'].simulate.$post({
         param: { id: ruleId },
-      });
-      if (!res.ok) throw new Error('Simulation failed');
-      return res.json() as Promise<SimulateResult>;
+      })
+      if (!res.ok) throw new Error('Simulation failed')
+      return res.json() as Promise<SimulateResult>
     },
     onError: () => toast.error('Failed to run simulation'),
-  });
+  })
 
   function handleOpenChange(v: boolean) {
-    onOpenChange(v);
+    onOpenChange(v)
     if (v && !simulateMutation.data && !simulateMutation.isPending) {
-      simulateMutation.mutate();
+      simulateMutation.mutate()
     }
   }
 
   function handleOpen() {
-    onOpenChange(true);
-    simulateMutation.mutate();
+    onOpenChange(true)
+    simulateMutation.mutate()
   }
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5"
-        onClick={handleOpen}
-      >
+      <Button variant="outline" size="sm" className="gap-1.5" onClick={handleOpen}>
         <FlaskConicalIcon className="size-3.5" />
         Simulate
       </Button>
@@ -81,11 +66,7 @@ export function SimulateDialog({
           ) : simulateMutation.isError ? (
             <div className="flex flex-col items-center gap-3 py-6">
               <p className="text-sm text-destructive">Simulation failed.</p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => simulateMutation.mutate()}
-              >
+              <Button size="sm" variant="outline" onClick={() => simulateMutation.mutate()}>
                 Retry
               </Button>
             </div>
@@ -93,5 +74,5 @@ export function SimulateDialog({
         </DialogContent>
       </Dialog>
     </>
-  );
+  )
 }

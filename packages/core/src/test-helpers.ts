@@ -12,13 +12,13 @@
  *
  * NEVER call pglite.close() in tests — process exit handles cleanup.
  */
-import type { PGlite } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite'
 
-import { createDatabase, getPgliteClient } from './db/client';
+import { createDatabase, getPgliteClient } from './db/client'
 
-let shared: PGlite | null = null;
+let shared: PGlite | null = null
 
-const CORE_SCHEMAS = ['auth', 'audit', 'infra'] as const;
+const CORE_SCHEMAS = ['auth', 'audit', 'infra'] as const
 
 /**
  * Returns a process-wide singleton PGlite instance with pgcrypto + vector
@@ -28,12 +28,12 @@ const CORE_SCHEMAS = ['auth', 'audit', 'infra'] as const;
  */
 export async function getSharedPGlite(): Promise<PGlite> {
   if (!shared) {
-    createDatabase('memory://');
+    createDatabase('memory://')
     // biome-ignore lint/style/noNonNullAssertion: guaranteed to exist after createDatabase
-    shared = getPgliteClient('memory://')!;
-    await shared.waitReady;
+    shared = getPgliteClient('memory://')!
+    await shared.waitReady
   }
-  return shared;
+  return shared
 }
 
 /**
@@ -42,10 +42,10 @@ export async function getSharedPGlite(): Promise<PGlite> {
  * Tables can then be created in the clean schemas.
  */
 export async function createTestPGlite(): Promise<PGlite> {
-  const pg = await getSharedPGlite();
+  const pg = await getSharedPGlite()
   for (const s of CORE_SCHEMAS) {
-    await pg.query(`DROP SCHEMA IF EXISTS "${s}" CASCADE`);
-    await pg.query(`CREATE SCHEMA "${s}"`);
+    await pg.query(`DROP SCHEMA IF EXISTS "${s}" CASCADE`)
+    await pg.query(`CREATE SCHEMA "${s}"`)
   }
-  return pg;
+  return pg
 }

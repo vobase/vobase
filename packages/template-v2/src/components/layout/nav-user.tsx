@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { LogOut, Palette, Settings } from 'lucide-react'
 import { useState } from 'react'
+
 import { SignOutDialog } from '@/components/sign-out-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {

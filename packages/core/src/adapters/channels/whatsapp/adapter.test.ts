@@ -1,17 +1,8 @@
-import crypto from 'node:crypto';
-import { afterEach, describe, expect, it } from 'bun:test';
+import crypto from 'node:crypto'
+import { afterEach, describe, expect, it } from 'bun:test'
 
-import type {
-  MessageReceivedEvent,
-  ReactionEvent,
-  StatusUpdateEvent,
-} from '../../../contracts/channels';
-import {
-  _chunkText,
-  _ERROR_CODE_MAP,
-  createWhatsAppAdapter,
-  WhatsAppApiError,
-} from './index';
+import type { MessageReceivedEvent, ReactionEvent, StatusUpdateEvent } from '../../../contracts/channels'
+import { _chunkText, _ERROR_CODE_MAP, createWhatsAppAdapter, WhatsAppApiError } from './index'
 
 // ─── Test Helpers ────────────────────────────────────────────────────
 
@@ -20,41 +11,38 @@ const TEST_CONFIG = {
   accessToken: 'test-access-token',
   appSecret: 'test-app-secret',
   apiVersion: 'v22.0',
-};
+}
 
 function signPayload(payload: string, secret: string): string {
-  const hmac = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-  return `sha256=${hmac}`;
+  const hmac = crypto.createHmac('sha256', secret).update(payload).digest('hex')
+  return `sha256=${hmac}`
 }
 
 function makeWebhookRequest(payload: object, signature?: string): Request {
-  const body = JSON.stringify(payload);
+  const body = JSON.stringify(payload)
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-  };
-  if (signature !== undefined) headers['x-hub-signature-256'] = signature;
+  }
+  if (signature !== undefined) headers['x-hub-signature-256'] = signature
   return new Request('https://example.com/webhook', {
     method: 'POST',
     headers,
     body,
-  });
+  })
 }
 
 function makeSignedWebhookRequest(payload: object): Request {
-  const body = JSON.stringify(payload);
-  const sig = signPayload(body, TEST_CONFIG.appSecret);
-  return makeWebhookRequest(payload, sig);
+  const body = JSON.stringify(payload)
+  const sig = signPayload(body, TEST_CONFIG.appSecret)
+  return makeWebhookRequest(payload, sig)
 }
 
 function makeChallengeRequest(params: Record<string, string>): Request {
-  const url = new URL('https://example.com/webhook');
+  const url = new URL('https://example.com/webhook')
   for (const [k, v] of Object.entries(params)) {
-    url.searchParams.set(k, v);
+    url.searchParams.set(k, v)
   }
-  return new Request(url.toString(), { method: 'GET' });
+  return new Request(url.toString(), { method: 'GET' })
 }
 
 function wrapPayload(value: Record<string, unknown>) {
@@ -78,7 +66,7 @@ function wrapPayload(value: Record<string, unknown>) {
         ],
       },
     ],
-  };
+  }
 }
 
 function makeMessagePayload(msg: Record<string, unknown>) {
@@ -92,34 +80,32 @@ function makeMessagePayload(msg: Record<string, unknown>) {
         ...msg,
       },
     ],
-  });
+  })
 }
 
-const originalFetch = globalThis.fetch;
+const originalFetch = globalThis.fetch
 afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
+  globalThis.fetch = originalFetch
+})
 
 function mockFetch(response: object, status = 200) {
   globalThis.fetch = (async () =>
     new Response(JSON.stringify(response), {
       status,
       headers: { 'Content-Type': 'application/json' },
-    })) as unknown as typeof fetch;
+    })) as unknown as typeof fetch
 }
 
-function mockFetchSequence(
-  responses: Array<{ body: object; status?: number }>,
-) {
-  let callIndex = 0;
+function mockFetchSequence(responses: Array<{ body: object; status?: number }>) {
+  let callIndex = 0
   globalThis.fetch = (async () => {
-    const r = responses[callIndex] ?? responses[responses.length - 1];
-    callIndex++;
+    const r = responses[callIndex] ?? responses[responses.length - 1]
+    callIndex++
     return new Response(JSON.stringify(r.body), {
       status: r.status ?? 200,
       headers: { 'Content-Type': 'application/json' },
-    });
-  }) as unknown as typeof fetch;
+    })
+  }) as unknown as typeof fetch
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────
@@ -127,41 +113,41 @@ function mockFetchSequence(
 describe('WhatsApp Adapter', () => {
   describe('verifyWebhook', () => {
     it('returns false for missing signature header', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({});
-      const req = makeWebhookRequest({ test: true });
-      expect(await adapter.verifyWebhook?.(req)).toBe(false);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetch({})
+      const req = makeWebhookRequest({ test: true })
+      expect(await adapter.verifyWebhook?.(req)).toBe(false)
+    })
 
     it('returns false for empty signature', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({});
-      const req = makeWebhookRequest({ test: true }, '');
-      expect(await adapter.verifyWebhook?.(req)).toBe(false);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetch({})
+      const req = makeWebhookRequest({ test: true }, '')
+      expect(await adapter.verifyWebhook?.(req)).toBe(false)
+    })
 
     it('returns false for wrong prefix', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({});
-      const req = makeWebhookRequest({ test: true }, 'md5=abc123');
-      expect(await adapter.verifyWebhook?.(req)).toBe(false);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetch({})
+      const req = makeWebhookRequest({ test: true }, 'md5=abc123')
+      expect(await adapter.verifyWebhook?.(req)).toBe(false)
+    })
 
     it('returns true for valid HMAC-SHA256 signature', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({});
-      const payload = { object: 'whatsapp_business_account' };
-      const body = JSON.stringify(payload);
-      const sig = signPayload(body, TEST_CONFIG.appSecret);
-      const req = makeWebhookRequest(payload, sig);
-      expect(await adapter.verifyWebhook?.(req)).toBe(true);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetch({})
+      const payload = { object: 'whatsapp_business_account' }
+      const body = JSON.stringify(payload)
+      const sig = signPayload(body, TEST_CONFIG.appSecret)
+      const req = makeWebhookRequest(payload, sig)
+      expect(await adapter.verifyWebhook?.(req)).toBe(true)
+    })
 
     it('returns false for tampered body', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({});
-      const body = JSON.stringify({ original: true });
-      const sig = signPayload(body, TEST_CONFIG.appSecret);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetch({})
+      const body = JSON.stringify({ original: true })
+      const sig = signPayload(body, TEST_CONFIG.appSecret)
       // Create request with different body but original signature
       const req = new Request('https://example.com/webhook', {
         method: 'POST',
@@ -170,103 +156,103 @@ describe('WhatsApp Adapter', () => {
           'x-hub-signature-256': sig,
         },
         body: JSON.stringify({ tampered: true }),
-      });
-      expect(await adapter.verifyWebhook?.(req)).toBe(false);
-    });
-  });
+      })
+      expect(await adapter.verifyWebhook?.(req)).toBe(false)
+    })
+  })
 
   describe('handleWebhookChallenge', () => {
     it('returns challenge for valid subscribe request', () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const req = makeChallengeRequest({
         'hub.mode': 'subscribe',
         'hub.verify_token': 'my-token',
         'hub.challenge': 'challenge_123',
-      });
-      const res = adapter.handleWebhookChallenge?.(req);
-      expect(res).not.toBeNull();
-      expect(res?.status).toBe(200);
-    });
+      })
+      const res = adapter.handleWebhookChallenge?.(req)
+      expect(res).not.toBeNull()
+      expect(res?.status).toBe(200)
+    })
 
     it('returns null for missing hub.mode', () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const req = makeChallengeRequest({
         'hub.verify_token': 'my-token',
         'hub.challenge': 'challenge_123',
-      });
-      expect(adapter.handleWebhookChallenge?.(req)).toBeNull();
-    });
+      })
+      expect(adapter.handleWebhookChallenge?.(req)).toBeNull()
+    })
 
     it('returns null for missing hub.challenge', () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const req = makeChallengeRequest({
         'hub.mode': 'subscribe',
         'hub.verify_token': 'my-token',
-      });
-      expect(adapter.handleWebhookChallenge?.(req)).toBeNull();
-    });
+      })
+      expect(adapter.handleWebhookChallenge?.(req)).toBeNull()
+    })
 
     it('returns null for non-subscribe mode', () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const req = makeChallengeRequest({
         'hub.mode': 'unsubscribe',
         'hub.verify_token': 'my-token',
         'hub.challenge': 'challenge_123',
-      });
-      expect(adapter.handleWebhookChallenge?.(req)).toBeNull();
-    });
+      })
+      expect(adapter.handleWebhookChallenge?.(req)).toBeNull()
+    })
 
     it('returns 403 when config webhookVerifyToken does not match', () => {
       const adapter = createWhatsAppAdapter({
         ...TEST_CONFIG,
         webhookVerifyToken: 'correct-token',
-      });
+      })
       const req = makeChallengeRequest({
         'hub.mode': 'subscribe',
         'hub.verify_token': 'wrong-token',
         'hub.challenge': 'challenge_123',
-      });
-      const res = adapter.handleWebhookChallenge?.(req);
-      expect(res).not.toBeNull();
-      expect(res?.status).toBe(403);
-    });
+      })
+      const res = adapter.handleWebhookChallenge?.(req)
+      expect(res).not.toBeNull()
+      expect(res?.status).toBe(403)
+    })
 
     it('accepts challenge when config webhookVerifyToken matches', () => {
       const adapter = createWhatsAppAdapter({
         ...TEST_CONFIG,
         webhookVerifyToken: 'correct-token',
-      });
+      })
       const req = makeChallengeRequest({
         'hub.mode': 'subscribe',
         'hub.verify_token': 'correct-token',
         'hub.challenge': 'challenge_456',
-      });
-      const res = adapter.handleWebhookChallenge?.(req);
-      expect(res).not.toBeNull();
-      expect(res?.status).toBe(200);
-    });
-  });
+      })
+      const res = adapter.handleWebhookChallenge?.(req)
+      expect(res).not.toBeNull()
+      expect(res?.status).toBe(200)
+    })
+  })
 
   describe('parseWebhook', () => {
     it('parses text message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'text',
         text: { body: 'Hello' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect(events[0].type).toBe('message_received');
-      const msg = events[0] as MessageReceivedEvent;
-      expect(msg.content).toBe('Hello');
-      expect(msg.messageType).toBe('text');
-      expect(msg.from).toBe('16315555555');
-      expect(msg.profileName).toBe('John Doe');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe('message_received')
+      const msg = events[0] as MessageReceivedEvent
+      expect(msg.content).toBe('Hello')
+      expect(msg.messageType).toBe('text')
+      expect(msg.from).toBe('16315555555')
+      expect(msg.profileName).toBe('John Doe')
+    })
 
     it('parses image message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       // Mock media download: first call returns media URL, second downloads binary
       mockFetchSequence([
         {
@@ -276,21 +262,21 @@ describe('WhatsApp Adapter', () => {
           },
         },
         { body: {} }, // binary response (simplified)
-      ]);
+      ])
       const payload = makeMessagePayload({
         type: 'image',
         image: { id: 'media_123', mime_type: 'image/jpeg', caption: 'A photo' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const msg = events[0] as MessageReceivedEvent;
-      expect(msg.messageType).toBe('image');
-      expect(msg.content).toBe('A photo');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const msg = events[0] as MessageReceivedEvent
+      expect(msg.messageType).toBe('image')
+      expect(msg.content).toBe('A photo')
+    })
 
     it('parses document message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetchSequence([
         {
           body: {
@@ -299,7 +285,7 @@ describe('WhatsApp Adapter', () => {
           },
         },
         { body: {} },
-      ]);
+      ])
       const payload = makeMessagePayload({
         type: 'document',
         document: {
@@ -307,15 +293,15 @@ describe('WhatsApp Adapter', () => {
           mime_type: 'application/pdf',
           filename: 'invoice.pdf',
         },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect((events[0] as MessageReceivedEvent).messageType).toBe('document');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect((events[0] as MessageReceivedEvent).messageType).toBe('document')
+    })
 
     it('parses audio message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetchSequence([
         {
           body: {
@@ -324,19 +310,19 @@ describe('WhatsApp Adapter', () => {
           },
         },
         { body: {} },
-      ]);
+      ])
       const payload = makeMessagePayload({
         type: 'audio',
         audio: { id: 'media_789', mime_type: 'audio/ogg; codecs=opus' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect((events[0] as MessageReceivedEvent).messageType).toBe('audio');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect((events[0] as MessageReceivedEvent).messageType).toBe('audio')
+    })
 
     it('parses video message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetchSequence([
         {
           body: {
@@ -345,19 +331,19 @@ describe('WhatsApp Adapter', () => {
           },
         },
         { body: {} },
-      ]);
+      ])
       const payload = makeMessagePayload({
         type: 'video',
         video: { id: 'media_101', mime_type: 'video/mp4' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect((events[0] as MessageReceivedEvent).messageType).toBe('video');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect((events[0] as MessageReceivedEvent).messageType).toBe('video')
+    })
 
     it('parses location message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'location',
         location: {
@@ -366,24 +352,20 @@ describe('WhatsApp Adapter', () => {
           name: 'Santo Domingo',
           address: 'Av. Winston Churchill',
         },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const msg = events[0] as MessageReceivedEvent;
-      expect(msg.messageType).toBe('unsupported');
-      expect(msg.content).toContain('Santo Domingo');
-      expect(msg.content).toContain('18.4861');
-      expect((msg.metadata?.location as Record<string, unknown>).latitude).toBe(
-        18.4861,
-      );
-      expect(
-        (msg.metadata?.location as Record<string, unknown>).longitude,
-      ).toBe(-69.9312);
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const msg = events[0] as MessageReceivedEvent
+      expect(msg.messageType).toBe('unsupported')
+      expect(msg.content).toContain('Santo Domingo')
+      expect(msg.content).toContain('18.4861')
+      expect((msg.metadata?.location as Record<string, unknown>).latitude).toBe(18.4861)
+      expect((msg.metadata?.location as Record<string, unknown>).longitude).toBe(-69.9312)
+    })
 
     it('parses contacts message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'contacts',
         contacts: [
@@ -396,18 +378,18 @@ describe('WhatsApp Adapter', () => {
             phones: [{ phone: '+18091234567', type: 'CELL' }],
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const msg = events[0] as MessageReceivedEvent;
-      expect(msg.messageType).toBe('unsupported');
-      expect(msg.content).toBe('Jane Smith');
-      expect(msg.metadata?.contacts).toHaveLength(1);
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const msg = events[0] as MessageReceivedEvent
+      expect(msg.messageType).toBe('unsupported')
+      expect(msg.content).toBe('Jane Smith')
+      expect(msg.metadata?.contacts).toHaveLength(1)
+    })
 
     it('parses sticker message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetchSequence([
         {
           body: {
@@ -416,70 +398,70 @@ describe('WhatsApp Adapter', () => {
           },
         },
         { body: {} },
-      ]);
+      ])
       const payload = makeMessagePayload({
         type: 'sticker',
         sticker: { id: 'media_sticker', mime_type: 'image/webp' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const msg = events[0] as MessageReceivedEvent;
-      expect(msg.messageType).toBe('image');
-      expect(msg.metadata?.sticker).toBe(true);
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const msg = events[0] as MessageReceivedEvent
+      expect(msg.messageType).toBe('image')
+      expect(msg.metadata?.sticker).toBe(true)
+    })
 
     it('parses reaction', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'reaction',
         reaction: { message_id: 'wamid.ORIGINAL', emoji: '\u{1F44D}' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect(events[0].type).toBe('reaction');
-      const r = events[0] as ReactionEvent;
-      expect(r.emoji).toBe('\u{1F44D}');
-      expect(r.messageId).toBe('wamid.ORIGINAL');
-      expect(r.action).toBe('add');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe('reaction')
+      const r = events[0] as ReactionEvent
+      expect(r.emoji).toBe('\u{1F44D}')
+      expect(r.messageId).toBe('wamid.ORIGINAL')
+      expect(r.action).toBe('add')
+    })
 
     it('parses reaction removal (empty emoji) with action:remove', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'reaction',
         reaction: { message_id: 'wamid.ORIGINAL', emoji: '' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect(events[0].type).toBe('reaction');
-      const r = events[0] as ReactionEvent;
-      expect(r.emoji).toBe('');
-      expect(r.action).toBe('remove');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe('reaction')
+      const r = events[0] as ReactionEvent
+      expect(r.emoji).toBe('')
+      expect(r.action).toBe('remove')
+    })
 
     it('parses button reply (interactive)', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'interactive',
         interactive: {
           type: 'button_reply',
           button_reply: { id: 'btn_yes', title: 'Yes' },
         },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const msg = events[0] as MessageReceivedEvent;
-      expect(msg.messageType).toBe('button_reply');
-      expect(msg.content).toBe('Yes');
-      expect(msg.metadata?.buttonId).toBe('btn_yes');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const msg = events[0] as MessageReceivedEvent
+      expect(msg.messageType).toBe('button_reply')
+      expect(msg.content).toBe('Yes')
+      expect(msg.metadata?.buttonId).toBe('btn_yes')
+    })
 
     it('parses list reply (interactive)', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'interactive',
         interactive: {
@@ -490,44 +472,42 @@ describe('WhatsApp Adapter', () => {
             description: 'First option',
           },
         },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const msg = events[0] as MessageReceivedEvent;
-      expect(msg.messageType).toBe('list_reply');
-      expect(msg.content).toBe('Option 1');
-      expect(msg.metadata?.listId).toBe('option_1');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const msg = events[0] as MessageReceivedEvent
+      expect(msg.messageType).toBe('list_reply')
+      expect(msg.content).toBe('Option 1')
+      expect(msg.metadata?.listId).toBe('option_1')
+    })
 
     it('parses button (template quick reply)', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'button',
         button: { text: 'Yes, confirm', payload: 'CONFIRM_ORDER_123' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const msg = events[0] as MessageReceivedEvent;
-      expect(msg.messageType).toBe('button_reply');
-      expect(msg.content).toBe('Yes, confirm');
-      expect(msg.metadata?.buttonPayload).toBe('CONFIRM_ORDER_123');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const msg = events[0] as MessageReceivedEvent
+      expect(msg.messageType).toBe('button_reply')
+      expect(msg.content).toBe('Yes, confirm')
+      expect(msg.metadata?.buttonPayload).toBe('CONFIRM_ORDER_123')
+    })
 
     it('handles unsupported message type', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      const payload = makeMessagePayload({ type: 'order' });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect((events[0] as MessageReceivedEvent).messageType).toBe(
-        'unsupported',
-      );
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      const payload = makeMessagePayload({ type: 'order' })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect((events[0] as MessageReceivedEvent).messageType).toBe('unsupported')
+    })
 
     it('parses sent status', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = wrapPayload({
         statuses: [
           {
@@ -537,16 +517,16 @@ describe('WhatsApp Adapter', () => {
             recipient_id: '16315551234',
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect(events[0].type).toBe('status_update');
-      expect((events[0] as StatusUpdateEvent).status).toBe('sent');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect(events[0].type).toBe('status_update')
+      expect((events[0] as StatusUpdateEvent).status).toBe('sent')
+    })
 
     it('parses delivered status', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = wrapPayload({
         statuses: [
           {
@@ -556,15 +536,15 @@ describe('WhatsApp Adapter', () => {
             recipient_id: '16315551234',
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect((events[0] as StatusUpdateEvent).status).toBe('delivered');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect((events[0] as StatusUpdateEvent).status).toBe('delivered')
+    })
 
     it('parses read status', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = wrapPayload({
         statuses: [
           {
@@ -574,15 +554,15 @@ describe('WhatsApp Adapter', () => {
             recipient_id: '16315551234',
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect((events[0] as StatusUpdateEvent).status).toBe('read');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect((events[0] as StatusUpdateEvent).status).toBe('read')
+    })
 
     it('parses failed status with errors', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = wrapPayload({
         statuses: [
           {
@@ -593,20 +573,18 @@ describe('WhatsApp Adapter', () => {
             errors: [{ code: 131047, title: 'Re-engagement message' }],
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as StatusUpdateEvent;
-      expect(evt.status).toBe('failed');
-      expect(evt.metadata?.errors).toHaveLength(1);
-      expect(
-        (evt.metadata?.errors as Array<Record<string, unknown>>)[0].code,
-      ).toBe(131047);
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as StatusUpdateEvent
+      expect(evt.status).toBe('failed')
+      expect(evt.metadata?.errors).toHaveLength(1)
+      expect((evt.metadata?.errors as Array<Record<string, unknown>>)[0].code).toBe(131047)
+    })
 
     it('parses deleted status', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = wrapPayload({
         statuses: [
           {
@@ -616,18 +594,18 @@ describe('WhatsApp Adapter', () => {
             recipient_id: '16315551234',
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as StatusUpdateEvent;
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as StatusUpdateEvent
       // 'deleted' maps to 'delivered' (message was delivered, then user deleted it)
-      expect(evt.status).toBe('delivered');
-      expect(evt.metadata?.deleted).toBe(true);
-    });
+      expect(evt.status).toBe('delivered')
+      expect(evt.metadata?.deleted).toBe(true)
+    })
 
     it('parses pending status as sent', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = wrapPayload({
         statuses: [
           {
@@ -637,17 +615,17 @@ describe('WhatsApp Adapter', () => {
             recipient_id: '16315551234',
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as StatusUpdateEvent;
-      expect(evt.status).toBe('sent');
-      expect(evt.metadata?.pending).toBe(true);
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as StatusUpdateEvent
+      expect(evt.status).toBe('sent')
+      expect(evt.metadata?.pending).toBe(true)
+    })
 
     it('parses warning status as failed with warning flag', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = wrapPayload({
         statuses: [
           {
@@ -658,18 +636,18 @@ describe('WhatsApp Adapter', () => {
             errors: [{ code: 131031, title: 'Account locked' }],
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as StatusUpdateEvent;
-      expect(evt.status).toBe('failed');
-      expect(evt.metadata?.warning).toBe(true);
-      expect(evt.metadata?.errors).toBeDefined();
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as StatusUpdateEvent
+      expect(evt.status).toBe('failed')
+      expect(evt.metadata?.warning).toBe(true)
+      expect(evt.metadata?.errors).toBeDefined()
+    })
 
     it('parses errors-type inbound message with error details', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'errors',
         errors: [
@@ -679,53 +657,51 @@ describe('WhatsApp Adapter', () => {
             details: 'Not supported',
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as MessageReceivedEvent;
-      expect(evt.messageType).toBe('unsupported');
-      expect(evt.metadata?.errors).toBeDefined();
-      expect((evt.metadata?.errors as Array<{ code: number }>)[0].code).toBe(
-        131051,
-      );
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as MessageReceivedEvent
+      expect(evt.messageType).toBe('unsupported')
+      expect(evt.metadata?.errors).toBeDefined()
+      expect((evt.metadata?.errors as Array<{ code: number }>)[0].code).toBe(131051)
+    })
 
     it('handles empty entry array', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      const payload = { object: 'whatsapp_business_account', entry: [] };
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(0);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      const payload = { object: 'whatsapp_business_account', entry: [] }
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(0)
+    })
 
     it('handles missing messages and statuses', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      const payload = wrapPayload({});
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(0);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      const payload = wrapPayload({})
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(0)
+    })
 
     it('handles malformed JSON gracefully', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const req = new Request('https://example.com/webhook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: 'not valid json {{{',
-      });
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(0);
-    });
+      })
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(0)
+    })
 
     it('deduplicates recently sent messages', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       // First, send a message to register its ID
       mockFetch({
         messaging_product: 'whatsapp',
         messages: [{ id: 'wamid.SENT_MSG' }],
-      });
-      await adapter.send({ to: '16315555555', text: 'Hello' });
+      })
+      await adapter.send({ to: '16315555555', text: 'Hello' })
 
       // Now try to parse a webhook with the same message ID as inbound
       const payload = wrapPayload({
@@ -739,14 +715,14 @@ describe('WhatsApp Adapter', () => {
             text: { body: 'Echo' },
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(0);
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(0)
+    })
 
     it('returns empty events for non-WhatsApp webhook payloads', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const request = new Request('https://example.com/webhook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -773,80 +749,80 @@ describe('WhatsApp Adapter', () => {
             },
           ],
         }),
-      });
-      const events = await adapter.parseWebhook?.(request);
-      expect(events).toEqual([]);
-    });
-  });
+      })
+      const events = await adapter.parseWebhook?.(request)
+      expect(events).toEqual([])
+    })
+  })
 
   describe('send', () => {
     it('sends text message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetch({
         messaging_product: 'whatsapp',
         messages: [{ id: 'wamid.OUT1' }],
-      });
+      })
       const result = await adapter.send({
         to: '16315555555',
         text: 'Hello there',
-      });
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBe('wamid.OUT1');
-    });
+      })
+      expect(result.success).toBe(true)
+      expect(result.messageId).toBe('wamid.OUT1')
+    })
 
     it('chunks long text messages', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let callCount = 0;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let callCount = 0
       globalThis.fetch = (async () => {
-        callCount++;
+        callCount++
         return new Response(
           JSON.stringify({
             messaging_product: 'whatsapp',
             messages: [{ id: `wamid.CHUNK${callCount}` }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        )
+      }) as unknown as typeof fetch
 
-      const longText = `${'A'.repeat(4096)}\n\n${'B'.repeat(100)}`;
-      const result = await adapter.send({ to: '16315555555', text: longText });
-      expect(result.success).toBe(true);
-      expect(callCount).toBe(2);
-    });
+      const longText = `${'A'.repeat(4096)}\n\n${'B'.repeat(100)}`
+      const result = await adapter.send({ to: '16315555555', text: longText })
+      expect(result.success).toBe(true)
+      expect(callCount).toBe(2)
+    })
 
     it('handles exactly MAX_TEXT_LENGTH text', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let callCount = 0;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let callCount = 0
       globalThis.fetch = (async () => {
-        callCount++;
+        callCount++
         return new Response(
           JSON.stringify({
             messaging_product: 'whatsapp',
             messages: [{ id: 'wamid.EXACT' }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        )
+      }) as unknown as typeof fetch
 
-      const exactText = 'X'.repeat(4096);
-      const result = await adapter.send({ to: '16315555555', text: exactText });
-      expect(result.success).toBe(true);
-      expect(callCount).toBe(1);
-    });
+      const exactText = 'X'.repeat(4096)
+      const result = await adapter.send({ to: '16315555555', text: exactText })
+      expect(result.success).toBe(true)
+      expect(callCount).toBe(1)
+    })
 
     it('returns error for empty text', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      const result = await adapter.send({ to: '16315555555', text: '' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('empty');
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      const result = await adapter.send({ to: '16315555555', text: '' })
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('empty')
+    })
 
     it('sends template message', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetch({
         messaging_product: 'whatsapp',
         messages: [{ id: 'wamid.TMPL1' }],
-      });
+      })
       const result = await adapter.send({
         to: '16315555555',
         template: {
@@ -854,17 +830,17 @@ describe('WhatsApp Adapter', () => {
           language: 'en_US',
           parameters: ['John'],
         },
-      });
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBe('wamid.TMPL1');
-    });
+      })
+      expect(result.success).toBe(true)
+      expect(result.messageId).toBe('wamid.TMPL1')
+    })
 
     it('sends interactive buttons', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetch({
         messaging_product: 'whatsapp',
         messages: [{ id: 'wamid.INT1' }],
-      });
+      })
       const result = await adapter.send({
         to: '16315555555',
         metadata: {
@@ -872,22 +848,20 @@ describe('WhatsApp Adapter', () => {
             type: 'button',
             body: { text: 'Choose one' },
             action: {
-              buttons: [
-                { type: 'reply', reply: { id: 'btn_1', title: 'Option 1' } },
-              ],
+              buttons: [{ type: 'reply', reply: { id: 'btn_1', title: 'Option 1' } }],
             },
           },
         },
-      });
-      expect(result.success).toBe(true);
-    });
+      })
+      expect(result.success).toBe(true)
+    })
 
     it('sends media with URL', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetch({
         messaging_product: 'whatsapp',
         messages: [{ id: 'wamid.MEDIA1' }],
-      });
+      })
       const result = await adapter.send({
         to: '16315555555',
         media: [
@@ -897,22 +871,22 @@ describe('WhatsApp Adapter', () => {
             caption: 'A photo',
           },
         ],
-      });
-      expect(result.success).toBe(true);
-    });
+      })
+      expect(result.success).toBe(true)
+    })
 
     it('returns error for media without url or data', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const result = await adapter.send({
         to: '16315555555',
         media: [{ type: 'image' }],
-      });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('neither url nor data');
-    });
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('neither url nor data')
+    })
 
     it('uploads media with data then sends', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetchSequence([
         // Upload response
         { body: { id: 'uploaded_media_123' } },
@@ -923,7 +897,7 @@ describe('WhatsApp Adapter', () => {
             messages: [{ id: 'wamid.UPLOADED1' }],
           },
         },
-      ]);
+      ])
       const result = await adapter.send({
         to: '16315555555',
         media: [
@@ -933,51 +907,48 @@ describe('WhatsApp Adapter', () => {
             mimeType: 'image/jpeg',
           },
         ],
-      });
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBe('wamid.UPLOADED1');
-    });
+      })
+      expect(result.success).toBe(true)
+      expect(result.messageId).toBe('wamid.UPLOADED1')
+    })
 
     it('includes replyToMessageId in context', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: Record<string, unknown> | undefined;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let capturedBody: Record<string, unknown> | undefined
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
-        capturedBody = JSON.parse(opts.body as string) as Record<
-          string,
-          unknown
-        >;
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>
         return new Response(
           JSON.stringify({
             messaging_product: 'whatsapp',
             messages: [{ id: 'wamid.REPLY1' }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        )
+      }) as unknown as typeof fetch
 
       await adapter.send({
         to: '16315555555',
         text: 'Reply text',
         metadata: { replyToMessageId: 'wamid.ORIGINAL' },
-      });
+      })
       expect((capturedBody as Record<string, unknown>).context).toEqual({
         message_id: 'wamid.ORIGINAL',
-      });
-    });
+      })
+    })
 
     it('sends multiple media items', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let callCount = 0;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let callCount = 0
       globalThis.fetch = (async () => {
-        callCount++;
+        callCount++
         return new Response(
           JSON.stringify({
             messaging_product: 'whatsapp',
             messages: [{ id: `wamid.MULTI${callCount}` }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        )
+      }) as unknown as typeof fetch
 
       const result = await adapter.send({
         to: '16315555555',
@@ -989,17 +960,17 @@ describe('WhatsApp Adapter', () => {
             filename: 'doc.pdf',
           },
         ],
-      });
-      expect(result.success).toBe(true);
-      expect(callCount).toBe(2);
-      expect(result.messageId).toBe('wamid.MULTI2');
-    });
-  });
+      })
+      expect(result.success).toBe(true)
+      expect(callCount).toBe(2)
+      expect(result.messageId).toBe('wamid.MULTI2')
+    })
+  })
 
   describe('errorToSendResult', () => {
     // We test error mapping by sending a message that triggers a mocked error response
     async function sendWithError(metaCode: number, httpStatus = 400) {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetch(
         {
           error: {
@@ -1010,176 +981,176 @@ describe('WhatsApp Adapter', () => {
           },
         },
         httpStatus,
-      );
-      return adapter.send({ to: '16315555555', text: 'test' });
+      )
+      return adapter.send({ to: '16315555555', text: 'test' })
     }
 
     it('maps 130429 to rate_limited (retryable)', async () => {
-      const result = await sendWithError(130429);
-      expect(result.code).toBe('rate_limited');
-      expect(result.retryable).toBe(true);
-    });
+      const result = await sendWithError(130429)
+      expect(result.code).toBe('rate_limited')
+      expect(result.retryable).toBe(true)
+    })
 
     it('maps 131056 to pair_rate_limited (retryable)', async () => {
-      const result = await sendWithError(131056);
-      expect(result.code).toBe('pair_rate_limited');
-      expect(result.retryable).toBe(true);
-    });
+      const result = await sendWithError(131056)
+      expect(result.code).toBe('pair_rate_limited')
+      expect(result.retryable).toBe(true)
+    })
 
     it('maps 131030 to invalid_recipient (not retryable)', async () => {
-      const result = await sendWithError(131030);
-      expect(result.code).toBe('invalid_recipient');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(131030)
+      expect(result.code).toBe('invalid_recipient')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 131047 to window_expired (not retryable)', async () => {
-      const result = await sendWithError(131047);
-      expect(result.code).toBe('window_expired');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(131047)
+      expect(result.code).toBe('window_expired')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 131050 to opted_out (not retryable)', async () => {
-      const result = await sendWithError(131050);
-      expect(result.code).toBe('opted_out');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(131050)
+      expect(result.code).toBe('opted_out')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 132000 to template_param_mismatch (not retryable)', async () => {
-      const result = await sendWithError(132000);
-      expect(result.code).toBe('template_param_mismatch');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(132000)
+      expect(result.code).toBe('template_param_mismatch')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 132012 to template_not_found (not retryable)', async () => {
-      const result = await sendWithError(132012);
-      expect(result.code).toBe('template_not_found');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(132012)
+      expect(result.code).toBe('template_not_found')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 131051 to unsupported_type (not retryable)', async () => {
-      const result = await sendWithError(131051);
-      expect(result.code).toBe('unsupported_type');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(131051)
+      expect(result.code).toBe('unsupported_type')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 132015 to template_paused (not retryable)', async () => {
-      const result = await sendWithError(132015);
-      expect(result.code).toBe('template_paused');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(132015)
+      expect(result.code).toBe('template_paused')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 133010 to not_registered (not retryable)', async () => {
-      const result = await sendWithError(133010);
-      expect(result.code).toBe('not_registered');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(133010)
+      expect(result.code).toBe('not_registered')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 190 to invalid_token (not retryable)', async () => {
-      const result = await sendWithError(190);
-      expect(result.code).toBe('invalid_token');
-      expect(result.retryable).toBe(false);
-    });
+      const result = await sendWithError(190)
+      expect(result.code).toBe('invalid_token')
+      expect(result.retryable).toBe(false)
+    })
 
     it('maps 5xx to server_error (retryable)', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({ error: { message: 'Internal', code: 0 } }, 500);
-      const result = await adapter.send({ to: '16315555555', text: 'test' });
-      expect(result.code).toBe('server_error');
-      expect(result.retryable).toBe(true);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetch({ error: { message: 'Internal', code: 0 } }, 500)
+      const result = await adapter.send({ to: '16315555555', text: 'test' })
+      expect(result.code).toBe('server_error')
+      expect(result.retryable).toBe(true)
+    })
 
     it('maps unknown error to retryable by default', async () => {
-      const result = await sendWithError(999999);
-      expect(result.code).toBe('unknown');
-      expect(result.retryable).toBe(true);
-    });
+      const result = await sendWithError(999999)
+      expect(result.code).toBe('unknown')
+      expect(result.retryable).toBe(true)
+    })
 
     it('maps all known non-retryable error codes', () => {
       const nonRetryable = Object.entries(_ERROR_CODE_MAP)
         .filter(([_, v]) => !v.retryable)
-        .map(([k]) => Number(k));
+        .map(([k]) => Number(k))
 
       for (const code of [
-        131026, 131030, 131042, 131047, 131049, 131050, 131051, 132000, 132001,
-        132005, 132012, 132015, 132068, 190, 133010, 130472,
+        131026, 131030, 131042, 131047, 131049, 131050, 131051, 132000, 132001, 132005, 132012, 132015, 132068, 190,
+        133010, 130472,
       ]) {
-        expect(nonRetryable).toContain(code);
+        expect(nonRetryable).toContain(code)
       }
-    });
+    })
 
     it('maps all known retryable error codes', () => {
       const retryable = Object.entries(_ERROR_CODE_MAP)
         .filter(([_, v]) => v.retryable)
-        .map(([k]) => Number(k));
+        .map(([k]) => Number(k))
 
       for (const code of [130429, 131048, 131056]) {
-        expect(retryable).toContain(code);
+        expect(retryable).toContain(code)
       }
-    });
-  });
+    })
+  })
 
   describe('chunkText', () => {
     it('returns single chunk for text under limit', () => {
-      const result = _chunkText('Hello world');
-      expect(result).toEqual(['Hello world']);
-    });
+      const result = _chunkText('Hello world')
+      expect(result).toEqual(['Hello world'])
+    })
 
     it('returns single chunk for text exactly at limit', () => {
-      const text = 'X'.repeat(4096);
-      const result = _chunkText(text);
-      expect(result).toHaveLength(1);
-      expect(result[0]).toBe(text);
-    });
+      const text = 'X'.repeat(4096)
+      const result = _chunkText(text)
+      expect(result).toHaveLength(1)
+      expect(result[0]).toBe(text)
+    })
 
     it('splits at paragraph breaks', () => {
-      const text = `${'A'.repeat(4000)}\n\n${'B'.repeat(200)}`;
-      const result = _chunkText(text);
-      expect(result).toHaveLength(2);
-      expect(result[0]).toBe('A'.repeat(4000));
-      expect(result[1]).toBe('B'.repeat(200));
-    });
+      const text = `${'A'.repeat(4000)}\n\n${'B'.repeat(200)}`
+      const result = _chunkText(text)
+      expect(result).toHaveLength(2)
+      expect(result[0]).toBe('A'.repeat(4000))
+      expect(result[1]).toBe('B'.repeat(200))
+    })
 
     it('splits at line breaks when no paragraph break', () => {
-      const text = `${'A'.repeat(4000)}\n${'B'.repeat(200)}`;
-      const result = _chunkText(text);
-      expect(result).toHaveLength(2);
-      expect(result[0]).toBe('A'.repeat(4000));
-      expect(result[1]).toBe('B'.repeat(200));
-    });
+      const text = `${'A'.repeat(4000)}\n${'B'.repeat(200)}`
+      const result = _chunkText(text)
+      expect(result).toHaveLength(2)
+      expect(result[0]).toBe('A'.repeat(4000))
+      expect(result[1]).toBe('B'.repeat(200))
+    })
 
     it('hard cuts when no line breaks', () => {
-      const text = 'A'.repeat(5000);
-      const result = _chunkText(text);
-      expect(result).toHaveLength(2);
-      expect(result[0]).toBe('A'.repeat(4096));
-      expect(result[1]).toBe('A'.repeat(904));
-    });
+      const text = 'A'.repeat(5000)
+      const result = _chunkText(text)
+      expect(result).toHaveLength(2)
+      expect(result[0]).toBe('A'.repeat(4096))
+      expect(result[1]).toBe('A'.repeat(904))
+    })
 
     it('handles empty string', () => {
-      const result = _chunkText('');
-      expect(result).toEqual(['']);
-    });
+      const result = _chunkText('')
+      expect(result).toEqual([''])
+    })
 
     it('handles very long single word', () => {
-      const text = 'A'.repeat(10000);
-      const result = _chunkText(text);
-      expect(result.length).toBeGreaterThan(1);
-      expect(result.join('')).toBe(text);
-    });
+      const text = 'A'.repeat(10000)
+      const result = _chunkText(text)
+      expect(result.length).toBeGreaterThan(1)
+      expect(result.join('')).toBe(text)
+    })
 
     it('trims leading newlines from chunks', () => {
-      const text = `${'A'.repeat(4000)}\n\n\n\n${'B'.repeat(200)}`;
-      const result = _chunkText(text);
-      expect(result).toHaveLength(2);
-      expect(result[1].startsWith('\n')).toBe(false);
-    });
-  });
+      const text = `${'A'.repeat(4000)}\n\n\n\n${'B'.repeat(200)}`
+      const result = _chunkText(text)
+      expect(result).toHaveLength(2)
+      expect(result[1].startsWith('\n')).toBe(false)
+    })
+  })
 
   describe('extractInstanceIdentifier', () => {
-    const config = TEST_CONFIG;
+    const config = TEST_CONFIG
 
     it('extracts phone_number_id from valid webhook payload', () => {
-      const adapter = createWhatsAppAdapter(config);
+      const adapter = createWhatsAppAdapter(config)
       const payload = {
         object: 'whatsapp_business_account',
         entry: [
@@ -1200,48 +1171,48 @@ describe('WhatsApp Adapter', () => {
             ],
           },
         ],
-      };
-      expect(adapter.extractInstanceIdentifier?.(payload)).toBe('PHONE_123');
-    });
+      }
+      expect(adapter.extractInstanceIdentifier?.(payload)).toBe('PHONE_123')
+    })
 
     it('returns null for malformed payload', () => {
-      const adapter = createWhatsAppAdapter(config);
-      expect(adapter.extractInstanceIdentifier?.({})).toBeNull();
-      expect(adapter.extractInstanceIdentifier?.(null)).toBeNull();
-      expect(adapter.extractInstanceIdentifier?.({ entry: [] })).toBeNull();
-    });
-  });
+      const adapter = createWhatsAppAdapter(config)
+      expect(adapter.extractInstanceIdentifier?.({})).toBeNull()
+      expect(adapter.extractInstanceIdentifier?.(null)).toBeNull()
+      expect(adapter.extractInstanceIdentifier?.({ entry: [] })).toBeNull()
+    })
+  })
 
   describe('inbound metadata (reply context, waId)', () => {
     it('captures reply context in metadata', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'text',
         text: { body: 'Replying to you' },
         context: { id: 'wamid.ORIGINAL' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as MessageReceivedEvent;
-      expect(evt.metadata?.replyToMessageId).toBe('wamid.ORIGINAL');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as MessageReceivedEvent
+      expect(evt.metadata?.replyToMessageId).toBe('wamid.ORIGINAL')
+    })
 
     it('includes waId in metadata', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
         type: 'text',
         text: { body: 'Hello' },
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as MessageReceivedEvent;
-      expect(evt.metadata?.waId).toBe('16315555555');
-    });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as MessageReceivedEvent
+      expect(evt.metadata?.waId).toBe('16315555555')
+    })
 
     it('resolves waId from contacts when wa_id differs from from', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       // Brazilian number: from has 9th digit, wa_id doesn't
       const payload = wrapPayload({
         contacts: [{ profile: { name: 'Maria' }, wa_id: '5511987654321' }],
@@ -1254,23 +1225,23 @@ describe('WhatsApp Adapter', () => {
             text: { body: 'Ola' },
           },
         ],
-      });
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as MessageReceivedEvent;
-      expect(evt.metadata?.waId).toBe('5511987654321');
-      expect(evt.profileName).toBe('Maria');
-    });
-  });
+      })
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as MessageReceivedEvent
+      expect(evt.metadata?.waId).toBe('5511987654321')
+      expect(evt.profileName).toBe('Maria')
+    })
+  })
 
   describe('preview_url in text messages', () => {
     it('includes preview_url: true in outbound text payload', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: Record<string, unknown> | undefined;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let capturedBody: Record<string, unknown> | undefined
       globalThis.fetch = (async (_url: string, init?: RequestInit) => {
         if (init?.body && typeof init.body === 'string') {
-          capturedBody = JSON.parse(init.body);
+          capturedBody = JSON.parse(init.body)
         }
         return new Response(
           JSON.stringify({
@@ -1278,24 +1249,22 @@ describe('WhatsApp Adapter', () => {
             messages: [{ id: 'wamid.PREV1' }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        )
+      }) as unknown as typeof fetch
 
       await adapter.send({
         to: '16315555555',
         text: 'Check https://example.com',
-      });
-      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(
-        true,
-      );
-    });
+      })
+      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(true)
+    })
 
     it('sets preview_url: false when text has no URL', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: Record<string, unknown> | undefined;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let capturedBody: Record<string, unknown> | undefined
       globalThis.fetch = (async (_url: string, init?: RequestInit) => {
         if (init?.body && typeof init.body === 'string') {
-          capturedBody = JSON.parse(init.body);
+          capturedBody = JSON.parse(init.body)
         }
         return new Response(
           JSON.stringify({
@@ -1303,62 +1272,51 @@ describe('WhatsApp Adapter', () => {
             messages: [{ id: 'wamid.NURL1' }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        )
+      }) as unknown as typeof fetch
 
-      await adapter.send({ to: '16315555555', text: 'Hello, no links here' });
-      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(
-        false,
-      );
-    });
-  });
+      await adapter.send({ to: '16315555555', text: 'Hello, no links here' })
+      expect((capturedBody?.text as Record<string, unknown>)?.preview_url).toBe(false)
+    })
+  })
 
   describe('markAsRead', () => {
     it('sends read status to Graph API', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: Record<string, unknown> | undefined;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let capturedBody: Record<string, unknown> | undefined
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
-        capturedBody = JSON.parse(opts.body as string) as Record<
-          string,
-          unknown
-        >;
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
-        });
-      }) as unknown as typeof fetch;
+        })
+      }) as unknown as typeof fetch
 
-      await adapter.markAsRead('wamid.MSG123');
+      await adapter.markAsRead('wamid.MSG123')
       expect(capturedBody).toEqual({
         messaging_product: 'whatsapp',
         status: 'read',
         message_id: 'wamid.MSG123',
-      });
-    });
-  });
+      })
+    })
+  })
 
   describe('WhatsAppApiError', () => {
     it('carries structured error fields', () => {
-      const err = new WhatsAppApiError(
-        'Test error',
-        400,
-        131047,
-        2494075,
-        'trace123',
-      );
-      expect(err).toBeInstanceOf(Error);
-      expect(err.name).toBe('WhatsAppApiError');
-      expect(err.code).toBe(131047);
-      expect(err.errorSubcode).toBe(2494075);
-      expect(err.fbtraceId).toBe('trace123');
-      expect(err.httpStatus).toBe(400);
-    });
-  });
+      const err = new WhatsAppApiError('Test error', 400, 131047, 2494075, 'trace123')
+      expect(err).toBeInstanceOf(Error)
+      expect(err.name).toBe('WhatsAppApiError')
+      expect(err.code).toBe(131047)
+      expect(err.errorSubcode).toBe(2494075)
+      expect(err.fbtraceId).toBe('trace123')
+      expect(err.httpStatus).toBe(400)
+    })
+  })
 
   describe('per-type media size limits', () => {
     it('rejects image data exceeding 5MB with retryable false', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      const oversizedData = Buffer.alloc(5 * 1024 * 1024 + 1);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      const oversizedData = Buffer.alloc(5 * 1024 * 1024 + 1)
       const result = await adapter.send({
         to: '16315555555',
         media: [
@@ -1368,14 +1326,14 @@ describe('WhatsApp Adapter', () => {
             mimeType: 'image/jpeg',
           },
         ],
-      });
-      expect(result.success).toBe(false);
-      expect(result.retryable).toBe(false);
-      expect(result.error).toContain('image');
-    });
+      })
+      expect(result.success).toBe(false)
+      expect(result.retryable).toBe(false)
+      expect(result.error).toContain('image')
+    })
 
     it('accepts image data at exactly the 5MB limit', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetchSequence([
         { body: { id: 'uploaded_media_ok' } },
         {
@@ -1384,8 +1342,8 @@ describe('WhatsApp Adapter', () => {
             messages: [{ id: 'wamid.OK' }],
           },
         },
-      ]);
-      const exactData = Buffer.alloc(5 * 1024 * 1024);
+      ])
+      const exactData = Buffer.alloc(5 * 1024 * 1024)
       const result = await adapter.send({
         to: '16315555555',
         media: [
@@ -1395,46 +1353,43 @@ describe('WhatsApp Adapter', () => {
             mimeType: 'image/jpeg',
           },
         ],
-      });
-      expect(result.success).toBe(true);
-    });
-  });
+      })
+      expect(result.success).toBe(true)
+    })
+  })
 
   describe('verifyWebhook signature length mismatch', () => {
     it('returns false (not throws) when signature has wrong length', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      const payload = { object: 'whatsapp_business_account' };
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      const payload = { object: 'whatsapp_business_account' }
       // Use a truncated signature — different length than expected sha256= hex
-      const req = makeWebhookRequest(payload, 'sha256=short');
-      let result: boolean | undefined;
-      let threw = false;
+      const req = makeWebhookRequest(payload, 'sha256=short')
+      let result: boolean | undefined
+      let threw = false
       try {
-        result = await adapter.verifyWebhook?.(req);
+        result = await adapter.verifyWebhook?.(req)
       } catch {
-        threw = true;
+        threw = true
       }
-      expect(threw).toBe(false);
-      expect(result).toBe(false);
-    });
-  });
+      expect(threw).toBe(false)
+      expect(result).toBe(false)
+    })
+  })
 
   describe('sendTemplate with components', () => {
     it('sends structured components when template.components is provided', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: Record<string, unknown> | undefined;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let capturedBody: Record<string, unknown> | undefined
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
-        capturedBody = JSON.parse(opts.body as string) as Record<
-          string,
-          unknown
-        >;
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>
         return new Response(
           JSON.stringify({
             messaging_product: 'whatsapp',
             messages: [{ id: 'wamid.COMP1' }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        )
+      }) as unknown as typeof fetch
 
       const result = await adapter.send({
         to: '16315555555',
@@ -1466,38 +1421,33 @@ describe('WhatsApp Adapter', () => {
             },
           ],
         },
-      });
+      })
 
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBe('wamid.COMP1');
+      expect(result.success).toBe(true)
+      expect(result.messageId).toBe('wamid.COMP1')
 
-      const tmplPayload = capturedBody?.template as Record<string, unknown>;
-      expect(tmplPayload?.name).toBe('order_confirmation');
-      const sentComponents = tmplPayload?.components as Array<
-        Record<string, unknown>
-      >;
-      expect(sentComponents).toHaveLength(3);
-      expect(sentComponents[0].type).toBe('header');
-      expect(sentComponents[1].type).toBe('body');
-      expect(sentComponents[2].type).toBe('button');
-    });
+      const tmplPayload = capturedBody?.template as Record<string, unknown>
+      expect(tmplPayload?.name).toBe('order_confirmation')
+      const sentComponents = tmplPayload?.components as Array<Record<string, unknown>>
+      expect(sentComponents).toHaveLength(3)
+      expect(sentComponents[0].type).toBe('header')
+      expect(sentComponents[1].type).toBe('body')
+      expect(sentComponents[2].type).toBe('button')
+    })
 
     it('falls back to legacy parameters when components is absent', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: Record<string, unknown> | undefined;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let capturedBody: Record<string, unknown> | undefined
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
-        capturedBody = JSON.parse(opts.body as string) as Record<
-          string,
-          unknown
-        >;
+        capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>
         return new Response(
           JSON.stringify({
             messaging_product: 'whatsapp',
             messages: [{ id: 'wamid.LEGACY1' }],
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        )
+      }) as unknown as typeof fetch
 
       const result = await adapter.send({
         to: '16315555555',
@@ -1506,27 +1456,23 @@ describe('WhatsApp Adapter', () => {
           language: 'en_US',
           parameters: ['Alice'],
         },
-      });
+      })
 
-      expect(result.success).toBe(true);
-      const tmplPayload = capturedBody?.template as Record<string, unknown>;
-      const sentComponents = tmplPayload?.components as Array<
-        Record<string, unknown>
-      >;
-      expect(sentComponents).toHaveLength(1);
-      expect(sentComponents[0].type).toBe('body');
-      const bodyParams = sentComponents[0].parameters as Array<
-        Record<string, unknown>
-      >;
-      expect(bodyParams[0]).toEqual({ type: 'text', text: 'Alice' });
-    });
-  });
-});
+      expect(result.success).toBe(true)
+      const tmplPayload = capturedBody?.template as Record<string, unknown>
+      const sentComponents = tmplPayload?.components as Array<Record<string, unknown>>
+      expect(sentComponents).toHaveLength(1)
+      expect(sentComponents[0].type).toBe('body')
+      const bodyParams = sentComponents[0].parameters as Array<Record<string, unknown>>
+      expect(bodyParams[0]).toEqual({ type: 'text', text: 'Alice' })
+    })
+  })
+})
 
 // ─── Transport Mode Tests ───────────────────────────────────────────
 
 describe('WhatsApp Adapter (transport mode)', () => {
-  const signRequestCalls: Array<{ method: string; path: string }> = [];
+  const signRequestCalls: Array<{ method: string; path: string }> = []
 
   const TRANSPORT_CONFIG = {
     phoneNumberId: '123456789',
@@ -1536,111 +1482,104 @@ describe('WhatsApp Adapter (transport mode)', () => {
       baseUrl: 'https://proxy.example.com/graph',
       mediaDownloadUrl: 'https://proxy.example.com/media-download',
       signRequest: (method: string, path: string) => {
-        signRequestCalls.push({ method, path });
+        signRequestCalls.push({ method, path })
         return {
           'X-Platform-Signature': `sig-${method}-${path}`,
           'X-Tenant-Id': 'tenant-123',
-        };
+        }
       },
     },
-  };
+  }
 
   afterEach(() => {
-    signRequestCalls.length = 0;
-  });
+    signRequestCalls.length = 0
+  })
 
   describe('send routing', () => {
     it('routes text messages through transport base URL', async () => {
-      let capturedUrl = '';
-      let capturedHeaders: Record<string, string> = {};
-      globalThis.fetch = (async (
-        input: string | URL | Request,
-        init?: RequestInit,
-      ) => {
-        capturedUrl = typeof input === 'string' ? input : input.toString();
-        capturedHeaders = (init?.headers ?? {}) as Record<string, string>;
-        return new Response(
-          JSON.stringify({ messages: [{ id: 'wamid.proxy1' }] }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+      let capturedUrl = ''
+      let capturedHeaders: Record<string, string> = {}
+      globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+        capturedUrl = typeof input === 'string' ? input : input.toString()
+        capturedHeaders = (init?.headers ?? {}) as Record<string, string>
+        return new Response(JSON.stringify({ messages: [{ id: 'wamid.proxy1' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
-      const result = await adapter.send({ to: '6591234567', text: 'Hello proxy' });
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
+      const result = await adapter.send({ to: '6591234567', text: 'Hello proxy' })
 
-      expect(result.success).toBe(true);
-      expect(result.messageId).toBe('wamid.proxy1');
-      expect(capturedUrl).toBe(
-        'https://proxy.example.com/graph/123456789/messages',
-      );
+      expect(result.success).toBe(true)
+      expect(result.messageId).toBe('wamid.proxy1')
+      expect(capturedUrl).toBe('https://proxy.example.com/graph/123456789/messages')
       // Should NOT have direct Bearer token
-      expect(capturedHeaders['Authorization']).toBeUndefined();
+      expect(capturedHeaders['Authorization']).toBeUndefined()
       // Should have transport headers from signRequest
-      expect(capturedHeaders['X-Platform-Signature']).toBeDefined();
-      expect(capturedHeaders['X-Tenant-Id']).toBe('tenant-123');
-    });
+      expect(capturedHeaders['X-Platform-Signature']).toBeDefined()
+      expect(capturedHeaders['X-Tenant-Id']).toBe('tenant-123')
+    })
 
     it('invokes signRequest with correct method and path', async () => {
       globalThis.fetch = (async () =>
-        new Response(
-          JSON.stringify({ messages: [{ id: 'wamid.1' }] }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        )) as unknown as typeof fetch;
+        new Response(JSON.stringify({ messages: [{ id: 'wamid.1' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
-      await adapter.send({ to: '6591234567', text: 'Test' });
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
+      await adapter.send({ to: '6591234567', text: 'Test' })
 
-      expect(signRequestCalls).toHaveLength(1);
+      expect(signRequestCalls).toHaveLength(1)
       expect(signRequestCalls[0]).toEqual({
         method: 'POST',
         path: '/graph/123456789/messages',
-      });
-    });
+      })
+    })
 
     it('routes template messages through transport', async () => {
-      let capturedUrl = '';
+      let capturedUrl = ''
       globalThis.fetch = (async (input: string | URL | Request) => {
-        capturedUrl = typeof input === 'string' ? input : input.toString();
-        return new Response(
-          JSON.stringify({ messages: [{ id: 'wamid.tmpl1' }] }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        capturedUrl = typeof input === 'string' ? input : input.toString()
+        return new Response(JSON.stringify({ messages: [{ id: 'wamid.tmpl1' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
       const result = await adapter.send({
         to: '6591234567',
         template: { name: 'hello', language: 'en' },
-      });
+      })
 
-      expect(result.success).toBe(true);
-      expect(capturedUrl).toBe(
-        'https://proxy.example.com/graph/123456789/messages',
-      );
-    });
+      expect(result.success).toBe(true)
+      expect(capturedUrl).toBe('https://proxy.example.com/graph/123456789/messages')
+    })
 
     it('routes media upload (FormData) through transport URL', async () => {
-      const capturedUrls: string[] = [];
-      let callCount = 0;
+      const capturedUrls: string[] = []
+      let callCount = 0
       globalThis.fetch = (async (input: string | URL | Request) => {
-        const url = typeof input === 'string' ? input : input.toString();
-        capturedUrls.push(url);
-        callCount++;
+        const url = typeof input === 'string' ? input : input.toString()
+        capturedUrls.push(url)
+        callCount++
         if (callCount === 1) {
           // Media upload response
           return new Response(JSON.stringify({ id: 'media_uploaded_1' }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
-          });
+          })
         }
         // Send message response
-        return new Response(
-          JSON.stringify({ messages: [{ id: 'wamid.media1' }] }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        return new Response(JSON.stringify({ messages: [{ id: 'wamid.media1' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
       const result = await adapter.send({
         to: '6591234567',
         media: [
@@ -1651,26 +1590,22 @@ describe('WhatsApp Adapter (transport mode)', () => {
             filename: 'test.jpg',
           },
         ],
-      });
+      })
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(true)
       // Media upload should go through proxy URL
-      expect(capturedUrls[0]).toBe(
-        'https://proxy.example.com/graph/123456789/media',
-      );
+      expect(capturedUrls[0]).toBe('https://proxy.example.com/graph/123456789/media')
       // Message send should also go through proxy
-      expect(capturedUrls[1]).toBe(
-        'https://proxy.example.com/graph/123456789/messages',
-      );
-    });
-  });
+      expect(capturedUrls[1]).toBe('https://proxy.example.com/graph/123456789/messages')
+    })
+  })
 
   describe('media download', () => {
     it('fetches metadata via proxy then binary via mediaDownloadUrl', async () => {
-      const capturedUrls: string[] = [];
+      const capturedUrls: string[] = []
       globalThis.fetch = (async (input: string | URL | Request) => {
-        const url = typeof input === 'string' ? input : input.toString();
-        capturedUrls.push(url);
+        const url = typeof input === 'string' ? input : input.toString()
+        capturedUrls.push(url)
         if (url.includes('/graph/media_123')) {
           // Metadata response
           return new Response(
@@ -1679,16 +1614,16 @@ describe('WhatsApp Adapter (transport mode)', () => {
               mime_type: 'image/jpeg',
             }),
             { status: 200, headers: { 'Content-Type': 'application/json' } },
-          );
+          )
         }
         // Binary download response
         return new Response(Buffer.from('fake-jpeg-bytes'), {
           status: 200,
           headers: { 'Content-Type': 'image/jpeg' },
-        });
-      }) as unknown as typeof fetch;
+        })
+      }) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
       // Access downloadMedia through parseWebhook with a media message
       const payload = wrapPayload({
         contacts: [{ profile: { name: 'Test' }, wa_id: '6591234567' }],
@@ -1701,66 +1636,60 @@ describe('WhatsApp Adapter (transport mode)', () => {
             image: { id: 'media_123', mime_type: 'image/jpeg' },
           },
         ],
-      });
+      })
 
       const req = new Request('https://example.com/webhook', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: { 'Content-Type': 'application/json' },
-      });
+      })
 
-      const events = await adapter.parseWebhook?.(req);
-      expect(events?.length).toBeGreaterThanOrEqual(1);
+      const events = await adapter.parseWebhook?.(req)
+      expect(events?.length).toBeGreaterThanOrEqual(1)
 
       // First call: metadata via proxy
-      expect(capturedUrls[0]).toBe(
-        'https://proxy.example.com/graph/media_123',
-      );
+      expect(capturedUrls[0]).toBe('https://proxy.example.com/graph/media_123')
       // Second call: binary via mediaDownloadUrl
-      expect(capturedUrls[1]).toContain(
-        'https://proxy.example.com/media-download?url=',
-      );
-      expect(capturedUrls[1]).toContain('lookaside.fbsbx.com');
-    });
-  });
+      expect(capturedUrls[1]).toContain('https://proxy.example.com/media-download?url=')
+      expect(capturedUrls[1]).toContain('lookaside.fbsbx.com')
+    })
+  })
 
   describe('verifyWebhook', () => {
     it('returns true when transport is configured (no-op)', async () => {
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
       const req = new Request('https://example.com/webhook', {
         method: 'POST',
         body: '{}',
-      });
-      expect(await adapter.verifyWebhook?.(req)).toBe(true);
-    });
-  });
+      })
+      expect(await adapter.verifyWebhook?.(req)).toBe(true)
+    })
+  })
 
   describe('proxy errors', () => {
     it('returns proxy error as SendResult on 502', async () => {
-      globalThis.fetch = (async () =>
-        new Response('Bad Gateway', { status: 502 })) as unknown as typeof fetch;
+      globalThis.fetch = (async () => new Response('Bad Gateway', { status: 502 })) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
-      const result = await adapter.send({ to: '6591234567', text: 'Test' });
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
+      const result = await adapter.send({ to: '6591234567', text: 'Test' })
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Platform proxy 502: Bad Gateway');
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Platform proxy 502: Bad Gateway')
       // 5xx maps to server_error via errorToSendResult
-      expect(result.code).toBe('server_error');
-      expect(result.retryable).toBe(true);
-    });
+      expect(result.code).toBe('server_error')
+      expect(result.retryable).toBe(true)
+    })
 
     it('returns proxy error as SendResult on 503', async () => {
-      globalThis.fetch = (async () =>
-        new Response('Service Unavailable', { status: 503 })) as unknown as typeof fetch;
+      globalThis.fetch = (async () => new Response('Service Unavailable', { status: 503 })) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
-      const result = await adapter.send({ to: '6591234567', text: 'Test' });
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
+      const result = await adapter.send({ to: '6591234567', text: 'Test' })
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Platform proxy 503: Service Unavailable');
-      expect(result.retryable).toBe(true);
-    });
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Platform proxy 503: Service Unavailable')
+      expect(result.retryable).toBe(true)
+    })
 
     it('passes through Meta API errors (400) without proxy wrapping', async () => {
       globalThis.fetch = (async () =>
@@ -1772,51 +1701,49 @@ describe('WhatsApp Adapter (transport mode)', () => {
             },
           }),
           { status: 400 },
-        )) as unknown as typeof fetch;
+        )) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
-      const result = await adapter.send({ to: 'invalid', text: 'Test' });
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
+      const result = await adapter.send({ to: 'invalid', text: 'Test' })
 
-      expect(result.success).toBe(false);
-      expect(result.code).toBe('invalid_recipient');
-    });
-  });
+      expect(result.success).toBe(false)
+      expect(result.code).toBe('invalid_recipient')
+    })
+  })
 
   describe('contactIdentifierField', () => {
     it('returns phone for transport mode adapter', () => {
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
-      expect(adapter.contactIdentifierField).toBe('phone');
-    });
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
+      expect(adapter.contactIdentifierField).toBe('phone')
+    })
 
     it('returns phone for direct mode adapter', () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      expect(adapter.contactIdentifierField).toBe('phone');
-    });
-  });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      expect(adapter.contactIdentifierField).toBe('phone')
+    })
+  })
 
   describe('markAsRead and syncTemplates', () => {
     it('routes markAsRead through transport', async () => {
-      let capturedUrl = '';
+      let capturedUrl = ''
       globalThis.fetch = (async (input: string | URL | Request) => {
-        capturedUrl = typeof input === 'string' ? input : input.toString();
+        capturedUrl = typeof input === 'string' ? input : input.toString()
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
-        });
-      }) as unknown as typeof fetch;
+        })
+      }) as unknown as typeof fetch
 
-      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG);
-      await adapter.markAsRead('wamid.test123');
+      const adapter = createWhatsAppAdapter(TRANSPORT_CONFIG)
+      await adapter.markAsRead('wamid.test123')
 
-      expect(capturedUrl).toBe(
-        'https://proxy.example.com/graph/123456789/messages',
-      );
-    });
-  });
+      expect(capturedUrl).toBe('https://proxy.example.com/graph/123456789/messages')
+    })
+  })
 
   describe('status dedup', () => {
     it('drops duplicate (messageId, status) within 60s TTL', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = wrapPayload({
         statuses: [
           {
@@ -1826,283 +1753,261 @@ describe('WhatsApp Adapter (transport mode)', () => {
             recipient_id: '16315551234',
           },
         ],
-      });
-      const events1 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? [];
-      const events2 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? [];
-      expect(events1).toHaveLength(1);
-      expect(events2).toHaveLength(0); // exact duplicate dropped
-    });
+      })
+      const events1 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? []
+      const events2 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? []
+      expect(events1).toHaveLength(1)
+      expect(events2).toHaveLength(0) // exact duplicate dropped
+    })
 
     it('passes same messageId with different status (sent then delivered)', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const sentPayload = wrapPayload({
-        statuses: [
-          { id: 'wamid.DEDUP2', status: 'sent', timestamp: '1638420000', recipient_id: '16315551234' },
-        ],
-      });
+        statuses: [{ id: 'wamid.DEDUP2', status: 'sent', timestamp: '1638420000', recipient_id: '16315551234' }],
+      })
       const deliveredPayload = wrapPayload({
-        statuses: [
-          { id: 'wamid.DEDUP2', status: 'delivered', timestamp: '1638420001', recipient_id: '16315551234' },
-        ],
-      });
-      const events1 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(sentPayload))) ?? [];
-      const events2 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(deliveredPayload))) ?? [];
-      expect(events1).toHaveLength(1);
-      expect(events2).toHaveLength(1);
-      expect((events2[0] as StatusUpdateEvent).status).toBe('delivered');
-    });
-  });
+        statuses: [{ id: 'wamid.DEDUP2', status: 'delivered', timestamp: '1638420001', recipient_id: '16315551234' }],
+      })
+      const events1 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(sentPayload))) ?? []
+      const events2 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(deliveredPayload))) ?? []
+      expect(events1).toHaveLength(1)
+      expect(events2).toHaveLength(1)
+      expect((events2[0] as StatusUpdateEvent).status).toBe('delivered')
+    })
+  })
 
   describe('status ordering (high-water)', () => {
     it('passes sent -> delivered -> read in forward order', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let passCount = 0;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let passCount = 0
       for (const status of ['sent', 'delivered', 'read'] as const) {
         const payload = wrapPayload({
-          statuses: [
-            { id: 'wamid.HW1', status, timestamp: '1638420000', recipient_id: '16315551234' },
-          ],
-        });
-        const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? [];
-        passCount += events.length;
+          statuses: [{ id: 'wamid.HW1', status, timestamp: '1638420000', recipient_id: '16315551234' }],
+        })
+        const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? []
+        passCount += events.length
       }
-      expect(passCount).toBe(3);
-    });
+      expect(passCount).toBe(3)
+    })
 
     it('drops out-of-order status (read arrives, then late sent)', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const readPayload = wrapPayload({
-        statuses: [
-          { id: 'wamid.HW2', status: 'read', timestamp: '1638420002', recipient_id: '16315551234' },
-        ],
-      });
+        statuses: [{ id: 'wamid.HW2', status: 'read', timestamp: '1638420002', recipient_id: '16315551234' }],
+      })
       const sentPayload = wrapPayload({
-        statuses: [
-          { id: 'wamid.HW2', status: 'sent', timestamp: '1638420000', recipient_id: '16315551234' },
-        ],
-      });
-      const events1 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(readPayload))) ?? [];
-      const events2 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(sentPayload))) ?? [];
-      expect(events1).toHaveLength(1);
-      expect(events2).toHaveLength(0); // late 'sent' dropped after 'read'
-    });
+        statuses: [{ id: 'wamid.HW2', status: 'sent', timestamp: '1638420000', recipient_id: '16315551234' }],
+      })
+      const events1 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(readPayload))) ?? []
+      const events2 = (await adapter.parseWebhook?.(makeSignedWebhookRequest(sentPayload))) ?? []
+      expect(events1).toHaveLength(1)
+      expect(events2).toHaveLength(0) // late 'sent' dropped after 'read'
+    })
 
     it('always passes failed status even after read', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const readPayload = wrapPayload({
-        statuses: [
-          { id: 'wamid.HW3', status: 'read', timestamp: '1638420002', recipient_id: '16315551234' },
-        ],
-      });
+        statuses: [{ id: 'wamid.HW3', status: 'read', timestamp: '1638420002', recipient_id: '16315551234' }],
+      })
       const failedPayload = wrapPayload({
-        statuses: [
-          { id: 'wamid.HW3', status: 'failed', timestamp: '1638420003', recipient_id: '16315551234' },
-        ],
-      });
-      await adapter.parseWebhook?.(makeSignedWebhookRequest(readPayload));
-      const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(failedPayload))) ?? [];
-      expect(events).toHaveLength(1);
-      expect((events[0] as StatusUpdateEvent).status).toBe('failed');
-    });
-  });
+        statuses: [{ id: 'wamid.HW3', status: 'failed', timestamp: '1638420003', recipient_id: '16315551234' }],
+      })
+      await adapter.parseWebhook?.(makeSignedWebhookRequest(readPayload))
+      const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(failedPayload))) ?? []
+      expect(events).toHaveLength(1)
+      expect((events[0] as StatusUpdateEvent).status).toBe('failed')
+    })
+  })
 
   describe('media download retry', () => {
     it('succeeds after one transient network error', async () => {
       // ~1s test due to 1s retry delay
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let callCount = 0;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let callCount = 0
       globalThis.fetch = (async () => {
-        callCount++;
-        if (callCount === 1) throw new Error('Network timeout');
+        callCount++
+        if (callCount === 1) throw new Error('Network timeout')
         if (callCount === 2) {
-          return new Response(
-            JSON.stringify({ url: 'https://cdn.example.com/img.jpg', mime_type: 'image/jpeg' }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } },
-          );
+          return new Response(JSON.stringify({ url: 'https://cdn.example.com/img.jpg', mime_type: 'image/jpeg' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
         return new Response(new Uint8Array([1, 2, 3]), {
           status: 200,
           headers: { 'Content-Type': 'image/jpeg' },
-        });
-      }) as unknown as typeof fetch;
+        })
+      }) as unknown as typeof fetch
 
       const payload = makeMessagePayload({
         type: 'image',
         image: { id: 'media_retry_ok', mime_type: 'image/jpeg' },
-      });
-      const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as MessageReceivedEvent;
-      expect(evt.messageType).toBe('image');
-      expect(evt.media).toBeDefined();
-      expect(evt.metadata?.mediaDownloadFailed).toBeUndefined();
-    }, 5_000);
+      })
+      const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as MessageReceivedEvent
+      expect(evt.messageType).toBe('image')
+      expect(evt.media).toBeDefined()
+      expect(evt.metadata?.mediaDownloadFailed).toBeUndefined()
+    }, 5_000)
 
     it('sets mediaDownloadFailed when all retries exhausted', async () => {
       // ~2s test due to 2 retry delays
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       globalThis.fetch = (async () => {
-        throw new Error('CDN unreachable');
-      }) as unknown as typeof fetch;
+        throw new Error('CDN unreachable')
+      }) as unknown as typeof fetch
 
       const payload = makeMessagePayload({
         type: 'image',
         image: { id: 'media_retry_fail', mime_type: 'image/jpeg' },
-      });
-      const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as MessageReceivedEvent;
-      expect(evt.messageType).toBe('image');
-      expect(evt.media).toBeUndefined();
-      expect(evt.metadata?.mediaDownloadFailed).toBe(true);
-      expect(evt.metadata?.failedMediaId).toBe('media_retry_fail');
-    }, 10_000);
+      })
+      const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as MessageReceivedEvent
+      expect(evt.messageType).toBe('image')
+      expect(evt.media).toBeUndefined()
+      expect(evt.metadata?.mediaDownloadFailed).toBe(true)
+      expect(evt.metadata?.failedMediaId).toBe('media_retry_fail')
+    }, 10_000)
 
     it('does not set mediaDownloadFailed on successful download', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetchSequence([
-        { body: { url: 'https://cdn.example.com/img.jpg', mime_type: 'image/jpeg' } },
-        { body: {} },
-      ]);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetchSequence([{ body: { url: 'https://cdn.example.com/img.jpg', mime_type: 'image/jpeg' } }, { body: {} }])
       const payload = makeMessagePayload({
         type: 'image',
         image: { id: 'media_ok', mime_type: 'image/jpeg' },
-      });
-      const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as MessageReceivedEvent;
-      expect(evt.metadata?.mediaDownloadFailed).toBeUndefined();
-    });
-  });
+      })
+      const events = (await adapter.parseWebhook?.(makeSignedWebhookRequest(payload))) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as MessageReceivedEvent
+      expect(evt.metadata?.mediaDownloadFailed).toBeUndefined()
+    })
+  })
 
   describe('healthCheck', () => {
     it('returns ok:true when token is valid (lightweight API call)', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({ id: TEST_CONFIG.phoneNumberId });
-      const result = await adapter.healthCheck();
-      expect(result.ok).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetch({ id: TEST_CONFIG.phoneNumberId })
+      const result = await adapter.healthCheck()
+      expect(result.ok).toBe(true)
+      expect(result.error).toBeUndefined()
+    })
 
     it('returns ok:false with "Invalid token" when API returns 190 error', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       globalThis.fetch = (async () =>
-        new Response(
-          JSON.stringify({ error: { code: 190, message: 'Invalid OAuth access token' } }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } },
-        )) as unknown as typeof fetch;
-      const result = await adapter.healthCheck();
-      expect(result.ok).toBe(false);
-      expect(result.error).toBe('Invalid token');
-    });
+        new Response(JSON.stringify({ error: { code: 190, message: 'Invalid OAuth access token' } }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        })) as unknown as typeof fetch
+      const result = await adapter.healthCheck()
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe('Invalid token')
+    })
 
     it('returns ok:false with "Token expired" when tokenExpiresAt is in the past', async () => {
       const adapter = createWhatsAppAdapter({
         ...TEST_CONFIG,
         tokenExpiresAt: new Date(Date.now() - 1000),
-      });
-      const result = await adapter.healthCheck();
-      expect(result.ok).toBe(false);
-      expect(result.error).toBe('Token expired');
-    });
+      })
+      const result = await adapter.healthCheck()
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe('Token expired')
+    })
 
     it('returns ok:true with warning when token expires within 7 days', async () => {
       const adapter = createWhatsAppAdapter({
         ...TEST_CONFIG,
         tokenExpiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
-      });
-      const result = await adapter.healthCheck();
-      expect(result.ok).toBe(true);
-      expect(result.error).toMatch(/expires in 3 days/);
-    });
+      })
+      const result = await adapter.healthCheck()
+      expect(result.ok).toBe(true)
+      expect(result.error).toMatch(/expires in 3 days/)
+    })
 
     it('returns ok:true without warning when token expires far in the future', async () => {
       const adapter = createWhatsAppAdapter({
         ...TEST_CONFIG,
         tokenExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
-      });
-      const result = await adapter.healthCheck();
-      expect(result.ok).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
-  });
+      })
+      const result = await adapter.healthCheck()
+      expect(result.ok).toBe(true)
+      expect(result.error).toBeUndefined()
+    })
+  })
 
   describe('tokenStatus', () => {
     it('returns valid:true with no expiresAt when not configured', () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      const status = adapter.tokenStatus();
-      expect(status.valid).toBe(true);
-      expect(status.expiresAt).toBeUndefined();
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      const status = adapter.tokenStatus()
+      expect(status.valid).toBe(true)
+      expect(status.expiresAt).toBeUndefined()
+    })
 
     it('returns valid:false when token is expired', () => {
-      const expiresAt = new Date(Date.now() - 1000);
-      const adapter = createWhatsAppAdapter({ ...TEST_CONFIG, tokenExpiresAt: expiresAt });
-      const status = adapter.tokenStatus();
-      expect(status.valid).toBe(false);
-      expect(status.daysRemaining).toBe(0);
-    });
+      const expiresAt = new Date(Date.now() - 1000)
+      const adapter = createWhatsAppAdapter({ ...TEST_CONFIG, tokenExpiresAt: expiresAt })
+      const status = adapter.tokenStatus()
+      expect(status.valid).toBe(false)
+      expect(status.daysRemaining).toBe(0)
+    })
 
     it('returns valid:true with daysRemaining when token is future', () => {
-      const expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-      const adapter = createWhatsAppAdapter({ ...TEST_CONFIG, tokenExpiresAt: expiresAt });
-      const status = adapter.tokenStatus();
-      expect(status.valid).toBe(true);
-      expect(status.daysRemaining).toBe(5);
-    });
-  });
+      const expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // 5 days
+      const adapter = createWhatsAppAdapter({ ...TEST_CONFIG, tokenExpiresAt: expiresAt })
+      const status = adapter.tokenStatus()
+      expect(status.valid).toBe(true)
+      expect(status.daysRemaining).toBe(5)
+    })
+  })
 
   describe('createTemplate', () => {
     const validTemplate = {
       name: 'my_template',
       language: 'en_US',
       category: 'UTILITY' as const,
-      components: [
-        { type: 'BODY' as const, text: 'Hello {{1}}' },
-      ],
-    };
+      components: [{ type: 'BODY' as const, text: 'Hello {{1}}' }],
+    }
 
     it('calls Graph API with correct payload and returns id+status', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       // Mock: getWabaId (owner query) then createTemplate POST
-      mockFetchSequence([
-        { body: { owner: 'WABA_ID_123' } },
-        { body: { id: 'tmpl_456', status: 'PENDING' } },
-      ]);
-      const result = await adapter.createTemplate(validTemplate);
-      expect(result.id).toBe('tmpl_456');
-      expect(result.status).toBe('PENDING');
-    });
+      mockFetchSequence([{ body: { owner: 'WABA_ID_123' } }, { body: { id: 'tmpl_456', status: 'PENDING' } }])
+      const result = await adapter.createTemplate(validTemplate)
+      expect(result.id).toBe('tmpl_456')
+      expect(result.status).toBe('PENDING')
+    })
 
     it('throws on invalid template name', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      await expect(
-        adapter.createTemplate({ ...validTemplate, name: 'My Template!' }),
-      ).rejects.toThrow(/Invalid template name.*must match/);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      await expect(adapter.createTemplate({ ...validTemplate, name: 'My Template!' })).rejects.toThrow(
+        /Invalid template name.*must match/,
+      )
+    })
 
     it('throws when BODY component is missing', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       await expect(
         adapter.createTemplate({
           ...validTemplate,
           components: [{ type: 'HEADER', text: 'Header only' }],
         }),
-      ).rejects.toThrow(/BODY/);
-    });
+      ).rejects.toThrow(/BODY/)
+    })
 
     it('throws when body text exceeds 512 chars', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       await expect(
         adapter.createTemplate({
           ...validTemplate,
           components: [{ type: 'BODY', text: 'A'.repeat(513) }],
         }),
-      ).rejects.toThrow(/exceeds maximum/);
-    });
+      ).rejects.toThrow(/exceeds maximum/)
+    })
 
     it('throws when more than 10 buttons', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       await expect(
         adapter.createTemplate({
           ...validTemplate,
@@ -2117,50 +2022,52 @@ describe('WhatsApp Adapter (transport mode)', () => {
             },
           ],
         }),
-      ).rejects.toThrow(/11 buttons/);
-    });
-  });
+      ).rejects.toThrow(/11 buttons/)
+    })
+  })
 
   describe('deleteTemplate', () => {
     it('calls DELETE on the correct endpoint', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedUrl = '';
-      let capturedMethod = '';
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let capturedUrl = ''
+      let capturedMethod = ''
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-        const url = typeof input === 'string' ? input : input.toString();
-        capturedUrl = url;
-        capturedMethod = init?.method ?? 'GET';
+        const url = typeof input === 'string' ? input : input.toString()
+        capturedUrl = url
+        capturedMethod = init?.method ?? 'GET'
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
-        });
-      }) as unknown as typeof fetch;
+        })
+      }) as unknown as typeof fetch
 
       // First call: getWabaId; second call: DELETE
-      let callCount = 0;
+      let callCount = 0
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-        callCount++;
+        callCount++
         if (callCount === 1) {
           return new Response(JSON.stringify({ owner: 'WABA_99' }), {
-            status: 200, headers: { 'Content-Type': 'application/json' },
-          });
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
         }
-        capturedUrl = typeof input === 'string' ? input : input.toString();
-        capturedMethod = init?.method ?? 'GET';
+        capturedUrl = typeof input === 'string' ? input : input.toString()
+        capturedMethod = init?.method ?? 'GET'
         return new Response(JSON.stringify({ success: true }), {
-          status: 200, headers: { 'Content-Type': 'application/json' },
-        });
-      }) as unknown as typeof fetch;
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }) as unknown as typeof fetch
 
-      await adapter.deleteTemplate('my_old_template');
-      expect(capturedMethod).toBe('DELETE');
-      expect(capturedUrl).toContain('my_old_template');
-    });
-  });
+      await adapter.deleteTemplate('my_old_template')
+      expect(capturedMethod).toBe('DELETE')
+      expect(capturedUrl).toContain('my_old_template')
+    })
+  })
 
   describe('getTemplate', () => {
     it('returns template when found', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetchSequence([
         { body: { owner: 'WABA_99' } },
         {
@@ -2177,130 +2084,127 @@ describe('WhatsApp Adapter (transport mode)', () => {
             ],
           },
         },
-      ]);
-      const tmpl = await adapter.getTemplate('hello_world');
-      expect(tmpl).not.toBeNull();
-      expect(tmpl?.name).toBe('hello_world');
-    });
+      ])
+      const tmpl = await adapter.getTemplate('hello_world')
+      expect(tmpl).not.toBeNull()
+      expect(tmpl?.name).toBe('hello_world')
+    })
 
     it('returns null when not found', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetchSequence([
-        { body: { owner: 'WABA_99' } },
-        { body: { data: [] } },
-      ]);
-      const tmpl = await adapter.getTemplate('nonexistent');
-      expect(tmpl).toBeNull();
-    });
-  });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetchSequence([{ body: { owner: 'WABA_99' } }, { body: { data: [] } }])
+      const tmpl = await adapter.getTemplate('nonexistent')
+      expect(tmpl).toBeNull()
+    })
+  })
 
   describe('getMessagingTier', () => {
     it('returns tier and quality rating from Graph API', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetch({
         id: TEST_CONFIG.phoneNumberId,
         messaging_limit_tier: 'TIER_10K',
         quality_rating: 'GREEN',
-      });
-      const tier = await adapter.getMessagingTier();
-      expect(tier.tier).toBe('TIER_10K');
-      expect(tier.qualityRating).toBe('GREEN');
-    });
+      })
+      const tier = await adapter.getMessagingTier()
+      expect(tier.tier).toBe('TIER_10K')
+      expect(tier.qualityRating).toBe('GREEN')
+    })
 
     it('returns "unknown" for missing fields', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      mockFetch({ id: TEST_CONFIG.phoneNumberId });
-      const tier = await adapter.getMessagingTier();
-      expect(tier.tier).toBe('unknown');
-      expect(tier.qualityRating).toBe('unknown');
-    });
-  });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      mockFetch({ id: TEST_CONFIG.phoneNumberId })
+      const tier = await adapter.getMessagingTier()
+      expect(tier.tier).toBe('unknown')
+      expect(tier.qualityRating).toBe('unknown')
+    })
+  })
 
   describe('CTA URL interactive pass-through (2.8)', () => {
     it('sends cta_url interactive with correct body shape', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      let capturedBody: Record<string, unknown> | undefined;
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      let capturedBody: Record<string, unknown> | undefined
       globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
         if (init?.body && typeof init.body === 'string') {
-          capturedBody = JSON.parse(init.body);
+          capturedBody = JSON.parse(init.body)
         }
-        return new Response(
-          JSON.stringify({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.CTA1' }] }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }) as unknown as typeof fetch;
+        return new Response(JSON.stringify({ messaging_product: 'whatsapp', messages: [{ id: 'wamid.CTA1' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }) as unknown as typeof fetch
 
       const ctaInteractive = {
         type: 'cta_url',
         body: { text: 'Visit our site' },
         action: { name: 'cta_url', parameters: { display_text: 'Open', url: 'https://example.com' } },
-      };
+      }
       const result = await adapter.send({
         to: '16315555555',
         metadata: { interactive: ctaInteractive },
-      });
-      expect(result.success).toBe(true);
-      expect((capturedBody?.interactive as Record<string, unknown>)?.type).toBe('cta_url');
-    });
-  });
+      })
+      expect(result.success).toBe(true)
+      expect((capturedBody?.interactive as Record<string, unknown>)?.type).toBe('cta_url')
+    })
+  })
 
   describe('registerWebhook / deregisterWebhook (3.1)', () => {
-    const CONFIG_WITH_APP = { ...TEST_CONFIG, appId: 'app_12345' };
+    const CONFIG_WITH_APP = { ...TEST_CONFIG, appId: 'app_12345' }
 
     it('registerWebhook calls POST /{appId}/subscriptions with correct body', async () => {
-      const adapter = createWhatsAppAdapter(CONFIG_WITH_APP);
-      let capturedUrl = '';
-      let capturedBody: Record<string, unknown> | undefined;
+      const adapter = createWhatsAppAdapter(CONFIG_WITH_APP)
+      let capturedUrl = ''
+      let capturedBody: Record<string, unknown> | undefined
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-        capturedUrl = typeof input === 'string' ? input : input.toString();
+        capturedUrl = typeof input === 'string' ? input : input.toString()
         if (init?.body && typeof init.body === 'string') {
-          capturedBody = JSON.parse(init.body);
+          capturedBody = JSON.parse(init.body)
         }
         return new Response(JSON.stringify({ success: true }), {
-          status: 200, headers: { 'Content-Type': 'application/json' },
-        });
-      }) as unknown as typeof fetch;
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }) as unknown as typeof fetch
 
-      await adapter.registerWebhook('https://myapp.com/webhook', 'my-verify-token');
-      expect(capturedUrl).toContain('app_12345/subscriptions');
-      expect(capturedBody?.callback_url).toBe('https://myapp.com/webhook');
-      expect(capturedBody?.verify_token).toBe('my-verify-token');
-      expect(capturedBody?.object).toBe('whatsapp_business_account');
-    });
+      await adapter.registerWebhook('https://myapp.com/webhook', 'my-verify-token')
+      expect(capturedUrl).toContain('app_12345/subscriptions')
+      expect(capturedBody?.callback_url).toBe('https://myapp.com/webhook')
+      expect(capturedBody?.verify_token).toBe('my-verify-token')
+      expect(capturedBody?.object).toBe('whatsapp_business_account')
+    })
 
     it('throws when appId is not configured', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG); // no appId
-      await expect(
-        adapter.registerWebhook('https://myapp.com/webhook', 'token'),
-      ).rejects.toThrow(/appId/);
-    });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG) // no appId
+      await expect(adapter.registerWebhook('https://myapp.com/webhook', 'token')).rejects.toThrow(/appId/)
+    })
 
     it('deregisterWebhook calls DELETE on subscriptions endpoint', async () => {
-      const adapter = createWhatsAppAdapter(CONFIG_WITH_APP);
-      let capturedMethod = '';
-      let capturedUrl = '';
+      const adapter = createWhatsAppAdapter(CONFIG_WITH_APP)
+      let capturedMethod = ''
+      let capturedUrl = ''
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-        capturedUrl = typeof input === 'string' ? input : input.toString();
-        capturedMethod = init?.method ?? 'GET';
+        capturedUrl = typeof input === 'string' ? input : input.toString()
+        capturedMethod = init?.method ?? 'GET'
         return new Response(JSON.stringify({ success: true }), {
-          status: 200, headers: { 'Content-Type': 'application/json' },
-        });
-      }) as unknown as typeof fetch;
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }) as unknown as typeof fetch
 
-      await adapter.deregisterWebhook();
-      expect(capturedMethod).toBe('DELETE');
-      expect(capturedUrl).toContain('app_12345/subscriptions');
-    });
+      await adapter.deregisterWebhook()
+      expect(capturedMethod).toBe('DELETE')
+      expect(capturedUrl).toContain('app_12345/subscriptions')
+    })
 
     it('throws when appId is not configured for deregister', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
-      await expect(adapter.deregisterWebhook()).rejects.toThrow(/appId/);
-    });
-  });
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      await expect(adapter.deregisterWebhook()).rejects.toThrow(/appId/)
+    })
+  })
 
   describe('template status webhook (2.4)', () => {
     it('parses APPROVED template status as delivered StatusUpdateEvent', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = {
         object: 'whatsapp_business_account',
         entry: [
@@ -2320,20 +2224,20 @@ describe('WhatsApp Adapter (transport mode)', () => {
             ],
           },
         ],
-      };
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      const evt = events[0] as StatusUpdateEvent;
-      expect(evt.type).toBe('status_update');
-      expect(evt.status).toBe('delivered');
-      expect(evt.metadata?.templateStatusUpdate).toBe(true);
-      expect(evt.metadata?.templateName).toBe('my_template');
-      expect(evt.metadata?.templateStatus).toBe('APPROVED');
-    });
+      }
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const evt = events[0] as StatusUpdateEvent
+      expect(evt.type).toBe('status_update')
+      expect(evt.status).toBe('delivered')
+      expect(evt.metadata?.templateStatusUpdate).toBe(true)
+      expect(evt.metadata?.templateName).toBe('my_template')
+      expect(evt.metadata?.templateStatus).toBe('APPROVED')
+    })
 
     it('parses REJECTED template status as failed', async () => {
-      const adapter = createWhatsAppAdapter(TEST_CONFIG);
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = {
         object: 'whatsapp_business_account',
         entry: [
@@ -2353,12 +2257,12 @@ describe('WhatsApp Adapter (transport mode)', () => {
             ],
           },
         ],
-      };
-      const req = makeSignedWebhookRequest(payload);
-      const events = (await adapter.parseWebhook?.(req)) ?? [];
-      expect(events).toHaveLength(1);
-      expect((events[0] as StatusUpdateEvent).status).toBe('failed');
-      expect((events[0] as StatusUpdateEvent).metadata?.templateStatus).toBe('REJECTED');
-    });
-  });
-});
+      }
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      expect((events[0] as StatusUpdateEvent).status).toBe('failed')
+      expect((events[0] as StatusUpdateEvent).metadata?.templateStatus).toBe('REJECTED')
+    })
+  })
+})

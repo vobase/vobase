@@ -15,6 +15,7 @@
  */
 import { ChannelInboundEventSchema } from '@server/transports/events'
 import { z } from 'zod'
+
 import { getAuth } from './state'
 
 /** Body posted by browser clients — no organizationId/from (those come from the session). */

@@ -5,6 +5,7 @@
 
 import type { Tx } from '@server/common/port-types'
 import type { AgentEvent } from '@server/events'
+
 import type { AgentDefinition } from '../schema'
 
 export interface AgentsPort {

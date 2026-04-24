@@ -6,27 +6,27 @@
  * scorer receives meaningless input/output. This module queries
  * messaging.messages for the real conversation content and scores that.
  */
-import { randomUUID } from 'node:crypto';
-import type { MastraScorer } from '@mastra/core/evals';
-import { hybridSearch } from '@modules/knowledge-base/lib/search';
-import type { VobaseDb } from '@vobase/core';
-import { logger } from '@vobase/core';
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto'
+import type { MastraScorer } from '@mastra/core/evals'
+import { hybridSearch } from '@modules/knowledge-base/lib/search'
+import type { VobaseDb } from '@vobase/core'
+import { logger } from '@vobase/core'
+import { and, desc, eq, gte } from 'drizzle-orm'
 
-import { messages } from '../../../messaging/schema';
-import { getMastra } from '../index';
-import { buildCustomScorer } from './custom-scorer-factory';
-import { scorers } from './scorers';
+import { messages } from '../../../messaging/schema'
+import { getMastra } from '../index'
+import { buildCustomScorer } from './custom-scorer-factory'
+import { scorers } from './scorers'
 
 // ─── Message extraction ─────────────────────────────────────────────
 
 interface ConversationMessages {
   /** Last inbound customer message (the trigger). */
-  customerMessage: string;
+  customerMessage: string
   /** All agent replies sent during this wake (concatenated). */
-  agentReply: string;
+  agentReply: string
   /** IDs of the agent messages scored in this wake (chronological). */
-  agentMessageIds: string[];
+  agentMessageIds: string[]
 }
 
 /**
@@ -43,16 +43,11 @@ async function extractConversationMessages(
   const [lastInbound] = await db
     .select({ content: messages.content, contentType: messages.contentType })
     .from(messages)
-    .where(
-      and(
-        eq(messages.conversationId, conversationId),
-        eq(messages.messageType, 'incoming'),
-      ),
-    )
+    .where(and(eq(messages.conversationId, conversationId), eq(messages.messageType, 'incoming')))
     .orderBy(desc(messages.createdAt))
-    .limit(1);
+    .limit(1)
 
-  if (!lastInbound) return null;
+  if (!lastInbound) return null
 
   // Fetch agent replies sent during this wake
   const agentReplies = await db
@@ -70,32 +65,29 @@ async function extractConversationMessages(
         gte(messages.createdAt, since),
       ),
     )
-    .orderBy(messages.createdAt);
+    .orderBy(messages.createdAt)
 
-  if (agentReplies.length === 0) return null;
+  if (agentReplies.length === 0) return null
 
-  const customerMessage =
-    lastInbound.contentType === 'image'
-      ? '(customer sent an image)'
-      : lastInbound.content;
+  const customerMessage = lastInbound.contentType === 'image' ? '(customer sent an image)' : lastInbound.content
 
-  const agentReply = agentReplies.map((r) => r.content).join('\n\n');
+  const agentReply = agentReplies.map((r) => r.content).join('\n\n')
 
   return {
     customerMessage,
     agentReply,
     agentMessageIds: agentReplies.map((r) => r.id),
-  };
+  }
 }
 
 // ─── Score persistence ──────────────────────────────────────────────
 
 interface ScoreConversationOptions {
-  db: VobaseDb;
-  conversationId: string;
-  agentId: string;
+  db: VobaseDb
+  conversationId: string
+  agentId: string
   /** Timestamp just before agent.generate() was called. */
-  wakeStart: Date;
+  wakeStart: Date
 }
 
 /**
@@ -105,38 +97,32 @@ interface ScoreConversationOptions {
  * Designed to be called after agent.generate() completes in agent-wake.
  * Runs in the background — errors are logged, never thrown.
  */
-export async function scoreConversation(
-  opts: ScoreConversationOptions,
-): Promise<void> {
-  const { db, conversationId, agentId, wakeStart } = opts;
+export async function scoreConversation(opts: ScoreConversationOptions): Promise<void> {
+  const { db, conversationId, agentId, wakeStart } = opts
 
   try {
-    const extracted = await extractConversationMessages(
-      db,
-      conversationId,
-      wakeStart,
-    );
+    const extracted = await extractConversationMessages(db, conversationId, wakeStart)
 
     if (!extracted) {
-      logger.debug('[scorer] No messages to score', { conversationId });
-      return;
+      logger.debug('[scorer] No messages to score', { conversationId })
+      return
     }
 
-    const mastra = getMastra();
-    const storage = mastra.getStorage();
+    const mastra = getMastra()
+    const storage = mastra.getStorage()
     if (!storage) {
-      logger.warn('[scorer] No storage available, skipping scoring');
-      return;
+      logger.warn('[scorer] No storage available, skipping scoring')
+      return
     }
 
-    const scoresStore = await storage.getStore('scores');
+    const scoresStore = await storage.getStore('scores')
     if (!scoresStore) {
-      logger.warn('[scorer] Scores store not available, skipping scoring');
-      return;
+      logger.warn('[scorer] Scores store not available, skipping scoring')
+      return
     }
 
-    const runId = randomUUID();
-    const threadId = `agent-${agentId}-conv-${conversationId}`;
+    const runId = randomUUID()
+    const threadId = `agent-${agentId}-conv-${conversationId}`
 
     // Pre-fetch KB snippets so scorers (answer-relevancy) can judge the reply
     // against the authoritative reference material the agent had access to.
@@ -147,24 +133,21 @@ export async function scoreConversation(
       logger.debug('[scorer] KB search failed, continuing without snippets', {
         conversationId,
         error: err,
-      });
-      return [];
-    });
+      })
+      return []
+    })
 
     // Resolve all scorers: code-based + custom from DB
-    const allScorers: MastraScorer[] = [...scorers];
+    const allScorers: MastraScorer[] = [...scorers]
     try {
-      const defsStore = await storage.getStore('scorerDefinitions');
+      const defsStore = await storage.getStore('scorerDefinitions')
       if (defsStore) {
-        const result = (await defsStore.listResolved()) as Record<
-          string,
-          unknown
-        >;
+        const result = (await defsStore.listResolved()) as Record<string, unknown>
         const rawDefs = Array.isArray(result?.scorerDefinitions)
           ? (result.scorerDefinitions as Record<string, unknown>[])
-          : [];
+          : []
         for (const def of rawDefs.filter((d) => d.status === 'published')) {
-          const metadata = (def.metadata ?? {}) as Record<string, unknown>;
+          const metadata = (def.metadata ?? {}) as Record<string, unknown>
           allScorers.push(
             buildCustomScorer({
               id: def.id as string,
@@ -173,7 +156,7 @@ export async function scoreConversation(
               criteria: (def.instructions as string) ?? '',
               model: (metadata.model as string) ?? '',
             }),
-          );
+          )
         }
       }
     } catch {
@@ -189,7 +172,7 @@ export async function scoreConversation(
           input: extracted.customerMessage,
           output: extracted.agentReply,
           requestContext: { kbSnippets },
-        });
+        })
 
         if (result && typeof result.score === 'number') {
           await scoresStore.saveScore({
@@ -213,22 +196,22 @@ export async function scoreConversation(
               conversationId,
               messageIds: extracted.agentMessageIds,
             },
-          });
+          })
         }
 
-        return { scorerId: scorer.id, score: result?.score ?? null };
+        return { scorerId: scorer.id, score: result?.score ?? null }
       }),
-    );
+    )
 
-    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.filter((r) => r.status === 'rejected');
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.filter((r) => r.status === 'rejected')
 
     if (failed.length > 0) {
       for (const f of failed) {
         logger.warn('[scorer] Scorer failed', {
           conversationId,
           error: (f as PromiseRejectedResult).reason,
-        });
+        })
       }
     }
 
@@ -236,11 +219,11 @@ export async function scoreConversation(
       conversationId,
       succeeded,
       failed: failed.length,
-    });
+    })
   } catch (err) {
     logger.error('[scorer] Conversation scoring failed', {
       conversationId,
       error: err,
-    });
+    })
   }
 }

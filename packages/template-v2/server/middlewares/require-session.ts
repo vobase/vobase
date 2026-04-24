@@ -1,4 +1,5 @@
 import type { Context, MiddlewareHandler } from 'hono'
+
 import type { Auth } from '../auth'
 
 type BaseSession = NonNullable<Awaited<ReturnType<Auth['api']['getSession']>>>

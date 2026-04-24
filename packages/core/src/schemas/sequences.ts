@@ -1,7 +1,7 @@
-import { integer, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, text, timestamp } from 'drizzle-orm/pg-core'
 
-import { nanoidPrimaryKey } from '../db/helpers';
-import { infraPgSchema } from '../db/pg-schemas';
+import { nanoidPrimaryKey } from '../db/helpers'
+import { infraPgSchema } from '../db/pg-schemas'
 
 export const sequences = infraPgSchema.table('sequences', {
   id: nanoidPrimaryKey(),
@@ -11,4 +11,4 @@ export const sequences = infraPgSchema.table('sequences', {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+})

@@ -1,138 +1,117 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import {
-  MoreHorizontalIcon,
-  PauseIcon,
-  PlayIcon,
-  PlusIcon,
-  TrashIcon,
-  ZapIcon,
-} from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { MoreHorizontalIcon, PauseIcon, PlayIcon, PlusIcon, TrashIcon, ZapIcon } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
-import { messagingClient } from '@/lib/api-client';
-import { cronToHuman, ruleStatusVariant, ruleTypeLabel } from './_lib/helpers';
-import { PromptDialog } from './_lib/prompt-dialog';
+} from '@/components/ui/dropdown-menu'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status'
+import { messagingClient } from '@/lib/api-client'
+import { cronToHuman, ruleStatusVariant, ruleTypeLabel } from './_lib/helpers'
+import { PromptDialog } from './_lib/prompt-dialog'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
 interface AutomationRule {
-  id: string;
-  name: string;
-  description: string | null;
-  type: 'recurring' | 'date-relative';
-  isActive: boolean;
-  schedule: string | null;
-  dateAttribute: string | null;
-  timezone: string;
-  lastFiredAt: string | null;
-  nextFireAt: string | null;
-  createdAt: string;
+  id: string
+  name: string
+  description: string | null
+  type: 'recurring' | 'date-relative'
+  isActive: boolean
+  schedule: string | null
+  dateAttribute: string | null
+  timezone: string
+  lastFiredAt: string | null
+  nextFireAt: string | null
+  createdAt: string
 }
 
 // ─── Data fetching ───────────────────────────────────────────────────
 
 async function fetchRules(): Promise<{
-  data: AutomationRule[];
-  total: number;
+  data: AutomationRule[]
+  total: number
 }> {
   const res = await messagingClient.automation.rules.$get({
     query: { limit: '50', offset: '0' },
-  });
-  if (!res.ok) throw new Error('Failed to fetch automation rules');
-  return res.json() as Promise<{ data: AutomationRule[]; total: number }>;
+  })
+  if (!res.ok) throw new Error('Failed to fetch automation rules')
+  return res.json() as Promise<{ data: AutomationRule[]; total: number }>
 }
 
 // ─── Rule card ────────────────────────────────────────────────────────
 
-type RulesCache = { data: AutomationRule[]; total: number };
+type RulesCache = { data: AutomationRule[]; total: number }
 
-function useOptimisticRuleToggle(
-  ruleId: string,
-  endpoint: 'pause' | 'resume',
-  targetActive: boolean,
-) {
-  const queryClient = useQueryClient();
+function useOptimisticRuleToggle(ruleId: string, endpoint: 'pause' | 'resume', targetActive: boolean) {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      const res = await messagingClient.automation.rules[':id'][endpoint].$post(
-        { param: { id: ruleId } },
-      );
-      if (!res.ok) throw new Error(`Failed to ${endpoint} rule`);
-      return res.json();
+      const res = await messagingClient.automation.rules[':id'][endpoint].$post({ param: { id: ruleId } })
+      if (!res.ok) throw new Error(`Failed to ${endpoint} rule`)
+      return res.json()
     },
     onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['automation-rules'] });
-      const prev = queryClient.getQueryData<RulesCache>(['automation-rules']);
+      await queryClient.cancelQueries({ queryKey: ['automation-rules'] })
+      const prev = queryClient.getQueryData<RulesCache>(['automation-rules'])
       if (prev) {
         queryClient.setQueryData<RulesCache>(['automation-rules'], {
           ...prev,
-          data: prev.data.map((r) =>
-            r.id === ruleId ? { ...r, isActive: targetActive } : r,
-          ),
-        });
+          data: prev.data.map((r) => (r.id === ruleId ? { ...r, isActive: targetActive } : r)),
+        })
       }
-      return { prev };
+      return { prev }
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(['automation-rules'], ctx.prev);
-      toast.error(`Failed to ${endpoint} rule`);
+      if (ctx?.prev) queryClient.setQueryData(['automation-rules'], ctx.prev)
+      toast.error(`Failed to ${endpoint} rule`)
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
+      queryClient.invalidateQueries({ queryKey: ['automation-rules'] })
     },
-  });
+  })
 }
 
 function RuleCard({ rule }: { rule: AutomationRule }) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
-  const pauseMutation = useOptimisticRuleToggle(rule.id, 'pause', false);
-  const resumeMutation = useOptimisticRuleToggle(rule.id, 'resume', true);
+  const pauseMutation = useOptimisticRuleToggle(rule.id, 'pause', false)
+  const resumeMutation = useOptimisticRuleToggle(rule.id, 'resume', true)
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const res = await messagingClient.automation.rules[':id'].$delete({
         param: { id: rule.id },
-      });
-      if (!res.ok) throw new Error('Failed to delete rule');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to delete rule')
+      return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['automation-rules'] });
-      toast.success('Rule deleted');
+      queryClient.invalidateQueries({ queryKey: ['automation-rules'] })
+      toast.success('Rule deleted')
     },
     onError: () => {
-      toast.error('Failed to delete rule');
+      toast.error('Failed to delete rule')
     },
-  });
+  })
 
   const scheduleLabel =
     rule.type === 'recurring'
       ? cronToHuman(rule.schedule)
       : rule.dateAttribute
         ? `On ${rule.dateAttribute}`
-        : 'No date attribute';
+        : 'No date attribute'
 
   return (
     <div className="flex items-start justify-between gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/5">
@@ -150,11 +129,7 @@ function RuleCard({ rule }: { rule: AutomationRule }) {
           </Badge>
         </div>
 
-        {rule.description && (
-          <p className="text-muted-foreground truncate text-sm">
-            {rule.description}
-          </p>
-        )}
+        {rule.description && <p className="text-muted-foreground truncate text-sm">{rule.description}</p>}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>{scheduleLabel}</span>
@@ -209,10 +184,7 @@ function RuleCard({ rule }: { rule: AutomationRule }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem asChild>
-              <Link
-                to="/messaging/campaigns/rules/$ruleId"
-                params={{ ruleId: rule.id }}
-              >
+              <Link to="/messaging/campaigns/rules/$ruleId" params={{ ruleId: rule.id }}>
                 View details
               </Link>
             </DropdownMenuItem>
@@ -229,20 +201,20 @@ function RuleCard({ rule }: { rule: AutomationRule }) {
         </DropdownMenu>
       </div>
     </div>
-  );
+  )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function RulesPage() {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['automation-rules'],
     queryFn: fetchRules,
-  });
+  })
 
-  const rules = data?.data ?? [];
+  const rules = data?.data ?? []
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
@@ -250,15 +222,10 @@ function RulesPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Rules</h2>
           <p className="text-muted-foreground">
-            Automated messaging sequences triggered by schedule or contact
-            attributes.
+            Automated messaging sequences triggered by schedule or contact attributes.
           </p>
         </div>
-        <Button
-          size="sm"
-          className="gap-1.5"
-          onClick={() => setDialogOpen(true)}
-        >
+        <Button size="sm" className="gap-1.5" onClick={() => setDialogOpen(true)}>
           <PlusIcon className="size-3.5" />
           New rule
         </Button>
@@ -277,16 +244,9 @@ function RulesPage() {
               <ZapIcon className="size-8" />
             </EmptyMedia>
             <EmptyTitle>No rules yet</EmptyTitle>
-            <EmptyDescription>
-              Describe a rule in plain language and let AI draft it for you.
-            </EmptyDescription>
+            <EmptyDescription>Describe a rule in plain language and let AI draft it for you.</EmptyDescription>
           </EmptyHeader>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={() => setDialogOpen(true)}
-          >
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setDialogOpen(true)}>
             <PlusIcon className="size-3.5" />
             Create first rule
           </Button>
@@ -301,9 +261,9 @@ function RulesPage() {
 
       <PromptDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/messaging/campaigns/rules/')({
   component: RulesPage,
-});
+})

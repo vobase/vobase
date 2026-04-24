@@ -1,11 +1,6 @@
-import {
-  IconBrandInstagram,
-  IconBrandMessenger,
-  IconBrandTelegram,
-  IconBrandWhatsapp,
-} from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { IconBrandInstagram, IconBrandMessenger, IconBrandTelegram, IconBrandWhatsapp } from '@tabler/icons-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
 import {
   AlertCircleIcon,
   BotIcon,
@@ -23,9 +18,9 @@ import {
   QrCodeIcon,
   TrashIcon,
   TriangleAlertIcon,
-} from 'lucide-react';
-import QRCode from 'qrcode';
-import { useEffect, useMemo, useState } from 'react';
+} from 'lucide-react'
+import QRCode from 'qrcode'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   AlertDialog,
@@ -35,10 +30,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -46,100 +41,94 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard';
-import { agentsClient, messagingClient } from '@/lib/api-client';
-import { runWhatsAppEmbeddedSignup } from '@/lib/facebook-sdk';
-import { cn } from '@/lib/utils';
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { agentsClient, messagingClient } from '@/lib/api-client'
+import { runWhatsAppEmbeddedSignup } from '@/lib/facebook-sdk'
+import { cn } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface ChannelInstance {
-  id: string;
-  type: string;
-  label: string;
-  source: string;
-  status: string;
-  statusError: string | null;
-  integrationId: string | null;
-  config: Record<string, unknown>;
-  createdAt: string;
+  id: string
+  type: string
+  label: string
+  source: string
+  status: string
+  statusError: string | null
+  integrationId: string | null
+  config: Record<string, unknown>
+  createdAt: string
 }
 
 interface ChannelRouting {
-  id: string;
-  name: string;
-  channelInstanceId: string;
-  agentId: string;
-  assignmentPattern: string;
-  enabled: boolean;
-  createdAt: string;
+  id: string
+  name: string
+  channelInstanceId: string
+  agentId: string
+  assignmentPattern: string
+  enabled: boolean
+  createdAt: string
 }
 
 interface Agent {
-  id: string;
-  name: string;
+  id: string
+  name: string
 }
 
 interface ChannelStatus {
-  id: string;
-  type: string;
-  label: string;
-  status: string;
-  statusError: string | null;
-  activeSessionCount: number;
+  id: string
+  type: string
+  label: string
+  status: string
+  statusError: string | null
+  activeSessionCount: number
 }
 
 interface ChannelsConfig {
-  metaAppId: string | null;
-  metaConfigId: string | null;
-  platformUrl: string | null;
-  webhookBaseUrl: string | null;
+  metaAppId: string | null
+  metaConfigId: string | null
+  platformUrl: string | null
+  webhookBaseUrl: string | null
 }
 
 interface ManagedChannel {
-  id: string;
-  displayNumber: string;
-  phoneNumberId: string;
-  label: string;
-  status: string;
-  connected: boolean;
-  instanceId?: string;
+  id: string
+  displayNumber: string
+  phoneNumberId: string
+  label: string
+  status: string
+  connected: boolean
+  instanceId?: string
 }
 
 // ─── Dialog mode ──────────────────────────────────────────────────────
 
 type DialogMode =
   | {
-      kind: 'new-whatsapp';
-      code: string;
-      wabaId?: string;
-      phoneNumberId?: string;
+      kind: 'new-whatsapp'
+      code: string
+      wabaId?: string
+      phoneNumberId?: string
     }
   | { kind: 'new-web' }
   | {
-      kind: 'complete-setup';
-      instanceId: string;
-      defaultName: string;
-      channelType: string;
-    };
+      kind: 'complete-setup'
+      instanceId: string
+      defaultName: string
+      channelType: string
+    }
 
 // ─── Channel type definitions ────────────────────────────────────────
 
@@ -217,7 +206,7 @@ const CHANNEL_TYPES = [
     borderColor: 'border-l-purple-500',
     comingSoon: true,
   },
-] as const;
+] as const
 
 function getChannelMeta(type: string) {
   return (
@@ -231,53 +220,53 @@ function getChannelMeta(type: string) {
       bgColor: 'bg-muted/30',
       borderColor: 'border-l-muted-foreground',
     }
-  );
+  )
 }
 
 // ─── Data fetchers ───────────────────────────────────────────────────
 
 async function fetchInstances(): Promise<ChannelInstance[]> {
-  const res = await messagingClient.instances.$get();
-  if (!res.ok) throw new Error('Failed to fetch channels');
-  return res.json() as unknown as Promise<ChannelInstance[]>;
+  const res = await messagingClient.instances.$get()
+  if (!res.ok) throw new Error('Failed to fetch channels')
+  return res.json() as unknown as Promise<ChannelInstance[]>
 }
 
 async function fetchChannelRoutings(): Promise<ChannelRouting[]> {
-  const res = await messagingClient['channel-routings'].$get();
-  if (!res.ok) throw new Error('Failed to fetch channel routings');
-  return res.json();
+  const res = await messagingClient['channel-routings'].$get()
+  if (!res.ok) throw new Error('Failed to fetch channel routings')
+  return res.json()
 }
 
 async function fetchAgents(): Promise<Agent[]> {
-  const res = await agentsClient.agents.$get();
-  if (!res.ok) return [];
-  return res.json();
+  const res = await agentsClient.agents.$get()
+  if (!res.ok) return []
+  return res.json()
 }
 
 async function fetchChannelStatus(): Promise<{ channels: ChannelStatus[] }> {
-  const res = await messagingClient.channels.status.$get();
-  if (!res.ok) return { channels: [] };
-  return res.json();
+  const res = await messagingClient.channels.status.$get()
+  if (!res.ok) return { channels: [] }
+  return res.json()
 }
 
 async function fetchChannelsConfig(): Promise<ChannelsConfig> {
-  const res = await messagingClient.channels.config.$get();
+  const res = await messagingClient.channels.config.$get()
   if (!res.ok)
     return {
       metaAppId: null,
       metaConfigId: null,
       platformUrl: null,
       webhookBaseUrl: null,
-    };
-  return res.json() as unknown as Promise<ChannelsConfig>;
+    }
+  return res.json() as unknown as Promise<ChannelsConfig>
 }
 
 async function fetchManagedAvailable(): Promise<ManagedChannel[]> {
   // biome-ignore lint/style/noRestrictedGlobals: managed-available not yet in typed RPC client
-  const res = await fetch('/api/messaging/channels/managed-available');
-  if (!res.ok) return [];
-  const data = (await res.json()) as { channels: ManagedChannel[] };
-  return data.channels;
+  const res = await fetch('/api/messaging/channels/managed-available')
+  if (!res.ok) return []
+  const data = (await res.json()) as { channels: ManagedChannel[] }
+  return data.channels
 }
 
 // ─── Connect Dialog ──────────────────────────────────────────────────
@@ -289,46 +278,34 @@ function ConnectDialog({
   onOpenChange,
   onCreated,
 }: {
-  mode: DialogMode | null;
-  agents: Agent[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  mode: DialogMode | null
+  agents: Agent[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreated: () => void
 }) {
-  const [name, setName] = useState('');
-  const [agentId, setAgentId] = useState('');
+  const [name, setName] = useState('')
+  const [agentId, setAgentId] = useState('')
 
   // Reset form when dialog opens/mode changes
-  const stableKey = mode
-    ? `${mode.kind}-${mode.kind === 'complete-setup' ? mode.instanceId : ''}`
-    : 'closed';
+  const stableKey = mode ? `${mode.kind}-${mode.kind === 'complete-setup' ? mode.instanceId : ''}` : 'closed'
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset form state when mode changes
   useEffect(() => {
     if (mode) {
-      setName(
-        mode.kind === 'complete-setup'
-          ? mode.defaultName
-          : mode.kind === 'new-whatsapp'
-            ? 'WhatsApp'
-            : '',
-      );
-      setAgentId('');
+      setName(mode.kind === 'complete-setup' ? mode.defaultName : mode.kind === 'new-whatsapp' ? 'WhatsApp' : '')
+      setAgentId('')
     }
-  }, [stableKey]);
+  }, [stableKey])
 
   const channelType =
-    mode?.kind === 'new-whatsapp'
-      ? 'whatsapp'
-      : mode?.kind === 'complete-setup'
-        ? mode.channelType
-        : 'web';
-  const meta = getChannelMeta(channelType);
-  const Icon = meta.icon;
+    mode?.kind === 'new-whatsapp' ? 'whatsapp' : mode?.kind === 'complete-setup' ? mode.channelType : 'web'
+  const meta = getChannelMeta(channelType)
+  const Icon = meta.icon
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!mode) throw new Error('No mode');
+      if (!mode) throw new Error('No mode')
 
       if (mode.kind === 'new-whatsapp') {
         const res = await messagingClient.channels.whatsapp.connect.$post({
@@ -339,23 +316,22 @@ function ConnectDialog({
             name,
             agentId,
           },
-        });
+        })
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as {
-            error?: { message?: string };
-          };
-          throw new Error(data.error?.message ?? 'Failed to connect WhatsApp');
+            error?: { message?: string }
+          }
+          throw new Error(data.error?.message ?? 'Failed to connect WhatsApp')
         }
-        return res.json();
+        return res.json()
       }
 
       if (mode.kind === 'new-web') {
         const instanceRes = await messagingClient.instances.$post({
           json: { type: 'web', label: name, source: 'env' as const },
-        });
-        if (!instanceRes.ok) throw new Error('Failed to create channel');
-        const instance =
-          (await instanceRes.json()) as unknown as ChannelInstance;
+        })
+        if (!instanceRes.ok) throw new Error('Failed to create channel')
+        const instance = (await instanceRes.json()) as unknown as ChannelInstance
 
         try {
           const routingRes = await messagingClient['channel-routings'].$post({
@@ -365,58 +341,50 @@ function ConnectDialog({
               agentId,
               assignmentPattern: 'direct',
             },
-          });
-          if (!routingRes.ok)
-            throw new Error('Failed to connect channel to agent');
-          return routingRes.json();
+          })
+          if (!routingRes.ok) throw new Error('Failed to connect channel to agent')
+          return routingRes.json()
         } catch (err) {
-          await messagingClient.instances[':id']
-            .$delete({ param: { id: instance.id } })
-            .catch(() => {});
-          throw err;
+          await messagingClient.instances[':id'].$delete({ param: { id: instance.id } }).catch(() => {})
+          throw err
         }
       }
 
       if (mode.kind === 'complete-setup') {
         // biome-ignore lint/style/noRestrictedGlobals: complete-setup endpoint not typed in RPC client
-        const res = await fetch(
-          `/api/messaging/instances/${mode.instanceId}/complete-setup`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, agentId }),
-          },
-        );
+        const res = await fetch(`/api/messaging/instances/${mode.instanceId}/complete-setup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, agentId }),
+        })
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as {
-            error?: { message?: string };
-          };
-          throw new Error(data.error?.message ?? 'Failed to complete setup');
+            error?: { message?: string }
+          }
+          throw new Error(data.error?.message ?? 'Failed to complete setup')
         }
-        return res.json();
+        return res.json()
       }
 
-      throw new Error('Unknown mode');
+      throw new Error('Unknown mode')
     },
     onSuccess: () => {
-      onOpenChange(false);
-      setName('');
-      setAgentId('');
-      onCreated();
+      onOpenChange(false)
+      setName('')
+      setAgentId('')
+      onCreated()
     },
-  });
+  })
 
   const title =
     mode?.kind === 'complete-setup'
       ? 'Complete Setup'
       : mode?.kind === 'new-whatsapp'
         ? 'Connect WhatsApp'
-        : 'Connect Website Chat';
+        : 'Connect Website Chat'
 
   const description =
-    mode?.kind === 'complete-setup'
-      ? 'Choose a name and assign an AI agent to activate this channel'
-      : meta.description;
+    mode?.kind === 'complete-setup' ? 'Choose a name and assign an AI agent to activate this channel' : meta.description
 
   const submitLabel = mutation.isPending
     ? mode?.kind === 'complete-setup'
@@ -424,17 +392,17 @@ function ConnectDialog({
       : 'Connecting...'
     : mode?.kind === 'complete-setup'
       ? 'Complete Setup'
-      : 'Connect Channel';
+      : 'Connect Channel'
 
   return (
     <Dialog
       open={open}
       onOpenChange={(o) => {
         if (!o) {
-          setName('');
-          setAgentId('');
+          setName('')
+          setAgentId('')
         }
-        onOpenChange(o);
+        onOpenChange(o)
       }}
     >
       <DialogContent className="sm:max-w-md" key={stableKey}>
@@ -452,14 +420,8 @@ function ConnectDialog({
         <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label>Channel Name</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={meta.placeholder}
-            />
-            <p className="text-xs text-muted-foreground">
-              A friendly name to help you identify this channel
-            </p>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={meta.placeholder} />
+            <p className="text-xs text-muted-foreground">A friendly name to help you identify this channel</p>
           </div>
           <div className="space-y-2">
             <Label>AI Agent</Label>
@@ -475,32 +437,21 @@ function ConnectDialog({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              The AI agent that will respond to customers on this channel
-            </p>
+            <p className="text-xs text-muted-foreground">The AI agent that will respond to customers on this channel</p>
           </div>
         </div>
-        {mutation.isError && (
-          <p className="text-xs text-destructive">{mutation.error.message}</p>
-        )}
+        {mutation.isError && <p className="text-xs text-destructive">{mutation.error.message}</p>}
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={mutation.isPending}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             Cancel
           </Button>
-          <Button
-            onClick={() => mutation.mutate()}
-            disabled={!name.trim() || !agentId || mutation.isPending}
-          >
+          <Button onClick={() => mutation.mutate()} disabled={!name.trim() || !agentId || mutation.isPending}>
             {submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 // ─── Connected Channel Card ─────────────────────────────────────────
@@ -515,52 +466,41 @@ function ChannelCard({
   onReconnect,
   isToggling,
 }: {
-  routing: ChannelRouting;
-  instance: ChannelInstance | undefined;
-  agentName: string;
-  activeConversations: number;
-  onToggle: () => void;
-  onDelete: () => void;
-  onReconnect?: () => void;
-  isToggling: boolean;
+  routing: ChannelRouting
+  instance: ChannelInstance | undefined
+  agentName: string
+  activeConversations: number
+  onToggle: () => void
+  onDelete: () => void
+  onReconnect?: () => void
+  isToggling: boolean
 }) {
-  const type = instance?.type ?? 'web';
-  const meta = getChannelMeta(type);
-  const Icon = meta.icon;
-  const { copy, isCopied } = useCopyToClipboard();
+  const type = instance?.type ?? 'web'
+  const meta = getChannelMeta(type)
+  const Icon = meta.icon
+  const { copy, isCopied } = useCopyToClipboard()
 
-  const chatLink =
-    type === 'web' ? `${window.location.origin}/chat/${routing.id}` : null;
+  const chatLink = type === 'web' ? `${window.location.origin}/chat/${routing.id}` : null
 
   function handleCopyLink() {
-    if (chatLink) copy(chatLink, { timeout: 2000 });
+    if (chatLink) copy(chatLink, { timeout: 2000 })
   }
 
   // Single discriminated connection status — priority order matters
-  const connectionStatus:
-    | 'error'
-    | 'disconnected'
-    | 'no-credentials'
-    | 'warning'
-    | 'paused'
-    | 'connected' =
+  const connectionStatus: 'error' | 'disconnected' | 'no-credentials' | 'warning' | 'paused' | 'connected' =
     instance?.status === 'error'
       ? 'error'
       : instance?.status === 'disconnected'
         ? 'disconnected'
-        : instance &&
-            instance.source === 'self' &&
-            !instance.integrationId &&
-            instance.type !== 'web'
+        : instance && instance.source === 'self' && !instance.integrationId && instance.type !== 'web'
           ? 'no-credentials'
           : instance?.statusError
             ? 'warning'
             : routing.enabled
               ? 'connected'
-              : 'paused';
+              : 'paused'
 
-  const isHealthy =
-    connectionStatus === 'connected' || connectionStatus === 'paused';
+  const isHealthy = connectionStatus === 'connected' || connectionStatus === 'paused'
 
   return (
     <Card
@@ -626,9 +566,7 @@ function ChannelCard({
           {connectionStatus === 'error' && (
             <p className="text-xs text-destructive mb-1 flex items-start gap-1.5">
               <TriangleAlertIcon className="h-3 w-3 mt-0.5 shrink-0" />
-              <span>
-                {instance?.statusError ?? 'Channel health check failed'}
-              </span>
+              <span>{instance?.statusError ?? 'Channel health check failed'}</span>
             </p>
           )}
           {connectionStatus === 'warning' && (
@@ -639,8 +577,7 @@ function ChannelCard({
           )}
           {connectionStatus === 'no-credentials' && (
             <p className="text-xs text-muted-foreground mb-1">
-              Connect via Embedded Signup or add credentials to activate this
-              channel.
+              Connect via Embedded Signup or add credentials to activate this channel.
             </p>
           )}
 
@@ -653,31 +590,21 @@ function ChannelCard({
               {activeConversations > 0 && (
                 <span className="flex items-center gap-1">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                  {activeConversations} active{' '}
-                  {activeConversations === 1 ? 'conversation' : 'conversations'}
+                  {activeConversations} active {activeConversations === 1 ? 'conversation' : 'conversations'}
                 </span>
               )}
             </div>
             {type === 'whatsapp' && instance?.label && (
-              <span className="font-mono text-foreground/60">
-                {instance.label.replace(/^WhatsApp\s*/i, '')}
-              </span>
+              <span className="font-mono text-foreground/60">{instance.label.replace(/^WhatsApp\s*/i, '')}</span>
             )}
             {chatLink && (
-              <span className="font-mono text-foreground/60 truncate">
-                {chatLink.replace(/^https?:\/\//, '')}
-              </span>
+              <span className="font-mono text-foreground/60 truncate">{chatLink.replace(/^https?:\/\//, '')}</span>
             )}
           </div>
 
           {chatLink && routing.enabled && (
             <div className="mt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 text-xs"
-                onClick={handleCopyLink}
-              >
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleCopyLink}>
                 {isCopied ? (
                   <>
                     <CheckIcon className="h-3 w-3" />
@@ -729,10 +656,7 @@ function ChannelCard({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={onDelete}
-              className="text-destructive focus:text-destructive"
-            >
+            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
               <TrashIcon className="h-4 w-4 mr-2" />
               {isHealthy ? 'Remove Channel' : 'Disconnect'}
             </DropdownMenuItem>
@@ -740,27 +664,16 @@ function ChannelCard({
         </DropdownMenu>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 // ─── Needs Setup Card ───────────────────────────────────────────────
 
-function NeedsSetupCard({
-  instance,
-  onCompleteSetup,
-}: {
-  instance: ChannelInstance;
-  onCompleteSetup: () => void;
-}) {
-  const meta = getChannelMeta(instance.type);
-  const Icon = meta.icon;
+function NeedsSetupCard({ instance, onCompleteSetup }: { instance: ChannelInstance; onCompleteSetup: () => void }) {
+  const meta = getChannelMeta(instance.type)
+  const Icon = meta.icon
 
-  const sourceLabel =
-    instance.source === 'platform'
-      ? 'Platform'
-      : instance.source === 'sandbox'
-        ? 'Sandbox'
-        : 'Self';
+  const sourceLabel = instance.source === 'platform' ? 'Platform' : instance.source === 'sandbox' ? 'Sandbox' : 'Self'
 
   return (
     <Card className="border-l-4 border-l-amber-500">
@@ -772,32 +685,22 @@ function NeedsSetupCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-sm font-medium truncate">{instance.label}</h3>
-            <Badge
-              variant="outline"
-              className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400"
-            >
+            <Badge variant="outline" className="text-xs shrink-0 border-amber-400 text-amber-700 dark:text-amber-400">
               Needs Setup
             </Badge>
             <Badge variant="secondary" className="text-xs shrink-0">
               {sourceLabel}
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Assign an AI agent to activate this channel
-          </p>
+          <p className="text-xs text-muted-foreground">Assign an AI agent to activate this channel</p>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={onCompleteSetup}
-        >
+        <Button variant="outline" size="sm" className="shrink-0" onClick={onCompleteSetup}>
           Complete Setup
         </Button>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 // ─── Add Channel Card ───────────────────────────────────────────────
@@ -807,12 +710,12 @@ function AddChannelCard({
   existingCount,
   onClick,
 }: {
-  type: (typeof CHANNEL_TYPES)[number];
-  existingCount: number;
-  onClick: () => void;
+  type: (typeof CHANNEL_TYPES)[number]
+  existingCount: number
+  onClick: () => void
 }) {
-  const Icon = type.icon;
-  const comingSoon = 'comingSoon' in type && type.comingSoon;
+  const Icon = type.icon
+  const comingSoon = 'comingSoon' in type && type.comingSoon
 
   return (
     <Card
@@ -834,19 +737,13 @@ function AddChannelCard({
           <h3 className="text-sm font-medium">{type.name}</h3>
           <p className="text-xs text-muted-foreground">{type.description}</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0 gap-1.5"
-          onClick={onClick}
-          disabled={comingSoon}
-        >
+        <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={onClick} disabled={comingSoon}>
           <PlusIcon className="h-3.5 w-3.5" />
           {existingCount > 0 ? 'Add Another' : 'Connect'}
         </Button>
       </CardContent>
     </Card>
-  );
+  )
 }
 
 // ─── Delete Confirmation ────────────────────────────────────────────
@@ -860,33 +757,29 @@ function DeleteChannelDialog({
   isPending,
   error,
 }: {
-  channelName: string;
-  platformManaged: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
-  isPending: boolean;
-  error: string | null;
+  channelName: string
+  platformManaged: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+  isPending: boolean
+  error: string | null
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {platformManaged ? 'Disconnect channel?' : 'Remove channel?'}
-          </AlertDialogTitle>
+          <AlertDialogTitle>{platformManaged ? 'Disconnect channel?' : 'Remove channel?'}</AlertDialogTitle>
           <AlertDialogDescription>
             {platformManaged ? (
               <>
-                This will disconnect <strong>{channelName}</strong>. Existing
-                conversations will be preserved but no new messages will be
-                received.
+                This will disconnect <strong>{channelName}</strong>. Existing conversations will be preserved but no new
+                messages will be received.
               </>
             ) : (
               <>
-                This will disconnect <strong>{channelName}</strong> and remove
-                all its conversation history. Customers will no longer be able
-                to reach you through this channel.
+                This will disconnect <strong>{channelName}</strong> and remove all its conversation history. Customers
+                will no longer be able to reach you through this channel.
               </>
             )}
           </AlertDialogDescription>
@@ -898,14 +791,12 @@ function DeleteChannelDialog({
           </div>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>
-            {error ? 'Close' : 'Keep Channel'}
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>{error ? 'Close' : 'Keep Channel'}</AlertDialogCancel>
           {!error && (
             <Button
               onClick={(e) => {
-                e.preventDefault();
-                onConfirm();
+                e.preventDefault()
+                onConfirm()
               }}
               disabled={isPending}
               variant="destructive"
@@ -916,7 +807,7 @@ function DeleteChannelDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  );
+  )
 }
 
 // ─── Managed Connect Dialog ─────────────────────────────────────────────
@@ -928,26 +819,26 @@ function ManagedConnectDialog({
   onOpenChange,
   onConnected,
 }: {
-  channel: ManagedChannel | null;
-  agents: Agent[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConnected: () => void;
+  channel: ManagedChannel | null
+  agents: Agent[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConnected: () => void
 }) {
-  const [routingName, setRoutingName] = useState('');
-  const [agentId, setAgentId] = useState('');
+  const [routingName, setRoutingName] = useState('')
+  const [agentId, setAgentId] = useState('')
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on open
   useEffect(() => {
     if (open && channel) {
-      setRoutingName(`Managed WA ${channel.label}`);
-      setAgentId('');
+      setRoutingName(`Managed WA ${channel.label}`)
+      setAgentId('')
     }
-  }, [open]);
+  }, [open])
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!channel) throw new Error('No channel selected');
+      if (!channel) throw new Error('No channel selected')
       // biome-ignore lint/style/noRestrictedGlobals: managed-connect not yet in typed RPC client
       const res = await fetch('/api/messaging/channels/managed-connect', {
         method: 'POST',
@@ -960,29 +851,27 @@ function ManagedConnectDialog({
           agentId,
           routingName,
         }),
-      });
+      })
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as {
-          error?: { message?: string };
-        };
-        throw new Error(
-          data.error?.message ?? 'Failed to connect managed channel',
-        );
+          error?: { message?: string }
+        }
+        throw new Error(data.error?.message ?? 'Failed to connect managed channel')
       }
-      return res.json();
+      return res.json()
     },
     onSuccess: () => {
-      onOpenChange(false);
-      onConnected();
+      onOpenChange(false)
+      onConnected()
     },
-  });
+  })
 
   return (
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        if (!o) mutation.reset();
-        onOpenChange(o);
+        if (!o) mutation.reset()
+        onOpenChange(o)
       }}
     >
       <DialogContent className="sm:max-w-md">
@@ -1024,27 +913,18 @@ function ManagedConnectDialog({
             </Select>
           </div>
         </div>
-        {mutation.isError && (
-          <p className="text-xs text-destructive">{mutation.error.message}</p>
-        )}
+        {mutation.isError && <p className="text-xs text-destructive">{mutation.error.message}</p>}
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={mutation.isPending}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             Cancel
           </Button>
-          <Button
-            onClick={() => mutation.mutate()}
-            disabled={!routingName.trim() || !agentId || mutation.isPending}
-          >
+          <Button onClick={() => mutation.mutate()} disabled={!routingName.trim() || !agentId || mutation.isPending}>
             {mutation.isPending ? 'Connecting...' : 'Connect'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 // ─── QR Code Dialog ────────────────────────────────────────────────────
@@ -1054,26 +934,24 @@ function QrCodeDialog({
   open,
   onOpenChange,
 }: {
-  channel: ManagedChannel | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  channel: ManagedChannel | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }) {
-  const [qrDataUrl, setQrDataUrl] = useState('');
-  const { copy, isCopied } = useCopyToClipboard();
+  const [qrDataUrl, setQrDataUrl] = useState('')
+  const { copy, isCopied } = useCopyToClipboard()
 
-  const tenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG ?? '';
-  const digits = channel?.displayNumber.replace(/\D/g, '') ?? '';
-  const linkText = `/link ${tenantSlug} ${channel?.instanceId ?? ''}`;
-  const waLink = digits
-    ? `https://wa.me/${digits}?text=${encodeURIComponent(linkText)}`
-    : '';
+  const tenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+  const digits = channel?.displayNumber.replace(/\D/g, '') ?? ''
+  const linkText = `/link ${tenantSlug} ${channel?.instanceId ?? ''}`
+  const waLink = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(linkText)}` : ''
 
   useEffect(() => {
-    if (!waLink) return;
+    if (!waLink) return
     QRCode.toDataURL(waLink, { width: 240, margin: 2 })
       .then(setQrDataUrl)
-      .catch(() => {});
-  }, [waLink]);
+      .catch(() => {})
+  }, [waLink])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1081,19 +959,12 @@ function QrCodeDialog({
         <DialogHeader>
           <DialogTitle>Scan to Link</DialogTitle>
           <DialogDescription>
-            Scan this QR code with WhatsApp to link your number to this channel.
-            Or send the message manually.
+            Scan this QR code with WhatsApp to link your number to this channel. Or send the message manually.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-4 py-2">
           {qrDataUrl ? (
-            <img
-              src={qrDataUrl}
-              alt="QR code"
-              className="rounded-lg border"
-              width={240}
-              height={240}
-            />
+            <img src={qrDataUrl} alt="QR code" className="rounded-lg border" width={240} height={240} />
           ) : (
             <div className="h-60 w-60 rounded-lg border flex items-center justify-center bg-muted">
               <QrCodeIcon className="h-12 w-12 text-muted-foreground" />
@@ -1102,25 +973,17 @@ function QrCodeDialog({
           <div className="w-full space-y-2">
             <p className="text-xs text-muted-foreground text-center">
               Or send this message to{' '}
-              <span className="font-mono font-medium text-foreground">
-                {channel?.displayNumber}
-              </span>
+              <span className="font-mono font-medium text-foreground">{channel?.displayNumber}</span>
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono truncate">
-                {linkText}
-              </code>
+              <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono truncate">{linkText}</code>
               <Button
                 variant="outline"
                 size="sm"
                 className="shrink-0 gap-1.5"
                 onClick={() => copy(linkText, { timeout: 2000 })}
               >
-                {isCopied ? (
-                  <CheckIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <CopyIcon className="h-3.5 w-3.5" />
-                )}
+                {isCopied ? <CheckIcon className="h-3.5 w-3.5" /> : <CopyIcon className="h-3.5 w-3.5" />}
               </Button>
             </div>
             {waLink && (
@@ -1138,39 +1001,29 @@ function QrCodeDialog({
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 // ─── Managed Test Numbers Section ────────────────────────────────────────
 
-function ManagedTestNumbers({
-  agents,
-  onConnected,
-}: {
-  agents: Agent[];
-  onConnected: () => void;
-}) {
-  const [connectTarget, setConnectTarget] = useState<ManagedChannel | null>(
-    null,
-  );
-  const [qrTarget, setQrTarget] = useState<ManagedChannel | null>(null);
+function ManagedTestNumbers({ agents, onConnected }: { agents: Agent[]; onConnected: () => void }) {
+  const [connectTarget, setConnectTarget] = useState<ManagedChannel | null>(null)
+  const [qrTarget, setQrTarget] = useState<ManagedChannel | null>(null)
 
   const { data: managedChannels = [], isLoading } = useQuery({
     queryKey: ['channels-managed-available'],
     queryFn: fetchManagedAvailable,
-  });
+  })
 
-  if (isLoading) return null;
-  if (managedChannels.length === 0) return null;
+  if (isLoading) return null
+  if (managedChannels.length === 0) return null
 
-  const available = managedChannels.filter((ch) => !ch.connected);
-  const connected = managedChannels.filter((ch) => ch.connected);
+  const available = managedChannels.filter((ch) => !ch.connected)
+  const connected = managedChannels.filter((ch) => ch.connected)
 
   return (
     <section>
-      <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">
-        Platform Managed
-      </h2>
+      <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">Platform Managed</h2>
 
       <div className="space-y-3">
         {connected.map((ch) => (
@@ -1181,9 +1034,7 @@ function ManagedTestNumbers({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-medium truncate">
-                    {ch.displayNumber}
-                  </h3>
+                  <h3 className="text-sm font-medium truncate">{ch.displayNumber}</h3>
                   <Badge variant="success" className="text-xs shrink-0">
                     Connected
                   </Badge>
@@ -1193,12 +1044,7 @@ function ManagedTestNumbers({
                 </div>
                 <p className="text-xs text-muted-foreground">{ch.label}</p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-1.5"
-                onClick={() => setQrTarget(ch)}
-              >
+              <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => setQrTarget(ch)}>
                 <QrCodeIcon className="h-3.5 w-3.5" />
                 Show QR
               </Button>
@@ -1214,21 +1060,14 @@ function ManagedTestNumbers({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-medium truncate">
-                    {ch.displayNumber}
-                  </h3>
+                  <h3 className="text-sm font-medium truncate">{ch.displayNumber}</h3>
                   <Badge variant="outline" className="text-xs shrink-0">
                     Available
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">{ch.label}</p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0 gap-1.5"
-                onClick={() => setConnectTarget(ch)}
-              >
+              <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => setConnectTarget(ch)}>
                 <PlusIcon className="h-3.5 w-3.5" />
                 Connect
               </Button>
@@ -1242,11 +1081,11 @@ function ManagedTestNumbers({
         agents={agents}
         open={!!connectTarget}
         onOpenChange={(open) => {
-          if (!open) setConnectTarget(null);
+          if (!open) setConnectTarget(null)
         }}
         onConnected={() => {
-          setConnectTarget(null);
-          onConnected();
+          setConnectTarget(null)
+          onConnected()
         }}
       />
 
@@ -1254,103 +1093,91 @@ function ManagedTestNumbers({
         channel={qrTarget}
         open={!!qrTarget}
         onOpenChange={(open) => {
-          if (!open) setQrTarget(null);
+          if (!open) setQrTarget(null)
         }}
       />
     </section>
-  );
+  )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function ChannelsPage() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
-  const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
-  const [connectError, setConnectError] = useState<string | null>(null);
-  const [connectingType, setConnectingType] = useState<string | null>(null);
+  const [dialogMode, setDialogMode] = useState<DialogMode | null>(null)
+  const [connectError, setConnectError] = useState<string | null>(null)
+  const [connectingType, setConnectingType] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
-    instanceId: string;
-    name: string;
-    platformManaged: boolean;
-  } | null>(null);
+    instanceId: string
+    name: string
+    platformManaged: boolean
+  } | null>(null)
 
   const { data: instances = [], isLoading: instancesLoading } = useQuery({
     queryKey: ['channel-instances'],
     queryFn: fetchInstances,
-  });
+  })
 
   const { data: routings = [], isLoading: routingsLoading } = useQuery({
     queryKey: ['channel-routings'],
     queryFn: fetchChannelRoutings,
-  });
+  })
 
   const { data: agents = [] } = useQuery({
     queryKey: ['conversations-agents'],
     queryFn: fetchAgents,
-  });
+  })
 
   const { data: channelStatusData } = useQuery({
     queryKey: ['conversations-channel-status'],
     queryFn: fetchChannelStatus,
-  });
+  })
 
   const { data: config } = useQuery({
     queryKey: ['channels-config'],
     queryFn: fetchChannelsConfig,
-  });
+  })
 
-  const isLoading = instancesLoading || routingsLoading;
+  const isLoading = instancesLoading || routingsLoading
 
   const sessionCountMap = useMemo(
-    () =>
-      new Map(
-        (channelStatusData?.channels ?? []).map((ch) => [
-          ch.id,
-          ch.activeSessionCount,
-        ]),
-      ),
+    () => new Map((channelStatusData?.channels ?? []).map((ch) => [ch.id, ch.activeSessionCount])),
     [channelStatusData],
-  );
+  )
 
-  const instanceMap = useMemo(
-    () => new Map(instances.map((i) => [i.id, i])),
-    [instances],
-  );
+  const instanceMap = useMemo(() => new Map(instances.map((i) => [i.id, i])), [instances])
 
-  const agentMap = useMemo(
-    () => new Map(agents.map((a) => [a.id, a.name])),
-    [agents],
-  );
+  const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents])
 
   const typeCountMap = useMemo(
     () =>
       instances.reduce<Record<string, number>>((acc, inst) => {
-        acc[inst.type] = (acc[inst.type] ?? 0) + 1;
-        return acc;
+        acc[inst.type] = (acc[inst.type] ?? 0) + 1
+        return acc
       }, {}),
     [instances],
-  );
+  )
 
   const routingsByInstance = useMemo(() => {
-    const map = new Map<string, ChannelRouting[]>();
+    const map = new Map<string, ChannelRouting[]>()
     for (const r of routings) {
-      const list = map.get(r.channelInstanceId) ?? [];
-      list.push(r);
-      map.set(r.channelInstanceId, list);
+      const list = map.get(r.channelInstanceId) ?? []
+      list.push(r)
+      map.set(r.channelInstanceId, list)
     }
-    return map;
-  }, [routings]);
+    return map
+  }, [routings])
 
   const connectedChannels = useMemo(
     () =>
       routings
         .filter((r) => {
           // Exclude platform-managed (shared test numbers) — they show under "Platform Managed"
-          const inst = instanceMap.get(r.channelInstanceId);
-          if (!inst) return false;
-          const cfg = inst.config as Record<string, unknown>;
-          return !(inst.source === 'platform' && cfg?.managed === true);
+          const inst = instanceMap.get(r.channelInstanceId)
+          if (!inst) return false
+          const cfg = inst.config as Record<string, unknown>
+          return !(inst.source === 'platform' && cfg?.managed === true)
         })
         .map((r) => ({
           routing: r,
@@ -1359,138 +1186,118 @@ function ChannelsPage() {
           activeConversations: sessionCountMap.get(r.channelInstanceId) ?? 0,
         })),
     [routings, instanceMap, agentMap, sessionCountMap],
-  );
+  )
 
   const needsSetupInstances = useMemo(
     () => instances.filter((i) => !routingsByInstance.has(i.id)),
     [instances, routingsByInstance],
-  );
+  )
 
-  const platformUrl = import.meta.env.VITE_PLATFORM_URL as string | undefined;
+  const platformUrl = import.meta.env.VITE_PLATFORM_URL as string | undefined
 
   function invalidateAll() {
-    queryClient.invalidateQueries({ queryKey: ['channel-instances'] });
-    queryClient.invalidateQueries({ queryKey: ['channel-routings'] });
+    queryClient.invalidateQueries({ queryKey: ['channel-instances'] })
+    queryClient.invalidateQueries({ queryKey: ['channel-routings'] })
     queryClient.invalidateQueries({
       queryKey: ['conversations-channel-status'],
-    });
-    queryClient.invalidateQueries({ queryKey: ['channels-managed-available'] });
+    })
+    queryClient.invalidateQueries({ queryKey: ['channels-managed-available'] })
   }
 
   async function handleAddChannel(type: string) {
-    setConnectError(null);
+    setConnectError(null)
 
     if (type === 'whatsapp') {
       // Platform-managed: redirect to platform OAuth proxy
       if (!config?.metaAppId && config?.platformUrl) {
-        const slug =
-          import.meta.env.VITE_PLATFORM_TENANT_SLUG ||
-          window.location.hostname.split('.')[0];
-        const params = new URLSearchParams({ tenant: slug });
+        const slug = import.meta.env.VITE_PLATFORM_TENANT_SLUG || window.location.hostname.split('.')[0]
+        const params = new URLSearchParams({ tenant: slug })
         if (config.webhookBaseUrl) {
-          params.set(
-            'webhookUrl',
-            `${config.webhookBaseUrl}/api/channels/webhook/whatsapp`,
-          );
+          params.set('webhookUrl', `${config.webhookBaseUrl}/api/channels/webhook/whatsapp`)
         }
-        params.set('redirectUrl', window.location.href);
-        window.location.href = `${config.platformUrl}/api/oauth-proxy/whatsapp/connect?${params}`;
-        return;
+        params.set('redirectUrl', window.location.href)
+        window.location.href = `${config.platformUrl}/api/oauth-proxy/whatsapp/connect?${params}`
+        return
       }
 
       if (!config?.metaAppId || !config?.metaConfigId) {
-        setConnectError(
-          'META_APP_ID and META_CONFIG_ID must be set in your environment before connecting WhatsApp.',
-        );
-        return;
+        setConnectError('META_APP_ID and META_CONFIG_ID must be set in your environment before connecting WhatsApp.')
+        return
       }
 
-      setConnectingType('whatsapp');
+      setConnectingType('whatsapp')
       try {
-        const { code, wabaId, phoneNumberId } = await runWhatsAppEmbeddedSignup(
-          config.metaAppId,
-          config.metaConfigId,
-        );
-        setDialogMode({ kind: 'new-whatsapp', code, wabaId, phoneNumberId });
+        const { code, wabaId, phoneNumberId } = await runWhatsAppEmbeddedSignup(config.metaAppId, config.metaConfigId)
+        setDialogMode({ kind: 'new-whatsapp', code, wabaId, phoneNumberId })
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Connection failed';
-        if (msg !== 'cancelled') setConnectError(msg);
+        const msg = err instanceof Error ? err.message : 'Connection failed'
+        if (msg !== 'cancelled') setConnectError(msg)
       } finally {
-        setConnectingType(null);
+        setConnectingType(null)
       }
-      return;
+      return
     }
 
     // Meta channels (messenger, instagram): same platform redirect as WhatsApp
     if (type === 'messenger' || type === 'instagram') {
-      const platformUrl = config?.platformUrl;
+      const platformUrl = config?.platformUrl
       if (!platformUrl) {
         setConnectError(
           `${getChannelMeta(type).name} requires platform integration. Configure PLATFORM_URL to connect.`,
-        );
-        return;
+        )
+        return
       }
-      const slug =
-        import.meta.env.VITE_PLATFORM_TENANT_SLUG ||
-        window.location.hostname.split('.')[0];
-      window.location.href = `${platformUrl}/api/oauth-proxy/${type}/connect?tenant=${slug}`;
-      return;
+      const slug = import.meta.env.VITE_PLATFORM_TENANT_SLUG || window.location.hostname.split('.')[0]
+      window.location.href = `${platformUrl}/api/oauth-proxy/${type}/connect?tenant=${slug}`
+      return
     }
 
     if (type === 'web') {
-      setDialogMode({ kind: 'new-web' });
-      return;
+      setDialogMode({ kind: 'new-web' })
+      return
     }
 
     // telegram / email / voice: coming soon
-    setConnectError(`${getChannelMeta(type).name} channels are coming soon.`);
+    setConnectError(`${getChannelMeta(type).name} channels are coming soon.`)
   }
 
   const toggleMutation = useMutation({
-    mutationFn: async ({
-      routingId,
-      enabled,
-    }: {
-      routingId: string;
-      enabled: boolean;
-    }) => {
+    mutationFn: async ({ routingId, enabled }: { routingId: string; enabled: boolean }) => {
       // biome-ignore lint/style/noRestrictedGlobals: PATCH body not typed in RPC client
       const res = await fetch(`/api/messaging/channel-routings/${routingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled }),
-      });
-      if (!res.ok) throw new Error('Failed to update channel');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to update channel')
+      return res.json()
     },
     onSuccess: invalidateAll,
-  });
+  })
 
   const deleteMutation = useMutation({
     mutationFn: async (instanceId: string) => {
       const res = await messagingClient.instances[':id'].$delete({
         param: { id: instanceId },
-      });
+      })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const err = data as { error?: { message?: string } };
-        throw new Error(err.error?.message ?? 'Failed to remove channel');
+        const data = await res.json().catch(() => ({}))
+        const err = data as { error?: { message?: string } }
+        throw new Error(err.error?.message ?? 'Failed to remove channel')
       }
     },
     onSuccess: () => {
-      setDeleteTarget(null);
-      invalidateAll();
+      setDeleteTarget(null)
+      invalidateAll()
     },
-  });
+  })
 
   return (
     <div className="flex flex-col gap-8 p-6 max-w-3xl">
       {/* Header */}
       <div>
         <h1 className="text-lg font-semibold">Channels</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage where your customers can reach your AI agent
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">Manage where your customers can reach your AI agent</p>
       </div>
 
       {/* Error banner */}
@@ -1503,9 +1310,7 @@ function ChannelsPage() {
 
       {/* Your Channels */}
       <section>
-        <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">
-          Your Channels
-        </h2>
+        <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">Your Channels</h2>
 
         {isLoading && (
           <div className="space-y-3">
@@ -1520,12 +1325,10 @@ function ChannelsPage() {
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                 <MessageCircleIcon className="h-6 w-6 text-muted-foreground" />
               </div>
-              <h3 className="text-sm font-medium mb-1">
-                No channels connected yet
-              </h3>
+              <h3 className="text-sm font-medium mb-1">No channels connected yet</h3>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Connect a channel below so your customers can start chatting
-                with your AI agent on WhatsApp, your website, or email.
+                Connect a channel below so your customers can start chatting with your AI agent on WhatsApp, your
+                website, or email.
               </p>
             </CardContent>
           </Card>
@@ -1533,39 +1336,31 @@ function ChannelsPage() {
 
         {!isLoading && connectedChannels.length > 0 && (
           <div className="space-y-3">
-            {connectedChannels.map(
-              ({ routing, instance, agentName, activeConversations }) => (
-                <ChannelCard
-                  key={routing.id}
-                  routing={routing}
-                  instance={instance}
-                  agentName={agentName}
-                  activeConversations={activeConversations}
-                  isToggling={toggleMutation.isPending}
-                  onToggle={() =>
-                    toggleMutation.mutate({
-                      routingId: routing.id,
-                      enabled: !routing.enabled,
-                    })
-                  }
-                  onDelete={() =>
-                    setDeleteTarget({
-                      instanceId: routing.channelInstanceId,
-                      name: routing.name,
-                      platformManaged:
-                        instance?.source === 'platform' &&
-                        !!(instance?.config as Record<string, unknown>)
-                          ?.managed,
-                    })
-                  }
-                  onReconnect={
-                    instance?.type === 'whatsapp'
-                      ? () => handleAddChannel('whatsapp')
-                      : undefined
-                  }
-                />
-              ),
-            )}
+            {connectedChannels.map(({ routing, instance, agentName, activeConversations }) => (
+              <ChannelCard
+                key={routing.id}
+                routing={routing}
+                instance={instance}
+                agentName={agentName}
+                activeConversations={activeConversations}
+                isToggling={toggleMutation.isPending}
+                onToggle={() =>
+                  toggleMutation.mutate({
+                    routingId: routing.id,
+                    enabled: !routing.enabled,
+                  })
+                }
+                onDelete={() =>
+                  setDeleteTarget({
+                    instanceId: routing.channelInstanceId,
+                    name: routing.name,
+                    platformManaged:
+                      instance?.source === 'platform' && !!(instance?.config as Record<string, unknown>)?.managed,
+                  })
+                }
+                onReconnect={instance?.type === 'whatsapp' ? () => handleAddChannel('whatsapp') : undefined}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -1597,15 +1392,11 @@ function ChannelsPage() {
       )}
 
       {/* Shared Test Numbers */}
-      {platformUrl && (
-        <ManagedTestNumbers agents={agents} onConnected={invalidateAll} />
-      )}
+      {platformUrl && <ManagedTestNumbers agents={agents} onConnected={invalidateAll} />}
 
       {/* Add a Channel */}
       <section>
-        <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">
-          Add a Channel
-        </h2>
+        <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">Add a Channel</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {CHANNEL_TYPES.map((type) => (
             <AddChannelCard
@@ -1617,9 +1408,7 @@ function ChannelsPage() {
           ))}
         </div>
         {connectingType === 'whatsapp' && (
-          <p className="mt-3 text-xs text-muted-foreground animate-pulse">
-            Opening WhatsApp signup...
-          </p>
+          <p className="mt-3 text-xs text-muted-foreground animate-pulse">Opening WhatsApp signup...</p>
         )}
       </section>
 
@@ -1628,7 +1417,7 @@ function ChannelsPage() {
         agents={agents}
         open={!!dialogMode}
         onOpenChange={(open) => {
-          if (!open) setDialogMode(null);
+          if (!open) setDialogMode(null)
         }}
         onCreated={invalidateAll}
       />
@@ -1639,20 +1428,18 @@ function ChannelsPage() {
         open={!!deleteTarget}
         onOpenChange={(open) => {
           if (!open) {
-            setDeleteTarget(null);
-            deleteMutation.reset();
+            setDeleteTarget(null)
+            deleteMutation.reset()
           }
         }}
-        onConfirm={() =>
-          deleteTarget && deleteMutation.mutate(deleteTarget.instanceId)
-        }
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.instanceId)}
         isPending={deleteMutation.isPending}
         error={deleteMutation.isError ? deleteMutation.error.message : null}
       />
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/messaging/channels/')({
   component: ChannelsPage,
-});
+})

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { CommandContext, CommandDef } from '@server/common/port-types'
 import { Bash } from 'just-bash'
+
 import { createVobaseCommand } from './dispatcher'
 
 function cmd(name: string, fn?: CommandDef['execute']): CommandDef {

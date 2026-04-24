@@ -6,6 +6,7 @@ import type { ContactsService, UpsertByExternalInput } from '@modules/contacts/s
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope, GrepMatch } from '@modules/drive/service/types'
+
 import { BUSINESS_MD_FALLBACK, buildFrozenEagerPaths, createWorkspace } from './create-workspace'
 import { buildDefaultReadOnlyConfig } from './index'
 

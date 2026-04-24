@@ -1,13 +1,13 @@
-import { getCtx, unauthorized } from '@vobase/core';
-import { and, count, eq, sql } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { getCtx, unauthorized } from '@vobase/core'
+import { and, count, eq, sql } from 'drizzle-orm'
+import { Hono } from 'hono'
 
-import { conversations, messages } from '../../messaging/schema';
-import { agentDefinitions } from '../schema';
+import { conversations, messages } from '../../messaging/schema'
+import { agentDefinitions } from '../schema'
 
 export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
-  const { db, user } = getCtx(c);
-  if (!user) throw unauthorized();
+  const { db, user } = getCtx(c)
+  if (!user) throw unauthorized()
 
   const agents = await db
     .select({
@@ -17,7 +17,7 @@ export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
       channels: agentDefinitions.channels,
     })
     .from(agentDefinitions)
-    .where(eq(agentDefinitions.enabled, true));
+    .where(eq(agentDefinitions.enabled, true))
 
   // Active sessions per agent
   const activeCounts = await db
@@ -27,7 +27,7 @@ export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
     })
     .from(conversations)
     .where(eq(conversations.status, 'active'))
-    .groupBy(conversations.agentId);
+    .groupBy(conversations.agentId)
 
   // Queued outgoing messages per agent (via conversation join)
   const queuedCounts = await db
@@ -37,10 +37,8 @@ export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
     })
     .from(messages)
     .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-    .where(
-      and(eq(messages.messageType, 'outgoing'), eq(messages.status, 'queued')),
-    )
-    .groupBy(conversations.agentId);
+    .where(and(eq(messages.messageType, 'outgoing'), eq(messages.status, 'queued')))
+    .groupBy(conversations.agentId)
 
   // Weighted success score per agent (outcome-based)
   // resolved=1.0, escalated=0.5, failed=0.0, abandoned=0.0
@@ -59,18 +57,12 @@ export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
     })
     .from(conversations)
     .where(sql`${conversations.status} IN ('resolved', 'failed')`)
-    .groupBy(conversations.agentId);
+    .groupBy(conversations.agentId)
 
   // Merge results
-  const activeMap = new Map(
-    activeCounts.map((r) => [r.agentId, Number(r.activeCount)]),
-  );
-  const queuedMap = new Map(
-    queuedCounts.map((r) => [r.agentId, Number(r.queuedCount)]),
-  );
-  const scoreMap = new Map(
-    successScores.map((r) => [r.agentId, Number(r.score)]),
-  );
+  const activeMap = new Map(activeCounts.map((r) => [r.agentId, Number(r.activeCount)]))
+  const queuedMap = new Map(queuedCounts.map((r) => [r.agentId, Number(r.queuedCount)]))
+  const scoreMap = new Map(successScores.map((r) => [r.agentId, Number(r.score)]))
 
   const metrics = agents.map((a) => ({
     agentId: a.id,
@@ -80,7 +72,7 @@ export const metricsHandlers = new Hono().get('/agents/metrics', async (c) => {
     activeCount: activeMap.get(a.id) ?? 0,
     queuedCount: queuedMap.get(a.id) ?? 0,
     successScore: scoreMap.get(a.id) ?? 0,
-  }));
+  }))
 
-  return c.json({ agents: metrics });
-});
+  return c.json({ agents: metrics })
+})

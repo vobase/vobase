@@ -1,8 +1,8 @@
-import { defineModule } from '@vobase/core';
+import { defineModule } from '@vobase/core'
 
-import { knowledgeBaseRoutes } from './handlers';
-import { processDocumentJob, setModuleDb, setModuleStorage } from './jobs';
-import * as schema from './schema';
+import { knowledgeBaseRoutes } from './handlers'
+import { processDocumentJob, setModuleDb, setModuleStorage } from './jobs'
+import * as schema from './schema'
 
 export const knowledgeBaseModule = defineModule({
   name: 'knowledge-base',
@@ -11,7 +11,7 @@ export const knowledgeBaseModule = defineModule({
   jobs: [processDocumentJob],
 
   init(ctx) {
-    setModuleDb(ctx.db);
-    setModuleStorage(ctx.storage);
+    setModuleDb(ctx.db)
+    setModuleStorage(ctx.storage)
   },
-});
+})

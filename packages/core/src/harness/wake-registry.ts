@@ -15,8 +15,8 @@ export interface ActiveWakesDb {
   <T extends Record<string, unknown> = Record<string, unknown>>(
     strings: TemplateStringsArray,
     ...values: unknown[]
-  ): Promise<T[]>;
-  unsafe?: (stmt: string, values?: unknown[]) => Promise<unknown>;
+  ): Promise<T[]>
+  unsafe?: (stmt: string, values?: unknown[]) => Promise<unknown>
 }
 
 /**
@@ -29,7 +29,7 @@ export async function acquire(
   workerId: string,
   debounceMs: number,
 ): Promise<boolean> {
-  const debounceSeconds = Math.max(1, Math.round(debounceMs / 1000));
+  const debounceSeconds = Math.max(1, Math.round(debounceMs / 1000))
   const rows = await sql<{ acquired: boolean }>`
     INSERT INTO harness.active_wakes (conversation_id, worker_id, debounce_until)
     VALUES (${conversationId}, ${workerId}, now() + (${debounceSeconds} || ' seconds')::interval)
@@ -39,36 +39,29 @@ export async function acquire(
       debounce_until = EXCLUDED.debounce_until
       WHERE harness.active_wakes.debounce_until < now()
     RETURNING worker_id = ${workerId} AS acquired
-  `;
-  return rows[0]?.acquired === true;
+  `
+  return rows[0]?.acquired === true
 }
 
 /** Release the lease (called when the wake completes or aborts). */
-export async function release(
-  sql: ActiveWakesDb,
-  conversationId: string,
-  workerId: string,
-): Promise<void> {
+export async function release(sql: ActiveWakesDb, conversationId: string, workerId: string): Promise<void> {
   await sql`
     DELETE FROM harness.active_wakes
     WHERE conversation_id = ${conversationId} AND worker_id = ${workerId}
-  `;
+  `
 }
 
 /**
  * Lookup the worker currently holding the lease for a conversation. Returns
  * `null` when the lease is free or expired.
  */
-export async function getWorker(
-  sql: ActiveWakesDb,
-  conversationId: string,
-): Promise<string | null> {
+export async function getWorker(sql: ActiveWakesDb, conversationId: string): Promise<string | null> {
   const rows = await sql<{ worker_id: string }>`
     SELECT worker_id FROM harness.active_wakes
     WHERE conversation_id = ${conversationId} AND debounce_until > now()
     LIMIT 1
-  `;
-  return rows[0]?.worker_id ?? null;
+  `
+  return rows[0]?.worker_id ?? null
 }
 
 /** Sweep leases left behind by crashed workers (>1m past their debounce). */
@@ -80,8 +73,8 @@ export async function sweepStale(sql: ActiveWakesDb): Promise<number> {
       RETURNING conversation_id
     )
     SELECT count(*)::text AS count FROM deleted
-  `;
-  return Number(rows[0]?.count ?? '0');
+  `
+  return Number(rows[0]?.count ?? '0')
 }
 
 /**
@@ -89,43 +82,37 @@ export async function sweepStale(sql: ActiveWakesDb): Promise<number> {
  * lease per conversationId, stale-reclaim based on mock time.
  */
 export interface ActiveWakesStore {
-  acquire(
-    conversationId: string,
-    workerId: string,
-    debounceMs: number,
-  ): Promise<boolean>;
-  release(conversationId: string, workerId: string): Promise<void>;
-  getWorker(conversationId: string): Promise<string | null>;
-  advance(ms: number): void;
+  acquire(conversationId: string, workerId: string, debounceMs: number): Promise<boolean>
+  release(conversationId: string, workerId: string): Promise<void>
+  getWorker(conversationId: string): Promise<string | null>
+  advance(ms: number): void
 }
 
 export function createInMemoryActiveWakes(): ActiveWakesStore {
-  const leases = new Map<string, { workerId: string; debounceUntil: number }>();
-  let clock = 0;
+  const leases = new Map<string, { workerId: string; debounceUntil: number }>()
+  let clock = 0
   return {
     async acquire(conversationId, workerId, debounceMs): Promise<boolean> {
-      const existing = leases.get(conversationId);
-      if (existing && existing.debounceUntil > clock)
-        return existing.workerId === workerId;
+      const existing = leases.get(conversationId)
+      if (existing && existing.debounceUntil > clock) return existing.workerId === workerId
       leases.set(conversationId, {
         workerId,
         debounceUntil: clock + debounceMs,
-      });
-      return true;
+      })
+      return true
     },
     async release(conversationId, workerId): Promise<void> {
-      const existing = leases.get(conversationId);
-      if (existing && existing.workerId === workerId)
-        leases.delete(conversationId);
+      const existing = leases.get(conversationId)
+      if (existing && existing.workerId === workerId) leases.delete(conversationId)
     },
     async getWorker(conversationId): Promise<string | null> {
-      const existing = leases.get(conversationId);
-      if (!existing) return null;
-      if (existing.debounceUntil <= clock) return null;
-      return existing.workerId;
+      const existing = leases.get(conversationId)
+      if (!existing) return null
+      if (existing.debounceUntil <= clock) return null
+      return existing.workerId
     },
     advance(ms: number): void {
-      clock += ms;
+      clock += ms
     },
-  };
+  }
 }

@@ -1,4 +1,4 @@
-import { useRouter } from '@tanstack/react-router';
+import { useRouter } from '@tanstack/react-router'
 
 import {
   AlertDialog,
@@ -9,20 +9,20 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { authClient } from '@/lib/auth-client';
+} from '@/components/ui/alert-dialog'
+import { authClient } from '@/lib/auth-client'
 
 interface SignOutDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
-  const router = useRouter();
+  const router = useRouter()
 
   async function handleSignOut() {
-    await authClient.signOut();
-    router.invalidate();
+    await authClient.signOut()
+    router.invalidate()
   }
 
   return (
@@ -31,8 +31,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
         <AlertDialogHeader>
           <AlertDialogTitle>Sign out</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to sign out? You will need to sign in again to
-            access your account.
+            Are you sure you want to sign out? You will need to sign in again to access your account.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -40,7 +39,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void handleSignOut();
+              void handleSignOut()
             }}
           >
             Sign out
@@ -48,5 +47,5 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  );
+  )
 }

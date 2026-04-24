@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowLeftIcon,
   CalendarIcon,
@@ -15,9 +15,9 @@ import {
   TrashIcon,
   UserIcon,
   XIcon,
-} from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
+} from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
 
 import {
   AlertDialog,
@@ -28,133 +28,126 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
-import { messagingClient } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
-import { ContactFormDialog } from './_components/contact-form-dialog';
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import { messagingClient } from '@/lib/api-client'
+import { cn } from '@/lib/utils'
+import { ContactFormDialog } from './_components/contact-form-dialog'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface Contact {
-  id: string;
-  name: string | null;
-  phone: string | null;
-  email: string | null;
-  role: string;
-  identifier: string | null;
-  attributes: Record<string, unknown> | null;
-  marketingOptOut: boolean;
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  name: string | null
+  phone: string | null
+  email: string | null
+  role: string
+  identifier: string | null
+  attributes: Record<string, unknown> | null
+  marketingOptOut: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 interface ContactLabel {
-  id: string;
-  title: string;
-  color: string | null;
-  description: string | null;
-  assignedAt: string;
+  id: string
+  title: string
+  color: string | null
+  description: string | null
+  assignedAt: string
 }
 
 interface AvailableLabel {
-  id: string;
-  title: string;
-  color: string | null;
-  description: string | null;
+  id: string
+  title: string
+  color: string | null
+  description: string | null
 }
 
 interface AttributeDefinition {
-  id: string;
-  key: string;
-  label: string;
-  type: string;
-  showInTable: boolean;
-  sortOrder: number;
+  id: string
+  key: string
+  label: string
+  type: string
+  showInTable: boolean
+  sortOrder: number
 }
 
 interface TimelineConversation {
-  id: string;
-  status: string;
-  outcome: string | null;
-  reopenCount: number;
-  onHold: boolean;
-  priority: string | null;
-  assignee: string | null;
-  channelInstanceId: string;
-  channelType: string;
-  channelLabel: string;
-  startedAt: string;
-  resolvedAt: string | null;
+  id: string
+  status: string
+  outcome: string | null
+  reopenCount: number
+  onHold: boolean
+  priority: string | null
+  assignee: string | null
+  channelInstanceId: string
+  channelType: string
+  channelLabel: string
+  startedAt: string
+  resolvedAt: string | null
 }
 
 // ─── Data fetchers ───────────────────────────────────────────────────
 
 async function fetchContact(id: string): Promise<Contact> {
-  const res = await messagingClient.contacts[':id'].$get({ param: { id } });
-  if (!res.ok) throw new Error('Contact not found');
-  return res.json() as unknown as Promise<Contact>;
+  const res = await messagingClient.contacts[':id'].$get({ param: { id } })
+  if (!res.ok) throw new Error('Contact not found')
+  return res.json() as unknown as Promise<Contact>
 }
 
 async function fetchContactLabels(contactId: string): Promise<ContactLabel[]> {
   const res = await messagingClient.contacts[':id'].labels.$get({
     param: { id: contactId },
-  });
-  if (!res.ok) return [];
-  return res.json() as unknown as Promise<ContactLabel[]>;
+  })
+  if (!res.ok) return []
+  return res.json() as unknown as Promise<ContactLabel[]>
 }
 
 async function fetchAllLabels(): Promise<AvailableLabel[]> {
-  const res = await messagingClient.labels.$get();
-  if (!res.ok) return [];
-  return res.json() as unknown as Promise<AvailableLabel[]>;
+  const res = await messagingClient.labels.$get()
+  if (!res.ok) return []
+  return res.json() as unknown as Promise<AvailableLabel[]>
 }
 
 async function fetchAttributeDefinitions(): Promise<AttributeDefinition[]> {
-  const res = await messagingClient['attribute-definitions'].$get();
-  if (!res.ok) return [];
-  const json = (await res.json()) as { data: AttributeDefinition[] };
-  return json.data;
+  const res = await messagingClient['attribute-definitions'].$get()
+  if (!res.ok) return []
+  const json = (await res.json()) as { data: AttributeDefinition[] }
+  return json.data
 }
 
-async function fetchContactTimeline(
-  contactId: string,
-): Promise<TimelineConversation[]> {
+async function fetchContactTimeline(contactId: string): Promise<TimelineConversation[]> {
   const res = await messagingClient.contacts[':id'].timeline.$get({
     param: { id: contactId },
     query: { limit: '50' },
-  });
-  if (!res.ok) return [];
+  })
+  if (!res.ok) return []
   const data = (await res.json()) as unknown as {
-    conversations: TimelineConversation[];
-  };
-  return data.conversations;
+    conversations: TimelineConversation[]
+  }
+  return data.conversations
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-import { roleColors } from './_lib/helpers';
+import { roleColors } from './_lib/helpers'
 
-function statusVariant(
-  status: string,
-): 'default' | 'secondary' | 'outline' | 'success' | 'destructive' {
-  if (status === 'active') return 'default';
-  if (status === 'resolved') return 'success';
-  if (status === 'failed') return 'destructive';
-  if (status === 'resolving') return 'outline';
-  return 'secondary';
+function statusVariant(status: string): 'default' | 'secondary' | 'outline' | 'success' | 'destructive' {
+  if (status === 'active') return 'default'
+  if (status === 'resolved') return 'success'
+  if (status === 'failed') return 'destructive'
+  if (status === 'resolving') return 'outline'
+  return 'secondary'
 }
 
-const CHANNEL_CONFIG: Record<
-  string,
-  { icon: typeof GlobeIcon; color: string; bg: string }
-> = {
+const CHANNEL_CONFIG: Record<string, { icon: typeof GlobeIcon; color: string; bg: string }> = {
   whatsapp: {
     icon: SmartphoneIcon,
     color: 'text-green-600 dark:text-green-400',
@@ -170,7 +163,7 @@ const CHANNEL_CONFIG: Record<
     color: 'text-muted-foreground',
     bg: 'bg-muted',
   },
-};
+}
 
 function getChannelConfig(type: string) {
   return (
@@ -179,20 +172,20 @@ function getChannelConfig(type: string) {
       color: 'text-muted-foreground',
       bg: 'bg-muted',
     }
-  );
+  )
 }
 
 function formatDuration(startStr: string, endStr: string): string {
-  const ms = new Date(endStr).getTime() - new Date(startStr).getTime();
-  const mins = Math.floor(ms / 60_000);
-  if (mins < 1) return '<1m';
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ${mins % 60}m`;
-  return `${Math.floor(hours / 24)}d`;
+  const ms = new Date(endStr).getTime() - new Date(startStr).getTime()
+  const mins = Math.floor(ms / 60_000)
+  if (mins < 1) return '<1m'
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ${mins % 60}m`
+  return `${Math.floor(hours / 24)}d`
 }
 
-type Tab = 'overview' | 'timeline';
+type Tab = 'overview' | 'timeline'
 
 // ─── Overview Tab ────────────────────────────────────────────────────
 
@@ -206,21 +199,21 @@ function OverviewTab({
   onToggleOptOut,
   isLabelPending,
 }: {
-  contact: Contact;
-  contactLabels: ContactLabel[];
-  allLabels: AvailableLabel[];
-  attrDefs: AttributeDefinition[];
-  onAddLabel: (labelId: string) => void;
-  onRemoveLabel: (labelId: string) => void;
-  onToggleOptOut: (optOut: boolean) => void;
-  isLabelPending: boolean;
+  contact: Contact
+  contactLabels: ContactLabel[]
+  allLabels: AvailableLabel[]
+  attrDefs: AttributeDefinition[]
+  onAddLabel: (labelId: string) => void
+  onRemoveLabel: (labelId: string) => void
+  onToggleOptOut: (optOut: boolean) => void
+  isLabelPending: boolean
 }) {
-  const [showLabelPicker, setShowLabelPicker] = useState(false);
-  const assignedIds = new Set(contactLabels.map((l) => l.id));
-  const availableLabels = allLabels.filter((l) => !assignedIds.has(l.id));
+  const [showLabelPicker, setShowLabelPicker] = useState(false)
+  const assignedIds = new Set(contactLabels.map((l) => l.id))
+  const availableLabels = allLabels.filter((l) => !assignedIds.has(l.id))
 
-  const attrs = contact.attributes ?? {};
-  const sortedDefs = [...attrDefs].sort((a, b) => a.sortOrder - b.sortOrder);
+  const attrs = contact.attributes ?? {}
+  const sortedDefs = [...attrDefs].sort((a, b) => a.sortOrder - b.sortOrder)
 
   return (
     <div className="space-y-4">
@@ -233,20 +226,13 @@ function OverviewTab({
                 <UserIcon className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h3 className="text-base font-semibold">
-                  {contact.name ?? contact.identifier ?? contact.id}
-                </h3>
+                <h3 className="text-base font-semibold">{contact.name ?? contact.identifier ?? contact.id}</h3>
                 {contact.identifier && contact.name && (
-                  <p className="text-xs text-muted-foreground">
-                    {contact.identifier}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{contact.identifier}</p>
                 )}
               </div>
             </div>
-            <Badge
-              variant="outline"
-              className={cn('capitalize', roleColors[contact.role])}
-            >
+            <Badge variant="outline" className={cn('capitalize', roleColors[contact.role])}>
               {contact.role}
             </Badge>
           </div>
@@ -303,11 +289,7 @@ function OverviewTab({
           {contactLabels.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {contactLabels.map((label) => (
-                <Badge
-                  key={label.id}
-                  variant="outline"
-                  className="gap-1 pl-1.5"
-                >
+                <Badge key={label.id} variant="outline" className="gap-1 pl-1.5">
                   <span
                     className="h-2 w-2 rounded-full shrink-0"
                     style={{ backgroundColor: label.color ?? '#6b7280' }}
@@ -347,9 +329,7 @@ function OverviewTab({
             </div>
           )}
           {showLabelPicker && availableLabels.length === 0 && (
-            <p className="text-xs text-muted-foreground pt-1 border-t">
-              All labels assigned.
-            </p>
+            <p className="text-xs text-muted-foreground pt-1 border-t">All labels assigned.</p>
           )}
         </CardContent>
       </Card>
@@ -361,14 +341,10 @@ function OverviewTab({
             <h4 className="text-sm font-medium">Custom Attributes</h4>
             <div className="grid grid-cols-2 gap-2">
               {sortedDefs.map((def) => {
-                const value = attrs[def.key];
-                const hasValue =
-                  value !== undefined && value !== null && value !== '';
+                const value = attrs[def.key]
+                const hasValue = value !== undefined && value !== null && value !== ''
                 return (
-                  <div
-                    key={def.key}
-                    className="rounded-md bg-muted/50 px-2.5 py-1.5"
-                  >
+                  <div key={def.key} className="rounded-md bg-muted/50 px-2.5 py-1.5">
                     <p className="text-xs text-muted-foreground">{def.label}</p>
                     <p className="text-sm font-medium truncate">
                       {hasValue ? (
@@ -382,13 +358,11 @@ function OverviewTab({
                           String(value)
                         )
                       ) : (
-                        <span className="text-muted-foreground/40">
-                          &mdash;
-                        </span>
+                        <span className="text-muted-foreground/40">&mdash;</span>
                       )}
                     </p>
                   </div>
-                );
+                )
               })}
             </div>
           </CardContent>
@@ -412,15 +386,12 @@ function OverviewTab({
                 </p>
               </div>
             </div>
-            <Switch
-              checked={contact.marketingOptOut}
-              onCheckedChange={onToggleOptOut}
-            />
+            <Switch checked={contact.marketingOptOut} onCheckedChange={onToggleOptOut} />
           </div>
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }
 
 // ─── Timeline Tab ───────────────────────────────────────────────────
@@ -429,7 +400,7 @@ function TimelineTab({ contactId }: { contactId: string }) {
   const { data: timeline = [], isLoading } = useQuery({
     queryKey: ['contacts-timeline', contactId],
     queryFn: () => fetchContactTimeline(contactId),
-  });
+  })
 
   if (isLoading) {
     return (
@@ -438,7 +409,7 @@ function TimelineTab({ contactId }: { contactId: string }) {
           <Skeleton key={k} className="h-32 w-full rounded-lg" />
         ))}
       </div>
-    );
+    )
   }
 
   if (timeline.length === 0) {
@@ -447,52 +418,34 @@ function TimelineTab({ contactId }: { contactId: string }) {
         <MessageSquareIcon className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
         <p className="text-sm text-muted-foreground">No conversations yet.</p>
       </div>
-    );
+    )
   }
 
   return (
     <div className="space-y-2">
       {timeline.map((conv) => (
-        <ConversationCard
-          key={conv.id}
-          conversation={conv}
-          contactId={contactId}
-        />
+        <ConversationCard key={conv.id} conversation={conv} contactId={contactId} />
       ))}
     </div>
-  );
+  )
 }
 
-function ConversationCard({
-  conversation,
-  contactId,
-}: {
-  conversation: TimelineConversation;
-  contactId: string;
-}) {
-  const channel = getChannelConfig(conversation.channelType);
-  const ChannelIcon = channel.icon;
-  const duration = conversation.resolvedAt
-    ? formatDuration(conversation.startedAt, conversation.resolvedAt)
-    : null;
+function ConversationCard({ conversation, contactId }: { conversation: TimelineConversation; contactId: string }) {
+  const channel = getChannelConfig(conversation.channelType)
+  const ChannelIcon = channel.icon
+  const duration = conversation.resolvedAt ? formatDuration(conversation.startedAt, conversation.resolvedAt) : null
 
   return (
     <div className="group rounded-lg border bg-background transition-colors hover:bg-muted/20">
       <div className="flex items-center gap-3 px-4 py-3">
-        <div
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${channel.bg}`}
-        >
+        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${channel.bg}`}>
           <ChannelIcon className={`h-3.5 w-3.5 ${channel.color}`} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate">
-              {`${conversation.channelLabel} conversation`}
-            </span>
+            <span className="text-sm font-medium truncate">{`${conversation.channelLabel} conversation`}</span>
             {conversation.reopenCount > 0 && (
-              <span className="text-[10px] text-muted-foreground">
-                reopened {conversation.reopenCount}x
-              </span>
+              <span className="text-[10px] text-muted-foreground">reopened {conversation.reopenCount}x</span>
             )}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -508,10 +461,7 @@ function ConversationCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <Badge
-            variant={statusVariant(conversation.status)}
-            className="text-[10px] capitalize"
-          >
+          <Badge variant={statusVariant(conversation.status)} className="text-[10px] capitalize">
             {conversation.status}
           </Badge>
           {conversation.outcome && conversation.status === 'resolved' && (
@@ -531,18 +481,18 @@ function ConversationCard({
         </Link>
       </div>
     </div>
-  );
+  )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function ContactDetailPage() {
-  const { contactId } = Route.useParams();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const { contactId } = Route.useParams()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState<Tab>('overview')
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const {
     data: contact,
@@ -551,38 +501,32 @@ function ContactDetailPage() {
   } = useQuery({
     queryKey: ['contacts', contactId],
     queryFn: () => fetchContact(contactId),
-  });
+  })
 
   const { data: contactLabels = [] } = useQuery({
     queryKey: ['contacts', contactId, 'labels'],
     queryFn: () => fetchContactLabels(contactId),
     enabled: !!contact,
-  });
+  })
 
   const { data: allLabels = [] } = useQuery({
     queryKey: ['labels'],
     queryFn: fetchAllLabels,
     staleTime: 300_000,
-  });
+  })
 
   const { data: attrDefs = [] } = useQuery({
     queryKey: ['attribute-definitions'],
     queryFn: fetchAttributeDefinitions,
     staleTime: 300_000,
-  });
+  })
 
   const invalidateContact = () => {
-    queryClient.invalidateQueries({ queryKey: ['contacts', contactId] });
-  };
+    queryClient.invalidateQueries({ queryKey: ['contacts', contactId] })
+  }
 
   const updateMutation = useMutation({
-    mutationFn: async (data: {
-      name?: string;
-      phone?: string;
-      email?: string;
-      identifier?: string;
-      role: string;
-    }) => {
+    mutationFn: async (data: { name?: string; phone?: string; email?: string; identifier?: string; role: string }) => {
       const res = await messagingClient.contacts[':id'].$patch(
         { param: { id: contactId } },
         {
@@ -591,43 +535,43 @@ function ContactDetailPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
+      )
       if (!res.ok) {
-        const err = (await res.json()) as { error?: { message?: string } };
-        throw new Error(err?.error?.message ?? 'Failed to update contact');
+        const err = (await res.json()) as { error?: { message?: string } }
+        throw new Error(err?.error?.message ?? 'Failed to update contact')
       }
-      return res.json();
+      return res.json()
     },
     onSuccess: () => {
-      invalidateContact();
-      setEditDialogOpen(false);
-      toast.success('Contact updated');
+      invalidateContact()
+      setEditDialogOpen(false)
+      toast.success('Contact updated')
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const res = await messagingClient.contacts[':id'].$delete({
         param: { id: contactId },
-      });
+      })
       if (!res.ok) {
-        const err = (await res.json()) as { error?: { message?: string } };
-        throw new Error(err?.error?.message ?? 'Failed to delete contact');
+        const err = (await res.json()) as { error?: { message?: string } }
+        throw new Error(err?.error?.message ?? 'Failed to delete contact')
       }
-      return res.json();
+      return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      toast.success('Contact deleted');
-      navigate({ to: '/messaging/contacts' });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      toast.success('Contact deleted')
+      navigate({ to: '/messaging/contacts' })
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const addLabelMutation = useMutation({
     mutationFn: async (labelId: string) => {
@@ -639,45 +583,41 @@ function ContactDetailPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to add label');
-      return res.json();
+      )
+      if (!res.ok) throw new Error('Failed to add label')
+      return res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['contacts', contactId, 'labels'],
-      });
+      })
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const removeLabelMutation = useMutation({
     mutationFn: async (labelId: string) => {
-      const res = await messagingClient.contacts[':id'].labels[
-        ':labelId'
-      ].$delete({
+      const res = await messagingClient.contacts[':id'].labels[':labelId'].$delete({
         param: { id: contactId, labelId },
-      });
-      if (!res.ok) throw new Error('Failed to remove label');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to remove label')
+      return res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['contacts', contactId, 'labels'],
-      });
+      })
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const optOutMutation = useMutation({
     mutationFn: async (optOut: boolean) => {
-      const res = await messagingClient.contacts[':id'][
-        'marketing-opt-out'
-      ].$put(
+      const res = await messagingClient.contacts[':id']['marketing-opt-out'].$put(
         { param: { id: contactId } },
         {
           init: {
@@ -685,18 +625,18 @@ function ContactDetailPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to update opt-out');
-      return res.json();
+      )
+      if (!res.ok) throw new Error('Failed to update opt-out')
+      return res.json()
     },
     onSuccess: () => {
-      invalidateContact();
-      toast.success('Marketing preference updated');
+      invalidateContact()
+      toast.success('Marketing preference updated')
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   if (isLoading) {
     return (
@@ -704,7 +644,7 @@ function ContactDetailPage() {
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-48 w-full" />
       </div>
-    );
+    )
   }
 
   if (isError || !contact) {
@@ -719,36 +659,29 @@ function ContactDetailPage() {
           Back to contacts
         </Link>
       </div>
-    );
+    )
   }
 
-  const displayName = contact.name ?? contact.identifier ?? contact.id;
+  const displayName = contact.name ?? contact.identifier ?? contact.id
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'timeline', label: 'Timeline' },
-  ];
+  ]
 
   return (
     <div className="flex flex-col gap-6 p-6">
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Link
-            to="/messaging/contacts"
-            className="hover:text-foreground transition-colors"
-          >
+          <Link to="/messaging/contacts" className="hover:text-foreground transition-colors">
             Contacts
           </Link>
           <ChevronRightIcon className="h-3.5 w-3.5" />
           <span className="text-foreground font-medium">{displayName}</span>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setEditDialogOpen(true)}
-          >
+          <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
             <PencilIcon className="mr-2 h-3.5 w-3.5" />
             Edit
           </Button>
@@ -793,9 +726,7 @@ function ContactDetailPage() {
           onAddLabel={(labelId) => addLabelMutation.mutate(labelId)}
           onRemoveLabel={(labelId) => removeLabelMutation.mutate(labelId)}
           onToggleOptOut={(optOut) => optOutMutation.mutate(optOut)}
-          isLabelPending={
-            addLabelMutation.isPending || removeLabelMutation.isPending
-          }
+          isLabelPending={addLabelMutation.isPending || removeLabelMutation.isPending}
         />
       )}
       {activeTab === 'timeline' && <TimelineTab contactId={contact.id} />}
@@ -815,10 +746,8 @@ function ContactDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete contact?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete{' '}
-              <span className="font-medium text-foreground">{displayName}</span>{' '}
-              and remove all their labels. Contacts with active conversations
-              cannot be deleted.
+              This will permanently delete <span className="font-medium text-foreground">{displayName}</span> and remove
+              all their labels. Contacts with active conversations cannot be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -834,9 +763,9 @@ function ContactDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/messaging/contacts/$contactId')({
   component: ContactDetailPage,
-});
+})

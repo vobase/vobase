@@ -1,10 +1,10 @@
-import { useNavigate, useRouter } from '@tanstack/react-router';
+import { useNavigate, useRouter } from '@tanstack/react-router'
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button'
 
 export function NotFoundError() {
-  const navigate = useNavigate();
-  const { history } = useRouter();
+  const navigate = useNavigate()
+  const { history } = useRouter()
   return (
     <div className="h-svh">
       <div className="m-auto flex h-full w-full flex-col items-center justify-center gap-2">
@@ -23,5 +23,5 @@ export function NotFoundError() {
         </div>
       </div>
     </div>
-  );
+  )
 }

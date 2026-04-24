@@ -1,23 +1,23 @@
-import { contacts } from '@modules/messaging/schema';
-import type { VobaseDb } from '@vobase/core';
-import { authUser } from '@vobase/core';
-import { eq, sql } from 'drizzle-orm';
+import { contacts } from '@modules/messaging/schema'
+import type { VobaseDb } from '@vobase/core'
+import { authUser } from '@vobase/core'
+import { eq, sql } from 'drizzle-orm'
 
-type TargetType = 'role' | 'user' | 'agent';
+type TargetType = 'role' | 'user' | 'agent'
 
 interface ResolveTargetInput {
-  type: TargetType;
-  value: string;
+  type: TargetType
+  value: string
 }
 
 /** Parse a "type:value" target spec string (e.g. "role:operations") into { type, value }. */
 export function parseTargetSpec(spec: string): ResolveTargetInput | null {
-  const colon = spec.indexOf(':');
-  if (colon === -1) return null;
-  const type = spec.slice(0, colon);
-  const value = spec.slice(colon + 1);
-  if (!['role', 'user', 'agent'].includes(type) || !value) return null;
-  return { type: type as TargetType, value };
+  const colon = spec.indexOf(':')
+  if (colon === -1) return null
+  const type = spec.slice(0, colon)
+  const value = spec.slice(colon + 1)
+  if (!['role', 'user', 'agent'].includes(type) || !value) return null
+  return { type: type as TargetType, value }
 }
 
 /**
@@ -26,16 +26,13 @@ export function parseTargetSpec(spec: string): ResolveTargetInput | null {
  * - user: return value as-is (already a userId)
  * - agent: return "agent:{value}"
  */
-export async function resolveTarget(
-  db: VobaseDb,
-  target: ResolveTargetInput,
-): Promise<string | null> {
+export async function resolveTarget(db: VobaseDb, target: ResolveTargetInput): Promise<string | null> {
   if (target.type === 'agent') {
-    return `agent:${target.value}`;
+    return `agent:${target.value}`
   }
 
   if (target.type === 'user') {
-    return target.value;
+    return target.value
   }
 
   // role: find first staff contact whose metadata contains the role/department
@@ -49,21 +46,18 @@ export async function resolveTarget(
         OR ${contacts.attributes}->>'role' = ${target.value}
       )`,
     )
-    .limit(1);
+    .limit(1)
 
-  if (staffContacts.length === 0) return null;
+  if (staffContacts.length === 0) return null
 
-  const staffContact = staffContacts[0];
+  const staffContact = staffContacts[0]
 
   // Look up authUser by email; fall back to contact ID if no auth user exists
   if (staffContact.email) {
-    const [user] = await db
-      .select({ id: authUser.id })
-      .from(authUser)
-      .where(eq(authUser.email, staffContact.email));
-    if (user) return user.id;
+    const [user] = await db.select({ id: authUser.id }).from(authUser).where(eq(authUser.email, staffContact.email))
+    if (user) return user.id
   }
 
   // Staff contact exists but has no auth user — use contact ID as fallback
-  return staffContact.id;
+  return staffContact.id
 }

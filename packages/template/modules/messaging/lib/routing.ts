@@ -1,10 +1,10 @@
 /**
  * Routing utilities — contact resolution from inbound events.
  */
-import type { MessageReceivedEvent, VobaseDb } from '@vobase/core';
-import { sql } from 'drizzle-orm';
+import type { MessageReceivedEvent, VobaseDb } from '@vobase/core'
+import { sql } from 'drizzle-orm'
 
-import { contacts } from '../schema';
+import { contacts } from '../schema'
 
 /**
  * Upsert a contact from an inbound message event.
@@ -23,8 +23,8 @@ export async function findOrCreateContact(
         role: 'customer',
         attributes: {},
       })
-      .returning();
-    return created;
+      .returning()
+    return created
   }
 
   const [contact] = await db
@@ -42,7 +42,7 @@ export async function findOrCreateContact(
         updatedAt: new Date(),
       },
     })
-    .returning();
+    .returning()
 
-  return contact;
+  return contact
 }

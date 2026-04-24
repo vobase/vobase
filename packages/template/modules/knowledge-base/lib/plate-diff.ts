@@ -10,66 +10,58 @@
  * complexity without meaningful embedding savings).
  */
 
-import isEqual from 'lodash.isequal';
+import isEqual from 'lodash.isequal'
 
-import { plateToMarkdown } from './plate-serialize';
-import type { PlateValue } from './plate-types';
+import { plateToMarkdown } from './plate-serialize'
+import type { PlateValue } from './plate-types'
 
 interface BlockRange {
   /** Inclusive start index in the PlateValue array */
-  start: number;
+  start: number
   /** Inclusive end index in the PlateValue array */
-  end: number;
+  end: number
 }
 
 interface PlateValueDiff {
-  changed: BlockRange[];
-  added: BlockRange[];
-  removed: BlockRange[];
+  changed: BlockRange[]
+  added: BlockRange[]
+  removed: BlockRange[]
 }
 
 /**
  * Diff two Plate Values at the top-level block level.
  * Returns ranges of changed, added, and removed blocks.
  */
-export function diffPlateValue(
-  oldValue: PlateValue,
-  newValue: PlateValue,
-): PlateValueDiff {
-  const changed: BlockRange[] = [];
-  const added: BlockRange[] = [];
-  const removed: BlockRange[] = [];
+export function diffPlateValue(oldValue: PlateValue, newValue: PlateValue): PlateValueDiff {
+  const changed: BlockRange[] = []
+  const added: BlockRange[] = []
+  const removed: BlockRange[] = []
 
-  const oldLen = oldValue.length;
-  const newLen = newValue.length;
-  const minLen = Math.min(oldLen, newLen);
+  const oldLen = oldValue.length
+  const newLen = newValue.length
+  const minLen = Math.min(oldLen, newLen)
 
   for (let i = 0; i < minLen; i++) {
     // Fast path: structural equality
-    if (isEqual(oldValue[i], newValue[i])) continue;
+    if (isEqual(oldValue[i], newValue[i])) continue
     // Markdown comparison normalizes whitespace and mark ordering
-    const oldMd = plateToMarkdown([oldValue[i]]);
-    const newMd = plateToMarkdown([newValue[i]]);
+    const oldMd = plateToMarkdown([oldValue[i]])
+    const newMd = plateToMarkdown([newValue[i]])
     if (oldMd !== newMd) {
-      changed.push({ start: i, end: i });
+      changed.push({ start: i, end: i })
     }
   }
 
   if (newLen > oldLen) {
-    added.push({ start: oldLen, end: newLen - 1 });
+    added.push({ start: oldLen, end: newLen - 1 })
   } else if (oldLen > newLen) {
-    removed.push({ start: newLen, end: oldLen - 1 });
+    removed.push({ start: newLen, end: oldLen - 1 })
   }
 
-  return { changed, added, removed };
+  return { changed, added, removed }
 }
 
 /** Returns true if a chunk's blockRange overlaps any of the affected ranges. */
-export function isBlockRangeAffected(
-  blockRange: [number, number],
-  affectedRanges: BlockRange[],
-): boolean {
-  return affectedRanges.some(
-    (r) => blockRange[0] <= r.end && blockRange[1] >= r.start,
-  );
+export function isBlockRangeAffected(blockRange: [number, number], affectedRanges: BlockRange[]): boolean {
+  return affectedRanges.some((r) => blockRange[0] <= r.end && blockRange[1] >= r.start)
 }

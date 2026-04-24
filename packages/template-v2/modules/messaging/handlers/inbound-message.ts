@@ -1,6 +1,7 @@
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { EventBus } from '@server/common/port-types'
 import type { WakeRefusedEvent } from '@server/events'
+
 import type { MessagingPort } from '../service/types'
 
 export interface DailyCeilingNackInput {

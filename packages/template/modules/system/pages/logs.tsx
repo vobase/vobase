@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
-import type { ColumnDef } from '@tanstack/react-table';
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import type { ColumnDef } from '@tanstack/react-table'
 import {
   type ColumnFiltersState,
   getCoreRowModel,
@@ -11,48 +11,38 @@ import {
   getSortedRowModel,
   type SortingState,
   useReactTable,
-} from '@tanstack/react-table';
-import { ScrollText } from 'lucide-react';
-import { useState } from 'react';
+} from '@tanstack/react-table'
+import { ScrollText } from 'lucide-react'
+import { useState } from 'react'
 
-import { DataTable } from '@/components/data-table/data-table';
-import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header';
-import { DataTableToolbar } from '@/components/data-table/data-table-toolbar';
-import { Button } from '@/components/ui/button';
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { systemClient } from '@/lib/api-client';
+import { DataTable } from '@/components/data-table/data-table'
+import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header'
+import { DataTableToolbar } from '@/components/data-table/data-table-toolbar'
+import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { systemClient } from '@/lib/api-client'
 
 async function fetchAuditLog(cursor: string | null) {
   const response = await systemClient['audit-log'].$get({
     query: cursor === null ? {} : { cursor },
-  });
+  })
 
   if (!response.ok) {
-    throw new Error('Failed to fetch audit log page');
+    throw new Error('Failed to fetch audit log page')
   }
 
-  return response.json();
+  return response.json()
 }
 
-type AuditEntry = Awaited<ReturnType<typeof fetchAuditLog>>['entries'][number];
+type AuditEntry = Awaited<ReturnType<typeof fetchAuditLog>>['entries'][number]
 
 const columns: ColumnDef<AuditEntry>[] = [
   {
     id: 'event',
     accessorKey: 'event',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Event" />
-    ),
-    cell: (info) => (
-      <span className="font-medium">{info.getValue() as string}</span>
-    ),
+    header: ({ column }) => <DataTableColumnHeader column={column} label="Event" />,
+    cell: (info) => <span className="font-medium">{info.getValue() as string}</span>,
     enableSorting: true,
     enableHiding: true,
     meta: {
@@ -65,13 +55,9 @@ const columns: ColumnDef<AuditEntry>[] = [
   {
     id: 'actorEmail',
     accessorKey: 'actorEmail',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Actor" />
-    ),
+    header: ({ column }) => <DataTableColumnHeader column={column} label="Actor" />,
     cell: (info) => (
-      <span className="text-muted-foreground">
-        {(info.getValue() as string | null) ?? 'Unknown actor'}
-      </span>
+      <span className="text-muted-foreground">{(info.getValue() as string | null) ?? 'Unknown actor'}</span>
     ),
     enableSorting: true,
     enableHiding: true,
@@ -80,26 +66,24 @@ const columns: ColumnDef<AuditEntry>[] = [
   {
     id: 'createdAt',
     accessorKey: 'createdAt',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Timestamp" />
-    ),
+    header: ({ column }) => <DataTableColumnHeader column={column} label="Timestamp" />,
     cell: (info) => <RelativeTimeCard date={info.getValue() as string} />,
     enableSorting: true,
     enableHiding: true,
     meta: { label: 'Timestamp' },
   },
-];
+]
 
 function SystemLogsPage() {
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [history, setHistory] = useState<Array<string | null>>([]);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [history, setHistory] = useState<Array<string | null>>([])
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
   const auditQuery = useQuery({
     queryKey: ['system-audit-log', cursor],
     queryFn: () => fetchAuditLog(cursor),
-  });
+  })
 
   const table = useReactTable({
     data: auditQuery.data?.entries ?? [],
@@ -114,10 +98,10 @@ function SystemLogsPage() {
     getPaginationRowModel: getPaginationRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
-  });
+  })
 
-  const canGoBack = history.length > 0;
-  const canGoNext = auditQuery.data?.nextCursor != null;
+  const canGoBack = history.length > 0
+  const canGoNext = auditQuery.data?.nextCursor != null
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 sm:gap-6 sm:p-6">
@@ -127,9 +111,7 @@ function SystemLogsPage() {
       </div>
 
       {auditQuery.isError ? (
-        <p className="text-sm text-destructive">
-          Unable to load audit log entries.
-        </p>
+        <p className="text-sm text-destructive">Unable to load audit log entries.</p>
       ) : table.getRowModel().rows.length === 0 && !auditQuery.isPending ? (
         <Empty>
           <EmptyHeader>
@@ -137,9 +119,7 @@ function SystemLogsPage() {
               <ScrollText />
             </EmptyMedia>
             <EmptyTitle>No audit entries</EmptyTitle>
-            <EmptyDescription>
-              Events will appear here once activity occurs.
-            </EmptyDescription>
+            <EmptyDescription>Events will appear here once activity occurs.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -154,13 +134,12 @@ function SystemLogsPage() {
           size="sm"
           disabled={!canGoBack || auditQuery.isPending}
           onClick={() => {
-            if (!canGoBack) return;
+            if (!canGoBack) return
             setHistory((currentHistory) => {
-              const previous =
-                currentHistory[currentHistory.length - 1] ?? null;
-              setCursor(previous);
-              return currentHistory.slice(0, -1);
-            });
+              const previous = currentHistory[currentHistory.length - 1] ?? null
+              setCursor(previous)
+              return currentHistory.slice(0, -1)
+            })
           }}
         >
           Previous
@@ -169,19 +148,19 @@ function SystemLogsPage() {
           size="sm"
           disabled={!canGoNext || auditQuery.isPending}
           onClick={() => {
-            const nextCursor = auditQuery.data?.nextCursor;
-            if (nextCursor === undefined) return;
-            setHistory((currentHistory) => [...currentHistory, cursor]);
-            setCursor(nextCursor);
+            const nextCursor = auditQuery.data?.nextCursor
+            if (nextCursor === undefined) return
+            setHistory((currentHistory) => [...currentHistory, cursor])
+            setCursor(nextCursor)
           }}
         >
           Next
         </Button>
       </div>
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/system/logs')({
   component: SystemLogsPage,
-});
+})

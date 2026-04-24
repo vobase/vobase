@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
 import { setJournalDb } from '@vobase/core'
+
 import type { Message } from '../../schema'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { createStaffOpsService, installStaffOpsService } from '@modules/messagin
 import { OUTBOUND_TOOL_NAME_SET } from '@server/transports/events'
 import { setJournalDb } from '@vobase/core'
 import { Hono } from 'hono'
+
 import replyRouter from '../reply'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────

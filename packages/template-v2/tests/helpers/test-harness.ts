@@ -30,6 +30,7 @@ import {
   setJournalDb as setAgentsDb,
 } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
+
 import type { TestDbHandle } from './test-db'
 
 export interface IntegrationHarnessHandle {

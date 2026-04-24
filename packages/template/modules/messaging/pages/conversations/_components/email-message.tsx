@@ -1,55 +1,53 @@
-import DOMPurify from 'dompurify';
-import { ChevronDownIcon, ChevronRightIcon, FileIcon } from 'lucide-react';
-import { memo, useMemo, useState } from 'react';
+import DOMPurify from 'dompurify'
+import { ChevronDownIcon, ChevronRightIcon, FileIcon } from 'lucide-react'
+import { memo, useMemo, useState } from 'react'
 
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { cn } from '@/lib/utils';
-import type { MessageRow, SenderInfo } from './types';
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { cn } from '@/lib/utils'
+import type { MessageRow, SenderInfo } from './types'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface EmailAttachment {
-  name: string;
-  size?: number;
-  url?: string;
+  name: string
+  size?: number
+  url?: string
 }
 
 interface EmailContentData {
-  from?: string;
-  to?: string | string[];
-  cc?: string | string[];
-  subject?: string;
-  htmlBody?: string;
-  attachments?: EmailAttachment[];
+  from?: string
+  to?: string | string[]
+  cc?: string | string[]
+  subject?: string
+  htmlBody?: string
+  attachments?: EmailAttachment[]
 }
 
 interface EmailMessageProps {
-  message: MessageRow;
-  sender?: SenderInfo;
-  className?: string;
+  message: MessageRow
+  sender?: SenderInfo
+  className?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-const CC_COLLAPSE_THRESHOLD = 3;
+const CC_COLLAPSE_THRESHOLD = 3
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function toStringArray(val: string | string[] | undefined): string[] {
-  if (!val) return [];
-  return Array.isArray(val) ? val : [val];
+  if (!val) return []
+  return Array.isArray(val) ? val : [val]
 }
 
 // ─── Attachment badge ─────────────────────────────────────────────────
 
 function AttachmentBadge({ attachment }: { attachment: EmailAttachment }) {
-  const label = attachment.size
-    ? `${attachment.name} (${formatBytes(attachment.size)})`
-    : attachment.name;
+  const label = attachment.size ? `${attachment.name} (${formatBytes(attachment.size)})` : attachment.name
 
   if (attachment.url) {
     return (
@@ -63,78 +61,57 @@ function AttachmentBadge({ attachment }: { attachment: EmailAttachment }) {
         <FileIcon className="h-3 w-3 text-muted-foreground shrink-0" />
         {label}
       </a>
-    );
+    )
   }
   return (
     <span className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
       <FileIcon className="h-3 w-3 shrink-0" />
       {label}
     </span>
-  );
+  )
 }
 
 // ─── Header row ───────────────────────────────────────────────────────
 
-function HeaderRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function HeaderRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
       <span className="w-6 shrink-0 font-medium">{label}</span>
       {children}
     </div>
-  );
+  )
 }
 
 // ─── Component ────────────────────────────────────────────────────────
 
-export const EmailMessage = memo(function EmailMessage({
-  message,
-  sender,
-  className,
-}: EmailMessageProps) {
-  const [ccExpanded, setCcExpanded] = useState(false);
-  const [showReplies, setShowReplies] = useState(false);
+export const EmailMessage = memo(function EmailMessage({ message, sender, className }: EmailMessageProps) {
+  const [ccExpanded, setCcExpanded] = useState(false)
+  const [showReplies, setShowReplies] = useState(false)
 
-  const data = (message.contentData ?? {}) as EmailContentData;
-  const toList = toStringArray(data.to);
-  const ccList = toStringArray(data.cc);
+  const data = (message.contentData ?? {}) as EmailContentData
+  const toList = toStringArray(data.to)
+  const ccList = toStringArray(data.cc)
 
   const { mainHtml, quotedHtml } = useMemo(() => {
-    const raw = data.htmlBody;
-    if (!raw) return { mainHtml: null, quotedHtml: null };
-    const sanitized = DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } });
-    const idx = sanitized.indexOf('<blockquote');
-    if (idx === -1) return { mainHtml: sanitized, quotedHtml: null };
+    const raw = data.htmlBody
+    if (!raw) return { mainHtml: null, quotedHtml: null }
+    const sanitized = DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } })
+    const idx = sanitized.indexOf('<blockquote')
+    if (idx === -1) return { mainHtml: sanitized, quotedHtml: null }
     return {
       mainHtml: sanitized.slice(0, idx),
       quotedHtml: sanitized.slice(idx),
-    };
-  }, [data.htmlBody]);
+    }
+  }, [data.htmlBody])
 
-  const ccVisible = ccExpanded
-    ? ccList
-    : ccList.slice(0, CC_COLLAPSE_THRESHOLD);
-  const hasCcOverflow = ccList.length > CC_COLLAPSE_THRESHOLD;
+  const ccVisible = ccExpanded ? ccList : ccList.slice(0, CC_COLLAPSE_THRESHOLD)
+  const hasCcOverflow = ccList.length > CC_COLLAPSE_THRESHOLD
 
   return (
-    <div
-      className={cn(
-        'rounded-lg border bg-background overflow-hidden',
-        className,
-      )}
-    >
+    <div className={cn('rounded-lg border bg-background overflow-hidden', className)}>
       {/* Email header */}
       <div className="px-4 pt-3 pb-2 border-b space-y-1.5 bg-muted/30">
-        {data.subject && (
-          <p className="text-sm font-semibold text-foreground leading-snug">
-            {data.subject}
-          </p>
-        )}
+        {data.subject && <p className="text-sm font-semibold text-foreground leading-snug">{data.subject}</p>}
 
         {data.from && (
           <HeaderRow label="From">
@@ -162,9 +139,7 @@ export const EmailMessage = memo(function EmailMessage({
                   onClick={() => setCcExpanded(!ccExpanded)}
                   className="text-primary hover:underline"
                 >
-                  {ccExpanded
-                    ? 'less'
-                    : `+${ccList.length - CC_COLLAPSE_THRESHOLD} more`}
+                  {ccExpanded ? 'less' : `+${ccList.length - CC_COLLAPSE_THRESHOLD} more`}
                 </button>
               )}
             </span>
@@ -172,9 +147,7 @@ export const EmailMessage = memo(function EmailMessage({
         )}
 
         <div className="flex items-center justify-between pt-0.5">
-          <span className="text-[10px] text-muted-foreground">
-            {sender?.name ?? 'Unknown'}
-          </span>
+          <span className="text-[10px] text-muted-foreground">{sender?.name ?? 'Unknown'}</span>
           <RelativeTimeCard date={message.createdAt} />
         </div>
       </div>
@@ -188,9 +161,7 @@ export const EmailMessage = memo(function EmailMessage({
             dangerouslySetInnerHTML={{ __html: mainHtml }}
           />
         ) : (
-          <p className="text-sm whitespace-pre-wrap text-foreground">
-            {message.content}
-          </p>
+          <p className="text-sm whitespace-pre-wrap text-foreground">{message.content}</p>
         )}
 
         {/* Quoted replies toggle */}
@@ -201,11 +172,7 @@ export const EmailMessage = memo(function EmailMessage({
               onClick={() => setShowReplies(!showReplies)}
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              {showReplies ? (
-                <ChevronDownIcon className="h-3 w-3" />
-              ) : (
-                <ChevronRightIcon className="h-3 w-3" />
-              )}
+              {showReplies ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
               {showReplies ? 'Hide previous replies' : 'Show previous replies'}
             </button>
             {showReplies && (
@@ -232,5 +199,5 @@ export const EmailMessage = memo(function EmailMessage({
         </div>
       )}
     </div>
-  );
-});
+  )
+})

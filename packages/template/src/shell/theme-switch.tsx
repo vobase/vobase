@@ -1,26 +1,20 @@
-import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react';
+import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
 
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { type Theme, useTheme } from '@/hooks/use-theme';
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { type Theme, useTheme } from '@/hooks/use-theme'
 
 const themeOptions: { value: Theme; label: string; icon: typeof SunIcon }[] = [
   { value: 'light', label: 'Light', icon: SunIcon },
   { value: 'dark', label: 'Dark', icon: MoonIcon },
   { value: 'system', label: 'System', icon: MonitorIcon },
-];
+]
 
 export function ThemeSwitch() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme } = useTheme()
 
-  const current =
-    themeOptions.find((t) => t.value === theme) ?? themeOptions[0];
-  const Icon = current.icon;
+  const current = themeOptions.find((t) => t.value === theme) ?? themeOptions[0]
+  const Icon = current.icon
 
   return (
     <DropdownMenu>
@@ -39,5 +33,5 @@ export function ThemeSwitch() {
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+  )
 }

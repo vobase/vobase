@@ -1,26 +1,20 @@
-import { AlertCircleIcon, CheckCircle2Icon } from 'lucide-react';
-import { useEffect } from 'react';
+import { AlertCircleIcon, CheckCircle2Icon } from 'lucide-react'
+import { useEffect } from 'react'
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export interface ApprovedTemplate {
-  id: string;
-  name: string;
-  language: string;
+  id: string
+  name: string
+  language: string
 }
 
 interface TemplateResolverProps {
-  stepSequence: number;
-  suggestion: string;
-  approvedTemplates: ApprovedTemplate[];
-  resolvedId: string | null;
-  onResolve: (templateId: string, templateName: string) => void;
+  stepSequence: number
+  suggestion: string
+  approvedTemplates: ApprovedTemplate[]
+  resolvedId: string | null
+  onResolve: (templateId: string, templateName: string) => void
 }
 
 export function TemplateResolver({
@@ -30,15 +24,13 @@ export function TemplateResolver({
   resolvedId,
   onResolve,
 }: TemplateResolverProps) {
-  const exactMatch = approvedTemplates.find(
-    (t) => t.name.toLowerCase() === suggestion.toLowerCase(),
-  );
+  const exactMatch = approvedTemplates.find((t) => t.name.toLowerCase() === suggestion.toLowerCase())
 
   useEffect(() => {
     if (exactMatch && !resolvedId) {
-      onResolve(exactMatch.id, exactMatch.name);
+      onResolve(exactMatch.id, exactMatch.name)
     }
-  }, [exactMatch, resolvedId, onResolve]);
+  }, [exactMatch, resolvedId, onResolve])
 
   if (exactMatch) {
     return (
@@ -47,7 +39,7 @@ export function TemplateResolver({
         <span className="font-mono">{suggestion}</span>
         <span className="text-muted-foreground text-xs">resolved</span>
       </div>
-    );
+    )
   }
 
   return (
@@ -55,15 +47,14 @@ export function TemplateResolver({
       <div className="flex items-start gap-2 text-sm text-amber-600 dark:text-amber-400">
         <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0" />
         <span>
-          Step #{stepSequence}: &ldquo;{suggestion}&rdquo; not found — pick a
-          replacement:
+          Step #{stepSequence}: &ldquo;{suggestion}&rdquo; not found — pick a replacement:
         </span>
       </div>
       <Select
         value={resolvedId ?? ''}
         onValueChange={(id) => {
-          const t = approvedTemplates.find((x) => x.id === id);
-          if (t) onResolve(t.id, t.name);
+          const t = approvedTemplates.find((x) => x.id === id)
+          if (t) onResolve(t.id, t.name)
         }}
       >
         <SelectTrigger>
@@ -73,13 +64,11 @@ export function TemplateResolver({
           {approvedTemplates.map((t) => (
             <SelectItem key={t.id} value={t.id}>
               {t.name}
-              <span className="ml-2 text-xs text-muted-foreground">
-                {t.language}
-              </span>
+              <span className="ml-2 text-xs text-muted-foreground">{t.language}</span>
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
     </div>
-  );
+  )
 }

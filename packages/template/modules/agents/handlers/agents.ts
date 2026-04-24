@@ -1,18 +1,12 @@
-import {
-  getCtx,
-  logger,
-  notFound,
-  unauthorized,
-  validation,
-} from '@vobase/core';
-import { and, eq, isNull } from 'drizzle-orm';
-import { Hono } from 'hono';
-import { z } from 'zod';
+import { getCtx, logger, notFound, unauthorized, validation } from '@vobase/core'
+import { and, eq, isNull } from 'drizzle-orm'
+import { Hono } from 'hono'
+import { z } from 'zod'
 
-import { requireAdmin } from '../../lib/require-admin';
-import { resolveAgent } from '../mastra/agents';
-import { seedWorkspaceFiles } from '../mastra/workspace/seed-workspace';
-import { agentDefinitions, workspaceFiles } from '../schema';
+import { requireAdmin } from '../../lib/require-admin'
+import { resolveAgent } from '../mastra/agents'
+import { seedWorkspaceFiles } from '../mastra/workspace/seed-workspace'
+import { agentDefinitions, workspaceFiles } from '../schema'
 
 const approvalSchema = z.object({
   agentId: z.string().min(1),
@@ -20,7 +14,7 @@ const approvalSchema = z.object({
   toolCallId: z.string().min(1),
   approved: z.boolean(),
   approvedBy: z.string().optional(),
-});
+})
 
 const createAgentSchema = z.object({
   name: z.string().min(1),
@@ -28,7 +22,7 @@ const createAgentSchema = z.object({
   channels: z.array(z.string()).optional(),
   mode: z.enum(['full-auto', 'qualify-then-handoff']).optional(),
   suggestions: z.array(z.string()).optional(),
-});
+})
 
 const updateAgentSchema = z.object({
   name: z.string().min(1).optional(),
@@ -36,7 +30,7 @@ const updateAgentSchema = z.object({
   channels: z.array(z.string()).optional(),
   mode: z.enum(['full-auto', 'qualify-then-handoff']).optional(),
   suggestions: z.array(z.string()).optional(),
-});
+})
 
 const fileUpsertSchema = z.object({
   path: z
@@ -46,12 +40,12 @@ const fileUpsertSchema = z.object({
       message: 'Invalid file path',
     }),
   content: z.string(),
-});
+})
 
 export const agentsHandlers = new Hono()
   .get('/agents', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
     const agents = await db
       .select({
@@ -63,15 +57,15 @@ export const agentsHandlers = new Hono()
         suggestions: agentDefinitions.suggestions,
       })
       .from(agentDefinitions)
-      .where(eq(agentDefinitions.enabled, true));
+      .where(eq(agentDefinitions.enabled, true))
 
-    return c.json(agents);
+    return c.json(agents)
   })
   .get('/agents/:id', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const id = c.req.param('id');
+    const id = c.req.param('id')
 
     const [agent] = await db
       .select({
@@ -83,19 +77,17 @@ export const agentsHandlers = new Hono()
         suggestions: agentDefinitions.suggestions,
       })
       .from(agentDefinitions)
-      .where(
-        and(eq(agentDefinitions.id, id), eq(agentDefinitions.enabled, true)),
-      );
+      .where(and(eq(agentDefinitions.id, id), eq(agentDefinitions.enabled, true)))
 
-    if (!agent) throw notFound('Agent not found');
+    if (!agent) throw notFound('Agent not found')
 
-    return c.json(agent);
+    return c.json(agent)
   })
   .post('/agents', requireAdmin(), async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const body = createAgentSchema.parse(await c.req.json());
+    const body = createAgentSchema.parse(await c.req.json())
 
     const [agent] = await db
       .insert(agentDefinitions)
@@ -108,18 +100,18 @@ export const agentsHandlers = new Hono()
           suggestions: body.suggestions,
         }),
       })
-      .returning();
+      .returning()
 
-    await seedWorkspaceFiles(db, agent.id);
+    await seedWorkspaceFiles(db, agent.id)
 
-    return c.json(agent, 201);
+    return c.json(agent, 201)
   })
   .patch('/agents/:id', requireAdmin(), async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const id = c.req.param('id');
-    const body = updateAgentSchema.parse(await c.req.json());
+    const id = c.req.param('id')
+    const body = updateAgentSchema.parse(await c.req.json())
 
     const [agent] = await db
       .update(agentDefinitions)
@@ -134,40 +126,37 @@ export const agentsHandlers = new Hono()
         updatedAt: new Date(),
       })
       .where(eq(agentDefinitions.id, id))
-      .returning();
+      .returning()
 
-    if (!agent) throw notFound('Agent not found');
-    return c.json(agent);
+    if (!agent) throw notFound('Agent not found')
+    return c.json(agent)
   })
   .delete('/agents/:id', requireAdmin(), async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const id = c.req.param('id');
+    const id = c.req.param('id')
 
     const [deleted] = await db
       .update(agentDefinitions)
       .set({ enabled: false, updatedAt: new Date() })
       .where(eq(agentDefinitions.id, id))
-      .returning({ id: agentDefinitions.id });
+      .returning({ id: agentDefinitions.id })
 
-    if (!deleted) throw notFound('Agent not found');
-    return c.json({ ok: true });
+    if (!deleted) throw notFound('Agent not found')
+    return c.json({ ok: true })
   })
   .post('/agents/approve', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const body = approvalSchema.parse(await c.req.json());
+    const body = approvalSchema.parse(await c.req.json())
 
-    const [agentDef] = await db
-      .select()
-      .from(agentDefinitions)
-      .where(eq(agentDefinitions.id, body.agentId));
+    const [agentDef] = await db.select().from(agentDefinitions).where(eq(agentDefinitions.id, body.agentId))
 
-    if (!agentDef) throw notFound('Agent not found');
+    if (!agentDef) throw notFound('Agent not found')
 
-    const agent = resolveAgent(agentDef);
+    const agent = resolveAgent(agentDef)
 
     try {
       await agent.resumeGenerate(
@@ -179,25 +168,25 @@ export const agentsHandlers = new Hono()
             resource: `thread:${body.threadId}`,
           },
         },
-      );
+      )
 
       logger.info('[agents] Tool execution resumed', {
         agentId: body.agentId,
         threadId: body.threadId,
         toolCallId: body.toolCallId,
         approved: body.approved,
-      });
+      })
 
-      return c.json({ ok: true, approved: body.approved });
+      return c.json({ ok: true, approved: body.approved })
     } catch (err) {
-      logger.error('[agents] Resume failed', { error: err });
-      return c.json({ ok: false, error: 'Failed to resume agent' }, 500);
+      logger.error('[agents] Resume failed', { error: err })
+      return c.json({ ok: false, error: 'Failed to resume agent' }, 500)
     }
   })
   .get('/agents/:agentId/files', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
-    const agentId = c.req.param('agentId');
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
+    const agentId = c.req.param('agentId')
 
     const files = await db
       .select({
@@ -208,22 +197,17 @@ export const agentsHandlers = new Hono()
         updatedAt: workspaceFiles.updatedAt,
       })
       .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.agentId, agentId),
-          isNull(workspaceFiles.contactId),
-        ),
-      )
-      .orderBy(workspaceFiles.path);
+      .where(and(eq(workspaceFiles.agentId, agentId), isNull(workspaceFiles.contactId)))
+      .orderBy(workspaceFiles.path)
 
-    return c.json(files);
+    return c.json(files)
   })
   .get('/agents/:agentId/file', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
-    const agentId = c.req.param('agentId');
-    const path = c.req.query('path');
-    if (!path) throw validation({ path: 'Required' });
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
+    const agentId = c.req.param('agentId')
+    const path = c.req.query('path')
+    if (!path) throw validation({ path: 'Required' })
 
     const [file] = await db
       .select({
@@ -234,29 +218,23 @@ export const agentsHandlers = new Hono()
         updatedAt: workspaceFiles.updatedAt,
       })
       .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.agentId, agentId),
-          isNull(workspaceFiles.contactId),
-          eq(workspaceFiles.path, path),
-        ),
-      );
+      .where(and(eq(workspaceFiles.agentId, agentId), isNull(workspaceFiles.contactId), eq(workspaceFiles.path, path)))
 
-    if (!file) throw notFound('File not found');
-    return c.json(file);
+    if (!file) throw notFound('File not found')
+    return c.json(file)
   })
   .put('/agents/:agentId/file', requireAdmin(), async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
-    const agentId = c.req.param('agentId');
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
+    const agentId = c.req.param('agentId')
 
     const [agentExists] = await db
       .select({ id: agentDefinitions.id })
       .from(agentDefinitions)
-      .where(eq(agentDefinitions.id, agentId));
-    if (!agentExists) throw notFound('Agent not found');
+      .where(eq(agentDefinitions.id, agentId))
+    if (!agentExists) throw notFound('Agent not found')
 
-    const body = fileUpsertSchema.parse(await c.req.json());
+    const body = fileUpsertSchema.parse(await c.req.json())
 
     const [file] = await db
       .insert(workspaceFiles)
@@ -268,11 +246,7 @@ export const agentsHandlers = new Hono()
         writtenBy: 'admin',
       })
       .onConflictDoUpdate({
-        target: [
-          workspaceFiles.agentId,
-          workspaceFiles.contactId,
-          workspaceFiles.path,
-        ],
+        target: [workspaceFiles.agentId, workspaceFiles.contactId, workspaceFiles.path],
         set: {
           content: body.content,
           updatedAt: new Date(),
@@ -283,7 +257,7 @@ export const agentsHandlers = new Hono()
         id: workspaceFiles.id,
         path: workspaceFiles.path,
         updatedAt: workspaceFiles.updatedAt,
-      });
+      })
 
-    return c.json(file);
-  });
+    return c.json(file)
+  })

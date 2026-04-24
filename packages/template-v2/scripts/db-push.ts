@@ -7,6 +7,7 @@
  *      (cross-schema FKs, UNLOGGED active_wakes, pg_trgm GIN index)
  */
 import postgres from 'postgres'
+
 import { processSqlFile } from './utils/process-sql-file'
 
 const url = process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2'

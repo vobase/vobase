@@ -35,12 +35,13 @@ import {
 } from '@mariozechner/pi-agent-core'
 import type { AssistantMessage, Model } from '@mariozechner/pi-ai'
 import { Type } from '@mariozechner/pi-ai'
-import { nanoid } from 'nanoid'
 import type { Bash, InMemoryFs } from 'just-bash'
+import { nanoid } from 'nanoid'
+
+import { makeBashTool } from './bash-tool'
+import { createRestartRecoveryContributor, type GetLastWakeTail } from './restart-recovery'
 import type { CustomSideLoadMaterializer } from './side-load-collector'
 import { collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
-import { createRestartRecoveryContributor, type GetLastWakeTail } from './restart-recovery'
-import { makeBashTool } from './bash-tool'
 import type { SteerQueueHandle } from './steer-queue'
 import { TurnBudget } from './turn-budget'
 import type {
@@ -442,7 +443,8 @@ export async function createHarness<TTrigger = unknown>(
       for (const listener of hooks.on_event) {
         try {
           const r = listener(ev)
-          if (r instanceof Promise) r.catch((err) => logger.error({ err, eventType: ev.type }, 'on_event listener failed'))
+          if (r instanceof Promise)
+            r.catch((err) => logger.error({ err, eventType: ev.type }, 'on_event listener failed'))
         } catch (err) {
           logger.error({ err, eventType: ev.type }, 'on_event listener failed')
         }

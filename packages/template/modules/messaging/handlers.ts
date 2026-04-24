@@ -1,15 +1,15 @@
-import { Hono } from 'hono';
+import { Hono } from 'hono'
 
-import { activityHandlers } from './handlers/activity';
-import { attributeDefinitionsHandlers } from './handlers/attribute-definitions';
-import { automationHandlers } from './handlers/automation';
-import { broadcastsHandlers } from './handlers/broadcasts';
-import { channelsHandlers } from './handlers/channels';
-import { contactsHandlers } from './handlers/contacts';
-import { conversationsDetailHandlers } from './handlers/conversations';
-import { labelsHandlers } from './handlers/labels';
-import { teamMembersHandlers } from './handlers/team-members';
-import { templatesHandlers } from './handlers/templates';
+import { activityHandlers } from './handlers/activity'
+import { attributeDefinitionsHandlers } from './handlers/attribute-definitions'
+import { automationHandlers } from './handlers/automation'
+import { broadcastsHandlers } from './handlers/broadcasts'
+import { channelsHandlers } from './handlers/channels'
+import { contactsHandlers } from './handlers/contacts'
+import { conversationsDetailHandlers } from './handlers/conversations'
+import { labelsHandlers } from './handlers/labels'
+import { teamMembersHandlers } from './handlers/team-members'
+import { templatesHandlers } from './handlers/templates'
 
 export const messagingRoutes = new Hono()
   .route('/', labelsHandlers)
@@ -21,6 +21,6 @@ export const messagingRoutes = new Hono()
   .route('/contacts', contactsHandlers)
   .route('/broadcasts', broadcastsHandlers)
   .route('/automation', automationHandlers)
-  .route('/attribute-definitions', attributeDefinitionsHandlers);
+  .route('/attribute-definitions', attributeDefinitionsHandlers)
 
-export type MessagingRoutes = typeof messagingRoutes;
+export type MessagingRoutes = typeof messagingRoutes

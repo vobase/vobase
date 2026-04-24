@@ -14,6 +14,7 @@
  */
 import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+
 import { processSqlFile } from './utils/process-sql-file'
 
 const name = process.argv[2] ?? `migration_${Date.now()}`

@@ -16,6 +16,7 @@
  */
 
 import type { Context, MiddlewareHandler } from 'hono'
+
 import type { Auth } from '../auth'
 import type { statement } from '../auth/ac'
 import type { OrganizationEnv } from './require-organization'

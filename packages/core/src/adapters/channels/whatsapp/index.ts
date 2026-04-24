@@ -1,11 +1,10 @@
-export { createWhatsAppAdapter } from './adapter';
-export { WhatsAppApiError } from './types';
+// Test-only re-exports
+export { _chunkText, _ERROR_CODE_MAP, createWhatsAppAdapter } from './adapter'
 export type {
   CreateTemplateInput,
   WhatsAppChannelConfig,
   WhatsAppCtaUrlInteractive,
   WhatsAppTemplate,
   WhatsAppTransportConfig,
-} from './types';
-// Test-only re-exports
-export { _chunkText, _ERROR_CODE_MAP } from './adapter';
+} from './types'
+export { WhatsAppApiError } from './types'

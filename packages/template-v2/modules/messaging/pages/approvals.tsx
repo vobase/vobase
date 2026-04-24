@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+
 import { ApprovalRow } from '@/components/approval-row'
 import type { PendingApproval } from '../schema'
 

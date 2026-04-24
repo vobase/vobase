@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { renderToString } from 'react-dom/server'
+
 import { Breadcrumbs } from '../breadcrumbs'
 
 function makeRouter(path: string, queryClient: QueryClient) {

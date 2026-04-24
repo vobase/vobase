@@ -7,5 +7,5 @@ export function isAIConfigured(): boolean {
     process.env.OPENAI_API_KEY ||
     process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
     process.env.ANTHROPIC_API_KEY
-  );
+  )
 }

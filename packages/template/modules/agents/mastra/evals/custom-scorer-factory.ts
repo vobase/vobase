@@ -1,14 +1,14 @@
-import { createScorer } from '@mastra/core/evals';
+import { createScorer } from '@mastra/core/evals'
 
-import { coerce } from './coerce';
-import { customScorerId } from './types';
+import { coerce } from './coerce'
+import { customScorerId } from './types'
 
 interface CustomScorerRow {
-  id: string;
-  name: string;
-  description: string;
-  criteria: string;
-  model: string;
+  id: string
+  name: string
+  description: string
+  criteria: string
+  model: string
 }
 
 /**
@@ -50,5 +50,5 @@ export function buildCustomScorer(row: CustomScorerRow) {
           '',
           'Explain in 1-2 sentences why you gave this score based on the criteria in your instructions.',
         ].join('\n'),
-    });
+    })
 }

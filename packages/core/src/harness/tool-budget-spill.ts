@@ -1,6 +1,5 @@
-import type { ToolResultPersistedEvent } from './types'
-import type { ToolContext } from './types'
 import { L1_PREVIEW_BYTES } from './turn-budget'
+import type { ToolContext, ToolResultPersistedEvent } from './types'
 
 export interface SpillDeps {
   stdout: string

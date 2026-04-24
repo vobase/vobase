@@ -21,6 +21,7 @@ import type { CommandContext, CommandDef } from '@server/common/port-types'
 import type { MaterializerCtx, WorkspaceMaterializer } from '@vobase/core'
 import { generateAgentsMd, MaterializerRegistry, type ReadOnlyConfig, ScopedFs, snapshotFs } from '@vobase/core'
 import { Bash, InMemoryFs } from 'just-bash'
+
 import { createVobaseCommand } from './vobase-cli/dispatcher'
 import type { WorkspacePath } from './workspace-config'
 

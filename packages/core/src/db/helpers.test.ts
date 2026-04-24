@@ -1,125 +1,119 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'bun:test'
 
-import {
-  createNanoid,
-  DEFAULT_COLUMNS,
-  NANOID_ALPHABET,
-  NANOID_LENGTH,
-  nanoidPrimaryKey,
-} from './helpers';
+import { createNanoid, DEFAULT_COLUMNS, NANOID_ALPHABET, NANOID_LENGTH, nanoidPrimaryKey } from './helpers'
 
 // Drizzle marks `.config` as protected; bracket access bypasses this for test inspection
 function getConfig(col: unknown): Record<string, unknown> {
-  return (col as Record<string, Record<string, unknown>>).config;
+  return (col as Record<string, Record<string, unknown>>).config
 }
 
 describe('nanoid helpers', () => {
   describe('NANOID_LENGTH constants', () => {
     it('should have SHORT, DEFAULT, and LONG lengths defined', () => {
-      expect(NANOID_LENGTH.SHORT).toBe(6);
-      expect(NANOID_LENGTH.DEFAULT).toBe(8);
-      expect(NANOID_LENGTH.LONG).toBe(12);
-    });
-  });
+      expect(NANOID_LENGTH.SHORT).toBe(6)
+      expect(NANOID_LENGTH.DEFAULT).toBe(8)
+      expect(NANOID_LENGTH.LONG).toBe(12)
+    })
+  })
 
   describe('NANOID_ALPHABET', () => {
     it('should only contain lowercase alphanumeric characters', () => {
-      expect(NANOID_ALPHABET).toBe('0123456789abcdefghijklmnopqrstuvwxyz');
-    });
-  });
+      expect(NANOID_ALPHABET).toBe('0123456789abcdefghijklmnopqrstuvwxyz')
+    })
+  })
 
   describe('createNanoid()', () => {
     it('should generate IDs of the correct length', () => {
-      const generateShort = createNanoid(NANOID_LENGTH.SHORT);
-      const generateDefault = createNanoid(NANOID_LENGTH.DEFAULT);
-      const generateLong = createNanoid(NANOID_LENGTH.LONG);
+      const generateShort = createNanoid(NANOID_LENGTH.SHORT)
+      const generateDefault = createNanoid(NANOID_LENGTH.DEFAULT)
+      const generateLong = createNanoid(NANOID_LENGTH.LONG)
 
-      expect(generateShort().length).toBe(6);
-      expect(generateDefault().length).toBe(8);
-      expect(generateLong().length).toBe(12);
-    });
+      expect(generateShort().length).toBe(6)
+      expect(generateDefault().length).toBe(8)
+      expect(generateLong().length).toBe(12)
+    })
 
     it('should generate IDs using only the alphabet', () => {
-      const generate = createNanoid(NANOID_LENGTH.DEFAULT);
-      const id = generate();
+      const generate = createNanoid(NANOID_LENGTH.DEFAULT)
+      const id = generate()
 
       for (const char of id) {
-        expect(NANOID_ALPHABET.includes(char)).toBe(true);
+        expect(NANOID_ALPHABET.includes(char)).toBe(true)
       }
-    });
+    })
 
     it('should cache generators and reuse them', () => {
-      const gen1 = createNanoid(NANOID_LENGTH.DEFAULT);
-      const gen2 = createNanoid(NANOID_LENGTH.DEFAULT);
+      const gen1 = createNanoid(NANOID_LENGTH.DEFAULT)
+      const gen2 = createNanoid(NANOID_LENGTH.DEFAULT)
 
       // Should be the same function instance (cached)
-      expect(gen1).toBe(gen2);
-    });
+      expect(gen1).toBe(gen2)
+    })
 
     it('should generate unique IDs', () => {
-      const generate = createNanoid(NANOID_LENGTH.DEFAULT);
-      const ids = new Set();
+      const generate = createNanoid(NANOID_LENGTH.DEFAULT)
+      const ids = new Set()
 
       for (let i = 0; i < 1000; i++) {
-        ids.add(generate());
+        ids.add(generate())
       }
 
-      expect(ids.size).toBe(1000);
-    });
+      expect(ids.size).toBe(1000)
+    })
 
     it('should use default length when not specified', () => {
-      const generate = createNanoid();
-      expect(generate().length).toBe(NANOID_LENGTH.DEFAULT);
-    });
-  });
+      const generate = createNanoid()
+      expect(generate().length).toBe(NANOID_LENGTH.DEFAULT)
+    })
+  })
 
   describe('nanoidPrimaryKey()', () => {
     it('should create a text column named "id"', () => {
-      const column = nanoidPrimaryKey();
-      expect(getConfig(column).name).toBe('id');
-    });
+      const column = nanoidPrimaryKey()
+      expect(getConfig(column).name).toBe('id')
+    })
 
     it('should be a primary key', () => {
-      const column = nanoidPrimaryKey();
-      expect(getConfig(column).primaryKey).toBe(true);
-    });
+      const column = nanoidPrimaryKey()
+      expect(getConfig(column).primaryKey).toBe(true)
+    })
 
     it('should have a database-side default', () => {
-      const column = nanoidPrimaryKey();
-      expect(getConfig(column).hasDefault).toBe(true);
-    });
+      const column = nanoidPrimaryKey()
+      expect(getConfig(column).hasDefault).toBe(true)
+    })
 
     it('should support custom lengths', () => {
-      const columnShort = nanoidPrimaryKey(NANOID_LENGTH.SHORT);
-      const columnLong = nanoidPrimaryKey(NANOID_LENGTH.LONG);
+      const columnShort = nanoidPrimaryKey(NANOID_LENGTH.SHORT)
+      const columnLong = nanoidPrimaryKey(NANOID_LENGTH.LONG)
 
-      expect(getConfig(columnShort).name).toBe('id');
-      expect(getConfig(columnLong).name).toBe('id');
-    });
-  });
+      expect(getConfig(columnShort).name).toBe('id')
+      expect(getConfig(columnLong).name).toBe('id')
+    })
+  })
 
   describe('DEFAULT_COLUMNS', () => {
     it('should have createdAt and updatedAt columns', () => {
-      expect(DEFAULT_COLUMNS.createdAt).toBeDefined();
-      expect(DEFAULT_COLUMNS.updatedAt).toBeDefined();
-    });
+      expect(DEFAULT_COLUMNS.createdAt).toBeDefined()
+      expect(DEFAULT_COLUMNS.updatedAt).toBeDefined()
+    })
 
     it('createdAt should be a timestamptz column with database default', () => {
-      const col = DEFAULT_COLUMNS.createdAt;
-      expect(getConfig(col).name).toBe('created_at');
-      expect(getConfig(col).hasDefault).toBe(true);
-      expect(getConfig(col).notNull).toBe(true);
-    });
+      const col = DEFAULT_COLUMNS.createdAt
+      expect(getConfig(col).name).toBe('created_at')
+      expect(getConfig(col).hasDefault).toBe(true)
+      expect(getConfig(col).notNull).toBe(true)
+    })
 
     it('updatedAt should be a timestamptz column with database default', () => {
-      const col = DEFAULT_COLUMNS.updatedAt;
-      expect(getConfig(col).name).toBe('updated_at');
-      expect(getConfig(col).hasDefault).toBe(true);
-      expect(getConfig(col).notNull).toBe(true);
-    });
+      const col = DEFAULT_COLUMNS.updatedAt
+      expect(getConfig(col).name).toBe('updated_at')
+      expect(getConfig(col).hasDefault).toBe(true)
+      expect(getConfig(col).notNull).toBe(true)
+    })
 
     it('updatedAt should have onUpdate function', () => {
-      expect(typeof DEFAULT_COLUMNS.updatedAt.$onUpdate).toBe('function');
-    });
-  });
-});
+      expect(typeof DEFAULT_COLUMNS.updatedAt.$onUpdate).toBe('function')
+    })
+  })
+})

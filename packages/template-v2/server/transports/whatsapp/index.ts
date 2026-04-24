@@ -8,6 +8,7 @@
  */
 import type { RealtimeService, ScopedScheduler } from '@server/common/port-types'
 import type { Hono } from 'hono'
+
 import handlers from './handlers'
 import { createChannelWhatsappState, installChannelWhatsappState, type JobQueue } from './service/state'
 

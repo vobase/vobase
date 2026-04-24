@@ -1,9 +1,9 @@
-import { defineModule } from '@vobase/core';
+import { defineModule } from '@vobase/core'
 
-import { agentsRoutes } from './handlers';
-import { agentWakeJob } from './jobs';
-import { configureTracing } from './mastra/lib/observability';
-import * as schema from './schema';
+import { agentsRoutes } from './handlers'
+import { agentWakeJob } from './jobs'
+import { configureTracing } from './mastra/lib/observability'
+import * as schema from './schema'
 
 export const agentsModule = defineModule({
   name: 'agents',
@@ -12,6 +12,6 @@ export const agentsModule = defineModule({
   jobs: [agentWakeJob],
 
   async init(_ctx) {
-    configureTracing();
+    configureTracing()
   },
-});
+})

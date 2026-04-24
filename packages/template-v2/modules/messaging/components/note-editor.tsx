@@ -3,6 +3,7 @@ import { MentionInputPlugin, MentionPlugin } from '@platejs/mention/react'
 import type { TComboboxInputElement, Value } from 'platejs'
 import { Plate, PlateContent, PlateElement, type PlateElementProps, usePlateEditor } from 'platejs/react'
 import { useImperativeHandle, useState } from 'react'
+
 import {
   InlineCombobox,
   InlineComboboxContent,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { Hono, type MiddlewareHandler } from 'hono'
+
 import type { Auth } from '../auth'
 import type { OrganizationEnv } from './require-organization'
 import { createRequirePermission } from './require-permission'

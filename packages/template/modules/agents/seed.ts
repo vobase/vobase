@@ -4,22 +4,22 @@
  *
  * Auto-discovered by scripts/db-seed.ts (default export convention).
  */
-import type { VobaseDb } from '@vobase/core';
+import type { VobaseDb } from '@vobase/core'
 
-import { seedWorkspaceFiles } from './mastra/workspace/seed-workspace';
-import { agentDefinitions, workspaceFiles } from './schema';
+import { seedWorkspaceFiles } from './mastra/workspace/seed-workspace'
+import { agentDefinitions, workspaceFiles } from './schema'
 
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
+const green = (s: string) => `\x1b[32m${s}\x1b[0m`
 
 // ─── Per-contact agent notes ───────────────────────────────────────
 // These are workspace files scoped to agentId + contactId, representing
 // observations the agent has accumulated over past conversations.
 
-const AGENT_ID = 'booking';
+const AGENT_ID = 'booking'
 
 const CONTACT_NOTES: Array<{
-  contactId: string;
-  content: string;
+  contactId: string
+  content: string
 }> = [
   {
     contactId: 'c-alice',
@@ -168,12 +168,12 @@ language: en
 - Pending pricing verification from operations team
 `,
   },
-];
+]
 
 // ─── Seed function ──────────────────────────────────────────────────
 
 export default async function seed(ctx: { db: VobaseDb }) {
-  const { db } = ctx;
+  const { db } = ctx
 
   // Seed agent definition
   const [agent] = await db
@@ -195,13 +195,13 @@ export default async function seed(ctx: { db: VobaseDb }) {
       target: agentDefinitions.id,
       set: { updatedAt: new Date() },
     })
-    .returning({ id: agentDefinitions.id });
+    .returning({ id: agentDefinitions.id })
 
-  console.log(`${green('✓')} Seeded agent definition: ${agent.id}`);
+  console.log(`${green('✓')} Seeded agent definition: ${agent.id}`)
 
   // Seed workspace files (AGENTS.md, SOUL.md) scoped to this agent
-  await seedWorkspaceFiles(db, agent.id);
-  console.log(`${green('✓')} Seeded workspace files (AGENTS.md, SOUL.md)`);
+  await seedWorkspaceFiles(db, agent.id)
+  console.log(`${green('✓')} Seeded workspace files (AGENTS.md, SOUL.md)`)
 
   // Seed per-contact agent notes
   for (const note of CONTACT_NOTES) {
@@ -215,15 +215,9 @@ export default async function seed(ctx: { db: VobaseDb }) {
         writtenBy: 'system',
       })
       .onConflictDoUpdate({
-        target: [
-          workspaceFiles.agentId,
-          workspaceFiles.contactId,
-          workspaceFiles.path,
-        ],
+        target: [workspaceFiles.agentId, workspaceFiles.contactId, workspaceFiles.path],
         set: { content: note.content, updatedAt: new Date() },
-      });
+      })
   }
-  console.log(
-    `${green('✓')} Seeded ${CONTACT_NOTES.length} contact agent notes`,
-  );
+  console.log(`${green('✓')} Seeded ${CONTACT_NOTES.length} contact agent notes`)
 }

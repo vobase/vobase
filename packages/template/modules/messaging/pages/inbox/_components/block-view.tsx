@@ -1,40 +1,36 @@
-import { CircleAlertIcon } from 'lucide-react';
-import { memo } from 'react';
+import { CircleAlertIcon } from 'lucide-react'
+import { memo } from 'react'
 
-import { Skeleton } from '@/components/ui/skeleton';
-import type { ResolveParticipantName } from '@/lib/activity-helpers';
-import { ConversationBlock } from '../../conversations/_components/conversation-block';
-import type {
-  MessageRow,
-  SenderInfo,
-  TimelineConversationFull,
-} from '../../conversations/_components/types';
-import type { ConversationScoresByMessage } from '../_hooks/use-conversation-scores';
+import { Skeleton } from '@/components/ui/skeleton'
+import type { ResolveParticipantName } from '@/lib/activity-helpers'
+import { ConversationBlock } from '../../conversations/_components/conversation-block'
+import type { MessageRow, SenderInfo, TimelineConversationFull } from '../../conversations/_components/types'
+import type { ConversationScoresByMessage } from '../_hooks/use-conversation-scores'
 
 interface BlockViewProps {
-  sortedConversations: TimelineConversationFull[];
-  allConversations: TimelineConversationFull[];
-  messagesByConversation: Map<string, MessageRow[]>;
-  senderMap: Map<string, SenderInfo>;
-  expandedConversationIds: Set<string>;
-  currentUserId?: string;
-  agents: Array<{ id: string; name: string }>;
-  teamMembers?: Array<{ id: string; name: string }>;
-  resolveName: ResolveParticipantName;
-  contactLoading: boolean;
-  onToggleBlock: (conversationId: string) => void;
+  sortedConversations: TimelineConversationFull[]
+  allConversations: TimelineConversationFull[]
+  messagesByConversation: Map<string, MessageRow[]>
+  senderMap: Map<string, SenderInfo>
+  expandedConversationIds: Set<string>
+  currentUserId?: string
+  agents: Array<{ id: string; name: string }>
+  teamMembers?: Array<{ id: string; name: string }>
+  resolveName: ResolveParticipantName
+  contactLoading: boolean
+  onToggleBlock: (conversationId: string) => void
   onUpdateConversation: (
     conversationId: string,
     body: {
-      status?: 'resolved' | 'failed';
-      priority?: 'low' | 'normal' | 'high' | 'urgent' | null;
-      assignee?: string | null;
-      onHold?: boolean;
+      status?: 'resolved' | 'failed'
+      priority?: 'low' | 'normal' | 'high' | 'urgent' | null
+      assignee?: string | null
+      onHold?: boolean
     },
-  ) => void;
-  onRetry: (conversationId: string, messageId: string) => void;
+  ) => void
+  onRetry: (conversationId: string, messageId: string) => void
   /** Quality scores keyed by conversation → agent message ID. */
-  scoresMap?: Map<string, ConversationScoresByMessage>;
+  scoresMap?: Map<string, ConversationScoresByMessage>
 }
 
 export const BlockView = memo(function BlockView({
@@ -57,7 +53,7 @@ export const BlockView = memo(function BlockView({
     <div className="flex-1 overflow-y-auto">
       <div className="px-4 py-4 flex flex-col gap-4">
         {sortedConversations.map((conv) => {
-          const msgs = messagesByConversation.get(conv.id) ?? [];
+          const msgs = messagesByConversation.get(conv.id) ?? []
           return (
             <div key={conv.id} id={`block-${conv.id}`} data-block-id={conv.id}>
               <ConversationBlock
@@ -74,10 +70,10 @@ export const BlockView = memo(function BlockView({
                   onUpdateConversation(
                     conv.id,
                     body as {
-                      status?: 'resolved' | 'failed';
-                      priority?: 'low' | 'normal' | 'high' | 'urgent' | null;
-                      assignee?: string | null;
-                      onHold?: boolean;
+                      status?: 'resolved' | 'failed'
+                      priority?: 'low' | 'normal' | 'high' | 'urgent' | null
+                      assignee?: string | null
+                      onHold?: boolean
                     },
                   )
                 }
@@ -85,7 +81,7 @@ export const BlockView = memo(function BlockView({
                 scores={scoresMap?.get(conv.id)}
               />
             </div>
-          );
+          )
         })}
 
         {contactLoading && (
@@ -95,14 +91,13 @@ export const BlockView = memo(function BlockView({
           </div>
         )}
 
-        {allConversations.length > 0 &&
-          allConversations.every((i) => i.status === 'failed') && (
-            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
-              <CircleAlertIcon className="h-4 w-4 shrink-0" />
-              All conversations for this contact have failed.
-            </div>
-          )}
+        {allConversations.length > 0 && allConversations.every((i) => i.status === 'failed') && (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
+            <CircleAlertIcon className="h-4 w-4 shrink-0" />
+            All conversations for this contact have failed.
+          </div>
+        )}
       </div>
     </div>
-  );
-});
+  )
+})

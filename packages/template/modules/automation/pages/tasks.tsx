@@ -1,34 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
-import { ChevronDownIcon, ChevronUpIcon, PlusIcon, XIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon, XIcon } from 'lucide-react'
+import { useState } from 'react'
 
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status';
-import { Textarea } from '@/components/ui/textarea';
-import { automationClient } from '@/lib/api-client';
-import { fetchTasks, type Task } from './-shared';
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Status, StatusIndicator, StatusLabel } from '@/components/ui/status'
+import { Textarea } from '@/components/ui/textarea'
+import { automationClient } from '@/lib/api-client'
+import { fetchTasks, type Task } from './-shared'
 
-type StatusVariant = 'default' | 'success' | 'error' | 'warning' | 'info';
+type StatusVariant = 'default' | 'success' | 'error' | 'warning' | 'info'
 
 const STATUS_VARIANT_MAP: Record<string, StatusVariant> = {
   executing: 'warning',
@@ -38,30 +26,30 @@ const STATUS_VARIANT_MAP: Record<string, StatusVariant> = {
   queued: 'info',
   pending: 'default',
   cancelled: 'default',
-};
+}
 
 function statusVariant(status: string): StatusVariant {
-  return STATUS_VARIANT_MAP[status] ?? 'default';
+  return STATUS_VARIANT_MAP[status] ?? 'default'
 }
 
 function TaskRow({ task }: { task: Task }) {
-  const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const queryClient = useQueryClient()
+  const [expanded, setExpanded] = useState(false)
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
       const res = await automationClient.tasks[':id'].cancel.$post({
         param: { id: task.id },
-      });
-      if (!res.ok) throw new Error('Failed to cancel task');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to cancel task')
+      return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['automation-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['automation-tasks'] })
     },
-  });
+  })
 
-  const canCancel = task.status === 'pending' || task.status === 'executing';
+  const canCancel = task.status === 'pending' || task.status === 'executing'
 
   return (
     <>
@@ -75,15 +63,9 @@ function TaskRow({ task }: { task: Task }) {
             <StatusLabel className="capitalize">{task.status}</StatusLabel>
           </Status>
         </td>
-        <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">
-          {task.adapterId}
-        </td>
-        <td className="px-4 py-3 text-sm truncate max-w-[180px]">
-          {task.action}
-        </td>
-        <td className="px-4 py-3 text-sm text-muted-foreground capitalize">
-          {task.requestedBy}
-        </td>
+        <td className="px-4 py-3 text-sm font-medium truncate max-w-[140px]">{task.adapterId}</td>
+        <td className="px-4 py-3 text-sm truncate max-w-[180px]">{task.action}</td>
+        <td className="px-4 py-3 text-sm text-muted-foreground capitalize">{task.requestedBy}</td>
         <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[120px]">
           {task.assignedTo ?? <span className="italic">—</span>}
         </td>
@@ -99,8 +81,8 @@ function TaskRow({ task }: { task: Task }) {
                 className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
                 disabled={cancelMutation.isPending}
                 onClick={(e) => {
-                  e.stopPropagation();
-                  cancelMutation.mutate();
+                  e.stopPropagation()
+                  cancelMutation.mutate()
                 }}
               >
                 <XIcon className="size-3" />
@@ -111,15 +93,11 @@ function TaskRow({ task }: { task: Task }) {
               size="sm"
               className="h-7 px-2"
               onClick={(e) => {
-                e.stopPropagation();
-                setExpanded((v) => !v);
+                e.stopPropagation()
+                setExpanded((v) => !v)
               }}
             >
-              {expanded ? (
-                <ChevronUpIcon className="size-3" />
-              ) : (
-                <ChevronDownIcon className="size-3" />
-              )}
+              {expanded ? <ChevronUpIcon className="size-3" /> : <ChevronDownIcon className="size-3" />}
             </Button>
           </div>
         </td>
@@ -130,9 +108,7 @@ function TaskRow({ task }: { task: Task }) {
           <td colSpan={7} className="px-4 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Input
-                </p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Input</p>
                 <pre className="rounded-md bg-muted px-3 py-2 text-xs font-mono overflow-auto max-h-40">
                   {JSON.stringify(task.input, null, 2)}
                 </pre>
@@ -140,9 +116,7 @@ function TaskRow({ task }: { task: Task }) {
 
               {task.output && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Output
-                  </p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Output</p>
                   <pre className="rounded-md bg-muted px-3 py-2 text-xs font-mono overflow-auto max-h-40">
                     {JSON.stringify(task.output, null, 2)}
                   </pre>
@@ -151,9 +125,7 @@ function TaskRow({ task }: { task: Task }) {
 
               {task.errorMessage && (
                 <div className="md:col-span-2">
-                  <p className="text-xs font-medium text-destructive uppercase tracking-wider mb-1.5">
-                    Error
-                  </p>
+                  <p className="text-xs font-medium text-destructive uppercase tracking-wider mb-1.5">Error</p>
                   <p className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
                     {task.errorMessage}
                   </p>
@@ -186,7 +158,7 @@ function TaskRow({ task }: { task: Task }) {
         </tr>
       )}
     </>
-  );
+  )
 }
 
 const ADAPTERS: Record<string, { name: string; actions: string[] }> = {
@@ -194,28 +166,28 @@ const ADAPTERS: Record<string, { name: string; actions: string[] }> = {
     name: 'WhatsApp Web',
     actions: ['createGroup', 'getGroupMembers'],
   },
-};
+}
 
 const ACTION_INPUT_HINTS: Record<string, string> = {
   createGroup: '{\n  "groupName": "My Group",\n  "participants": ["+65..."]\n}',
   getGroupMembers: '{}',
-};
+}
 
 function NewTaskDialog() {
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [adapterId, setAdapterId] = useState('whatsapp');
-  const [action, setAction] = useState('');
-  const [inputJson, setInputJson] = useState('{}');
-  const [jsonError, setJsonError] = useState('');
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [adapterId, setAdapterId] = useState('whatsapp')
+  const [action, setAction] = useState('')
+  const [inputJson, setInputJson] = useState('{}')
+  const [jsonError, setJsonError] = useState('')
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      let parsed: Record<string, unknown>;
+      let parsed: Record<string, unknown>
       try {
-        parsed = JSON.parse(inputJson);
+        parsed = JSON.parse(inputJson)
       } catch {
-        throw new Error('Invalid JSON input');
+        throw new Error('Invalid JSON input')
       }
 
       const res = await automationClient.tasks.$post({
@@ -224,37 +196,37 @@ function NewTaskDialog() {
           action,
           input: parsed,
         },
-      });
-      if (!res.ok) throw new Error('Failed to create task');
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to create task')
+      return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['automation-tasks'] });
-      setOpen(false);
-      setAction('');
-      setInputJson('{}');
-      setJsonError('');
+      queryClient.invalidateQueries({ queryKey: ['automation-tasks'] })
+      setOpen(false)
+      setAction('')
+      setInputJson('{}')
+      setJsonError('')
     },
-  });
+  })
 
-  const availableActions = ADAPTERS[adapterId]?.actions ?? [];
+  const availableActions = ADAPTERS[adapterId]?.actions ?? []
 
   function handleActionChange(value: string) {
-    setAction(value);
-    setInputJson(ACTION_INPUT_HINTS[value] ?? '{}');
-    setJsonError('');
+    setAction(value)
+    setInputJson(ACTION_INPUT_HINTS[value] ?? '{}')
+    setJsonError('')
   }
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+    e.preventDefault()
     try {
-      JSON.parse(inputJson);
-      setJsonError('');
+      JSON.parse(inputJson)
+      setJsonError('')
     } catch {
-      setJsonError('Invalid JSON');
-      return;
+      setJsonError('Invalid JSON')
+      return
     }
-    createMutation.mutate();
+    createMutation.mutate()
   }
 
   return (
@@ -308,44 +280,29 @@ function NewTaskDialog() {
               id="input"
               value={inputJson}
               onChange={(e) => {
-                setInputJson(e.target.value);
-                setJsonError('');
+                setInputJson(e.target.value)
+                setJsonError('')
               }}
               className="font-mono text-xs min-h-[120px]"
               placeholder="{}"
             />
-            {jsonError && (
-              <p className="text-xs text-destructive">{jsonError}</p>
-            )}
+            {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
           </div>
 
-          {createMutation.isError && (
-            <p className="text-xs text-destructive">
-              {createMutation.error.message}
-            </p>
-          )}
+          {createMutation.isError && <p className="text-xs text-destructive">{createMutation.error.message}</p>}
 
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setOpen(false)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!action || createMutation.isPending}
-            >
+            <Button type="submit" size="sm" disabled={!action || createMutation.isPending}>
               {createMutation.isPending ? 'Creating...' : 'Create'}
             </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 function TasksPage() {
@@ -357,16 +314,14 @@ function TasksPage() {
     queryKey: ['automation-tasks'],
     queryFn: fetchTasks,
     refetchInterval: 5_000,
-  });
+  })
 
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Tasks</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Browser automation task queue
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">Browser automation task queue</p>
         </div>
         <div className="flex items-center gap-3">
           {tasks && (
@@ -394,15 +349,11 @@ function TasksPage() {
         )}
 
         {isError && (
-          <p className="text-sm text-destructive text-center py-12">
-            Failed to load tasks. Please try again.
-          </p>
+          <p className="text-sm text-destructive text-center py-12">Failed to load tasks. Please try again.</p>
         )}
 
         {!isLoading && !isError && tasks?.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-12">
-            No tasks yet.
-          </p>
+          <p className="text-sm text-muted-foreground text-center py-12">No tasks yet.</p>
         )}
 
         {tasks && tasks.length > 0 && (
@@ -441,9 +392,9 @@ function TasksPage() {
         )}
       </Card>
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/automation/tasks')({
   component: TasksPage,
-});
+})

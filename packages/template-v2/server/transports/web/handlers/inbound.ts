@@ -3,6 +3,7 @@ import { createInboundMessage } from '@modules/messaging/service/conversations'
 import { verifyHmacWebhook } from '@server/middlewares'
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '@server/transports/events'
 import type { Context } from 'hono'
+
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
 import { getInstanceDefaultAssignee } from '../service/instances'
 import { requireJobs } from '../service/state'

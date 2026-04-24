@@ -1,7 +1,7 @@
-import { defineModule } from '@vobase/core';
+import { defineModule } from '@vobase/core'
 
-import { integrationsRoutes } from './handlers';
-import { setIntegrationsDeps, whatsappSetupJob } from './jobs';
+import { integrationsRoutes } from './handlers'
+import { setIntegrationsDeps, whatsappSetupJob } from './jobs'
 
 export const integrationsModule = defineModule({
   name: 'integrations',
@@ -10,6 +10,6 @@ export const integrationsModule = defineModule({
   jobs: [whatsappSetupJob],
 
   init(ctx) {
-    setIntegrationsDeps(ctx.db, ctx.integrations);
+    setIntegrationsDeps(ctx.db, ctx.integrations)
   },
-});
+})

@@ -19,6 +19,7 @@ import { bearer } from 'better-auth/plugins/bearer'
 import { emailOTP } from 'better-auth/plugins/email-otp'
 import { organization } from 'better-auth/plugins/organization'
 import { and, eq } from 'drizzle-orm'
+
 import { productName } from '../branding'
 import { renderInvitationEmail, renderOtpEmail } from '../emails'
 import { sendEmail } from '../emails/sender'

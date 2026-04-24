@@ -1,26 +1,26 @@
-import { logger, notFound } from '@vobase/core';
-import { and, eq, gt } from 'drizzle-orm';
+import { logger, notFound } from '@vobase/core'
+import { and, eq, gt } from 'drizzle-orm'
 
-import { automationPairingCodes, automationSessions } from '../schema';
-import { getModuleDb, getModuleDeps } from './automation-deps';
+import { automationPairingCodes, automationSessions } from '../schema'
+import { getModuleDb, getModuleDeps } from './automation-deps'
 
 /** API key TTL — 30 days. */
-const API_KEY_EXPIRES_IN_S = 30 * 24 * 60 * 60;
+const API_KEY_EXPIRES_IN_S = 30 * 24 * 60 * 60
 
 function generateCode(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  const maxValid = 252; // largest multiple of 36 below 256 — avoids modulo bias
-  const result: string[] = [];
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  const maxValid = 252 // largest multiple of 36 below 256 — avoids modulo bias
+  const result: string[] = []
   while (result.length < 8) {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
     for (const b of bytes) {
       if (b < maxValid && result.length < 8) {
-        result.push(chars[b % chars.length]);
+        result.push(chars[b % chars.length])
       }
     }
   }
-  return result.join('');
+  return result.join('')
 }
 
 /**
@@ -33,20 +33,20 @@ export async function generatePairingCode(
   userId: string,
   headers: Headers | Record<string, string>,
 ): Promise<{ code: string; expiresAt: Date }> {
-  const db = getModuleDb();
-  const deps = getModuleDeps();
-  const code = generateCode();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  const db = getModuleDb()
+  const deps = getModuleDeps()
+  const code = generateCode()
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000)
 
   const apiKeyResult = await deps.auth.createApiKey({
     headers,
     name: `automation-${code}`,
     expiresIn: API_KEY_EXPIRES_IN_S,
-  });
+  })
 
   if (!apiKeyResult) {
-    logger.error('[automation] Failed to create API key for pairing code');
-    throw new Error('Failed to create API key for automation session');
+    logger.error('[automation] Failed to create API key for pairing code')
+    throw new Error('Failed to create API key for automation session')
   }
 
   await db.insert(automationPairingCodes).values({
@@ -56,20 +56,18 @@ export async function generatePairingCode(
     expiresAt,
     apiKey: apiKeyResult.key,
     apiKeyId: apiKeyResult.id,
-  });
+  })
 
-  logger.info(
-    `[automation] Pairing code generated for user ${userId}, expires ${expiresAt.toISOString()}`,
-  );
-  return { code, expiresAt };
+  logger.info(`[automation] Pairing code generated for user ${userId}, expires ${expiresAt.toISOString()}`)
+  return { code, expiresAt }
 }
 
 export async function redeemPairingCode(
   code: string,
   browserInfo: Record<string, unknown>,
 ): Promise<{ sessionId: string; apiKey: string }> {
-  const db = getModuleDb();
-  const now = new Date();
+  const db = getModuleDb()
+  const now = new Date()
 
   // Atomic claim: UPDATE ... WHERE status = 'active' prevents double-redemption
   const [pairingCode] = await db
@@ -82,17 +80,17 @@ export async function redeemPairingCode(
         gt(automationPairingCodes.expiresAt, now),
       ),
     )
-    .returning();
+    .returning()
 
   if (!pairingCode) {
-    throw notFound('Invalid or expired pairing code');
+    throw notFound('Invalid or expired pairing code')
   }
 
   if (!pairingCode.apiKey || !pairingCode.apiKeyId) {
-    throw new Error('Pairing code missing API key data — generate a new code');
+    throw new Error('Pairing code missing API key data — generate a new code')
   }
 
-  const { apiKey, apiKeyId } = pairingCode;
+  const { apiKey, apiKeyId } = pairingCode
 
   const [session] = await db
     .insert(automationSessions)
@@ -104,20 +102,18 @@ export async function redeemPairingCode(
       pairedAt: now,
       lastHeartbeat: now,
     })
-    .returning();
+    .returning()
 
   if (!session) {
-    throw new Error('Failed to create automation session');
+    throw new Error('Failed to create automation session')
   }
 
   // Link session back to pairing code and clear the stored key
   await db
     .update(automationPairingCodes)
     .set({ sessionId: session.id, apiKey: null })
-    .where(eq(automationPairingCodes.id, pairingCode.id));
+    .where(eq(automationPairingCodes.id, pairingCode.id))
 
-  logger.info(
-    `[automation] Pairing code redeemed — session ${session.id} created for user ${pairingCode.userId}`,
-  );
-  return { sessionId: session.id, apiKey };
+  logger.info(`[automation] Pairing code redeemed — session ${session.id} created for user ${pairingCode.userId}`)
+  return { sessionId: session.id, apiKey }
 }

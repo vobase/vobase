@@ -1,17 +1,13 @@
-import { logger, type VobaseDb } from '@vobase/core';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { logger, type VobaseDb } from '@vobase/core'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
-import {
-  automationExecutions,
-  automationRecipients,
-  automationRuleSteps,
-} from '../schema';
-import { getModuleDeps } from './deps';
+import { automationExecutions, automationRecipients, automationRuleSteps } from '../schema'
+import { getModuleDeps } from './deps'
 
 interface ClaimRow {
-  id: string;
-  rule_id: string;
-  current_step: number;
+  id: string
+  rule_id: string
+  current_step: number
 }
 
 /**
@@ -30,23 +26,20 @@ interface ClaimRow {
  *   - next_step_at IS NOT NULL AND <= now
  *   - a next step exists for (rule_id, current_step + 1)
  */
-export async function advanceChasers(
-  now: Date = new Date(),
-  opts?: { limit?: number },
-): Promise<{ advanced: number }> {
-  const { db, scheduler } = getModuleDeps();
-  const limit = opts?.limit ?? 500;
+export async function advanceChasers(now: Date = new Date(), opts?: { limit?: number }): Promise<{ advanced: number }> {
+  const { db, scheduler } = getModuleDeps()
+  const limit = opts?.limit ?? 500
 
-  const claims = await claim(db, now, limit);
-  if (claims.length === 0) return { advanced: 0 };
+  const claims = await claim(db, now, limit)
+  if (claims.length === 0) return { advanced: 0 }
 
-  const groups = groupByNextStep(claims);
+  const groups = groupByNextStep(claims)
 
   for (const [groupKey, rows] of groups) {
-    const [ruleIdPart, nextStepPart] = groupKey.split('::');
-    const ruleId = ruleIdPart ?? '';
-    const nextSeq = Number(nextStepPart);
-    if (!ruleId || !Number.isFinite(nextSeq)) continue;
+    const [ruleIdPart, nextStepPart] = groupKey.split('::')
+    const ruleId = ruleIdPart ?? ''
+    const nextSeq = Number(nextStepPart)
+    if (!ruleId || !Number.isFinite(nextSeq)) continue
 
     const [execution] = await db
       .insert(automationExecutions)
@@ -57,10 +50,10 @@ export async function advanceChasers(
         status: 'running',
         totalRecipients: rows.length,
       })
-      .returning();
-    if (!execution) continue;
+      .returning()
+    if (!execution) continue
 
-    const ids = rows.map((r) => r.id);
+    const ids = rows.map((r) => r.id)
     await db
       .update(automationRecipients)
       .set({
@@ -69,28 +62,24 @@ export async function advanceChasers(
         status: 'queued',
         nextStepAt: null,
       })
-      .where(inArray(automationRecipients.id, ids));
+      .where(inArray(automationRecipients.id, ids))
 
     await scheduler.add(
       'automation:execute-step',
       { executionId: execution.id, stepSequence: nextSeq },
       { singletonKey: `${execution.id}:${nextSeq}` },
-    );
+    )
   }
 
   logger.info('[automation-chaser] Advanced chasers', {
     recipients: claims.length,
     groups: groups.size,
-  });
+  })
 
-  return { advanced: claims.length };
+  return { advanced: claims.length }
 }
 
-async function claim(
-  db: VobaseDb,
-  now: Date,
-  limit: number,
-): Promise<ClaimRow[]> {
+async function claim(db: VobaseDb, now: Date, limit: number): Promise<ClaimRow[]> {
   const result = await db.execute(sql`
     UPDATE "messaging"."automation_recipients" r
     SET status = 'chaser_paused'
@@ -109,26 +98,24 @@ async function claim(
       FOR UPDATE OF inner_r SKIP LOCKED
     )
     RETURNING r.id, r.rule_id, r.current_step
-  `);
+  `)
 
-  const rows = Array.isArray(result)
-    ? result
-    : ((result as { rows?: unknown[] }).rows ?? []);
-  return rows as ClaimRow[];
+  const rows = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])
+  return rows as ClaimRow[]
 }
 
 function groupByNextStep(claims: ClaimRow[]): Map<string, ClaimRow[]> {
-  const groups = new Map<string, ClaimRow[]>();
+  const groups = new Map<string, ClaimRow[]>()
   for (const row of claims) {
-    const key = `${row.rule_id}::${row.current_step + 1}`;
-    let bucket = groups.get(key);
+    const key = `${row.rule_id}::${row.current_step + 1}`
+    let bucket = groups.get(key)
     if (!bucket) {
-      bucket = [];
-      groups.set(key, bucket);
+      bucket = []
+      groups.set(key, bucket)
     }
-    bucket.push(row);
+    bucket.push(row)
   }
-  return groups;
+  return groups
 }
 
 /**
@@ -144,11 +131,6 @@ export async function findNextStep(
   const [row] = await db
     .select()
     .from(automationRuleSteps)
-    .where(
-      and(
-        eq(automationRuleSteps.ruleId, ruleId),
-        eq(automationRuleSteps.sequence, sequence),
-      ),
-    );
-  return row ?? null;
+    .where(and(eq(automationRuleSteps.ruleId, ruleId), eq(automationRuleSteps.sequence, sequence)))
+  return row ?? null
 }

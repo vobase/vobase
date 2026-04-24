@@ -1,10 +1,10 @@
-import { channelsTemplates, type VobaseDb } from '@vobase/core';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { channelsTemplates, type VobaseDb } from '@vobase/core'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 
-import { contactAttributeDefinitions } from '../schema';
+import { contactAttributeDefinitions } from '../schema'
 
 interface PromptCtx {
-  db: VobaseDb;
+  db: VobaseDb
 }
 
 const FEW_SHOT_EXAMPLES = `# Examples
@@ -133,7 +133,7 @@ Output:
   "parameterSchema": {
     "minAge": { "type": "string", "label": "Minimum age", "default": "30" }
   }
-}`;
+}`
 
 const SCHEMA_BLOCK = `# Output schema
 
@@ -169,17 +169,14 @@ Rules:
 - Only use attribute keys from the "Available contact attributes" list. If the user references an attribute that doesn't exist, still include the key — the UI will surface it as a missing definition.
 - For recurring rules, produce a standard cron expression; do not invent non-cron formats.
 - For date-relative rules, always set dateAttribute and give every step either offsetDays+sendAtTime or delayHours.
-- Always populate parameterSchema entries for every key in parameters so the UI can render editors.`;
+- Always populate parameterSchema entries for every key in parameters so the UI can render editors.`
 
-export async function buildSystemPrompt(
-  ctx: PromptCtx,
-  orgLanguage = 'en',
-): Promise<string> {
+export async function buildSystemPrompt(ctx: PromptCtx, orgLanguage = 'en'): Promise<string> {
   const languages = orgLanguage
     .split(',')
     .map((lang) => lang.trim())
-    .filter((lang) => lang.length > 0);
-  const effectiveLanguages = languages.length > 0 ? languages : ['en'];
+    .filter((lang) => lang.length > 0)
+  const effectiveLanguages = languages.length > 0 ? languages : ['en']
 
   const [attrDefs, approvedTemplates] = await Promise.all([
     ctx.db
@@ -197,57 +194,42 @@ export async function buildSystemPrompt(
         category: channelsTemplates.category,
       })
       .from(channelsTemplates)
-      .where(
-        and(
-          eq(channelsTemplates.status, 'approved'),
-          inArray(channelsTemplates.language, effectiveLanguages),
-        ),
-      ),
-  ]);
+      .where(and(eq(channelsTemplates.status, 'approved'), inArray(channelsTemplates.language, effectiveLanguages))),
+  ])
 
   const attrSection =
     attrDefs.length > 0
-      ? `# Available contact attributes\n${attrDefs
-          .map((a) => `- \`${a.key}\` (${a.type}) — ${a.label}`)
-          .join('\n')}`
-      : '# Available contact attributes\n_(none defined yet — advise the user to create attribute definitions before using attribute filters)_';
+      ? `# Available contact attributes\n${attrDefs.map((a) => `- \`${a.key}\` (${a.type}) — ${a.label}`).join('\n')}`
+      : '# Available contact attributes\n_(none defined yet — advise the user to create attribute definitions before using attribute filters)_'
 
-  const tmplByLanguage = new Map<
-    string,
-    Array<(typeof approvedTemplates)[number]>
-  >();
+  const tmplByLanguage = new Map<string, Array<(typeof approvedTemplates)[number]>>()
   for (const t of approvedTemplates) {
-    const bucket = tmplByLanguage.get(t.language) ?? [];
-    bucket.push(t);
-    tmplByLanguage.set(t.language, bucket);
+    const bucket = tmplByLanguage.get(t.language) ?? []
+    bucket.push(t)
+    tmplByLanguage.set(t.language, bucket)
   }
 
-  let tmplSection: string;
+  let tmplSection: string
   if (approvedTemplates.length === 0) {
-    tmplSection = `# Approved message templates\n_(none approved yet for language(s): ${effectiveLanguages.join(', ')})_`;
+    tmplSection = `# Approved message templates\n_(none approved yet for language(s): ${effectiveLanguages.join(', ')})_`
   } else if (effectiveLanguages.length === 1) {
-    const lang = effectiveLanguages[0];
+    const lang = effectiveLanguages[0]
     tmplSection = `# Approved message templates (language: ${lang})\n${approvedTemplates
       .map((t) => `- \`${t.name}\`${t.category ? ` — ${t.category}` : ''}`)
-      .join('\n')}`;
+      .join('\n')}`
   } else {
-    const sections: string[] = [];
+    const sections: string[] = []
     for (const lang of effectiveLanguages) {
-      const rows = tmplByLanguage.get(lang) ?? [];
+      const rows = tmplByLanguage.get(lang) ?? []
       sections.push(
         `## Language: ${lang}\n${
           rows.length === 0
             ? '_(none approved)_'
-            : rows
-                .map(
-                  (t) =>
-                    `- \`${t.name}\`${t.category ? ` — ${t.category}` : ''}`,
-                )
-                .join('\n')
+            : rows.map((t) => `- \`${t.name}\`${t.category ? ` — ${t.category}` : ''}`).join('\n')
         }`,
-      );
+      )
     }
-    tmplSection = `# Approved message templates\n${sections.join('\n\n')}`;
+    tmplSection = `# Approved message templates\n${sections.join('\n\n')}`
   }
 
   return [
@@ -256,5 +238,5 @@ export async function buildSystemPrompt(
     attrSection,
     tmplSection,
     FEW_SHOT_EXAMPLES,
-  ].join('\n\n');
+  ].join('\n\n')
 }

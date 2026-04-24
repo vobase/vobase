@@ -7,15 +7,15 @@
  * The `excluded` flag is stored as a property on the element node itself so
  * it persists when the PlateValue is saved via PATCH /documents/:id/content.
  */
-import { type PlateElementProps, useEditorRef } from '@platejs/core/react';
-import { Eye, EyeOff } from 'lucide-react';
-import type { ReactElement, MouseEvent as ReactMouseEvent } from 'react';
+import { type PlateElementProps, useEditorRef } from '@platejs/core/react'
+import { Eye, EyeOff } from 'lucide-react'
+import type { ReactElement, MouseEvent as ReactMouseEvent } from 'react'
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils'
 
 type ElementComp = ((props: PlateElementProps) => ReactElement | null) & {
-  displayName?: string;
-};
+  displayName?: string
+}
 
 /**
  * HOC that adds a hover overlay with an include/exclude toggle to any
@@ -27,15 +27,13 @@ type ElementComp = ((props: PlateElementProps) => ReactElement | null) & {
  */
 export function withBlockControls(Component: ElementComp): ElementComp {
   function BlockControlled(props: PlateElementProps): ReactElement | null {
-    const editor = useEditorRef();
-    const isExcluded = Boolean(
-      (props.element as { excluded?: boolean }).excluded,
-    );
+    const editor = useEditorRef()
+    const isExcluded = Boolean((props.element as { excluded?: boolean }).excluded)
 
     function handleToggle(e: ReactMouseEvent) {
-      e.preventDefault();
-      e.stopPropagation();
-      editor.tf.setNodes({ excluded: !isExcluded }, { at: props.path });
+      e.preventDefault()
+      e.stopPropagation()
+      editor.tf.setNodes({ excluded: !isExcluded }, { at: props.path })
     }
 
     return (
@@ -49,23 +47,15 @@ export function withBlockControls(Component: ElementComp): ElementComp {
             type="button"
             onClick={handleToggle}
             className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-            title={
-              isExcluded
-                ? 'Include in search index'
-                : 'Exclude from search index'
-            }
+            title={isExcluded ? 'Include in search index' : 'Exclude from search index'}
           >
-            {isExcluded ? (
-              <EyeOff className="h-3 w-3" />
-            ) : (
-              <Eye className="h-3 w-3" />
-            )}
+            {isExcluded ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
           </button>
         </span>
       </div>
-    );
+    )
   }
 
-  BlockControlled.displayName = `BlockControlled(${Component.displayName ?? Component.name ?? 'Element'})`;
-  return BlockControlled;
+  BlockControlled.displayName = `BlockControlled(${Component.displayName ?? Component.name ?? 'Element'})`
+  return BlockControlled
 }

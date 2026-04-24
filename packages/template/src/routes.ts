@@ -1,9 +1,4 @@
-import {
-  layout,
-  physical,
-  rootRoute,
-  route,
-} from '@tanstack/virtual-file-routes';
+import { layout, physical, rootRoute, route } from '@tanstack/virtual-file-routes'
 
 export const routes = rootRoute('root.tsx', [
   route('/chat/$channelRoutingId', 'chat.$channelRoutingId.tsx'),
@@ -13,21 +8,13 @@ export const routes = rootRoute('root.tsx', [
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'home.tsx'),
-    route('/agents', '../modules/agents/pages/layout.tsx', [
-      physical('../modules/agents/pages/'),
-    ]),
-    route('/automation', '../modules/automation/pages/layout.tsx', [
-      physical('../modules/automation/pages/'),
-    ]),
+    route('/agents', '../modules/agents/pages/layout.tsx', [physical('../modules/agents/pages/')]),
+    route('/automation', '../modules/automation/pages/layout.tsx', [physical('../modules/automation/pages/')]),
     route('/knowledge-base', '../modules/knowledge-base/pages/layout.tsx', [
       physical('../modules/knowledge-base/pages/'),
     ]),
-    route('/messaging', '../modules/messaging/pages/layout.tsx', [
-      physical('../modules/messaging/pages/'),
-    ]),
-    route('/system', '../modules/system/pages/layout.tsx', [
-      physical('../modules/system/pages/'),
-    ]),
+    route('/messaging', '../modules/messaging/pages/layout.tsx', [physical('../modules/messaging/pages/')]),
+    route('/system', '../modules/system/pages/layout.tsx', [physical('../modules/system/pages/')]),
     route('/settings', 'shell/settings/layout.tsx', [
       route('/profile', 'shell/settings/profile.tsx'),
       route('/account', 'shell/settings/account.tsx'),
@@ -37,4 +24,4 @@ export const routes = rootRoute('root.tsx', [
       route('/api-keys', 'shell/settings/api-keys.tsx'),
     ]),
   ]),
-]);
+])

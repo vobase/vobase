@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { Hono } from 'hono'
+
 import type { Auth } from '../auth'
 import { createRequireSession, type SessionEnv } from './require-session'
 

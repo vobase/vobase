@@ -7,23 +7,23 @@
 
 interface ChannelConstraints {
   /** Maximum number of interactive buttons. null = unlimited. */
-  maxButtons: number | null;
-  maxButtonLabelLength: number;
-  maxBodyLength: number;
-  supportsMarkdown: boolean;
-  name: string;
-  supportsLists: boolean;
+  maxButtons: number | null
+  maxButtonLabelLength: number
+  maxBodyLength: number
+  supportsMarkdown: boolean
+  name: string
+  supportsLists: boolean
   /** Maximum number of list items across all sections. null = unlimited. */
-  maxListItems: number | null;
-  supportsMedia: ('image' | 'document' | 'audio' | 'video')[];
-  supportsTemplates: boolean;
-  supportsReactions: boolean;
-  supportsReadReceipts: boolean;
+  maxListItems: number | null
+  supportsMedia: ('image' | 'document' | 'audio' | 'video')[]
+  supportsTemplates: boolean
+  supportsReactions: boolean
+  supportsReadReceipts: boolean
   /** Messaging window in hours after last user message. null = no window limit. */
-  messagingWindowHours: number | null;
-  supportsTypingIndicators: boolean;
+  messagingWindowHours: number | null
+  supportsTypingIndicators: boolean
   /** Idle window in ms — resolved conversations within this window can be reopened. */
-  idleWindowMs: number;
+  idleWindowMs: number
 }
 
 export const CHANNEL_CONSTRAINTS: Record<string, ChannelConstraints> = {
@@ -91,53 +91,41 @@ export const CHANNEL_CONSTRAINTS: Record<string, ChannelConstraints> = {
     supportsTypingIndicators: true,
     idleWindowMs: 86_400_000, // 24h (same as WhatsApp)
   },
-};
+}
 
 /** Get constraints for a channel, falling back to web defaults for unknown channels. */
 export function getConstraints(channel: string): ChannelConstraints {
-  return CHANNEL_CONSTRAINTS[channel] ?? CHANNEL_CONSTRAINTS.web;
+  return CHANNEL_CONSTRAINTS[channel] ?? CHANNEL_CONSTRAINTS.web
 }
 
 /** Format channel constraints as a human-readable string for agent system prompt injection. */
 export function formatConstraintsForPrompt(channel: string): string {
-  const c = getConstraints(channel);
-  const parts: string[] = [`Channel constraints for ${c.name}:`];
+  const c = getConstraints(channel)
+  const parts: string[] = [`Channel constraints for ${c.name}:`]
   if (c.maxButtons !== null) {
-    parts.push(`- Maximum ${c.maxButtons} interactive buttons per card`);
+    parts.push(`- Maximum ${c.maxButtons} interactive buttons per card`)
   } else {
-    parts.push('- Unlimited buttons supported');
+    parts.push('- Unlimited buttons supported')
   }
-  parts.push(`- Button labels: max ${c.maxButtonLabelLength} characters`);
-  parts.push(`- Message body: max ${c.maxBodyLength} characters`);
-  parts.push(
-    `- Markdown: ${c.supportsMarkdown ? 'supported' : 'not supported — use plain text'}`,
-  );
+  parts.push(`- Button labels: max ${c.maxButtonLabelLength} characters`)
+  parts.push(`- Message body: max ${c.maxBodyLength} characters`)
+  parts.push(`- Markdown: ${c.supportsMarkdown ? 'supported' : 'not supported — use plain text'}`)
   parts.push(
     `- Interactive lists: ${c.supportsLists ? `supported (max ${c.maxListItems} items)` : 'not supported — use plain text fallback'}`,
-  );
+  )
   if (c.supportsMedia.length > 0) {
-    parts.push(`- Media types supported: ${c.supportsMedia.join(', ')}`);
+    parts.push(`- Media types supported: ${c.supportsMedia.join(', ')}`)
   } else {
-    parts.push('- No media types supported');
+    parts.push('- No media types supported')
   }
-  parts.push(
-    `- Templates: ${c.supportsTemplates ? 'supported' : 'not supported'}`,
-  );
-  parts.push(
-    `- Reactions: ${c.supportsReactions ? 'supported' : 'not supported'}`,
-  );
-  parts.push(
-    `- Read receipts: ${c.supportsReadReceipts ? 'supported' : 'not supported'}`,
-  );
+  parts.push(`- Templates: ${c.supportsTemplates ? 'supported' : 'not supported'}`)
+  parts.push(`- Reactions: ${c.supportsReactions ? 'supported' : 'not supported'}`)
+  parts.push(`- Read receipts: ${c.supportsReadReceipts ? 'supported' : 'not supported'}`)
   if (c.messagingWindowHours !== null) {
-    parts.push(
-      `- Messaging window: ${c.messagingWindowHours}h after last user message`,
-    );
+    parts.push(`- Messaging window: ${c.messagingWindowHours}h after last user message`)
   } else {
-    parts.push('- Messaging window: none');
+    parts.push('- Messaging window: none')
   }
-  parts.push(
-    `- Typing indicators: ${c.supportsTypingIndicators ? 'supported' : 'not supported'}`,
-  );
-  return parts.join('\n');
+  parts.push(`- Typing indicators: ${c.supportsTypingIndicators ? 'supported' : 'not supported'}`)
+  return parts.join('\n')
 }

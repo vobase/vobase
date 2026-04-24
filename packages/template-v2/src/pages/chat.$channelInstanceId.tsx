@@ -20,6 +20,7 @@ import type { Message } from '@modules/messaging/schema'
 import { createFileRoute, useParams } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { MessageCard } from '@/components/message-card'
 import { Button } from '@/components/ui/button'

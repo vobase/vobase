@@ -1,66 +1,56 @@
-import type {
-  ChannelsService,
-  OutboundMessage,
-  Scheduler,
-  SendResult,
-  VobaseDb,
-} from '@vobase/core';
-import { CircuitBreaker, logger } from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import type { ChannelsService, OutboundMessage, Scheduler, SendResult, VobaseDb } from '@vobase/core'
+import { CircuitBreaker, logger } from '@vobase/core'
+import { eq } from 'drizzle-orm'
 
-import { channelInstances, contacts, conversations, messages } from '../schema';
-import { checkWindow } from './channel-sessions';
-import { getModuleDeps } from './deps';
-import { createActivityMessage } from './messages';
+import { channelInstances, contacts, conversations, messages } from '../schema'
+import { checkWindow } from './channel-sessions'
+import { getModuleDeps } from './deps'
+import { createActivityMessage } from './messages'
 
 // ─── Circuit Breaker (per channel type, in-memory) ─────────────────
 
-const circuitBreakers = new Map<string, CircuitBreaker>();
+const circuitBreakers = new Map<string, CircuitBreaker>()
 
 function getCircuit(channelType: string): CircuitBreaker {
-  let cb = circuitBreakers.get(channelType);
+  let cb = circuitBreakers.get(channelType)
   if (!cb) {
-    cb = new CircuitBreaker({ threshold: 5, resetTimeout: 60_000 });
-    circuitBreakers.set(channelType, cb);
+    cb = new CircuitBreaker({ threshold: 5, resetTimeout: 60_000 })
+    circuitBreakers.set(channelType, cb)
   }
-  return cb;
+  return cb
 }
 
 export function isCircuitOpen(channelType: string): boolean {
-  return getCircuit(channelType).isOpen();
+  return getCircuit(channelType).isOpen()
 }
 
 export function recordCircuitSuccess(channelType: string): void {
-  getCircuit(channelType).recordSuccess();
+  getCircuit(channelType).recordSuccess()
 }
 
 export function recordCircuitFailure(channelType: string): void {
-  getCircuit(channelType).recordFailure();
+  getCircuit(channelType).recordFailure()
 }
 
 export function resetCircuit(channelType: string): void {
-  circuitBreakers.delete(channelType);
+  circuitBreakers.delete(channelType)
 }
 
 // ─── Delivery Queue ────────────────────────────────────────────────
 
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 5
 
 // ─── Error Messages ────────────────────────────────────────────────
 
 const ERROR_MESSAGES: Record<string, string> = {
-  window_expired:
-    'Message could not be sent — the messaging window has closed.',
+  window_expired: 'Message could not be sent — the messaging window has closed.',
   opted_out: 'Contact has opted out of messages.',
   rate_limited: 'Message delayed — channel rate limit reached.',
   invalid_recipient: 'Message failed — recipient phone number is invalid.',
-};
+}
 
-export async function enqueueDelivery(
-  scheduler: Scheduler,
-  messageId: string,
-): Promise<void> {
-  await scheduler.add('messaging:deliver-message', { messageId });
+export async function enqueueDelivery(scheduler: Scheduler, messageId: string): Promise<void> {
+  await scheduler.add('messaging:deliver-message', { messageId })
 }
 
 export async function processDelivery(
@@ -69,68 +59,39 @@ export async function processDelivery(
   scheduler: Scheduler,
   messageId: string,
 ): Promise<void> {
-  const start = Date.now();
+  const start = Date.now()
 
-  const [message] = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.id, messageId));
+  const [message] = await db.select().from(messages).where(eq(messages.id, messageId))
 
-  if (!message || message.status !== 'queued') return;
+  if (!message || message.status !== 'queued') return
 
-  const channelType = message.channelType;
+  const channelType = message.channelType
   if (!channelType) {
-    await markFailed(
-      db,
-      messageId,
-      'No channel type on message',
-      message.conversationId,
-    );
-    return;
+    await markFailed(db, messageId, 'No channel type on message', message.conversationId)
+    return
   }
 
   // Check circuit breaker
   if (isCircuitOpen(channelType)) {
-    logger.warn('[delivery] circuit_skip', { messageId, channelType });
-    await retryOrFail(
-      db,
-      scheduler,
-      message,
-      'Circuit open — channel unavailable',
-    );
-    return;
+    logger.warn('[delivery] circuit_skip', { messageId, channelType })
+    await retryOrFail(db, scheduler, message, 'Circuit open — channel unavailable')
+    return
   }
 
   // Load conversation + contact
-  const [conversation] = await db
-    .select()
-    .from(conversations)
-    .where(eq(conversations.id, message.conversationId));
+  const [conversation] = await db.select().from(conversations).where(eq(conversations.id, message.conversationId))
 
   if (!conversation) {
-    await markFailed(
-      db,
-      messageId,
-      'Conversation not found',
-      message.conversationId,
-    );
-    return;
+    await markFailed(db, messageId, 'Conversation not found', message.conversationId)
+    return
   }
 
   try {
-    const [contact] = await db
-      .select()
-      .from(contacts)
-      .where(eq(contacts.id, conversation.contactId));
+    const [contact] = await db.select().from(contacts).where(eq(contacts.id, conversation.contactId))
 
     if (!contact) {
-      await markFailed(
-        db,
-        messageId,
-        'Contact not found',
-        message.conversationId,
-      );
-      return;
+      await markFailed(db, messageId, 'Contact not found', message.conversationId)
+      return
     }
 
     // Resolve adapter for this channel type
@@ -139,32 +100,25 @@ export async function processDelivery(
           .select({ type: channelInstances.type })
           .from(channelInstances)
           .where(eq(channelInstances.id, conversation.channelInstanceId))
-      : [];
-    const resolvedType = instance?.type ?? channelType;
-    const adapter =
-      channels.getAdapter(conversation.channelInstanceId) ??
-      channels.getAdapter(resolvedType);
-    const channelSend =
-      channels.get(conversation.channelInstanceId) ??
-      channels.get(resolvedType);
+      : []
+    const resolvedType = instance?.type ?? channelType
+    const adapter = channels.getAdapter(conversation.channelInstanceId) ?? channels.getAdapter(resolvedType)
+    const channelSend = channels.get(conversation.channelInstanceId) ?? channels.get(resolvedType)
 
-    let result: SendResult;
-    let payload = (message.contentData ?? {}) as Record<string, unknown>;
+    let result: SendResult
+    let payload = (message.contentData ?? {}) as Record<string, unknown>
 
     // Resolve {{name}}/{{first_name}}/{{phone}}/{{email}} placeholders in template parameters
     if (payload.template) {
       payload = {
         ...payload,
-        template: resolveTemplateVariables(
-          payload.template as NonNullable<OutboundMessage['template']>,
-          contact,
-        ),
-      };
+        template: resolveTemplateVariables(payload.template as NonNullable<OutboundMessage['template']>, contact),
+      }
     }
 
     // Check messaging window before sending (e.g. WhatsApp 24h window)
     if (adapter?.capabilities?.messagingWindow) {
-      const windowStatus = await checkWindow(db, message.conversationId);
+      const windowStatus = await checkWindow(db, message.conversationId)
       // Only block if a session exists and is expired (no session = no window tracking yet)
       if (windowStatus.expiresAt !== null && !windowStatus.isOpen) {
         await markFailed(
@@ -172,63 +126,62 @@ export async function processDelivery(
           messageId,
           'Messaging window expired — cannot send outside the 24h window',
           message.conversationId,
-        );
+        )
         logger.info('[delivery] window_expired', {
           messageId,
           conversationId: message.conversationId,
           channelType,
-        });
-        return;
+        })
+        return
       }
     }
 
     // Resolve contact address using adapter's contactIdentifierField
-    const identifierField =
-      adapter?.contactIdentifierField ?? resolveIdentifierField(resolvedType);
-    const recipientAddress = contact[identifierField] as string | null;
+    const identifierField = adapter?.contactIdentifierField ?? resolveIdentifierField(resolvedType)
+    const recipientAddress = contact[identifierField] as string | null
 
     if (!adapter || !channelSend) {
       // Web channel or unregistered adapter — no outbound send needed
-      result = { success: true };
+      result = { success: true }
     } else if (!recipientAddress) {
       await markFailed(
         db,
         messageId,
         `Contact has no ${identifierField} for ${resolvedType} channel`,
         message.conversationId,
-      );
-      return;
+      )
+      return
     } else if (adapter.serializeOutbound) {
       // Adapter-driven serialization
       const outbound = adapter.serializeOutbound({
         content: message.content,
         contentData: payload,
-      });
-      outbound.to = recipientAddress;
-      result = await channelSend.send(outbound);
+      })
+      outbound.to = recipientAddress
+      result = await channelSend.send(outbound)
     } else {
       // Fallback: build OutboundMessage from content + payload
       const outbound: OutboundMessage = {
         to: recipientAddress,
         text: message.content,
-      };
+      }
 
       if (adapter.renderContent && message.content) {
-        outbound.text = adapter.renderContent(message.content);
+        outbound.text = adapter.renderContent(message.content)
       }
 
       if (payload.template) {
-        outbound.template = payload.template as OutboundMessage['template'];
-        outbound.text = undefined;
+        outbound.template = payload.template as OutboundMessage['template']
+        outbound.text = undefined
       } else if (payload.interactive) {
-        outbound.metadata = { interactive: payload.interactive };
+        outbound.metadata = { interactive: payload.interactive }
       } else if (payload.media) {
         const media = payload.media as {
-          type: string;
-          url: string;
-          caption?: string;
-          filename?: string;
-        };
+          type: string
+          url: string
+          caption?: string
+          filename?: string
+        }
         outbound.media = [
           {
             type: media.type as 'image' | 'document' | 'audio' | 'video',
@@ -236,15 +189,15 @@ export async function processDelivery(
             caption: media.caption,
             filename: media.filename,
           },
-        ];
+        ]
       }
 
       // Email-specific fields
       if (identifierField === 'email') {
-        outbound.subject = (payload.subject as string) ?? 'Message';
-        outbound.html = outbound.text ? `<p>${outbound.text}</p>` : undefined;
+        outbound.subject = (payload.subject as string) ?? 'Message'
+        outbound.html = outbound.text ? `<p>${outbound.text}</p>` : undefined
         if (Array.isArray(payload.cc) && payload.cc.length > 0) {
-          outbound.metadata = { ...outbound.metadata, cc: payload.cc };
+          outbound.metadata = { ...outbound.metadata, cc: payload.cc }
         }
       }
 
@@ -253,36 +206,36 @@ export async function processDelivery(
         const [referencedMsg] = await db
           .select({ externalMessageId: messages.externalMessageId })
           .from(messages)
-          .where(eq(messages.id, message.replyToMessageId));
+          .where(eq(messages.id, message.replyToMessageId))
         if (referencedMsg?.externalMessageId) {
           outbound.metadata = {
             ...outbound.metadata,
             replyToMessageId: referencedMsg.externalMessageId,
-          };
+          }
         }
       }
 
-      result = await channelSend.send(outbound);
+      result = await channelSend.send(outbound)
     }
 
     if (result.success) {
-      recordCircuitSuccess(channelType);
+      recordCircuitSuccess(channelType)
       await db
         .update(messages)
         .set({
           status: 'sent',
           externalMessageId: result.messageId ?? null,
         })
-        .where(eq(messages.id, messageId));
+        .where(eq(messages.id, messageId))
 
-      const { realtime } = getModuleDeps();
+      const { realtime } = getModuleDeps()
       await realtime
         .notify({
           table: 'conversations-messages',
           id: message.conversationId,
           action: 'update',
         })
-        .catch(() => {});
+        .catch(() => {})
 
       logger.info('[delivery] send', {
         messageId,
@@ -290,14 +243,13 @@ export async function processDelivery(
         channelType,
         durationMs: Date.now() - start,
         outcome: 'sent',
-      });
+      })
     } else {
-      const reason =
-        [result.code, result.error].filter(Boolean).join(': ') || 'Send failed';
+      const reason = [result.code, result.error].filter(Boolean).join(': ') || 'Send failed'
 
       // Insert human-readable error as a system activity message for known failure codes
       if (result.code && Object.hasOwn(ERROR_MESSAGES, result.code)) {
-        const { realtime } = getModuleDeps();
+        const { realtime } = getModuleDeps()
         await createActivityMessage(db, realtime, {
           conversationId: message.conversationId,
           eventType: 'delivery_error',
@@ -305,14 +257,14 @@ export async function processDelivery(
             code: result.code,
             humanMessage: ERROR_MESSAGES[result.code],
           },
-        }).catch(() => {});
+        }).catch(() => {})
       }
 
       if (result.retryable === false) {
-        await markFailed(db, messageId, reason, message.conversationId);
+        await markFailed(db, messageId, reason, message.conversationId)
       } else {
-        recordCircuitFailure(channelType);
-        await retryOrFail(db, scheduler, message, reason);
+        recordCircuitFailure(channelType)
+        await retryOrFail(db, scheduler, message, reason)
       }
 
       logger.info('[delivery] send', {
@@ -322,70 +274,68 @@ export async function processDelivery(
         durationMs: Date.now() - start,
         outcome: 'failed',
         error: reason,
-      });
+      })
     }
   } catch (err) {
-    recordCircuitFailure(channelType);
+    recordCircuitFailure(channelType)
     const errMsg =
       err instanceof Error
         ? `${err.name}: ${err.message}`
         : typeof err === 'string'
           ? err
-          : JSON.stringify(err) || 'Unknown delivery error';
+          : JSON.stringify(err) || 'Unknown delivery error'
     logger.error('[delivery] send_error', {
       messageId,
       error: errMsg,
-    });
-    await retryOrFail(db, scheduler, message, errMsg);
+    })
+    await retryOrFail(db, scheduler, message, errMsg)
   }
 }
 
 // ─── Identifier Resolution ────────────────────────────────────────
 
 /** Default contact identifier field when adapter doesn't specify one. */
-export function resolveIdentifierField(
-  channelType: string,
-): 'phone' | 'email' | 'identifier' {
+export function resolveIdentifierField(channelType: string): 'phone' | 'email' | 'identifier' {
   switch (channelType) {
     case 'whatsapp':
-      return 'phone';
+      return 'phone'
     case 'email':
     case 'resend':
     case 'smtp':
-      return 'email';
+      return 'email'
     default:
-      return 'identifier';
+      return 'identifier'
   }
 }
 
 // ─── Template Variable Resolution ────────────────────────────────────
 
 interface ContactVariables {
-  name: string | null;
-  phone: string | null;
-  email: string | null;
+  name: string | null
+  phone: string | null
+  email: string | null
 }
 
 function resolveVar(key: string, contact: ContactVariables): string | null {
   switch (key) {
     case 'first_name':
-      return contact.name?.split(' ')[0] ?? null;
+      return contact.name?.split(' ')[0] ?? null
     case 'name':
-      return contact.name;
+      return contact.name
     case 'phone':
-      return contact.phone;
+      return contact.phone
     case 'email':
-      return contact.email;
+      return contact.email
     default:
-      return null;
+      return null
   }
 }
 
 function resolveText(text: string, contact: ContactVariables): string {
   return text.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
-    const value = resolveVar(key, contact);
-    return value ?? match;
-  });
+    const value = resolveVar(key, contact)
+    return value ?? match
+  })
 }
 
 export function resolveTemplateVariables(
@@ -398,12 +348,10 @@ export function resolveTemplateVariables(
     components: template.components?.map((component) => ({
       ...component,
       parameters: (component.parameters ?? []).map((param) =>
-        param.type === 'text'
-          ? { ...param, text: resolveText(param.text, contact) }
-          : param,
+        param.type === 'text' ? { ...param, text: resolveText(param.text, contact) } : param,
       ),
     })),
-  };
+  }
 }
 
 // ─── Retry / Fail Helpers ──────────────────────────────────────────
@@ -414,21 +362,18 @@ async function retryOrFail(
   message: typeof messages.$inferSelect,
   error: string,
 ): Promise<void> {
-  const attempt = (message.retryCount ?? 0) + 1;
+  const attempt = (message.retryCount ?? 0) + 1
 
   if (attempt >= MAX_RETRIES) {
-    await markFailed(db, message.id, error, message.conversationId);
-    return;
+    await markFailed(db, message.id, error, message.conversationId)
+    return
   }
 
   // Exponential backoff: 4s, 8s, 16s, 32s ...
-  const backoffMs = 2 ** (attempt + 1) * 1000;
-  const startAfter = new Date(Date.now() + backoffMs);
+  const backoffMs = 2 ** (attempt + 1) * 1000
+  const startAfter = new Date(Date.now() + backoffMs)
 
-  await db
-    .update(messages)
-    .set({ retryCount: attempt })
-    .where(eq(messages.id, message.id));
+  await db.update(messages).set({ retryCount: attempt }).where(eq(messages.id, message.id))
 
   try {
     await scheduler.add(
@@ -437,33 +382,25 @@ async function retryOrFail(
       {
         startAfter: startAfter.toISOString(),
       },
-    );
+    )
   } catch {
-    await markFailed(db, message.id, error, message.conversationId);
+    await markFailed(db, message.id, error, message.conversationId)
   }
 }
 
-async function markFailed(
-  db: VobaseDb,
-  messageId: string,
-  reason: string,
-  conversationId?: string,
-): Promise<void> {
-  await db
-    .update(messages)
-    .set({ status: 'failed', failureReason: reason })
-    .where(eq(messages.id, messageId));
+async function markFailed(db: VobaseDb, messageId: string, reason: string, conversationId?: string): Promise<void> {
+  await db.update(messages).set({ status: 'failed', failureReason: reason }).where(eq(messages.id, messageId))
 
   if (conversationId) {
-    const { realtime } = getModuleDeps();
+    const { realtime } = getModuleDeps()
     await realtime
       .notify({
         table: 'conversations-messages',
         id: conversationId,
         action: 'update',
       })
-      .catch(() => {});
+      .catch(() => {})
   }
 
-  logger.warn('[delivery] message_failed', { messageId, reason });
+  logger.warn('[delivery] message_failed', { messageId, reason })
 }

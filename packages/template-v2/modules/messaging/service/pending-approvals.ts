@@ -1,5 +1,6 @@
 import type { Tx } from '@server/common/port-types'
 import type { WakeTrigger } from '@server/events'
+
 import type { PendingApproval } from '../schema'
 import type { InsertPendingApprovalInput } from './types'
 

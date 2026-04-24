@@ -9,26 +9,23 @@
  * CREATE), giving a clean slate. NEVER call pglite.close() in tests —
  * process exit handles cleanup.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
-import { vector } from '@electric-sql/pglite/vector';
-import type { VobaseDb } from '@vobase/core';
-import { drizzle } from 'drizzle-orm/pglite';
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { PGlite } from '@electric-sql/pglite'
+import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
+import { vector } from '@electric-sql/pglite/vector'
+import type { VobaseDb } from '@vobase/core'
+import { drizzle } from 'drizzle-orm/pglite'
 
-import * as kbSchema from '../modules/knowledge-base/schema';
-import * as aiSchema from '../modules/messaging/schema';
+import * as kbSchema from '../modules/knowledge-base/schema'
+import * as aiSchema from '../modules/messaging/schema'
 
-const nanoidSql = readFileSync(
-  join(import.meta.dir, '../db/extensions/03_nanoid.sql'),
-  'utf-8',
-);
+const nanoidSql = readFileSync(join(import.meta.dir, '../db/extensions/03_nanoid.sql'), 'utf-8')
 
-const TEMPLATE_SCHEMAS = ['messaging', 'agents', 'kb', 'infra'] as const;
+const TEMPLATE_SCHEMAS = ['messaging', 'agents', 'kb', 'infra'] as const
 
-let shared: PGlite | null = null;
-let nanoidInstalled = false;
+let shared: PGlite | null = null
+let nanoidInstalled = false
 
 /**
  * Returns a process-wide singleton PGlite instance with pgcrypto + vector.
@@ -36,11 +33,11 @@ let nanoidInstalled = false;
  */
 async function getSharedPGlite(): Promise<PGlite> {
   if (!shared) {
-    shared = new PGlite({ extensions: { pgcrypto, vector } });
-    await shared.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
-    await shared.query('CREATE EXTENSION IF NOT EXISTS vector');
+    shared = new PGlite({ extensions: { pgcrypto, vector } })
+    await shared.query('CREATE EXTENSION IF NOT EXISTS pgcrypto')
+    await shared.query('CREATE EXTENSION IF NOT EXISTS vector')
   }
-  return shared;
+  return shared
 }
 
 /**
@@ -49,24 +46,24 @@ async function getSharedPGlite(): Promise<PGlite> {
  * NEVER call pglite.close() — process exit handles cleanup.
  */
 export async function createTestDb(options?: {
-  withVec?: boolean;
-  withMemory?: boolean;
-  withWorkflows?: boolean;
-  withAutomation?: boolean;
+  withVec?: boolean
+  withMemory?: boolean
+  withWorkflows?: boolean
+  withAutomation?: boolean
 }) {
-  const pglite = await getSharedPGlite();
+  const pglite = await getSharedPGlite()
 
   // Reset schemas for clean slate
   for (const s of TEMPLATE_SCHEMAS) {
-    await pglite.query(`DROP SCHEMA IF EXISTS "${s}" CASCADE`);
-    await pglite.query(`CREATE SCHEMA "${s}"`);
+    await pglite.query(`DROP SCHEMA IF EXISTS "${s}" CASCADE`)
+    await pglite.query(`CREATE SCHEMA "${s}"`)
   }
 
   // Install nanoid function once (survives schema drops since it's in public)
   if (!nanoidInstalled) {
     // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
-    await (pglite as any).exec(nanoidSql);
-    nanoidInstalled = true;
+    await (pglite as any).exec(nanoidSql)
+    nanoidInstalled = true
   }
 
   // Conversations tables (always created — most tests need them)
@@ -262,7 +259,7 @@ export async function createTestDb(options?: {
       CHECK (user_id IS NOT NULL OR contact_id IS NOT NULL),
       UNIQUE (message_id, user_id, contact_id, emoji)
     );
-  `);
+  `)
 
   if (options?.withVec) {
     // biome-ignore lint/suspicious/noExplicitAny: required by PGlite exec interface
@@ -317,7 +314,7 @@ export async function createTestDb(options?: {
         started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         completed_at TIMESTAMPTZ
       );
-    `);
+    `)
   }
 
   if (options?.withMemory) {
@@ -361,7 +358,7 @@ export async function createTestDb(options?: {
         search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', fact)) STORED,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
-    `);
+    `)
   }
 
   if (options?.withWorkflows) {
@@ -379,7 +376,7 @@ export async function createTestDb(options?: {
         matched_term TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
-    `);
+    `)
   }
 
   if (options?.withAutomation) {
@@ -470,14 +467,14 @@ export async function createTestDb(options?: {
       );
       CREATE INDEX "automation_recipients_status_next_step_idx" ON "messaging"."automation_recipients" (status, next_step_at);
       CREATE UNIQUE INDEX "automation_recipients_rule_contact_date_unique" ON "messaging"."automation_recipients" (rule_id, contact_id, date_value) WHERE date_value IS NOT NULL;
-    `);
+    `)
   }
 
   const schema = {
     ...aiSchema,
     ...kbSchema,
-  };
-  const db = drizzle({ client: pglite, schema }) as unknown as VobaseDb;
+  }
+  const db = drizzle({ client: pglite, schema }) as unknown as VobaseDb
 
-  return { pglite, db };
+  return { pglite, db }
 }

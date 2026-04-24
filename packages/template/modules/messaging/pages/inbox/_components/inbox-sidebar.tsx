@@ -1,97 +1,72 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import {
-  ChevronDownIcon,
-  PanelRightIcon,
-  PlusIcon,
-  UserIcon,
-  XCircleIcon,
-} from 'lucide-react';
-import { memo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { ChevronDownIcon, PanelRightIcon, PlusIcon, UserIcon, XCircleIcon } from 'lucide-react'
+import { memo } from 'react'
 
-import { ChannelBadge } from '@/components/conversation-badges';
-import { Badge } from '@/components/ui/badge';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { messagingClient } from '@/lib/api-client';
-import type { TimelineConversationFull } from '../../conversations/_components/types';
+import { ChannelBadge } from '@/components/conversation-badges'
+import { Badge } from '@/components/ui/badge'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { messagingClient } from '@/lib/api-client'
+import type { TimelineConversationFull } from '../../conversations/_components/types'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface Contact {
-  id: string;
-  name: string | null;
-  phone: string | null;
-  email: string | null;
-  role: string;
+  id: string
+  name: string | null
+  phone: string | null
+  email: string | null
+  role: string
 }
 
 interface ContactLabel {
-  id: string;
-  title: string;
-  color: string | null;
-  description: string | null;
-  assignedAt: string;
+  id: string
+  title: string
+  color: string | null
+  description: string | null
+  assignedAt: string
 }
 
 // ─── Sidebar Row ─────────────────────────────────────────────────────
 
-function SidebarRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function SidebarRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[80px_1fr] items-baseline gap-2 py-1">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm text-foreground truncate text-right">
-        {children}
-      </span>
+      <span className="text-sm text-foreground truncate text-right">{children}</span>
     </div>
-  );
+  )
 }
 
 // ─── Contact Labels (self-contained sub-component) ───────────────────
 
 function ContactLabelsSection({ contactId }: { contactId: string }) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   const { data: contactLabels = [] } = useQuery({
     queryKey: ['contact-labels', contactId],
     queryFn: async () => {
       const res = await messagingClient.contacts[':id'].labels.$get({
         param: { id: contactId },
-      });
-      if (!res.ok) return [];
-      return res.json() as Promise<ContactLabel[]>;
+      })
+      if (!res.ok) return []
+      return res.json() as Promise<ContactLabel[]>
     },
-  });
+  })
 
   const { data: allLabels = [] } = useQuery({
     queryKey: ['labels'],
     queryFn: async () => {
-      const res = await messagingClient.labels.$get();
-      if (!res.ok) return [];
-      return res.json() as Promise<
-        { id: string; title: string; color: string | null }[]
-      >;
+      const res = await messagingClient.labels.$get()
+      if (!res.ok) return []
+      return res.json() as Promise<{ id: string; title: string; color: string | null }[]>
     },
     staleTime: 60000,
-  });
+  })
 
   const addMutation = useMutation({
     mutationFn: (labelIds: string[]) =>
@@ -108,7 +83,7 @@ function ContactLabelsSection({ contactId }: { contactId: string }) {
       queryClient.invalidateQueries({
         queryKey: ['contact-labels', contactId],
       }),
-  });
+  })
 
   const removeMutation = useMutation({
     mutationFn: (labelId: string) =>
@@ -119,27 +94,19 @@ function ContactLabelsSection({ contactId }: { contactId: string }) {
       queryClient.invalidateQueries({
         queryKey: ['contact-labels', contactId],
       }),
-  });
+  })
 
-  const assignedIds = new Set(contactLabels.map((l) => l.id));
-  const available = allLabels.filter((l) => !assignedIds.has(l.id));
+  const assignedIds = new Set(contactLabels.map((l) => l.id))
+  const available = allLabels.filter((l) => !assignedIds.has(l.id))
 
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-        Labels
-      </p>
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Labels</p>
       <div className="space-y-1.5">
         {contactLabels.map((label) => (
-          <div
-            key={label.id}
-            className="flex items-center justify-between gap-2 group"
-          >
+          <div key={label.id} className="flex items-center justify-between gap-2 group">
             <div className="flex items-center gap-1.5">
-              <span
-                className="h-2 w-2 rounded-full shrink-0"
-                style={{ backgroundColor: label.color ?? '#888' }}
-              />
+              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: label.color ?? '#888' }} />
               <span className="text-sm">{label.title}</span>
             </div>
             <button
@@ -169,10 +136,7 @@ function ContactLabelsSection({ contactId }: { contactId: string }) {
                   onClick={() => addMutation.mutate([label.id])}
                   className="gap-2 text-sm"
                 >
-                  <span
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: label.color ?? '#888' }}
-                  />
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: label.color ?? '#888' }} />
                   {label.title}
                 </DropdownMenuItem>
               ))}
@@ -181,23 +145,23 @@ function ContactLabelsSection({ contactId }: { contactId: string }) {
         )}
       </div>
     </div>
-  );
+  )
 }
 
 // ─── Sidebar ─────────────────────────────────────────────────────────
 
 interface InboxSidebarProps {
-  contactId: string;
-  contact: Contact | undefined;
-  allConversations: TimelineConversationFull[];
-  sortedConversations: TimelineConversationFull[];
-  channels: Array<{ id: string; type: string; label: string | null }>;
-  allMessagesCount: number;
-  hasNextPage: boolean | undefined;
-  visibleBlockId: string | null;
-  sidebarOpen: boolean;
-  onSetSidebarOpen: (open: boolean) => void;
-  onScrollToBlock: (conversationId: string) => void;
+  contactId: string
+  contact: Contact | undefined
+  allConversations: TimelineConversationFull[]
+  sortedConversations: TimelineConversationFull[]
+  channels: Array<{ id: string; type: string; label: string | null }>
+  allMessagesCount: number
+  hasNextPage: boolean | undefined
+  visibleBlockId: string | null
+  sidebarOpen: boolean
+  onSetSidebarOpen: (open: boolean) => void
+  onScrollToBlock: (conversationId: string) => void
 }
 
 export const InboxSidebar = memo(function InboxSidebar({
@@ -247,9 +211,7 @@ export const InboxSidebar = memo(function InboxSidebar({
             <div className="px-4 pb-4 space-y-4">
               {/* Contact info */}
               <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-                  Contact
-                </p>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Contact</p>
                 {contact ? (
                   <Link
                     to="/messaging/contacts/$contactId"
@@ -260,9 +222,7 @@ export const InboxSidebar = memo(function InboxSidebar({
                       <UserIcon className="h-4 w-4 text-primary" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {contact.name ?? contact.id}
-                      </p>
+                      <p className="text-sm font-medium truncate">{contact.name ?? contact.id}</p>
                       <p className="text-sm text-muted-foreground truncate">
                         {contact.phone ?? contact.email ?? contact.role}
                       </p>
@@ -296,9 +256,7 @@ export const InboxSidebar = memo(function InboxSidebar({
                       type="button"
                       onClick={() => onScrollToBlock(conv.id)}
                       className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
-                        conv.id === visibleBlockId
-                          ? 'bg-primary/10'
-                          : 'hover:bg-muted/50'
+                        conv.id === visibleBlockId ? 'bg-primary/10' : 'hover:bg-muted/50'
                       }`}
                     >
                       <ChannelBadge type={conv.channelType} variant="icon" />
@@ -336,9 +294,7 @@ export const InboxSidebar = memo(function InboxSidebar({
 
               {/* Details */}
               <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
-                  Details
-                </p>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">Details</p>
                 <div className="space-y-0.5">
                   <SidebarRow label="Role">
                     <span className="capitalize">{contact?.role ?? '—'}</span>
@@ -347,13 +303,9 @@ export const InboxSidebar = memo(function InboxSidebar({
                     {String(allMessagesCount)}
                     {hasNextPage ? '+' : ''}
                   </SidebarRow>
-                  <SidebarRow label="Channels">
-                    {channels.map((c) => c.type).join(', ') || '—'}
-                  </SidebarRow>
+                  <SidebarRow label="Channels">{channels.map((c) => c.type).join(', ') || '—'}</SidebarRow>
                   <SidebarRow label="ID">
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {contactId}
-                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">{contactId}</span>
                   </SidebarRow>
                 </div>
               </div>
@@ -362,5 +314,5 @@ export const InboxSidebar = memo(function InboxSidebar({
         </>
       )}
     </div>
-  );
-});
+  )
+})

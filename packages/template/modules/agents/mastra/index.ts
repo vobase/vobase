@@ -4,20 +4,20 @@
  * Initialized lazily via initMastra() called from the AI module init hook,
  * after setAiModuleDeps() has wired the db and scheduler.
  */
-import { Mastra } from '@mastra/core';
-import { MastraCompositeStore } from '@mastra/core/storage';
-import { Memory } from '@mastra/memory';
-import { PgVector, PostgresStore } from '@mastra/pg';
-import type { VobaseDb } from '@vobase/core';
+import { Mastra } from '@mastra/core'
+import { MastraCompositeStore } from '@mastra/core/storage'
+import { Memory } from '@mastra/memory'
+import { PgVector, PostgresStore } from '@mastra/pg'
+import type { VobaseDb } from '@vobase/core'
 
-import { buildCustomScorer } from './evals/custom-scorer-factory';
-import { scorers } from './evals/scorers';
-import { models } from './lib/models';
-import { agentModel, getEmbeddingModel } from './lib/provider';
-import { VobaseMemoryStorage } from './storage/vobase-memory';
+import { buildCustomScorer } from './evals/custom-scorer-factory'
+import { scorers } from './evals/scorers'
+import { models } from './lib/models'
+import { agentModel, getEmbeddingModel } from './lib/provider'
+import { VobaseMemoryStorage } from './storage/vobase-memory'
 
-let mastraInstance: Mastra | undefined;
-let memoryInstance: Memory | undefined;
+let mastraInstance: Mastra | undefined
+let memoryInstance: Memory | undefined
 
 /**
  * Initialize the Mastra singleton with storage from the vobase db connection.
@@ -27,23 +27,22 @@ let memoryInstance: Memory | undefined;
  * everything else (workflows, observability) uses PostgresStore.
  */
 export async function initMastra(db: { $client: unknown }): Promise<void> {
-  const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl) throw new Error('DATABASE_URL is required');
+  const dbUrl = process.env.DATABASE_URL
+  if (!dbUrl) throw new Error('DATABASE_URL is required')
 
   const pgStore = new PostgresStore({
     id: 'vobase-pg',
     connectionString: dbUrl,
     schemaName: 'mastra',
-  });
+  })
 
-  await pgStore.init();
+  await pgStore.init()
 
   // OM methods delegate to PostgresStore's MemoryPG — must exist after init()
-  const omDelegate = pgStore.stores.memory;
-  if (!omDelegate)
-    throw new Error('PostgresStore did not initialize memory domain');
+  const omDelegate = pgStore.stores.memory
+  if (!omDelegate) throw new Error('PostgresStore did not initialize memory domain')
 
-  const vobaseMemory = new VobaseMemoryStorage(db as VobaseDb, omDelegate);
+  const vobaseMemory = new VobaseMemoryStorage(db as VobaseDb, omDelegate)
 
   const compositeStore = new MastraCompositeStore({
     id: 'vobase-composite',
@@ -51,12 +50,12 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
     domains: {
       memory: vobaseMemory,
     },
-  });
+  })
 
   const pgVector = new PgVector({
     connectionString: dbUrl,
     id: 'vobase-vectors',
-  });
+  })
 
   memoryInstance = new Memory({
     storage: compositeStore,
@@ -72,7 +71,7 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
         scope: 'resource',
       },
     },
-  });
+  })
 
   mastraInstance = new Mastra({
     agents: {},
@@ -81,31 +80,28 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
     memory: { 'agent-memory': memoryInstance },
     storage: compositeStore,
     scorers: Object.fromEntries(scorers.map((s) => [s.id, s])),
-  });
+  })
 
   // Load published custom scorer definitions from Mastra storage and register
   // them on the instance so they participate in live scoring alongside code scorers.
   try {
-    const scorerDefsStore = await compositeStore.getStore('scorerDefinitions');
+    const scorerDefsStore = await compositeStore.getStore('scorerDefinitions')
     if (scorerDefsStore) {
-      const result = (await scorerDefsStore.listResolved()) as Record<
-        string,
-        unknown
-      >;
+      const result = (await scorerDefsStore.listResolved()) as Record<string, unknown>
       const rawDefs = Array.isArray(result?.scorerDefinitions)
         ? (result.scorerDefinitions as Record<string, unknown>[])
-        : [];
-      const defs = rawDefs.filter((d) => d.status === 'published');
+        : []
+      const defs = rawDefs.filter((d) => d.status === 'published')
       for (const def of defs) {
-        const metadata = (def.metadata ?? {}) as Record<string, unknown>;
+        const metadata = (def.metadata ?? {}) as Record<string, unknown>
         const scorer = buildCustomScorer({
           id: def.id as string,
           name: (def.name as string) ?? '',
           description: (def.description as string) ?? '',
           criteria: (def.instructions as string) ?? '',
           model: (metadata.model as string) ?? 'gpt-5.4',
-        });
-        mastraInstance.addScorer(scorer);
+        })
+        mastraInstance.addScorer(scorer)
       }
     }
   } catch {
@@ -115,14 +111,12 @@ export async function initMastra(db: { $client: unknown }): Promise<void> {
 
 /** Get the Mastra singleton. Throws if not initialized. */
 export function getMastra(): Mastra {
-  if (!mastraInstance)
-    throw new Error('Mastra not initialized — call initMastra() first');
-  return mastraInstance;
+  if (!mastraInstance) throw new Error('Mastra not initialized — call initMastra() first')
+  return mastraInstance
 }
 
 /** Get the Memory instance. Throws if not initialized. */
 export function getMemory(): Memory {
-  if (!memoryInstance)
-    throw new Error('Memory not initialized — call initMastra() first');
-  return memoryInstance;
+  if (!memoryInstance) throw new Error('Memory not initialized — call initMastra() first')
+  return memoryInstance
 }

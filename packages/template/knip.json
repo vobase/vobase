@@ -10,12 +10,7 @@
     "lib/**/*.test.ts",
     "src/lib/*.test.ts"
   ],
-  "project": [
-    "src/**/*.{ts,tsx}",
-    "modules/**/*.{ts,tsx}",
-    "lib/**/*.{ts,tsx}",
-    "e2e/**/*.ts"
-  ],
+  "project": ["src/**/*.{ts,tsx}", "modules/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}", "e2e/**/*.ts"],
   "ignore": [
     "src/components/ui/**",
     "src/components/ai-elements/**",

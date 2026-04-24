@@ -1,22 +1,19 @@
-import { embed, embedMany } from 'ai';
+import { embed, embedMany } from 'ai'
 
-import {
-  EMBEDDING_DIMENSIONS,
-  models,
-} from '../modules/agents/mastra/lib/models';
-import { getEmbeddingModel } from '../modules/agents/mastra/lib/provider';
+import { EMBEDDING_DIMENSIONS, models } from '../modules/agents/mastra/lib/models'
+import { getEmbeddingModel } from '../modules/agents/mastra/lib/provider'
 
 /**
  * Embed multiple text chunks. Returns float arrays.
  */
 export async function embedChunks(texts: string[]): Promise<number[][]> {
-  if (texts.length === 0) return [];
+  if (texts.length === 0) return []
   const { embeddings } = await embedMany({
     model: getEmbeddingModel(models.gpt_embedding),
     values: texts,
     providerOptions: { openai: { dimensions: EMBEDDING_DIMENSIONS } },
-  });
-  return embeddings;
+  })
+  return embeddings
 }
 
 /**
@@ -27,6 +24,6 @@ export async function embedQuery(query: string): Promise<number[]> {
     model: getEmbeddingModel(models.gpt_embedding),
     value: query,
     providerOptions: { openai: { dimensions: EMBEDDING_DIMENSIONS } },
-  });
-  return embedding;
+  })
+  return embedding
 }

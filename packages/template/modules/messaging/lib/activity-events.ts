@@ -1,10 +1,6 @@
-export type InboxTab = 'active' | 'on-hold' | 'done';
+export type InboxTab = 'active' | 'on-hold' | 'done'
 
-export const INBOX_TABS: readonly InboxTab[] = [
-  'active',
-  'on-hold',
-  'done',
-] as const;
+export const INBOX_TABS: readonly InboxTab[] = ['active', 'on-hold', 'done'] as const
 
 /**
  * Compute the inbox tab a conversation belongs to, given its current state.
@@ -13,7 +9,7 @@ export const INBOX_TABS: readonly InboxTab[] = [
  * - "done": status is 'resolved' or 'failed'
  */
 export function computeTab(status: string, onHold: boolean): InboxTab {
-  if (status === 'resolved' || status === 'failed') return 'done';
-  if (onHold) return 'on-hold';
-  return 'active';
+  if (status === 'resolved' || status === 'failed') return 'done'
+  if (onHold) return 'on-hold'
+  return 'active'
 }

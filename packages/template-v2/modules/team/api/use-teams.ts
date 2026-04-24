@@ -7,6 +7,7 @@
  */
 
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+
 import { authClient } from '@/lib/auth-client'
 import type { TeamDescription } from '../schema'
 

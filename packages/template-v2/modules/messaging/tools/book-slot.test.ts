@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import type { ToolContext } from '@vobase/core'
+
 import { bookSlotTool } from './book-slot'
 
 function makeCtx(): ToolContext {

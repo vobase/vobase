@@ -1,17 +1,11 @@
-import type {
-  ChannelsService,
-  RealtimeService,
-  Scheduler,
-  StorageService,
-  VobaseDb,
-} from '@vobase/core';
+import type { ChannelsService, RealtimeService, Scheduler, StorageService, VobaseDb } from '@vobase/core'
 
 export interface ModuleDeps {
-  db: VobaseDb;
-  scheduler: Scheduler;
-  channels: ChannelsService;
-  realtime: RealtimeService;
-  storage?: StorageService;
+  db: VobaseDb
+  scheduler: Scheduler
+  channels: ChannelsService
+  realtime: RealtimeService
+  storage?: StorageService
 }
 
 /**
@@ -22,14 +16,13 @@ export interface ModuleDeps {
  * Agent invocation sites (agent-wake job) set deps on the RequestContext
  * before calling the agent.
  */
-let moduleDeps: ModuleDeps | undefined;
+let moduleDeps: ModuleDeps | undefined
 
 export function setModuleDeps(deps: ModuleDeps): void {
-  moduleDeps = deps;
+  moduleDeps = deps
 }
 
 export function getModuleDeps(): ModuleDeps {
-  if (!moduleDeps)
-    throw new Error('Module deps not initialized — call setModuleDeps() first');
-  return moduleDeps;
+  if (!moduleDeps) throw new Error('Module deps not initialized — call setModuleDeps() first')
+  return moduleDeps
 }

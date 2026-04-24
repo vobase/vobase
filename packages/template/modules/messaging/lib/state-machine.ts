@@ -1,10 +1,10 @@
-import type { RealtimeService, VobaseDb } from '@vobase/core';
-import { and, eq } from 'drizzle-orm';
+import type { RealtimeService, VobaseDb } from '@vobase/core'
+import { and, eq } from 'drizzle-orm'
 
-import { conversations } from '../schema';
-import { computeTab } from './activity-events';
-import { agentAssignee, isAgentAssignee } from './assignee';
-import { createActivityMessage } from './messages';
+import { conversations } from '../schema'
+import { computeTab } from './activity-events'
+import { agentAssignee, isAgentAssignee } from './assignee'
+import { createActivityMessage } from './messages'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -13,82 +13,76 @@ type TransitionEvent =
   | { type: 'HOLD'; reason: string; userId?: string }
   | { type: 'UNHOLD'; userId?: string }
   | {
-      type: 'RESOLVE';
-      outcome?: 'resolved' | 'escalated' | 'abandoned' | 'topic_change';
+      type: 'RESOLVE'
+      outcome?: 'resolved' | 'escalated' | 'abandoned' | 'topic_change'
     }
   | { type: 'FAIL'; reason: string }
   | { type: 'INBOUND_MESSAGE'; contactId: string; content?: string }
   | { type: 'SET_RESOLVING' }
   | {
-      type: 'GENERATION_DONE';
-      outcome?: 'resolved' | 'escalated' | 'abandoned' | 'topic_change';
+      type: 'GENERATION_DONE'
+      outcome?: 'resolved' | 'escalated' | 'abandoned' | 'topic_change'
     }
   | { type: 'RESOLVING_TIMEOUT' }
-  | { type: 'REOPEN'; idleWindowMs: number };
+  | { type: 'REOPEN'; idleWindowMs: number }
 
-type ConversationRow = typeof conversations.$inferSelect;
+type ConversationRow = typeof conversations.$inferSelect
 
 type TransitionResult =
   | {
-      ok: true;
-      conversation: ConversationRow;
-      previousState: { status: string; assignee: string };
+      ok: true
+      conversation: ConversationRow
+      previousState: { status: string; assignee: string }
     }
   | {
-      ok: false;
-      error: string;
-      code: 'INVALID_TRANSITION' | 'GUARD_FAILED' | 'CONCURRENCY_CONFLICT';
-    };
+      ok: false
+      error: string
+      code: 'INVALID_TRANSITION' | 'GUARD_FAILED' | 'CONCURRENCY_CONFLICT'
+    }
 
 // ─── Transition table ─────────────────────────────────────────────────────────
 
 interface TransitionDef {
   /** Allowed source statuses. Empty = none (handled specially). */
-  from: string[];
+  from: string[]
   /** Return error string to reject, or null to proceed. */
-  guard?: (current: ConversationRow, event: TransitionEvent) => string | null;
+  guard?: (current: ConversationRow, event: TransitionEvent) => string | null
   /** Compute the DB update set. Return null to skip DB update (e.g. INBOUND_MESSAGE). */
-  update: (
-    current: ConversationRow,
-    event: TransitionEvent,
-  ) => Record<string, unknown> | null;
+  update: (current: ConversationRow, event: TransitionEvent) => Record<string, unknown> | null
   /** WHERE clause status match for optimistic concurrency. */
-  whereStatus?: (event: TransitionEvent) => string;
+  whereStatus?: (event: TransitionEvent) => string
   /** Extra WHERE conditions (e.g. onHold check). */
-  extraWhere?: (current: ConversationRow) => boolean;
+  extraWhere?: (current: ConversationRow) => boolean
   /** Activity event to create after transition. */
   activity?: (
     current: ConversationRow,
     event: TransitionEvent,
   ) => {
-    eventType: string;
-    actor?: string;
-    actorType?: 'user' | 'agent' | 'system';
-    data?: Record<string, unknown>;
-  };
+    eventType: string
+    actor?: string
+    actorType?: 'user' | 'agent' | 'system'
+    data?: Record<string, unknown>
+  }
   /** Extra SSE notifications beyond the default conversation notification. */
-  notifications?: Array<{ table: string; action?: string }>;
+  notifications?: Array<{ table: string; action?: string }>
 }
 
 function computeAutonomy(c: ConversationRow): string {
-  return isAgentAssignee(c.assignee) ? 'full_ai' : 'human_assisted';
+  return isAgentAssignee(c.assignee) ? 'full_ai' : 'human_assisted'
 }
 
 /** Shorthand for event field access without verbose casts. */
-const ev = (e: TransitionEvent) => e as Record<string, unknown>;
+const ev = (e: TransitionEvent) => e as Record<string, unknown>
 
 const DASHBOARD_METRICS = [
   { table: 'conversations-dashboard', action: 'update' },
   { table: 'conversations-metrics', action: 'update' },
-];
+]
 
 const TRANSITIONS: Record<string, TransitionDef> = {
   REASSIGN: {
     from: ['active'],
-    guard: (c, e) =>
-      c.assignee === ev(e).assignee
-        ? 'Already assigned to this assignee'
-        : null,
+    guard: (c, e) => (c.assignee === ev(e).assignee ? 'Already assigned to this assignee' : null),
     update: (_c, e) => ({ assignee: ev(e).assignee, assignedAt: new Date() }),
     activity: (c, e) => ({
       eventType: 'handler.changed',
@@ -193,12 +187,10 @@ const TRANSITIONS: Record<string, TransitionDef> = {
     from: ['resolved'],
     whereStatus: () => 'resolved',
     guard: (c, e) => {
-      if (!c.resolvedAt) return null;
-      const elapsed = Date.now() - c.resolvedAt.getTime();
-      const ms = ev(e).idleWindowMs as number;
-      return elapsed > ms
-        ? `Idle window expired (${elapsed}ms > ${ms}ms)`
-        : null;
+      if (!c.resolvedAt) return null
+      const elapsed = Date.now() - c.resolvedAt.getTime()
+      const ms = ev(e).idleWindowMs as number
+      return elapsed > ms ? `Idle window expired (${elapsed}ms > ${ms}ms)` : null
     },
     update: (c) => ({
       status: 'active',
@@ -219,7 +211,7 @@ const TRANSITIONS: Record<string, TransitionDef> = {
     }),
     notifications: [{ table: 'conversations-dashboard', action: 'update' }],
   },
-};
+}
 
 // ─── transition() ─────────────────────────────────────────────────────────────
 
@@ -228,15 +220,12 @@ export async function transition(
   conversationId: string,
   event: TransitionEvent,
 ): Promise<TransitionResult> {
-  const { db, realtime } = deps;
+  const { db, realtime } = deps
 
-  const [current] = await db
-    .select()
-    .from(conversations)
-    .where(eq(conversations.id, conversationId));
+  const [current] = await db.select().from(conversations).where(eq(conversations.id, conversationId))
 
   if (!current) {
-    return { ok: false, error: 'Conversation not found', code: 'GUARD_FAILED' };
+    return { ok: false, error: 'Conversation not found', code: 'GUARD_FAILED' }
   }
 
   if (current.status === 'failed') {
@@ -244,16 +233,16 @@ export async function transition(
       ok: false,
       error: `Event '${event.type}' is not valid in state 'failed'`,
       code: 'INVALID_TRANSITION',
-    };
+    }
   }
 
-  const def = TRANSITIONS[event.type];
+  const def = TRANSITIONS[event.type]
   if (!def) {
     return {
       ok: false,
       error: 'Unknown event type',
       code: 'INVALID_TRANSITION',
-    };
+    }
   }
 
   // Check source status
@@ -262,29 +251,26 @@ export async function transition(
       ok: false,
       error: `Event '${event.type}' is not valid in state '${current.status}'`,
       code: 'INVALID_TRANSITION',
-    };
+    }
   }
 
   // Run guard
   if (def.guard) {
-    const guardError = def.guard(current, event);
+    const guardError = def.guard(current, event)
     if (guardError) {
-      return { ok: false, error: guardError, code: 'GUARD_FAILED' };
+      return { ok: false, error: guardError, code: 'GUARD_FAILED' }
     }
   }
 
-  const previousState = { status: current.status, assignee: current.assignee };
-  const updateSet = def.update(current, event);
+  const previousState = { status: current.status, assignee: current.assignee }
+  const updateSet = def.update(current, event)
 
-  let updated = current;
+  let updated = current
 
   // Apply DB update if needed
   if (updateSet !== null) {
-    const whereStatus = def.whereStatus ? def.whereStatus(event) : 'active';
-    const conditions = [
-      eq(conversations.id, conversationId),
-      eq(conversations.status, whereStatus),
-    ];
+    const whereStatus = def.whereStatus ? def.whereStatus(event) : 'active'
+    const conditions = [eq(conversations.id, conversationId), eq(conversations.status, whereStatus)]
 
     // Extra WHERE for HOLD (onHold must be false)
     if (def.extraWhere && !def.extraWhere(current)) {
@@ -292,11 +278,11 @@ export async function transition(
         ok: false,
         error: 'Conversation state changed concurrently — retry the operation',
         code: 'CONCURRENCY_CONFLICT',
-      };
+      }
     }
 
     if (event.type === 'HOLD') {
-      conditions.push(eq(conversations.onHold, false));
+      conditions.push(eq(conversations.onHold, false))
     }
 
     const result = await db.transaction(async (tx) => {
@@ -304,37 +290,37 @@ export async function transition(
         .update(conversations)
         .set(updateSet)
         .where(and(...conditions))
-        .returning();
-      return row ?? null;
-    });
+        .returning()
+      return row ?? null
+    })
 
     if (!result) {
       return {
         ok: false,
         error: 'Conversation state changed concurrently — retry the operation',
         code: 'CONCURRENCY_CONFLICT',
-      };
+      }
     }
 
-    updated = result;
+    updated = result
   }
 
   // Create activity message
   if (def.activity) {
-    const act = def.activity(current, event);
+    const act = def.activity(current, event)
     await createActivityMessage(db, realtime, {
       conversationId,
       eventType: act.eventType,
       actor: act.actor,
       actorType: act.actorType ?? 'system',
       data: act.data,
-    });
+    })
   }
 
   // Emit extra notifications
   if (def.notifications) {
     for (const n of def.notifications) {
-      await realtime.notify(n);
+      await realtime.notify(n)
     }
   }
 
@@ -344,7 +330,7 @@ export async function transition(
     id: conversationId,
     tab: computeTab(updated.status, updated.onHold),
     prevTab: computeTab(current.status, current.onHold),
-  });
+  })
 
-  return { ok: true, conversation: updated, previousState };
+  return { ok: true, conversation: updated, previousState }
 }

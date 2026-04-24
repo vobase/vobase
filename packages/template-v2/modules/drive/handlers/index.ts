@@ -1,6 +1,7 @@
 import type { Auth } from '@server/auth'
 import { type OrganizationEnv, requireOrganization, scopeRbac } from '@server/middlewares'
 import { type Context, Hono, type MiddlewareHandler } from 'hono'
+
 import { getDriveAuth } from '../service/files'
 import filesHandlers from './files'
 import proposalHandlers from './proposal'

@@ -1,6 +1,7 @@
 import { auditLog, sequences } from '@vobase/core'
 import { desc, lt } from 'drizzle-orm'
 import { Hono } from 'hono'
+
 import { requireDb } from '../service'
 
 const app = new Hono()

@@ -2,6 +2,7 @@
  * GET /api/channel-whatsapp/webhook — Meta hub challenge verification.
  */
 import type { Context } from 'hono'
+
 import { requireVerifyToken } from '../service/state'
 
 export function handleWebhookVerify(c: Context): Response {

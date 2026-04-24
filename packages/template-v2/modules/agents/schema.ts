@@ -109,6 +109,7 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
+
 import { DEFAULT_CHAT_MODEL } from './lib/models'
 
 export const agentDefinitions = agentsPgSchema.table('agent_definitions', {

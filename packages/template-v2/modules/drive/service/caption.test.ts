@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+
 import { createCaptionPort } from './caption'
 
 const GEMINI_TEXT = 'A product catalog image showing various items with pricing.'

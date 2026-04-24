@@ -15,6 +15,7 @@ export {
   ScopedFs,
   snapshotFs,
 } from '@vobase/core'
+
 export type { CreateWorkspaceOpts, WorkspaceHandle } from './create-workspace'
 export { BUSINESS_MD_FALLBACK, buildFrozenEagerPaths, createWorkspace } from './create-workspace'
 export {

@@ -1,20 +1,20 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo } from 'react'
 
-import { ChannelBadge } from '@/components/conversation-badges';
-import { CHANNEL_TAB_ALL } from '@/stores/inbox-detail-store';
-import type { TimelineConversationFull } from '../../conversations/_components/types';
+import { ChannelBadge } from '@/components/conversation-badges'
+import { CHANNEL_TAB_ALL } from '@/stores/inbox-detail-store'
+import type { TimelineConversationFull } from '../../conversations/_components/types'
 
 interface Channel {
-  id: string;
-  type: string;
-  label: string | null;
+  id: string
+  type: string
+  label: string | null
 }
 
 interface ChannelTabBarProps {
-  channels: Channel[];
-  allConversations: TimelineConversationFull[];
-  selectedChannelId: string | null;
-  onSelectTab: (channelId: string | null) => void;
+  channels: Channel[]
+  allConversations: TimelineConversationFull[]
+  selectedChannelId: string | null
+  onSelectTab: (channelId: string | null) => void
 }
 
 export const ChannelTabBar = memo(function ChannelTabBar({
@@ -24,19 +24,16 @@ export const ChannelTabBar = memo(function ChannelTabBar({
   onSelectTab,
 }: ChannelTabBarProps) {
   const sortedChannels = useMemo(() => {
-    const channelActivity = new Map<string, number>();
+    const channelActivity = new Map<string, number>()
     for (const conv of allConversations) {
-      const t = new Date(conv.startedAt).getTime();
-      const current = channelActivity.get(conv.channelInstanceId) ?? 0;
-      if (t > current) channelActivity.set(conv.channelInstanceId, t);
+      const t = new Date(conv.startedAt).getTime()
+      const current = channelActivity.get(conv.channelInstanceId) ?? 0
+      if (t > current) channelActivity.set(conv.channelInstanceId, t)
     }
-    return [...channels].sort(
-      (a, b) =>
-        (channelActivity.get(b.id) ?? 0) - (channelActivity.get(a.id) ?? 0),
-    );
-  }, [channels, allConversations]);
+    return [...channels].sort((a, b) => (channelActivity.get(b.id) ?? 0) - (channelActivity.get(a.id) ?? 0))
+  }, [channels, allConversations])
 
-  if (channels.length <= 1) return null;
+  if (channels.length <= 1) return null
 
   return (
     <div className="border-b bg-background px-4">
@@ -69,5 +66,5 @@ export const ChannelTabBar = memo(function ChannelTabBar({
         </button>
       </div>
     </div>
-  );
-});
+  )
+})

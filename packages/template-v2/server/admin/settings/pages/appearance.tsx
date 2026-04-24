@@ -3,6 +3,7 @@ import { useSettingsSave } from '@server/admin/settings/pages/api/use-settings-s
 import type { AppearanceValues } from '@server/admin/settings/pages/schemas'
 import { appearanceSchema } from '@server/admin/settings/pages/schemas'
 import { useForm } from 'react-hook-form'
+
 import { useTheme } from '@/components/theme-provider'
 import { THEME_OPTIONS, ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'

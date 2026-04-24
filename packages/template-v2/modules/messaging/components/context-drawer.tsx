@@ -1,5 +1,6 @@
 import { ChevronDown, X } from 'lucide-react'
 import { useQueryState } from 'nuqs'
+
 import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'

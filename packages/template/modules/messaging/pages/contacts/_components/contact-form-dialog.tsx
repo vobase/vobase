@@ -1,29 +1,17 @@
-import { useState } from 'react';
+import { useState } from 'react'
 
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export interface ContactFormData {
-  name?: string;
-  phone?: string;
-  email?: string;
-  identifier?: string;
-  role: string;
+  name?: string
+  phone?: string
+  email?: string
+  identifier?: string
+  role: string
 }
 
 export function ContactFormDialog({
@@ -33,44 +21,42 @@ export function ContactFormDialog({
   onSave,
   isPending,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
   contact?: {
-    name: string | null;
-    phone: string | null;
-    email: string | null;
-    identifier: string | null;
-    role: string;
-  } | null;
-  onSave: (data: ContactFormData) => void;
-  isPending: boolean;
+    name: string | null
+    phone: string | null
+    email: string | null
+    identifier: string | null
+    role: string
+  } | null
+  onSave: (data: ContactFormData) => void
+  isPending: boolean
 }) {
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [identifier, setIdentifier] = useState('');
-  const [role, setRole] = useState('customer');
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
+  const [role, setRole] = useState('customer')
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
-      setName(contact?.name ?? '');
-      setPhone(contact?.phone ?? '');
-      setEmail(contact?.email ?? '');
-      setIdentifier(contact?.identifier ?? '');
-      setRole(contact?.role ?? 'customer');
+      setName(contact?.name ?? '')
+      setPhone(contact?.phone ?? '')
+      setEmail(contact?.email ?? '')
+      setIdentifier(contact?.identifier ?? '')
+      setRole(contact?.role ?? 'customer')
     }
-    onOpenChange(newOpen);
-  };
+    onOpenChange(newOpen)
+  }
 
-  const canSubmit = (phone.trim() || email.trim()) && !isPending;
+  const canSubmit = (phone.trim() || email.trim()) && !isPending
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle>
-            {contact ? 'Edit contact' : 'Create contact'}
-          </DialogTitle>
+          <DialogTitle>{contact ? 'Edit contact' : 'Create contact'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -88,12 +74,7 @@ export function ContactFormDialog({
               <Label htmlFor="contact-phone">
                 Phone <span className="text-muted-foreground text-xs">*</span>
               </Label>
-              <Input
-                id="contact-phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+65..."
-              />
+              <Input id="contact-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+65..." />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="contact-email">
@@ -108,9 +89,7 @@ export function ContactFormDialog({
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground -mt-2">
-            At least phone or email is required.
-          </p>
+          <p className="text-xs text-muted-foreground -mt-2">At least phone or email is required.</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="contact-identifier">Identifier</Label>
@@ -137,11 +116,7 @@ export function ContactFormDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button>
           <Button
@@ -156,14 +131,10 @@ export function ContactFormDialog({
             }
             disabled={!canSubmit}
           >
-            {isPending
-              ? 'Saving...'
-              : contact
-                ? 'Save changes'
-                : 'Create contact'}
+            {isPending ? 'Saving...' : contact ? 'Save changes' : 'Create contact'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

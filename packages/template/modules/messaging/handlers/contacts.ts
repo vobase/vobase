@@ -1,26 +1,14 @@
-import { getCtx, notFound, unauthorized, validation } from '@vobase/core';
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  gte,
-  ilike,
-  inArray,
-  lt,
-  lte,
-  or,
-} from 'drizzle-orm';
-import { Hono } from 'hono';
-import { validator } from 'hono/validator';
-import { z } from 'zod';
+import { getCtx, notFound, unauthorized, validation } from '@vobase/core'
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, lte, or } from 'drizzle-orm'
+import { Hono } from 'hono'
+import { validator } from 'hono/validator'
+import { z } from 'zod'
 
-import { dataTableConfig } from '@/config/data-table';
-import { filterColumns } from '@/lib/filter-columns';
-import { createConversation } from '../lib/conversation';
-import { getModuleDeps } from '../lib/deps';
-import { insertMessage } from '../lib/messages';
+import { dataTableConfig } from '@/config/data-table'
+import { filterColumns } from '@/lib/filter-columns'
+import { createConversation } from '../lib/conversation'
+import { getModuleDeps } from '../lib/deps'
+import { insertMessage } from '../lib/messages'
 import {
   automationRecipients,
   broadcastRecipients,
@@ -31,7 +19,7 @@ import {
   conversations,
   labels,
   messages,
-} from '../schema';
+} from '../schema'
 
 // ─── Schemas ────────────────────────────────────────────────────────
 
@@ -46,7 +34,7 @@ const createSchema = z
   })
   .refine((d) => d.phone !== undefined || d.email !== undefined, {
     message: 'At least phone or email is required',
-  });
+  })
 
 const updateSchema = z.object({
   phone: z.string().optional(),
@@ -55,18 +43,18 @@ const updateSchema = z.object({
   identifier: z.string().optional(),
   role: z.enum(['customer', 'lead', 'staff']).optional(),
   attributes: z.record(z.string(), z.unknown()).optional(),
-});
+})
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
   search: z.string().optional(),
-});
+})
 
 const sortItemSchema = z.object({
   id: z.enum(['name', 'email', 'role', 'createdAt', 'updatedAt']),
   desc: z.boolean(),
-});
+})
 
 const filterItemSchema = z.object({
   id: z.string(),
@@ -74,7 +62,7 @@ const filterItemSchema = z.object({
   variant: z.enum(dataTableConfig.filterVariants),
   operator: z.enum(dataTableConfig.operators),
   filterId: z.string(),
-});
+})
 
 const tableQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -83,24 +71,24 @@ const tableQuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => {
-      if (!val) return [];
+      if (!val) return []
       try {
-        const parsed = JSON.parse(val);
-        return z.array(sortItemSchema).parse(parsed);
+        const parsed = JSON.parse(val)
+        return z.array(sortItemSchema).parse(parsed)
       } catch {
-        return [];
+        return []
       }
     }),
   filters: z
     .string()
     .optional()
     .transform((val) => {
-      if (!val) return [];
+      if (!val) return []
       try {
-        const parsed = JSON.parse(val);
-        return z.array(filterItemSchema).parse(parsed);
+        const parsed = JSON.parse(val)
+        return z.array(filterItemSchema).parse(parsed)
       } catch {
-        return [];
+        return []
       }
     }),
   joinOperator: z.enum(['and', 'or']).default('and'),
@@ -108,7 +96,7 @@ const tableQuerySchema = z.object({
   name: z.string().optional(),
   role: z.string().optional(),
   createdAt: z.string().optional(),
-});
+})
 
 // ─── Column mapping for sorting ─────────────────────────────────────
 
@@ -118,25 +106,25 @@ const sortColumns = {
   role: contacts.role,
   createdAt: contacts.createdAt,
   updatedAt: contacts.updatedAt,
-} as const;
+} as const
 
 // ─── Handlers ───────────────────────────────────────────────────────
 
 export const contactsHandlers = new Hono()
   // GET / — simple list with pagination + optional search (kept for API compatibility)
   .get('/', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
     const parsed = listQuerySchema.safeParse({
       limit: c.req.query('limit'),
       offset: c.req.query('offset'),
       search: c.req.query('search'),
-    });
+    })
     if (!parsed.success) {
-      throw validation(parsed.error.flatten().fieldErrors);
+      throw validation(parsed.error.flatten().fieldErrors)
     }
-    const { limit, offset, search } = parsed.data;
+    const { limit, offset, search } = parsed.data
 
     const condition = search
       ? or(
@@ -144,50 +132,39 @@ export const contactsHandlers = new Hono()
           ilike(contacts.email, `%${search}%`),
           ilike(contacts.name, `%${search}%`),
         )
-      : undefined;
+      : undefined
 
     const [rows, [{ total }]] = await Promise.all([
       db.select().from(contacts).where(condition).limit(limit).offset(offset),
       db.select({ total: count() }).from(contacts).where(condition),
-    ]);
+    ])
 
-    return c.json({ data: rows, total });
+    return c.json({ data: rows, total })
   })
   // GET /table — server-side filtered, sorted, paginated for data-table
   .get('/table', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const parsed = tableQuerySchema.safeParse(c.req.query());
+    const parsed = tableQuerySchema.safeParse(c.req.query())
     if (!parsed.success) {
-      throw validation(parsed.error.flatten().fieldErrors);
+      throw validation(parsed.error.flatten().fieldErrors)
     }
 
-    const {
-      page,
-      perPage,
-      sort,
-      filters,
-      joinOperator,
-      name: search,
-      role,
-      createdAt,
-    } = parsed.data;
-    const offset = (page - 1) * perPage;
+    const { page, perPage, sort, filters, joinOperator, name: search, role, createdAt } = parsed.data
+    const offset = (page - 1) * perPage
 
     // Build WHERE from advanced filters (FilterList) OR simple column filters (Toolbar)
-    let where: ReturnType<typeof filterColumns> | undefined;
+    let where: ReturnType<typeof filterColumns> | undefined
     if (filters.length > 0) {
       where = filterColumns({
         table: contacts,
-        filters: filters as Parameters<
-          typeof filterColumns<typeof contacts>
-        >[0]['filters'],
+        filters: filters as Parameters<typeof filterColumns<typeof contacts>>[0]['filters'],
         joinOperator,
-      });
+      })
     } else {
       // Simple column filters from DataTableToolbar
-      const conditions = [];
+      const conditions = []
 
       // Universal search across name, email, and phone
       if (search) {
@@ -197,54 +174,43 @@ export const contactsHandlers = new Hono()
             ilike(contacts.email, `%${search}%`),
             ilike(contacts.phone, `%${search}%`),
           ),
-        );
+        )
       }
 
       if (role) {
-        const roles = role.split(',').filter(Boolean);
+        const roles = role.split(',').filter(Boolean)
         if (roles.length > 0) {
-          conditions.push(
-            roles.length === 1
-              ? eq(contacts.role, roles[0])
-              : inArray(contacts.role, roles),
-          );
+          conditions.push(roles.length === 1 ? eq(contacts.role, roles[0]) : inArray(contacts.role, roles))
         }
       }
 
       // Date range filter: "from,to" as epoch milliseconds
       if (createdAt) {
-        const parts = createdAt.split(',').map(Number).filter(Boolean);
+        const parts = createdAt.split(',').map(Number).filter(Boolean)
         if (parts.length === 2) {
-          conditions.push(
-            and(
-              gte(contacts.createdAt, new Date(parts[0])),
-              lte(contacts.createdAt, new Date(parts[1])),
-            ),
-          );
+          conditions.push(and(gte(contacts.createdAt, new Date(parts[0])), lte(contacts.createdAt, new Date(parts[1]))))
         } else if (parts.length === 1) {
           // Single timestamp: treat as "on this day" (start of day to end of day)
-          const day = new Date(parts[0]);
-          const start = new Date(day);
-          start.setHours(0, 0, 0, 0);
-          const end = new Date(day);
-          end.setHours(23, 59, 59, 999);
-          conditions.push(
-            and(gte(contacts.createdAt, start), lte(contacts.createdAt, end)),
-          );
+          const day = new Date(parts[0])
+          const start = new Date(day)
+          start.setHours(0, 0, 0, 0)
+          const end = new Date(day)
+          end.setHours(23, 59, 59, 999)
+          conditions.push(and(gte(contacts.createdAt, start), lte(contacts.createdAt, end)))
         }
       }
 
-      where = conditions.length > 0 ? and(...conditions) : undefined;
+      where = conditions.length > 0 ? and(...conditions) : undefined
     }
 
     // Build ORDER BY
     const orderBy =
       sort.length > 0
         ? sort.map((s) => {
-            const col = sortColumns[s.id as keyof typeof sortColumns];
-            return s.desc ? desc(col) : asc(col);
+            const col = sortColumns[s.id as keyof typeof sortColumns]
+            return s.desc ? desc(col) : asc(col)
           })
-        : [desc(contacts.createdAt)];
+        : [desc(contacts.createdAt)]
 
     // Execute data + count in parallel
     const [rows, [{ total }]] = await Promise.all([
@@ -256,60 +222,60 @@ export const contactsHandlers = new Hono()
         .limit(perPage)
         .offset(offset),
       db.select({ total: count() }).from(contacts).where(where),
-    ]);
+    ])
 
     return c.json({
       data: rows,
       pageCount: Math.ceil(total / perPage),
-    });
+    })
   })
   // GET /search — exact match by phone or email (for staff routing)
   .get('/search', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const phone = c.req.query('phone');
-    const email = c.req.query('email');
+    const phone = c.req.query('phone')
+    const email = c.req.query('email')
 
     if (!phone && !email) {
-      throw validation({ query: 'phone or email required' });
+      throw validation({ query: 'phone or email required' })
     }
 
-    const conditions = [];
-    if (phone) conditions.push(eq(contacts.phone, phone));
-    if (email) conditions.push(eq(contacts.email, email));
+    const conditions = []
+    if (phone) conditions.push(eq(contacts.phone, phone))
+    if (email) conditions.push(eq(contacts.email, email))
 
     const rows = await db
       .select()
       .from(contacts)
-      .where(or(...conditions));
+      .where(or(...conditions))
 
-    return c.json(rows);
+    return c.json(rows)
   })
   // GET /:id — get single contact
   .get('/:id', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
-    const id = c.req.param('id');
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
+    const id = c.req.param('id')
 
-    const [row] = await db.select().from(contacts).where(eq(contacts.id, id));
+    const [row] = await db.select().from(contacts).where(eq(contacts.id, id))
 
-    if (!row) throw notFound('Contact not found');
+    if (!row) throw notFound('Contact not found')
 
-    return c.json(row);
+    return c.json(row)
   })
   // POST / — create contact
   .post('/', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const body = await c.req.json();
-    const parsed = createSchema.safeParse(body);
+    const body = await c.req.json()
+    const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
-      throw validation(parsed.error.flatten().fieldErrors);
+      throw validation(parsed.error.flatten().fieldErrors)
     }
 
-    const data = parsed.data;
+    const data = parsed.data
 
     const [row] = await db
       .insert(contacts)
@@ -321,30 +287,27 @@ export const contactsHandlers = new Hono()
         role: data.role ?? 'customer',
         attributes: data.attributes ?? {},
       })
-      .returning();
+      .returning()
 
-    return c.json(row, 201);
+    return c.json(row, 201)
   })
   // PATCH /:id — update contact
   .patch('/:id', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
-    const id = c.req.param('id');
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
+    const id = c.req.param('id')
 
-    const body = await c.req.json();
-    const parsed = updateSchema.safeParse(body);
+    const body = await c.req.json()
+    const parsed = updateSchema.safeParse(body)
     if (!parsed.success) {
-      throw validation(parsed.error.flatten().fieldErrors);
+      throw validation(parsed.error.flatten().fieldErrors)
     }
 
-    const data = parsed.data;
+    const data = parsed.data
 
-    const [existing] = await db
-      .select({ id: contacts.id })
-      .from(contacts)
-      .where(eq(contacts.id, id));
+    const [existing] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, id))
 
-    if (!existing) throw notFound('Contact not found');
+    if (!existing) throw notFound('Contact not found')
 
     const [row] = await db
       .update(contacts)
@@ -358,9 +321,9 @@ export const contactsHandlers = new Hono()
         updatedAt: new Date(),
       })
       .where(eq(contacts.id, id))
-      .returning();
+      .returning()
 
-    return c.json(row);
+    return c.json(row)
   })
   // GET /:id/timeline — all messages for a contact across all channels/conversations, cursor-paginated
   .get(
@@ -371,22 +334,19 @@ export const contactsHandlers = new Hono()
           limit: z.coerce.number().int().min(1).max(100).default(50),
           before: z.string().optional(),
         })
-        .parse(value);
+        .parse(value)
     }),
     async (c) => {
-      const { db, user } = getCtx(c);
-      if (!user) throw unauthorized();
+      const { db, user } = getCtx(c)
+      if (!user) throw unauthorized()
 
-      const contactId = c.req.param('id');
-      const { limit, before } = c.req.valid('query');
+      const contactId = c.req.param('id')
+      const { limit, before } = c.req.valid('query')
 
       // Verify contact exists
-      const [contact] = await db
-        .select({ id: contacts.id })
-        .from(contacts)
-        .where(eq(contacts.id, contactId));
+      const [contact] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, contactId))
 
-      if (!contact) throw notFound('Contact not found');
+      if (!contact) throw notFound('Contact not found')
 
       // Fetch all conversations for this contact with channel info
       const allConversations = await db
@@ -405,21 +365,18 @@ export const contactsHandlers = new Hono()
           channelLabel: channelInstances.label,
         })
         .from(conversations)
-        .innerJoin(
-          channelInstances,
-          eq(conversations.channelInstanceId, channelInstances.id),
-        )
+        .innerJoin(channelInstances, eq(conversations.channelInstanceId, channelInstances.id))
         .where(eq(conversations.contactId, contactId))
-        .orderBy(asc(conversations.startedAt));
+        .orderBy(asc(conversations.startedAt))
 
-      const conversationIds = allConversations.map((i) => i.id);
+      const conversationIds = allConversations.map((i) => i.id)
 
       // Fetch messages across all conversations with cursor pagination
-      let messageRows: (typeof messages.$inferSelect)[] = [];
+      let messageRows: (typeof messages.$inferSelect)[] = []
       if (conversationIds.length > 0) {
-        const conditions = [inArray(messages.conversationId, conversationIds)];
+        const conditions = [inArray(messages.conversationId, conversationIds)]
         if (before) {
-          conditions.push(lt(messages.createdAt, new Date(before)));
+          conditions.push(lt(messages.createdAt, new Date(before)))
         }
 
         messageRows = await db
@@ -427,28 +384,22 @@ export const contactsHandlers = new Hono()
           .from(messages)
           .where(and(...conditions))
           .orderBy(desc(messages.createdAt))
-          .limit(limit + 1);
+          .limit(limit + 1)
       }
 
-      const hasMore = messageRows.length > limit;
-      const page = hasMore ? messageRows.slice(0, limit) : messageRows;
-      const nextCursor =
-        hasMore && page.length > 0
-          ? page[page.length - 1].createdAt.toISOString()
-          : null;
+      const hasMore = messageRows.length > limit
+      const page = hasMore ? messageRows.slice(0, limit) : messageRows
+      const nextCursor = hasMore && page.length > 0 ? page[page.length - 1].createdAt.toISOString() : null
 
       // Deduplicate channels
-      const channelMap = new Map<
-        string,
-        { id: string; type: string; label: string | null }
-      >();
+      const channelMap = new Map<string, { id: string; type: string; label: string | null }>()
       for (const i of allConversations) {
         if (!channelMap.has(i.channelInstanceId)) {
           channelMap.set(i.channelInstanceId, {
             id: i.channelInstanceId,
             type: i.channelType,
             label: i.channelLabel,
-          });
+          })
         }
       }
 
@@ -471,43 +422,36 @@ export const contactsHandlers = new Hono()
           channelLabel: i.channelLabel,
         })),
         channels: [...channelMap.values()],
-      });
+      })
     },
   )
   // POST /:id/mark-read — bulk mark all conversations for a contact as read
   .post('/:id/mark-read', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const contactId = c.req.param('id');
-    const { realtime } = getModuleDeps();
+    const contactId = c.req.param('id')
+    const { realtime } = getModuleDeps()
 
     // Unread count is now computed from messages — no denormalized column to reset
     // Notify the contact's conversations for UI refresh
     const rows = await db
       .select({ id: conversations.id })
       .from(conversations)
-      .where(
-        and(
-          eq(conversations.contactId, contactId),
-          eq(conversations.status, 'active'),
-        ),
-      );
+      .where(and(eq(conversations.contactId, contactId), eq(conversations.status, 'active')))
 
     for (const row of rows) {
-      await realtime
-        .notify({ table: 'conversations', id: row.id, action: 'update' })
-        .catch(() => {});
+      await realtime.notify({ table: 'conversations', id: row.id, action: 'update' }).catch(() => {})
     }
 
-    return c.json({ ok: true, count: rows.length });
+    return c.json({ ok: true, count: rows.length })
   })
   // GET /:id/labels — get labels for a contact
   .get('/:id/labels', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const contactId = c.req.param('id');
+    const contactId = c.req.param('id')
 
     const rows = await db
       .select({
@@ -519,28 +463,23 @@ export const contactsHandlers = new Hono()
       })
       .from(contactLabels)
       .innerJoin(labels, eq(contactLabels.labelId, labels.id))
-      .where(eq(contactLabels.contactId, contactId));
+      .where(eq(contactLabels.contactId, contactId))
 
-    return c.json(rows);
+    return c.json(rows)
   })
   // POST /:id/labels — add label to a contact
   .post('/:id/labels', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const contactId = c.req.param('id');
-    const body = z
-      .object({ labelIds: z.array(z.string().min(1)).min(1) })
-      .parse(await c.req.json());
+    const contactId = c.req.param('id')
+    const body = z.object({ labelIds: z.array(z.string().min(1)).min(1) }).parse(await c.req.json())
 
     // Validate labels exist
-    const existing = await db
-      .select({ id: labels.id })
-      .from(labels)
-      .where(inArray(labels.id, body.labelIds));
+    const existing = await db.select({ id: labels.id }).from(labels).where(inArray(labels.id, body.labelIds))
 
     if (existing.length !== body.labelIds.length) {
-      throw validation({ labelIds: 'One or more labels not found' });
+      throw validation({ labelIds: 'One or more labels not found' })
     }
 
     // Insert with conflict ignore for dedup
@@ -552,84 +491,67 @@ export const contactsHandlers = new Hono()
           labelId,
         })),
       )
-      .onConflictDoNothing();
+      .onConflictDoNothing()
 
-    return c.json({ ok: true });
+    return c.json({ ok: true })
   })
   // DELETE /:id/labels/:labelId — remove a label from a contact
   .delete('/:id/labels/:labelId', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const contactId = c.req.param('id');
-    const labelId = c.req.param('labelId');
+    const contactId = c.req.param('id')
+    const labelId = c.req.param('labelId')
 
     await db
       .delete(contactLabels)
-      .where(
-        and(
-          eq(contactLabels.contactId, contactId),
-          eq(contactLabels.labelId, labelId),
-        ),
-      );
+      .where(and(eq(contactLabels.contactId, contactId), eq(contactLabels.labelId, labelId)))
 
-    return c.json({ ok: true });
+    return c.json({ ok: true })
   })
   // DELETE /:id — delete contact (only if no active conversations)
   .delete('/:id', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
-    const id = c.req.param('id');
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
+    const id = c.req.param('id')
 
     const [[existing], [{ activeCount }]] = await Promise.all([
       db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, id)),
       db
         .select({ activeCount: count() })
         .from(conversations)
-        .where(
-          and(
-            eq(conversations.contactId, id),
-            inArray(conversations.status, ['active', 'resolving']),
-          ),
-        ),
-    ]);
+        .where(and(eq(conversations.contactId, id), inArray(conversations.status, ['active', 'resolving']))),
+    ])
 
-    if (!existing) throw notFound('Contact not found');
+    if (!existing) throw notFound('Contact not found')
 
     if (activeCount > 0) {
       throw validation({
         id: `Cannot delete contact with ${activeCount} active conversation(s). Resolve them first.`,
-      });
+      })
     }
 
     // Clean up all referencing rows in a single transaction before deleting the contact
     await db.transaction(async (tx) => {
-      await tx
-        .delete(broadcastRecipients)
-        .where(eq(broadcastRecipients.contactId, id));
-      await tx
-        .delete(automationRecipients)
-        .where(eq(automationRecipients.contactId, id));
-      await tx.delete(contactLabels).where(eq(contactLabels.contactId, id));
-      await tx.delete(contacts).where(eq(contacts.id, id));
-    });
+      await tx.delete(broadcastRecipients).where(eq(broadcastRecipients.contactId, id))
+      await tx.delete(automationRecipients).where(eq(automationRecipients.contactId, id))
+      await tx.delete(contactLabels).where(eq(contactLabels.contactId, id))
+      await tx.delete(contacts).where(eq(contacts.id, id))
+    })
 
-    return c.json({ ok: true });
+    return c.json({ ok: true })
   })
   // PUT /:id/marketing-opt-out — toggle marketing opt-out
   .put('/:id/marketing-opt-out', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const id = c.req.param('id');
-    const body = z.object({ optOut: z.boolean() }).parse(await c.req.json());
+    const id = c.req.param('id')
+    const body = z.object({ optOut: z.boolean() }).parse(await c.req.json())
 
-    const [existing] = await db
-      .select({ id: contacts.id })
-      .from(contacts)
-      .where(eq(contacts.id, id));
+    const [existing] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, id))
 
-    if (!existing) throw notFound('Contact not found');
+    if (!existing) throw notFound('Contact not found')
 
     const [row] = await db
       .update(contacts)
@@ -638,34 +560,34 @@ export const contactsHandlers = new Hono()
         marketingOptOutAt: body.optOut ? new Date() : null,
       })
       .where(eq(contacts.id, id))
-      .returning();
+      .returning()
 
-    return c.json(row);
+    return c.json(row)
   })
   // POST /:id/new-conversation — create a new conversation + first message for a contact
   .post('/:id/new-conversation', async (c) => {
-    const { db, user } = getCtx(c);
-    if (!user) throw unauthorized();
+    const { db, user } = getCtx(c)
+    if (!user) throw unauthorized()
 
-    const contactId = c.req.param('id');
+    const contactId = c.req.param('id')
     const body = z
       .object({
         channelInstanceId: z.string().min(1),
         content: z.string().min(1),
         isInternal: z.boolean().optional(),
       })
-      .parse(await c.req.json());
+      .parse(await c.req.json())
 
     // Resolve channel routing for this channel instance
     const [routing] = await db
       .select()
       .from(channelRoutings)
       .where(eq(channelRoutings.channelInstanceId, body.channelInstanceId))
-      .limit(1);
+      .limit(1)
 
-    if (!routing) throw notFound('No channel routing found for this channel');
+    if (!routing) throw notFound('No channel routing found for this channel')
 
-    const { scheduler, realtime } = getModuleDeps();
+    const { scheduler, realtime } = getModuleDeps()
 
     // Create the conversation
     const conversation = await createConversation(
@@ -676,7 +598,7 @@ export const contactsHandlers = new Hono()
         agentId: routing.agentId,
         channelInstanceId: body.channelInstanceId,
       },
-    );
+    )
 
     // Insert the first message
     const message = await insertMessage(db, realtime, {
@@ -687,10 +609,7 @@ export const contactsHandlers = new Hono()
       senderId: user.id,
       senderType: 'user',
       private: body.isInternal ?? false,
-    });
+    })
 
-    return c.json(
-      { conversationId: conversation.id, messageId: message.id },
-      201,
-    );
-  });
+    return c.json({ conversationId: conversation.id, messageId: message.id }, 201)
+  })

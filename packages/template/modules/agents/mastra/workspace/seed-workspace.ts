@@ -1,6 +1,6 @@
-import type { VobaseDb } from '@vobase/core';
+import type { VobaseDb } from '@vobase/core'
 
-import { workspaceFiles } from '../../schema';
+import { workspaceFiles } from '../../schema'
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AGENTS.md — Agent operating manual (global, read-only)
@@ -68,7 +68,7 @@ Free-form observations go in the markdown body as bullet points
 
 ## Skills
 Skills are learned procedures in skills/. Use vobase skill list to see available skills.
-`;
+`
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SOUL.md — Business identity template (global, read-only)
@@ -124,7 +124,7 @@ Basement parking at Block 5 — first 2 hours free with reception validation. MR
 - Emergency/injury → advise nearest A&E, do NOT book emergency slots
 - Specialist referrals → reassign to role:operations (David) for manual coordination
 - Requests involving minors → confirm guardian will be present
-`;
+`
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Seed function — idempotent upsert of global workspace files
@@ -133,16 +133,13 @@ Basement parking at Block 5 — first 2 hours free with reception validation. MR
 const AGENT_FILES = [
   { path: 'AGENTS.md', content: AGENTS_MD },
   { path: 'SOUL.md', content: SOUL_MD },
-] as const;
+] as const
 
 /**
  * Seed workspace files (AGENTS.md, SOUL.md) for an agent.
  * Files are scoped per-agent via the agentId column.
  */
-export async function seedWorkspaceFiles(
-  db: VobaseDb,
-  agentId: string,
-): Promise<void> {
+export async function seedWorkspaceFiles(db: VobaseDb, agentId: string): Promise<void> {
   for (const file of AGENT_FILES) {
     await db
       .insert(workspaceFiles)
@@ -154,12 +151,8 @@ export async function seedWorkspaceFiles(
         writtenBy: 'system',
       })
       .onConflictDoUpdate({
-        target: [
-          workspaceFiles.agentId,
-          workspaceFiles.contactId,
-          workspaceFiles.path,
-        ],
+        target: [workspaceFiles.agentId, workspaceFiles.contactId, workspaceFiles.path],
         set: { content: file.content, updatedAt: new Date() },
-      });
+      })
   }
 }

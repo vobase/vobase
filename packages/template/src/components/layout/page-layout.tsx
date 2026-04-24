@@ -1,4 +1,4 @@
-import { Header } from '@/components/layout/header';
+import { Header } from '@/components/layout/header'
 
 /**
  * Standard page layout with header + scrollable content.
@@ -12,5 +12,5 @@ export function PageLayout({ children }: { children: React.ReactNode }) {
         {children}
       </div>
     </>
-  );
+  )
 }

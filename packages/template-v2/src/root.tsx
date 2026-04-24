@@ -1,4 +1,5 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router'
+
 import { Toaster } from '@/components/ui/sonner'
 import GeneralErrorPage from '@/pages/errors/general-error'
 import NotFoundPage from '@/pages/errors/not-found'

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { renderToString } from 'react-dom/server'
+
 import SettingsLayout, { SETTINGS_NAV_ITEMS } from '../layout'
 
 async function renderLayout(path = '/settings/profile') {

@@ -1,9 +1,9 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/ui/separator'
 
 interface ContentSectionProps {
-  title: string;
-  desc: string;
-  children: React.ReactNode;
+  title: string
+  desc: string
+  children: React.ReactNode
 }
 
 export function ContentSection({ title, desc, children }: ContentSectionProps) {
@@ -18,5 +18,5 @@ export function ContentSection({ title, desc, children }: ContentSectionProps) {
         <div className="-mx-1 px-1.5 lg:max-w-xl">{children}</div>
       </div>
     </div>
-  );
+  )
 }

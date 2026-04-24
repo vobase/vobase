@@ -1,10 +1,10 @@
-import type { VobaseDb } from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import type { VobaseDb } from '@vobase/core'
+import { eq } from 'drizzle-orm'
 
-import { embedChunks } from '../../../lib/embeddings';
-import { kbChunks, kbDocuments } from '../schema';
-import { blockChunk } from './chunker';
-import type { PlateValue } from './plate-types';
+import { embedChunks } from '../../../lib/embeddings'
+import { kbChunks, kbDocuments } from '../schema'
+import { blockChunk } from './chunker'
+import type { PlateValue } from './plate-types'
 
 /**
  * Process a document: chunk → embed → store in kbChunks.
@@ -20,17 +20,14 @@ export async function processDocument(
   value: PlateValue,
   rawValue?: PlateValue,
 ): Promise<void> {
-  const storedRaw = rawValue ?? value;
+  const storedRaw = rawValue ?? value
 
   // Mark as processing
-  await db
-    .update(kbDocuments)
-    .set({ status: 'processing' })
-    .where(eq(kbDocuments.id, documentId));
+  await db.update(kbDocuments).set({ status: 'processing' }).where(eq(kbDocuments.id, documentId))
 
   try {
     // 1. Chunk the Plate Value; discard empty chunks
-    const chunks = blockChunk(value).filter((c) => c.content.trim().length > 0);
+    const chunks = blockChunk(value).filter((c) => c.content.trim().length > 0)
 
     if (chunks.length === 0) {
       await db
@@ -41,12 +38,12 @@ export async function processDocument(
           content: value as unknown,
           rawContent: storedRaw as unknown,
         })
-        .where(eq(kbDocuments.id, documentId));
-      return;
+        .where(eq(kbDocuments.id, documentId))
+      return
     }
 
     // 2. Generate embeddings for all chunks
-    const embeddings = await embedChunks(chunks.map((c) => c.content));
+    const embeddings = await embedChunks(chunks.map((c) => c.content))
 
     // 3. Insert chunks with embeddings in a transaction
     //    PostgreSQL automatically populates searchVector via generatedAlwaysAs.
@@ -59,8 +56,8 @@ export async function processDocument(
           tokenCount: chunk.tokenCount,
           embedding: embeddings[i],
         })),
-      );
-    });
+      )
+    })
 
     // 4. Mark document as ready and store Plate Value
     await db
@@ -71,7 +68,7 @@ export async function processDocument(
         content: value as unknown,
         rawContent: storedRaw as unknown,
       })
-      .where(eq(kbDocuments.id, documentId));
+      .where(eq(kbDocuments.id, documentId))
   } catch (error) {
     await db
       .update(kbDocuments)
@@ -81,7 +78,7 @@ export async function processDocument(
           error: error instanceof Error ? error.message : String(error),
         }),
       })
-      .where(eq(kbDocuments.id, documentId));
-    throw error;
+      .where(eq(kbDocuments.id, documentId))
+    throw error
   }
 }

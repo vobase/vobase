@@ -9,8 +9,9 @@
  * joined with `---` separators. Contributors that return `[]` are skipped.
  */
 
-import type { SideLoadContributor, SideLoadCtx, SideLoadItem } from './types'
 import type { Bash } from 'just-bash'
+
+import type { SideLoadContributor, SideLoadCtx, SideLoadItem } from './types'
 
 /**
  * Ad-hoc contributor shape used by the harness test-handle: the ctx is

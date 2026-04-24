@@ -3,6 +3,7 @@
  * 100% fixture-driven, no mocks required (pure function).
  */
 import { describe, expect, it } from 'bun:test'
+
 import { type MetaWebhookPayload, parseWebhookPayload } from '../service/parser'
 
 const ORG = 'org-test'

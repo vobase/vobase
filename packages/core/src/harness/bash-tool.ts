@@ -5,12 +5,11 @@
  * pull its own previously-persisted output back without re-tripping the budget.
  */
 
-import type { ToolResultPersistedEvent } from './types'
-import type { AgentTool, ToolContext } from './types'
-import type { ToolResult } from './types'
 import type { Bash } from 'just-bash'
+
 import { spillToFile } from './tool-budget-spill'
 import { L1_PREVIEW_BYTES, L2_SPILL_BYTES, TurnBudget } from './turn-budget'
+import type { AgentTool, ToolContext, ToolResult, ToolResultPersistedEvent } from './types'
 
 export interface BashToolArgs {
   command: string

@@ -7,6 +7,7 @@ import {
 } from '@modules/team/service/staff'
 import { Hono } from 'hono'
 import { z } from 'zod'
+
 import attributeHandlers from './attributes'
 import descriptionHandlers from './descriptions'
 import heartbeatHandlers from './heartbeat'

@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { Bell, KeyRound, LayoutList, Monitor, Settings2, User } from 'lucide-react'
+
 import { ContentLayout } from '@/components/layout/content-layout'
 import type { SubNavItem } from '@/components/layout/sub-nav'
 import { SubNav } from '@/components/layout/sub-nav'

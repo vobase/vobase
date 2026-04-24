@@ -2,6 +2,7 @@ import { useUnreadMentionCount } from '@modules/team/api/use-unread-mentions'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Bot, HardDrive, Inbox, Radio, UserCog, Users } from 'lucide-react'
 import type * as React from 'react'
+
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'

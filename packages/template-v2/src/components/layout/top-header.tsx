@@ -1,4 +1,5 @@
 import { Search } from 'lucide-react'
+
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Breadcrumbs } from './breadcrumbs'

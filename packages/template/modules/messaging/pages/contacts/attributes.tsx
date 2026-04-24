@@ -1,14 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import {
-  ArrowLeftIcon,
-  GripVerticalIcon,
-  PencilIcon,
-  PlusIcon,
-  TrashIcon,
-} from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { ArrowLeftIcon, GripVerticalIcon, PencilIcon, PlusIcon, TrashIcon } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
 
 import {
   AlertDialog,
@@ -19,55 +13,36 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { messagingClient } from '@/lib/api-client';
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { messagingClient } from '@/lib/api-client'
 
 // ─── Types ──────────────────────────────────────────────────────────
 
 interface AttributeDefinition {
-  id: string;
-  key: string;
-  label: string;
-  type: string;
-  showInTable: boolean;
-  sortOrder: number;
-  createdAt: string;
+  id: string
+  key: string
+  label: string
+  type: string
+  showInTable: boolean
+  sortOrder: number
+  createdAt: string
 }
 
 // ─── Data fetching ──────────────────────────────────────────────────
 
 async function fetchAttributeDefinitions(): Promise<AttributeDefinition[]> {
-  const res = await messagingClient['attribute-definitions'].$get();
-  if (!res.ok) throw new Error('Failed to fetch attribute definitions');
-  const json = (await res.json()) as { data: AttributeDefinition[] };
-  return json.data;
+  const res = await messagingClient['attribute-definitions'].$get()
+  if (!res.ok) throw new Error('Failed to fetch attribute definitions')
+  const json = (await res.json()) as { data: AttributeDefinition[] }
+  return json.data
 }
 
 // ─── Type labels ────────────────────────────────────────────────────
@@ -77,16 +52,14 @@ const TYPE_LABELS: Record<string, string> = {
   number: 'Number',
   boolean: 'Boolean',
   date: 'Date',
-};
+}
 
 const TYPE_COLORS: Record<string, string> = {
   text: 'bg-blue-100/30 text-blue-800 dark:text-blue-300 border-blue-200',
-  number:
-    'bg-emerald-100/30 text-emerald-800 dark:text-emerald-300 border-emerald-200',
-  boolean:
-    'bg-amber-100/30 text-amber-800 dark:text-amber-300 border-amber-200',
+  number: 'bg-emerald-100/30 text-emerald-800 dark:text-emerald-300 border-emerald-200',
+  boolean: 'bg-amber-100/30 text-amber-800 dark:text-amber-300 border-amber-200',
   date: 'bg-purple-100/30 text-purple-800 dark:text-purple-300 border-purple-200',
-};
+}
 
 // ─── Form Dialog ────────────────────────────────────────────────────
 
@@ -97,55 +70,48 @@ function AttributeFormDialog({
   onSave,
   isPending,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  attribute?: AttributeDefinition | null;
-  onSave: (data: {
-    key: string;
-    label: string;
-    type: string;
-    showInTable: boolean;
-  }) => void;
-  isPending: boolean;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  attribute?: AttributeDefinition | null
+  onSave: (data: { key: string; label: string; type: string; showInTable: boolean }) => void
+  isPending: boolean
 }) {
-  const [key, setKey] = useState('');
-  const [label, setLabel] = useState('');
-  const [type, setType] = useState('text');
-  const [showInTable, setShowInTable] = useState(false);
-  const isEdit = !!attribute;
+  const [key, setKey] = useState('')
+  const [label, setLabel] = useState('')
+  const [type, setType] = useState('text')
+  const [showInTable, setShowInTable] = useState(false)
+  const isEdit = !!attribute
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
-      setKey(attribute?.key ?? '');
-      setLabel(attribute?.label ?? '');
-      setType(attribute?.type ?? 'text');
-      setShowInTable(attribute?.showInTable ?? false);
+      setKey(attribute?.key ?? '')
+      setLabel(attribute?.label ?? '')
+      setType(attribute?.type ?? 'text')
+      setShowInTable(attribute?.showInTable ?? false)
     }
-    onOpenChange(newOpen);
-  };
+    onOpenChange(newOpen)
+  }
 
   // Auto-generate key from label (only in create mode)
   function handleLabelChange(value: string) {
-    setLabel(value);
+    setLabel(value)
     if (!isEdit) {
       setKey(
         value
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '_')
           .replace(/^_|_$/g, ''),
-      );
+      )
     }
   }
 
-  const canSubmit = key.trim() && label.trim() && !isPending;
+  const canSubmit = key.trim() && label.trim() && !isPending
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>
-            {isEdit ? 'Edit attribute' : 'Create attribute'}
-          </DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit attribute' : 'Create attribute'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -200,49 +166,33 @@ function AttributeFormDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button>
-          <Button
-            onClick={() => onSave({ key, label, type, showInTable })}
-            disabled={!canSubmit}
-          >
+          <Button onClick={() => onSave({ key, label, type, showInTable })} disabled={!canSubmit}>
             {isPending ? 'Saving...' : isEdit ? 'Save changes' : 'Create'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 // ─── Page ───────────────────────────────────────────────────────────
 
 function AttributeDefinitionsPage() {
-  const queryClient = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingAttr, setEditingAttr] = useState<AttributeDefinition | null>(
-    null,
-  );
-  const [deleteTarget, setDeleteTarget] = useState<AttributeDefinition | null>(
-    null,
-  );
+  const queryClient = useQueryClient()
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingAttr, setEditingAttr] = useState<AttributeDefinition | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AttributeDefinition | null>(null)
 
   const { data: attributes = [], isLoading } = useQuery({
     queryKey: ['attribute-definitions'],
     queryFn: fetchAttributeDefinitions,
-  });
+  })
 
   const createMutation = useMutation({
-    mutationFn: async (data: {
-      key: string;
-      label: string;
-      type: string;
-      showInTable: boolean;
-    }) => {
+    mutationFn: async (data: { key: string; label: string; type: string; showInTable: boolean }) => {
       const res = await messagingClient['attribute-definitions'].$post(
         {},
         {
@@ -251,37 +201,35 @@ function AttributeDefinitionsPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
+      )
       if (!res.ok) {
-        const err = (await res.json()) as { error?: { message?: string } };
-        throw new Error(
-          err?.error?.message ?? 'Failed to create attribute definition',
-        );
+        const err = (await res.json()) as { error?: { message?: string } }
+        throw new Error(err?.error?.message ?? 'Failed to create attribute definition')
       }
-      return res.json();
+      return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attribute-definitions'] });
-      setDialogOpen(false);
-      toast.success('Attribute created');
+      queryClient.invalidateQueries({ queryKey: ['attribute-definitions'] })
+      setDialogOpen(false)
+      toast.success('Attribute created')
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
       data,
     }: {
-      id: string;
+      id: string
       data: {
-        label?: string;
-        type?: string;
-        showInTable?: boolean;
-        sortOrder?: number;
-      };
+        label?: string
+        type?: string
+        showInTable?: boolean
+        sortOrder?: number
+      }
     }) => {
       const res = await messagingClient['attribute-definitions'][':id'].$put(
         { param: { id } },
@@ -291,57 +239,46 @@ function AttributeDefinitionsPage() {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
+      )
       if (!res.ok) {
-        const err = (await res.json()) as { error?: { message?: string } };
-        throw new Error(
-          err?.error?.message ?? 'Failed to update attribute definition',
-        );
+        const err = (await res.json()) as { error?: { message?: string } }
+        throw new Error(err?.error?.message ?? 'Failed to update attribute definition')
       }
-      return res.json();
+      return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attribute-definitions'] });
-      setDialogOpen(false);
-      setEditingAttr(null);
-      toast.success('Attribute updated');
+      queryClient.invalidateQueries({ queryKey: ['attribute-definitions'] })
+      setDialogOpen(false)
+      setEditingAttr(null)
+      toast.success('Attribute updated')
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await messagingClient['attribute-definitions'][':id'].$delete(
-        {
-          param: { id },
-        },
-      );
+      const res = await messagingClient['attribute-definitions'][':id'].$delete({
+        param: { id },
+      })
       if (!res.ok) {
-        const err = (await res.json()) as { error?: { message?: string } };
-        throw new Error(
-          err?.error?.message ?? 'Failed to delete attribute definition',
-        );
+        const err = (await res.json()) as { error?: { message?: string } }
+        throw new Error(err?.error?.message ?? 'Failed to delete attribute definition')
       }
-      return res.json();
+      return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attribute-definitions'] });
-      setDeleteTarget(null);
-      toast.success('Attribute deleted');
+      queryClient.invalidateQueries({ queryKey: ['attribute-definitions'] })
+      setDeleteTarget(null)
+      toast.success('Attribute deleted')
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(error.message)
     },
-  });
+  })
 
-  function handleSave(data: {
-    key: string;
-    label: string;
-    type: string;
-    showInTable: boolean;
-  }) {
+  function handleSave(data: { key: string; label: string; type: string; showInTable: boolean }) {
     if (editingAttr) {
       updateMutation.mutate({
         id: editingAttr.id,
@@ -350,27 +287,27 @@ function AttributeDefinitionsPage() {
           type: data.type,
           showInTable: data.showInTable,
         },
-      });
+      })
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(data)
     }
   }
 
   function openCreate() {
-    setEditingAttr(null);
-    setDialogOpen(true);
+    setEditingAttr(null)
+    setDialogOpen(true)
   }
 
   function openEdit(attr: AttributeDefinition) {
-    setEditingAttr(attr);
-    setDialogOpen(true);
+    setEditingAttr(attr)
+    setDialogOpen(true)
   }
 
   function handleToggleVisibility(attr: AttributeDefinition) {
     updateMutation.mutate({
       id: attr.id,
       data: { showInTable: !attr.showInTable },
-    });
+    })
   }
 
   return (
@@ -388,12 +325,9 @@ function AttributeDefinitionsPage() {
 
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            Contact Attributes
-          </h2>
+          <h2 className="text-2xl font-bold tracking-tight">Contact Attributes</h2>
           <p className="text-muted-foreground">
-            Define custom attributes for contacts. Visible attributes appear as
-            columns in the contacts table.
+            Define custom attributes for contacts. Visible attributes appear as columns in the contacts table.
           </p>
         </div>
         <Button size="sm" onClick={openCreate}>
@@ -405,24 +339,14 @@ function AttributeDefinitionsPage() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }, (_, i) => (
-            <div
-              key={`skel-${i.toString()}`}
-              className="h-14 w-full rounded-lg bg-muted animate-pulse"
-            />
+            <div key={`skel-${i.toString()}`} className="h-14 w-full rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       ) : attributes.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
           <p className="text-sm font-medium">No custom attributes</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create attributes to add custom fields to your contacts.
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-4 gap-1.5"
-            onClick={openCreate}
-          >
+          <p className="text-sm text-muted-foreground mt-1">Create attributes to add custom fields to your contacts.</p>
+          <Button size="sm" variant="outline" className="mt-4 gap-1.5" onClick={openCreate}>
             <PlusIcon className="size-3.5" />
             Create first attribute
           </Button>
@@ -448,16 +372,11 @@ function AttributeDefinitionsPage() {
                     <GripVerticalIcon className="size-4 text-muted-foreground/40" />
                   </TableCell>
                   <TableCell>
-                    <code className="text-sm bg-muted px-1.5 py-0.5 rounded">
-                      {attr.key}
-                    </code>
+                    <code className="text-sm bg-muted px-1.5 py-0.5 rounded">{attr.key}</code>
                   </TableCell>
                   <TableCell className="font-medium">{attr.label}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={TYPE_COLORS[attr.type] ?? ''}
-                    >
+                    <Badge variant="outline" className={TYPE_COLORS[attr.type] ?? ''}>
                       {TYPE_LABELS[attr.type] ?? attr.type}
                     </Badge>
                   </TableCell>
@@ -468,17 +387,10 @@ function AttributeDefinitionsPage() {
                       disabled={updateMutation.isPending}
                     />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {attr.sortOrder}
-                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">{attr.sortOrder}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => openEdit(attr)}
-                      >
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(attr)}>
                         <PencilIcon className="size-3.5" />
                       </Button>
                       <Button
@@ -501,8 +413,8 @@ function AttributeDefinitionsPage() {
       <AttributeFormDialog
         open={dialogOpen}
         onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditingAttr(null);
+          setDialogOpen(open)
+          if (!open) setEditingAttr(null)
         }}
         attribute={editingAttr}
         onSave={handleSave}
@@ -512,28 +424,22 @@ function AttributeDefinitionsPage() {
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
+          if (!open) setDeleteTarget(null)
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete attribute?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the{' '}
-              <code className="font-mono text-foreground">
-                {deleteTarget?.key}
-              </code>{' '}
-              attribute definition. Existing contact data with this attribute
-              key will not be deleted but will no longer have a schema
-              definition.
+              This will permanently remove the <code className="font-mono text-foreground">{deleteTarget?.key}</code>{' '}
+              attribute definition. Existing contact data with this attribute key will not be deleted but will no longer
+              have a schema definition.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() =>
-                deleteTarget && deleteMutation.mutate(deleteTarget.id)
-              }
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteMutation.isPending}
             >
@@ -543,9 +449,9 @@ function AttributeDefinitionsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/messaging/contacts/attributes')({
   component: AttributeDefinitionsPage,
-});
+})

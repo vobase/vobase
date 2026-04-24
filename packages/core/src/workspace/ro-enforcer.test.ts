@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { InMemoryFs } from 'just-bash'
+
 import { buildReadOnlyConfig, checkWriteAllowed, isWritablePath, ReadOnlyFsError, ScopedFs } from './ro-enforcer'
 
 const WRITABLE = ['/contacts/c_abc/drive/', '/tmp/'] as const

@@ -1,34 +1,22 @@
-import { CornerUpLeftIcon, UserIcon } from 'lucide-react';
-import { memo } from 'react';
+import { CornerUpLeftIcon, UserIcon } from 'lucide-react'
+import { memo } from 'react'
 
-import {
-  Message,
-  MessageContent,
-  MessageResponse,
-} from '@/components/ai-elements/message';
-import { ChannelBadge } from '@/components/conversation-badges';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { cn } from '@/lib/utils';
-import {
-  MediaContent,
-  parseContentMetadata,
-  parseMedia,
-} from './media-content';
-import { MessageReactions } from './message-reactions';
-import type { MessageRow, SenderInfo } from './types';
+import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message'
+import { ChannelBadge } from '@/components/conversation-badges'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { cn } from '@/lib/utils'
+import { MediaContent, parseContentMetadata, parseMedia } from './media-content'
+import { MessageReactions } from './message-reactions'
+import type { MessageRow, SenderInfo } from './types'
 
 interface IncomingMessageProps {
-  message: MessageRow;
-  sender?: SenderInfo;
-  onReplyClick?: (
-    messageId: string,
-    senderName: string,
-    contentPreview: string,
-  ) => void;
-  className?: string;
+  message: MessageRow
+  sender?: SenderInfo
+  onReplyClick?: (messageId: string, senderName: string, contentPreview: string) => void
+  className?: string
   /** Channel type — shown as badge when contact uses multiple channels. */
-  channelType?: string | null;
+  channelType?: string | null
 }
 
 export const IncomingMessage = memo(function IncomingMessage({
@@ -38,17 +26,15 @@ export const IncomingMessage = memo(function IncomingMessage({
   className,
   channelType,
 }: IncomingMessageProps) {
-  const isWithdrawn = message.withdrawn;
-  const name = sender?.name ?? 'Customer';
+  const isWithdrawn = message.withdrawn
+  const name = sender?.name ?? 'Customer'
 
   // WhatsApp sends single \n for line breaks; the markdown renderer needs \n\n
   // for paragraph breaks. Only double lone \n — preserve existing \n\n sequences.
   const displayContent =
-    channelType === 'whatsapp'
-      ? message.content.replace(/(?<!\n)\n(?!\n)/g, '\n\n')
-      : message.content;
+    channelType === 'whatsapp' ? message.content.replace(/(?<!\n)\n(?!\n)/g, '\n\n') : message.content
 
-  const contentMetadata = parseContentMetadata(message.contentData);
+  const contentMetadata = parseContentMetadata(message.contentData)
 
   return (
     <Message from="assistant" className={cn('group', className)}>
@@ -56,11 +42,7 @@ export const IncomingMessage = memo(function IncomingMessage({
         <Avatar className="size-7">
           <AvatarImage src={sender?.image ?? undefined} alt={name} />
           <AvatarFallback className="bg-muted text-xs font-medium text-muted-foreground">
-            {sender?.name ? (
-              sender.name.charAt(0).toUpperCase()
-            ) : (
-              <UserIcon className="size-3.5" />
-            )}
+            {sender?.name ? sender.name.charAt(0).toUpperCase() : <UserIcon className="size-3.5" />}
           </AvatarFallback>
         </Avatar>
         <div className="flex flex-col gap-1 min-w-0">
@@ -72,30 +54,19 @@ export const IncomingMessage = memo(function IncomingMessage({
               <button
                 type="button"
                 title="Reply"
-                onClick={() =>
-                  onReplyClick(message.id, name, message.content.slice(0, 100))
-                }
+                onClick={() => onReplyClick(message.id, name, message.content.slice(0, 100))}
                 className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground"
               >
                 <CornerUpLeftIcon className="h-3 w-3" />
               </button>
             )}
           </div>
-          <MessageContent
-            className={cn(
-              'rounded-lg bg-muted px-3 py-2',
-              isWithdrawn && 'opacity-50 italic',
-            )}
-          >
+          <MessageContent className={cn('rounded-lg bg-muted px-3 py-2', isWithdrawn && 'opacity-50 italic')}>
             {isWithdrawn ? (
-              <span className="text-sm text-muted-foreground italic">
-                Message withdrawn
-              </span>
+              <span className="text-sm text-muted-foreground italic">Message withdrawn</span>
             ) : (
               <>
-                {displayContent && (
-                  <MessageResponse>{displayContent}</MessageResponse>
-                )}
+                {displayContent && <MessageResponse>{displayContent}</MessageResponse>}
                 <MediaContent
                   contentType={message.contentType}
                   media={parseMedia(message.contentData)}
@@ -109,10 +80,10 @@ export const IncomingMessage = memo(function IncomingMessage({
             <MessageReactions
               reactions={
                 message.contentData.reactions as Array<{
-                  from: string;
-                  emoji: string;
-                  action: string;
-                  timestamp?: string;
+                  from: string
+                  emoji: string
+                  action: string
+                  timestamp?: string
                 }>
               }
             />
@@ -120,5 +91,5 @@ export const IncomingMessage = memo(function IncomingMessage({
         </div>
       </div>
     </Message>
-  );
-});
+  )
+})

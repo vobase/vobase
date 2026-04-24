@@ -1,126 +1,102 @@
-import { CircuitBreaker, type CircuitBreakerOptions } from './circuit-breaker';
+import { CircuitBreaker, type CircuitBreakerOptions } from './circuit-breaker'
 
 export interface HttpClientOptions {
-  baseUrl?: string;
-  timeout?: number;
-  retries?: number;
-  retryDelay?: number;
-  retryAllMethods?: boolean;
-  circuitBreaker?: CircuitBreakerOptions;
+  baseUrl?: string
+  timeout?: number
+  retries?: number
+  retryDelay?: number
+  retryAllMethods?: boolean
+  circuitBreaker?: CircuitBreakerOptions
 }
 
 export interface RequestOptions {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: unknown;
-  timeout?: number;
-  retries?: number;
+  method?: string
+  headers?: Record<string, string>
+  body?: unknown
+  timeout?: number
+  retries?: number
 }
 
 export interface HttpResponse<T = unknown> {
-  ok: boolean;
-  status: number;
-  headers: Headers;
-  data: T;
-  raw: Response;
+  ok: boolean
+  status: number
+  headers: Headers
+  data: T
+  raw: Response
 }
 
 export interface HttpClient {
-  fetch<T = unknown>(
-    url: string,
-    options?: RequestOptions,
-  ): Promise<HttpResponse<T>>;
-  get<T = unknown>(
-    url: string,
-    options?: Omit<RequestOptions, 'method' | 'body'>,
-  ): Promise<HttpResponse<T>>;
+  fetch<T = unknown>(url: string, options?: RequestOptions): Promise<HttpResponse<T>>
+  get<T = unknown>(url: string, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<HttpResponse<T>>
   post<T = unknown>(
     url: string,
     body?: unknown,
     options?: Omit<RequestOptions, 'method' | 'body'>,
-  ): Promise<HttpResponse<T>>;
+  ): Promise<HttpResponse<T>>
   put<T = unknown>(
     url: string,
     body?: unknown,
     options?: Omit<RequestOptions, 'method' | 'body'>,
-  ): Promise<HttpResponse<T>>;
-  delete<T = unknown>(
-    url: string,
-    options?: Omit<RequestOptions, 'method' | 'body'>,
-  ): Promise<HttpResponse<T>>;
+  ): Promise<HttpResponse<T>>
+  delete<T = unknown>(url: string, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<HttpResponse<T>>
 }
 
-const DEFAULT_TIMEOUT = 30_000;
+const DEFAULT_TIMEOUT = 30_000
 
 function isAbsoluteUrl(url: string): boolean {
-  return url.startsWith('http://') || url.startsWith('https://');
+  return url.startsWith('http://') || url.startsWith('https://')
 }
 
 async function parseResponseData(response: Response): Promise<unknown> {
-  const contentType = response.headers.get('content-type') ?? '';
-  const contentLength = response.headers.get('content-length');
+  const contentType = response.headers.get('content-type') ?? ''
+  const contentLength = response.headers.get('content-length')
 
-  if (
-    response.status === 204 ||
-    contentLength === '0' ||
-    response.body === null
-  ) {
-    return null;
+  if (response.status === 204 || contentLength === '0' || response.body === null) {
+    return null
   }
 
   if (contentType.includes('application/json')) {
-    return response.json();
+    return response.json()
   }
 
-  const text = await response.text();
+  const text = await response.text()
   if (!text) {
-    return null;
+    return null
   }
 
-  return text;
+  return text
 }
 
-const DEFAULT_RETRIES = 0;
-const DEFAULT_RETRY_DELAY = 1000;
+const DEFAULT_RETRIES = 0
+const DEFAULT_RETRY_DELAY = 1000
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function isRetryableStatus(status: number): boolean {
-  return status >= 500;
+  return status >= 500
 }
 
 export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
-  const baseUrl = defaults?.baseUrl ?? '';
-  const defaultTimeout = defaults?.timeout ?? DEFAULT_TIMEOUT;
-  const defaultRetries = defaults?.retries ?? DEFAULT_RETRIES;
-  const defaultRetryDelay = defaults?.retryDelay ?? DEFAULT_RETRY_DELAY;
-  const retryAllMethods = defaults?.retryAllMethods ?? false;
-  const breaker = defaults?.circuitBreaker
-    ? new CircuitBreaker(defaults.circuitBreaker)
-    : undefined;
+  const baseUrl = defaults?.baseUrl ?? ''
+  const defaultTimeout = defaults?.timeout ?? DEFAULT_TIMEOUT
+  const defaultRetries = defaults?.retries ?? DEFAULT_RETRIES
+  const defaultRetryDelay = defaults?.retryDelay ?? DEFAULT_RETRY_DELAY
+  const retryAllMethods = defaults?.retryAllMethods ?? false
+  const breaker = defaults?.circuitBreaker ? new CircuitBreaker(defaults.circuitBreaker) : undefined
 
-  async function doFetch<T = unknown>(
-    url: string,
-    options?: RequestOptions,
-  ): Promise<HttpResponse<T>> {
+  async function doFetch<T = unknown>(url: string, options?: RequestOptions): Promise<HttpResponse<T>> {
     if (breaker?.isOpen()) {
-      throw new Error('Circuit breaker is open');
+      throw new Error('Circuit breaker is open')
     }
-    const resolvedUrl = isAbsoluteUrl(url) ? url : `${baseUrl}${url}`;
-    const timeout = options?.timeout ?? defaultTimeout;
-    const maxRetries = options?.retries ?? defaultRetries;
-    const method = options?.method ?? 'GET';
+    const resolvedUrl = isAbsoluteUrl(url) ? url : `${baseUrl}${url}`
+    const timeout = options?.timeout ?? defaultTimeout
+    const maxRetries = options?.retries ?? defaultRetries
+    const method = options?.method ?? 'GET'
 
-    const headers: Record<string, string> = { ...options?.headers };
-    let body:
-      | string
-      | Blob
-      | FormData
-      | ArrayBuffer
-      | URLSearchParams
-      | undefined;
+    const headers: Record<string, string> = { ...options?.headers }
+    let body: string | Blob | FormData | ArrayBuffer | URLSearchParams | undefined
 
     if (options?.body !== undefined) {
       if (
@@ -130,22 +106,22 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
         options.body instanceof ArrayBuffer ||
         options.body instanceof URLSearchParams
       ) {
-        body = options.body;
+        body = options.body
       } else if (options.body instanceof ReadableStream) {
         // Buffer ReadableStream so it can be replayed on retries
-        body = await new Response(options.body).arrayBuffer();
+        body = await new Response(options.body).arrayBuffer()
       } else {
-        headers['content-type'] = headers['content-type'] ?? 'application/json';
-        body = JSON.stringify(options.body);
+        headers['content-type'] = headers['content-type'] ?? 'application/json'
+        body = JSON.stringify(options.body)
       }
     }
 
-    let lastError: unknown;
-    let lastResponse: HttpResponse<T> | undefined;
+    let lastError: unknown
+    let lastResponse: HttpResponse<T> | undefined
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
-        await sleep(defaultRetryDelay * 2 ** (attempt - 1));
+        await sleep(defaultRetryDelay * 2 ** (attempt - 1))
       }
 
       try {
@@ -154,9 +130,9 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
           headers,
           body,
           signal: AbortSignal.timeout(timeout),
-        });
+        })
 
-        const data = (await parseResponseData(response)) as T;
+        const data = (await parseResponseData(response)) as T
 
         lastResponse = {
           ok: response.ok,
@@ -164,71 +140,53 @@ export function createHttpClient(defaults?: HttpClientOptions): HttpClient {
           headers: response.headers,
           data,
           raw: response,
-        };
+        }
 
         // Retry on 5xx (GET always, other methods only with retryAllMethods)
-        if (
-          isRetryableStatus(response.status) &&
-          (method === 'GET' || retryAllMethods) &&
-          attempt < maxRetries
-        ) {
-          breaker?.recordFailure();
-          continue;
+        if (isRetryableStatus(response.status) && (method === 'GET' || retryAllMethods) && attempt < maxRetries) {
+          breaker?.recordFailure()
+          continue
         }
 
         if (isRetryableStatus(response.status)) {
-          breaker?.recordFailure();
+          breaker?.recordFailure()
         } else {
-          breaker?.recordSuccess();
+          breaker?.recordSuccess()
         }
 
-        return lastResponse;
+        return lastResponse
       } catch (error) {
-        lastError = error;
-        breaker?.recordFailure();
+        lastError = error
+        breaker?.recordFailure()
       }
     }
 
     // If we have a last response (5xx after exhausting retries), return it
     if (lastResponse) {
-      return lastResponse;
+      return lastResponse
     }
 
     // Otherwise throw the last network error
-    throw lastError;
+    throw lastError
   }
 
   return {
     fetch: doFetch,
 
-    get<T = unknown>(
-      url: string,
-      options?: Omit<RequestOptions, 'method' | 'body'>,
-    ) {
-      return doFetch<T>(url, { ...options, method: 'GET' });
+    get<T = unknown>(url: string, options?: Omit<RequestOptions, 'method' | 'body'>) {
+      return doFetch<T>(url, { ...options, method: 'GET' })
     },
 
-    post<T = unknown>(
-      url: string,
-      body?: unknown,
-      options?: Omit<RequestOptions, 'method' | 'body'>,
-    ) {
-      return doFetch<T>(url, { ...options, method: 'POST', body });
+    post<T = unknown>(url: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) {
+      return doFetch<T>(url, { ...options, method: 'POST', body })
     },
 
-    put<T = unknown>(
-      url: string,
-      body?: unknown,
-      options?: Omit<RequestOptions, 'method' | 'body'>,
-    ) {
-      return doFetch<T>(url, { ...options, method: 'PUT', body });
+    put<T = unknown>(url: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) {
+      return doFetch<T>(url, { ...options, method: 'PUT', body })
     },
 
-    delete<T = unknown>(
-      url: string,
-      options?: Omit<RequestOptions, 'method' | 'body'>,
-    ) {
-      return doFetch<T>(url, { ...options, method: 'DELETE' });
+    delete<T = unknown>(url: string, options?: Omit<RequestOptions, 'method' | 'body'>) {
+      return doFetch<T>(url, { ...options, method: 'DELETE' })
     },
-  };
+  }
 }

@@ -2,6 +2,7 @@ import type { ScopedDb } from '@server/common/scoped-db'
 import { authMember } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 import type { Context, MiddlewareHandler } from 'hono'
+
 import type { OrganizationEnv } from './require-organization'
 
 export interface RoleEnv {

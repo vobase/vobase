@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { renderToStaticMarkup } from 'react-dom/server'
+
 import { ListDetailLayout } from '../list-detail-layout'
 
 function render(ui: React.ReactNode, searchParams = '') {

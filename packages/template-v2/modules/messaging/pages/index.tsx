@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Inbox as MessagingIcon } from 'lucide-react'
+
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 
 export function MessagingEmptyState() {

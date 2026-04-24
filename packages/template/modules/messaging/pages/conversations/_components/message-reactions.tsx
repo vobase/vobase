@@ -1,17 +1,17 @@
-import { memo } from 'react';
+import { memo } from 'react'
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils'
 
 interface Reaction {
-  from: string;
-  emoji: string;
-  action: string;
-  timestamp?: string;
+  from: string
+  emoji: string
+  action: string
+  timestamp?: string
 }
 
 interface MessageReactionsProps {
-  reactions: Reaction[];
-  className?: string;
+  reactions: Reaction[]
+  className?: string
 }
 
 const EMOJI_NAMES: Record<string, string> = {
@@ -25,33 +25,30 @@ const EMOJI_NAMES: Record<string, string> = {
   '🙏': 'praying',
   '🔥': 'fire',
   '👏': 'clapping',
-};
-
-function emojiLabel(emoji: string, count: number): string {
-  const name = EMOJI_NAMES[emoji] ?? 'reaction';
-  return `${count} ${name} ${count === 1 ? 'reaction' : 'reactions'}`;
 }
 
-export const MessageReactions = memo(function MessageReactions({
-  reactions,
-  className,
-}: MessageReactionsProps) {
+function emojiLabel(emoji: string, count: number): string {
+  const name = EMOJI_NAMES[emoji] ?? 'reaction'
+  return `${count} ${name} ${count === 1 ? 'reaction' : 'reactions'}`
+}
+
+export const MessageReactions = memo(function MessageReactions({ reactions, className }: MessageReactionsProps) {
   // Filter to only 'react' actions (dedupe by sender: last emoji per sender wins)
-  const deduped = new Map<string, string>();
+  const deduped = new Map<string, string>()
   for (const r of reactions) {
     if (r.action !== 'unreact') {
-      deduped.set(r.from, r.emoji);
+      deduped.set(r.from, r.emoji)
     } else {
-      deduped.delete(r.from);
+      deduped.delete(r.from)
     }
   }
 
-  if (deduped.size === 0) return null;
+  if (deduped.size === 0) return null
 
   // Group by emoji → count
-  const counts = new Map<string, number>();
+  const counts = new Map<string, number>()
   for (const emoji of deduped.values()) {
-    counts.set(emoji, (counts.get(emoji) ?? 0) + 1);
+    counts.set(emoji, (counts.get(emoji) ?? 0) + 1)
   }
 
   return (
@@ -64,11 +61,9 @@ export const MessageReactions = memo(function MessageReactions({
           aria-label={emojiLabel(emoji, count)}
         >
           {emoji}
-          {count > 1 && (
-            <span className="text-muted-foreground font-medium">{count}</span>
-          )}
+          {count > 1 && <span className="text-muted-foreground font-medium">{count}</span>}
         </span>
       ))}
     </div>
-  );
-});
+  )
+})

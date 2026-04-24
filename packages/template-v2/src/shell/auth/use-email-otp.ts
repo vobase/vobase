@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+
 import { authClient } from '@/lib/auth-client'
 
 export async function sendOtpFn({ email }: { email: string }) {

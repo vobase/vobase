@@ -3,9 +3,10 @@
 // provides.observers / provides.mutators / provides.commands arrays.
 // Boot-time runtime check (checkProvidesId) handles the dynamic case; this test
 // catches inline-literal drift in source without executing boot.
-import { describe, expect, it } from 'bun:test'
+
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { describe, expect, it } from 'bun:test'
 
 const MODULES_DIR = join(import.meta.dir, '..')
 const STRICT = process.env.CHECK_SHAPE_STRICT === 'true'

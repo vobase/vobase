@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { ScopedDb } from '@server/common/scoped-db'
 import { Hono, type MiddlewareHandler } from 'hono'
+
 import { createRequireRole, type RoleEnv } from './require-role'
 
 function fakeDb(role: string | null): ScopedDb {

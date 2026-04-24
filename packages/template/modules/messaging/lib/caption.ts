@@ -7,66 +7,49 @@
  * - Audio/Video: placeholder captions (v2 will add transcription)
  */
 
-import { unlink } from 'node:fs/promises';
-import type { StorageService } from '@vobase/core';
-import { logger } from '@vobase/core';
-import sharp from 'sharp';
+import { unlink } from 'node:fs/promises'
+import type { StorageService } from '@vobase/core'
+import { logger } from '@vobase/core'
+import sharp from 'sharp'
 
-import { models } from '../../agents/mastra/lib/models';
-import { getChatModel } from '../../agents/mastra/lib/provider';
-import {
-  encodeToJpeg,
-  extractDocument,
-} from '../../knowledge-base/lib/extract';
-import { plateToMarkdown } from '../../knowledge-base/lib/plate-serialize';
+import { models } from '../../agents/mastra/lib/models'
+import { getChatModel } from '../../agents/mastra/lib/provider'
+import { encodeToJpeg, extractDocument } from '../../knowledge-base/lib/extract'
+import { plateToMarkdown } from '../../knowledge-base/lib/plate-serialize'
 
 const CAPTION_PROMPT = `You are a precise visual analysis system for a customer service platform.
 Describe this image concisely for a customer service agent. Focus on:
 1. What the image shows (type: receipt, invoice, product photo, screenshot, ID document, etc.)
 2. Any visible text — transcribe exactly (amounts, dates, names, reference numbers, line items)
 3. Key data points relevant to customer service (totals, due dates, order numbers, product names)
-Keep under 300 words. Be factual — no speculation about intent.`;
+Keep under 300 words. Be factual — no speculation about intent.`
 
 /** Max file size for direct text reading (100KB). */
-const TEXT_READ_MAX_BYTES = 100 * 1024;
+const TEXT_READ_MAX_BYTES = 100 * 1024
 
 /** Extensions eligible for direct text reading (no AI call). */
-const TEXT_EXTENSIONS = new Set([
-  '.txt',
-  '.md',
-  '.csv',
-  '.json',
-  '.yaml',
-  '.yml',
-  '.py',
-  '.js',
-  '.ts',
-  '.html',
-  '.css',
-]);
+const TEXT_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json', '.yaml', '.yml', '.py', '.js', '.ts', '.html', '.css'])
 
 /** Cache generateText import (heavy AI SDK dep — dynamic per project convention). */
-let cachedGenerateText: typeof import('ai').generateText | null = null;
+let cachedGenerateText: typeof import('ai').generateText | null = null
 
 async function getGenerateText() {
   if (!cachedGenerateText) {
-    const { generateText } = await import('ai');
-    cachedGenerateText = generateText;
+    const { generateText } = await import('ai')
+    cachedGenerateText = generateText
   }
-  return cachedGenerateText;
+  return cachedGenerateText
 }
 
 /**
  * Caption an image via vision model. Optimizes to JPEG first to reduce token cost.
  * Returns structured description string, or null on failure.
  */
-export async function captionMedia(
-  imageBuffer: Buffer,
-): Promise<string | null> {
+export async function captionMedia(imageBuffer: Buffer): Promise<string | null> {
   try {
-    const generateText = await getGenerateText();
-    const { data: jpegBuffer } = await encodeToJpeg(sharp(imageBuffer));
-    const base64 = jpegBuffer.toString('base64');
+    const generateText = await getGenerateText()
+    const { data: jpegBuffer } = await encodeToJpeg(sharp(imageBuffer))
+    const base64 = jpegBuffer.toString('base64')
 
     const result = await generateText({
       model: getChatModel(models.gemini_flash),
@@ -79,12 +62,12 @@ export async function captionMedia(
           ],
         },
       ],
-    });
+    })
 
-    return result.text || null;
+    return result.text || null
   } catch (err) {
-    logger.error('[caption] captionMedia failed', { error: err });
-    return null;
+    logger.error('[caption] captionMedia failed', { error: err })
+    return null
   }
 }
 
@@ -99,44 +82,40 @@ export async function captionDocument(
   mimeType: string,
   storage: StorageService,
 ): Promise<string | null> {
-  const tmpPath = `/tmp/caption-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const tmpPath = `/tmp/caption-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
   try {
-    const bucket = storage.bucket('chat-attachments');
-    const data = await bucket.download(storageKey);
-    const buffer = Buffer.from(data);
+    const bucket = storage.bucket('chat-attachments')
+    const data = await bucket.download(storageKey)
+    const buffer = Buffer.from(data)
 
     // Text-readable files: read content directly if under size limit
-    const ext = extractExtension(storageKey);
-    if (
-      ext &&
-      TEXT_EXTENSIONS.has(ext) &&
-      buffer.byteLength <= TEXT_READ_MAX_BYTES
-    ) {
-      const text = new TextDecoder().decode(buffer).trim();
-      return text || null;
+    const ext = extractExtension(storageKey)
+    if (ext && TEXT_EXTENSIONS.has(ext) && buffer.byteLength <= TEXT_READ_MAX_BYTES) {
+      const text = new TextDecoder().decode(buffer).trim()
+      return text || null
     }
 
     // Binary documents: extract via KB pipeline
-    await Bun.write(tmpPath, buffer);
+    await Bun.write(tmpPath, buffer)
 
-    const result = await extractDocument(tmpPath, mimeType);
+    const result = await extractDocument(tmpPath, mimeType)
 
     if (result.status === 'needs_ocr') {
-      return null; // Caller writes fallback
+      return null // Caller writes fallback
     }
 
-    const markdown = plateToMarkdown(result.value);
-    return markdown.trim() || null;
+    const markdown = plateToMarkdown(result.value)
+    return markdown.trim() || null
   } catch (err) {
     logger.error('[caption] captionDocument failed', {
       storageKey,
       error: err,
-    });
-    return null;
+    })
+    return null
   } finally {
     try {
-      await unlink(tmpPath);
+      await unlink(tmpPath)
     } catch {
       // Temp file may not exist if download failed
     }
@@ -155,30 +134,30 @@ export async function getCaptionForContentType(
 ): Promise<string | null> {
   switch (contentType) {
     case 'image': {
-      if (!storage || !storageKey) return null;
-      const bucket = storage.bucket('chat-attachments');
-      const data = await bucket.download(storageKey);
-      return captionMedia(Buffer.from(data));
+      if (!storage || !storageKey) return null
+      const bucket = storage.bucket('chat-attachments')
+      const data = await bucket.download(storageKey)
+      return captionMedia(Buffer.from(data))
     }
 
     case 'document':
-      if (!storage || !storageKey || !mimeType) return null;
-      return captionDocument(storageKey, mimeType, storage);
+      if (!storage || !storageKey || !mimeType) return null
+      return captionDocument(storageKey, mimeType, storage)
 
     case 'audio':
-      return '(voice message — transcription not yet available)';
+      return '(voice message — transcription not yet available)'
 
     case 'video':
-      return '(video — description not yet available)';
+      return '(video — description not yet available)'
 
     default:
-      return null;
+      return null
   }
 }
 
 /** Extract file extension from a storage key or filename. */
 function extractExtension(key: string): string | null {
-  const lastDot = key.lastIndexOf('.');
-  if (lastDot === -1) return null;
-  return key.slice(lastDot).toLowerCase();
+  const lastDot = key.lastIndexOf('.')
+  if (lastDot === -1) return null
+  return key.slice(lastDot).toLowerCase()
 }

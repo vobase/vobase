@@ -13,15 +13,10 @@
  * - Labels, reactions, feedback, channel sessions, activity events
  */
 
-import { faker } from '@faker-js/faker';
-import type { VobaseDb } from '@vobase/core';
-import {
-  authMember,
-  authOrganization,
-  authUser,
-  channelsTemplates,
-} from '@vobase/core';
-import { eq } from 'drizzle-orm';
+import { faker } from '@faker-js/faker'
+import type { VobaseDb } from '@vobase/core'
+import { authMember, authOrganization, authUser, channelsTemplates } from '@vobase/core'
+import { eq } from 'drizzle-orm'
 
 import {
   automationRuleSteps,
@@ -42,19 +37,19 @@ import {
   messageFeedback,
   messages,
   reactions,
-} from './schema';
+} from './schema'
 
 // Deterministic seed so `bun run db:seed` always produces the same data
-faker.seed(42);
+faker.seed(42)
 
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
+const green = (s: string) => `\x1b[32m${s}\x1b[0m`
 
 function hoursAgo(n: number): Date {
-  return new Date(Date.now() - n * 60 * 60 * 1000);
+  return new Date(Date.now() - n * 60 * 60 * 1000)
 }
 
 function pick<T>(arr: T[]): T {
-  return arr[faker.number.int({ min: 0, max: arr.length - 1 })];
+  return arr[faker.number.int({ min: 0, max: arr.length - 1 })]
 }
 
 // ─── Scripted narratives for handcrafted contacts ───────────────────
@@ -74,10 +69,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Do you have anything on Wednesday afternoon?',
       'Yes! I have 2:00 PM and 3:30 PM available this Wednesday. Which works better?',
     ],
-    [
-      '2 PM please.',
-      'Done! Your appointment is confirmed for Wednesday at 2:00 PM. Reference: BK-4821. See you then!',
-    ],
+    ['2 PM please.', 'Done! Your appointment is confirmed for Wednesday at 2:00 PM. Reference: BK-4821. See you then!'],
     // segment 2 — pre-visit questions
     [
       'Hi, quick question before my appointment tomorrow — do I need to fast?',
@@ -118,10 +110,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Hey, David sorted out the insurance. All good now. I need to reschedule my follow-up.',
       'Great news about the insurance! Let me check follow-up availability. When were you thinking?',
     ],
-    [
-      'Sometime next week? Morning if possible.',
-      'I have Tuesday 9:30 AM and Thursday 10:00 AM. Either work?',
-    ],
+    ['Sometime next week? Morning if possible.', 'I have Tuesday 9:30 AM and Thursday 10:00 AM. Either work?'],
     [
       'Actually wait — can I reopen this? I just realized I also need to bring my lab results.',
       'Of course! I have noted that. Bring your lab results printout to the follow-up. Shall I book Tuesday 9:30 AM?',
@@ -201,10 +190,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Subject: Refund Confirmation\n\nDid the duplicate charge refund go through? I do not see it yet.',
       'Hi Bob! I checked — the refund was processed yesterday and should appear in your account within 1-2 business days. Reference: REF-3301.',
     ],
-    [
-      'Ok, I will check tomorrow. Thanks.',
-      'You are welcome! Let us know if it does not show up by Friday.',
-    ],
+    ['Ok, I will check tomorrow. Thanks.', 'You are welcome! Let us know if it does not show up by Friday.'],
   ],
   // ── Bob web (surviving int-bob-web-06): all 6 original segments concatenated
   'int-bob-web-06': [
@@ -333,34 +319,16 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
 
   // ── Diana: abandoned ───────────────────────────────────────────────
   'int-diana-wa-1': [
-    [
-      'Hi, do you offer weekend appointments?',
-      'Hi Diana! Yes, we have Saturday 9 AM to 5 PM. Would you like to book?',
-    ],
-    [
-      'What is available this Saturday?',
-      'This Saturday: 9:00 AM, 11:30 AM, and 2:00 PM. Which works?',
-    ],
-    [
-      'Let me check and get back to you.',
-      'Sure, take your time! Just message when you are ready.',
-    ],
+    ['Hi, do you offer weekend appointments?', 'Hi Diana! Yes, we have Saturday 9 AM to 5 PM. Would you like to book?'],
+    ['What is available this Saturday?', 'This Saturday: 9:00 AM, 11:30 AM, and 2:00 PM. Which works?'],
+    ['Let me check and get back to you.', 'Sure, take your time! Just message when you are ready.'],
   ],
 
   // ── Edward: resolving ──────────────────────────────────────────────
   'int-edward-web-1': [
-    [
-      'I want to book a general checkup for next week.',
-      'Hi Edward! Morning or afternoon?',
-    ],
-    [
-      'Morning please, before 11.',
-      'Monday 9:00 AM or Thursday 10:30 AM. Preference?',
-    ],
-    [
-      'Thursday 10:30.',
-      'Confirmed! Thursday 10:30 AM. Reference: BK-5201. Anything else?',
-    ],
+    ['I want to book a general checkup for next week.', 'Hi Edward! Morning or afternoon?'],
+    ['Morning please, before 11.', 'Monday 9:00 AM or Thursday 10:30 AM. Preference?'],
+    ['Thursday 10:30.', 'Confirmed! Thursday 10:30 AM. Reference: BK-5201. Anything else?'],
     ['No, that is all. Thanks!', 'See you Thursday, Edward!'],
   ],
 
@@ -374,18 +342,12 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
 
   // ── George: topic change pending ───────────────────────────────────
   'int-george-wa-1': [
-    [
-      'Hey, confirming my Friday 3:30 PM is still on.',
-      'Hi George! Yes, confirmed. Reference: BK-4990.',
-    ],
+    ['Hey, confirming my Friday 3:30 PM is still on.', 'Hi George! Yes, confirmed. Reference: BK-4990.'],
     [
       'Great. Do you also do physiotherapy? Different question.',
       'We do! Let me close the appointment confirmation and start a new inquiry for physio.',
     ],
-    [
-      'Sure, go ahead.',
-      'Friday appointment is set. Next message will start a fresh physiotherapy conversation!',
-    ],
+    ['Sure, go ahead.', 'Friday appointment is set. Next message will start a fresh physiotherapy conversation!'],
   ],
 
   // ── Hannah: human mode ─────────────────────────────────────────────
@@ -434,10 +396,7 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
       'Subject: Appointment Confirmation\n\nPlease confirm my appointment details. Name: Kenny Ng.',
       'Hi Kenny! Confirmed: Thursday 2 PM, General Consultation with Dr. Tan. Reference: BK-5300.',
     ],
-    [
-      'Is parking available?',
-      'Yes! Basement parking at Block 5 — first 2 hours free. Validate at reception.',
-    ],
+    ['Is parking available?', 'Yes! Basement parking at Block 5 — first 2 hours free. Validate at reception.'],
   ],
 
   // ── Lily: escalation story ─────────────────────────────────────────
@@ -489,66 +448,36 @@ const SCRIPTED: Record<string, Array<[string, string]>> = {
     ],
   ],
   'int-lead-oscar-1': [
-    [
-      'Saw the Instagram promo. Still running?',
-      'Hi Oscar! Yes — 15% off any booking this month.',
-    ],
+    ['Saw the Instagram promo. Still running?', 'Hi Oscar! Yes — 15% off any booking this month.'],
     ['Maybe later.', 'No problem! Promo runs until end of month.'],
   ],
-};
+}
 
 // Generic dialogue turns used only for bulk (random) conversations
 const GENERIC_TURNS: Array<[string, string]> = [
-  [
-    'Hi, I would like to book an appointment please.',
-    'Hi! I am your booking assistant. How can I help you today?',
-  ],
+  ['Hi, I would like to book an appointment please.', 'Hi! I am your booking assistant. How can I help you today?'],
   [
     'Do you have any slots available this week?',
     'Let me check availability for you. We have openings on Monday, Wednesday, and Friday.',
   ],
-  [
-    'What times do you have on Wednesday?',
-    'Wednesday slots: 10:00 AM, 11:30 AM, 2:00 PM, 3:30 PM. Which works best?',
-  ],
+  ['What times do you have on Wednesday?', 'Wednesday slots: 10:00 AM, 11:30 AM, 2:00 PM, 3:30 PM. Which works best?'],
   [
     'Afternoon would be better for me.',
     'We have 2:00 PM and 3:30 PM on Wednesday, and 1:00 PM on Thursday. Any preference?',
   ],
-  [
-    'Let me go with Wednesday at 2 PM.',
-    'Confirmed! Reference: BK-4821. See you Wednesday at 2:00 PM.',
-  ],
-  [
-    'I need to reschedule my appointment.',
-    'Let me pull up your booking. When would you like to reschedule to?',
-  ],
-  [
-    'Can I move it to Friday instead?',
-    'Friday works. I have 10:00 AM and 2:30 PM available. Which do you prefer?',
-  ],
+  ['Let me go with Wednesday at 2 PM.', 'Confirmed! Reference: BK-4821. See you Wednesday at 2:00 PM.'],
+  ['I need to reschedule my appointment.', 'Let me pull up your booking. When would you like to reschedule to?'],
+  ['Can I move it to Friday instead?', 'Friday works. I have 10:00 AM and 2:30 PM available. Which do you prefer?'],
   ['Thanks, that is all I need.', 'You are welcome! Have a great day.'],
-  [
-    'Do I need to bring anything?',
-    'Please bring a valid ID and any relevant medical records.',
-  ],
-  [
-    'How long will the appointment take?',
-    'A general consultation typically takes 30-45 minutes.',
-  ],
-  [
-    'What is your cancellation policy?',
-    'You can cancel or reschedule up to 24 hours before at no charge.',
-  ],
-  [
-    'Do you have anything earlier in the day?',
-    'For mornings, I have 9:00 AM on Tuesday and 10:30 AM on Thursday.',
-  ],
+  ['Do I need to bring anything?', 'Please bring a valid ID and any relevant medical records.'],
+  ['How long will the appointment take?', 'A general consultation typically takes 30-45 minutes.'],
+  ['What is your cancellation policy?', 'You can cancel or reschedule up to 24 hours before at no charge.'],
+  ['Do you have anything earlier in the day?', 'For mornings, I have 9:00 AM on Tuesday and 10:30 AM on Thursday.'],
   [
     'This is not working, can I speak to someone?',
     'I understand your frustration. Let me connect you with a staff member.',
   ],
-];
+]
 
 const STAFF_NOTES = [
   'Customer seems frustrated — previous booking was lost. Handle with care.',
@@ -556,7 +485,7 @@ const STAFF_NOTES = [
   'Referred by Dr. Tan, give complimentary first consultation.',
   'Follow up in 2 days if no response.',
   'Insurance details need to be verified before appointment.',
-];
+]
 
 // ─── Named contacts ─────────────────────────────────────────────────
 // Fixed IDs so conversations can reference them deterministically.
@@ -745,9 +674,9 @@ const SEED_CONTACTS = [
       lifetime_spend_cents: '124900',
     },
   },
-];
+]
 
-const customers = SEED_CONTACTS.filter((c) => c.role === 'customer');
+const customers = SEED_CONTACTS.filter((c) => c.role === 'customer')
 
 // ─── Contact attribute definitions ──────────────────────────────────
 
@@ -822,7 +751,7 @@ const SEED_ATTRIBUTE_DEFINITIONS = [
     showInTable: false,
     sortOrder: 9,
   },
-];
+]
 
 // ─── WhatsApp message templates ─────────────────────────────────────
 
@@ -1107,7 +1036,7 @@ const SEED_TEMPLATES = [
     ]),
     syncedAt: hoursAgo(48),
   },
-];
+]
 
 // ─── Broadcasts ──────────────────────────────────────────────────────
 
@@ -1237,7 +1166,7 @@ const SEED_BROADCASTS = [
     failedCount: 0,
     createdBy: 'seed-admin',
   },
-];
+]
 
 // ─── Automation rules ────────────────────────────────────────────────
 // Three segmented lead-nurture automations that fire on a recurring
@@ -1247,8 +1176,7 @@ const SEED_AUTOMATION_RULES: (typeof automationRules.$inferInsert)[] = [
   {
     id: 'ar-lunch-crowd',
     name: 'Lunch Crowd — Weekly Promo',
-    description:
-      'Every Monday morning, nudge the lunch-crowd lead list to book into the Mon–Fri 12–2 PM seatings.',
+    description: 'Every Monday morning, nudge the lunch-crowd lead list to book into the Mon–Fri 12–2 PM seatings.',
     type: 'recurring' as const,
     isActive: true,
     audienceFilter: {
@@ -1268,15 +1196,12 @@ const SEED_AUTOMATION_RULES: (typeof automationRules.$inferInsert)[] = [
   {
     id: 'ar-happy-hour-crowd',
     name: 'Happy Hour Crowd — Weekly Reminder',
-    description:
-      'Every Thursday afternoon, remind the happy-hour lead list about Mon–Fri 4–8 PM offers.',
+    description: 'Every Thursday afternoon, remind the happy-hour lead list about Mon–Fri 4–8 PM offers.',
     type: 'recurring' as const,
     isActive: true,
     audienceFilter: {
       roles: ['lead' as const],
-      attributes: [
-        { key: 'segment', value: 'happy_hour_crowd', op: 'eq' as const },
-      ],
+      attributes: [{ key: 'segment', value: 'happy_hour_crowd', op: 'eq' as const }],
       excludeOptedOut: true,
     },
     channelInstanceId: 'ci-wa-main',
@@ -1291,8 +1216,7 @@ const SEED_AUTOMATION_RULES: (typeof automationRules.$inferInsert)[] = [
   {
     id: 'ar-high-roller',
     name: 'VIP — Monthly Exclusive Invite',
-    description:
-      'First of each month, invite high-value leads to an exclusive event.',
+    description: 'First of each month, invite high-value leads to an exclusive event.',
     type: 'recurring' as const,
     isActive: true,
     audienceFilter: {
@@ -1312,7 +1236,7 @@ const SEED_AUTOMATION_RULES: (typeof automationRules.$inferInsert)[] = [
     },
     createdBy: 'seed-admin',
   },
-];
+]
 
 const SEED_AUTOMATION_RULE_STEPS = [
   {
@@ -1342,26 +1266,26 @@ const SEED_AUTOMATION_RULE_STEPS = [
     variableMapping: { '1': 'name', '2': 'parameters.eventDate' },
     isFinal: true,
   },
-];
+]
 
 // ─── Broadcast recipients ────────────────────────────────────────────
 // Only for broadcasts that have been run or are in progress.
 
 type BroadcastRecipientSeed = {
-  id: string;
-  broadcastId: string;
-  contactId: string;
-  phone: string;
-  variables: Record<string, string>;
-  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped';
-  failureReason?: string;
-  sentAt?: Date;
-  deliveredAt?: Date;
-  readAt?: Date;
-};
+  id: string
+  broadcastId: string
+  contactId: string
+  phone: string
+  variables: Record<string, string>
+  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped'
+  failureReason?: string
+  sentAt?: Date
+  deliveredAt?: Date
+  readAt?: Date
+}
 
 function buildRecipients(): BroadcastRecipientSeed[] {
-  const rows: BroadcastRecipientSeed[] = [];
+  const rows: BroadcastRecipientSeed[] = []
 
   // ── Q1 screening (completed) ─────────────────────────────────────
   const q1Cases: Array<[string, string, BroadcastRecipientSeed['status']]> = [
@@ -1382,12 +1306,11 @@ function buildRecipients(): BroadcastRecipientSeed[] {
     ['c-lead-oscar', '+6581120003', 'read'],
     ['c-lead-paula', '+6581120004', 'delivered'],
     ['c-lead-ray', '+6581120005', 'delivered'],
-  ];
+  ]
   for (const [contactId, phone, status] of q1Cases) {
-    const sentAt = status !== 'failed' ? hoursAgo(718) : undefined;
-    const deliveredAt =
-      status === 'delivered' || status === 'read' ? hoursAgo(717) : undefined;
-    const readAt = status === 'read' ? hoursAgo(715) : undefined;
+    const sentAt = status !== 'failed' ? hoursAgo(718) : undefined
+    const deliveredAt = status === 'delivered' || status === 'read' ? hoursAgo(717) : undefined
+    const readAt = status === 'read' ? hoursAgo(715) : undefined
     rows.push({
       id: `br-q1-${contactId}`,
       broadcastId: 'bc-q1-screening',
@@ -1396,30 +1319,26 @@ function buildRecipients(): BroadcastRecipientSeed[] {
       variables: { '1': contactId.replace('c-', '').replace('lead-', '') },
       status,
       ...(status === 'failed' && {
-        failureReason:
-          'WhatsApp Cloud API error 131026: recipient not on WhatsApp',
+        failureReason: 'WhatsApp Cloud API error 131026: recipient not on WhatsApp',
       }),
       ...(sentAt && { sentAt }),
       ...(deliveredAt && { deliveredAt }),
       ...(readAt && { readAt }),
-    });
+    })
   }
 
   // ── New patient welcome (completed) ──────────────────────────────
-  const welcomeCases: Array<
-    [string, string, BroadcastRecipientSeed['status']]
-  > = [
+  const welcomeCases: Array<[string, string, BroadcastRecipientSeed['status']]> = [
     ['c-lead-mark', '+6581120001', 'read'],
     ['c-lead-nina', '+6581120002', 'read'],
     ['c-lead-oscar', '+6581120003', 'read'],
     ['c-lead-paula', '+6581120004', 'delivered'],
     ['c-lead-ray', '+6581120005', 'delivered'],
-  ];
+  ]
   for (const [contactId, phone, status] of welcomeCases) {
-    const sentAt = hoursAgo(1439);
-    const deliveredAt =
-      status === 'delivered' || status === 'read' ? hoursAgo(1438) : undefined;
-    const readAt = status === 'read' ? hoursAgo(1436) : undefined;
+    const sentAt = hoursAgo(1439)
+    const deliveredAt = status === 'delivered' || status === 'read' ? hoursAgo(1438) : undefined
+    const readAt = status === 'read' ? hoursAgo(1436) : undefined
     rows.push({
       id: `br-welcome-${contactId}`,
       broadcastId: 'bc-new-patient-feb',
@@ -1430,7 +1349,7 @@ function buildRecipients(): BroadcastRecipientSeed[] {
       sentAt,
       ...(deliveredAt && { deliveredAt }),
       ...(readAt && { readAt }),
-    });
+    })
   }
 
   // ── Q2 screening (scheduled — queued recipients) ──────────────────
@@ -1449,7 +1368,7 @@ function buildRecipients(): BroadcastRecipientSeed[] {
     ['c-lily', '+6581110012'],
     ['c-lead-nina', '+6581120002'],
     ['c-lead-ray', '+6581120005'],
-  ];
+  ]
   for (const [contactId, phone] of q2Contacts) {
     rows.push({
       id: `br-q2-${contactId}`,
@@ -1458,7 +1377,7 @@ function buildRecipients(): BroadcastRecipientSeed[] {
       phone,
       variables: { '1': contactId.replace('c-', '').replace('lead-', '') },
       status: 'queued',
-    });
+    })
   }
 
   // ── Lab results (paused mid-send) ────────────────────────────────
@@ -1471,13 +1390,11 @@ function buildRecipients(): BroadcastRecipientSeed[] {
     ['c-fiona', '+6581110006', 'queued'],
     ['c-george', '+6581110007', 'queued'],
     ['c-hannah', '+6581110008', 'queued'],
-  ];
+  ]
   for (const [contactId, phone, status] of labCases) {
-    const sentAt =
-      status === 'read' || status === 'delivered' ? hoursAgo(5.5) : undefined;
-    const deliveredAt =
-      status === 'delivered' || status === 'read' ? hoursAgo(5) : undefined;
-    const readAt = status === 'read' ? hoursAgo(4) : undefined;
+    const sentAt = status === 'read' || status === 'delivered' ? hoursAgo(5.5) : undefined
+    const deliveredAt = status === 'delivered' || status === 'read' ? hoursAgo(5) : undefined
+    const readAt = status === 'read' ? hoursAgo(4) : undefined
     rows.push({
       id: `br-lab-${contactId}`,
       broadcastId: 'bc-lab-results-apr',
@@ -1492,7 +1409,7 @@ function buildRecipients(): BroadcastRecipientSeed[] {
       ...(sentAt && { sentAt }),
       ...(deliveredAt && { deliveredAt }),
       ...(readAt && { readAt }),
-    });
+    })
   }
 
   // ── March reminders (failed — API error at recipient 5) ───────────
@@ -1509,9 +1426,9 @@ function buildRecipients(): BroadcastRecipientSeed[] {
     ['c-jenny', '+6581110010', 'failed'],
     ['c-kenny', '+6581110011', 'failed'],
     ['c-lily', '+6581110012', 'failed'],
-  ];
+  ]
   for (const [contactId, phone, status] of marCases) {
-    const wasSent = status === 'delivered' || status === 'read';
+    const wasSent = status === 'delivered' || status === 'read'
     rows.push({
       id: `br-mar-${contactId}`,
       broadcastId: 'bc-appt-reminders-mar',
@@ -1530,10 +1447,10 @@ function buildRecipients(): BroadcastRecipientSeed[] {
       ...(status === 'failed' && {
         failureReason: 'WhatsApp Cloud API error 130429: rate limit exceeded',
       }),
-    });
+    })
   }
 
-  return rows;
+  return rows
 }
 
 // ─── Channel instances & routings ───────────────────────────────────
@@ -1563,7 +1480,7 @@ const SEED_CHANNEL_INSTANCES = [
     config: {},
     status: 'active',
   },
-];
+]
 
 const SEED_CHANNEL_ROUTINGS = [
   {
@@ -1593,35 +1510,35 @@ const SEED_CHANNEL_ROUTINGS = [
     config: {},
     enabled: true,
   },
-];
+]
 
 // ─── Team IDs (referencing better-auth teams, seeded separately) ────
 
-const TEAM_SALES = 'team-sales';
-const TEAM_SUPPORT = 'team-support';
+const TEAM_SALES = 'team-sales'
+const TEAM_SUPPORT = 'team-support'
 
 // ─── Conversation templates ──────────────────────────────────────────
 // Handcrafted conversations covering every dimension of the model.
 
 type ConversationSeed = {
-  id: string;
-  channelRoutingId: string;
-  contactId: string;
-  agentId: string;
-  channelInstanceId: string;
-  status: string;
-  startedAt: Date;
-  resolvedAt?: Date;
-  outcome?: string;
-  autonomyLevel?: string;
-  reopenCount?: number;
-  assignee: string;
-  assignedAt?: Date | null;
-  onHold?: boolean;
-  priority?: string;
-  title?: string;
-  metadata?: Record<string, unknown>;
-};
+  id: string
+  channelRoutingId: string
+  contactId: string
+  agentId: string
+  channelInstanceId: string
+  status: string
+  startedAt: Date
+  resolvedAt?: Date
+  outcome?: string
+  autonomyLevel?: string
+  reopenCount?: number
+  assignee: string
+  assignedAt?: Date | null
+  onHold?: boolean
+  priority?: string
+  title?: string
+  metadata?: Record<string, unknown>
+}
 
 const handcraftedConversations: ConversationSeed[] = [
   // ════════════════════════════════════════════════════════════════════
@@ -1899,21 +1816,15 @@ const handcraftedConversations: ConversationSeed[] = [
     title: 'Instagram promo inquiry — no follow-up',
     metadata: {},
   },
-];
+]
 
 // ─── Bulk random conversations ───────────────────────────────────────
 // Fill to ~90 total to populate lists and charts.
 
-function generateBulkConversations(
-  count: number,
-  existingPairs: Set<string> = new Set(),
-): ConversationSeed[] {
-  const allCustomers = [
-    ...customers,
-    ...SEED_CONTACTS.filter((c) => c.role === 'lead'),
-  ];
-  const routings = SEED_CHANNEL_ROUTINGS.filter((r) => r.enabled);
-  const items: ConversationSeed[] = [];
+function generateBulkConversations(count: number, existingPairs: Set<string> = new Set()): ConversationSeed[] {
+  const allCustomers = [...customers, ...SEED_CONTACTS.filter((c) => c.role === 'lead')]
+  const routings = SEED_CHANNEL_ROUTINGS.filter((r) => r.enabled)
+  const items: ConversationSeed[] = []
 
   const TITLES = [
     'Appointment booking inquiry',
@@ -1926,25 +1837,22 @@ function generateBulkConversations(
     'Specialist referral',
     'Feedback & review',
     'Walk-in availability check',
-  ];
+  ]
 
   for (let i = 0; i < count; i++) {
-    const routing = pick(routings);
-    const contact = pick(allCustomers);
-    const startH = faker.number.int({ min: 6, max: 720 });
+    const routing = pick(routings)
+    const contact = pick(allCustomers)
+    const startH = faker.number.int({ min: 6, max: 720 })
 
     const status = faker.helpers.weightedArrayElement([
       { value: 'resolved', weight: 55 },
       { value: 'active', weight: 25 },
       { value: 'failed', weight: 15 },
       { value: 'resolving', weight: 5 },
-    ]);
+    ])
 
-    const startedAt = hoursAgo(startH);
-    const resolvedAt =
-      status === 'resolved'
-        ? hoursAgo(startH - faker.number.int({ min: 0, max: 4 }))
-        : undefined;
+    const startedAt = hoursAgo(startH)
+    const resolvedAt = status === 'resolved' ? hoursAgo(startH - faker.number.int({ min: 0, max: 4 })) : undefined
 
     const outcome =
       status === 'resolved'
@@ -1954,7 +1862,7 @@ function generateBulkConversations(
             { value: 'abandoned', weight: 15 },
             { value: 'topic_change', weight: 5 },
           ])
-        : undefined;
+        : undefined
 
     const autonomyLevel =
       status === 'resolved'
@@ -1964,7 +1872,7 @@ function generateBulkConversations(
             { value: 'human_assisted', weight: 15 },
             { value: 'human_only', weight: 5 },
           ])
-        : undefined;
+        : undefined
 
     const reopenCount =
       status !== 'failed'
@@ -1974,7 +1882,7 @@ function generateBulkConversations(
             { value: 2, weight: 7 },
             { value: 3, weight: 3 },
           ])
-        : 0;
+        : 0
 
     items.push({
       id: `int-bulk-${faker.string.alphanumeric(8)}`,
@@ -2001,29 +1909,29 @@ function generateBulkConversations(
               ]),
             }
           : {},
-    });
+    })
   }
 
   // Deduplicate by (contactId, channelInstanceId) — exclude pairs that already
   // exist in handcrafted conversations and skip internal duplicates.
   // This satisfies the UNIQUE (contact_id, channel_instance_id) constraint.
-  const seen = new Set<string>(existingPairs);
+  const seen = new Set<string>(existingPairs)
   return items.filter((item) => {
-    const key = `${item.contactId}:${item.channelInstanceId}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    const key = `${item.contactId}:${item.channelInstanceId}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 // ─── Seed function ──────────────────────────────────────────────────
 
 export default async function seed(ctx: { db: VobaseDb }) {
-  const { db } = ctx;
+  const { db } = ctx
 
   // ─── Contacts ────────────────────────────────────────────────────
-  await db.insert(contacts).values(SEED_CONTACTS).onConflictDoNothing();
-  console.log(`${green('✓')} Seeded ${SEED_CONTACTS.length} contacts`);
+  await db.insert(contacts).values(SEED_CONTACTS).onConflictDoNothing()
+  console.log(`${green('✓')} Seeded ${SEED_CONTACTS.length} contacts`)
 
   // ─── Staff authUsers + org membership ────────────────────────────
   // Staff contacts are also auth users so they show up in the inbox
@@ -2031,17 +1939,14 @@ export default async function seed(ctx: { db: VobaseDb }) {
   // visible on /system/organizations. Platform provisioning can create a
   // second org (e.g. slug:local), so we pick the one admin actually owns
   // rather than "first row wins". Idempotent via email + member unique index.
-  const staffContacts = SEED_CONTACTS.filter((c) => c.role === 'staff');
+  const staffContacts = SEED_CONTACTS.filter((c) => c.role === 'staff')
   const [defaultOrg] = await db
     .select({ id: authOrganization.id })
     .from(authMember)
-    .innerJoin(
-      authOrganization,
-      eq(authMember.organizationId, authOrganization.id),
-    )
+    .innerJoin(authOrganization, eq(authMember.organizationId, authOrganization.id))
     .innerJoin(authUser, eq(authMember.userId, authUser.id))
     .where(eq(authUser.email, 'admin@example.com'))
-    .limit(1);
+    .limit(1)
 
   for (const c of staffContacts) {
     await db
@@ -2056,7 +1961,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       .onConflictDoUpdate({
         target: authUser.email,
         set: { name: c.name, updatedAt: new Date() },
-      });
+      })
 
     if (defaultOrg) {
       await db
@@ -2067,44 +1972,28 @@ export default async function seed(ctx: { db: VobaseDb }) {
           organizationId: defaultOrg.id,
           role: 'member',
         })
-        .onConflictDoNothing();
+        .onConflictDoNothing()
     }
   }
   console.log(
     `${green('✓')} Seeded ${staffContacts.length} staff authUsers${
       defaultOrg ? ' + org members' : ' (no org found — skipped membership)'
     }`,
-  );
+  )
 
   // ─── Contact Attribute Definitions ─────────────────────────────
-  await db
-    .insert(contactAttributeDefinitions)
-    .values(SEED_ATTRIBUTE_DEFINITIONS)
-    .onConflictDoNothing();
-  console.log(
-    `${green('✓')} Seeded ${SEED_ATTRIBUTE_DEFINITIONS.length} contact attribute definitions`,
-  );
+  await db.insert(contactAttributeDefinitions).values(SEED_ATTRIBUTE_DEFINITIONS).onConflictDoNothing()
+  console.log(`${green('✓')} Seeded ${SEED_ATTRIBUTE_DEFINITIONS.length} contact attribute definitions`)
 
   // ─── WhatsApp Templates ──────────────────────────────────────────
-  await db
-    .insert(channelsTemplates)
-    .values(SEED_TEMPLATES)
-    .onConflictDoNothing();
-  console.log(
-    `${green('✓')} Seeded ${SEED_TEMPLATES.length} WhatsApp templates`,
-  );
+  await db.insert(channelsTemplates).values(SEED_TEMPLATES).onConflictDoNothing()
+  console.log(`${green('✓')} Seeded ${SEED_TEMPLATES.length} WhatsApp templates`)
 
   // ─── Channel Instances ───────────────────────────────────────────
-  await db
-    .insert(channelInstances)
-    .values(SEED_CHANNEL_INSTANCES)
-    .onConflictDoNothing();
+  await db.insert(channelInstances).values(SEED_CHANNEL_INSTANCES).onConflictDoNothing()
 
   // ─── Channel Routings ────────────────────────────────────────────
-  await db
-    .insert(channelRoutings)
-    .values(SEED_CHANNEL_ROUTINGS)
-    .onConflictDoNothing();
+  await db.insert(channelRoutings).values(SEED_CHANNEL_ROUTINGS).onConflictDoNothing()
 
   // ─── Channel Instance Teams ──────────────────────────────────────
   // WhatsApp + Email visible to support team; Web visible to both teams
@@ -2113,45 +2002,36 @@ export default async function seed(ctx: { db: VobaseDb }) {
     { channelInstanceId: 'ci-email', teamId: TEAM_SUPPORT },
     { channelInstanceId: 'ci-web', teamId: TEAM_SUPPORT },
     { channelInstanceId: 'ci-web', teamId: TEAM_SALES },
-  ];
-  await db
-    .insert(channelInstanceTeams)
-    .values(seedChannelInstanceTeams)
-    .onConflictDoNothing();
-  console.log(
-    `${green('✓')} Seeded ${seedChannelInstanceTeams.length} channel-instance-team mappings`,
-  );
+  ]
+  await db.insert(channelInstanceTeams).values(seedChannelInstanceTeams).onConflictDoNothing()
+  console.log(`${green('✓')} Seeded ${seedChannelInstanceTeams.length} channel-instance-team mappings`)
 
   // ─── Conversations ────────────────────────────────────────────────
-  const handcraftedPairs = new Set(
-    handcraftedConversations.map(
-      (c) => `${c.contactId}:${c.channelInstanceId}`,
-    ),
-  );
-  const bulkConversations = generateBulkConversations(65, handcraftedPairs);
-  const allConversations = [...handcraftedConversations, ...bulkConversations];
-  const BATCH_SIZE = 50;
+  const handcraftedPairs = new Set(handcraftedConversations.map((c) => `${c.contactId}:${c.channelInstanceId}`))
+  const bulkConversations = generateBulkConversations(65, handcraftedPairs)
+  const allConversations = [...handcraftedConversations, ...bulkConversations]
+  const BATCH_SIZE = 50
 
   for (let i = 0; i < allConversations.length; i += BATCH_SIZE) {
     await db
       .insert(conversations)
       .values(allConversations.slice(i, i + BATCH_SIZE))
-      .onConflictDoNothing();
+      .onConflictDoNothing()
   }
   console.log(
     `${green('✓')} Seeded ${allConversations.length} conversations (${handcraftedConversations.length} handcrafted + ${bulkConversations.length} bulk)`,
-  );
+  )
 
   // ─── Conversation Participants ────────────────────────────────────
   // Every conversation gets its primary contact as initiator.
   // Some get additional participants (CC, BCC for email; participant for group).
   const seedParticipants: Array<{
-    id: string;
-    conversationId: string;
-    contactId: string;
-    role: string;
-    joinedAt: Date;
-  }> = [];
+    id: string
+    conversationId: string
+    contactId: string
+    role: string
+    joinedAt: Date
+  }> = []
 
   // All handcrafted conversations get initiator
   for (const conv of handcraftedConversations) {
@@ -2161,7 +2041,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       contactId: conv.contactId,
       role: 'initiator',
       joinedAt: conv.startedAt,
-    });
+    })
   }
 
   // Bob's email conversation has CC and BCC (referencing the surviving int-bob-email-02)
@@ -2180,7 +2060,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       role: 'bcc',
       joinedAt: hoursAgo(216),
     },
-  );
+  )
 
   // Hannah's escalation has a staff participant
   seedParticipants.push({
@@ -2189,7 +2069,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
     contactId: 'c-staff-david',
     role: 'participant',
     joinedAt: hoursAgo(1.5),
-  });
+  })
 
   // Corporate inquiry has multiple participants
   seedParticipants.push(
@@ -2207,78 +2087,62 @@ export default async function seed(ctx: { db: VobaseDb }) {
       role: 'cc',
       joinedAt: hoursAgo(3.5),
     },
-  );
+  )
 
-  await db
-    .insert(conversationParticipants)
-    .values(seedParticipants)
-    .onConflictDoNothing();
-  console.log(
-    `${green('✓')} Seeded ${seedParticipants.length} conversation participants`,
-  );
+  await db.insert(conversationParticipants).values(seedParticipants).onConflictDoNothing()
+  console.log(`${green('✓')} Seeded ${seedParticipants.length} conversation participants`)
 
   // ─── Messages ────────────────────────────────────────────────────
   type SeedMessage = {
-    id: string;
-    conversationId: string;
-    messageType: 'incoming' | 'outgoing';
-    contentType: 'text';
-    content: string;
-    channelType: string;
-    externalMessageId?: string;
-    status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
-    failureReason?: string;
-    senderId: string;
-    senderType: 'contact' | 'agent' | 'user';
-    private?: boolean;
-    createdAt: Date;
-  };
+    id: string
+    conversationId: string
+    messageType: 'incoming' | 'outgoing'
+    contentType: 'text'
+    content: string
+    channelType: string
+    externalMessageId?: string
+    status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null
+    failureReason?: string
+    senderId: string
+    senderType: 'contact' | 'agent' | 'user'
+    private?: boolean
+    createdAt: Date
+  }
 
-  const seedMessages: SeedMessage[] = [];
+  const seedMessages: SeedMessage[] = []
 
   for (const conv of allConversations) {
     const channelType =
-      conv.channelInstanceId === 'ci-wa-main'
-        ? 'whatsapp'
-        : conv.channelInstanceId === 'ci-email'
-          ? 'email'
-          : 'web';
+      conv.channelInstanceId === 'ci-wa-main' ? 'whatsapp' : conv.channelInstanceId === 'ci-email' ? 'email' : 'web'
 
     // Use scripted turns if available, otherwise random generic turns
-    const script = SCRIPTED[conv.id];
+    const script = SCRIPTED[conv.id]
     const turns: Array<[string, string]> = script
       ? script
-      : [...GENERIC_TURNS]
-          .sort(() => faker.number.float() - 0.5)
-          .slice(0, faker.number.int({ min: 2, max: 5 }));
+      : [...GENERIC_TURNS].sort(() => faker.number.float() - 0.5).slice(0, faker.number.int({ min: 2, max: 5 }))
 
     for (let t = 0; t < turns.length; t++) {
-      const [customerMsg, agentMsg] = turns[t];
-      const baseH = (conv.startedAt.getTime() - Date.now()) / (-1000 * 60 * 60);
+      const [customerMsg, agentMsg] = turns[t]
+      const baseH = (conv.startedAt.getTime() - Date.now()) / (-1000 * 60 * 60)
       // Space turns ~6 min apart; scripted conversations get slightly wider gaps for readability
-      const gap = script ? 0.15 : 0.1;
-      const customerTime = hoursAgo(Math.max(0, baseH - t * gap));
-      const agentTime = hoursAgo(Math.max(0, baseH - t * gap - 0.03));
+      const gap = script ? 0.15 : 0.1
+      const customerTime = hoursAgo(Math.max(0, baseH - t * gap))
+      const agentTime = hoursAgo(Math.max(0, baseH - t * gap - 0.03))
 
-      const isLastTurn = t === turns.length - 1;
-      let agentStatus: SeedMessage['status'];
+      const isLastTurn = t === turns.length - 1
+      let agentStatus: SeedMessage['status']
       if (conv.status === 'resolved') {
-        agentStatus = pick(['delivered', 'read'] as const);
+        agentStatus = pick(['delivered', 'read'] as const)
       } else if (conv.status === 'failed' && isLastTurn) {
-        agentStatus = 'failed';
+        agentStatus = 'failed'
       } else if (conv.status === 'active' && isLastTurn) {
-        agentStatus = pick(['queued', 'sent'] as const);
+        agentStatus = pick(['queued', 'sent'] as const)
       } else {
-        agentStatus = 'delivered';
+        agentStatus = 'delivered'
       }
 
-      const hasExtId = agentStatus !== 'queued' && agentStatus !== 'failed';
-      const prefix =
-        channelType === 'whatsapp'
-          ? 'wamid'
-          : channelType === 'email'
-            ? 'emlid'
-            : 'web';
+      const hasExtId = agentStatus !== 'queued' && agentStatus !== 'failed'
+      const prefix = channelType === 'whatsapp' ? 'wamid' : channelType === 'email' ? 'emlid' : 'web'
 
       seedMessages.push({
         id: `msg-${faker.string.alphanumeric(10)}`,
@@ -2292,7 +2156,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
         senderId: conv.contactId,
         senderType: 'contact',
         createdAt: customerTime,
-      });
+      })
 
       seedMessages.push({
         id: `msg-${faker.string.alphanumeric(10)}`,
@@ -2311,7 +2175,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
         senderId: 'agent-booking',
         senderType: 'agent',
         createdAt: agentTime,
-      });
+      })
 
       // 10% chance of a staff private note (only on non-scripted conversations)
       if (!script && faker.number.float() < 0.1) {
@@ -2327,7 +2191,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
           senderType: 'user',
           private: true,
           createdAt: new Date(agentTime.getTime() + 30_000),
-        });
+        })
       }
     }
   }
@@ -2339,12 +2203,12 @@ export default async function seed(ctx: { db: VobaseDb }) {
     'WhatsApp Cloud API error 131047: 24-hour message window expired',
     'SMTP: mailbox unavailable — user unknown',
     'Connection timeout after 30000ms',
-  ];
+  ]
 
-  const resolvedConvs = allConversations.filter((s) => s.status === 'resolved');
+  const resolvedConvs = allConversations.filter((s) => s.status === 'resolved')
   const seedDeadLetters = DL_ERRORS.map((error, i) => {
-    const conv = resolvedConvs[i] ?? allConversations[i];
-    const chType = i < 3 ? 'whatsapp' : 'email';
+    const conv = resolvedConvs[i] ?? allConversations[i]
+    const chType = i < 3 ? 'whatsapp' : 'email'
     return {
       id: `msg-dl-${faker.string.alphanumeric(8)}`,
       conversationId: conv.id,
@@ -2358,67 +2222,65 @@ export default async function seed(ctx: { db: VobaseDb }) {
       senderType: 'agent' as const,
       private: false,
       createdAt: hoursAgo(faker.number.int({ min: 24, max: 500 })),
-    };
-  });
+    }
+  })
 
-  const allMessages = [...seedMessages, ...seedDeadLetters];
+  const allMessages = [...seedMessages, ...seedDeadLetters]
   for (let i = 0; i < allMessages.length; i += BATCH_SIZE) {
     await db
       .insert(messages)
       .values(allMessages.slice(i, i + BATCH_SIZE))
-      .onConflictDoNothing();
+      .onConflictDoNothing()
   }
-  console.log(`${green('✓')} Seeded ${allMessages.length} messages`);
+  console.log(`${green('✓')} Seeded ${allMessages.length} messages`)
 
   // ─── Activity Events (as messages with messageType='activity') ────
 
   type ActivitySeed = {
-    type: string;
-    agentId?: string;
-    userId?: string;
-    source: 'agent' | 'staff' | 'system';
-    contactId?: string;
-    conversationId: string;
-    channelRoutingId?: string;
-    channelType?: string;
-    data: Record<string, unknown>;
-    resolutionStatus?: 'pending' | 'reviewed' | 'dismissed';
-    createdAt: Date;
-  };
+    type: string
+    agentId?: string
+    userId?: string
+    source: 'agent' | 'staff' | 'system'
+    contactId?: string
+    conversationId: string
+    channelRoutingId?: string
+    channelType?: string
+    data: Record<string, unknown>
+    resolutionStatus?: 'pending' | 'reviewed' | 'dismissed'
+    createdAt: Date
+  }
 
   function eventContent(evt: ActivitySeed): string {
     switch (evt.type) {
       case 'escalation.created':
-        return `Escalation created: ${(evt.data.reason as string) ?? 'No reason'}`;
+        return `Escalation created: ${(evt.data.reason as string) ?? 'No reason'}`
       case 'guardrail.block':
-        return `Guardrail blocked: ${(evt.data.reason as string) ?? 'Policy violation'}`;
+        return `Guardrail blocked: ${(evt.data.reason as string) ?? 'Policy violation'}`
       case 'guardrail.warn':
-        return `Guardrail warning: ${(evt.data.reason as string) ?? 'Policy warning'}`;
+        return `Guardrail warning: ${(evt.data.reason as string) ?? 'Policy warning'}`
       case 'conversation.created':
-        return 'Conversation started';
+        return 'Conversation started'
       case 'conversation.resolved':
-        return `Conversation resolved${evt.data.outcome ? `: ${evt.data.outcome}` : ''}`;
+        return `Conversation resolved${evt.data.outcome ? `: ${evt.data.outcome}` : ''}`
       case 'conversation.reopened':
-        return `Conversation reopened (reopen #${evt.data.reopenCount ?? 1})`;
+        return `Conversation reopened (reopen #${evt.data.reopenCount ?? 1})`
       case 'conversation.failed':
-        return `Conversation failed: ${(evt.data.reason as string) ?? 'Unknown error'}`;
+        return `Conversation failed: ${(evt.data.reason as string) ?? 'Unknown error'}`
       case 'agent.tool_executed':
-        return `Tool executed: ${(evt.data.toolName as string) ?? 'unknown'}`;
+        return `Tool executed: ${(evt.data.toolName as string) ?? 'unknown'}`
       case 'handler.changed':
-        return `Handler changed from ${evt.data.from} to ${evt.data.to}`;
+        return `Handler changed from ${evt.data.from} to ${evt.data.to}`
       case 'agent.draft_generated':
-        return 'Agent draft generated for review';
+        return 'Agent draft generated for review'
       default:
-        return evt.type;
+        return evt.type
     }
   }
 
-  function eventSenderType(
-    source: 'agent' | 'staff' | 'system',
-  ): 'agent' | 'user' | 'system' {
-    if (source === 'agent') return 'agent';
-    if (source === 'staff') return 'user';
-    return 'system';
+  function eventSenderType(source: 'agent' | 'staff' | 'system'): 'agent' | 'user' | 'system' {
+    if (source === 'agent') return 'agent'
+    if (source === 'staff') return 'user'
+    return 'system'
   }
 
   const seedActivity: ActivitySeed[] = [
@@ -2578,7 +2440,7 @@ export default async function seed(ctx: { db: VobaseDb }) {
       resolutionStatus: 'pending',
       createdAt: hoursAgo(0.5),
     },
-  ];
+  ]
 
   const seedActivityMessages = seedActivity.map((evt, i) => ({
     id: `msg-evt-${faker.string.alphanumeric(8)}-${i}`,
@@ -2592,28 +2454,24 @@ export default async function seed(ctx: { db: VobaseDb }) {
     channelType: evt.channelType ?? null,
     resolutionStatus: evt.resolutionStatus ?? null,
     createdAt: evt.createdAt,
-  }));
+  }))
 
   if (seedActivityMessages.length > 0) {
     for (let i = 0; i < seedActivityMessages.length; i += BATCH_SIZE) {
       await db
         .insert(messages)
         .values(seedActivityMessages.slice(i, i + BATCH_SIZE))
-        .onConflictDoNothing();
+        .onConflictDoNothing()
     }
   }
 
-  console.log(
-    `${green('✓')} Seeded ${seedActivityMessages.length} activity events`,
-  );
+  console.log(`${green('✓')} Seeded ${seedActivityMessages.length} activity events`)
 
   // ─── Channel Sessions (WhatsApp window tracking) ─────────────────
-  const waActiveConvs = allConversations.filter(
-    (s) => s.channelInstanceId === 'ci-wa-main' && s.status === 'active',
-  );
+  const waActiveConvs = allConversations.filter((s) => s.channelInstanceId === 'ci-wa-main' && s.status === 'active')
   const seedSessions = waActiveConvs.slice(0, 8).map((conv, i) => {
-    const isExpired = i >= 6;
-    const windowOpensAt = hoursAgo(isExpired ? 30 : 2);
+    const isExpired = i >= 6
+    const windowOpensAt = hoursAgo(isExpired ? 30 : 2)
     return {
       id: `cs-${faker.string.alphanumeric(8)}`,
       conversationId: conv.id,
@@ -2623,52 +2481,45 @@ export default async function seed(ctx: { db: VobaseDb }) {
       windowOpensAt,
       windowExpiresAt: new Date(windowOpensAt.getTime() + 24 * 60 * 60 * 1000),
       metadata: {},
-    };
-  });
+    }
+  })
 
   if (seedSessions.length > 0) {
-    await db.insert(channelSessions).values(seedSessions).onConflictDoNothing();
+    await db.insert(channelSessions).values(seedSessions).onConflictDoNothing()
   }
-  console.log(`${green('✓')} Seeded ${seedSessions.length} channel sessions`);
+  console.log(`${green('✓')} Seeded ${seedSessions.length} channel sessions`)
 
   // ─── Contact working memory ──────────────────────────────────────
   const WORKING_MEMORIES: Record<string, string> = {
     'c-alice':
       'Preferred language: English. Last booking: Wednesday 2 PM general consultation. Prefers afternoon slots. Has been reopened before — recurring customer.',
-    'c-bob':
-      'Uses both web and email. Complex scheduling needs. Previously required human assistance.',
-    'c-charlie':
-      'VIP customer. Always handled by David (staff). Priority scheduling.',
-    'c-diana':
-      'Tends to go silent mid-conversation. Follow up proactively if no response within 2 hours.',
-    'c-lead-nina':
-      'Corporate wellness inquiry. Budget-conscious. Needs group booking for 20+ employees.',
-  };
+    'c-bob': 'Uses both web and email. Complex scheduling needs. Previously required human assistance.',
+    'c-charlie': 'VIP customer. Always handled by David (staff). Priority scheduling.',
+    'c-diana': 'Tends to go silent mid-conversation. Follow up proactively if no response within 2 hours.',
+    'c-lead-nina': 'Corporate wellness inquiry. Budget-conscious. Needs group booking for 20+ employees.',
+  }
 
   // Working memory and resourceMetadata columns have been dropped — skip seeding
   console.log(
     `${green('✓')} Skipped working memory (disabled feature) for ${Object.keys(WORKING_MEMORIES).length} contacts`,
-  );
+  )
 
   // ─── Reactions + Feedback ────────────────────────────────────────
   // A few reactions and feedback entries for UI testing
-  const reactionMessages = seedMessages.filter(
-    (m) => m.senderType === 'agent' && m.status === 'delivered',
-  );
+  const reactionMessages = seedMessages.filter((m) => m.senderType === 'agent' && m.status === 'delivered')
 
   const seedReactions = reactionMessages.slice(0, 5).map((msg, i) => ({
     id: `react-${faker.string.alphanumeric(8)}`,
     messageId: msg.id,
     conversationId: msg.conversationId,
-    contactId: allConversations.find((s) => s.id === msg.conversationId)
-      ?.contactId,
+    contactId: allConversations.find((s) => s.id === msg.conversationId)?.contactId,
     userId: null,
     emoji: pick(['👍', '❤️', '😊', '🙏', '✅']),
     createdAt: new Date(msg.createdAt.getTime() + 60_000 * (i + 1)),
-  }));
+  }))
 
   if (seedReactions.length > 0) {
-    await db.insert(reactions).values(seedReactions).onConflictDoNothing();
+    await db.insert(reactions).values(seedReactions).onConflictDoNothing()
   }
 
   const seedFeedback = reactionMessages.slice(5, 10).map((msg, i) => ({
@@ -2676,21 +2527,15 @@ export default async function seed(ctx: { db: VobaseDb }) {
     conversationId: msg.conversationId,
     messageId: msg.id,
     rating: i < 3 ? 'positive' : 'negative',
-    reason:
-      i >= 3
-        ? pick(['Unhelpful response', 'Wrong information', 'Too slow'])
-        : null,
-    contactId: allConversations.find((s) => s.id === msg.conversationId)
-      ?.contactId,
+    reason: i >= 3 ? pick(['Unhelpful response', 'Wrong information', 'Too slow']) : null,
+    contactId: allConversations.find((s) => s.id === msg.conversationId)?.contactId,
     userId: null,
-  }));
+  }))
 
   if (seedFeedback.length > 0) {
-    await db.insert(messageFeedback).values(seedFeedback).onConflictDoNothing();
+    await db.insert(messageFeedback).values(seedFeedback).onConflictDoNothing()
   }
-  console.log(
-    `${green('✓')} Seeded ${seedReactions.length} reactions, ${seedFeedback.length} feedback`,
-  );
+  console.log(`${green('✓')} Seeded ${seedReactions.length} reactions, ${seedFeedback.length} feedback`)
 
   // ─── Labels ──────────────────────────────────────────────────────
   const seedLabels = [
@@ -2724,9 +2569,9 @@ export default async function seed(ctx: { db: VobaseDb }) {
       color: '#3b82f6',
       description: 'Needs follow-up action',
     },
-  ];
+  ]
 
-  await db.insert(labels).values(seedLabels).onConflictDoNothing();
+  await db.insert(labels).values(seedLabels).onConflictDoNothing()
 
   const labelAssignments = [
     // VIP labels on Charlie and Alice
@@ -2748,69 +2593,55 @@ export default async function seed(ctx: { db: VobaseDb }) {
       conversationId: conv.id,
       labelId: seedLabels[i % seedLabels.length].id,
     })),
-  ];
+  ]
 
-  await db
-    .insert(conversationLabels)
-    .values(labelAssignments)
-    .onConflictDoNothing();
+  await db.insert(conversationLabels).values(labelAssignments).onConflictDoNothing()
 
   // Migrate conversationLabels → contactLabels (dedup by contact+label)
-  const conversationContactMap = new Map<string, string>();
+  const conversationContactMap = new Map<string, string>()
   for (const conv of allConversations) {
-    conversationContactMap.set(conv.id, conv.contactId);
+    conversationContactMap.set(conv.id, conv.contactId)
   }
-  const contactLabelSet = new Set<string>();
-  const contactLabelRows: { contactId: string; labelId: string }[] = [];
+  const contactLabelSet = new Set<string>()
+  const contactLabelRows: { contactId: string; labelId: string }[] = []
   for (const la of labelAssignments) {
-    const cId = conversationContactMap.get(la.conversationId);
-    if (!cId) continue;
-    const key = `${cId}:${la.labelId}`;
-    if (contactLabelSet.has(key)) continue;
-    contactLabelSet.add(key);
-    contactLabelRows.push({ contactId: cId, labelId: la.labelId });
+    const cId = conversationContactMap.get(la.conversationId)
+    if (!cId) continue
+    const key = `${cId}:${la.labelId}`
+    if (contactLabelSet.has(key)) continue
+    contactLabelSet.add(key)
+    contactLabelRows.push({ contactId: cId, labelId: la.labelId })
   }
   if (contactLabelRows.length > 0) {
-    await db
-      .insert(contactLabels)
-      .values(contactLabelRows)
-      .onConflictDoNothing();
+    await db.insert(contactLabels).values(contactLabelRows).onConflictDoNothing()
   }
   console.log(
     `${green('✓')} Seeded ${seedLabels.length} labels, ${labelAssignments.length} conversation assignments, ${contactLabelRows.length} contact labels`,
-  );
+  )
 
   // ─── Broadcasts ──────────────────────────────────────────────────
-  await db.insert(broadcasts).values(SEED_BROADCASTS).onConflictDoNothing();
-  console.log(`${green('✓')} Seeded ${SEED_BROADCASTS.length} broadcasts`);
+  await db.insert(broadcasts).values(SEED_BROADCASTS).onConflictDoNothing()
+  console.log(`${green('✓')} Seeded ${SEED_BROADCASTS.length} broadcasts`)
 
   // ─── Broadcast Recipients ─────────────────────────────────────────
-  const seedBroadcastRecipients = buildRecipients();
+  const seedBroadcastRecipients = buildRecipients()
   for (let i = 0; i < seedBroadcastRecipients.length; i += BATCH_SIZE) {
     await db
       .insert(broadcastRecipients)
       .values(seedBroadcastRecipients.slice(i, i + BATCH_SIZE))
-      .onConflictDoNothing();
+      .onConflictDoNothing()
   }
-  console.log(
-    `${green('✓')} Seeded ${seedBroadcastRecipients.length} broadcast recipients`,
-  );
+  console.log(`${green('✓')} Seeded ${seedBroadcastRecipients.length} broadcast recipients`)
 
   // ─── Automation Rules ────────────────────────────────────────────
-  await db
-    .insert(automationRules)
-    .values(SEED_AUTOMATION_RULES)
-    .onConflictDoNothing();
-  await db
-    .insert(automationRuleSteps)
-    .values(SEED_AUTOMATION_RULE_STEPS)
-    .onConflictDoNothing();
+  await db.insert(automationRules).values(SEED_AUTOMATION_RULES).onConflictDoNothing()
+  await db.insert(automationRuleSteps).values(SEED_AUTOMATION_RULE_STEPS).onConflictDoNothing()
   console.log(
     `${green('✓')} Seeded ${SEED_AUTOMATION_RULES.length} automation rules (${SEED_AUTOMATION_RULE_STEPS.length} steps)`,
-  );
+  )
 
   // ─── Summary ─────────────────────────────────────────────────────
   console.log(
     `\n${green('Done!')} Seeded ${allConversations.length} conversations, ${allMessages.length + seedActivityMessages.length} messages, ${seedParticipants.length} participants`,
-  );
+  )
 }

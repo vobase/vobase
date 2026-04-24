@@ -28,7 +28,7 @@ export const EXAMPLES: string[] = [
   'testing strategies',
   'CI/CD pipeline setup',
   'monitoring and logging',
-];
+]
 
 /** Category names for filter chips and autocomplete corpus. */
 export const CATEGORIES: string[] = [
@@ -39,7 +39,7 @@ export const CATEGORIES: string[] = [
   'Architecture',
   'Security',
   'Deployment',
-];
+]
 
 /** Seed for autocomplete: EXAMPLES as-is (no suffix stripping needed for KB domain). */
-export const AUTOCOMPLETE_SEED: string[] = [...EXAMPLES];
+export const AUTOCOMPLETE_SEED: string[] = [...EXAMPLES]

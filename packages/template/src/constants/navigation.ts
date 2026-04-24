@@ -1,4 +1,4 @@
-import type { LinkProps } from '@tanstack/react-router';
+import type { LinkProps } from '@tanstack/react-router'
 import {
   Activity,
   BarChart3,
@@ -19,34 +19,34 @@ import {
   TagIcon,
   UserIcon,
   ZapIcon,
-} from 'lucide-react';
+} from 'lucide-react'
 
 type BaseNavItem = {
-  title: string;
-  badge?: string;
-  icon?: LucideIcon;
+  title: string
+  badge?: string
+  icon?: LucideIcon
   /** Extra keywords for Cmd+K search (not displayed, just searchable) */
-  keywords?: string[];
-};
+  keywords?: string[]
+}
 
 type NavLink = BaseNavItem & {
-  url: LinkProps['to'] | (string & {});
-  items?: never;
-};
+  url: LinkProps['to'] | (string & {})
+  items?: never
+}
 
 type NavCollapsible = BaseNavItem & {
-  items: (BaseNavItem & { url: LinkProps['to'] | (string & {}) })[];
-  url?: never;
-};
+  items: (BaseNavItem & { url: LinkProps['to'] | (string & {}) })[]
+  url?: never
+}
 
-type NavItem = NavCollapsible | NavLink;
+type NavItem = NavCollapsible | NavLink
 
 type NavGroup = {
-  title: string;
-  items: NavItem[];
-};
+  title: string
+  items: NavItem[]
+}
 
-export type { NavCollapsible, NavGroup, NavItem, NavLink };
+export type { NavCollapsible, NavGroup, NavItem, NavLink }
 
 export const navGroups: NavGroup[] = [
   {
@@ -56,28 +56,13 @@ export const navGroups: NavGroup[] = [
         title: 'Inbox',
         url: '/messaging/inbox',
         icon: MessageSquareTextIcon,
-        keywords: [
-          'home',
-          'overview',
-          'dashboard',
-          'status',
-          'chat',
-          'inbox',
-          'conversations',
-        ],
+        keywords: ['home', 'overview', 'dashboard', 'status', 'chat', 'inbox', 'conversations'],
       },
       {
         title: 'Channels',
         url: '/messaging/channels',
         icon: RadioIcon,
-        keywords: [
-          'whatsapp',
-          'web',
-          'email',
-          'voice',
-          'instances',
-          'endpoints',
-        ],
+        keywords: ['whatsapp', 'web', 'email', 'voice', 'instances', 'endpoints'],
       },
       {
         title: 'Contacts',
@@ -106,14 +91,7 @@ export const navGroups: NavGroup[] = [
         title: 'Rules',
         url: '/messaging/campaigns/rules',
         icon: ZapIcon,
-        keywords: [
-          'automation',
-          'rules',
-          'recurring',
-          'sequence',
-          'trigger',
-          'campaign',
-        ],
+        keywords: ['automation', 'rules', 'recurring', 'sequence', 'trigger', 'campaign'],
       },
       {
         title: 'Templates',
@@ -130,15 +108,7 @@ export const navGroups: NavGroup[] = [
         title: 'Agents',
         url: '/agents',
         icon: BotIcon,
-        keywords: [
-          'ai',
-          'agents',
-          'bot',
-          'llm',
-          'knowledge',
-          'documents',
-          'kb',
-        ],
+        keywords: ['ai', 'agents', 'bot', 'llm', 'knowledge', 'documents', 'kb'],
       },
       {
         title: 'Evals',
@@ -161,13 +131,7 @@ export const navGroups: NavGroup[] = [
         title: 'Tasks',
         url: '/automation/tasks',
         icon: MonitorSmartphoneIcon,
-        keywords: [
-          'automation',
-          'browser',
-          'whatsapp',
-          'tampermonkey',
-          'tasks',
-        ],
+        keywords: ['automation', 'browser', 'whatsapp', 'tampermonkey', 'tasks'],
       },
       {
         title: 'Pairing',
@@ -223,9 +187,7 @@ export const navGroups: NavGroup[] = [
       },
     ],
   },
-];
+]
 
 /** Sidebar navigation — excludes Settings (settings has its own layout) */
-export const sidebarNavGroups: NavGroup[] = navGroups.filter(
-  (g) => g.title !== 'Settings',
-);
+export const sidebarNavGroups: NavGroup[] = navGroups.filter((g) => g.title !== 'Settings')

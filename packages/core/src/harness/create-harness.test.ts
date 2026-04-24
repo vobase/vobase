@@ -15,6 +15,7 @@ import type { StreamFn } from '@mariozechner/pi-agent-core'
 import type { AssistantMessage, AssistantMessageEvent, Model } from '@mariozechner/pi-ai'
 import { createAssistantMessageEventStream } from '@mariozechner/pi-ai'
 import { Bash, InMemoryFs } from 'just-bash'
+
 import { createHarness, type HarnessEvent, type HarnessWorkspace } from './create-harness'
 import { createSteerQueue } from './steer-queue'
 

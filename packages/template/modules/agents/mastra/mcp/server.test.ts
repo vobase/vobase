@@ -1,18 +1,18 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test'
 
-import { createAiMcpHandler } from './server';
+import { createAiMcpHandler } from './server'
 
 describe('createAiMcpHandler', () => {
   test('returns a function', () => {
     // Pass a minimal db mock — the handler only uses db when a tool is called
     // biome-ignore lint/suspicious/noExplicitAny: minimal mock — handler only uses db when a tool is called
-    const handler = createAiMcpHandler({} as any);
-    expect(typeof handler).toBe('function');
-  });
+    const handler = createAiMcpHandler({} as any)
+    expect(typeof handler).toBe('function')
+  })
 
   test('handler returns a Response for POST requests', async () => {
     // biome-ignore lint/suspicious/noExplicitAny: minimal mock — handler only uses db when a tool is called
-    const handler = createAiMcpHandler({} as any);
+    const handler = createAiMcpHandler({} as any)
 
     // Send a valid JSON-RPC initialize request
     const req = new Request('http://localhost/api/agents/mcp', {
@@ -28,10 +28,10 @@ describe('createAiMcpHandler', () => {
           clientInfo: { name: 'test', version: '0.1.0' },
         },
       }),
-    });
+    })
 
-    const response = await handler(req);
-    expect(response).toBeInstanceOf(Response);
-    expect(response.status).toBeLessThan(500);
-  });
-});
+    const response = await handler(req)
+    expect(response).toBeInstanceOf(Response)
+    expect(response.status).toBeLessThan(500)
+  })
+})

@@ -1,14 +1,8 @@
-import { sql } from 'drizzle-orm';
-import {
-  check,
-  index,
-  text,
-  timestamp,
-  uniqueIndex,
-} from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm'
+import { check, index, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
-import { DEFAULT_COLUMNS, nanoidPrimaryKey } from '../db/helpers';
-import { infraPgSchema } from '../db/pg-schemas';
+import { DEFAULT_COLUMNS, nanoidPrimaryKey } from '../db/helpers'
+import { infraPgSchema } from '../db/pg-schemas'
 
 export const integrationsTable = infraPgSchema.table(
   'integrations',
@@ -29,12 +23,9 @@ export const integrationsTable = infraPgSchema.table(
   (table) => [
     index('integrations_provider_idx').on(table.provider),
     index('integrations_status_idx').on(table.status),
-    check(
-      'integrations_status_check',
-      sql`status IN ('active', 'inactive', 'disconnected', 'error')`,
-    ),
+    check('integrations_status_check', sql`status IN ('active', 'inactive', 'disconnected', 'error')`),
     uniqueIndex('integrations_active_platform_provider_idx')
       .on(table.provider)
       .where(sql`status = 'active' AND auth_type = 'platform'`),
   ],
-);
+)

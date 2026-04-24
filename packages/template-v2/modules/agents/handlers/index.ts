@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+
 import definitionsHandler from './definitions'
 import learningsHandler from './learnings'
 import memoryHandler from './memory'

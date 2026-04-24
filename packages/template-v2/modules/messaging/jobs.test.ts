@@ -10,6 +10,7 @@ import {
 } from '@modules/messaging/service/conversations'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import { setJournalDb } from '@vobase/core'
+
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../tests/helpers/test-db'
 
 let db: TestDbHandle

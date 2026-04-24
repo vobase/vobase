@@ -1,4 +1,5 @@
 import { GlobeIcon, MessageSquareIcon, MicIcon } from 'lucide-react'
+
 import { cn } from '@/lib/utils'
 
 const CHANNEL_CONFIG: Record<string, { label: string; Icon: typeof GlobeIcon }> = {

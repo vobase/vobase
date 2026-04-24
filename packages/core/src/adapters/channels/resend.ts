@@ -3,16 +3,11 @@
  * Not a conversational channel — no inbound webhook support.
  * Used as a send transport for email notifications.
  */
-import type {
-  ChannelAdapter,
-  ChannelCapabilities,
-  OutboundMessage,
-  SendResult,
-} from '../../contracts/channels';
+import type { ChannelAdapter, ChannelCapabilities, OutboundMessage, SendResult } from '../../contracts/channels'
 
 export interface ResendAdapterConfig {
-  apiKey: string;
-  from: string;
+  apiKey: string
+  from: string
 }
 
 const EMAIL_CAPABILITIES: ChannelCapabilities = {
@@ -23,22 +18,20 @@ const EMAIL_CAPABILITIES: ChannelCapabilities = {
   typingIndicators: false,
   streaming: false,
   messagingWindow: false,
-};
+}
 
-export function createResendAdapter(
-  config: ResendAdapterConfig,
-): ChannelAdapter {
+export function createResendAdapter(config: ResendAdapterConfig): ChannelAdapter {
   return {
     name: 'resend',
     inboundMode: 'pull',
     capabilities: EMAIL_CAPABILITIES,
 
     async send(message: OutboundMessage): Promise<SendResult> {
-      const meta = (message.metadata ?? {}) as Record<string, unknown>;
-      const from = (meta.from as string | undefined) ?? config.from;
-      const cc = meta.cc as string[] | undefined;
-      const bcc = meta.bcc as string[] | undefined;
-      const replyTo = meta.replyTo as string | undefined;
+      const meta = (message.metadata ?? {}) as Record<string, unknown>
+      const from = (meta.from as string | undefined) ?? config.from
+      const cc = meta.cc as string[] | undefined
+      const bcc = meta.bcc as string[] | undefined
+      const replyTo = meta.replyTo as string | undefined
 
       const attachments = message.media
         ?.filter((m) => m.data != null)
@@ -46,7 +39,7 @@ export function createResendAdapter(
           filename: m.filename ?? 'attachment',
           content: m.data?.toString('base64'),
           content_type: m.mimeType,
-        }));
+        }))
 
       try {
         const response = await fetch('https://api.resend.com/emails', {
@@ -66,28 +59,28 @@ export function createResendAdapter(
             reply_to: replyTo,
             ...(attachments?.length ? { attachments } : {}),
           }),
-        });
+        })
 
         if (!response.ok) {
-          const body = await response.text();
-          const retryable = response.status === 429 || response.status >= 500;
+          const body = await response.text()
+          const retryable = response.status === 429 || response.status >= 500
           return {
             success: false,
             error: `Resend API error (${response.status}): ${body}`,
             code: response.status === 429 ? 'rate_limited' : undefined,
             retryable,
-          };
+          }
         }
 
-        const data = (await response.json()) as { id?: string };
-        return { success: true, messageId: data.id };
+        const data = (await response.json()) as { id?: string }
+        return { success: true, messageId: data.id }
       } catch (err) {
         return {
           success: false,
           error: err instanceof Error ? err.message : String(err),
           retryable: true,
-        };
+        }
       }
     },
-  };
+  }
 }

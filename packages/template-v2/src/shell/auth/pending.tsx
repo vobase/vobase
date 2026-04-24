@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate, useRouterState } from '@tanstack/react-router'
+
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { useEmailOtp } from '@/shell/auth/use-email-otp'
 

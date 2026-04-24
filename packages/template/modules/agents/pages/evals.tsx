@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   FlaskConicalIcon,
   MessageSquareIcon,
@@ -9,8 +9,8 @@ import {
   Trash2Icon,
   TrendingUpIcon,
   ZapIcon,
-} from 'lucide-react';
-import { type FormEvent, useCallback, useState } from 'react';
+} from 'lucide-react'
+import { type FormEvent, useCallback, useState } from 'react'
 
 import {
   AlertDialog,
@@ -22,10 +22,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -34,54 +34,48 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Gauge,
-  GaugeIndicator,
-  GaugeRange,
-  GaugeTrack,
-  GaugeValueText,
-} from '@/components/ui/gauge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { RelativeTimeCard } from '@/components/ui/relative-time-card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
-import { agentsClient } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
+} from '@/components/ui/dialog'
+import { Gauge, GaugeIndicator, GaugeRange, GaugeTrack, GaugeValueText } from '@/components/ui/gauge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
+import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { agentsClient } from '@/lib/api-client'
+import { cn } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface QualityOverview {
-  avgScore: number | null;
-  totalScores: number;
-  conversationsScored: number;
-  feedback: { positive: number; negative: number };
+  avgScore: number | null
+  totalScores: number
+  conversationsScored: number
+  feedback: { positive: number; negative: number }
   scorerBreakdown: Array<{
-    scorerId: string;
-    avgScore: number;
-    count: number;
-  }>;
+    scorerId: string
+    avgScore: number
+    count: number
+  }>
   worstConversations: Array<{
-    conversationId: string;
-    avgScore: number;
-    scoreCount: number;
-    lastScored: string | null;
-  }>;
+    conversationId: string
+    avgScore: number
+    scoreCount: number
+    lastScored: string | null
+  }>
 }
 
 interface ScorerMeta {
-  id: string;
-  name: string;
-  description: string;
-  hasJudge: boolean;
-  source: 'code' | 'custom';
-  dbId?: string;
-  enabled?: boolean;
-  criteria?: string;
-  model?: string;
+  id: string
+  name: string
+  description: string
+  hasJudge: boolean
+  source: 'code' | 'custom'
+  dbId?: string
+  enabled?: boolean
+  criteria?: string
+  model?: string
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────
@@ -89,15 +83,15 @@ interface ScorerMeta {
 async function fetchQualityOverview(days: number): Promise<QualityOverview> {
   const res = await agentsClient.evals['quality-overview'].$get({
     query: { days: String(days) },
-  });
-  if (!res.ok) throw new Error('Failed to fetch quality overview');
-  return res.json();
+  })
+  if (!res.ok) throw new Error('Failed to fetch quality overview')
+  return res.json()
 }
 
 async function fetchScorers(): Promise<ScorerMeta[]> {
-  const res = await agentsClient.evals.scorers.$get();
-  if (!res.ok) throw new Error('Failed to fetch scorers');
-  return res.json();
+  const res = await agentsClient.evals.scorers.$get()
+  if (!res.ok) throw new Error('Failed to fetch scorers')
+  return res.json()
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -108,27 +102,27 @@ function formatScorerLabel(id: string): string {
     .replace(/[-_]/g, ' ')
     .replace(/\bscorer\b/i, '')
     .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 function scoreRangeClass(score: number): string {
-  const pct = score * 100;
-  if (pct >= 80) return 'text-green-600 dark:text-green-400';
-  if (pct >= 60) return 'text-yellow-600 dark:text-yellow-400';
-  return 'text-red-600 dark:text-red-400';
+  const pct = score * 100
+  if (pct >= 80) return 'text-green-600 dark:text-green-400'
+  if (pct >= 60) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-red-600 dark:text-red-400'
 }
 
 function scoreProgressClass(score: number): string {
-  const pct = score * 100;
-  if (pct >= 80) return '[&>[data-slot=progress-indicator]]:bg-green-500';
-  if (pct >= 60) return '[&>[data-slot=progress-indicator]]:bg-yellow-500';
-  return '[&>[data-slot=progress-indicator]]:bg-red-500';
+  const pct = score * 100
+  if (pct >= 80) return '[&>[data-slot=progress-indicator]]:bg-green-500'
+  if (pct >= 60) return '[&>[data-slot=progress-indicator]]:bg-yellow-500'
+  return '[&>[data-slot=progress-indicator]]:bg-red-500'
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────
 
 function QualityDashboard() {
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState(7)
 
   const {
     data: overview,
@@ -139,12 +133,12 @@ function QualityDashboard() {
     queryFn: () => fetchQualityOverview(days),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
-  });
+  })
 
   const { data: scorersList = [] } = useQuery({
     queryKey: ['eval-scorers'],
     queryFn: fetchScorers,
-  });
+  })
 
   if (isLoading) {
     return (
@@ -157,26 +151,21 @@ function QualityDashboard() {
         </div>
         <Skeleton className="h-64 rounded-lg" />
       </div>
-    );
+    )
   }
 
   if (isError) {
     return (
       <div className="p-6">
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-          <p className="text-sm text-destructive">
-            Failed to load quality data. The evals API may not be available.
-          </p>
+          <p className="text-sm text-destructive">Failed to load quality data. The evals API may not be available.</p>
         </div>
       </div>
-    );
+    )
   }
 
   const hasData =
-    overview &&
-    (overview.totalScores > 0 ||
-      overview.feedback.positive > 0 ||
-      overview.feedback.negative > 0);
+    overview && (overview.totalScores > 0 || overview.feedback.positive > 0 || overview.feedback.negative > 0)
 
   if (!hasData) {
     return (
@@ -186,21 +175,17 @@ function QualityDashboard() {
             <FlaskConicalIcon className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium mb-1">No quality data yet</p>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Scorers are active on your AI agents. Chat with an agent to
-              generate quality scores automatically.
+              Scorers are active on your AI agents. Chat with an agent to generate quality scores automatically.
             </p>
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
-  const avgPct = overview.avgScore ? Math.round(overview.avgScore * 100) : null;
-  const totalFeedback = overview.feedback.positive + overview.feedback.negative;
-  const feedbackRatio =
-    totalFeedback > 0
-      ? Math.round((overview.feedback.positive / totalFeedback) * 100)
-      : null;
+  const avgPct = overview.avgScore ? Math.round(overview.avgScore * 100) : null
+  const totalFeedback = overview.feedback.positive + overview.feedback.negative
+  const feedbackRatio = totalFeedback > 0 ? Math.round((overview.feedback.positive / totalFeedback) * 100) : null
 
   return (
     <div className="p-6 space-y-6">
@@ -217,9 +202,7 @@ function QualityDashboard() {
             onClick={() => setDays(opt.value)}
             className={cn(
               'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-              days === opt.value
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-muted',
+              days === opt.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
             )}
           >
             {opt.label}
@@ -239,18 +222,10 @@ function QualityDashboard() {
           <CardContent>
             {avgPct !== null ? (
               <div className="flex items-center gap-3">
-                <Gauge
-                  value={avgPct}
-                  max={100}
-                  size={56}
-                  thickness={5}
-                  getValueText={(v) => `${v}%`}
-                >
+                <Gauge value={avgPct} max={100} size={56} thickness={5} getValueText={(v) => `${v}%`}>
                   <GaugeIndicator>
                     <GaugeTrack />
-                    <GaugeRange
-                      className={scoreRangeClass(overview.avgScore ?? 0)}
-                    />
+                    <GaugeRange className={scoreRangeClass(overview.avgScore ?? 0)} />
                   </GaugeIndicator>
                   <GaugeValueText className="text-sm font-semibold" />
                 </Gauge>
@@ -271,12 +246,8 @@ function QualityDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-semibold">
-                {overview.conversationsScored}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {overview.totalScores} total scores
-              </span>
+              <span className="text-2xl font-semibold">{overview.conversationsScored}</span>
+              <span className="text-xs text-muted-foreground">{overview.totalScores} total scores</span>
             </div>
           </CardContent>
         </Card>
@@ -297,9 +268,7 @@ function QualityDashboard() {
                 </span>
               </div>
             ) : (
-              <span className="text-sm text-muted-foreground">
-                No feedback yet
-              </span>
+              <span className="text-sm text-muted-foreground">No feedback yet</span>
             )}
           </CardContent>
         </Card>
@@ -313,9 +282,7 @@ function QualityDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-semibold">
-                {scorersList.length}
-              </span>
+              <span className="text-2xl font-semibold">{scorersList.length}</span>
               <span className="text-xs text-muted-foreground">
                 {scorersList.filter((s) => s.source === 'code').length} code,{' '}
                 {scorersList.filter((s) => s.source === 'custom').length} custom
@@ -330,31 +297,21 @@ function QualityDashboard() {
         <div className="space-y-2">
           <h3 className="text-sm font-medium">
             Conversations by Quality
-            <span className="ml-2 text-muted-foreground font-normal">
-              lowest first
-            </span>
+            <span className="ml-2 text-muted-foreground font-normal">lowest first</span>
           </h3>
           <div className="overflow-hidden rounded-md border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Conversation
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Quality
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Scores
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                    Last Scored
-                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Conversation</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Quality</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Scores</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Last Scored</th>
                 </tr>
               </thead>
               <tbody>
                 {overview.worstConversations.map((conv) => {
-                  const pct = Math.round(conv.avgScore * 100);
+                  const pct = Math.round(conv.avgScore * 100)
                   return (
                     <tr
                       key={conv.conversationId}
@@ -373,35 +330,18 @@ function QualityDashboard() {
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
-                          <Progress
-                            value={pct}
-                            className={cn(
-                              'h-1.5 w-16',
-                              scoreProgressClass(conv.avgScore),
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              'text-xs font-medium tabular-nums',
-                              scoreRangeClass(conv.avgScore),
-                            )}
-                          >
+                          <Progress value={pct} className={cn('h-1.5 w-16', scoreProgressClass(conv.avgScore))} />
+                          <span className={cn('text-xs font-medium tabular-nums', scoreRangeClass(conv.avgScore))}>
                             {pct}%
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-muted-foreground tabular-nums">
-                        {conv.scoreCount}
-                      </td>
+                      <td className="px-3 py-2.5 text-muted-foreground tabular-nums">{conv.scoreCount}</td>
                       <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                        {conv.lastScored ? (
-                          <RelativeTimeCard date={conv.lastScored} />
-                        ) : (
-                          '—'
-                        )}
+                        {conv.lastScored ? <RelativeTimeCard date={conv.lastScored} /> : '—'}
                       </td>
                     </tr>
-                  );
+                  )
                 })}
               </tbody>
             </table>
@@ -418,58 +358,39 @@ function QualityDashboard() {
           <h3 className="text-sm font-medium">Scorer Breakdown</h3>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {overview.scorerBreakdown.map((scorer) => {
-              const pct = Math.round(scorer.avgScore * 100);
-              const meta = scorersList.find((s) => s.id === scorer.scorerId);
+              const pct = Math.round(scorer.avgScore * 100)
+              const meta = scorersList.find((s) => s.id === scorer.scorerId)
               return (
-                <div
-                  key={scorer.scorerId}
-                  className="flex items-center gap-3 rounded-md border p-3"
-                >
+                <div key={scorer.scorerId} className="flex items-center gap-3 rounded-md border p-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {meta?.name ?? formatScorerLabel(scorer.scorerId)}
-                    </p>
-                    {meta?.description && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {meta.description}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {scorer.count} scores
-                    </p>
+                    <p className="text-sm font-medium truncate">{meta?.name ?? formatScorerLabel(scorer.scorerId)}</p>
+                    {meta?.description && <p className="text-xs text-muted-foreground truncate">{meta.description}</p>}
+                    <p className="text-xs text-muted-foreground mt-0.5">{scorer.count} scores</p>
                   </div>
-                  <Gauge
-                    value={pct}
-                    max={100}
-                    size={48}
-                    thickness={4}
-                    getValueText={(v) => `${v}%`}
-                  >
+                  <Gauge value={pct} max={100} size={48} thickness={4} getValueText={(v) => `${v}%`}>
                     <GaugeIndicator>
                       <GaugeTrack />
-                      <GaugeRange
-                        className={scoreRangeClass(scorer.avgScore)}
-                      />
+                      <GaugeRange className={scoreRangeClass(scorer.avgScore)} />
                     </GaugeIndicator>
                     <GaugeValueText className="text-xs font-semibold" />
                   </Gauge>
                 </div>
-              );
+              )
             })}
           </div>
         </div>
       )}
     </div>
-  );
+  )
 }
 
 // ─── Custom Scorer Management ────────────────────────────────────────
 
 function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
-  const queryClient = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const queryClient = useQueryClient()
+  const [dialogOpen, setDialogOpen] = useState(false)
 
-  const customScorers = scorersList.filter((s) => s.source === 'custom');
+  const customScorers = scorersList.filter((s) => s.source === 'custom')
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
@@ -481,33 +402,28 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to update scorer');
+      )
+      if (!res.ok) throw new Error('Failed to update scorer')
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['eval-scorers'] });
+      queryClient.invalidateQueries({ queryKey: ['eval-scorers'] })
     },
-  });
+  })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await agentsClient.evals.scorers[':id'].$delete({
         param: { id },
-      });
-      if (!res.ok) throw new Error('Failed to delete scorer');
+      })
+      if (!res.ok) throw new Error('Failed to delete scorer')
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['eval-scorers'] });
+      queryClient.invalidateQueries({ queryKey: ['eval-scorers'] })
     },
-  });
+  })
 
   const createMutation = useMutation({
-    mutationFn: async (body: {
-      name: string;
-      description: string;
-      criteria: string;
-      model: string;
-    }) => {
+    mutationFn: async (body: { name: string; description: string; criteria: string; model: string }) => {
       const res = await agentsClient.evals.scorers.$post(
         {},
         {
@@ -516,28 +432,28 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
             headers: { 'Content-Type': 'application/json' },
           },
         },
-      );
-      if (!res.ok) throw new Error('Failed to create scorer');
+      )
+      if (!res.ok) throw new Error('Failed to create scorer')
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['eval-scorers'] });
-      setDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['eval-scorers'] })
+      setDialogOpen(false)
     },
-  });
+  })
 
   const handleCreate = useCallback(
     (e: FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      const fd = new FormData(e.currentTarget);
+      e.preventDefault()
+      const fd = new FormData(e.currentTarget)
       createMutation.mutate({
         name: fd.get('name') as string,
         description: fd.get('description') as string,
         criteria: fd.get('criteria') as string,
         model: (fd.get('model') as string) || 'gpt-5.4-mini',
-      });
+      })
     },
     [createMutation],
-  );
+  )
 
   return (
     <div className="space-y-2">
@@ -554,20 +470,14 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
             <DialogHeader>
               <DialogTitle>Create Custom Scorer</DialogTitle>
               <DialogDescription>
-                Define evaluation criteria in plain English. An LLM judge will
-                score agent responses based on your criteria.
+                Define evaluation criteria in plain English. An LLM judge will score agent responses based on your
+                criteria.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="scorer-name">Name</Label>
-                <Input
-                  id="scorer-name"
-                  name="name"
-                  placeholder="e.g. Professional Tone"
-                  required
-                  maxLength={100}
-                />
+                <Input id="scorer-name" name="name" placeholder="e.g. Professional Tone" required maxLength={100} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scorer-description">Description</Label>
@@ -593,15 +503,8 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scorer-model">Model</Label>
-                <Input
-                  id="scorer-model"
-                  name="model"
-                  placeholder="gpt-5.4-mini"
-                  defaultValue="gpt-5.4-mini"
-                />
-                <p className="text-xs text-muted-foreground">
-                  The LLM model used as the judge
-                </p>
+                <Input id="scorer-model" name="model" placeholder="gpt-5.4-mini" defaultValue="gpt-5.4-mini" />
+                <p className="text-xs text-muted-foreground">The LLM model used as the judge</p>
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={createMutation.isPending}>
@@ -615,16 +518,12 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
 
       {customScorers.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No custom scorers yet. Create one to evaluate agent responses with
-          your own criteria.
+          No custom scorers yet. Create one to evaluate agent responses with your own criteria.
         </p>
       ) : (
         <div className="space-y-2">
           {customScorers.map((scorer) => (
-            <div
-              key={scorer.id}
-              className="flex items-center gap-3 rounded-md border p-3"
-            >
+            <div key={scorer.id} className="flex items-center gap-3 rounded-md border p-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium">{scorer.name}</p>
@@ -632,13 +531,9 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
                     <ZapIcon className="h-3 w-3" />
                     LLM Judge
                   </Badge>
-                  {scorer.enabled === false && (
-                    <Badge variant="secondary">Disabled</Badge>
-                  )}
+                  {scorer.enabled === false && <Badge variant="secondary">Disabled</Badge>}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {scorer.description}
-                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">{scorer.description}</p>
               </div>
 
               <Switch
@@ -655,11 +550,7 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive"
-                  >
+                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
                     <Trash2Icon className="h-3.5 w-3.5" />
                   </Button>
                 </AlertDialogTrigger>
@@ -667,16 +558,14 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete scorer?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete "{scorer.name}" and all its
-                      scoring criteria. This action cannot be undone.
+                      This will permanently delete "{scorer.name}" and all its scoring criteria. This action cannot be
+                      undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={() =>
-                        scorer.dbId && deleteMutation.mutate(scorer.dbId)
-                      }
+                      onClick={() => scorer.dbId && deleteMutation.mutate(scorer.dbId)}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
                       Delete
@@ -689,9 +578,9 @@ function CustomScorerSection({ scorersList }: { scorersList: ScorerMeta[] }) {
         </div>
       )}
     </div>
-  );
+  )
 }
 
 export const Route = createFileRoute('/_app/agents/evals')({
   component: QualityDashboard,
-});
+})

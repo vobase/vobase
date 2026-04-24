@@ -1,31 +1,31 @@
-import type { PlateValue } from '../lib/plate-types';
+import type { PlateValue } from '../lib/plate-types'
 
 export interface ExternalDocument {
-  externalId: string;
-  title: string;
-  mimeType: string;
-  sourceUrl?: string;
-  modifiedAt?: Date;
+  externalId: string
+  title: string
+  mimeType: string
+  sourceUrl?: string
+  modifiedAt?: Date
 }
 
 export interface DocumentContent {
-  text: string;
+  text: string
   /** Optional pre-parsed Plate Value. If provided, skips markdownToPlate() conversion. */
-  value?: PlateValue;
-  metadata?: Record<string, unknown>;
+  value?: PlateValue
+  metadata?: Record<string, unknown>
 }
 
 export interface DocumentSource {
-  name: string;
-  type: string;
+  name: string
+  type: string
 
   /** List available documents from the external source */
-  listDocuments(): AsyncGenerator<ExternalDocument>;
+  listDocuments(): AsyncGenerator<ExternalDocument>
 
   /** Fetch the text content of a specific document */
-  fetchDocument(externalId: string): Promise<DocumentContent>;
+  fetchDocument(externalId: string): Promise<DocumentContent>
 }
 
 export interface ConnectorConfig {
-  [key: string]: unknown;
+  [key: string]: unknown
 }
