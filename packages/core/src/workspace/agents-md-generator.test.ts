@@ -31,9 +31,12 @@ describe('generateAgentsMd', () => {
       ...BASE,
       commands: [cmd('reply', 'Send a reply.'), cmd('memory set', 'Upsert memory.'), cmd('hold', 'Put on hold.')],
     })
-    const reply = md.indexOf('vobase reply')
-    const memory = md.indexOf('vobase memory set')
-    const hold = md.indexOf('vobase hold')
+    // Constrain the search to the `## Commands` section so write-pattern
+    // mentions of `vobase memory set` in the header don't skew positions.
+    const commandsSection = md.slice(md.indexOf('## Commands'))
+    const reply = commandsSection.indexOf('vobase reply')
+    const memory = commandsSection.indexOf('vobase memory set')
+    const hold = commandsSection.indexOf('vobase hold')
     expect(hold).toBeGreaterThan(-1)
     expect(memory).toBeGreaterThan(-1)
     expect(reply).toBeGreaterThan(-1)
@@ -48,6 +51,17 @@ describe('generateAgentsMd', () => {
     expect(md).toContain('## Commands')
     expect(md).toContain('_No commands registered._')
     expect(md).toContain('AGENTS.md')
+  })
+
+  it('emits write-patterns section enumerating per-scope mutation paths', () => {
+    const md = generateAgentsMd({ ...BASE, commands: [] })
+    expect(md).toContain('## Write patterns')
+    expect(md).toContain('vobase memory set')
+    expect(md).toContain('--scope=contact')
+    expect(md).toContain('--scope=staff')
+    expect(md).toContain('vobase drive propose')
+    expect(md).toContain('`reply` tool')
+    expect(md).toContain('/tmp/')
   })
 
   it('emits Instructions section with verbatim body', () => {

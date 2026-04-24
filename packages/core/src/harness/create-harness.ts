@@ -18,6 +18,7 @@ import { Type } from '@mariozechner/pi-ai'
 import type { Bash, InMemoryFs } from 'just-bash'
 import { nanoid } from 'nanoid'
 
+import { createAgentsMdChainContributor, deriveTouchedDirsFromBashHistory } from './agents-md-chain'
 import { makeBashTool } from './bash-tool'
 import { createRestartRecoveryContributor, type GetLastWakeTail } from './restart-recovery'
 import type { CustomSideLoadMaterializer } from './side-load-collector'
@@ -260,6 +261,21 @@ export interface CreateHarnessOpts<TTrigger = unknown> {
   extraCustomSideLoad?: readonly CustomSideLoadMaterializer[]
 
   /**
+   * Opt into hierarchical `AGENTS.md` chain injection. When set, each turn the
+   * harness parses the prior turn's bash history for touched directories,
+   * walks ancestors for `AGENTS.md` files under the workspace fs, and injects
+   * them as a `## Context hints` side-load block. Files de-dupe cumulatively
+   * across the wake. `/agents/<agentId>/AGENTS.md` is skipped by default
+   * because it is already in the frozen system prompt.
+   */
+  agentsMdChain?: {
+    rootStop?: string
+    filename?: string
+    ignorePaths?: readonly string[]
+    maxBytes?: number
+  }
+
+  /**
    * Optional handle exposing the harness's internal `publish` so out-of-band
    * code (e.g. a template-side `llmCall` helper) can surface synthesized
    * `llm_call` events back into the harness's event stream. Populated with a
@@ -477,6 +493,20 @@ export async function createHarness<TTrigger = unknown>(
   customSideLoad.push(createBashHistoryMaterializer(() => bashHistory.last))
   if (opts.getLastWakeTail) {
     customSideLoad.push(createRestartRecoveryContributor(conversationId, opts.getLastWakeTail))
+  }
+  if (opts.agentsMdChain) {
+    const chainCfg = opts.agentsMdChain
+    const defaultIgnore = [`/agents/${opts.agentId}/AGENTS.md`]
+    customSideLoad.push(
+      createAgentsMdChainContributor({
+        fs: opts.workspace.innerFs,
+        touchedDirsProvider: () => deriveTouchedDirsFromBashHistory(bashHistory.last),
+        rootStop: chainCfg.rootStop,
+        filename: chainCfg.filename,
+        ignorePaths: chainCfg.ignorePaths ?? defaultIgnore,
+        maxBytes: chainCfg.maxBytes,
+      }),
+    )
   }
   for (const m of opts.extraCustomSideLoad ?? []) customSideLoad.push(m)
 

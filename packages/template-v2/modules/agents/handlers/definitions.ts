@@ -14,6 +14,7 @@ import {
   remove as removeAgent,
   update as updateAgent,
 } from '@modules/agents/service/agent-definitions'
+import { conversationVerbs, driveVerbs, generateAgentsMd, teamVerbs } from '@server/workspace'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -61,6 +62,20 @@ const app = new Hono()
     try {
       const row = await getById(c.req.param('id'))
       return c.json(row)
+    } catch {
+      return c.json({ error: 'not_found' }, 404)
+    }
+  })
+  .get('/definitions/:id/agents-md', async (c) => {
+    try {
+      const row = await getById(c.req.param('id'))
+      const preamble = generateAgentsMd({
+        agentName: row.name,
+        agentId: row.id,
+        commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
+        instructions: '',
+      }).replace(/\n## Instructions\n[\s\S]*$/, '\n')
+      return c.json({ preamble })
     } catch {
       return c.json({ error: 'not_found' }, 404)
     }

@@ -1,9 +1,10 @@
 import { useAgentDefinition, useDeleteAgent, useUpdateAgent } from '@modules/agents/api/use-agent-definitions'
+import { AgentsMdEditor } from '@modules/agents/components/agents-md-editor'
 import { MODEL_OPTIONS } from '@modules/agents/service/agent-definitions'
 import { DriveBrowser } from '@modules/drive/components/drive-browser'
 import { DriveProvider } from '@modules/drive/components/drive-provider'
 import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Bot, FolderTree, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Bot, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -62,7 +63,7 @@ function AgentDetailPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-6 py-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" asChild>
             <Link to="/agents">
@@ -73,8 +74,8 @@ function AgentDetailPage() {
             <Bot className="size-5 text-muted-foreground" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">{agent.name}</h1>
-            <p className="font-mono text-xs text-muted-foreground">{agent.model}</p>
+            <h1 className="font-semibold text-lg tracking-tight">{agent.name}</h1>
+            <p className="font-mono text-muted-foreground text-xs">{agent.model}</p>
           </div>
           <Badge variant={agent.enabled ? 'default' : 'secondary'} className="ml-2">
             {agent.enabled ? 'active' : 'disabled'}
@@ -96,11 +97,11 @@ function AgentDetailPage() {
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <section className="shrink-0 border-b border-border px-6 py-4">
+        <section className="shrink-0 border-border border-b px-6 py-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium">Settings</h2>
+            <h2 className="font-medium text-sm">Settings</h2>
             <div className="flex items-center gap-2">
-              <Label htmlFor="agent-enabled" className="text-xs text-muted-foreground">
+              <Label htmlFor="agent-enabled" className="text-muted-foreground text-xs">
                 Enabled
               </Label>
               <Switch id="agent-enabled" checked={enabled} onCheckedChange={setEnabled} />
@@ -131,7 +132,7 @@ function AgentDetailPage() {
             </div>
           </div>
           <div className="mt-3 flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {update.isError ? (
                 <span className="text-destructive">Failed to save changes.</span>
               ) : update.isSuccess && !settingsDirty ? (
@@ -152,20 +153,19 @@ function AgentDetailPage() {
         </section>
 
         <section className="flex min-h-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
-            <FolderTree className="size-4 text-muted-foreground" />
-            <h2 className="text-sm font-medium">Drive</h2>
-            <span className="text-xs text-muted-foreground">Agent instructions, memory, and uploaded files.</span>
-          </div>
-          <div className="min-h-0 flex-1">
-            <DriveProvider
-              scope={{ scope: 'agent', agentId: agent.id }}
-              rootLabel={`${agent.name}'s files`}
-              initialPath="/instructions.md"
-            >
-              <DriveBrowser />
-            </DriveProvider>
-          </div>
+          <DriveProvider
+            scope={{ scope: 'agent', agentId: agent.id }}
+            rootLabel={`${agent.name}'s files`}
+            initialPath="/AGENTS.md"
+            renderPreview={({ path, content }) => {
+              if (path === '/AGENTS.md') {
+                return <AgentsMdEditor agentId={agent.id} agentName={agent.name} initialInstructions={content} />
+              }
+              return null
+            }}
+          >
+            <DriveBrowser />
+          </DriveProvider>
         </section>
       </div>
     </div>

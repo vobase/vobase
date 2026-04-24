@@ -95,9 +95,28 @@ export function checkWriteAllowed(path: string, config: ReadOnlyConfig): string 
 
 function renderRoError(path: string): string {
   // The error must include the `vobase drive propose …` hint for drive writes.
-  const scope = 'organization'
-  const rel = path.startsWith('/drive/') ? path.slice('/drive'.length) : path
-  return `bash: ${path}: Read-only filesystem.\n  Use \`vobase drive propose --scope=${scope} --path=${rel} --body=...\` to suggest an addition.`
+  if (path.startsWith('/drive/')) {
+    const rel = path.slice('/drive'.length)
+    return `bash: ${path}: Read-only filesystem.\n  This path is organization-scope (read-only to agents). Use \`vobase drive propose --scope=organization --path=${rel} --body=...\` to suggest a change for staff review.`
+  }
+  // Known per-wake RO paths get scope-specific recovery hints so the LLM can
+  // stop retrying direct writes and reach for the right tool/domain command.
+  if (path.endsWith('/AGENTS.md')) {
+    return `bash: ${path}: Read-only filesystem.\n  AGENTS.md is auto-generated from the agent definition, registered tools, and CLI reference. Edit the Instructions section in the Agents config page (or update the \`instructions\` column directly) to change agent behavior; do not write to this file.`
+  }
+  if (path.startsWith('/staff/') && path.endsWith('/profile.md')) {
+    return `bash: ${path}: Read-only filesystem.\n  Staff profile is derived from the staff record (display name, role, expertise, timezone). Edit fields in the Team UI; do not write to this file.`
+  }
+  if (path.startsWith('/contacts/') && path.endsWith('/profile.md')) {
+    return `bash: ${path}: Read-only filesystem.\n  Contact profile is derived from the contact record. Edit fields in the Contacts UI or via the contacts service; do not write to this file.`
+  }
+  if (path.endsWith('/messages.md')) {
+    return `bash: ${path}: Read-only filesystem.\n  The conversation timeline is derived from channel events. Use the \`reply\` tool (or \`send_card\`, \`send_file\`) to send a customer-visible message; do not append to this file.`
+  }
+  if (path.endsWith('/internal-notes.md')) {
+    return `bash: ${path}: Read-only filesystem.\n  Internal notes are derived from staff-authored events in the messaging module. This file reflects, but does not accept, new notes.`
+  }
+  return `bash: ${path}: Read-only filesystem.`
 }
 
 /** The error class `just-bash` surfaces to stderr when redirect writes fail. */

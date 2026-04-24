@@ -59,6 +59,18 @@ export function useAgentDefinition(id: string | undefined) {
   })
 }
 
+export function useAgentsMd(id: string | undefined) {
+  return useQuery({
+    queryKey: ['agents', 'definitions', id, 'agents-md'],
+    enabled: !!id,
+    queryFn: async (): Promise<{ preamble: string }> => {
+      const r = await fetch(`/api/agents/definitions/${id}/agents-md`)
+      if (!r.ok) throw new Error(`agents.agents-md failed: ${r.status}`)
+      return r.json()
+    },
+  })
+}
+
 async function jsonFetch(url: string, init: RequestInit): Promise<unknown> {
   const r = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) } })
   if (!r.ok) throw new Error(`${init.method ?? 'GET'} ${url} failed: ${r.status}`)

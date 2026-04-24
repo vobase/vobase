@@ -100,7 +100,7 @@ export function resolveVirtualField(scope: DriveScope, path: string): VirtualFie
     return null
   }
   if (scope.scope === 'agent') {
-    if (path === '/instructions.md') return 'instructions'
+    if (path === '/AGENTS.md') return 'instructions'
     if (path === '/NOTES.md') return 'memory'
     return null
   }
@@ -146,7 +146,7 @@ function parentPathOf(path: string): string | null {
 
 function virtualFileName(field: VirtualField): string {
   if (field === 'profile') return 'PROFILE.md'
-  if (field === 'instructions') return 'instructions.md'
+  if (field === 'instructions') return 'AGENTS.md'
   return 'NOTES.md'
 }
 
@@ -328,7 +328,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
       const realNames = new Set(rows.map((r) => r.name))
       const overlays: DriveFile[] = []
       if (backing.backingScope === 'agent') {
-        if (!realNames.has('instructions.md')) {
+        if (!realNames.has('AGENTS.md')) {
           overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'instructions'))
         }
         if (!realNames.has('NOTES.md')) {

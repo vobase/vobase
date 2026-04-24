@@ -22,6 +22,14 @@ function rootCrumb(label: string): FolderCrumb {
   return { id: null, path: '/', name: label }
 }
 
+/**
+ * Escape-hatch render prop. Lets a host page (e.g. agents/$id) swap the
+ * default preview component for a specific path — used to surface the
+ * AgentsMdEditor when viewing `/AGENTS.md` under the `agent` scope without
+ * teaching the drive module about agents.
+ */
+export type DrivePreviewRenderer = (ctx: { path: string; content: string; scope: DriveScopeArg }) => ReactNode | null
+
 interface DriveContextValue {
   scope: DriveScopeArg
   currentFolderId: string | null
@@ -35,6 +43,8 @@ interface DriveContextValue {
   jumpToCrumb: (index: number) => void
   selectedPath: string | null
   setSelectedPath: (p: string | null) => void
+  /** Optional per-path renderer override. Undefined falls back to the default. */
+  renderPreview: DrivePreviewRenderer | undefined
 }
 
 const DriveContext = createContext<DriveContextValue | null>(null)
@@ -46,6 +56,13 @@ export interface DriveProviderProps {
   /** Label shown for the root crumb. Defaults to "My Drive". Pass contact or
    *  staff display name when embedding the drive in a detail page. */
   rootLabel?: string
+  /**
+   * Optional per-path preview override. Called before `DrivePreview` renders
+   * its default editor; a non-null return replaces the default. Used by the
+   * agents detail page to mount the composite `AGENTS.md` editor when
+   * `/AGENTS.md` is selected.
+   */
+  renderPreview?: DrivePreviewRenderer
 }
 
 export function DriveProvider({
@@ -53,6 +70,7 @@ export function DriveProvider({
   children,
   initialPath = null,
   rootLabel = DEFAULT_ROOT_LABEL,
+  renderPreview,
 }: DriveProviderProps) {
   const [folderTrail, setFolderTrail] = useState<FolderCrumb[]>(() => [rootCrumb(rootLabel)])
   const [selectedPath, setSelectedPath] = useState<string | null>(initialPath)
@@ -98,8 +116,9 @@ export function DriveProvider({
       jumpToCrumb,
       selectedPath,
       setSelectedPath,
+      renderPreview,
     }),
-    [scope, current.id, current.path, folderTrail, enterFolder, jumpToFolder, jumpToCrumb, selectedPath],
+    [scope, current.id, current.path, folderTrail, enterFolder, jumpToFolder, jumpToCrumb, selectedPath, renderPreview],
   )
   return <DriveContext.Provider value={value}>{children}</DriveContext.Provider>
 }

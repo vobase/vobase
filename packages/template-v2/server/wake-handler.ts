@@ -32,16 +32,19 @@ import { replyTool } from '@modules/messaging/tools/reply'
 import { sendCardTool } from '@modules/messaging/tools/send-card'
 import type { AgentTool, RealtimeService, ScopedDb } from '@server/common/port-types'
 import type { WakeTrigger } from '@server/events'
-import { buildFrozenPrompt } from '@server/harness/frozen-prompt-builder'
+import { buildFrozenPrompt, type SessionContext } from '@server/harness/frozen-prompt-builder'
 import type { LlmEmitter } from '@server/harness/llm-call'
 import { createModel, resolveApiKey } from '@server/harness/llm-provider'
+import { resolvePlatformHint } from '@server/harness/platform-hints'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 import { createWorkspace } from '@server/workspace/create-workspace'
 import { buildStaffMaterializers, type StaffProfileLookup } from '@server/workspace/staff-materializers'
 import type { SideLoadContributor, WorkspaceMaterializer } from '@vobase/core'
 import {
   agentMessages,
+  conversationEvents,
   createHarness,
+  createIdleResumptionContributor,
   DirtyTracker,
   journalGetLastWakeTail,
   loadMessages,
@@ -49,7 +52,7 @@ import {
   resolveThread,
   threads,
 } from '@vobase/core'
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 
@@ -60,6 +63,14 @@ import { z } from 'zod'
  * Consumer: `createWakeHandler` below (registered in `server/app.ts`).
  */
 export const INBOUND_TO_WAKE_JOB = 'channel-web:inbound-to-wake'
+
+/**
+ * Idle-resumption threshold: if the conversation has been quiet longer than
+ * this, the side-load injects a `<conversation-idle-resume>` marker so the
+ * agent acknowledges the gap instead of assuming conversational recency.
+ * 24h matches typical helpdesk "stale thread" semantics.
+ */
+const IDLE_RESUMPTION_THRESHOLD_MS = 24 * 60 * 60 * 1000
 
 export const InboundToWakePayloadSchema = z.object({
   organizationId: z.string(),
@@ -274,6 +285,16 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         readOnlyConfig: roConfig,
       })
 
+      // Resolve session context + platform hint once at wake start; they
+      // live in the frozen system prompt and must not change mid-wake.
+      const sessionContext = await resolveSessionContext({
+        db: deps.db,
+        contactsService: deps.contacts,
+        conv,
+        contactId: data.contactId,
+      })
+      const platformHint = resolvePlatformHint(sessionContext.channelKind)
+
       // Frozen system prompt (was internal to bootWake).
       const frozen = await buildFrozenPrompt({
         bash: workspace.bash,
@@ -281,6 +302,8 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         organizationId: data.organizationId,
         contactId: data.contactId,
         channelInstanceId,
+        sessionContext,
+        platformHint,
       })
 
       // Dirty tracker + workspace-sync listener. Writable prefixes + memory
@@ -365,6 +388,25 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         sideLoadContributors: [conversationSideLoad],
         commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
 
+        extraCustomSideLoad: deps.db
+          ? [
+              createIdleResumptionContributor({
+                conversationId,
+                thresholdMs: IDLE_RESUMPTION_THRESHOLD_MS,
+                getLastActivityTime: async (convId) => {
+                  const rows = await deps.db
+                    ?.select({ ts: conversationEvents.ts })
+                    .from(conversationEvents)
+                    .where(eq(conversationEvents.conversationId, convId))
+                    .orderBy(desc(conversationEvents.ts))
+                    .limit(1)
+                  return rows && rows.length > 0 ? rows[0].ts : null
+                },
+              }),
+            ]
+          : undefined,
+        agentsMdChain: {},
+
         getLastWakeTail: journalGetLastWakeTail,
         journalAppend: async (ev) => {
           await deps.agents.appendEvent(ev as unknown as Parameters<typeof deps.agents.appendEvent>[0])
@@ -422,6 +464,70 @@ async function resolveStaffIdsForOrg(organizationId: string): Promise<readonly s
     return profiles.map((p) => p.userId)
   } catch {
     return []
+  }
+}
+
+/**
+ * Resolve the session-context snapshot the agent sees at wake start.
+ *
+ * Reads are best-effort — the frozen prompt section renders with `(unknown)`
+ * fallbacks when a lookup fails, keeping the block structurally identical
+ * across wakes (prompt-cache stability).
+ */
+async function resolveSessionContext(input: {
+  db: ScopedDb | undefined
+  contactsService: ContactsService
+  conv: Conversation
+  contactId: string
+}): Promise<SessionContext> {
+  const contact = await input.contactsService.get(input.contactId).catch(() => null)
+
+  let channelKind: string | null = null
+  let channelLabel: string | null = null
+  let staffAssigneeDisplayName: string | null = null
+
+  if (input.db) {
+    try {
+      const { channelInstances } = await import('@modules/messaging/schema')
+      const rows = await input.db
+        .select({ type: channelInstances.type, displayName: channelInstances.displayName })
+        .from(channelInstances)
+        .where(eq(channelInstances.id, input.conv.channelInstanceId))
+        .limit(1)
+      const row = rows[0]
+      if (row) {
+        channelKind = row.type
+        channelLabel = row.displayName
+      }
+    } catch {
+      /* swallow — fallback to (unknown) */
+    }
+
+    if (input.conv.assignee.startsWith('user:')) {
+      try {
+        const { authUser } = await import('@vobase/core')
+        const userId = input.conv.assignee.slice('user:'.length)
+        const rows = await input.db
+          .select({ name: authUser.name, email: authUser.email })
+          .from(authUser)
+          .where(eq(authUser.id, userId))
+          .limit(1)
+        const row = rows[0]
+        if (row) staffAssigneeDisplayName = row.name ?? row.email
+      } catch {
+        /* swallow */
+      }
+    }
+  }
+
+  return {
+    channelKind,
+    channelLabel,
+    contactDisplayName: contact?.displayName ?? null,
+    contactIdentifier: contact?.phone ?? contact?.email ?? null,
+    staffAssigneeDisplayName,
+    conversationStatus: input.conv.status,
+    customerSince: contact?.createdAt ?? null,
   }
 }
 

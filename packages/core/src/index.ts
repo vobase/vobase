@@ -79,6 +79,11 @@ export {
   VobaseError,
   validation,
 } from './errors'
+export {
+  type CreateAgentsMdChainOpts,
+  createAgentsMdChainContributor,
+  deriveTouchedDirsFromBashHistory,
+} from './harness/agents-md-chain'
 // ─── Harness primitives ──────────────────────────────────────────────────
 export {
   BASH_PREVIEW_BYTES,
@@ -133,6 +138,11 @@ export {
   type WakeScope,
 } from './harness/create-harness'
 export {
+  type CreateIdleResumptionOpts,
+  createIdleResumptionContributor,
+  type GetLastActivityTime,
+} from './harness/idle-resumption'
+export {
   __resetJournalServiceForTests,
   append as journalAppend,
   createJournalService,
@@ -183,6 +193,7 @@ export type {
   CommandContext,
   CommandDef,
   ErrResult,
+  HarnessPlatformHint,
   IterationBudget,
   MaterializerCtx,
   MaterializerPhase,

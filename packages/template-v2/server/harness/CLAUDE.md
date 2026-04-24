@@ -15,3 +15,15 @@ The hot path: `bootWake` assembles the frozen system prompt once, drives turns t
 **Restart recovery is a one-shot side-load.** If the previous wake's tail is `tool_execution_end` with no subsequent `message_end`/`agent_end`/`agent_aborted`, `restart-recovery` injects a `<previous-turn-interrupted>` block on turn 0 of the next wake.
 
 **Prompt cache coherence.** Prefix caching is owned by the provider (OpenAI Responses / Bifrost). Keeping `systemPrompt` byte-stable across every pi call within a wake — the frozen-snapshot invariant — is what keeps the cache warm. Mutating it mid-wake breaks the prefix hash and forfeits the cache.
+
+**Mid-wake arrival policy.** A wake is in-flight from `agent_start` to `agent_end`; events arriving during that window are routed by trigger type, not blindly queued. The rules below are enforced in `wake-handler.ts` + `SteerQueue`; they apply to the *same* `(agentId, conversationId)` — cross-conversation wakes are independent and never block each other.
+
+| Arriving trigger | Policy | Mechanism |
+|---|---|---|
+| `inbound_message` (customer text/media) | Append to `SteerQueue`; drains after the current turn's `tool_execution_end` and injects ahead of the next user-turn. Text interrupts + queues; media-only messages merge into the queue without interrupting an in-progress tool call. | `SteerQueue.append` + `drain` between turns |
+| `supervisor` (staff internal note addressed to the agent) | Hard abort the current wake and re-wake with `trigger: supervisor`. Staff intervention takes priority over whatever the agent was doing. | `AbortContext.abort('supervisor')` → re-wake |
+| `approval_resumed` (staff approved a pending tool call) | Hard abort + re-wake with `trigger: approval_resumed`. The resumed approval path starts a fresh wake rather than splicing back into the aborted one. | `AbortContext.abort('approval_resumed')` → re-wake |
+| `/stop` / explicit staff abort | Hard abort via `AbortContext`; no re-wake. | `AbortContext.abort('staff_stop')` |
+| Any trigger for a different `conversationId` | Parallel wake in its own process; no blocking, no queueing. | normal wake dispatch |
+
+Rationale: helpdesk semantics treat staff intervention and approvals as authoritative over the agent's in-flight plan, so those triggers *replace* the current wake rather than append. Customer messages are additive to the agent's context and flow through `SteerQueue` so the agent finishes its current tool call before integrating the new input. When enforcement drifts (e.g. a new trigger type is added without a rule), update this table and the dispatch switch together.

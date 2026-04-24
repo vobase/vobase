@@ -8,6 +8,19 @@
  * (emitted by the spill logic via a callback).
  */
 
+/**
+ * Channel-specific authoring guidance surfaced in the frozen system prompt.
+ *
+ * Template owns the catalog — core exports only the type so frozen-prompt
+ * builders and tests share a common shape. `kind` matches the
+ * `channelInstance.type` discriminator the template uses; `hint` is rendered
+ * verbatim under a `## Platform hints` section.
+ */
+export interface HarnessPlatformHint {
+  kind: string
+  hint: string
+}
+
 // ─── Tool envelope ──────────────────────────────────────────────────────────
 
 export interface ToolContext {
