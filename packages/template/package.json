@@ -17,6 +17,7 @@
     "db:nuke": "bun run scripts/db-nuke.ts",
     "generate": "bun run scripts/generate.ts",
     "knip": "knip",
+    "lint": "biome check .",
     "lint:fix": "biome check --write ."
   },
   "dependencies": {

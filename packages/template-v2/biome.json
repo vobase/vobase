@@ -1,13 +1,9 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
-  "root": false,
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": "//",
   "files": {
-    "ignoreUnknown": true,
     "includes": [
       "**",
-      "!**/node_modules",
-      "!**/dist",
       "!**/drizzle",
       "!**/.omc",
       "!**/db/current.sql",
@@ -17,46 +13,5 @@
       "!src/components/data-table",
       "!src/routeTree.gen.ts"
     ]
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 120
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single",
-      "semicolons": "asNeeded",
-      "trailingCommas": "all",
-      "arrowParentheses": "always"
-    }
-  },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
-    }
-  },
-  "overrides": [
-    {
-      "includes": ["**/*.css"],
-      "linter": { "enabled": false }
-    }
-  ],
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "suspicious": {
-        "noExplicitAny": "error"
-      },
-      "style": {
-        "noNonNullAssertion": "warn",
-        "useImportType": "error"
-      },
-      "complexity": {
-        "noBannedTypes": "off"
-      }
-    }
   }
 }

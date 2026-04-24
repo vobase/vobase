@@ -1,0 +1,13 @@
+// Bans `import(...)` dynamic imports. Suppress per-line with
+// `// biome-ignore lint/plugin/no-dynamic-import: <reason>` for heavy optional
+// deps (MCP SDK, AI SDK, googleapis, mammoth, etc.), config-gated features,
+// or test mocking after `vi.mock()`. Local module imports must be static.
+language js;
+
+`import($args)` where {
+  register_diagnostic(
+    span = $args,
+    message = "Dynamic `import()` is banned. Use a static `import` statement, or suppress with `// biome-ignore lint/plugin/no-dynamic-import: <reason>` for heavy optional deps / config-gated features.",
+    severity = "error"
+  )
+}

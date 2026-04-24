@@ -15,7 +15,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "bun build ./index.ts --outdir ./dist --target=bun --packages=external"
+    "build": "bun build ./index.ts --outdir ./dist --target=bun --packages=external",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
   },
   "dependencies": {
     "drizzle-orm": "^1.0.0-beta.22",

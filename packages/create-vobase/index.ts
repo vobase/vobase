@@ -103,13 +103,70 @@ for (const depField of ['dependencies', 'devDependencies']) {
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 console.log(`${green('✓')} Resolved dependencies`);
 
-// --- Generate biome.json (standalone, replacing monorepo-specific extends) ---
+// --- Copy .biome/plugins/ so the standalone biome.json can reference them ---
+{
+  const pluginsSrc = monorepoRoot
+    ? resolve(monorepoRoot, '.biome/plugins')
+    : null;
+  if (pluginsSrc && existsSync(pluginsSrc)) {
+    cpSync(pluginsSrc, resolve(dest, '.biome/plugins'), { recursive: true });
+  } else if (!monorepoRoot) {
+    await downloadTemplate('github:vobase/vobase/.biome/plugins', {
+      dir: resolve(dest, '.biome/plugins'),
+      force: true,
+    });
+  }
+  console.log(`${green('✓')} ${monorepoRoot ? 'Copied' : 'Downloaded'} biome plugins`);
+}
+
+// --- Generate biome.json (standalone, derived from root biome.jsonc) ---
 const biomePath = resolve(dest, 'biome.json');
 {
-  const biomeConfig = {
-    $schema: 'node_modules/@biomejs/biome/configuration_schema.json',
-    vcs: { enabled: true, clientKind: 'git', useIgnoreFile: true },
+  // The scaffolded project has no root/monorepo above it — so we flatten the
+  // root biome config + template overrides into a single standalone biome.json.
+  const rootBiomeSrc = monorepoRoot ? resolve(monorepoRoot, 'biome.json') : null;
+  const templateBiomePath = resolve(dest, 'biome.json');
+
+  let rootConfig: Record<string, unknown> = {};
+  if (rootBiomeSrc && existsSync(rootBiomeSrc)) {
+    rootConfig = JSON.parse(readFileSync(rootBiomeSrc, 'utf8'));
+  } else {
+    // Scaffolding from GitHub — fetch the monorepo's root biome.json so the
+    // standalone config stays in sync with the source of truth.
+    const url =
+      'https://raw.githubusercontent.com/vobase/vobase/main/biome.json';
+    const res = await fetch(url);
+    if (res.ok) {
+      rootConfig = JSON.parse(await res.text());
+    } else {
+      console.warn(
+        `${dim('!')} Could not fetch root biome.json (${res.status}) — generating minimal config`,
+      );
+    }
+  }
+
+  // Capture template-specific overrides before we overwrite the file
+  let templateOverrides: unknown[] = [];
+  if (existsSync(templateBiomePath)) {
+    try {
+      const templateConfig = JSON.parse(
+        readFileSync(templateBiomePath, 'utf8'),
+      );
+      if (Array.isArray(templateConfig.overrides)) {
+        templateOverrides = templateConfig.overrides;
+      }
+    } catch {
+      // ignore — template's biome.json may be the extends-// shape which we drop
+    }
+  }
+
+  const biomeConfig: Record<string, unknown> = {
+    ...rootConfig,
+    $schema: './node_modules/@biomejs/biome/configuration_schema.json',
     files: {
+      ...(typeof rootConfig.files === 'object' && rootConfig.files !== null
+        ? (rootConfig.files as Record<string, unknown>)
+        : {}),
       includes: [
         '**',
         '!dist',
@@ -125,44 +182,14 @@ const biomePath = resolve(dest, 'biome.json');
         '!src/lib/compose-refs.ts',
       ],
     },
-    linter: {
-      enabled: true,
-      domains: {
-        project: 'recommended',
-        react: 'recommended',
-        test: 'recommended',
-      },
-      rules: { recommended: true },
-    },
-    formatter: { enabled: true, indentStyle: 'space', indentWidth: 2 },
-    javascript: { formatter: { quoteStyle: 'single' } },
-    css: { parser: { tailwindDirectives: true } },
-    assist: {
-      enabled: true,
-      actions: {
-        source: {
-          organizeImports: {
-            level: 'on',
-            options: {
-              groups: [
-                [':NODE:'],
-                [':URL:', ':PACKAGE:', ':PACKAGE_WITH_PROTOCOL:'],
-                ':BLANK_LINE:',
-                ['#*', '#*/**', ':ALIAS:'],
-                [':PATH:'],
-              ],
-            },
-          },
-        },
-      },
-    },
     overrides: [
-      {
-        includes: ['modules/knowledge-base/connectors/sharepoint.ts'],
-        linter: { rules: { suspicious: { noTsIgnore: 'off' } } },
-      },
+      ...(Array.isArray(rootConfig.overrides) ? rootConfig.overrides : []),
+      ...templateOverrides,
     ],
   };
+  // `extends` is a monorepo-only concept — strip if the root config had it
+  delete biomeConfig.extends;
+
   writeFileSync(biomePath, `${JSON.stringify(biomeConfig, null, 2)}\n`);
   console.log(`${green('✓')} Generated biome.json`);
 }

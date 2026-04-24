@@ -1,0 +1,19 @@
+// Bans raw `fetch(...)` and `globalThis.fetch(...)` calls in frontend code
+// (src/**, modules/**/pages/**). Use the Hono typed RPC client from
+// @/lib/api-client for internal API calls. Only plain `fetch()` on dynamic
+// URLs (third-party endpoints the RPC client can't represent) is acceptable —
+// suppress per-line with
+// `// biome-ignore lint/plugin/no-raw-fetch: <reason>`.
+language js;
+
+or {
+  `fetch($args)`,
+  `globalThis.fetch($args)`,
+  `globalThis['fetch']($args)`
+} as $call where {
+  register_diagnostic(
+    span = $call,
+    message = "Raw `fetch()` is banned in frontend code. Use the Hono typed RPC client (from @/lib/api-client) for internal API calls. For third-party URLs, suppress with `// biome-ignore lint/plugin/no-raw-fetch: <reason>`.",
+    severity = "error"
+  )
+}
