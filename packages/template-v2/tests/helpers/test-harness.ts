@@ -22,12 +22,14 @@ import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } 
 import { createWorkspace } from '@server/workspace/create-workspace'
 import {
   createHarness,
+  DirtyTracker,
   type HarnessEvent,
   type HarnessHandle,
   journalAppend,
   type OnEventListener,
   type StreamFnLike,
   setJournalDb as setAgentsDb,
+  type WakeRuntime,
 } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 
@@ -276,6 +278,11 @@ export async function bootWakeIntegration(
 
   const model = createModel(agentDefinition.model)
 
+  const runtime: WakeRuntime = {
+    fs: workspace.innerFs,
+    tracker: new DirtyTracker(new Map(), [], []),
+  }
+
   const result = await createHarness<WakeTrigger>({
     organizationId: opts.organizationId,
     agentId: opts.agentId,
@@ -299,6 +306,7 @@ export async function bootWakeIntegration(
     renderTrigger: (t) => (t ? `wake:${t.trigger}` : 'manual wake'),
 
     workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
+    runtime,
 
     tools: [],
     hooks: { on_event: [captureListener] },

@@ -39,7 +39,7 @@ import { resolvePlatformHint } from '@server/harness/platform-hints'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 import { createWorkspace } from '@server/workspace/create-workspace'
 import { buildStaffMaterializers, type StaffProfileLookup } from '@server/workspace/staff-materializers'
-import type { SideLoadContributor, WorkspaceMaterializer } from '@vobase/core'
+import type { SideLoadContributor, WakeRuntime, WorkspaceMaterializer } from '@vobase/core'
 import {
   agentMessages,
   conversationEvents,
@@ -375,6 +375,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
           renderTriggerMessage(t, { contactId: data.contactId, channelInstanceId }),
 
         workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
+        runtime: { fs: workspace.innerFs, tracker: dirtyTracker } satisfies WakeRuntime,
 
         tools: [replyTool as unknown as AgentTool, sendCardTool as unknown as AgentTool],
         hooks: {

@@ -12,7 +12,8 @@
 
 import { describe, expect, it } from 'bun:test'
 import type { AgentEvent, WakeTrigger } from '@server/events'
-import { createInMemoryActiveWakes, type HarnessEvent, type OnEventListener } from '@vobase/core'
+import { createInMemoryActiveWakes, DirtyTracker, type HarnessEvent, type WakeRuntime } from '@vobase/core'
+import { InMemoryFs } from 'just-bash'
 import { nanoid } from 'nanoid'
 
 import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from '../service/queue-jobs'
@@ -32,6 +33,11 @@ import {
 const ORG = 'org-test'
 const AGENT = 'agt-test'
 const CONV = 'conv-test'
+
+const STUB_RUNTIME: WakeRuntime = {
+  fs: new InMemoryFs(),
+  tracker: new DirtyTracker(new Map(), [], []),
+}
 
 interface BuildDeps {
   debounceMs?: number
@@ -73,7 +79,7 @@ function makeStubRunHarness(script: {
       turnIndex,
     }
     const publish = (ev: AgentEvent): void => {
-      input.extraOnEvent(ev as unknown as HarnessEvent<WakeTrigger>)
+      input.extraOnEvent(ev as unknown as HarnessEvent<WakeTrigger>, STUB_RUNTIME)
     }
     publish({
       ...base,
@@ -384,7 +390,9 @@ describe('wake-worker — idempotency', () => {
           organizationId: input.organizationId,
           turnIndex: 0,
         }
-        const publish: OnEventListener<WakeTrigger> = (ev) => input.extraOnEvent(ev)
+        const publish = (ev: HarnessEvent<WakeTrigger>): void => {
+          input.extraOnEvent(ev, STUB_RUNTIME)
+        }
         publish({
           ...base,
           type: 'agent_start',

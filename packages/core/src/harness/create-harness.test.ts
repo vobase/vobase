@@ -16,8 +16,10 @@ import type { AssistantMessage, AssistantMessageEvent, Model } from '@mariozechn
 import { createAssistantMessageEventStream } from '@mariozechner/pi-ai'
 import { Bash, InMemoryFs } from 'just-bash'
 
+import { DirtyTracker } from '../workspace/dirty-tracker'
 import { createHarness, type HarnessEvent, type HarnessWorkspace } from './create-harness'
 import { createSteerQueue } from './steer-queue'
+import type { WakeRuntime } from './types'
 
 // ─── Minimal model ────────────────────────────────────────────────────────
 // Model is opaque to the harness; we only need `.id` and `.provider` to flow
@@ -107,6 +109,10 @@ function makeWorkspace(): HarnessWorkspace {
   return { bash, innerFs }
 }
 
+function makeRuntime(workspace: HarnessWorkspace): WakeRuntime {
+  return { fs: workspace.innerFs, tracker: new DirtyTracker(new Map(), [], []) }
+}
+
 const COMMON = {
   organizationId: 'org-test',
   agentId: 'agent-test',
@@ -120,9 +126,11 @@ const COMMON = {
 
 describe('createHarness (pi-agent-core path)', () => {
   it('emits the contract event sequence for a single-turn text reply', async () => {
+    const workspace = makeWorkspace()
     const res = await createHarness({
       ...COMMON,
-      workspace: makeWorkspace(),
+      workspace,
+      runtime: makeRuntime(workspace),
       streamFn: stubStreamFn([simpleReplyScript('hello')]),
       maxTurns: 1,
     })
@@ -141,9 +149,11 @@ describe('createHarness (pi-agent-core path)', () => {
   it('emits systemHash on agent_start and keeps it stable across multi-turn', async () => {
     const steerQueue = createSteerQueue()
     steerQueue.push('steer!')
+    const workspace = makeWorkspace()
     const res = await createHarness({
       ...COMMON,
-      workspace: makeWorkspace(),
+      workspace,
+      runtime: makeRuntime(workspace),
       streamFn: stubStreamFn([simpleReplyScript('one'), simpleReplyScript('two')]),
       maxTurns: 2,
       steerQueue,
@@ -157,9 +167,11 @@ describe('createHarness (pi-agent-core path)', () => {
   })
 
   it('llm_call event carries synthesized tokens + cost + latency from message.usage', async () => {
+    const workspace = makeWorkspace()
     const res = await createHarness({
       ...COMMON,
-      workspace: makeWorkspace(),
+      workspace,
+      runtime: makeRuntime(workspace),
       streamFn: stubStreamFn([simpleReplyScript('hi')]),
       maxTurns: 1,
     })
@@ -173,5 +185,32 @@ describe('createHarness (pi-agent-core path)', () => {
     expect(llm.costUsd).toBeCloseTo(0.003, 5)
     expect(llm.cacheHit).toBe(false)
     expect(llm.provider).toBe('openai')
+  })
+
+  it('passes the provided runtime as second argument to on_event listeners', async () => {
+    const workspace = makeWorkspace()
+    const runtime = makeRuntime(workspace)
+    const seen: Array<{ type: string; runtime: WakeRuntime }> = []
+    const res = await createHarness({
+      ...COMMON,
+      workspace,
+      runtime,
+      streamFn: stubStreamFn([simpleReplyScript('hi')]),
+      maxTurns: 1,
+      hooks: {
+        on_event: [
+          (ev, rt) => {
+            seen.push({ type: ev.type, runtime: rt })
+          },
+        ],
+      },
+    })
+
+    expect(res.harness.events.length).toBeGreaterThan(0)
+    expect(seen.length).toBe(res.harness.events.length)
+    for (const entry of seen) {
+      expect(entry.runtime).toBe(runtime)
+      expect(entry.runtime.fs).toBe(workspace.innerFs)
+    }
   })
 })

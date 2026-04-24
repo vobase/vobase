@@ -156,6 +156,13 @@ export {
   setDb as setJournalDb,
 } from './harness/journal'
 export {
+  type LlmCallArgs,
+  type LlmEmitter,
+  type LlmRequest,
+  type LlmResult,
+  llmCall,
+} from './harness/llm-call'
+export {
   loadMessages,
   type MessageHistoryDb,
   type ResolveThreadOpts,
@@ -205,6 +212,7 @@ export type {
   ToolContext,
   ToolResult,
   ToolResultPersistedEvent,
+  WakeRuntime,
   WorkspaceMaterializer,
 } from './harness/types'
 export { newWakeId } from './harness/wake-id'
@@ -256,6 +264,23 @@ export {
 } from './jobs/queue'
 // ─── Logger ──────────────────────────────────────────────────────────
 export { logger } from './logger'
+// ─── Module contract + boot loop ─────────────────────────────────────
+export {
+  type AgentContributions,
+  type CollectedWebRoute,
+  collectAgentContributions,
+  collectJobs,
+  collectWebRoutes,
+} from './module/collect'
+export {
+  bootModules,
+  bootModulesCollector,
+  InvalidModuleError,
+  type ModuleDef,
+  type ModuleInitCtx,
+  type ModuleRoutes,
+  sortModules,
+} from './module/module-def'
 export type {
   CreateRealtimeOptions,
   RealtimeExecutor,
@@ -264,6 +289,8 @@ export type {
 } from './realtime'
 // ─── Realtime (SSE + LISTEN/NOTIFY) ──────────────────────────────────
 export { createNoopRealtime, createRealtimeService } from './realtime'
+// ─── Scheduler types ─────────────────────────────────────────────────
+export type { JobDef, ScheduleOpts, ScopedScheduler } from './scheduler/types'
 // ─── Schemas ─────────────────────────────────────────────────────────
 export { auditLog, recordAudits } from './schemas/audit'
 export {

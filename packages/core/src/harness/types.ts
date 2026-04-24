@@ -8,6 +8,26 @@
  * (emitted by the spill logic via a callback).
  */
 
+import type { IFileSystem } from 'just-bash'
+
+import type { DirtyTracker } from '../workspace/dirty-tracker'
+
+// ─── Wake runtime ───────────────────────────────────────────────────────────
+
+/**
+ * Per-wake runtime handle threaded to every `OnEventListener` invocation. The
+ * two fields are the genuinely wake-scoped bits that don't live on
+ * `HarnessBaseFields`: the virtual filesystem the agent sees this wake, and
+ * the dirty tracker watching mutations inside writable zones. Identity fields
+ * (`organizationId`, `agentId`, `contactId`, `conversationId`, `wakeId`) live
+ * on the event. Services (drive, messaging, …) are boot-time singletons in
+ * the consuming application.
+ */
+export interface WakeRuntime {
+  fs: IFileSystem
+  tracker: DirtyTracker
+}
+
 /**
  * Channel-specific authoring guidance surfaced in the frozen system prompt.
  *

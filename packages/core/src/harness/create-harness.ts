@@ -32,6 +32,7 @@ import type {
   IterationBudget,
   SideLoadContributor,
   ToolResultPersistedEvent,
+  WakeRuntime,
   WorkspaceMaterializer,
 } from './types'
 import { newWakeId } from './wake-id'
@@ -158,6 +159,7 @@ export interface OnToolCallCtx {
 
 export type OnToolCallListener = (
   ctx: OnToolCallCtx,
+  runtime: WakeRuntime,
 ) => Promise<{ block?: boolean; reason?: string } | undefined> | { block?: boolean; reason?: string } | undefined
 
 export interface OnToolResultCtx extends OnToolCallCtx {
@@ -167,12 +169,16 @@ export interface OnToolResultCtx extends OnToolCallCtx {
 
 export type OnToolResultListener = (
   ctx: OnToolResultCtx,
+  runtime: WakeRuntime,
 ) =>
   | Promise<Partial<{ content: unknown; details: unknown; isError: boolean; terminate: string }> | undefined>
   | Partial<{ content: unknown; details: unknown; isError: boolean; terminate: string }>
   | undefined
 
-export type OnEventListener<TTrigger = unknown> = (ev: HarnessEvent<TTrigger>) => Promise<void> | void
+export type OnEventListener<TTrigger = unknown> = (
+  ev: HarnessEvent<TTrigger>,
+  runtime: WakeRuntime,
+) => Promise<void> | void
 
 export interface HarnessHooks<TTrigger = unknown> {
   /** Composed into pi-agent `beforeToolCall` — first `{ block: true }` wins. */
@@ -237,6 +243,15 @@ export interface CreateHarnessOpts<TTrigger = unknown> {
   approvalDecision?: { decision: 'approved' | 'rejected'; note?: string; decidedByUserId?: string }
 
   workspace: HarnessWorkspace
+
+  /**
+   * Per-wake runtime handle passed to every `OnEventListener` invocation.
+   * `fs` is the virtual filesystem (typically `workspace.innerFs`), `tracker`
+   * is the `DirtyTracker` watching writable zones. Listeners that need
+   * wake-scoped state read it here rather than being constructed via factory
+   * closures.
+   */
+  runtime: WakeRuntime
 
   tools?: readonly AgentTool[]
   hooks?: HarnessHooks<TTrigger>
@@ -436,7 +451,7 @@ export async function createHarness<TTrigger = unknown>(
     if (hooks.on_event) {
       for (const listener of hooks.on_event) {
         try {
-          const r = listener(ev)
+          const r = listener(ev, opts.runtime)
           if (r instanceof Promise)
             r.catch((err) => logger.error({ err, eventType: ev.type }, 'on_event listener failed'))
         } catch (err) {
@@ -581,7 +596,7 @@ export async function createHarness<TTrigger = unknown>(
       }
       for (const listener of hooks.on_tool_call ?? []) {
         try {
-          const r = await listener(onCallCtx)
+          const r = await listener(onCallCtx, opts.runtime)
           if (r?.block) return { block: true, reason: r.reason }
         } catch (err) {
           logger.error({ err }, 'on_tool_call listener failed')
@@ -605,7 +620,7 @@ export async function createHarness<TTrigger = unknown>(
       let merged: Partial<{ content: unknown; details: unknown; isError: boolean; terminate: string }> | undefined
       for (const listener of hooks.on_tool_result ?? []) {
         try {
-          const r = await listener(onResultCtx)
+          const r = await listener(onResultCtx, opts.runtime)
           if (r) merged = { ...(merged ?? {}), ...r }
         } catch (err) {
           logger.error({ err }, 'on_tool_result listener failed')

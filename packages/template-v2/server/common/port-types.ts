@@ -14,6 +14,8 @@
 import type { AgentEvent, LlmTask } from '@server/events'
 import type { AgentTool, ChannelAdapter, ToolResult } from '@vobase/core'
 
+export type { JobDef, ScheduleOpts, ScopedScheduler } from '@vobase/core'
+
 /** Opaque transaction handle passed through from Drizzle. */
 export type Tx = unknown
 
@@ -60,17 +62,6 @@ export interface LlmResult<T = string> {
   latencyMs: number
   cacheHit: boolean
   finishReason?: string
-}
-
-export interface ScheduleOpts {
-  startAfter?: Date
-  singletonKey?: string
-}
-
-export interface ScopedScheduler {
-  send(name: string, data: unknown, opts?: ScheduleOpts): Promise<string>
-  cancel(jobId: string): Promise<void>
-  schedule?(name: string, cron: string, data?: unknown, opts?: ScheduleOpts): Promise<string>
 }
 
 export interface BucketHandle {
