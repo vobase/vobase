@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'bun:test'
+import { buildAgentsMaterializers } from '@modules/agents/materializers'
 import type { AgentDefinition } from '@modules/agents/schema'
-import type { AgentsPort } from '@modules/agents/service/types'
+import { buildContactsMaterializers } from '@modules/contacts/materializers'
 import type { Contact, StaffBinding } from '@modules/contacts/schema'
 import type { ContactsService, UpsertByExternalInput } from '@modules/contacts/service/contacts'
+import { BUSINESS_MD_FALLBACK, buildDriveMaterializers } from '@modules/drive/materializers'
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope, GrepMatch } from '@modules/drive/service/types'
+import { buildMessagingMaterializers } from '@modules/messaging/materializers'
+import type { MessagingPort } from '@modules/messaging/service/types'
+import type { WorkspaceMaterializer } from '@vobase/core'
 
-import { BUSINESS_MD_FALLBACK, buildFrozenEagerPaths, createWorkspace } from './create-workspace'
+import { createWorkspace } from './create-workspace'
 import { buildDefaultReadOnlyConfig } from './index'
 
 const AGENT_ID = 'agent-1'
@@ -185,19 +190,46 @@ function makeContactsStub(): ContactsService {
   }
 }
 
-function makeAgentsStub(): AgentsPort {
-  return {
-    async getAgentDefinition() {
-      return AGENT_DEFINITION
-    },
-    async appendEvent() {},
-    async checkDailyCeiling() {
-      return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
-    },
+function makeMessagingStub(): MessagingPort {
+  const notImpl = (): never => {
+    throw new Error('messaging stub: method not implemented')
   }
+  return {
+    async listMessages() {
+      return []
+    },
+    async listInternalNotes() {
+      return []
+    },
+    getConversation: notImpl,
+    createConversation: notImpl,
+    sendTextMessage: notImpl,
+    sendCardMessage: notImpl,
+    sendCardReply: notImpl,
+    sendImageMessage: notImpl,
+    sendMediaMessage: notImpl,
+    resolve: notImpl,
+    reassign: notImpl,
+    reopen: notImpl,
+    reset: notImpl,
+    snooze: notImpl,
+    unsnooze: notImpl,
+    addInternalNote: notImpl,
+    insertPendingApproval: notImpl,
+    createInboundMessage: notImpl,
+  } as MessagingPort
 }
 
 async function buildWorkspace(files: DriveFile[] = []) {
+  const drive = makeDriveStub(files)
+  const contacts = makeContactsStub()
+  const messaging = makeMessagingStub()
+  const materializers: WorkspaceMaterializer[] = [
+    ...buildAgentsMaterializers({ agentId: AGENT_ID, agentDefinition: AGENT_DEFINITION, commands: [] }),
+    ...buildDriveMaterializers({ drive }),
+    ...buildContactsMaterializers({ contacts, contactId: CONTACT_ID }),
+    ...buildMessagingMaterializers({ messaging, contactId: CONTACT_ID, channelInstanceId: CHANNEL_INSTANCE_ID }),
+  ]
   return createWorkspace({
     organizationId: 't1',
     agentId: AGENT_ID,
@@ -207,10 +239,9 @@ async function buildWorkspace(files: DriveFile[] = []) {
     wakeId: 'wake-1',
     agentDefinition: AGENT_DEFINITION,
     commands: [],
-    materializers: [],
-    drivePort: makeDriveStub(files),
-    contactsPort: makeContactsStub(),
-    agentsPort: makeAgentsStub(),
+    materializers,
+    drivePort: drive,
+    contactsPort: contacts,
     readOnlyConfig: buildDefaultReadOnlyConfig({
       agentId: AGENT_ID,
       contactId: CONTACT_ID,
@@ -222,28 +253,6 @@ async function buildWorkspace(files: DriveFile[] = []) {
 async function runShell(ws: Awaited<ReturnType<typeof buildWorkspace>>, cmd: string) {
   return ws.bash.exec(cmd)
 }
-
-describe('buildFrozenEagerPaths', () => {
-  it('produces the 7 per-wake eager paths under /contacts/<id>/<channelInstanceId>/', () => {
-    const paths = buildFrozenEagerPaths({
-      agentId: AGENT_ID,
-      contactId: CONTACT_ID,
-      channelInstanceId: CHANNEL_INSTANCE_ID,
-    })
-    expect(paths).toEqual([
-      `/agents/${AGENT_ID}/AGENTS.md`,
-      `/agents/${AGENT_ID}/MEMORY.md`,
-      `/drive/BUSINESS.md`,
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/messages.md`,
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/internal-notes.md`,
-      `/contacts/${CONTACT_ID}/profile.md`,
-      `/contacts/${CONTACT_ID}/MEMORY.md`,
-    ])
-    for (const p of paths) expect(p.startsWith('/workspace')).toBe(false)
-    for (const p of paths) expect(p).not.toContain('/conversations/')
-    for (const p of paths) expect(p).not.toContain('SOUL.md')
-  })
-})
 
 describe('createWorkspace', () => {
   it('seeds expected directories with the unified path space', async () => {

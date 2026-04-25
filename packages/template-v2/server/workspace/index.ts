@@ -1,5 +1,6 @@
 import { buildReadOnlyConfig, type ReadOnlyConfig } from '@vobase/core'
 
+export { BUSINESS_MD_FALLBACK } from '@modules/drive/materializers'
 export {
   type BuildReadOnlyConfigOpts,
   buildReadOnlyConfig,
@@ -17,7 +18,7 @@ export {
 } from '@vobase/core'
 
 export type { CreateWorkspaceOpts, WorkspaceHandle } from './create-workspace'
-export { BUSINESS_MD_FALLBACK, buildFrozenEagerPaths, createWorkspace } from './create-workspace'
+export { createWorkspace } from './create-workspace'
 export {
   conversationVerbs,
   createVobaseCommand,
