@@ -13,7 +13,7 @@ import { Route as pagesTestWebRouteImport } from './pages/test-web'
 import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
 import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
 import { Route as pagesChatDotchannelInstanceIdRouteImport } from './pages/chat.$channelInstanceId'
-import { Route as DotDotServerAdminSettingsPagesLayoutRouteImport } from './../server/admin/settings/pages/layout'
+import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
 import { Route as DotDotModulesMessagingPagesLayoutRouteImport } from './../modules/messaging/pages/layout'
 import { Route as DotDotModulesMessagingPagesAdminChannelsRouteImport } from './../modules/messaging/pages-admin/channels'
 import { Route as shellHomeRedirectRouteImport } from './shell/home-redirect'
@@ -27,12 +27,12 @@ import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as TeamTeamsRouteImport } from './../modules/team/pages/teams'
 import { Route as TeamAttributesRouteImport } from './../modules/team/pages/attributes'
 import { Route as TeamUserIdRouteImport } from './../modules/team/pages/$userId'
-import { Route as ProfileRouteImport } from './../server/admin/settings/pages/profile'
-import { Route as NotificationsRouteImport } from './../server/admin/settings/pages/notifications'
-import { Route as DisplayRouteImport } from './../server/admin/settings/pages/display'
-import { Route as AppearanceRouteImport } from './../server/admin/settings/pages/appearance'
-import { Route as ApiKeysRouteImport } from './../server/admin/settings/pages/api-keys'
-import { Route as AccountRouteImport } from './../server/admin/settings/pages/account'
+import { Route as ProfileRouteImport } from './../modules/settings/pages/profile'
+import { Route as NotificationsRouteImport } from './../modules/settings/pages/notifications'
+import { Route as DisplayRouteImport } from './../modules/settings/pages/display'
+import { Route as AppearanceRouteImport } from './../modules/settings/pages/appearance'
+import { Route as ApiKeysRouteImport } from './../modules/settings/pages/api-keys'
+import { Route as AccountRouteImport } from './../modules/settings/pages/account'
 import { Route as ApprovalsRouteImport } from './../modules/messaging/pages/approvals'
 import { Route as ContactIdRouteImport } from './../modules/messaging/pages/$contactId'
 import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pages/attributes'
@@ -59,8 +59,8 @@ const pagesChatDotchannelInstanceIdRoute =
     path: '/chat/$channelInstanceId',
     getParentRoute: () => rootRouteImport,
   } as any)
-const DotDotServerAdminSettingsPagesLayoutRoute =
-  DotDotServerAdminSettingsPagesLayoutRouteImport.update({
+const DotDotModulesSettingsPagesLayoutRoute =
+  DotDotModulesSettingsPagesLayoutRouteImport.update({
     id: '/settings',
     path: '/settings',
     getParentRoute: () => shellAppLayoutRoute,
@@ -135,32 +135,32 @@ const TeamUserIdRoute = TeamUserIdRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => DotDotServerAdminSettingsPagesLayoutRoute,
+  getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
-  getParentRoute: () => DotDotServerAdminSettingsPagesLayoutRoute,
+  getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
 } as any)
 const DisplayRoute = DisplayRouteImport.update({
   id: '/display',
   path: '/display',
-  getParentRoute: () => DotDotServerAdminSettingsPagesLayoutRoute,
+  getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
 } as any)
 const AppearanceRoute = AppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
-  getParentRoute: () => DotDotServerAdminSettingsPagesLayoutRoute,
+  getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
 } as any)
 const ApiKeysRoute = ApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
-  getParentRoute: () => DotDotServerAdminSettingsPagesLayoutRoute,
+  getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
 } as any)
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
-  getParentRoute: () => DotDotServerAdminSettingsPagesLayoutRoute,
+  getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
 } as any)
 const ApprovalsRoute = ApprovalsRouteImport.update({
   id: '/approvals',
@@ -198,7 +198,7 @@ export interface FileRoutesByFullPath {
   '/test-web': typeof pagesTestWebRoute
   '/channels': typeof DotDotModulesMessagingPagesAdminChannelsRoute
   '/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
-  '/settings': typeof DotDotServerAdminSettingsPagesLayoutRouteWithChildren
+  '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
@@ -227,7 +227,7 @@ export interface FileRoutesByTo {
   '/': typeof shellHomeRedirectRoute
   '/test-web': typeof pagesTestWebRoute
   '/channels': typeof DotDotModulesMessagingPagesAdminChannelsRoute
-  '/settings': typeof DotDotServerAdminSettingsPagesLayoutRouteWithChildren
+  '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
@@ -260,7 +260,7 @@ export interface FileRoutesById {
   '/_app/': typeof shellHomeRedirectRoute
   '/_app/channels': typeof DotDotModulesMessagingPagesAdminChannelsRoute
   '/_app/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
-  '/_app/settings': typeof DotDotServerAdminSettingsPagesLayoutRouteWithChildren
+  '/_app/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/_app/agents/$id': typeof AgentsIdRoute
   '/_app/agents/learnings': typeof AgentsLearningsRoute
@@ -420,7 +420,7 @@ declare module '@tanstack/react-router' {
       id: '/_app/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof DotDotServerAdminSettingsPagesLayoutRouteImport
+      preLoaderRoute: typeof DotDotModulesSettingsPagesLayoutRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
     '/_app/messaging': {
@@ -519,42 +519,42 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/settings/profile'
       preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof DotDotServerAdminSettingsPagesLayoutRoute
+      parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
     }
     '/_app/settings/notifications': {
       id: '/_app/settings/notifications'
       path: '/notifications'
       fullPath: '/settings/notifications'
       preLoaderRoute: typeof NotificationsRouteImport
-      parentRoute: typeof DotDotServerAdminSettingsPagesLayoutRoute
+      parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
     }
     '/_app/settings/display': {
       id: '/_app/settings/display'
       path: '/display'
       fullPath: '/settings/display'
       preLoaderRoute: typeof DisplayRouteImport
-      parentRoute: typeof DotDotServerAdminSettingsPagesLayoutRoute
+      parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
     }
     '/_app/settings/appearance': {
       id: '/_app/settings/appearance'
       path: '/appearance'
       fullPath: '/settings/appearance'
       preLoaderRoute: typeof AppearanceRouteImport
-      parentRoute: typeof DotDotServerAdminSettingsPagesLayoutRoute
+      parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
     }
     '/_app/settings/api-keys': {
       id: '/_app/settings/api-keys'
       path: '/api-keys'
       fullPath: '/settings/api-keys'
       preLoaderRoute: typeof ApiKeysRouteImport
-      parentRoute: typeof DotDotServerAdminSettingsPagesLayoutRoute
+      parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
     }
     '/_app/settings/account': {
       id: '/_app/settings/account'
       path: '/account'
       fullPath: '/settings/account'
       preLoaderRoute: typeof AccountRouteImport
-      parentRoute: typeof DotDotServerAdminSettingsPagesLayoutRoute
+      parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
     }
     '/_app/messaging/approvals': {
       id: '/_app/messaging/approvals'
@@ -619,7 +619,7 @@ const DotDotModulesMessagingPagesLayoutRouteWithChildren =
     DotDotModulesMessagingPagesLayoutRouteChildren,
   )
 
-interface DotDotServerAdminSettingsPagesLayoutRouteChildren {
+interface DotDotModulesSettingsPagesLayoutRouteChildren {
   AccountRoute: typeof AccountRoute
   ApiKeysRoute: typeof ApiKeysRoute
   AppearanceRoute: typeof AppearanceRoute
@@ -628,7 +628,7 @@ interface DotDotServerAdminSettingsPagesLayoutRouteChildren {
   ProfileRoute: typeof ProfileRoute
 }
 
-const DotDotServerAdminSettingsPagesLayoutRouteChildren: DotDotServerAdminSettingsPagesLayoutRouteChildren =
+const DotDotModulesSettingsPagesLayoutRouteChildren: DotDotModulesSettingsPagesLayoutRouteChildren =
   {
     AccountRoute: AccountRoute,
     ApiKeysRoute: ApiKeysRoute,
@@ -638,16 +638,16 @@ const DotDotServerAdminSettingsPagesLayoutRouteChildren: DotDotServerAdminSettin
     ProfileRoute: ProfileRoute,
   }
 
-const DotDotServerAdminSettingsPagesLayoutRouteWithChildren =
-  DotDotServerAdminSettingsPagesLayoutRoute._addFileChildren(
-    DotDotServerAdminSettingsPagesLayoutRouteChildren,
+const DotDotModulesSettingsPagesLayoutRouteWithChildren =
+  DotDotModulesSettingsPagesLayoutRoute._addFileChildren(
+    DotDotModulesSettingsPagesLayoutRouteChildren,
   )
 
 interface shellAppLayoutRouteChildren {
   shellHomeRedirectRoute: typeof shellHomeRedirectRoute
   DotDotModulesMessagingPagesAdminChannelsRoute: typeof DotDotModulesMessagingPagesAdminChannelsRoute
   DotDotModulesMessagingPagesLayoutRoute: typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
-  DotDotServerAdminSettingsPagesLayoutRoute: typeof DotDotServerAdminSettingsPagesLayoutRouteWithChildren
+  DotDotModulesSettingsPagesLayoutRoute: typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   AgentsIdRoute: typeof AgentsIdRoute
   AgentsLearningsRoute: typeof AgentsLearningsRoute
   ContactsIdRoute: typeof ContactsIdRoute
@@ -667,8 +667,8 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
     DotDotModulesMessagingPagesAdminChannelsRoute,
   DotDotModulesMessagingPagesLayoutRoute:
     DotDotModulesMessagingPagesLayoutRouteWithChildren,
-  DotDotServerAdminSettingsPagesLayoutRoute:
-    DotDotServerAdminSettingsPagesLayoutRouteWithChildren,
+  DotDotModulesSettingsPagesLayoutRoute:
+    DotDotModulesSettingsPagesLayoutRouteWithChildren,
   AgentsIdRoute: AgentsIdRoute,
   AgentsLearningsRoute: AgentsLearningsRoute,
   ContactsIdRoute: ContactsIdRoute,

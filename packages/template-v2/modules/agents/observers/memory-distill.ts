@@ -7,17 +7,18 @@
  * provider is wired.
  */
 
+import type { AgentEvent, LearningRejectedEvent } from '@modules/agents/events'
 import { agentDefinitions, learningProposals } from '@modules/agents/schema'
+import { llmCall as harnessLlmCall, type LlmEmitter } from '@modules/agents/wake/llm-call'
 import {
   readNotes as readContactNotes,
   upsertNotesSection as upsertContactNotesSection,
 } from '@modules/contacts/service/contacts'
 import { readNotes as readStaffNotes, upsertNotesSection as upsertStaffNotesSection } from '@modules/team/service/staff'
-import type { AgentEvent, LearningRejectedEvent } from '@server/events'
-import { llmCall as harnessLlmCall, type LlmEmitter } from '@server/harness/llm-call'
-import { getDb, getLogger } from '@server/services'
+import type { HarnessLogger } from '@vobase/core'
 import { eq, inArray } from 'drizzle-orm'
 
+import type { ScopedDb } from '~/runtime'
 import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
 
 function upsertMarkdownSection(markdown: string, heading: string, body: string): string {
@@ -58,6 +59,8 @@ export interface MemoryDistillOpts {
   useLlm?: boolean
   /** Per-wake emitter handle (from `createHarness({ emitEventHandle })`) so `llm_call` events surface. */
   emitter?: LlmEmitter
+  db: ScopedDb
+  logger: HarnessLogger
 }
 
 /** Module-level per-target debounce map. Cleared on process restart (acceptable for Phase 2). */
@@ -87,14 +90,13 @@ interface WakeBuffer {
 }
 
 export function createMemoryDistillListener(opts: MemoryDistillOpts): (event: AgentEvent) => Promise<void> {
-  const { target, agentId, useLlm, emitter } = opts
+  const { target, agentId, useLlm, emitter, db, logger } = opts
   const tkey = targetKey(target)
 
   const wakeBuffer = new Map<string, WakeBuffer>()
 
   return async (event: AgentEvent): Promise<void> => {
     {
-      const logger = getLogger()
       const buf = wakeBuffer.get(event.wakeId) ?? { assistantMessages: [], rejections: [] }
 
       if (event.type === 'message_end' && event.role === 'assistant' && event.content.trim()) {
@@ -115,7 +117,7 @@ export function createMemoryDistillListener(opts: MemoryDistillOpts): (event: Ag
       wakeBuffer.delete(event.wakeId)
 
       if (state.rejections.length > 0 && agentId) {
-        await writeAntiLessons(agentId, state.rejections).catch((err) =>
+        await writeAntiLessons(db, agentId, state.rejections).catch((err) =>
           logger.warn({ err, agentId }, 'memory-distill: anti-lesson write failed'),
         )
       }
@@ -167,8 +169,7 @@ async function readMemorySafe(target: DistillTarget): Promise<string> {
   }
 }
 
-async function writeAntiLessons(agentId: string, rejections: LearningRejectedEvent[]): Promise<void> {
-  const db = getDb()
+async function writeAntiLessons(db: ScopedDb, agentId: string, rejections: LearningRejectedEvent[]): Promise<void> {
   const proposalIds = rejections.map((r) => r.proposalId)
 
   const [rows, agentRows] = (await Promise.all([

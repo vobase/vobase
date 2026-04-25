@@ -1,19 +1,20 @@
 /**
  * CI gate — fails if any src/**\/*.{ts,tsx} file contains a runtime import of
- * @server/runtime/* or @server/harness/*. These modules pull in pg-boss,
- * pi-agent-core, and drizzle runtime — they must never enter the Vite bundle.
+ * `@modules/agents/wake/*`, `@modules/agents/workspace/*`, or `~/runtime`.
+ * These pull in pg-boss, pi-agent-core, and drizzle runtime — they must
+ * never enter the Vite bundle.
  *
  * `import type` statements are allowed (Vite strips them at build time) but
- * this script bans them too as a conservative safety measure: if a file needs
- * types from those paths, it should go through more specific non-runtime
- * modules (e.g. `@server/events`, `@server/common/*`, `@vobase/core`) instead.
+ * this script bans them too as a conservative safety measure: if a file
+ * needs types from those paths, it should go through narrower non-runtime
+ * modules (e.g. `@modules/agents/events`, `@vobase/core`) instead.
  *
  * Exit 0 = clean. Exit 1 = violations found.
  */
 
 import { readFileSync } from 'node:fs'
 
-const BANNED = ['@server/runtime', '@server/harness']
+const BANNED = ['@modules/agents/wake', '@modules/agents/workspace', '~/runtime']
 const glob = new Bun.Glob('src/**/*.{ts,tsx}')
 
 const violations: Array<{ file: string; line: number; text: string }> = []

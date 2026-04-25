@@ -9,9 +9,9 @@
 
 import { describe, expect, it } from 'bun:test'
 import { subagentTool } from '@modules/agents/tools/subagent'
+import { buildFrozenPrompt, type SessionContext } from '@modules/agents/wake/frozen-prompt-builder'
+import { resolvePlatformHint } from '@modules/agents/wake/platform-hints'
 import { messagingTools } from '@modules/messaging/tools'
-import { buildFrozenPrompt, type SessionContext } from '@server/harness/frozen-prompt-builder'
-import { resolvePlatformHint } from '@server/harness/platform-hints'
 import { Bash, InMemoryFs } from 'just-bash'
 
 /** Pinned SHA-256 of the canonical frozen prompt below. */

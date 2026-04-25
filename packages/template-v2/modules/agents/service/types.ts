@@ -3,9 +3,9 @@
  * the harness, dev layer, and other modules.
  */
 
-import type { Tx } from '@server/common/port-types'
-import type { AgentEvent } from '@server/events'
+import type { AgentEvent } from '@modules/agents/events'
 
+import type { Tx } from '~/runtime'
 import type { AgentDefinition } from '../schema'
 
 export interface AgentsPort {

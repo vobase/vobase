@@ -1,5 +1,4 @@
-import type { ModuleDef } from '@server/common/module-def'
-
+import type { ModuleDef } from '~/runtime'
 import { createStaffAttrDefService, installStaffAttrDefService } from './service/attribute-definitions'
 import { createMentionNotifyService, installMentionNotifyService } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'

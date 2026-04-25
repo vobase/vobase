@@ -1,39 +1,32 @@
 /**
- * vobase.config.ts — registers the 6 domain modules in dependency order.
+ * vobase.config.ts — registers all modules in dependency order.
  * Order matters for init dependency resolution:
- * settings → contacts → team → drive → messaging → agents.
+ * settings → contacts → team → drive → messaging → agents → channel-web →
+ * channel-whatsapp → system.
  *
- * Channel transports (web, whatsapp) are plain infrastructure — not modules.
- * They are constructed directly in `server/app.ts` AFTER domain modules finish
- * init, using their factories from `server/transports/{web,whatsapp}/index.ts`.
+ * Channels are first-class modules now: each `modules/channel-<name>/module.ts`
+ * mounts its routes via `web.routes` and installs its services in `init(ctx)`.
  */
 
 import agents from './modules/agents/module'
+import channelWeb from './modules/channel-web/module'
+import channelWhatsapp from './modules/channel-whatsapp/module'
 import contacts from './modules/contacts/module'
 import drive from './modules/drive/module'
 import messaging from './modules/messaging/module'
+import settings from './modules/settings/module'
+import system from './modules/system/module'
 import team from './modules/team/module'
-import settings from './server/admin/settings/module'
 
 export default {
   database: process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2',
 
-  /** LLM provider config — Anthropic is the Phase 2 critical-path provider. */
+  /** LLM provider config — Anthropic is the only wired provider. */
   provider: {
-    default: (process.env.LLM_PROVIDER ?? 'anthropic') as 'anthropic' | 'openai' | 'gemini' | 'mock',
+    default: (process.env.LLM_PROVIDER ?? 'anthropic') as 'anthropic' | 'mock',
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY ?? '',
       model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6',
-    },
-    /** Stretch — Phase 2.5 */
-    openai: {
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      model: process.env.OPENAI_MODEL ?? 'gpt-4o',
-    },
-    /** Stretch — Phase 2.5 */
-    gemini: {
-      apiKey: process.env.GOOGLE_API_KEY ?? '',
-      model: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
     },
   },
 
@@ -70,5 +63,5 @@ export default {
     },
   },
 
-  modules: [settings, contacts, team, drive, messaging, agents],
+  modules: [settings, contacts, team, drive, messaging, agents, channelWeb, channelWhatsapp, system],
 }

@@ -1,5 +1,4 @@
-import type { ModuleDef } from '@server/common/module-def'
-
+import type { ModuleDef } from '~/runtime'
 import * as agent from './agent'
 import { jobs } from './jobs'
 import {

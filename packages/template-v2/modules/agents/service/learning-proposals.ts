@@ -13,7 +13,9 @@
  * call-sites to rebuild it from scratch.
  */
 
+import type { LearningApprovedEvent, LearningRejectedEvent } from '@modules/agents/events'
 import { learnedSkills, learningProposals } from '@modules/agents/schema'
+import { appendJournalEvent } from '@modules/messaging/service/journal'
 import { conversationEvents, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
@@ -299,26 +301,35 @@ function extractAgentIdFromStart(row: { payload: unknown; toolCalls: unknown } |
 async function emitJournalEvent(
   db: DrizzleHandle,
   proposal: ProposalRow,
-  event: {
-    type: 'learning_approved' | 'learning_rejected'
-    proposalId: string
-    reason?: string
-    writeId?: string
-  },
+  event:
+    | { type: 'learning_approved'; proposalId: string; writeId: string }
+    | { type: 'learning_rejected'; proposalId: string; reason: string },
 ): Promise<void> {
   const turnIndex = await getLatestTurnIndex(proposal.conversationId, db)
 
-  const payload: Record<string, unknown> = { proposalId: event.proposalId }
-  if (event.reason) payload.reason = event.reason
-  if (event.writeId) payload.writeId = event.writeId
-
-  await db.insert(conversationEvents).values({
+  const base = {
+    ts: new Date(),
+    wakeId: `learning_decision:${event.proposalId}`,
     conversationId: proposal.conversationId,
     organizationId: proposal.organizationId,
     turnIndex,
-    type: event.type,
-    payload,
-  })
+  }
+
+  const journalEvent: LearningApprovedEvent | LearningRejectedEvent =
+    event.type === 'learning_approved'
+      ? { ...base, type: 'learning_approved', proposalId: event.proposalId, writeId: event.writeId }
+      : { ...base, type: 'learning_rejected', proposalId: event.proposalId, reason: event.reason }
+
+  await appendJournalEvent(
+    {
+      conversationId: proposal.conversationId,
+      organizationId: proposal.organizationId,
+      wakeId: base.wakeId,
+      turnIndex,
+      event: journalEvent,
+    },
+    db,
+  )
 }
 
 /**

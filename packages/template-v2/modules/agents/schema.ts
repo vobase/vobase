@@ -93,7 +93,6 @@ export interface AgentScore {
 
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
-import { agentsPgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'
 import {
@@ -110,6 +109,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
+import { agentsPgSchema } from '~/runtime'
 import { DEFAULT_CHAT_MODEL } from './lib/models'
 
 export const agentDefinitions = agentsPgSchema.table('agent_definitions', {

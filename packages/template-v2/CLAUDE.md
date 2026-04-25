@@ -6,18 +6,26 @@ Core identity: **AI agents need a codebase they can understand.** Every conventi
 
 ## Layout
 
-`server/` is the hard Vite-exclusion line — putting pg/pg-boss/pi-agent-core under `src/` forces the browser bundler to resolve native drivers and breaks the build. `src/` is frontend shell only (shadcn/ai-elements/DiceUI primitives, app layout, generic hooks, route registry). Module-specific UI lives inside the owning module, not `src/features/<m>/` or `src/components/<m>/` — see `src/CLAUDE.md` for the rule. `modules/` straddles backend + frontend per domain so a feature is one folder to read, not three. `tests/` holds e2e (real Postgres) and smoke (manual, against dev server); unit tests colocate next to source.
+Backend lives at three top-level seams; frontend at one. No nested package boundaries within the template.
 
-Subfolders own their own invariants via CLAUDE.md — read the nearest one before touching:
-- `modules/CLAUDE.md` — module shape, init order, cross-module service imports
-- `modules/messaging/CLAUDE.md` — one-write-path, message kinds, approval flow, mentions
-- `modules/agents/CLAUDE.md` — journal writer, observer/mutator order, learning flow, wake triggers
-- `modules/drive/CLAUDE.md` — scope rules, virtual-field overlay, `BUSINESS.md`, proposals
-- `server/harness/CLAUDE.md` — frozen snapshot, wake event order, abort/steer, byte budget
-- `server/workspace/CLAUDE.md` — materializers run before side-load, RO enforcement
-- `server/transports/CLAUDE.md` — channels as transport-only, HMAC, outbound tool sync
-- `server/middlewares/CLAUDE.md` — auth / org scope / audit ordering
-- `src/CLAUDE.md` — the "would a second module use this as-is" test
+- `modules/<name>/` — every business capability. Owns its backend (`module.ts`, `schema.ts`, `state.ts`, `service/`, `handlers/`, `jobs.ts`, `agent.ts`, `web.ts`, `seed.ts`) AND its frontend (`pages/`, `components/`). One folder per feature is the readability rule.
+- `auth/` — better-auth setup, plugins, middleware, and transactional emails. The single auth surface; consumed by `runtime/bootstrap.ts` and threaded into modules via `ctx.auth`.
+- `runtime/` — backend plumbing:
+    - `runtime/index.ts` — cross-module type primitives (`ScopedDb`, `RealtimeService`, `ModuleDef`, `ModuleInitCtx` with `auth: AuthHandle`, `applyTransition`, per-domain `pgSchema` instances). Imported as `~/runtime` from anywhere in the backend.
+    - `runtime/bootstrap.ts` — boot orchestration: builds realtime, jobs, auth, calls `bootModules` from `@vobase/core`, mounts the SSE route, returns the Hono app. Exported as `createApp(db, sql)`.
+- `main.ts` — ~10-line entry point at root: connect db, call `createApp`, `Bun.serve`. Stays at root because the Dockerfile points here.
+- `src/` — frontend shell only (shadcn / ai-elements / DiceUI primitives, app layout, generic hooks, route registry). Module-specific UI lives inside the owning module — never `src/features/<m>/` or `src/components/<m>/`.
+- `tests/` — e2e (real Postgres) + smoke (manual against dev server). Unit tests colocate next to source.
+
+The `src/` boundary is enforced by `check:bundle` — putting pg/pg-boss/pi-agent-core under the Vite-resolved tree breaks the frontend build. The script bans `src/**` imports of `@modules/agents/wake/*`, `@modules/agents/workspace/*`, and `~/runtime`.
+
+## Path aliases
+
+- `@modules/*` — backend + frontend within `modules/<name>/`
+- `@auth` / `@auth/*` — `auth/index.ts` + everything under `auth/`
+- `~/*` — template root (`~/runtime` resolves to `runtime/index.ts`; `~/runtime/bootstrap`, `~/vobase.config`)
+- `@/*` — frontend `src/`
+- `@vobase/core` — shared runtime contract; agents never read `node_modules`
 
 ## Quality rules
 
@@ -25,19 +33,22 @@ Non-negotiable because tests and CI enforce them:
 
 - Drizzle for queries, Zod on every handler input, Hono typed RPC on the client, TanStack Query never raw `fetch`. The typed seam is what lets agents refactor without reading call sites.
 - No `any`, no unsafe `as`, no `// @ts-ignore`. Strict mode — escape hatches rot.
-- Dates/times render through `<RelativeTimeCard date={...} />`. `check:tokens` fails on raw `toLocaleString` / custom formatters in `.tsx`; relative time is i18n-safe and auto-updates.
+- Dates/times render through `<RelativeTimeCard date={...} />`. The retired `check:tokens` rule used to ban raw `toLocaleString` / hex colors; that's now a cultural convention. Use `<RelativeTimeCard>` (auto-updating, i18n-safe). Use `oklch()` colors. shadcn overrides are allowed — the `check:shadcn-overrides` lock-file lets you opt-in via a `// shadcn-override-ok: <reason>` comment when intentional.
 - Agent/staff identity in UI goes through `usePrincipalDirectory()` and `PrincipalAvatar`. Never render a raw agent id or user id — purple robot = agent, blue person = staff is a shared convention across assignees, notes, mentions, activity events.
 - Services fire `pg_notify` after commit; `use-realtime-invalidation.ts` maps the `table` field to the first element of a TanStack `queryKey`. No WebSocket, no custom push — one contract is the whole point.
-- Path aliases: `@server/*`, `@modules/*`, `@/*`. `check:bundle` forbids `src/**` from importing `@server/runtime/*` or `@server/harness/*` — that's what keeps Vite honest.
 - Prefer Bun native APIs (`Bun.file`, `Bun.write`, `Bun.Glob`, `$`). `require()` is banned. Dynamic `import()` is reserved for heavy optional deps and test mocking; local imports are static.
 
 ## Modules
 
-Each module in `modules/<name>/` exports `defineModule({ ... })` from `module.ts`. `check:shape` fails if any of these are missing: `module.ts`, `manifest.ts`, `schema.ts`, `state.ts`, `service/index.ts`, `handlers/index.ts`, `jobs.ts`, `seed.ts`, `README.md`. Handler files cap at 200 raw lines — lift into `service/`. `applyTransition()` lives only in `state.ts` so state changes have one provably-correct place.
+Each module under `modules/<name>/` contributes a `ModuleDef` from `module.ts`, which is an aggregator for sibling files: `agent.ts` (tools, listeners, materializers, commands, sideLoad), `web.ts` (Hono routes), `jobs.ts` (pg-boss handlers), plus `schema.ts`, `state.ts`, `service/`, `handlers/`, `seed.ts`. `module.ts` itself contains zero inline tool/listener/materializer literals — `check:shape` enforces this so the aggregator stays grep-able.
 
-**One-write-path.** Every mutation happens inside that module's `service/` layer, inside a transaction that also appends to `conversation_events`. Handlers, jobs, and tools never touch tables directly. Why: the dual-write problem (mutate + emit event in two places) is the single largest source of inconsistency bugs in helpdesk systems. CI-enforced for `messages` / `conversation_events` via `check:shape`; other tables follow the same pattern by convention.
+`ModuleInitCtx` (from `~/runtime`) carries `{ db, realtime, jobs, scheduler, auth }`. Modules read `ctx.auth` directly in `init` — the old `installXAuth` post-boot patcher is gone. Auth construction happens in `bootstrap.ts` BEFORE `bootModules`, so modules can rely on `ctx.auth` being live during `init`.
 
-**Init order** `settings → contacts → team → drive → messaging → agents → transports/web → transports/whatsapp`, enforced by each module's `requires`. Cross-module callers import directly from `@modules/<name>/service/*` — there's no port shim, no registry lookup, no dynamic dispatch. If the import won't type-check, the architecture is wrong. Channel adapters *do* ship `port.ts` because `V2ChannelAdapter` has multiple implementations.
+**Init order** `settings → contacts → team → drive → messaging → agents → channel-web → channel-whatsapp → system`, enforced by each module's `requires`. Cross-module callers import directly from `@modules/<name>/service/*` — there is no port shim, no registry lookup, no dynamic dispatch. If the import won't type-check, the architecture is wrong. (Slice 4b identity rule: direct typed cross-module imports.)
+
+**One write path.** Every mutation happens inside that module's `service/` layer, inside a transaction that also appends to `conversation_events`. Handlers, jobs, and tools never touch tables directly. Why: the dual-write problem (mutate + emit event in two places) is the single largest source of inconsistency bugs in helpdesk systems.
+
+For the `messages` and `conversation_events` tables specifically, the rule is structurally enforced by `check:shape`: only `modules/messaging/service/**` may `.insert/update/delete()` them. Cross-module callers (e.g. `agents/service/learning-proposals.ts`) route through the typed `appendJournalEvent` wrapper exported from `@modules/messaging/service/journal` — it constrains the event to the `AgentEvent` discriminated union and auto-extracts non-reserved fields into the `payload` JSONB column.
 
 ## Data conventions
 
@@ -50,9 +61,11 @@ Each module in `modules/<name>/` exports `defineModule({ ... })` from `module.ts
 
 ## Agent harness
 
-`bootWake` in `server/harness/` assembles the frozen system prompt once, drives turns through `pi-agent-core`'s stateful `Agent`, translates pi's event stream into our `AgentEvent` contract, dispatches tools through the mutator chain, and fans events to the observer bus. `llm-provider.ts` is the single provider seam: Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set, direct OpenAI otherwise.
+`bootWake` (in `modules/agents/wake/`) assembles the frozen system prompt once, drives turns through `pi-agent-core`'s stateful `Agent`, translates pi's event stream into our `AgentEvent` contract, dispatches tools through the mutator chain, and fans events to the observer bus. `llm-provider.ts` is the single provider seam: Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set, direct OpenAI otherwise.
 
-The non-obvious invariants (details in `server/harness/CLAUDE.md`):
+`wake/handler.ts` is the slim entry — it parses the trigger, gates by agent assignee, looks up the agent definition, and calls `buildWakeConfig` + `createHarness`. `wake/build-config.ts` owns the per-wake parameter assembly: materializer composition, workspace creation, frozen prompt, dirty tracker, listener wiring, idle resumption, message history threading. Cache-stability invariants (frozen-snapshot rule, byte-keyed prefix cache, write-vs-read race avoidance) are documented at the top of `build-config.ts` — splitting it further would fragment them.
+
+The non-obvious invariants that bind everything together:
 
 *Frozen snapshot.* System prompt is computed once at `agent_start`; `systemHash` must be identical across every turn of the wake. Mid-wake writes (memory, drive proposals, file ops) persist immediately but only surface in the NEXT turn's side-load. Two reasons: the provider's prefix cache is byte-keyed, and the agent must not race its own writes.
 
@@ -92,14 +105,14 @@ expect(types).toEqual(['agent_start', 'turn_start', 'llm_call', 'message_start',
 
 ## Design tokens
 
-OKLCH with two palettes (`:root` + `.dark`). `check:tokens` enforces both palettes cover every `var(--color-*)` in use and bans raw hex / `oklch()` / custom date formatters in `src/**`. Never write custom components for things shadcn / ai-elements / DiceUI already provide (empty states, stat cards, status badges, avatar groups, date displays, etc.) — install via `bunx shadcn@latest add <c>`, `bunx --bun ai-elements@latest add <c>`, or `bunx shadcn@latest add "https://diceui.com/r/<c>.json"`.
+OKLCH with two palettes (`:root` + `.dark`). Never write custom components for things shadcn / ai-elements / DiceUI already provide (empty states, stat cards, status badges, avatar groups, date displays, etc.) — install via `bunx shadcn@latest add <c>`, `bunx --bun ai-elements@latest add <c>`, or `bunx shadcn@latest add "https://diceui.com/r/<c>.json"`.
 
 ## What `@vobase/core` gives you
 
 Imported as `import { ... } from '@vobase/core'` so you never read `node_modules`:
-- types: `AgentTool`, `ToolContext`, `ToolResult`, `AgentEvent`, `HarnessEvent`, `WakeScope`, `ChannelAdapter`, `SendResult`, `SideLoadContributor`, `WorkspaceMaterializer`, `DirtyTracker`, `HarnessLogger`, `HarnessPlatformHint`, `ClassifiedErrorReason`, `MaterializerCtx`, `OnEventListener`, `ActiveWakesStore`
-- tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`, `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`, `agentMessages`, `threads`
-- helpers: `nanoidPrimaryKey`, `nextSequence`, `trackChanges`, `createHttpClient`, `buildReadOnlyConfig`, `signHmac`, `verifyHmacSignature`, `setPlatformRefresh`, `getPlatformRefresh`
+- types: `AgentTool`, `ToolContext`, `ToolResult`, `AgentEvent`, `HarnessEvent`, `WakeScope`, `ChannelAdapter`, `SendResult`, `SideLoadContributor`, `WorkspaceMaterializer`, `DirtyTracker`, `HarnessLogger`, `HarnessPlatformHint`, `ClassifiedErrorReason`, `MaterializerCtx`, `OnEventListener`, `ActiveWakesStore`, `ModuleDef` (re-narrowed in `~/runtime`), `ModuleInitCtx` (re-narrowed in `~/runtime`)
+- tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`, `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`, `agentMessages`, `threads`, `conversationEvents`
+- helpers: `nanoidPrimaryKey`, `nextSequence`, `trackChanges`, `createHttpClient`, `buildReadOnlyConfig`, `signHmac`, `verifyHmacSignature`, `setPlatformRefresh`, `getPlatformRefresh`, `bootModules`, `journalAppend`, `journalGetLatestTurnIndex`, `journalGetLastWakeTail`
 - errors: `notFound`, `unauthorized`, `forbidden`, `conflict`, `validation`, `dbBusy`
 
 ## Commands
@@ -109,7 +122,7 @@ Imported as `import { ... } from '@vobase/core'` so you never read `node_modules
 - `bun run build` — vite production build
 - `bun run typecheck` / `bun run lint` — must be 0 errors
 - `bun run test` — full suite (CI entry point); `test:e2e` and `test:smoke` auto-discover everything in `tests/e2e` / `tests/smoke`; `bun test <path>` for a single file
-- `bun run check` — runs every `check:*` in sequence
+- `bun run check` — runs every `check:*` (`shape`, `bundle`, `no-auto-nav-tabs`, `shadcn-overrides`)
 - `bun run db:reset` — nuke + push + seed; individual: `db:push`, `db:generate`, `db:migrate`, `db:nuke`, `db:seed`, `db:studio`
 
 ## Dev auth + deploy

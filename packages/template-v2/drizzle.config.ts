@@ -10,7 +10,7 @@ export default defineConfig({
   schema: [
     join(coreSrc, 'db/pg-schemas.ts'),
     join(coreSrc, 'schemas/*.ts'),
-    './server/db/pg-schemas.ts',
+    './runtime/index.ts',
     './modules/*/schema.ts',
   ],
   out: './drizzle',

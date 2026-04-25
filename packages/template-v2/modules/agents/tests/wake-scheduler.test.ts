@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import type { AgentEvent, WakeTrigger } from '@server/events'
+import type { AgentEvent, WakeTrigger } from '@modules/agents/events'
 import { createInMemoryActiveWakes, DirtyTracker, type HarnessEvent, type WakeRuntime } from '@vobase/core'
 import { InMemoryFs } from 'just-bash'
 import { nanoid } from 'nanoid'

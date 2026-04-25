@@ -539,22 +539,19 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
 }
 
 /**
- * Module-level db handle — installed once by the drive module at boot so HTTP
- * handlers (which see `organizationId` per-request) can construct a bound
- * `FilesService` via `filesServiceFor(organizationId)`.
+ * Module-level db + auth handles — installed once by the drive module at boot
+ * so HTTP handlers (which see `organizationId` per-request) can construct a
+ * bound `FilesService` via `filesServiceFor(organizationId)` and read the
+ * better-auth handle via `getDriveAuth()`.
  *
- * Compatibility shim mirroring the `setDb` pattern used by `agents/journal` +
- * `agents/agent-definitions`. Tests call `setFilesDb(db.db)` directly.
+ * Tests call `setFilesDb(db.db)` directly without auth (auth-gated reads
+ * fall back to the no-auth path).
  */
 let _currentDb: unknown = null
 let _currentAuth: unknown = null
 
-export function setFilesDb(db: unknown): void {
+export function setFilesDb(db: unknown, auth: unknown = null): void {
   _currentDb = db
-}
-
-/** Installed by `server/auth/wire-modules.ts` after `createAuth(db)`. */
-export function installDriveAuth(auth: unknown): void {
   _currentAuth = auth
 }
 

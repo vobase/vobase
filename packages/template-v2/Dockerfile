@@ -51,4 +51,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
-CMD ["bun", "run", "server/main.ts"]
+CMD ["bun", "run", "main.ts"]

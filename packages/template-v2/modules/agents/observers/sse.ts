@@ -1,18 +1,26 @@
 /**
- * sseListener — calls realtime.notify() on every event so the staff messaging
- * live-tails via core's SSE endpoint.
+ * createSseListener — returns a listener that calls `realtime.notify()` on
+ * every event so staff messaging UIs live-tail via core's SSE endpoint.
  *
- * Plain `OnEventListener` — closes over the `getRealtime()` service singleton
- * and reads wake identity from the event's `HarnessBaseFields`.
+ * Factory-DI: `realtime` is passed at wake setup time, not pulled from a
+ * process-wide singleton.
  */
 
-import type { AgentEvent } from '@server/events'
-import { getRealtime } from '@server/services'
+import type { AgentEvent } from '@modules/agents/events'
 
-export const sseListener = (event: AgentEvent): void => {
-  getRealtime().notify({
-    table: 'agent-sessions',
-    id: event.conversationId,
-    action: event.type,
-  })
+import type { RealtimeService } from '~/runtime'
+
+export interface SseListenerOpts {
+  realtime: RealtimeService
+}
+
+export function createSseListener(opts: SseListenerOpts): (event: AgentEvent) => void {
+  const { realtime } = opts
+  return (event: AgentEvent): void => {
+    realtime.notify({
+      table: 'agent-sessions',
+      id: event.conversationId,
+      action: event.type,
+    })
+  }
 }

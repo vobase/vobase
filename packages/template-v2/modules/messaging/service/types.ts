@@ -3,8 +3,7 @@
  * Consumed by channels, agents, and the harness layer.
  */
 
-import type { Tx } from '@server/common/port-types'
-
+import type { Tx } from '~/runtime'
 import type { Conversation, InternalNote, Message, PendingApproval } from '../schema'
 
 export interface AuthorRefAgent {

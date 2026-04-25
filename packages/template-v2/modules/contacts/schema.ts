@@ -14,11 +14,12 @@
  * after `drizzle-kit push` has created both schemas.
  */
 
-import { contactsPgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { boolean, check, index, integer, jsonb, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+
+import { contactsPgSchema } from '~/runtime'
 
 // ─── Domain types ───────────────────────────────────────────────────────────
 

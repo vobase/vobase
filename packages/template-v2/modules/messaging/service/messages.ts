@@ -7,11 +7,11 @@
  * bound API; free-function wrappers route through the installed instance.
  * The journaled transaction is intrinsic to this file (it invokes
  * `journal.append(event, tx)` unconditionally), so it's whitelisted in
- * check:shape rule 2 alongside `modules/agents/service/journal.ts`.
+ * check:shape rule 1 alongside the rest of `modules/messaging/service/**`.
  */
 
+import type { OutboundToolName } from '@modules/messaging/channel-events'
 import { messages } from '@modules/messaging/schema'
-import type { OutboundToolName } from '@server/transports/events'
 import { journalAppend as append, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
 import { and, asc, desc, eq, gt } from 'drizzle-orm'
 

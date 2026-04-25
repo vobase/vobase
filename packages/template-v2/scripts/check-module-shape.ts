@@ -5,9 +5,11 @@
  * Two layers:
  *
  * 1. Journal write-path guard (static grep). `messages` / `conversation_events`
- *    are write-once-path tables — only `modules/messaging/service/**` and
- *    `modules/agents/service/learning-proposals.ts` may `.insert/update/
- *    delete()` them. Prevents the dual-write class of bugs.
+ *    are write-once-path tables — only `modules/messaging/service/**` may
+ *    `.insert/update/delete()` them. Cross-module callers route through the
+ *    typed `appendJournalEvent` wrapper exported from
+ *    `modules/messaging/service/journal.ts`. Prevents the dual-write class of
+ *    bugs.
  *
  * 2. Module contract invariants — enforce the declarative-module-collector
  *    contract (Slice 4b). Loaded by importing `vobase.config.ts`:
@@ -42,7 +44,7 @@ interface LintError {
 const errors: LintError[] = []
 
 const JOURNAL_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(messages|conversationEvents)\b/
-const JOURNAL_WRITE_ALLOWED = ['modules/messaging/service/', 'modules/agents/service/learning-proposals.ts']
+const JOURNAL_WRITE_ALLOWED = ['modules/messaging/service/']
 
 async function checkJournalWriteAuthority(): Promise<void> {
   const glob = new Bun.Glob('**/*.ts')

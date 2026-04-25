@@ -15,13 +15,12 @@
  * instances (created at wake-start) so the listener has zero module-level state.
  */
 
+import type { AgentEvent } from '@modules/agents/events'
 import { upsertStaffMemory } from '@modules/agents/service/staff-memory'
 import { upsertNotesSection } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
-import type { AgentEvent } from '@server/events'
-import { getLogger } from '@server/services'
-import type { DirtyTracker } from '@vobase/core'
+import type { DirtyTracker, HarnessLogger } from '@vobase/core'
 import type { IFileSystem } from 'just-bash'
 
 export interface WorkspaceSyncOpts {
@@ -31,15 +30,15 @@ export interface WorkspaceSyncOpts {
   agentId: string
   contactId: string
   drive: FilesService
+  logger: HarnessLogger
 }
 
 export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: AgentEvent) => Promise<void> {
-  const { fs, tracker, organizationId, agentId, contactId, drive } = opts
+  const { fs, tracker, organizationId, agentId, contactId, drive, logger } = opts
 
   return async (event: AgentEvent): Promise<void> => {
     if (event.type !== 'agent_end') return
 
-    const logger = getLogger()
     const scoped = await tracker.flush(fs)
 
     // ── 0. Staff MEMORY.md → agent_staff_memory upserts ────────────────

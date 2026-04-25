@@ -8,12 +8,12 @@
  * blocks the note insert. Never throws.
  */
 
+import { sendOutbound } from '@modules/channel-whatsapp/service/sender'
 import { staffChannelBindings } from '@modules/contacts/schema'
 import type { InternalNote } from '@modules/messaging/schema'
 import { channelInstances } from '@modules/messaging/schema'
+import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { find as findStaff } from '@modules/team/service/staff'
-import { getPrefs } from '@server/admin/settings/service/notification-prefs'
-import { sendOutbound } from '@server/transports/whatsapp/service/sender'
 import { and, eq } from 'drizzle-orm'
 
 const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000

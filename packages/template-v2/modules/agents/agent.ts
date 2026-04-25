@@ -14,7 +14,7 @@ import { subagentTool } from './tools/subagent'
 
 export { buildAgentsMaterializers as buildMaterializers } from './materializers'
 export { createMemoryDistillListener } from './observers/memory-distill'
-export { sseListener } from './observers/sse'
+export { createSseListener } from './observers/sse'
 export { createWorkspaceSyncListener } from './observers/workspace-sync'
 export { subagentTool } from './tools/subagent'
 

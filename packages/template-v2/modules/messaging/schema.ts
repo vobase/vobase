@@ -97,10 +97,11 @@ export interface PendingApproval {
 
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
-import { messagingPgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'
 import { check, index, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+
+import { messagingPgSchema } from '~/runtime'
 
 export const channelInstances = messagingPgSchema.table(
   'channel_instances',

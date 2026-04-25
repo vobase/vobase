@@ -6,8 +6,7 @@
  * states; every status can cycle back via one of the listed edges.
  */
 
-import { applyTransition, type TransitionTable } from '@server/common/apply-transition'
-
+import { applyTransition, type TransitionTable } from '~/runtime'
 import type { ConversationStatus } from './schema'
 
 export const conversationTransitions: TransitionTable<ConversationStatus> = {

@@ -14,7 +14,7 @@
  * `wake-worker.ts`.
  */
 
-import type { WakeTrigger } from '@server/events'
+import type { WakeTrigger } from '@modules/agents/events'
 import { type ActiveWakesStore, createInMemoryActiveWakes } from '@vobase/core'
 
 import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from './queue-jobs'

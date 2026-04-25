@@ -1,8 +1,8 @@
+import type { WakeTrigger } from '@modules/agents/events'
 import { conversations, pendingApprovals } from '@modules/messaging/schema'
-import type { Tx } from '@server/common/port-types'
-import type { WakeTrigger } from '@server/events'
 import { and, desc, eq } from 'drizzle-orm'
 
+import type { Tx } from '~/runtime'
 import type { PendingApproval } from '../schema'
 import { addNote } from './notes'
 import type { InsertPendingApprovalInput } from './types'

@@ -15,11 +15,12 @@
  * `scope='staff'` (mirrors the contact-scope overlay).
  */
 
-import { teamPgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { boolean, check, index, integer, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+
+import { teamPgSchema } from '~/runtime'
 
 // ─── Domain types ───────────────────────────────────────────────────────────
 

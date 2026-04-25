@@ -7,9 +7,10 @@
 import { zValidator } from '@hono/zod-validator'
 import { reopen, reset, resolve } from '@modules/messaging/service/conversations'
 import { getConversation, notifyConversation } from '@modules/messaging/service/staff-ops'
-import { InvalidTransitionError } from '@server/common/apply-transition'
 import { Hono } from 'hono'
 import { z } from 'zod'
+
+import { InvalidTransitionError } from '~/runtime'
 
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 

@@ -1,6 +1,6 @@
-import type { ModuleDef } from '@server/common/module-def'
 import { createCostService, createJournalService, installCostService, installJournalService } from '@vobase/core'
 
+import type { ModuleDef } from '~/runtime'
 import * as agent from './agent'
 import { jobs } from './jobs'
 import { createAgentDefinitionsService, installAgentDefinitionsService } from './service/agent-definitions'

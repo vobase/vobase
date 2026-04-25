@@ -6,8 +6,8 @@
  *   POST /mentions/dismiss-all     → mark every unread mention read
  */
 
+import type { SessionEnv } from '@auth/middleware/require-session'
 import { dismiss, dismissAll, listUnread, unreadCount } from '@modules/team/service/mentions'
-import type { SessionEnv } from '@server/middlewares/require-session'
 import { Hono } from 'hono'
 
 const app = new Hono<SessionEnv>()

@@ -20,8 +20,8 @@
  *
  */
 
+import type { AgentEvent } from '@modules/agents/events'
 import type { InternalNoteAuthorType } from '@modules/messaging/schema'
-import type { AgentEvent } from '@server/events'
 
 import type { LearningScope } from '../schema'
 

@@ -16,7 +16,7 @@ import {
   remove as removeAgent,
   update as updateAgent,
 } from '@modules/agents/service/agent-definitions'
-import { conversationVerbs, driveVerbs, generateAgentsMd, teamVerbs } from '@server/workspace'
+import { conversationVerbs, driveVerbs, generateAgentsMd, teamVerbs } from '@modules/agents/workspace'
 import { Hono } from 'hono'
 import { z } from 'zod'
 

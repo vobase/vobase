@@ -16,8 +16,8 @@
  *      any queued triggers can proceed.
  */
 
-import type { AgentEvent, WakeTrigger } from '@server/events'
-import { OUTBOUND_TOOL_NAME_SET } from '@server/transports/events'
+import type { AgentEvent, WakeTrigger } from '@modules/agents/events'
+import { OUTBOUND_TOOL_NAME_SET } from '@modules/messaging/channel-events'
 import type { ActiveWakesStore, HarnessEvent, OnEventListener } from '@vobase/core'
 import { nanoid } from 'nanoid'
 

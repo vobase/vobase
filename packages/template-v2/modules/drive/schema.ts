@@ -47,10 +47,11 @@ export interface DriveFile {
 
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
-import { drivePgSchema } from '@server/db/pg-schemas'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+
+import { drivePgSchema } from '~/runtime'
 
 export const driveFiles = drivePgSchema.table(
   'files',

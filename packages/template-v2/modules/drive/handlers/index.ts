@@ -1,5 +1,5 @@
-import type { Auth } from '@server/auth'
-import { type OrganizationEnv, requireOrganization, scopeRbac } from '@server/middlewares'
+import type { Auth } from '@auth'
+import { type OrganizationEnv, requireOrganization, scopeRbac } from '@auth/middleware'
 import { type Context, Hono, type MiddlewareHandler } from 'hono'
 
 import { getDriveAuth } from '../service/files'
@@ -7,9 +7,8 @@ import filesHandlers from './files'
 import proposalHandlers from './proposal'
 
 /**
- * Per-request scope-RBAC gate. Loaded lazily because better-auth is constructed
- * after the drive module's `init()` runs — the Auth instance is published via
- * `installDriveAuth()` in `wireAuthIntoModules()`.
+ * Per-request scope-RBAC gate. Reads the better-auth handle threaded into the
+ * drive module via `ctx.auth` at boot time and stashed under module state.
  *
  * Falls through with no gate when auth is not installed (unit-test mode).
  */

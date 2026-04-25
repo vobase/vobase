@@ -3,8 +3,9 @@
  * current session user. Client pings every 60s while the app is focused.
  * Used by T7b notification fan-out (offline = now() - lastSeenAt > 2min).
  */
+
+import type { SessionEnv } from '@auth/middleware/require-session'
 import { find, touchLastSeen } from '@modules/team/service/staff'
-import type { SessionEnv } from '@server/middlewares/require-session'
 import { Hono } from 'hono'
 
 const app = new Hono<SessionEnv>().post('/heartbeat', async (c) => {

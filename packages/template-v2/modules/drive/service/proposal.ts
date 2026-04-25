@@ -5,6 +5,13 @@
  * Scope routing: organization-drive writes require staff approval (scope='drive_doc',
  * status='pending'). Contact-drive writes are free and go through workspaceSyncObserver.
  *
+ * Why proposals (not direct writes)? Organization-scope files (notably `/BUSINESS.md`
+ * and other brand/policy docs) are injected into the frozen system prompt at
+ * `agent_start`. Letting the agent overwrite them mid-wake would mutate the prompt
+ * the wake is computing against — violates the frozen-snapshot invariant that the
+ * provider's prefix cache and the agent's own write-vs-read race assume. The
+ * proposal flow defers the write to staff and surfaces it in the NEXT wake.
+ *
  * `decide()` is called by the staff approval handler (modules/drive/handlers/proposal.ts).
  * On approval, it writes the drive file via the drive service (Phase 2 stub — the actual
  * drive.files.create call is deferred until a real `ScopedDb` lands; the proposal row is

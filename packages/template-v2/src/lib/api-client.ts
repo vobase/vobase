@@ -5,18 +5,18 @@
  * type is derived from `typeof app` exported by the module's handlers/index.ts.
  *
  * Bundle invariant: only `import type` — no runtime value imports from
- * @server/runtime/* or @server/harness/* are allowed in src/**. The handler
+ * @server/runtime/* or @modules/agents/wake/* are allowed in src/**. The handler
  * files themselves import drizzle/server deps; we only pull in the inferred
  * Hono app type so Vite strips it at build time.
  */
 
 import type agentsApp from '@modules/agents/handlers/index'
+import type channelWebApp from '@modules/channel-web/handlers/index'
 import type contactsApp from '@modules/contacts/handlers/index'
 import type driveApp from '@modules/drive/handlers/index'
 import type messagingApp from '@modules/messaging/handlers/index'
-import type settingsApp from '@server/admin/settings/handlers/index'
-import type systemApp from '@server/admin/system/handlers/index'
-import type channelWebApp from '@server/transports/web/handlers/index'
+import type settingsApp from '@modules/settings/handlers/index'
+import type systemApp from '@modules/system/handlers/index'
 import { hc } from 'hono/client'
 
 // ── Per-module typed clients ──────────────────────────────────────────────────

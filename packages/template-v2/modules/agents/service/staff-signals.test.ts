@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import type { AgentEvent } from '@server/events'
+import type { AgentEvent } from '@modules/agents/events'
 
 import { detectStaffSignals } from './staff-signals'
 

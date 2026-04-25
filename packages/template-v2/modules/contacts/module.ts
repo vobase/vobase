@@ -1,5 +1,4 @@
-import type { ModuleDef } from '@server/common/module-def'
-
+import type { ModuleDef } from '~/runtime'
 import { createAttrDefService, installAttrDefService } from './service/attribute-definitions'
 import { createContactsService, installContactsService } from './service/contacts'
 import * as web from './web'

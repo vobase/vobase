@@ -10,8 +10,10 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "paths": {
-      "@server/*": ["./server/*"],
       "@modules/*": ["./modules/*"],
+      "@auth": ["./auth/index"],
+      "@auth/*": ["./auth/*"],
+      "~/*": ["./*"],
       "@/*": ["./src/*"]
     }
   },

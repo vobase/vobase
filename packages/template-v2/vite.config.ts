@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
@@ -50,14 +51,9 @@ export default defineConfig({
     webmanifestEnv(),
   ],
   resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-      '@modules': path.resolve(import.meta.dirname, './modules'),
-      '@server': path.resolve(import.meta.dirname, './server'),
-    },
+    tsconfigPaths: true
   },
   server: {
-    port: 5173,
     proxy: {
       '/api': 'http://localhost:3000',
     },

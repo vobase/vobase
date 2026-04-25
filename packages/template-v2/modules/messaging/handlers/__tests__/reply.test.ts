@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { OUTBOUND_TOOL_NAME_SET } from '@modules/messaging/channel-events'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import { createStaffOpsService, installStaffOpsService } from '@modules/messaging/service/staff-ops'
-import { OUTBOUND_TOOL_NAME_SET } from '@server/transports/events'
 import { setJournalDb } from '@vobase/core'
 import { Hono } from 'hono'
 
