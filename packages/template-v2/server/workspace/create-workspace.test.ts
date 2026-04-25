@@ -270,7 +270,6 @@ async function buildWorkspace(files: DriveFile[] = []) {
     commands: [],
     materializers,
     drivePort: drive,
-    contactsPort: contacts,
     readOnlyConfig: buildDefaultReadOnlyConfig({
       agentId: AGENT_ID,
       contactId: CONTACT_ID,

@@ -12,8 +12,11 @@ import type { WorkspaceMaterializer } from '@vobase/core'
 
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
 
+/** Read-only slice of ContactsService the profile + memory materializers depend on. */
+export type ContactsReader = Pick<ContactsService, 'get' | 'readNotes'>
+
 export interface ContactsMaterializerOpts {
-  contacts: ContactsService
+  contacts: ContactsReader
   contactId: string
 }
 
@@ -21,7 +24,7 @@ function contactProfileFallback(contactId: string): string {
   return `# ${contactId} (${contactId})\n\n_No profile configured yet._\n`
 }
 
-async function renderContactProfile(port: ContactsService, contactId: string): Promise<string> {
+async function renderContactProfile(port: ContactsReader, contactId: string): Promise<string> {
   try {
     const c = await port.get(contactId)
     const identity = c.displayName ?? c.phone ?? c.email ?? c.id
@@ -36,7 +39,7 @@ async function renderContactProfile(port: ContactsService, contactId: string): P
   }
 }
 
-async function renderContactMemory(port: ContactsService, contactId: string): Promise<string> {
+async function renderContactMemory(port: ContactsReader, contactId: string): Promise<string> {
   try {
     const body = await port.readNotes(contactId)
     return body && body.trim().length > 0 ? body : EMPTY_MEMORY_MD

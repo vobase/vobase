@@ -283,7 +283,6 @@ export async function bootWakeIntegration(
     commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
     materializers: [],
     drivePort: ports.drive,
-    contactsPort: ports.contacts,
     readOnlyConfig: buildDefaultReadOnlyConfig({
       agentId: opts.agentId,
       contactId: opts.contactId,

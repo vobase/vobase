@@ -16,11 +16,14 @@ export const BUSINESS_MD_FALLBACK = `# Business Identity
 No business profile configured. Ask staff to create /BUSINESS.md in the drive.
 `
 
+/** Read-only slice of FilesService the BUSINESS.md materializer depends on. */
+export type DriveReader = Pick<FilesService, 'getByPath' | 'readContent'>
+
 export interface DriveMaterializerOpts {
-  drive: FilesService
+  drive: DriveReader
 }
 
-async function loadBusinessMd(drive: FilesService): Promise<string> {
+async function loadBusinessMd(drive: DriveReader): Promise<string> {
   try {
     const row = await drive.getByPath({ scope: 'organization' }, '/BUSINESS.md')
     if (!row) return BUSINESS_MD_FALLBACK

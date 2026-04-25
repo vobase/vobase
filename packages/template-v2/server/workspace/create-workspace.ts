@@ -20,7 +20,6 @@
  */
 
 import type { AgentDefinition } from '@modules/agents/schema'
-import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CommandContext, CommandDef } from '@server/common/port-types'
@@ -46,7 +45,6 @@ export interface CreateWorkspaceOpts {
   commands: readonly CommandDef[]
   materializers: readonly WorkspaceMaterializer[]
   drivePort: FilesService
-  contactsPort: ContactsService
   onSideEffect?: (cmd: CommandDef) => void
   env?: Record<string, string>
   readOnlyConfig: ReadOnlyConfig

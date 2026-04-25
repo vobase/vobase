@@ -10,24 +10,28 @@
  *
  * Contributions are threaded in from `server/app.ts` — tools/commands/listeners
  * come through `collectAgentContributions(modules)` at boot, while dynamic-path
- * materializers are built per-wake from module factory functions.
+ * materializers are built per-wake from module factory functions. Domain
+ * services are imported directly from `@modules/<name>/service/*`; there is
+ * no port shim layer.
  */
 
 import type { AgentMessage } from '@mariozechner/pi-agent-core'
 import * as agentsModule from '@modules/agents/agent'
-import type { AgentsPort } from '@modules/agents/service/types'
+import { getById as getAgentDefinition } from '@modules/agents/service/agent-definitions'
 import * as contactsModule from '@modules/contacts/agent'
-import type { ContactsService } from '@modules/contacts/service/contacts'
+import { get as getContact, readNotes as readContactNotes } from '@modules/contacts/service/contacts'
 import * as driveModule from '@modules/drive/agent'
-import type { FilesService } from '@modules/drive/service/files'
+import { filesServiceFor } from '@modules/drive/service/files'
 import * as messagingModule from '@modules/messaging/agent'
 import { renderTranscriptFromMessages } from '@modules/messaging/materializers'
 import { type Conversation, channelInstances } from '@modules/messaging/schema'
-import type { MessagingPort } from '@modules/messaging/service/types'
+import { get as getConversation } from '@modules/messaging/service/conversations'
+import { list as listMessages } from '@modules/messaging/service/messages'
+import { listNotes as listInternalNotes } from '@modules/messaging/service/notes'
 import * as teamModule from '@modules/team/agent'
 import { staff as teamStaff } from '@modules/team/service'
 import type { RealtimeService, ScopedDb } from '@server/common/port-types'
-import type { WakeTrigger } from '@server/events'
+import type { AgentEvent, WakeTrigger } from '@server/events'
 import { buildFrozenPrompt, type SessionContext } from '@server/harness/frozen-prompt-builder'
 import type { LlmEmitter } from '@server/harness/llm-call'
 import { createModel, resolveApiKey } from '@server/harness/llm-provider'
@@ -49,6 +53,7 @@ import {
   createIdleResumptionContributor,
   createLogger,
   DirtyTracker,
+  journalAppend,
   journalGetLastWakeTail,
   loadMessages,
   type OnEventListener,
@@ -85,10 +90,6 @@ export const InboundToWakePayloadSchema = z.object({
 export type InboundToWakePayload = z.infer<typeof InboundToWakePayloadSchema>
 
 interface WakeHandlerDeps {
-  messaging: MessagingPort
-  contacts: ContactsService
-  agents: AgentsPort
-  drive: FilesService
   realtime: RealtimeService
   /** Optional scoped db — when provided, enables message-history persistence. */
   db?: ScopedDb
@@ -133,7 +134,7 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
 
     let conv: Conversation
     try {
-      conv = await deps.messaging.getConversation(data.conversationId)
+      conv = await getConversation(data.conversationId)
     } catch (err) {
       console.error('[wake] conversation lookup failed:', err)
       return
@@ -146,13 +147,16 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
     console.log('[wake] booting wake', { agentId, contactId: data.contactId })
 
     const channelInstanceId = conv.channelInstanceId
+    const drive = filesServiceFor(data.organizationId)
+    const contactsReader = { get: getContact, readNotes: readContactNotes }
+    const messagingReader = { listMessages, listInternalNotes }
 
     // Composite of messaging + contacts + the agent orchestration prose; kept
     // here rather than in a module because no single module owns it.
     const conversationSideLoad: SideLoadContributor = async (ctx) => {
       const [msgs, contact] = await Promise.all([
-        deps.messaging.listMessages(ctx.conversationId, { limit: 200 }),
-        deps.contacts.get(ctx.contactId).catch(() => null),
+        listMessages(ctx.conversationId, { limit: 200 }),
+        getContact(ctx.contactId).catch(() => null),
       ])
       const transcript = renderTranscriptFromMessages(msgs)
       const contactBlock = contact
@@ -202,7 +206,7 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
     const wakeId = nanoid(10)
 
     try {
-      const agentDefinition = await deps.agents.getAgentDefinition(agentId)
+      const agentDefinition = await getAgentDefinition(agentId)
 
       // Surface every staff profile in the org. Bounded in practice (helpdesks
       // run single-digit staff). Tighten to conversation participants if
@@ -225,10 +229,10 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
       const allCommands = [...teamVerbs, ...conversationVerbs, ...driveVerbs]
       const wakeMaterializers: WorkspaceMaterializer[] = [
         ...agentsModule.buildMaterializers({ agentId, agentDefinition, commands: allCommands }),
-        ...driveModule.buildMaterializers({ drive: deps.drive }),
-        ...contactsModule.buildMaterializers({ contacts: deps.contacts, contactId: data.contactId }),
+        ...driveModule.buildMaterializers({ drive }),
+        ...contactsModule.buildMaterializers({ contacts: contactsReader, contactId: data.contactId }),
         ...messagingModule.buildMaterializers({
-          messaging: deps.messaging,
+          messaging: messagingReader,
           contactId: data.contactId,
           channelInstanceId,
         }),
@@ -252,8 +256,7 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
         agentDefinition,
         commands: allCommands,
         materializers: wakeMaterializers,
-        drivePort: deps.drive,
-        contactsPort: deps.contacts,
+        drivePort: drive,
         readOnlyConfig: roConfig,
       })
 
@@ -261,7 +264,6 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
       // live in the frozen system prompt and must not change mid-wake.
       const sessionContext = await resolveSessionContext({
         db: deps.db,
-        contactsService: deps.contacts,
         conv,
         contactId: data.contactId,
       })
@@ -289,7 +291,7 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
         organizationId: data.organizationId,
         agentId,
         contactId: data.contactId,
-        drive: deps.drive,
+        drive,
       })
 
       // Memory-distill listener — closes over the per-wake emitter handle.
@@ -385,7 +387,19 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
 
         getLastWakeTail: journalGetLastWakeTail,
         journalAppend: async (ev) => {
-          await deps.agents.appendEvent(ev as unknown as Parameters<typeof deps.agents.appendEvent>[0])
+          const ae = ev as unknown as AgentEvent & {
+            conversationId: string
+            organizationId: string
+            wakeId?: string
+            turnIndex?: number
+          }
+          await journalAppend({
+            conversationId: ae.conversationId,
+            organizationId: ae.organizationId,
+            wakeId: ae.wakeId ?? null,
+            turnIndex: ae.turnIndex ?? 0,
+            event: ae,
+          })
         },
         loadMessageHistory: loadedHistory.length > 0 ? async () => loadedHistory : undefined,
         onTurnEndSnapshot: async (messages) => {
@@ -445,11 +459,10 @@ async function resolveStaffIdsForOrg(organizationId: string): Promise<readonly s
  */
 async function resolveSessionContext(input: {
   db: ScopedDb | undefined
-  contactsService: ContactsService
   conv: Conversation
   contactId: string
 }): Promise<SessionContext> {
-  const contact = await input.contactsService.get(input.contactId).catch(() => null)
+  const contact = await getContact(input.contactId).catch(() => null)
 
   let channelKind: string | null = null
   let channelLabel: string | null = null

@@ -13,8 +13,11 @@ import type { Message } from '@modules/messaging/schema'
 import type { MessagingPort } from '@modules/messaging/service/types'
 import type { WorkspaceMaterializer } from '@vobase/core'
 
+/** Read-only slice of MessagingPort the transcript + notes materializers depend on. */
+export type MessagingReader = Pick<MessagingPort, 'listMessages' | 'listInternalNotes'>
+
 export interface MessagingMaterializerOpts {
-  messaging: MessagingPort
+  messaging: MessagingReader
   contactId: string
   channelInstanceId: string
 }
@@ -38,12 +41,12 @@ export function renderTranscriptFromMessages(msgs: readonly Message[]): string {
   return lines.join('\n')
 }
 
-export async function renderTranscript(messaging: MessagingPort, conversationId: string): Promise<string> {
+export async function renderTranscript(messaging: MessagingReader, conversationId: string): Promise<string> {
   const msgs = (await messaging.listMessages(conversationId, { limit: 200 })) as Message[]
   return renderTranscriptFromMessages(msgs)
 }
 
-export async function renderInternalNotes(messaging: MessagingPort, conversationId: string): Promise<string> {
+export async function renderInternalNotes(messaging: MessagingReader, conversationId: string): Promise<string> {
   const notes = await messaging.listInternalNotes(conversationId).catch(() => [])
   if (notes.length === 0) return '# Internal Notes\n\n_No notes yet._\n'
   const lines = ['# Internal Notes', '']
