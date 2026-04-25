@@ -365,9 +365,38 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     }
 
     const snoozedAt = new Date()
-    let jobId: string | null = null
+
+    const row = await db.transaction(async (tx) => {
+      const rows = (await tx
+        .update(conversations)
+        .set({
+          snoozedUntil: input.until,
+          snoozedReason: input.reason ?? null,
+          snoozedBy: input.by,
+          snoozedAt,
+          snoozedJobId: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(conversations.id, input.conversationId))
+        .returning()) as Conversation[]
+      const r = rows[0]
+      if (!r) throw new Error(`messaging/conversations.snooze: not found: ${input.conversationId}`)
+
+      await writeConversationEvent(tx, {
+        conversationId: input.conversationId,
+        organizationId: r.organizationId,
+        type: 'conversation.snoozed',
+        payload: { until: input.until.toISOString(), reason: input.reason ?? null, by: input.by },
+      })
+      return r
+    })
+
+    // Queue the wake-snoozed job AFTER the tx commits. Otherwise the dev
+    // in-process queue races the tx and wakeSnoozed reads a stale row, so
+    // its `current.snoozedAt !== snoozedAtIso` guard short-circuits to a
+    // silent no-op and the conversation stays snoozed forever.
     if (scheduler) {
-      jobId = await scheduler
+      const jobId = await scheduler
         .send(
           'messaging:wake-snoozed',
           { conversationId: input.conversationId, snoozedAt: snoozedAt.toISOString() },
@@ -377,32 +406,13 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
           },
         )
         .catch(() => null)
+      if (jobId) {
+        await db.update(conversations).set({ snoozedJobId: jobId }).where(eq(conversations.id, input.conversationId))
+        return { ...row, snoozedJobId: jobId }
+      }
     }
 
-    return db.transaction(async (tx) => {
-      const rows = (await tx
-        .update(conversations)
-        .set({
-          snoozedUntil: input.until,
-          snoozedReason: input.reason ?? null,
-          snoozedBy: input.by,
-          snoozedAt,
-          snoozedJobId: jobId,
-          updatedAt: new Date(),
-        })
-        .where(eq(conversations.id, input.conversationId))
-        .returning()) as Conversation[]
-      const row = rows[0]
-      if (!row) throw new Error(`messaging/conversations.snooze: not found: ${input.conversationId}`)
-
-      await writeConversationEvent(tx, {
-        conversationId: input.conversationId,
-        organizationId: row.organizationId,
-        type: 'conversation.snoozed',
-        payload: { until: input.until.toISOString(), reason: input.reason ?? null, by: input.by },
-      })
-      return row
-    })
+    return row
   }
 
   async function unsnooze(conversationId: string, by: string): Promise<Conversation> {
