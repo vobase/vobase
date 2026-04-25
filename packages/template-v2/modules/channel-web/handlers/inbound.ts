@@ -1,9 +1,9 @@
 import { verifyHmacWebhook } from '@auth/middleware'
 import { upsertByExternal } from '@modules/contacts/service/contacts'
-import { type ChannelInboundEvent, ChannelInboundEventSchema } from '@modules/messaging/channel-events'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import type { Context } from 'hono'
 
+import { type ChannelInboundEvent, ChannelInboundEventSchema } from '~/runtime/channel-events'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
 import { getInstanceDefaultAssignee } from '../service/instances'
 import { requireJobs } from '../service/state'

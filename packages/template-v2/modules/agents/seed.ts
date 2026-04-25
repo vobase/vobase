@@ -4,7 +4,7 @@
 
 import { MERIDIAN_ORG_ID } from '@modules/drive/seed'
 
-import { models } from './lib/models'
+import { models } from './wake/models'
 
 export { MERIDIAN_ORG_ID }
 

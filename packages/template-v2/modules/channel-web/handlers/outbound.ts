@@ -4,9 +4,10 @@
  * TRANSPORT-ONLY: calls dispatcher which persists via MessagingPort then pushes NOTIFY.
  * This handler MUST NOT write to the messages table directly (transport-only rule).
  */
-import { ChannelOutboundEventSchema } from '@modules/messaging/channel-events'
+
 import type { Context } from 'hono'
 
+import { ChannelOutboundEventSchema } from '~/runtime/channel-events'
 import { dispatch } from '../service/dispatcher'
 import { requireRealtime } from '../service/state'
 

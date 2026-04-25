@@ -2,6 +2,7 @@
  * CRUD routes for web channel instances — powers the /channels page.
  */
 
+import { zValidator } from '@hono/zod-validator'
 import {
   createInstance,
   getPublicInstance,
@@ -30,6 +31,11 @@ const updateBody = z.object({
   starters: startersSchema.nullable().optional(),
 })
 
+const invalidBody = (
+  result: { success: boolean; error?: { issues: unknown } },
+  c: { json: (b: unknown, s: number) => Response },
+) => (result.success ? undefined : c.json({ error: 'invalid_body', issues: result.error?.issues }, 400))
+
 const app = new Hono()
   .get('/:id/public', async (c) => {
     const id = c.req.param('id')
@@ -42,32 +48,24 @@ const app = new Hono()
     const rows = await listInstances(organizationId)
     return c.json(rows)
   })
-  .post('/', async (c) => {
+  .post('/', zValidator('json', createBody, invalidBody), async (c) => {
     const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const raw = await c.req.json().catch(() => null)
-    const parsed = createBody.safeParse(raw)
-    if (!parsed.success) {
-      return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    }
+    const data = c.req.valid('json')
     const instance = await createInstance({
       organizationId,
-      displayName: parsed.data.displayName,
-      defaultAssignee: parsed.data.defaultAssignee ?? null,
-      origin: parsed.data.origin ?? null,
-      starters: parsed.data.starters ?? null,
+      displayName: data.displayName,
+      defaultAssignee: data.defaultAssignee ?? null,
+      origin: data.origin ?? null,
+      starters: data.starters ?? null,
     })
     return c.json(instance, 201)
   })
-  .patch('/:id', async (c) => {
+  .patch('/:id', zValidator('json', updateBody, invalidBody), async (c) => {
     const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
     const id = c.req.param('id')
-    const raw = await c.req.json().catch(() => null)
-    const parsed = updateBody.safeParse(raw)
-    if (!parsed.success) {
-      return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    }
+    const data = c.req.valid('json')
     try {
-      const instance = await updateInstance(id, organizationId, parsed.data)
+      const instance = await updateInstance(id, organizationId, data)
       return c.json(instance)
     } catch {
       return c.json({ error: 'not_found' }, 404)

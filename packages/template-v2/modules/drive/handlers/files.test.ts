@@ -8,7 +8,7 @@ import type { DriveFile } from '@modules/drive/schema'
 import { __resetFilesDbForTests, setFilesDb } from '@modules/drive/service/files'
 import { Hono } from 'hono'
 
-import app from '../files'
+import app from './files'
 
 const ORG_ID = 'tenant_test_0'
 
@@ -103,7 +103,7 @@ describe('drive file handlers', () => {
     state.files = [makeFile({ id: 'f-1', path: '/BUSINESS.md', kind: 'file' })]
     const res = await mount().request(`/tree?scope=organization&organizationId=${ORG_ID}`)
     expect(res.status).toBe(200)
-    expect(((await res.json()) as DriveFile[])[0]?.id).toBe('f-1')
+    expect(((await res.json()) as unknown as DriveFile[])[0]?.id).toBe('f-1')
   })
 
   it('GET /tree 400 on missing scope', async () => {
@@ -118,7 +118,7 @@ describe('drive file handlers', () => {
     state.files = [makeFile({ id: 'f-1', path: '/BUSINESS.md', kind: 'file', extractedText: 'hello' })]
     const res = await mount().request(`/file?scope=organization&path=/BUSINESS.md&organizationId=${ORG_ID}`)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { content: string; virtual: boolean }
+    const body = (await res.json()) as unknown as { content: string; virtual: boolean }
     expect(body.content).toBe('hello')
     expect(body.virtual).toBe(false)
   })
@@ -140,7 +140,7 @@ describe('drive file handlers', () => {
       body: JSON.stringify({ scope: 'organization', path: '/pricing.md', content: '# Pricing' }),
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { file: DriveFile }
+    const body = (await res.json()) as unknown as { file: DriveFile }
     expect(body.file.path).toBe('/pricing.md')
     expect(body.file.extractedText).toBe('# Pricing')
   })
@@ -161,7 +161,7 @@ describe('drive file handlers', () => {
       body: JSON.stringify({ scope: 'organization', path: '/policies' }),
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { file: DriveFile }
+    const body = (await res.json()) as unknown as { file: DriveFile }
     expect(body.file.kind).toBe('folder')
     expect(body.file.path).toBe('/policies')
   })
@@ -170,7 +170,7 @@ describe('drive file handlers', () => {
     state.files = [makeFile({ id: 'f-1', path: '/x.md', kind: 'file' })]
     const res = await mount().request(`/file/f-1?organizationId=${ORG_ID}`, { method: 'DELETE' })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { ok: boolean; id: string }
+    const body = (await res.json()) as unknown as { ok: boolean; id: string }
     expect(body.ok).toBe(true)
     expect(body.id).toBe('f-1')
   })

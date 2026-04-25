@@ -10,11 +10,11 @@
  * check:shape rule 1 alongside the rest of `modules/messaging/service/**`.
  */
 
-import type { OutboundToolName } from '@modules/messaging/channel-events'
 import { messages } from '@modules/messaging/schema'
 import { journalAppend as append, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
 import { and, asc, desc, eq, gt } from 'drizzle-orm'
 
+import type { OutboundToolName } from '~/runtime/channel-events'
 import type { Message } from '../schema'
 
 type TxShape = { insert: InsertFn } & {

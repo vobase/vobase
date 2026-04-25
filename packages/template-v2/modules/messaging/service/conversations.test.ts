@@ -33,7 +33,7 @@ import { createMessagesService, installMessagesService } from '@modules/messagin
 import { conversationEvents, setJournalDb } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 
-import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../../tests/helpers/test-db'
+import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 
 let db: TestDbHandle
 const schedulerCalls: Array<{ op: string; args: unknown }> = []

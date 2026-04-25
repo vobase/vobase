@@ -1,6 +1,6 @@
 import { buildReadOnlyConfig, type ReadOnlyConfig } from '@vobase/core'
 
-export { BUSINESS_MD_FALLBACK } from '@modules/drive/materializers'
+export { BUSINESS_MD_FALLBACK } from '@modules/drive/agent'
 export {
   type BuildReadOnlyConfigOpts,
   buildReadOnlyConfig,

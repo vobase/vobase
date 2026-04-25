@@ -1,6 +1,6 @@
-import { useAgentDefinitions } from '@modules/agents/api/use-agent-definitions'
+import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
 import { PrincipalAvatar, PrincipalChip, usePrincipalDirectory } from '@modules/messaging/components/principal'
-import { useStaffList } from '@modules/team/api/use-staff'
+import { useStaffList } from '@modules/team/hooks/use-staff'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, Code2, Copy, ExternalLink, Globe, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { channelWebClient } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 interface WebInstance {
@@ -74,33 +75,25 @@ interface UpdateBody {
 const listKey = ['channels', 'web', 'instances'] as const
 
 async function fetchInstances(): Promise<WebInstance[]> {
-  const r = await fetch('/api/channel-web/instances')
+  const r = await channelWebClient.instances.$get()
   if (!r.ok) throw new Error(`instances list failed: ${r.status}`)
-  return r.json()
+  return (await r.json()) as WebInstance[]
 }
 
 async function createInstance(body: CreateBody): Promise<WebInstance> {
-  const r = await fetch('/api/channel-web/instances', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  const r = await channelWebClient.instances.$post({ json: body })
   if (!r.ok) throw new Error(`instances create failed: ${r.status}`)
-  return r.json()
+  return (await r.json()) as WebInstance
 }
 
 async function patchInstance(id: string, body: UpdateBody): Promise<WebInstance> {
-  const r = await fetch(`/api/channel-web/instances/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  const r = await channelWebClient.instances[':id'].$patch({ param: { id }, json: body })
   if (!r.ok) throw new Error(`instances patch failed: ${r.status}`)
-  return r.json()
+  return (await r.json()) as WebInstance
 }
 
 async function deleteInstance(id: string): Promise<void> {
-  const r = await fetch(`/api/channel-web/instances/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const r = await channelWebClient.instances[':id'].$delete({ param: { id } })
   if (!r.ok) throw new Error(`instances delete failed: ${r.status}`)
 }
 

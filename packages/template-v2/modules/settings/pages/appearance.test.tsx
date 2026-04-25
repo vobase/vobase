@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-mock.module('@modules/settings/pages/api/use-settings-save', () => ({
+mock.module('@modules/settings/hooks/use-settings-save', () => ({
   useSettingsSave: () => ({ mutate: mock(async () => {}), isPending: false }),
 }))
 
@@ -15,7 +15,7 @@ mock.module('@/components/theme-switch', () => ({
   THEME_OPTIONS: [],
 }))
 
-import AppearancePage from '../appearance'
+import AppearancePage from './appearance'
 
 describe('AppearancePage — render', () => {
   it('renders Appearance heading', () => {

@@ -16,10 +16,7 @@ import { createInMemoryActiveWakes, DirtyTracker, type HarnessEvent, type WakeRu
 import { InMemoryFs } from 'just-bash'
 import { nanoid } from 'nanoid'
 
-import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from '../service/queue-jobs'
-import { createFakeWakeQueue } from '../service/queue-port'
-import type { AgentWakeJobPayload, ScheduledFollowupPayload } from '../service/wake-scheduler'
-import { createWakeScheduler } from '../service/wake-scheduler'
+import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from '../jobs'
 import {
   createInMemoryOutbound,
   createWakeWorker,
@@ -27,6 +24,9 @@ import {
   type RunHarnessInput,
   type RunHarnessOutput,
 } from '../service/wake-worker'
+import { createFakeWakeQueue } from './queue-port'
+import type { AgentWakeJobPayload, ScheduledFollowupPayload } from './wake-scheduler'
+import { createWakeScheduler } from './wake-scheduler'
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 

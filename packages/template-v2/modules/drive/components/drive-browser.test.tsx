@@ -1,9 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import type { DriveFile } from '../../schema'
-import { DriveBrowser } from '../drive-browser'
-import { DriveProvider } from '../drive-provider'
+import type { DriveFile } from '../schema'
+import { DriveBrowser } from './drive-browser'
+import { DriveProvider } from './drive-provider'
 
 const rows: DriveFile[] = [
   {

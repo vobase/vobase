@@ -1,13 +1,15 @@
 /**
  * Meta WhatsApp Cloud API webhook → canonical ChannelInboundEvent.
  *
- * R1 discipline (A6): imports ChannelInboundEvent from @modules/messaging/channel-events,
+ * R1 discipline (A6): imports ChannelInboundEvent from ~/runtime/channel-events,
  * NEVER from Drizzle inference (zero InferSelectModel hits in this file).
  *
  * 100% fixture-tested — all branches covered in tests/parser.test.ts.
  */
-import type { ChannelInboundEvent } from '@modules/messaging/channel-events'
+
 import { z } from 'zod'
+
+import type { ChannelInboundEvent } from '~/runtime/channel-events'
 
 // ─── Meta webhook payload schemas ──────────────────────────────────────────
 

@@ -17,11 +17,11 @@
  */
 
 import type { AgentEvent, WakeTrigger } from '@modules/agents/events'
-import { OUTBOUND_TOOL_NAME_SET } from '@modules/messaging/channel-events'
 import type { ActiveWakesStore, HarnessEvent, OnEventListener } from '@vobase/core'
 import { nanoid } from 'nanoid'
 
-import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from './queue-jobs'
+import { OUTBOUND_TOOL_NAME_SET } from '~/runtime/channel-events'
+import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from '../jobs'
 import type { Job, WakeQueue } from './queue-port'
 import type { AgentWakeJobPayload, ScheduledFollowupPayload } from './wake-scheduler'
 

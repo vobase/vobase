@@ -17,7 +17,7 @@
 import type { WakeTrigger } from '@modules/agents/events'
 import { type ActiveWakesStore, createInMemoryActiveWakes } from '@vobase/core'
 
-import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from './queue-jobs'
+import { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from '../jobs'
 import type { SendOpts, WakeQueue } from './queue-port'
 
 export type { WakeTrigger }

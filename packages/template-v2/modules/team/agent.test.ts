@@ -14,7 +14,7 @@ import {
 import type { StaffProfile } from '@modules/team/schema'
 import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
 
-import { makeStaticProfileLookup, renderStaffMemory, renderStaffProfile } from './materializers'
+import { makeStaticProfileLookup, renderStaffMemory, renderStaffProfile } from './agent'
 
 const STAFF_ID = 'u_alice'
 const AGENT_ID = 'a_test'

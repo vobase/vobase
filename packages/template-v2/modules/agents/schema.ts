@@ -110,7 +110,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { agentsPgSchema } from '~/runtime'
-import { DEFAULT_CHAT_MODEL } from './lib/models'
+import { DEFAULT_CHAT_MODEL } from './wake/models'
 
 export const agentDefinitions = agentsPgSchema.table('agent_definitions', {
   id: nanoidPrimaryKey(),

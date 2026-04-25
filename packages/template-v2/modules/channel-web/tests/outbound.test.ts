@@ -4,7 +4,6 @@
  * Verifies: payload validation, dispatcher invocation, SSE notify, transport-only discipline.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
-import type { ChannelOutboundEvent } from '@modules/messaging/channel-events'
 import type { Message } from '@modules/messaging/schema'
 import {
   __resetMessagesServiceForTests,
@@ -13,6 +12,7 @@ import {
 } from '@modules/messaging/service/messages'
 
 import type { RealtimeService } from '~/runtime'
+import type { ChannelOutboundEvent } from '~/runtime/channel-events'
 import { handleOutbound } from '../handlers/outbound'
 import { createChannelWebState, installChannelWebState } from '../service/state'
 

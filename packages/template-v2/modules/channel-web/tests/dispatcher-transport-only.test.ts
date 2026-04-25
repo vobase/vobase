@@ -11,7 +11,6 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'bun:test'
-import type { ChannelOutboundEvent } from '@modules/messaging/channel-events'
 import type { Message } from '@modules/messaging/schema'
 import {
   __resetMessagesServiceForTests,
@@ -20,6 +19,7 @@ import {
 } from '@modules/messaging/service/messages'
 
 import type { RealtimeService } from '~/runtime'
+import type { ChannelOutboundEvent } from '~/runtime/channel-events'
 import { dispatch } from '../service/dispatcher'
 
 type CallLog = { method: string; input: unknown }

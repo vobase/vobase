@@ -15,12 +15,12 @@
  *   pi-ai's `getModel(provider, bareId)` so the returned Model carries
  *   the native API type.
  *
- * Always pass `{provider}/{model}` ids from `modules/agents/lib/models.ts`
+ * Always pass `{provider}/{model}` ids from `modules/agents/wake/models.ts`
  * — never bare ids at call sites.
  */
 
 import { getModel, type Model } from '@mariozechner/pi-ai'
-import { DEFAULT_CHAT_MODEL, splitModelId } from '@modules/agents/lib/models'
+import { DEFAULT_CHAT_MODEL, splitModelId } from '@modules/agents/wake/models'
 
 export interface ProviderEnv {
   bifrostUrl: string | undefined

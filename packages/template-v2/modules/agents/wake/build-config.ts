@@ -27,7 +27,6 @@ import * as messagingModule from '@modules/messaging/agent'
 import type { Conversation } from '@modules/messaging/schema'
 import { list as listMessages } from '@modules/messaging/service/messages'
 import { listNotes as listInternalNotes } from '@modules/messaging/service/notes'
-import { conversationSideLoad } from '@modules/messaging/side-load'
 import * as teamModule from '@modules/team/agent'
 import { staff as teamStaff } from '@modules/team/service'
 import type { AgentContributions, AgentTool, HarnessLogger, WakeRuntime, WorkspaceMaterializer } from '@vobase/core'
@@ -228,7 +227,7 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
       ...(contributions.listeners.on_tool_result ? { on_tool_result: contributions.listeners.on_tool_result } : {}),
     },
     materializers: wakeMaterializers,
-    sideLoadContributors: [conversationSideLoad, ...contributions.sideLoad],
+    sideLoadContributors: [messagingModule.conversationSideLoad, ...contributions.sideLoad],
     commands: allCommands,
 
     extraCustomSideLoad: [

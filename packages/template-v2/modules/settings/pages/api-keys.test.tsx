@@ -1,11 +1,11 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-mock.module('@modules/settings/pages/api/use-settings-save', () => ({
+mock.module('@modules/settings/hooks/use-settings-save', () => ({
   useSettingsSave: () => ({ mutate: mock(async () => {}), isPending: false }),
 }))
 
-import ApiKeysPage from '../api-keys'
+import ApiKeysPage from './api-keys'
 
 describe('ApiKeysPage — render', () => {
   it('renders API keys heading', () => {

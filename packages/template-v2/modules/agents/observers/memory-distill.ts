@@ -19,7 +19,7 @@ import type { HarnessLogger } from '@vobase/core'
 import { eq, inArray } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
-import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
+import { callMemoryDistill, type DistilledSection } from './memory-distill-prompt'
 
 function upsertMarkdownSection(markdown: string, heading: string, body: string): string {
   const header = `## ${heading}`

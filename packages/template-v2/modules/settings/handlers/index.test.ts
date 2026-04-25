@@ -6,7 +6,7 @@ import {
 } from '@modules/settings/service/notification-prefs'
 import { Hono } from 'hono'
 
-import settingsRouter from '../index'
+import settingsRouter from './index'
 
 beforeAll(() => {
   installNotificationPrefsService({

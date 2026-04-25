@@ -1,6 +1,8 @@
 /** WhatsApp outbound sender — transport only; persistence flows through MessagingPort. */
-import type { ChannelOutboundEvent } from '@modules/messaging/channel-events'
+
 import type { SendResult } from '@vobase/core'
+
+import type { ChannelOutboundEvent } from '~/runtime/channel-events'
 
 const META_API_VERSION = 'v20.0'
 const META_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`

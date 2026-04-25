@@ -7,8 +7,8 @@ import { createMessagesService, installMessagesService } from '@modules/messagin
 import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
 import { setJournalDb } from '@vobase/core'
 
-import type { Message } from '../../schema'
-import { sendStaffReply } from '../staff-reply'
+import type { Message } from '../schema'
+import { sendStaffReply } from './staff-reply'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

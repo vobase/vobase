@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { createConversationsService, installConversationsService } from '@modules/messaging/service/conversations'
+import { createNotesService, installNotesService } from '@modules/messaging/service/notes'
 import { createStaffOpsService, installStaffOpsService } from '@modules/messaging/service/staff-ops'
-import { setJournalDb } from '@vobase/core'
 import { Hono } from 'hono'
 
-import reassignRouter from '../reassign'
+import notesRouter from './notes'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const CONV_ID = 'conv-reassign-1'
+const CONV_ID = 'conv-notes-1'
 const ORG_ID = 'tenant_meridian'
 const OTHER_TENANT = 'tenant_other'
 
@@ -18,7 +17,7 @@ const fakeConv = {
   contactId: 'c-1',
   channelInstanceId: 'ch-1',
   status: 'active' as const,
-  assignee: 'agent-alice',
+  assignee: 'unassigned',
   snoozedUntil: null,
   snoozedReason: null,
   snoozedBy: null,
@@ -31,7 +30,21 @@ const fakeConv = {
   updatedAt: new Date(),
 }
 
-// ─── DB Stub builder ──────────────────────────────────────────────────────────
+const fakeNote = {
+  id: 'note-1',
+  organizationId: ORG_ID,
+  conversationId: CONV_ID,
+  authorType: 'staff' as const,
+  authorId: 'user-1',
+  body: 'Test note',
+  mentions: [],
+  parentNoteId: null,
+  notifChannelMsgId: null,
+  notifChannelId: null,
+  createdAt: new Date(),
+}
+
+// ─── DB Stub builders ─────────────────────────────────────────────────────────
 
 function makeStaffOpsDb(conv: unknown, notifyCalls: string[]) {
   return {
@@ -47,41 +60,23 @@ function makeStaffOpsDb(conv: unknown, notifyCalls: string[]) {
       notifyCalls.push(CONV_ID)
       return []
     },
+    update: () => ({ set: () => ({ where: () => ({ returning: async () => [] }) }) }),
   }
 }
 
-function makeConversationsDb(current: unknown, updated: unknown) {
-  const run = {
-    insert: () => ({
-      values: () => ({
-        returning: async () => [],
+function makeNotesDb(note: unknown) {
+  return {
+    insert: (_t: unknown) => ({
+      values: (_v: unknown) => ({
+        returning: async () => [note],
       }),
     }),
     select: () => ({
       from: () => ({
         where: () => ({
-          limit: async () => (current ? [current] : []),
+          orderBy: async () => [],
         }),
       }),
-    }),
-    update: () => ({
-      set: () => ({
-        where: () => ({
-          returning: async () => (updated ? [updated] : []),
-        }),
-      }),
-    }),
-  }
-  return {
-    ...run,
-    transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(run),
-  }
-}
-
-function makeJournalDb() {
-  return {
-    insert: () => ({
-      values: () => ({ returning: async () => [] }),
     }),
   }
 }
@@ -89,10 +84,10 @@ function makeJournalDb() {
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 const app = new Hono()
-app.route('/conversations', reassignRouter)
+app.route('/conversations', notesRouter)
 
 const POST = (id: string, body: unknown, org = ORG_ID) =>
-  app.request(`/conversations/${id}/reassign?organizationId=${org}`, {
+  app.request(`/conversations/${id}/notes?organizationId=${org}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -100,51 +95,49 @@ const POST = (id: string, body: unknown, org = ORG_ID) =>
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('POST /conversations/:id/reassign', () => {
+describe('POST /conversations/:id/notes', () => {
   let notifyCalls: string[]
 
   beforeEach(() => {
     notifyCalls = []
     installStaffOpsService(createStaffOpsService({ db: makeStaffOpsDb(fakeConv, notifyCalls) }))
-    installConversationsService(
-      createConversationsService({ db: makeConversationsDb(fakeConv, { ...fakeConv, assignee: 'agent-bob' }) }),
-    )
-    setJournalDb(makeJournalDb())
+    installNotesService(createNotesService({ db: makeNotesDb(fakeNote) }))
   })
 
-  it('(a) rejects payload missing assignee with 400', async () => {
-    const res = await POST(CONV_ID, { note: 'reassigning' })
+  it('(a) rejects payload missing required fields with 400', async () => {
+    const res = await POST(CONV_ID, { authorType: 'staff' })
     expect(res.status).toBe(400)
-    const json = (await res.json()) as { error: string }
+    const json = (await res.json()) as unknown as { error: string }
     expect(json.error).toBe('invalid_body')
   })
 
-  it('(a) rejects empty assignee string with 400', async () => {
-    const res = await POST(CONV_ID, { assignee: '' })
+  it('(a) rejects invalid authorType with 400', async () => {
+    const res = await POST(CONV_ID, { body: 'hi', authorType: 'manager', authorId: 'u-1' })
     expect(res.status).toBe(400)
   })
 
-  it('(b) happy path returns updated conversation with 200', async () => {
-    const res = await POST(CONV_ID, { assignee: 'agent-bob' })
-    expect(res.status).toBe(200)
-    const json = (await res.json()) as { conversation: { assignee: string } }
-    expect(json.conversation.assignee).toBe('agent-bob')
+  it('(a) rejects empty body string with 400', async () => {
+    const res = await POST(CONV_ID, { body: '', authorType: 'staff', authorId: 'u-1' })
+    expect(res.status).toBe(400)
   })
 
-  it('(b) optional note field is accepted', async () => {
-    const res = await POST(CONV_ID, { assignee: 'agent-bob', note: 'taking over' })
+  it('(b) happy path returns InternalNote with 200', async () => {
+    const res = await POST(CONV_ID, { body: 'Test note', authorType: 'staff', authorId: 'user-1' })
     expect(res.status).toBe(200)
+    const json = (await res.json()) as unknown as { id: string; body: string }
+    expect(json.id).toBe('note-1')
+    expect(json.body).toBe('Test note')
   })
 
-  it('(c) SSE NOTIFY fires after successful reassign', async () => {
-    const res = await POST(CONV_ID, { assignee: 'agent-bob' })
+  it('(c) SSE NOTIFY fires after successful note creation', async () => {
+    const res = await POST(CONV_ID, { body: 'hello', authorType: 'staff', authorId: 'u-1' })
     expect(res.status).toBe(200)
     expect(notifyCalls).toContain(CONV_ID)
   })
 
   it('(d) returns 404 when conversation not found', async () => {
     installStaffOpsService(createStaffOpsService({ db: makeStaffOpsDb(null, notifyCalls) }))
-    const res = await POST(CONV_ID, { assignee: 'agent-bob' })
+    const res = await POST(CONV_ID, { body: 'hi', authorType: 'staff', authorId: 'u-1' })
     expect(res.status).toBe(404)
   })
 
@@ -152,7 +145,7 @@ describe('POST /conversations/:id/reassign', () => {
     installStaffOpsService(
       createStaffOpsService({ db: makeStaffOpsDb({ ...fakeConv, organizationId: OTHER_TENANT }, notifyCalls) }),
     )
-    const res = await POST(CONV_ID, { assignee: 'agent-bob' })
+    const res = await POST(CONV_ID, { body: 'hi', authorType: 'staff', authorId: 'u-1' })
     expect(res.status).toBe(403)
   })
 

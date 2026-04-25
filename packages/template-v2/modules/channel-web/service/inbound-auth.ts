@@ -13,9 +13,10 @@
  *    payload; the handler verifies and trusts the `organizationId` + `from`
  *    fields it carries.
  */
-import { ChannelInboundEventSchema } from '@modules/messaging/channel-events'
+
 import { z } from 'zod'
 
+import { ChannelInboundEventSchema } from '~/runtime/channel-events'
 import { getAuth } from './state'
 
 /** Body posted by browser clients — no organizationId/from (those come from the session). */

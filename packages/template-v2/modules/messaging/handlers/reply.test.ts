@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
-import { OUTBOUND_TOOL_NAME_SET } from '@modules/messaging/channel-events'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import { createStaffOpsService, installStaffOpsService } from '@modules/messaging/service/staff-ops'
 import { setJournalDb } from '@vobase/core'
 import { Hono } from 'hono'
 
-import replyRouter from '../reply'
+import { OUTBOUND_TOOL_NAME_SET } from '~/runtime/channel-events'
+import replyRouter from './reply'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -122,21 +122,21 @@ describe('POST /conversations/:id/reply', () => {
   it('(a) rejects empty body string with 400', async () => {
     const res = await POST(CONV_ID, { body: '' })
     expect(res.status).toBe(400)
-    const json = (await res.json()) as { error: string }
+    const json = (await res.json()) as unknown as { error: string }
     expect(json.error).toBe('invalid_body')
   })
 
   it('(a) rejects body exceeding 10 000 chars with 400', async () => {
     const res = await POST(CONV_ID, { body: 'x'.repeat(10_001) })
     expect(res.status).toBe(400)
-    const json = (await res.json()) as { error: string }
+    const json = (await res.json()) as unknown as { error: string }
     expect(json.error).toBe('invalid_body')
   })
 
   it('(b) happy path returns messageId with 200', async () => {
     const res = await POST(CONV_ID, { body: 'Hello from staff', staffUserId: 'user-1' })
     expect(res.status).toBe(200)
-    const json = (await res.json()) as { messageId: string }
+    const json = (await res.json()) as unknown as { messageId: string }
     expect(json.messageId).toBe(MSG_ID)
   })
 

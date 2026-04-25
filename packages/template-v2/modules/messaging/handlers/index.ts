@@ -1,3 +1,4 @@
+import { zValidator } from '@hono/zod-validator'
 import {
   get as getConversation,
   listActivity,
@@ -7,6 +8,7 @@ import {
 import { list as listMessages } from '@modules/messaging/service/messages'
 import { list as listApprovals } from '@modules/messaging/service/pending-approvals'
 import { Hono } from 'hono'
+import { z } from 'zod'
 
 import approvals from './approvals'
 import notes from './notes'
@@ -50,9 +52,9 @@ const app = new Hono()
       return c.json({ error: 'not_found' }, 404)
     }
   })
-  .get('/conversations/:id/messages', async (c) => {
+  .get('/conversations/:id/messages', zValidator('query', z.object({ limit: z.string().optional() })), async (c) => {
     const id = c.req.param('id')
-    const limit = Number(c.req.query('limit') ?? 50)
+    const limit = Number(c.req.valid('query').limit ?? 50)
     const rows = await listMessages(id, { limit })
     return c.json(rows)
   })

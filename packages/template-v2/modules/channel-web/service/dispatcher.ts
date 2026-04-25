@@ -1,6 +1,5 @@
 /** Outbound dispatcher — transport only. Persistence flows through messaging service. */
 
-import type { ChannelOutboundEvent } from '@modules/messaging/channel-events'
 import {
   appendCardMessage,
   appendMediaMessage,
@@ -10,6 +9,7 @@ import {
 import { nanoid } from 'nanoid'
 
 import type { RealtimeService } from '~/runtime'
+import type { ChannelOutboundEvent } from '~/runtime/channel-events'
 
 export interface DispatchResult {
   messageId: string

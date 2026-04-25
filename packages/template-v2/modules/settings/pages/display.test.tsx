@@ -1,11 +1,11 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-mock.module('@modules/settings/pages/api/use-settings-save', () => ({
+mock.module('@modules/settings/hooks/use-settings-save', () => ({
   useSettingsSave: () => ({ mutate: mock(async () => {}), isPending: false }),
 }))
 
-import DisplayPage from '../display'
+import DisplayPage from './display'
 
 describe('DisplayPage — render', () => {
   it('renders Display heading', () => {

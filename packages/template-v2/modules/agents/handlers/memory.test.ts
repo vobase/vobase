@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test'
 import { setDb } from '@modules/agents/service/agent-definitions'
 import { Hono } from 'hono'
 
-import memoryRouter from '../memory'
+import memoryRouter from './memory'
 
 const CONV_ID = 'conv-mem-1'
 const ORG_A = 'tenant_meridian'
@@ -38,7 +38,7 @@ describe('GET /conversations/:id/working-memory', () => {
   it('(a) returns the agent working memory for a seeded conversation', async () => {
     const res = await GET(CONV_ID)
     expect(res.status).toBe(200)
-    const json = (await res.json()) as { memory: string }
+    const json = (await res.json()) as unknown as { memory: string }
     expect(json.memory).toBe(fakeAgent.workingMemory)
   })
 
@@ -46,7 +46,7 @@ describe('GET /conversations/:id/working-memory', () => {
     setDb(makeDb([fakeConv], [{ ...fakeAgent, workingMemory: '' }]))
     const res = await GET(CONV_ID)
     expect(res.status).toBe(200)
-    const json = (await res.json()) as { memory: null }
+    const json = (await res.json()) as unknown as { memory: null }
     expect(json.memory).toBeNull()
   })
 
