@@ -23,7 +23,7 @@ The `src/` boundary is enforced by `check:bundle` — putting pg/pg-boss/pi-agen
 
 - `@modules/*` — backend + frontend within `modules/<name>/`
 - `@auth` / `@auth/*` — `auth/index.ts` + everything under `auth/`
-- `~/*` — template root (`~/runtime` resolves to `runtime/index.ts`; `~/runtime/bootstrap`, `~/vobase.config`)
+- `~/*` — template root (`~/runtime` resolves to `runtime/index.ts`; `~/runtime/bootstrap`, `~/runtime/modules`)
 - `@/*` — frontend `src/`
 - `@vobase/core` — shared runtime contract; agents never read `node_modules`
 

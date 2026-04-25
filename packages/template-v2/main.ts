@@ -8,11 +8,11 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
 import { createApp } from './runtime/bootstrap'
-import config from './vobase.config'
 
-const sql = postgres(config.database)
+const databaseUrl = process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2'
+const sql = postgres(databaseUrl)
 const db = drizzle({ client: sql })
-const app = await createApp(db, sql)
+const app = await createApp(databaseUrl, db, sql)
 const port = Number(process.env.PORT ?? 3000)
 
 Bun.serve({ fetch: app.fetch, port, idleTimeout: 255 })

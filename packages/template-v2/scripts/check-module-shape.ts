@@ -12,7 +12,7 @@
  *    bugs.
  *
  * 2. Module contract invariants — enforce the declarative-module-collector
- *    contract (Slice 4b). Loaded by importing `vobase.config.ts`:
+ *    contract (Slice 4b). Loaded by importing `runtime/modules.ts`:
  *      - `agent.tools[i].name` unique across modules
  *      - `agent.commands[i].name` unique across modules
  *      - `jobs[i].name` unique across modules (excluding `disabled: true`)
@@ -30,7 +30,7 @@
 
 import { join } from 'node:path'
 
-import vobaseConfig from '../vobase.config'
+import { modules as registeredModules } from '../runtime/modules'
 
 const TEMPLATE_ROOT = join(import.meta.dir, '..')
 const MODULES_DIR = join(TEMPLATE_ROOT, 'modules')
@@ -149,7 +149,7 @@ function trackUnique(seen: Map<string, string>, kind: string, moduleName: string
 }
 
 function checkModuleContracts(): void {
-  const modules = vobaseConfig.modules as unknown as readonly ModuleLike[]
+  const modules = registeredModules as unknown as readonly ModuleLike[]
 
   const toolNames = new Map<string, string>()
   const commandNames = new Map<string, string>()

@@ -32,8 +32,8 @@ import { streamSSE } from 'hono/streaming'
 import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
 
-import config from '../vobase.config'
 import type { RealtimeService, ScopedDb } from './index'
+import { modules } from './modules'
 
 // ─── Realtime ───────────────────────────────────────────────────────────────
 
@@ -170,7 +170,7 @@ function createSseRoute(realtime: RealtimeService): Hono {
 
 // ─── App ────────────────────────────────────────────────────────────────────
 
-export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
+export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Promise<Hono> {
   const app = new Hono()
   app.use('*', createWidgetCors())
   app.use('*', logger())
@@ -186,7 +186,7 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   void sql
 
   const jobHandlers = new Map<string, (data: unknown) => Promise<void>>()
-  const realtime = await buildRealtime(config.database, db)
+  const realtime = await buildRealtime(databaseUrl, db)
   const jobs = buildJobQueue(jobHandlers)
   setJournalDb(db)
 
@@ -195,7 +195,7 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   // by drive's RBAC gate and channel-web's session flow.
   const moduleCtx = { db, organizationId: '', jobs, realtime, auth }
   await bootModules({
-    modules: config.modules,
+    modules,
     app,
     requireSession,
     ctx: moduleCtx,
@@ -203,7 +203,7 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
 
   // Module-contributed jobs bind here; INBOUND_TO_WAKE_JOB binds separately
   // below as a bootstrap concern (modules don't own the wake dispatcher).
-  const sortedModules = sortModules([...config.modules])
+  const sortedModules = sortModules([...modules])
   for (const job of collectJobs(sortedModules)) {
     jobHandlers.set(job.name, job.handler)
   }
