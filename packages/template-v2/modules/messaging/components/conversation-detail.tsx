@@ -7,7 +7,7 @@ import { deriveContactName } from '@modules/messaging/lib/contact'
 import { useDismissMention, useUnreadMentions } from '@modules/team/api/use-unread-mentions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { CheckIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
+import { CheckIcon, PanelRightOpenIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
 import { useQueryState } from 'nuqs'
 import { useEffect, useMemo } from 'react'
 
@@ -57,6 +57,7 @@ export function ConversationDetail() {
   const navigate = useNavigate()
 
   const [convParam, setConvParam] = useQueryState('conv')
+  const [ctx, setCtx] = useQueryState('ctx', { defaultValue: 'closed' })
   const currentUserId = useCurrentUserId()
   const actingStaffId = currentUserId ?? FALLBACK_STAFF_ID
 
@@ -231,6 +232,18 @@ export function ConversationDetail() {
           >
             <RefreshCcwIcon className="size-4" />
             Retry
+          </Button>
+        )}
+        {activeConvId && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={ctx === 'open' ? 'Hide context' : 'Show context'}
+            aria-pressed={ctx === 'open'}
+            onClick={() => void setCtx(ctx === 'open' ? null : 'open')}
+            data-testid="conversation-context-toggle"
+          >
+            <PanelRightOpenIcon className="size-4" />
           </Button>
         )}
       </div>

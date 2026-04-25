@@ -1,5 +1,6 @@
 "use client";
 
+// shadcn-override-ok: trigger renders <span> instead of <button>; the hover-card opens on hover, not click, and rendering as a button caused nested-button hydration errors when used inside other interactive elements (e.g. drive file rows).
 import { intlFormatDistance } from "date-fns";
 import { Slot as SlotPrimitive } from "radix-ui";
 import * as React from "react";
@@ -99,7 +100,7 @@ function TimezoneCard(props: TimezoneCardProps) {
 }
 
 interface RelativeTimeCardProps
-  extends React.ComponentProps<"button">,
+  extends React.ComponentProps<"span">,
     React.ComponentProps<typeof HoverCard>,
     Pick<
       React.ComponentProps<typeof HoverCardContent>,
@@ -186,7 +187,7 @@ function RelativeTimeCard(props: RelativeTimeCardProps) {
     return () => clearInterval(timer);
   }, [compute, updateInterval]);
 
-  const TriggerPrimitive = asChild ? SlotPrimitive.Slot : "button";
+  const TriggerPrimitive = asChild ? SlotPrimitive.Slot : "span";
 
   return (
     <HoverCard

@@ -310,15 +310,22 @@ describe('postCardReply — fetch payload', () => {
       return new Response(JSON.stringify({ ok: true }), { status: 200 })
     }) as unknown as typeof fetch
 
-    await postCardReply({ messageId: 'msg-42', buttonId: 'btn-yes', buttonValue: 'yes' })
+    await postCardReply({ messageId: 'msg-42', buttonId: 'btn-yes', buttonValue: 'yes', buttonLabel: 'Yes' })
 
     expect(captured).toHaveLength(1)
     expect(captured[0].url).toBe('/api/channel-web/card-reply')
-    expect(captured[0].body).toEqual({ messageId: 'msg-42', buttonId: 'btn-yes', buttonValue: 'yes' })
+    expect(captured[0].body).toEqual({
+      messageId: 'msg-42',
+      buttonId: 'btn-yes',
+      buttonValue: 'yes',
+      buttonLabel: 'Yes',
+    })
   })
 
   it('throws when response is not ok', async () => {
     globalThis.fetch = mock(async () => new Response('error', { status: 422 })) as unknown as typeof fetch
-    await expect(postCardReply({ messageId: 'm', buttonId: 'b', buttonValue: 'v' })).rejects.toThrow('422')
+    await expect(postCardReply({ messageId: 'm', buttonId: 'b', buttonValue: 'v', buttonLabel: 'L' })).rejects.toThrow(
+      '422',
+    )
   })
 })

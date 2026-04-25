@@ -30,6 +30,7 @@ export interface CardReplyPayload {
   messageId: string
   buttonId: string
   buttonValue: string
+  buttonLabel: string
 }
 
 export async function postCardReply(payload: CardReplyPayload): Promise<void> {
@@ -54,7 +55,7 @@ const buttonStyleMap: Record<string, string> = {
 export function CardActions({ messageId, buttons }: CardActionsProps) {
   const mutation = useMutation({
     mutationFn: (btn: ButtonElement) =>
-      postCardReply({ messageId, buttonId: btn.id, buttonValue: btn.value ?? btn.id }),
+      postCardReply({ messageId, buttonId: btn.id, buttonValue: btn.value ?? btn.id, buttonLabel: btn.label }),
   })
 
   const pendingId = mutation.isPending ? (mutation.variables as ButtonElement | undefined)?.id : null

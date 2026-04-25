@@ -43,11 +43,7 @@ function AgentCard({ agent }: { agent: AgentDefinitionRow }) {
           <Bot className="size-5 text-muted-foreground" />
         </div>
         <div className="relative z-10 flex items-center gap-2">
-          <Switch
-            checked={agent.enabled}
-            onCheckedChange={(v) => update.mutate({ enabled: v })}
-            aria-label={agent.enabled ? 'Disable agent' : 'Enable agent'}
-          />
+          <Switch checked={agent.enabled} onCheckedChange={(v) => update.mutate({ enabled: v })} aria-label="Enabled" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="size-7">
