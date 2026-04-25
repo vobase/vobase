@@ -71,11 +71,10 @@ export function createAuth(db: ScopedDb) {
             html,
           })
         } catch (err) {
-          logger.error('[auth:otp] Failed to send verification email', {
-            error: err instanceof Error ? err.message : String(err),
-            email,
-            type,
-          })
+          logger.error(
+            { error: err instanceof Error ? err.message : String(err), email, type },
+            '[auth:otp] Failed to send verification email',
+          )
           throw err
         }
       },
@@ -105,11 +104,14 @@ export function createAuth(db: ScopedDb) {
             html,
           })
         } catch (err) {
-          logger.error('[auth:invite] Failed to send invitation email', {
-            error: err instanceof Error ? err.message : String(err),
-            email,
-            organizationId: org.id,
-          })
+          logger.error(
+            {
+              error: err instanceof Error ? err.message : String(err),
+              email,
+              organizationId: org.id,
+            },
+            '[auth:invite] Failed to send invitation email',
+          )
           throw err
         }
       },
@@ -148,6 +150,7 @@ export function createAuth(db: ScopedDb) {
 
   const ensureStaffProfile = async (userId: string, organizationId: string): Promise<void> => {
     try {
+      // biome-ignore lint/plugin/no-dynamic-import: avoids module-init cycle (auth → team schema → auth)
       const { staffProfiles } = await import('@modules/team/schema')
       const [u] = await dbAny
         .select({ name: authUser.name, email: authUser.email })
@@ -160,11 +163,10 @@ export function createAuth(db: ScopedDb) {
         .values({ userId, organizationId, displayName })
         .onConflictDoNothing({ target: staffProfiles.userId })
     } catch (err) {
-      logger.error('[auth] staff-profile ensure failed', {
-        error: err instanceof Error ? err.message : String(err),
-        userId,
-        organizationId,
-      })
+      logger.error(
+        { error: err instanceof Error ? err.message : String(err), userId, organizationId },
+        '[auth] staff-profile ensure failed',
+      )
     }
   }
 
@@ -198,7 +200,7 @@ export function createAuth(db: ScopedDb) {
           .onConflictDoNothing({ target: [authMember.userId, authMember.organizationId] })
         await tx.update(authInvitation).set({ status: 'accepted' }).where(eq(authInvitation.id, invite.id))
       })
-      logger.info(`[auth] Auto-accepted invitation for ${user.email}`)
+      logger.info({ email: user.email }, '[auth] Auto-accepted invitation')
       await ensureStaffProfile(user.id, invite.organizationId)
       return
     }
@@ -224,7 +226,7 @@ export function createAuth(db: ScopedDb) {
         role: firstMember ? 'member' : 'owner',
       })
       .onConflictDoNothing({ target: [authMember.userId, authMember.organizationId] })
-    logger.info(`[auth] Auto-enrolled ${user.email} into sole org as ${firstMember ? 'member' : 'owner'}`)
+    logger.info({ email: user.email, role: firstMember ? 'member' : 'owner' }, '[auth] Auto-enrolled into sole org')
     await ensureStaffProfile(user.id, soleOrg.id)
   }
 
@@ -240,10 +242,10 @@ export function createAuth(db: ScopedDb) {
             try {
               await autoEnroll({ id: user.id, email: user.email })
             } catch (err) {
-              logger.error('[auth] auto-enroll failed', {
-                error: err instanceof Error ? err.message : String(err),
-                email: user.email,
-              })
+              logger.error(
+                { error: err instanceof Error ? err.message : String(err), email: user.email },
+                '[auth] auto-enroll failed',
+              )
             }
           },
         },
@@ -279,10 +281,10 @@ export function createAuth(db: ScopedDb) {
                 return { data: { ...session, activeOrganizationId: m.organizationId } }
               }
             } catch (err) {
-              logger.error('[auth] session-create auto-enroll failed', {
-                error: err instanceof Error ? err.message : String(err),
-                userId: session.userId,
-              })
+              logger.error(
+                { error: err instanceof Error ? err.message : String(err), userId: session.userId },
+                '[auth] session-create auto-enroll failed',
+              )
             }
             return undefined
           },

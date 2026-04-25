@@ -68,9 +68,7 @@ export function platformAuth(config: PlatformAuthConfig): BetterAuthPlugin {
             })
             payload = result.payload
           } catch (err) {
-            logger.warn('[platform] Invalid handoff JWT', {
-              error: err instanceof Error ? err.message : String(err),
-            })
+            logger.warn({ error: err instanceof Error ? err.message : String(err) }, '[platform] Invalid handoff JWT')
             throw new APIError('BAD_REQUEST', { message: 'Invalid or expired token' })
           }
 
@@ -100,18 +98,17 @@ export function platformAuth(config: PlatformAuthConfig): BetterAuthPlugin {
                   try {
                     invited = await config.hasPendingInvitation(profile.email)
                   } catch (err) {
-                    logger.warn('[platform] invitation lookup failed; falling back to domain gate', {
-                      error: err instanceof Error ? err.message : String(err),
-                      email: profile.email,
-                    })
+                    logger.warn(
+                      { error: err instanceof Error ? err.message : String(err), email: profile.email },
+                      '[platform] invitation lookup failed; falling back to domain gate',
+                    )
                   }
                 }
                 if (!invited) {
-                  logger.warn('[platform] Domain not in allowlist', {
-                    email: profile.email,
-                    domain,
-                    allowed: [...allowed],
-                  })
+                  logger.warn(
+                    { email: profile.email, domain, allowed: [...allowed] },
+                    '[platform] Domain not in allowlist',
+                  )
                   throw new APIError('FORBIDDEN', {
                     message: `Sign-up is restricted to approved email domains. "${domain ?? profile.email}" is not allowed. Contact your administrator to request access.`,
                   })
@@ -175,12 +172,15 @@ export function platformAuth(config: PlatformAuthConfig): BetterAuthPlugin {
             // Re-throw known API errors (e.g. domain allowlist FORBIDDEN).
             if (err instanceof APIError) throw err
 
-            logger.error('[platform] Platform callback error', {
-              error: err instanceof Error ? err.message : String(err),
-              stack: err instanceof Error ? err.stack : undefined,
-              email: profile.email,
-              provider,
-            })
+            logger.error(
+              {
+                error: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+                email: profile.email,
+                provider,
+              },
+              '[platform] Platform callback error',
+            )
             throw new APIError('INTERNAL_SERVER_ERROR', { message: 'Authentication failed' })
           }
         },

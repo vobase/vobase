@@ -42,10 +42,7 @@ function getTransporter(): Transporter | null {
 export async function sendEmail(payload: EmailPayload): Promise<void> {
   const transporter = getTransporter()
   if (!transporter) {
-    logger.info('[email:console] SMTP_HOST unset — logging email instead', {
-      to: payload.to,
-      subject: payload.subject,
-    })
+    logger.info({ to: payload.to, subject: payload.subject }, '[email:console] SMTP_HOST unset — logging email instead')
     console.log(`[email:console] to=${payload.to} subject=${payload.subject}\n${payload.html}`)
     return
   }
