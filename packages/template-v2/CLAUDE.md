@@ -8,16 +8,20 @@ Core identity: **AI agents need a codebase they can understand.** Every conventi
 
 Backend lives at three top-level seams; frontend at one. No nested package boundaries within the template.
 
-- `modules/<name>/` — every business capability. Owns its backend (`module.ts`, `schema.ts`, `state.ts`, `service/`, `handlers/`, `jobs.ts`, `agent.ts`, `web.ts`, `seed.ts`) AND its frontend (`pages/`, `components/`). One folder per feature is the readability rule.
+- `modules/<name>/` — every business capability. Owns its backend (`module.ts`, `schema.ts`, `state.ts`, `service/`, `handlers/`, `jobs.ts`, `agent.ts`, `web.ts`, `seed.ts`) AND its frontend (`pages/`, `components/`, `hooks/`). One folder per feature is the readability rule.
 - `auth/` — better-auth setup, plugins, middleware, and transactional emails. The single auth surface; consumed by `runtime/bootstrap.ts` and threaded into modules via `ctx.auth`.
 - `runtime/` — backend plumbing:
     - `runtime/index.ts` — cross-module type primitives (`ScopedDb`, `RealtimeService`, `ModuleDef`, `ModuleInitCtx` with `auth: AuthHandle`, `applyTransition`, per-domain `pgSchema` instances). Imported as `~/runtime` from anywhere in the backend.
     - `runtime/bootstrap.ts` — boot orchestration: builds realtime, jobs, auth, calls `bootModules` from `@vobase/core`, mounts the SSE route, returns the Hono app. Exported as `createApp(db, sql)`.
+    - `runtime/modules.ts` — the static modules list (init order is the array order, then re-sorted by each module's `requires`).
+    - `runtime/channel-events.ts` — `ChannelInbound/OutboundEvent` zod schemas + `OUTBOUND_TOOL_NAMES`. Lives at runtime because four modules (messaging, channel-web, channel-whatsapp, agents) depend on the same wire shape.
 - `main.ts` — ~10-line entry point at root: connect db, call `createApp`, `Bun.serve`. Stays at root because the Dockerfile points here.
-- `src/` — frontend shell only (shadcn / ai-elements / DiceUI primitives, app layout, generic hooks, route registry). Module-specific UI lives inside the owning module — never `src/features/<m>/` or `src/components/<m>/`.
-- `tests/` — e2e (real Postgres) + smoke (manual against dev server). Unit tests colocate next to source.
+- `src/` — frontend shell only (shadcn / ai-elements / DiceUI primitives, app layout, generic hooks, route registry, typed RPC clients in `src/lib/api-client.ts`). Module-specific UI lives inside the owning module — never `src/features/<m>/` or `src/components/<m>/`.
+- `tests/` — e2e (real Postgres) + smoke (manual against dev server). Unit tests colocate next to source as sibling `*.test.ts` — there are no `__tests__/` directories.
 
 The `src/` boundary is enforced by `check:bundle` — putting pg/pg-boss/pi-agent-core under the Vite-resolved tree breaks the frontend build. The script bans `src/**` imports of `@modules/agents/wake/*`, `@modules/agents/workspace/*`, and `~/runtime`.
+
+**Module-root files are backend.** Frontend code lives only in `pages/`, `components/`, `hooks/`. This rule prevents collisions like a frontend zustand store named `state.ts` shadowing the backend state machine.
 
 ## Path aliases
 
@@ -31,7 +35,7 @@ The `src/` boundary is enforced by `check:bundle` — putting pg/pg-boss/pi-agen
 
 Non-negotiable because tests and CI enforce them:
 
-- Drizzle for queries, Zod on every handler input, Hono typed RPC on the client, TanStack Query never raw `fetch`. The typed seam is what lets agents refactor without reading call sites.
+- Drizzle for queries, Zod on every handler input via `@hono/zod-validator`, Hono typed RPC on the client (`src/lib/api-client.ts` exports one client per module), TanStack Query never raw `fetch`. The typed seam is what lets agents refactor without reading call sites. Enforced by `.biome/plugins/no-raw-fetch.grit` over `src/**`, `modules/**/pages/**`, `modules/**/components/**`, `modules/**/hooks/**` — the only carve-outs are anonymous-session bootstrap and dev-only HMAC simulators (each carries an inline `// biome-ignore lint/plugin/no-raw-fetch: <reason>`).
 - No `any`, no unsafe `as`, no `// @ts-ignore`. Strict mode — escape hatches rot.
 - Dates/times render through `<RelativeTimeCard date={...} />`. The retired `check:tokens` rule used to ban raw `toLocaleString` / hex colors; that's now a cultural convention. Use `<RelativeTimeCard>` (auto-updating, i18n-safe). Use `oklch()` colors. shadcn overrides are allowed — the `check:shadcn-overrides` lock-file lets you opt-in via a `// shadcn-override-ok: <reason>` comment when intentional.
 - Agent/staff identity in UI goes through `usePrincipalDirectory()` and `PrincipalAvatar`. Never render a raw agent id or user id — purple robot = agent, blue person = staff is a shared convention across assignees, notes, mentions, activity events.
@@ -40,7 +44,7 @@ Non-negotiable because tests and CI enforce them:
 
 ## Modules
 
-Each module under `modules/<name>/` contributes a `ModuleDef` from `module.ts`, which is an aggregator for sibling files: `agent.ts` (tools, listeners, materializers, commands, sideLoad), `web.ts` (Hono routes), `jobs.ts` (pg-boss handlers), plus `schema.ts`, `state.ts`, `service/`, `handlers/`, `seed.ts`. `module.ts` itself contains zero inline tool/listener/materializer literals — `check:shape` enforces this so the aggregator stays grep-able.
+Each module under `modules/<name>/` contributes a `ModuleDef` from `module.ts`, which is an aggregator for sibling files: `agent.ts` (tools, listeners, materializers, commands, sideLoad — all in one file, never a sibling `materializers.ts`/`side-load.ts`), `web.ts` (Hono routes), `jobs.ts` (pg-boss handlers + queue-name constants), plus `schema.ts`, `state.ts`, `service/`, `handlers/`, `seed.ts`. Frontend siblings are `pages/`, `components/`, `hooks/` (TanStack Query wrappers around the typed RPC clients — never `api/`, that name reads as backend). `module.ts` itself contains zero inline tool/listener/materializer literals — `check:shape` enforces this so the aggregator stays grep-able.
 
 `ModuleInitCtx` (from `~/runtime`) carries `{ db, realtime, jobs, scheduler, auth }`. Modules read `ctx.auth` directly in `init` — the old `installXAuth` post-boot patcher is gone. Auth construction happens in `bootstrap.ts` BEFORE `bootModules`, so modules can rely on `ctx.auth` being live during `init`.
 
@@ -122,7 +126,7 @@ Imported as `import { ... } from '@vobase/core'` so you never read `node_modules
 - `bun run build` — vite production build
 - `bun run typecheck` / `bun run lint` — must be 0 errors
 - `bun run test` — full suite (CI entry point); `test:e2e` and `test:smoke` auto-discover everything in `tests/e2e` / `tests/smoke`; `bun test <path>` for a single file
-- `bun run check` — runs every `check:*` (`shape`, `bundle`, `no-auto-nav-tabs`, `shadcn-overrides`)
+- `bun run check` — runs every `check:*` (`shape`, `bundle`, `no-auto-nav-tabs`, `shadcn-overrides`). `check:shape` also enforces the module-root invariants: only `modules/messaging/service/**` may write to `messages` / `conversation_events`, and `module.ts` may not contain inline `tools`/`listeners`/`materializers`/`commands`/`sideLoad` literals.
 - `bun run db:reset` — nuke + push + seed; individual: `db:push`, `db:generate`, `db:migrate`, `db:nuke`, `db:seed`, `db:studio`
 
 ## Dev auth + deploy
