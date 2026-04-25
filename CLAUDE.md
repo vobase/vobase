@@ -54,7 +54,7 @@ Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, St
 - `packages/template` is scaffolding material only — no migration history, no generated artifacts
 - Dev: `bun run build --filter=@vobase/core` then `cd packages/template && docker compose up -d && bun run db:push && bun run dev`
 - After core changes, rebuild before restarting
-- Template modules: messaging (conversations, contacts, channels, labels, state machine, channel replies), agents (Mastra agents, memory, evals, guardrails, MCP), system (ops dashboard), knowledge-base (doc search), automation (browser tasks), integrations (external service credentials)
+- Template modules: messaging (conversations, labels, state machine, replies), channels (umbrella owning channel_instances + adapters/{web,whatsapp}), agents (Mastra agents, memory, evals, guardrails, MCP), system (ops dashboard), knowledge-base (doc search), automation (browser tasks), integrations (external service credentials)
 - AI agents use Mastra (`@mastra/core`). Tools via `createTool()`, agents via `new Agent()`. Frontend chat uses ai-elements components (`src/components/ai-elements/`). Mastra storage configured with `schemaName: 'mastra'` — all Mastra tables live in the `mastra` pgSchema. Custom scorer definitions use Mastra's native `scorerDefinitions` storage domain.
 - Frontend: React + TanStack Router + shadcn/ui (base-nova). Use `<Link>` not `<a href>`.
 

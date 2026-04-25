@@ -14,7 +14,7 @@ Backend lives at three top-level seams; frontend at one. No nested package bound
     - `runtime/index.ts` — cross-module type primitives (`ScopedDb`, `RealtimeService`, `ModuleDef`, `ModuleInitCtx` with `auth: AuthHandle`, `applyTransition`, per-domain `pgSchema` instances). Imported as `~/runtime` from anywhere in the backend.
     - `runtime/bootstrap.ts` — boot orchestration: builds realtime, jobs, auth, calls `bootModules` from `@vobase/core`, mounts the SSE route, returns the Hono app. Exported as `createApp(db, sql)`.
     - `runtime/modules.ts` — the static modules list (init order is the array order, then re-sorted by each module's `requires`).
-    - `runtime/channel-events.ts` — `ChannelInbound/OutboundEvent` zod schemas + `OUTBOUND_TOOL_NAMES`. Lives at runtime because four modules (messaging, channel-web, channel-whatsapp, agents) depend on the same wire shape.
+    - `runtime/channel-events.ts` — `ChannelInbound/OutboundEvent` zod schemas + `OUTBOUND_TOOL_NAMES`. Lives at runtime because three modules (messaging, channels, agents) depend on the same wire shape.
 - `main.ts` — ~10-line entry point at root: connect db, call `createApp`, `Bun.serve`. Stays at root because the Dockerfile points here.
 - `src/` — frontend shell only (shadcn / ai-elements / DiceUI primitives, app layout, generic hooks, route registry, typed RPC clients in `src/lib/api-client.ts`). Module-specific UI lives inside the owning module — never `src/features/<m>/` or `src/components/<m>/`.
 - `tests/` — e2e (real Postgres) + smoke (manual against dev server). Unit tests colocate next to source as sibling `*.test.ts` — there are no `__tests__/` directories.
@@ -48,7 +48,13 @@ Each module under `modules/<name>/` contributes a `ModuleDef` from `module.ts`, 
 
 `ModuleInitCtx` (from `~/runtime`) carries `{ db, realtime, jobs, scheduler, auth }`. Modules read `ctx.auth` directly in `init` — the old `installXAuth` post-boot patcher is gone. Auth construction happens in `bootstrap.ts` BEFORE `bootModules`, so modules can rely on `ctx.auth` being live during `init`.
 
-**Init order** `settings → contacts → team → drive → messaging → agents → channel-web → channel-whatsapp → system`, enforced by each module's `requires`. Cross-module callers import directly from `@modules/<name>/service/*` — there is no port shim, no registry lookup, no dynamic dispatch. If the import won't type-check, the architecture is wrong. (Slice 4b identity rule: direct typed cross-module imports.)
+**Init order** `settings → contacts → team → drive → messaging → agents → channels → system`, enforced by each module's `requires`. Cross-module callers import directly from `@modules/<name>/service/*` — there is no port shim, no registry lookup, no dynamic dispatch. If the import won't type-check, the architecture is wrong. (Slice 4b identity rule: direct typed cross-module imports.)
+
+### Adapter folder convention
+
+Modules that aggregate multiple pluggable implementations behind one capability follow the umbrella + adapters layout. `modules/<umbrella>/` owns the cross-cutting spine (schema, registry, generic dispatchers, admin index page); each implementation lives at `modules/<umbrella>/adapters/<name>/` with the same `handlers/`, `service/`, optional `pages/`/`components/` shape as a top-level module. The umbrella's `module.ts` is the single registration point — `runtime/modules.ts` lists the umbrella, never the adapters.
+
+`modules/channels/` is the canonical example: schema (`channel_instances`), `service/registry.ts` (name → adapter factory), generic webhook router, generic outbound dispatcher, and `pages/index.tsx` (the `/channels` admin page). `adapters/web/` and `adapters/whatsapp/` register their `ChannelAdapter` factories during `init`. Adding a new channel means creating a new sibling adapter folder and registering it via `service/registry.ts` — no edits to `runtime/modules.ts`.
 
 **One write path.** Every mutation happens inside that module's `service/` layer, inside a transaction that also appends to `conversation_events`. Handlers, jobs, and tools never touch tables directly. Why: the dual-write problem (mutate + emit event in two places) is the single largest source of inconsistency bugs in helpdesk systems.
 
