@@ -54,10 +54,22 @@ async function main(): Promise<void> {
      FOREIGN KEY (contact_id) REFERENCES contacts.contacts(id) ON DELETE RESTRICT`,
   )
   await safeExec(
-    'FK contacts.staff_channel_bindings.channel_instance_id → messaging.channel_instances(id)',
+    'FK contacts.staff_channel_bindings.channel_instance_id → channels.channel_instances(id)',
     `ALTER TABLE contacts.staff_channel_bindings
      ADD CONSTRAINT fk_staff_channel_instance
-     FOREIGN KEY (channel_instance_id) REFERENCES messaging.channel_instances(id) ON DELETE CASCADE`,
+     FOREIGN KEY (channel_instance_id) REFERENCES channels.channel_instances(id) ON DELETE CASCADE`,
+  )
+  await safeExec(
+    'FK messaging.conversations.channel_instance_id → channels.channel_instances(id)',
+    `ALTER TABLE messaging.conversations
+     ADD CONSTRAINT fk_conv_channel_instance
+     FOREIGN KEY (channel_instance_id) REFERENCES channels.channel_instances(id) ON DELETE RESTRICT`,
+  )
+  await safeExec(
+    'FK messaging.internal_notes.notif_channel_id → channels.channel_instances(id)',
+    `ALTER TABLE messaging.internal_notes
+     ADD CONSTRAINT fk_notes_notif_channel
+     FOREIGN KEY (notif_channel_id) REFERENCES channels.channel_instances(id) ON DELETE SET NULL`,
   )
   await safeExec(
     'FK agents.learning_proposals.wake_event_id → harness.conversation_events(id)',

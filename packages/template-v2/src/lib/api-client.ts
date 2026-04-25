@@ -11,7 +11,8 @@
  */
 
 import type agentsApp from '@modules/agents/handlers/index'
-import type channelWebApp from '@modules/channel-web/handlers/index'
+import type webAdapterApp from '@modules/channels/adapters/web/handlers/index'
+import type channelsApp from '@modules/channels/handlers/index'
 import type contactsApp from '@modules/contacts/handlers/index'
 import type driveApp from '@modules/drive/handlers/index'
 import type messagingApp from '@modules/messaging/handlers/index'
@@ -32,7 +33,10 @@ export const driveClient = hc<typeof driveApp>('/api/drive')
 
 export const settingsClient = hc<typeof settingsApp>('/api/settings')
 
-export const channelWebClient = hc<typeof channelWebApp>('/api/channel-web')
+export const channelsClient = hc<typeof channelsApp>('/api/channels')
+
+/** Web-adapter-specific routes (anonymous-session, session-authed inbound, card-reply, public). */
+export const channelWebClient = hc<typeof webAdapterApp>('/api/channels/adapters/web')
 
 export const systemClient = hc<typeof systemApp>('/api/system')
 

@@ -4,7 +4,7 @@
  * Auth: bearer-token only. The widget never uses the better-auth cookie —
  * otherwise the anonymous session would clobber the dashboard session on the
  * same origin. On first visit we mint an anonymous session via
- * `POST /api/channel-web/anonymous-session` and cache the token in
+ * `POST /api/channels/adapters/web/anonymous-session` and cache the token in
  * `localStorage`. Every API call rides `Authorization: Bearer <token>` with
  * `credentials: 'omit'`. `?token=` in the URL (embed flows) still wins.
  *
@@ -75,7 +75,7 @@ function authFetchInit(token: string | null, init: RequestInit = {}): RequestIni
 
 async function mintAnonymousToken(): Promise<string> {
   // biome-ignore lint/plugin/no-raw-fetch: anonymous public endpoint with custom credentials handling; typed RPC requires session
-  const res = await fetch('/api/channel-web/anonymous-session', {
+  const res = await fetch('/api/channels/adapters/web/anonymous-session', {
     method: 'POST',
     credentials: 'omit',
     headers: { 'content-type': 'application/json' },
@@ -147,7 +147,7 @@ export function ChatPage() {
     ;(async () => {
       try {
         // biome-ignore lint/plugin/no-raw-fetch: public anonymous endpoint; typed RPC requires session
-        const res = await fetch(`/api/channel-web/instances/${encodeURIComponent(channelInstanceId)}/public`)
+        const res = await fetch(`/api/channels/adapters/web/instances/${encodeURIComponent(channelInstanceId)}/public`)
         if (!res.ok) return
         const data = (await res.json()) as PublicInstance
         if (!cancelled) setInstance(data)
@@ -249,7 +249,7 @@ export function ChatPage() {
         const externalMessageId = `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         // biome-ignore lint/plugin/no-raw-fetch: anonymous chat session uses bearer token + custom headers via authFetchInit; typed RPC requires session
         const res = await fetch(
-          '/api/channel-web/inbound',
+          '/api/channels/adapters/web/inbound',
           authFetchInit(token, {
             method: 'POST',
             headers: { 'x-channel-instance-id': channelInstanceId },

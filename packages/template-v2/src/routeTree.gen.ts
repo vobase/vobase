@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './root'
 import { Route as pagesTestWebRouteImport } from './pages/test-web'
 import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
 import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
-import { Route as DotDotModulesChannelWebPagesIndexRouteImport } from './../modules/channel-web/pages/index'
+import { Route as DotDotModulesChannelsPagesIndexRouteImport } from './../modules/channels/pages/index'
 import { Route as pagesChatDotchannelInstanceIdRouteImport } from './pages/chat.$channelInstanceId'
 import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
 import { Route as DotDotModulesMessagingPagesLayoutRouteImport } from './../modules/messaging/pages/layout'
@@ -53,8 +53,8 @@ const shellAppLayoutRoute = shellAppLayoutRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DotDotModulesChannelWebPagesIndexRoute =
-  DotDotModulesChannelWebPagesIndexRouteImport.update({
+const DotDotModulesChannelsPagesIndexRoute =
+  DotDotModulesChannelsPagesIndexRouteImport.update({
     id: '/channels',
     path: '/channels',
     getParentRoute: () => shellAppLayoutRoute,
@@ -199,7 +199,7 @@ export interface FileRoutesByFullPath {
   '/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
-  '/channels': typeof DotDotModulesChannelWebPagesIndexRoute
+  '/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
@@ -228,7 +228,7 @@ export interface FileRoutesByTo {
   '/test-web': typeof pagesTestWebRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
-  '/channels': typeof DotDotModulesChannelWebPagesIndexRoute
+  '/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
@@ -261,7 +261,7 @@ export interface FileRoutesById {
   '/_app/messaging': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/_app/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
-  '/_app/channels': typeof DotDotModulesChannelWebPagesIndexRoute
+  '/_app/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/_app/agents/$id': typeof AgentsIdRoute
   '/_app/agents/learnings': typeof AgentsLearningsRoute
   '/_app/contacts/$id': typeof ContactsIdRoute
@@ -413,7 +413,7 @@ declare module '@tanstack/react-router' {
       id: '/_app/channels'
       path: '/channels'
       fullPath: '/channels'
-      preLoaderRoute: typeof DotDotModulesChannelWebPagesIndexRouteImport
+      preLoaderRoute: typeof DotDotModulesChannelsPagesIndexRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
     '/chat/$channelInstanceId': {
@@ -647,7 +647,7 @@ interface shellAppLayoutRouteChildren {
   shellHomeRedirectRoute: typeof shellHomeRedirectRoute
   DotDotModulesMessagingPagesLayoutRoute: typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   DotDotModulesSettingsPagesLayoutRoute: typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
-  DotDotModulesChannelWebPagesIndexRoute: typeof DotDotModulesChannelWebPagesIndexRoute
+  DotDotModulesChannelsPagesIndexRoute: typeof DotDotModulesChannelsPagesIndexRoute
   AgentsIdRoute: typeof AgentsIdRoute
   AgentsLearningsRoute: typeof AgentsLearningsRoute
   ContactsIdRoute: typeof ContactsIdRoute
@@ -667,8 +667,7 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
     DotDotModulesMessagingPagesLayoutRouteWithChildren,
   DotDotModulesSettingsPagesLayoutRoute:
     DotDotModulesSettingsPagesLayoutRouteWithChildren,
-  DotDotModulesChannelWebPagesIndexRoute:
-    DotDotModulesChannelWebPagesIndexRoute,
+  DotDotModulesChannelsPagesIndexRoute: DotDotModulesChannelsPagesIndexRoute,
   AgentsIdRoute: AgentsIdRoute,
   AgentsLearningsRoute: AgentsLearningsRoute,
   ContactsIdRoute: ContactsIdRoute,

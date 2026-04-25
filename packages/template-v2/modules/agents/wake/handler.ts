@@ -1,7 +1,7 @@
 /**
- * Wake handler — processes `channel-web:inbound-to-wake` jobs by booting a
+ * Wake handler — processes `channels:inbound-to-wake` jobs by booting a
  * wake via `createHarness` from `@vobase/core`. Sole consumer of that job;
- * sole producer of agent replies on the web channel.
+ * sole producer of agent replies on every channel.
  *
  * Agents only run when the conversation's assignee is an `agent:<id>`. If the
  * assignee is a user or unassigned, the wake is skipped — no fallback agent.
@@ -26,11 +26,11 @@ import { buildWakeConfig } from './build-config'
 
 /**
  * Job name + payload for inbound-to-wake dispatch.
- * Producers: `modules/channel-web/handlers/{inbound,card-reply}.ts`
- * and `modules/channel-whatsapp/service/inbound.ts`.
- * Consumer: `createWakeHandler` below (registered in `server/app.ts`).
+ * Producers: `modules/channels/service/inbound.ts` (generic) and
+ * `modules/channels/adapters/web/handlers/card-reply.ts` (in-app card replies).
+ * Consumer: `createWakeHandler` below (registered in `runtime/bootstrap.ts`).
  */
-export const INBOUND_TO_WAKE_JOB = 'channel-web:inbound-to-wake'
+export const INBOUND_TO_WAKE_JOB = 'channels:inbound-to-wake'
 
 export const InboundToWakePayloadSchema = z.object({
   organizationId: z.string(),

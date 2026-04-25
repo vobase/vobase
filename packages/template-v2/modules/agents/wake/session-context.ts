@@ -11,9 +11,9 @@
  * structurally identical across wakes (cache stability).
  */
 
+import { channelInstances } from '@modules/channels/schema'
 import { get as getContact } from '@modules/contacts/service/contacts'
 import type { Conversation } from '@modules/messaging/schema'
-import { channelInstances } from '@modules/messaging/schema'
 import { authUser } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
@@ -39,13 +39,13 @@ export async function resolveSessionContext(input: ResolveSessionContextInput): 
   if (input.db) {
     try {
       const rows = await input.db
-        .select({ type: channelInstances.type, displayName: channelInstances.displayName })
+        .select({ channel: channelInstances.channel, displayName: channelInstances.displayName })
         .from(channelInstances)
         .where(eq(channelInstances.id, input.conv.channelInstanceId))
         .limit(1)
       const row = rows[0]
       if (row) {
-        channelKind = row.type
+        channelKind = row.channel
         channelLabel = row.displayName
       }
     } catch {

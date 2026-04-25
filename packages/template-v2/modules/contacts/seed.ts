@@ -2,7 +2,7 @@
  * contacts module seed — inserts:
  *   - 3 auth.user rows (alice, bob, carol) — staff
  *   - 3 auth.account rows (dev provider) so the dev-login flow lands cleanly
- *   - 3 messaging.channel_instances rows (customer WA, staff WA, customer Web)
+ *   - 3 channels.channel_instances rows (customer WA, staff WA, customer Web)
  *   - 3 contacts.staff_channel_bindings (one per staff user)
  *   - 6 contacts.contacts rows (one baseline test customer + five persona customers)
  *
@@ -11,8 +11,8 @@
  * `ALICE_USER_ID`, which is also the `staff_profiles.user_id` — so
  * `useCurrentUserId()` returns a real staff id in-browser.
  *
- * Cross-module note: channel_instances (messaging schema) are inserted here because
- * staff_channel_bindings has a FK to messaging.channel_instances and contacts seeds first
+ * Cross-module note: channel_instances (channels schema) are inserted here because
+ * staff_channel_bindings has a FK to channels.channel_instances and contacts seeds first
  * in dependency order. Both instances are keyed by stable nanoid constants exported below.
  */
 
@@ -44,7 +44,7 @@ export const SOPHIA_CONTACT_ID = 'ctt0sophia'
 
 export async function seed(db: unknown): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
-  const { channelInstances } = await import('@modules/messaging/schema')
+  const { channelInstances } = await import('@modules/channels/schema')
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const { contactAttributeDefinitions, contacts, staffChannelBindings } = await import('@modules/contacts/schema')
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
@@ -105,13 +105,13 @@ export async function seed(db: unknown): Promise<void> {
     .values({ id: 'mbr0carol0', userId: CAROL_USER_ID, organizationId: MERIDIAN_ORG_ID, role: 'member' })
     .onConflictDoNothing()
 
-  // --- channel instances (messaging schema — inserted early for FK correctness) ---
+  // --- channel instances (channels schema — inserted early for FK correctness) ---
   await d
     .insert(channelInstances)
     .values({
       id: CUSTOMER_CHANNEL_INSTANCE_ID,
       organizationId: MERIDIAN_ORG_ID,
-      type: 'whatsapp',
+      channel: 'whatsapp',
       role: 'customer',
       displayName: 'Meridian Customer WA',
       config: { phoneNumberId: '111000111', defaultAssignee: 'agent:agt0mer0v1' },
@@ -123,7 +123,7 @@ export async function seed(db: unknown): Promise<void> {
     .values({
       id: STAFF_CHANNEL_INSTANCE_ID,
       organizationId: MERIDIAN_ORG_ID,
-      type: 'whatsapp',
+      channel: 'whatsapp',
       role: 'staff',
       displayName: 'Meridian Staff WA',
       config: { phoneNumberId: '222000222' },
@@ -135,7 +135,7 @@ export async function seed(db: unknown): Promise<void> {
     .values({
       id: WEB_CHANNEL_INSTANCE_ID,
       organizationId: MERIDIAN_ORG_ID,
-      type: 'web',
+      channel: 'web',
       role: 'customer',
       displayName: 'Meridian Web Chat',
       config: { origin: 'https://meridian.app', defaultAssignee: 'agent:agt0mer0v1' },

@@ -158,6 +158,7 @@ export function isTerminal<TStatus extends string>(table: TransitionTable<TStatu
 export const contactsPgSchema = pgSchema('contacts')
 export const teamPgSchema = pgSchema('team')
 export const messagingPgSchema = pgSchema('messaging')
+export const channelsPgSchema = pgSchema('channels')
 export const agentsPgSchema = pgSchema('agents')
 export const drivePgSchema = pgSchema('drive')
 export const settingsPgSchema = pgSchema('settings')

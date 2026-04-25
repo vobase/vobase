@@ -7,8 +7,7 @@
  */
 
 import agents from '@modules/agents/module'
-import channelWeb from '@modules/channel-web/module'
-import channelWhatsapp from '@modules/channel-whatsapp/module'
+import channels from '@modules/channels/module'
 import contacts from '@modules/contacts/module'
 import drive from '@modules/drive/module'
 import messaging from '@modules/messaging/module'
@@ -16,4 +15,4 @@ import settings from '@modules/settings/module'
 import system from '@modules/system/module'
 import team from '@modules/team/module'
 
-export const modules = [settings, contacts, team, drive, messaging, agents, channelWeb, channelWhatsapp, system]
+export const modules = [settings, contacts, team, drive, messaging, agents, channels, system]

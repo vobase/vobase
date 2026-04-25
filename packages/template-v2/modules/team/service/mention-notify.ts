@@ -8,10 +8,10 @@
  * blocks the note insert. Never throws.
  */
 
-import { sendOutbound } from '@modules/channel-whatsapp/service/sender'
+import { createWhatsAppAdapterFromConfig } from '@modules/channels/adapters/whatsapp/factory'
+import { channelInstances } from '@modules/channels/schema'
 import { staffChannelBindings } from '@modules/contacts/schema'
 import type { InternalNote } from '@modules/messaging/schema'
-import { channelInstances } from '@modules/messaging/schema'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { find as findStaff } from '@modules/team/service/staff'
 import { and, eq } from 'drizzle-orm'
@@ -66,7 +66,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
       .where(
         and(
           eq(channelInstances.organizationId, organizationId),
-          eq(channelInstances.type, 'whatsapp'),
+          eq(channelInstances.channel, 'whatsapp'),
           eq(channelInstances.status, 'active'),
         ),
       )
@@ -90,23 +90,8 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     if (!channel) return false
     const binding = await findBinding(userId, channel.id)
     if (!binding) return false
-    const cfg = (channel.config ?? {}) as { phoneNumberId?: string; accessToken?: string }
-    const phoneNumberId = cfg.phoneNumberId ?? process.env.WA_PHONE_NUMBER_ID ?? ''
-    const accessToken = cfg.accessToken ?? process.env.WA_ACCESS_TOKEN ?? ''
-    if (!phoneNumberId || !accessToken) return false
-    const res = await sendOutbound(
-      {
-        toolName: 'reply',
-        payload: { text },
-        organizationId,
-        conversationId: 'notify',
-        contactId: `staff:${userId}`,
-        wakeId: 'mention-notify',
-        channelType: 'whatsapp',
-      },
-      binding.externalIdentifier,
-      { phoneNumberId, accessToken },
-    )
+    const adapter = createWhatsAppAdapterFromConfig(channel.config ?? {}, channel.id)
+    const res = await adapter.send({ to: binding.externalIdentifier, text })
     return res.success
   }
 

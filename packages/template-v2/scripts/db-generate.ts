@@ -60,7 +60,7 @@ const extras = `
 -- ── post-schema extras (mirrors scripts/db-apply-extras.ts) ──
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-ALTER TABLE agents.active_wakes SET UNLOGGED;
+ALTER TABLE harness.active_wakes SET UNLOGGED;
 
 CREATE INDEX IF NOT EXISTS idx_drive_text_trgm
   ON drive.files
@@ -75,7 +75,19 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE contacts.staff_channel_bindings
     ADD CONSTRAINT fk_staff_channel_instance
-    FOREIGN KEY (channel_instance_id) REFERENCES messaging.channel_instances(id) ON DELETE CASCADE;
+    FOREIGN KEY (channel_instance_id) REFERENCES channels.channel_instances(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE messaging.conversations
+    ADD CONSTRAINT fk_conv_channel_instance
+    FOREIGN KEY (channel_instance_id) REFERENCES channels.channel_instances(id) ON DELETE RESTRICT;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE messaging.internal_notes
+    ADD CONSTRAINT fk_notes_notif_channel
+    FOREIGN KEY (notif_channel_id) REFERENCES channels.channel_instances(id) ON DELETE SET NULL;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN

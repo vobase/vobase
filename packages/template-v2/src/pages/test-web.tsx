@@ -1,7 +1,7 @@
 /**
  * /test-web — dev-only chat widget for dogfooding the web channel end-to-end.
  *
- * POSTs directly to /api/channel-web/inbound with a browser-computed HMAC-SHA256
+ * POSTs directly to /api/channels/adapters/web/inbound with a browser-computed HMAC-SHA256
  * signature (dev secret — see WEB_CHANNEL_WEBHOOK_SECRET in contacts/seed.ts).
  * SSE invalidation is out of scope here — we poll /messages after each send
  * because the whole round-trip (inbound write + stub agent reply) completes in
@@ -67,7 +67,7 @@ async function postInbound(opts: {
   const body = JSON.stringify(payload)
   const hex = await hmacSha256Hex(WEBHOOK_SECRET, body)
   // biome-ignore lint/plugin/no-raw-fetch: dev-only HMAC-signed webhook simulator; typed RPC bypasses HMAC headers
-  const res = await fetch('/api/channel-web/inbound', {
+  const res = await fetch('/api/channels/adapters/web/inbound', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

@@ -10,10 +10,11 @@
  * returns the bound API; free-function wrappers route through the installed
  * instance to preserve the existing import surface.
  */
+import { channelInstances } from '@modules/channels/schema'
 import { conversationEvents } from '@vobase/core'
 import { and, desc, eq, getTableColumns, gt, inArray, isNotNull, or, sql } from 'drizzle-orm'
 
-import { type Conversation, channelInstances, conversations, type Message, messages } from '../schema'
+import { type Conversation, conversations, type Message, messages } from '../schema'
 import { transitionConversation } from '../state'
 import { computeTab } from './bucketing'
 import type { CreateConversationInput, CreateInboundMessageInput, CreateInboundMessageResult } from './types'
@@ -651,7 +652,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
         lastMessagePreview: lastMsg.preview,
         lastMessageKind: lastMsg.kind,
         lastMessageRole: lastMsg.role,
-        channelInstanceType: channelInstances.type,
+        channelInstanceType: channelInstances.channel,
         channelInstanceLabel: channelInstances.displayName,
       })
       .from(conversations)

@@ -1,14 +1,14 @@
 /**
  * messaging module schema.
  *
- * Five tables:
- *   - `channel_instances` — per-organization adapter instances (referenced by conversations)
+ * Four tables:
  *   - `conversations`
  *   - `messages`
  *   - `internal_notes`
  *   - `pending_approvals`
  *
- * Cross-schema FKs to `contacts.contacts(id)` and are enforced post-push.
+ * Cross-schema FKs to `contacts.contacts(id)` and `channels.channel_instances(id)`
+ * are enforced post-push by `scripts/db-apply-extras.ts`.
  */
 
 // ─── Domain types ───────────────────────────────────────────────────────────
@@ -103,29 +103,6 @@ import { check, index, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/p
 
 import { messagingPgSchema } from '~/runtime'
 
-export const channelInstances = messagingPgSchema.table(
-  'channel_instances',
-  {
-    id: nanoidPrimaryKey(),
-    organizationId: text('organization_id').notNull(),
-    type: text('type').notNull(),
-    role: text('role').notNull().default('customer'),
-    displayName: text('display_name'),
-    config: jsonb('config').notNull().default({}),
-    webhookSecret: text('webhook_secret'),
-    status: text('status').default('active'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow()
-      .$onUpdate(() => new Date()),
-  },
-  (t) => [
-    index('idx_channel_instances_organization').on(t.organizationId),
-    check('channel_instances_role_check', sql`role IN ('customer','staff')`),
-  ],
-)
-
 export const conversations = messagingPgSchema.table(
   'conversations',
   {
@@ -133,9 +110,8 @@ export const conversations = messagingPgSchema.table(
     organizationId: text('organization_id').notNull(),
     /** Cross-schema FK to contacts.contacts(id); enforced post-push. */
     contactId: text('contact_id').notNull(),
-    channelInstanceId: text('channel_instance_id')
-      .notNull()
-      .references(() => channelInstances.id, { onDelete: 'restrict' }),
+    /** Cross-schema FK to channels.channel_instances(id); enforced post-push. */
+    channelInstanceId: text('channel_instance_id').notNull(),
     status: text('status').notNull(),
     assignee: text('assignee').notNull(),
     /**
@@ -211,9 +187,8 @@ export const internalNotes = messagingPgSchema.table(
     mentions: text('mentions').array().notNull().default([]),
     parentNoteId: text('parent_note_id'),
     notifChannelMsgId: text('notif_channel_msg_id'),
-    notifChannelId: text('notif_channel_id').references(() => channelInstances.id, {
-      onDelete: 'set null',
-    }),
+    /** Cross-schema FK to channels.channel_instances(id); enforced post-push. */
+    notifChannelId: text('notif_channel_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

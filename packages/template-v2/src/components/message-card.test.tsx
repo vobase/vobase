@@ -313,7 +313,7 @@ describe('postCardReply — fetch payload', () => {
     await postCardReply({ messageId: 'msg-42', buttonId: 'btn-yes', buttonValue: 'yes', buttonLabel: 'Yes' })
 
     expect(captured).toHaveLength(1)
-    expect(captured[0].url).toBe('/api/channel-web/card-reply')
+    expect(captured[0].url).toBe('/api/channels/adapters/web/card-reply')
     expect(captured[0].body).toEqual({
       messageId: 'msg-42',
       buttonId: 'btn-yes',
