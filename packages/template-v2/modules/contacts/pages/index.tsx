@@ -27,9 +27,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { contactsClient } from '@/lib/api-client'
 import { hydrateContact } from '@/lib/rpc-utils'
-import { useAttributeDefinitions } from '../api/use-attributes'
-import { useCreateContact, useUpdateContact } from '../api/use-contacts'
 import { ContactFormDialog, type ContactFormValues, normalizeContactForm } from '../components/contact-form-dialog'
+import { useAttributeDefinitions } from '../hooks/use-attributes'
+import { useCreateContact, useUpdateContact } from '../hooks/use-contacts'
 import type { AttributeValue, Contact, ContactAttributeDefinition } from '../schema'
 
 async function fetchContacts(): Promise<Contact[]> {

@@ -77,7 +77,7 @@ export function createCaptionPort(opts?: { fetch?: typeof globalThis.fetch }): C
         console.warn(`[caption] Gemini ${res.status} ${res.statusText} for ${mimeType}`)
         return CAPTION_PENDING
       }
-      const data = (await res.json()) as {
+      const data = (await res.json()) as unknown as {
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
       }
       return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? CAPTION_PENDING

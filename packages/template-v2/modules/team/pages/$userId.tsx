@@ -7,9 +7,9 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useStaff, useUpdateStaff } from '../api/use-staff'
 import { AttributeTable } from '../components/attribute-table'
 import { StaffFormDialog, type StaffFormValues } from '../components/staff-form-dialog'
+import { useStaff, useUpdateStaff } from '../hooks/use-staff'
 
 export function StaffDetailPage() {
   const { userId } = useParams({ from: '/_app/team/$userId' })

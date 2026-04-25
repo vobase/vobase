@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { useAttributeDefinitions, useSetStaffAttributes } from '../api/use-attributes'
+import { useAttributeDefinitions, useSetStaffAttributes } from '../hooks/use-attributes'
 import type { AttributeValue } from '../schema'
 import { AttributeFormField } from './attribute-form-field'
 

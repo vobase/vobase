@@ -1,10 +1,10 @@
 import type { Contact } from '@modules/contacts/schema'
-import { useActivity } from '@modules/messaging/api/use-activity'
-import { useLifecycle } from '@modules/messaging/api/use-lifecycle'
-import { useNotes } from '@modules/messaging/api/use-notes'
-import { useReassign } from '@modules/messaging/api/use-reassign'
-import { deriveContactName } from '@modules/messaging/lib/contact'
-import { useDismissMention, useUnreadMentions } from '@modules/team/api/use-unread-mentions'
+import { deriveContactName } from '@modules/messaging/components/contact'
+import { useActivity } from '@modules/messaging/hooks/use-activity'
+import { useLifecycle } from '@modules/messaging/hooks/use-lifecycle'
+import { useNotes } from '@modules/messaging/hooks/use-notes'
+import { useReassign } from '@modules/messaging/hooks/use-reassign'
+import { useDismissMention, useUnreadMentions } from '@modules/team/hooks/use-unread-mentions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { CheckIcon, PanelRightOpenIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
@@ -14,6 +14,7 @@ import { useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCurrentUserId } from '@/hooks/use-current-user'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { contactsClient, messagingClient } from '@/lib/api-client'
 import type { Conversation, Message } from '../schema'
 import { AssigneeBadge } from './assignee-badge'
 import type { ChannelTab } from './channel-tab-bar'
@@ -25,30 +26,33 @@ import { SnoozeMenu } from './snooze-menu'
 const FALLBACK_STAFF_ID = 'staff'
 
 async function fetchConversationsForContact(contactId: string): Promise<Conversation[]> {
-  const r = await fetch(`/api/messaging/conversations?contactId=${encodeURIComponent(contactId)}`)
+  const r = await messagingClient.conversations.$get({ query: { contactId } })
   if (!r.ok) throw new Error(`fetch failed: ${r.status}`)
-  return r.json()
+  return (await r.json()) as unknown as Conversation[]
 }
 
 async function fetchMessages(id: string): Promise<Message[]> {
-  const r = await fetch(`/api/messaging/conversations/${id}/messages?limit=50`)
+  const r = await messagingClient.conversations[':id'].messages.$get({ param: { id }, query: { limit: '50' } })
   if (!r.ok) throw new Error(`fetch failed: ${r.status}`)
-  return r.json()
+  return (await r.json()) as unknown as Message[]
 }
 
 async function fetchMessagingGrouped(): Promise<{
   rows: Conversation[]
   counts: { active: number; later: number; done: number }
 }> {
-  const r = await fetch('/api/messaging/conversations?grouped=1')
+  const r = await messagingClient.conversations.$get({ query: { grouped: '1' } })
   if (!r.ok) throw new Error(`fetch failed: ${r.status}`)
-  return r.json()
+  return (await r.json()) as unknown as {
+    rows: Conversation[]
+    counts: { active: number; later: number; done: number }
+  }
 }
 
 async function fetchContact(id: string): Promise<Contact | null> {
-  const r = await fetch(`/api/contacts/${id}`)
+  const r = await contactsClient[':id'].$get({ param: { id } })
   if (!r.ok) return null
-  return r.json()
+  return (await r.json()) as unknown as Contact
 }
 
 export function ConversationDetail() {

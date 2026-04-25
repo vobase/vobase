@@ -110,7 +110,7 @@
       "linter": { "enabled": false }
     },
     {
-      "includes": ["src/**", "modules/**/pages/**"],
+      "includes": ["src/**", "modules/**/pages/**", "modules/**/components/**", "modules/**/hooks/**"],
       "plugins": ["./.biome/plugins/no-raw-fetch.grit"]
     },
     {

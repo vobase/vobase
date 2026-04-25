@@ -7,7 +7,7 @@
 import { FileX, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { useDriveFile } from '../api/use-drive'
+import { useDriveFile } from '../hooks/use-drive'
 import { DriveMarkdownEditor } from './drive-markdown-editor'
 import { useDriveContext } from './drive-provider'
 

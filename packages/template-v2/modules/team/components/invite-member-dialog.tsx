@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { authClient } from '@/lib/auth-client'
-import { teamsKeys } from '../api/use-teams'
+import { teamsKeys } from '../hooks/use-teams'
 
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email address'),

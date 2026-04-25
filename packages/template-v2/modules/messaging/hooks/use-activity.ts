@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { messagingClient } from '@/lib/api-client'
+
 export interface ActivityEvent {
   id: string
   conversationId: string
@@ -13,9 +15,9 @@ export function useActivity(conversationId: string) {
     queryKey: ['activity', conversationId],
     queryFn: async (): Promise<ActivityEvent[]> => {
       if (!conversationId) return []
-      const r = await fetch(`/api/messaging/conversations/${encodeURIComponent(conversationId)}/activity`)
+      const r = await messagingClient.conversations[':id'].activity.$get({ param: { id: conversationId } })
       if (!r.ok) throw new Error(`activity.list failed: ${r.status}`)
-      return r.json()
+      return (await r.json()) as unknown as ActivityEvent[]
     },
     enabled: Boolean(conversationId),
   })

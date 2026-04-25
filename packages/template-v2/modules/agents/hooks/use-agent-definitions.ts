@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { agentsClient } from '@/lib/api-client'
+
 export interface AgentDefinitionRow {
   id: string
   name: string
@@ -40,9 +42,9 @@ export function useAgentDefinitions() {
   return useQuery({
     queryKey: ['agents', 'definitions'],
     queryFn: async (): Promise<AgentDefinitionRow[]> => {
-      const r = await fetch('/api/agents/definitions')
+      const r = await agentsClient.definitions.$get()
       if (!r.ok) throw new Error(`agents.list failed: ${r.status}`)
-      return r.json()
+      return (await r.json()) as unknown as AgentDefinitionRow[]
     },
   })
 }
@@ -52,9 +54,10 @@ export function useAgentDefinition(id: string | undefined) {
     queryKey: ['agents', 'definitions', id],
     enabled: !!id,
     queryFn: async (): Promise<AgentDefinitionDetail> => {
-      const r = await fetch(`/api/agents/definitions/${id}`)
+      if (!id) throw new Error('id required')
+      const r = await agentsClient.definitions[':id'].$get({ param: { id } })
       if (!r.ok) throw new Error(`agents.get failed: ${r.status}`)
-      return r.json()
+      return (await r.json()) as unknown as AgentDefinitionDetail
     },
   })
 }
@@ -64,24 +67,22 @@ export function useAgentsMd(id: string | undefined) {
     queryKey: ['agents', 'definitions', id, 'agents-md'],
     enabled: !!id,
     queryFn: async (): Promise<{ preamble: string }> => {
-      const r = await fetch(`/api/agents/definitions/${id}/agents-md`)
+      if (!id) throw new Error('id required')
+      const r = await agentsClient.definitions[':id']['agents-md'].$get({ param: { id } })
       if (!r.ok) throw new Error(`agents.agents-md failed: ${r.status}`)
-      return r.json()
+      return (await r.json()) as unknown as { preamble: string }
     },
   })
-}
-
-async function jsonFetch(url: string, init: RequestInit): Promise<unknown> {
-  const r = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) } })
-  if (!r.ok) throw new Error(`${init.method ?? 'GET'} ${url} failed: ${r.status}`)
-  return r.json()
 }
 
 export function useCreateAgent() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: CreateAgentBody) =>
-      jsonFetch('/api/agents/definitions', { method: 'POST', body: JSON.stringify(body) }),
+    mutationFn: async (body: CreateAgentBody) => {
+      const r = await agentsClient.definitions.$post({ json: body })
+      if (!r.ok) throw new Error(`POST /api/agents/definitions failed: ${r.status}`)
+      return r.json()
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', 'definitions'] }),
   })
 }
@@ -89,8 +90,11 @@ export function useCreateAgent() {
 export function useUpdateAgent(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: UpdateAgentBody) =>
-      jsonFetch(`/api/agents/definitions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    mutationFn: async (body: UpdateAgentBody) => {
+      const r = await agentsClient.definitions[':id'].$patch({ param: { id }, json: body })
+      if (!r.ok) throw new Error(`PATCH /api/agents/definitions/${id} failed: ${r.status}`)
+      return r.json()
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agents', 'definitions'] })
       qc.invalidateQueries({ queryKey: ['agents', 'definitions', id] })
@@ -101,7 +105,11 @@ export function useUpdateAgent(id: string) {
 export function useDeleteAgent() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => jsonFetch(`/api/agents/definitions/${id}`, { method: 'DELETE' }),
+    mutationFn: async (id: string) => {
+      const r = await agentsClient.definitions[':id'].$delete({ param: { id } })
+      if (!r.ok) throw new Error(`DELETE /api/agents/definitions/${id} failed: ${r.status}`)
+      return r.json()
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', 'definitions'] }),
   })
 }

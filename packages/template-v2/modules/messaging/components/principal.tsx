@@ -7,8 +7,8 @@
  * person for staff). Avatars are not stored yet — the icon is the avatar.
  */
 
-import { useAgentDefinitions } from '@modules/agents/api/use-agent-definitions'
-import { useStaffList } from '@modules/team/api/use-staff'
+import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
+import { useStaffList } from '@modules/team/hooks/use-staff'
 import { BotIcon, UserIcon } from 'lucide-react'
 import { useMemo } from 'react'
 

@@ -8,6 +8,7 @@
 
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { teamClient } from '@/lib/api-client'
 import { authClient } from '@/lib/auth-client'
 import type { TeamDescription } from '../schema'
 
@@ -182,9 +183,9 @@ export function useTeamDescriptions() {
   return useQuery({
     queryKey: teamsKeys.descriptions,
     queryFn: async (): Promise<TeamDescription[]> => {
-      const r = await fetch('/api/team/descriptions')
+      const r = await teamClient.descriptions.$get()
       if (!r.ok) throw new Error(`descriptions list failed: ${r.status}`)
-      return (await r.json()) as TeamDescription[]
+      return (await r.json()) as unknown as TeamDescription[]
     },
   })
 }
@@ -193,13 +194,12 @@ export function useUpsertTeamDescription() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: { teamId: string; description: string }): Promise<TeamDescription> => {
-      const r = await fetch(`/api/team/descriptions/${encodeURIComponent(input.teamId)}`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ description: input.description }),
+      const r = await teamClient.descriptions[':teamId'].$put({
+        param: { teamId: input.teamId },
+        json: { description: input.description },
       })
       if (!r.ok) throw new Error(`description upsert failed: ${r.status}`)
-      return (await r.json()) as TeamDescription
+      return (await r.json()) as unknown as TeamDescription
     },
     onSuccess: (row) => {
       qc.invalidateQueries({ queryKey: teamsKeys.descriptions })

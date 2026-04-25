@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useSettingsSave } from '@modules/settings/pages/api/use-settings-save'
+import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { ApiKeysValues } from '@modules/settings/pages/schemas'
 import { apiKeysSchema } from '@modules/settings/pages/schemas'
 import { useForm } from 'react-hook-form'

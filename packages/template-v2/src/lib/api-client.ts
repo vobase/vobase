@@ -17,6 +17,7 @@ import type driveApp from '@modules/drive/handlers/index'
 import type messagingApp from '@modules/messaging/handlers/index'
 import type settingsApp from '@modules/settings/handlers/index'
 import type systemApp from '@modules/system/handlers/index'
+import type teamApp from '@modules/team/handlers/index'
 import { hc } from 'hono/client'
 
 // ── Per-module typed clients ──────────────────────────────────────────────────
@@ -34,3 +35,5 @@ export const settingsClient = hc<typeof settingsApp>('/api/settings')
 export const channelWebClient = hc<typeof channelWebApp>('/api/channel-web')
 
 export const systemClient = hc<typeof systemApp>('/api/system')
+
+export const teamClient = hc<typeof teamApp>('/api/team')

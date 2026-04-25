@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { messagingClient } from '@/lib/api-client'
+
 export function useReassign(conversationId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (assignee: string) => {
-      const r = await fetch(`/api/messaging/conversations/${conversationId}/reassign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignee }),
+      const r = await messagingClient.conversations[':id'].reassign.$post({
+        param: { id: conversationId },
+        json: { assignee },
       })
       if (!r.ok) throw new Error(`reassign failed: ${r.status}`)
       return r.json()

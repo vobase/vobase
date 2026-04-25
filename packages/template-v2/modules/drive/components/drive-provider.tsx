@@ -8,7 +8,7 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
-import type { DriveScopeArg } from '../api/use-drive'
+import type { DriveScopeArg } from '../hooks/use-drive'
 
 export interface FolderCrumb {
   id: string | null

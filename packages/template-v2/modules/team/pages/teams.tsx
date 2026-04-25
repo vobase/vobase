@@ -39,7 +39,7 @@ import {
   useTeams,
   useUpdateTeam,
   useUpsertTeamDescription,
-} from '../api/use-teams'
+} from '../hooks/use-teams'
 
 export function TeamsPage() {
   const { data: teams = [], isLoading, error } = useTeams()

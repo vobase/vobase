@@ -1,4 +1,4 @@
-import { fetchApprovals, useDecideApproval } from '@modules/messaging/api/use-decide-approval'
+import { fetchApprovals, useDecideApproval } from '@modules/messaging/hooks/use-decide-approval'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 

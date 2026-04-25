@@ -8,7 +8,7 @@ const fetchMock = mock(async (_url: string, _opts?: RequestInit): Promise<Respon
 
 globalThis.fetch = fetchMock as unknown as typeof fetch
 
-import { postSettings } from '../use-settings-save'
+import { postSettings } from './use-settings-save'
 
 const _schema = z.object({ displayName: z.string().optional() })
 

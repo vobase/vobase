@@ -1,4 +1,4 @@
-import { computeSnoozeTarget, SNOOZE_PRESETS, type SnoozePresetId } from '@modules/messaging/lib/snooze-presets'
+import { computeSnoozeTarget, SNOOZE_PRESETS, type SnoozePresetId } from '@modules/messaging/components/snooze-presets'
 import { ClockIcon } from 'lucide-react'
 import { useState } from 'react'
 
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { messagingClient } from '@/lib/api-client'
 
 interface SnoozeMenuProps {
   conversationId: string
@@ -19,12 +20,10 @@ interface SnoozeMenuProps {
   by: string
 }
 
-// biome-ignore lint/suspicious/useAwait: contract requires async signature
-async function postSnooze(id: string, until: Date, by: string, reason?: string): Promise<Response> {
-  return fetch(`/api/messaging/conversations/${id}/snooze`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ until: until.toISOString(), by, reason }),
+function postSnooze(id: string, until: Date, by: string, reason?: string): Promise<Response> {
+  return messagingClient.conversations[':id'].snooze.$post({
+    param: { id },
+    json: { until: until.toISOString(), by, reason },
   })
 }
 

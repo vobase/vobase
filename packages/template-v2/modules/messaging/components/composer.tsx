@@ -1,5 +1,5 @@
-import { useSendNote } from '@modules/messaging/api/use-send-note'
-import { useStaffReply } from '@modules/messaging/api/use-staff-reply'
+import { useSendNote } from '@modules/messaging/hooks/use-send-note'
+import { useStaffReply } from '@modules/messaging/hooks/use-staff-reply'
 import { useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'

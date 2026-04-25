@@ -5,6 +5,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { contactsClient } from '@/lib/api-client'
 import type { Contact } from '../schema'
 
 export interface ContactFormPayload {
@@ -19,16 +20,12 @@ export function useCreateContact() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (body: ContactFormPayload): Promise<Contact> => {
-      const r = await fetch('/api/contacts', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      const r = await contactsClient.index.$post({ json: body })
       if (!r.ok) {
-        const err = await r.json().catch(() => ({}))
+        const err = (await r.json().catch(() => ({}))) as { error?: string }
         throw new Error(typeof err.error === 'string' ? err.error : `create contact failed: ${r.status}`)
       }
-      return (await r.json()) as Contact
+      return (await r.json()) as unknown as Contact
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contacts'] })
@@ -40,13 +37,9 @@ export function useUpdateContact() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: ContactFormPayload }): Promise<Contact> => {
-      const r = await fetch(`/api/contacts/${id}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(patch),
-      })
+      const r = await contactsClient[':id'].$patch({ param: { id }, json: patch })
       if (!r.ok) throw new Error(`update contact failed: ${r.status}`)
-      return (await r.json()) as Contact
+      return (await r.json()) as unknown as Contact
     },
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: ['contacts'] })

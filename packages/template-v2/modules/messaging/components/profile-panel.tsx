@@ -1,6 +1,8 @@
 import type { Contact } from '@modules/contacts/schema'
 import { useQuery } from '@tanstack/react-query'
 
+import { messagingClient } from '@/lib/api-client'
+
 interface ProfilePanelProps {
   conversationId: string
 }
@@ -8,9 +10,9 @@ interface ProfilePanelProps {
 type ContactSlice = Pick<Contact, 'displayName' | 'phone' | 'email'>
 
 async function fetchConversationContact(id: string): Promise<{ contact?: ContactSlice }> {
-  const r = await fetch(`/api/messaging/conversations/${id}`)
+  const r = await messagingClient.conversations[':id'].$get({ param: { id } })
   if (!r.ok) throw new Error('fetch failed')
-  return r.json()
+  return (await r.json()) as unknown as { contact?: ContactSlice }
 }
 
 export function ProfilePanel({ conversationId }: ProfilePanelProps) {

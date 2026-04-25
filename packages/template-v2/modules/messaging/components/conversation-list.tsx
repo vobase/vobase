@@ -1,7 +1,7 @@
 import type { Contact } from '@modules/contacts/schema'
-import { fetchApprovals } from '@modules/messaging/api/use-decide-approval'
+import { fetchApprovals } from '@modules/messaging/hooks/use-decide-approval'
 import { computeTab } from '@modules/messaging/service/bucketing'
-import { useUnreadMentions } from '@modules/team/api/use-unread-mentions'
+import { useUnreadMentions } from '@modules/team/hooks/use-unread-mentions'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react'
 import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { contactsClient, messagingClient } from '@/lib/api-client'
 import type { Conversation } from '../schema'
 import { ConversationRow } from './conversation-row'
 import { type FilterKey, FilterTabBar } from './filter-tab-bar'
@@ -21,15 +22,15 @@ interface GroupedMessaging {
 }
 
 async function fetchMessagingGrouped(): Promise<GroupedMessaging> {
-  const r = await fetch('/api/messaging/conversations?grouped=1')
+  const r = await messagingClient.conversations.$get({ query: { grouped: '1' } })
   if (!r.ok) throw new Error('fetch failed')
-  return r.json()
+  return (await r.json()) as unknown as GroupedMessaging
 }
 
 async function fetchContacts(): Promise<Contact[]> {
-  const r = await fetch('/api/contacts')
+  const r = await contactsClient.index.$get()
   if (!r.ok) throw new Error('fetch failed')
-  return r.json()
+  return (await r.json()) as unknown as Contact[]
 }
 
 export function filterConversations(

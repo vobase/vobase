@@ -1,4 +1,4 @@
-import { useWorkingMemory } from '@modules/messaging/api/use-working-memory'
+import { useWorkingMemory } from '@modules/messaging/hooks/use-working-memory'
 
 interface WorkingMemoryPanelProps {
   conversationId: string

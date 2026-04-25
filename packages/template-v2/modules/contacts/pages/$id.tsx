@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { contactsClient } from '@/lib/api-client'
 import { hydrateContact } from '@/lib/rpc-utils'
-import { useUpdateContact } from '../api/use-contacts'
 import { AttributeTable } from '../components/attribute-table'
 import { ContactFormDialog, type ContactFormValues, normalizeContactForm } from '../components/contact-form-dialog'
+import { useUpdateContact } from '../hooks/use-contacts'
 import type { Contact } from '../schema'
 
 async function fetchContact(id: string): Promise<Contact> {

@@ -11,7 +11,7 @@
  * `Notification` is missing.
  */
 
-import { useUnreadMentions } from '@modules/team/api/use-unread-mentions'
+import { useUnreadMentions } from '@modules/team/hooks/use-unread-mentions'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 

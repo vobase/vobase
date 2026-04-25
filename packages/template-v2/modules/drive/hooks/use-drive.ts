@@ -1,13 +1,14 @@
 /**
  * Drive TanStack Query hooks.
  *
- * Thin fetch wrappers over `/api/drive/*`. Scope discriminator travels in
- * query params (GETs) or body (writes). Query keys are centralised so SSE
- * invalidation in `use-realtime-invalidation` can target them precisely.
+ * Wraps `driveClient` (Hono RPC) over `/api/drive/*`. Scope discriminator
+ * travels in query params (GETs) or body (writes). Query keys are centralised
+ * so SSE invalidation in `use-realtime-invalidation` can target them precisely.
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { driveClient } from '@/lib/api-client'
 import type { DriveFile } from '../schema'
 
 export type DriveScopeArg =
@@ -35,28 +36,25 @@ function scopeKey(s: DriveScopeArg): string {
   return `contact:${s.contactId}`
 }
 
-function scopeQuery(s: DriveScopeArg): string {
-  if (s.scope === 'organization') return 'scope=organization'
-  if (s.scope === 'staff') return `scope=staff&userId=${encodeURIComponent(s.userId)}`
-  if (s.scope === 'agent') return `scope=agent&agentId=${encodeURIComponent(s.agentId)}`
-  return `scope=contact&contactId=${encodeURIComponent(s.contactId)}`
-}
-
-function scopeBody(s: DriveScopeArg): Record<string, string> {
+function scopeQueryParams(s: DriveScopeArg): Record<string, string> {
   if (s.scope === 'organization') return { scope: 'organization' }
   if (s.scope === 'staff') return { scope: 'staff', userId: s.userId }
   if (s.scope === 'agent') return { scope: 'agent', agentId: s.agentId }
   return { scope: 'contact', contactId: s.contactId }
 }
 
+function scopeBody(s: DriveScopeArg): Record<string, string> {
+  return scopeQueryParams(s)
+}
+
 export function useDriveList(scope: DriveScopeArg, parentId: string | null = null) {
   return useQuery({
     queryKey: driveKeys.tree(scope, parentId),
     queryFn: async (): Promise<DriveFile[]> => {
-      const q = `${scopeQuery(scope)}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ''}`
-      const r = await fetch(`/api/drive/tree?${q}`)
+      const query = { ...scopeQueryParams(scope), ...(parentId ? { parentId } : {}) }
+      const r = await driveClient.tree.$get({ query })
       if (!r.ok) throw new Error(`drive list failed: ${r.status}`)
-      return (await r.json()) as DriveFile[]
+      return (await r.json()) as unknown as DriveFile[]
     },
   })
 }
@@ -67,11 +65,10 @@ export function useDriveFile(scope: DriveScopeArg, path: string | null) {
     enabled: Boolean(path),
     queryFn: async (): Promise<ReadFileResult | null> => {
       if (!path) return null
-      const q = `${scopeQuery(scope)}&path=${encodeURIComponent(path)}`
-      const r = await fetch(`/api/drive/file?${q}`)
+      const r = await driveClient.file.$get({ query: { ...scopeQueryParams(scope), path } })
       if (r.status === 404) return null
       if (!r.ok) throw new Error(`drive read failed: ${r.status}`)
-      const raw = (await r.json()) as ReadFileResult
+      const raw = (await r.json()) as unknown as ReadFileResult
       return { ...raw, content: stripVirtualHeader(raw.content) }
     },
   })
@@ -91,13 +88,11 @@ export function useWriteFile(scope: DriveScopeArg) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ path, content }: { path: string; content: string }) => {
-      const r = await fetch(`/api/drive/file?${scopeQuery(scope)}`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...scopeBody(scope), path, content }),
+      const r = await driveClient.file.$put({
+        json: { ...scopeBody(scope), path, content } as never,
       })
       if (!r.ok) throw new Error(`drive write failed: ${r.status}`)
-      return (await r.json()) as { file: DriveFile }
+      return (await r.json()) as unknown as { file: DriveFile }
     },
     onSuccess: (_, { path }) => {
       qc.invalidateQueries({ queryKey: ['drive', 'tree', scopeKey(scope)] })
@@ -110,13 +105,11 @@ export function useMkdir(scope: DriveScopeArg) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (path: string) => {
-      const r = await fetch(`/api/drive/folders?${scopeQuery(scope)}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...scopeBody(scope), path }),
+      const r = await driveClient.folders.$post({
+        json: { ...scopeBody(scope), path } as never,
       })
       if (!r.ok) throw new Error(`drive mkdir failed: ${r.status}`)
-      return (await r.json()) as { file: DriveFile }
+      return (await r.json()) as unknown as { file: DriveFile }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['drive', 'tree', scopeKey(scope)] })
@@ -128,9 +121,9 @@ export function useRemoveFile(scope: DriveScopeArg) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const r = await fetch(`/api/drive/file/${id}`, { method: 'DELETE' })
+      const r = await driveClient.file[':id'].$delete({ param: { id } })
       if (!r.ok) throw new Error(`drive remove failed: ${r.status}`)
-      return (await r.json()) as { ok: boolean; id: string }
+      return (await r.json()) as unknown as { ok: boolean; id: string }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['drive', 'tree', scopeKey(scope)] })
@@ -142,13 +135,9 @@ export function useMoveFile(scope: DriveScopeArg) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, newPath }: { id: string; newPath: string }) => {
-      const r = await fetch('/api/drive/moves', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id, newPath }),
-      })
+      const r = await driveClient.moves.$post({ json: { id, newPath } })
       if (!r.ok) throw new Error(`drive move failed: ${r.status}`)
-      return (await r.json()) as { file: DriveFile }
+      return (await r.json()) as unknown as { file: DriveFile }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['drive', 'tree', scopeKey(scope)] })

@@ -18,13 +18,13 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { AttributeFormDialog, type AttributeFormValues } from '../components/attribute-form-dialog'
 import {
   useAttributeDefinitions,
   useCreateDefinition,
   useDeleteDefinition,
   useUpdateDefinition,
-} from '../api/use-attributes'
-import { AttributeFormDialog, type AttributeFormValues } from '../components/attribute-form-dialog'
+} from '../hooks/use-attributes'
 import type { AttributeType, ContactAttributeDefinition } from '../schema'
 
 const TYPE_LABEL: Record<AttributeType, string> = {

@@ -1,4 +1,4 @@
-import type { ActivityEvent } from '@modules/messaging/api/use-activity'
+import type { ActivityEvent } from '@modules/messaging/hooks/use-activity'
 import {
   BellIcon,
   BellOffIcon,

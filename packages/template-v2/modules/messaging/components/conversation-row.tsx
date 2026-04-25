@@ -1,5 +1,5 @@
 import type { Contact } from '@modules/contacts/schema'
-import { deriveContactName } from '@modules/messaging/lib/contact'
+import { deriveContactName } from '@modules/messaging/components/contact'
 import { AtSignIcon, ClockIcon } from 'lucide-react'
 
 import { RelativeTimeCard } from '@/components/ui/relative-time'

@@ -35,7 +35,7 @@ import remarkGfm from 'remark-gfm'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { type DriveScopeArg, useWriteFile } from '../api/use-drive'
+import { type DriveScopeArg, useWriteFile } from '../hooks/use-drive'
 
 const AUTOSAVE_DEBOUNCE_MS = 600
 

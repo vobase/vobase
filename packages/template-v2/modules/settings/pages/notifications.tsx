@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useSettingsSave } from '@modules/settings/pages/api/use-settings-save'
+import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { NotificationsValues } from '@modules/settings/pages/schemas'
 import { notificationsSchema } from '@modules/settings/pages/schemas'
 import { useQuery } from '@tanstack/react-query'
@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
+import { settingsClient } from '@/lib/api-client'
 
 interface NotificationPrefsResponse {
   userId: string
@@ -22,10 +23,9 @@ export default function NotificationsPage() {
   const { data } = useQuery({
     queryKey: ['settings', 'notifications'],
     queryFn: async (): Promise<NotificationPrefsResponse> => {
-      // biome-ignore lint/plugin/no-raw-fetch: pre-existing — settings was server/admin/ before the modules/ relocation; not yet migrated to Hono RPC
-      const r = await fetch('/api/settings/notifications')
+      const r = await settingsClient.notifications.$get()
       if (!r.ok) throw new Error(`notifications.get failed: ${r.status}`)
-      return r.json()
+      return (await r.json()) as NotificationPrefsResponse
     },
   })
 

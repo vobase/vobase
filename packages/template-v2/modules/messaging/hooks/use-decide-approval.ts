@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { messagingClient } from '@/lib/api-client'
 import type { PendingApproval } from '../schema'
 
 export async function fetchApprovals(): Promise<PendingApproval[]> {
-  const r = await fetch('/api/messaging/approvals?status=pending')
+  const r = await messagingClient.approvals.$get({ query: { status: 'pending' } })
   if (!r.ok) throw new Error('Failed to fetch approvals')
-  return r.json()
+  return (await r.json()) as unknown as PendingApproval[]
 }
 
 interface DecideApprovalArgs {
@@ -16,10 +17,9 @@ interface DecideApprovalArgs {
 }
 
 export async function decideApproval({ id, decision, decidedByUserId = 'staff' }: DecideApprovalArgs) {
-  const r = await fetch(`/api/messaging/approvals/${id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decision, decidedByUserId }),
+  const r = await messagingClient.approvals[':id'].$post({
+    param: { id },
+    json: { decision, decidedByUserId },
   })
   if (!r.ok) throw new Error('Failed to decide approval')
   return r.json()

@@ -1,5 +1,5 @@
-import { useAgentDefinition, useDeleteAgent, useUpdateAgent } from '@modules/agents/api/use-agent-definitions'
 import { AgentsMdEditor } from '@modules/agents/components/agents-md-editor'
+import { useAgentDefinition, useDeleteAgent, useUpdateAgent } from '@modules/agents/hooks/use-agent-definitions'
 import { MODEL_OPTIONS } from '@modules/agents/service/agent-definitions'
 import { DriveBrowser } from '@modules/drive/components/drive-browser'
 import { DriveProvider } from '@modules/drive/components/drive-provider'

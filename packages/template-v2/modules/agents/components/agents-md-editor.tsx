@@ -12,8 +12,8 @@
  * so the browser preview reflects the new content.
  */
 
-import { useAgentsMd, useUpdateAgent } from '@modules/agents/api/use-agent-definitions'
-import { type DriveScopeArg, driveKeys } from '@modules/drive/api/use-drive'
+import { useAgentsMd, useUpdateAgent } from '@modules/agents/hooks/use-agent-definitions'
+import { type DriveScopeArg, driveKeys } from '@modules/drive/hooks/use-drive'
 import {
   BlockquotePlugin,
   BoldPlugin,
