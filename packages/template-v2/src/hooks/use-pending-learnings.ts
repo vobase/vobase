@@ -20,19 +20,18 @@ export interface DecideLearningParams {
 }
 
 export async function decideLearning(params: DecideLearningParams): Promise<void> {
-  const body = JSON.stringify({
+  const json = {
     decision: params.decision,
     decidedByUserId: 'staff:current',
     note: params.note,
-  })
-  const init = { headers: { 'Content-Type': 'application/json' }, body }
+  }
 
   // agent_skill scope → POST /api/agents/skills/:id/decide
   // drive_doc scope  → POST /api/drive/proposals/:id/decide
   const res =
     params.scope === 'drive_doc'
-      ? await driveClient.proposals[':id'].decide.$post({ param: { id: params.id } }, { init })
-      : await agentsClient.skills[':id'].decide.$post({ param: { id: params.id } }, { init })
+      ? await driveClient.proposals[':id'].decide.$post({ param: { id: params.id }, json })
+      : await agentsClient.skills[':id'].decide.$post({ param: { id: params.id }, json })
 
   if (!res.ok) {
     const err = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error?: string }

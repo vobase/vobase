@@ -1,3 +1,4 @@
+import { zValidator } from '@hono/zod-validator'
 import {
   get as getStaff,
   list as listStaff,
@@ -53,14 +54,20 @@ const app = new Hono()
     const rows = await listStaff(organizationId)
     return c.json(rows)
   })
-  .post('/staff', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = upsertStaffBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const row = await upsertStaff({ organizationId, ...parsed.data })
-    return c.json(row)
-  })
+  .post(
+    '/staff',
+    zValidator('json', upsertStaffBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const row = await upsertStaff({ organizationId, ...data })
+      return c.json(row)
+    },
+  )
   .get('/staff/:userId', async (c) => {
     try {
       const row = await getStaff(c.req.param('userId'))
@@ -69,17 +76,23 @@ const app = new Hono()
       return c.json({ error: 'not_found' }, 404)
     }
   })
-  .patch('/staff/:userId', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = updateStaffBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    try {
-      const row = await updateStaff(c.req.param('userId'), parsed.data)
-      return c.json(row)
-    } catch {
-      return c.json({ error: 'not_found' }, 404)
-    }
-  })
+  .patch(
+    '/staff/:userId',
+    zValidator('json', updateStaffBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      try {
+        const row = await updateStaff(c.req.param('userId'), data)
+        return c.json(row)
+      } catch {
+        return c.json({ error: 'not_found' }, 404)
+      }
+    },
+  )
   .delete('/staff/:userId', async (c) => {
     await removeStaff(c.req.param('userId'))
     return c.json({ ok: true, userId: c.req.param('userId') })

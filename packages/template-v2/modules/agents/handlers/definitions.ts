@@ -7,6 +7,8 @@
  *   PATCH  /definitions/:id    — partial update (name/model/enabled/instructions/workingMemory)
  *   DELETE /definitions/:id    — delete
  */
+
+import { zValidator } from '@hono/zod-validator'
 import {
   create as createAgent,
   getById,
@@ -50,14 +52,20 @@ const app = new Hono()
       })),
     )
   })
-  .post('/definitions', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const raw = await c.req.json().catch(() => null)
-    const parsed = createBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const row = await createAgent({ organizationId, ...parsed.data })
-    return c.json(row, 201)
-  })
+  .post(
+    '/definitions',
+    zValidator('json', createBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const data = c.req.valid('json')
+      const row = await createAgent({ organizationId, ...data })
+      return c.json(row, 201)
+    },
+  )
   .get('/definitions/:id', async (c) => {
     try {
       const row = await getById(c.req.param('id'))
@@ -80,18 +88,24 @@ const app = new Hono()
       return c.json({ error: 'not_found' }, 404)
     }
   })
-  .patch('/definitions/:id', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = updateBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    try {
-      const row = await updateAgent(c.req.param('id'), parsed.data)
-      return c.json(row)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return c.json({ error: msg }, 404)
-    }
-  })
+  .patch(
+    '/definitions/:id',
+    zValidator('json', updateBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      try {
+        const row = await updateAgent(c.req.param('id'), data)
+        return c.json(row)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return c.json({ error: msg }, 404)
+      }
+    },
+  )
   .delete('/definitions/:id', async (c) => {
     await removeAgent(c.req.param('id'))
     return c.json({ ok: true })

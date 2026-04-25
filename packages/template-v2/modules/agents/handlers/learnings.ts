@@ -1,5 +1,7 @@
 /** GET /api/agents/learnings — list pending learning proposals for staff review. */
 /** POST /api/agents/skills/:id/decide — staff approve / reject a learning proposal. */
+
+import { zValidator } from '@hono/zod-validator'
 import { decideProposal, listRecent } from '@modules/agents/service/learning-proposals'
 import { Hono } from 'hono'
 import { z } from 'zod'
@@ -21,20 +23,24 @@ const app = new Hono()
       return c.json({ error: msg }, 500)
     }
   })
-  .post('/skills/:id/decide', async (c) => {
-    const id = c.req.param('id')
-    const raw = await c.req.json().catch(() => null)
-    const parsed = decideBodySchema.safeParse(raw)
-    if (!parsed.success) {
-      return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    }
-    try {
-      await decideProposal(id, parsed.data.decision, parsed.data.decidedByUserId, parsed.data.note)
-      return c.json({ ok: true, proposalId: id, status: parsed.data.decision })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return c.json({ error: msg }, 500)
-    }
-  })
+  .post(
+    '/skills/:id/decide',
+    zValidator('json', decideBodySchema, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const id = c.req.param('id')
+      const data = c.req.valid('json')
+      try {
+        await decideProposal(id, data.decision, data.decidedByUserId, data.note)
+        return c.json({ ok: true, proposalId: id, status: data.decision })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return c.json({ error: msg }, 500)
+      }
+    },
+  )
 
 export default app

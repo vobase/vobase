@@ -9,6 +9,7 @@
  *   PATCH  /staff/:userId/attributes              merge staff attribute values
  */
 
+import { zValidator } from '@hono/zod-validator'
 import { createDef, listDefs, removeDef, updateDef } from '@modules/team/service/attribute-definitions'
 import { setAttributes as setStaffAttributeValues } from '@modules/team/service/staff'
 import { Hono } from 'hono'
@@ -50,34 +51,52 @@ const app = new Hono()
     const rows = await listDefs(organizationId)
     return c.json(rows)
   })
-  .post('/attributes', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = createDefBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    if (parsed.data.type === 'enum' && (!parsed.data.options || parsed.data.options.length === 0)) {
-      return c.json({ error: 'enum_requires_options' }, 400)
-    }
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const row = await createDef({ organizationId, ...parsed.data })
-    return c.json(row)
-  })
-  .patch('/attributes/:id', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = updateDefBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const row = await updateDef(c.req.param('id'), parsed.data)
-    return c.json(row)
-  })
+  .post(
+    '/attributes',
+    zValidator('json', createDefBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      if (data.type === 'enum' && (!data.options || data.options.length === 0)) {
+        return c.json({ error: 'enum_requires_options' }, 400)
+      }
+      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const row = await createDef({ organizationId, ...data })
+      return c.json(row)
+    },
+  )
+  .patch(
+    '/attributes/:id',
+    zValidator('json', updateDefBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      const row = await updateDef(c.req.param('id'), data)
+      return c.json(row)
+    },
+  )
   .delete('/attributes/:id', async (c) => {
     await removeDef(c.req.param('id'))
     return c.json({ ok: true, id: c.req.param('id') })
   })
-  .patch('/staff/:userId/attributes', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = patchStaffBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const row = await setStaffAttributeValues(c.req.param('userId'), parsed.data.values)
-    return c.json(row)
-  })
+  .patch(
+    '/staff/:userId/attributes',
+    zValidator('json', patchStaffBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      const row = await setStaffAttributeValues(c.req.param('userId'), data.values)
+      return c.json(row)
+    },
+  )
 
 export default app

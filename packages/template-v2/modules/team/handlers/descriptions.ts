@@ -11,6 +11,7 @@
  * organization-teams plugin — this handler only owns the description text.
  */
 
+import { zValidator } from '@hono/zod-validator'
 import {
   getDescription,
   listDescriptions,
@@ -37,18 +38,24 @@ const app = new Hono()
     if (!row) return c.json({ error: 'not_found' }, 404)
     return c.json(row)
   })
-  .put('/descriptions/:teamId', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = upsertBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const row = await upsertDescription({
-      teamId: c.req.param('teamId'),
-      organizationId,
-      description: parsed.data.description,
-    })
-    return c.json(row)
-  })
+  .put(
+    '/descriptions/:teamId',
+    zValidator('json', upsertBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const row = await upsertDescription({
+        teamId: c.req.param('teamId'),
+        organizationId,
+        description: data.description,
+      })
+      return c.json(row)
+    },
+  )
   .delete('/descriptions/:teamId', async (c) => {
     await removeDescription(c.req.param('teamId'))
     return c.json({ ok: true, teamId: c.req.param('teamId') })

@@ -20,19 +20,14 @@ export interface DecideParams {
 }
 
 async function decide(params: DecideParams): Promise<void> {
-  const res = await messagingClient.approvals[':id'].$post(
-    { param: { id: params.id } },
-    {
-      init: {
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          decision: params.decision,
-          decidedByUserId: 'staff:current',
-          note: params.note,
-        }),
-      },
+  const res = await messagingClient.approvals[':id'].$post({
+    param: { id: params.id },
+    json: {
+      decision: params.decision,
+      decidedByUserId: 'staff:current',
+      note: params.note,
     },
-  )
+  })
   if (!res.ok) {
     const err = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error?: string }
     throw new Error(err.error ?? 'Decision failed')

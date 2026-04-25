@@ -38,6 +38,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@hono/zod-validator": "^0.7.6",
     "@hookform/resolvers": "^5.2.2",
     "@mariozechner/pi-agent-core": "^0.67.68",
     "@mariozechner/pi-ai": "^0.67.68",

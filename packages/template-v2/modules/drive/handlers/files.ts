@@ -16,6 +16,7 @@
  * are allowed (staff UI); the agent-side proposal flow lives in `./proposal.ts`.
  */
 
+import { zValidator } from '@hono/zod-validator'
 import { filesServiceFor } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
 import { Hono } from 'hono'
@@ -84,32 +85,50 @@ const app = new Hono()
     if (!result) return c.json({ error: 'not_found' }, 404)
     return c.json(result)
   })
-  .put('/file', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = writeFileBodySchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const scope = toDriveScope(parsed.data)
-    const file = await filesServiceFor(organizationId).writePath(scope, parsed.data.path, parsed.data.content)
-    return c.json({ file })
-  })
-  .post('/folders', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = mkdirBodySchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const scope = toDriveScope(parsed.data)
-    const file = await filesServiceFor(organizationId).mkdir(scope, parsed.data.path)
-    return c.json({ file })
-  })
-  .post('/moves', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = moveBodySchema.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const file = await filesServiceFor(organizationId).move(parsed.data.id, parsed.data.newPath)
-    return c.json({ file })
-  })
+  .put(
+    '/file',
+    zValidator('json', writeFileBodySchema, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const scope = toDriveScope(data)
+      const file = await filesServiceFor(organizationId).writePath(scope, data.path, data.content)
+      return c.json({ file })
+    },
+  )
+  .post(
+    '/folders',
+    zValidator('json', mkdirBodySchema, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const scope = toDriveScope(data)
+      const file = await filesServiceFor(organizationId).mkdir(scope, data.path)
+      return c.json({ file })
+    },
+  )
+  .post(
+    '/moves',
+    zValidator('json', moveBodySchema, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const file = await filesServiceFor(organizationId).move(data.id, data.newPath)
+      return c.json({ file })
+    },
+  )
   .delete('/file/:id', async (c) => {
     const id = c.req.param('id')
     const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT

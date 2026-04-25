@@ -1,3 +1,4 @@
+import { zValidator } from '@hono/zod-validator'
 import {
   create as createContact,
   get as getContact,
@@ -29,14 +30,20 @@ const app = new Hono()
     const rows = await listContacts(organizationId)
     return c.json(rows)
   })
-  .post('/', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = createContactBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const row = await createContact({ organizationId, ...parsed.data })
-    return c.json(row)
-  })
+  .post(
+    '/',
+    zValidator('json', createContactBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const row = await createContact({ organizationId, ...data })
+      return c.json(row)
+    },
+  )
   .get('/:id', async (c) => {
     try {
       const row = await getContact(c.req.param('id'))
@@ -45,16 +52,22 @@ const app = new Hono()
       return c.json({ error: 'not_found' }, 404)
     }
   })
-  .patch('/:id', async (c) => {
-    const raw = await c.req.json().catch(() => null)
-    const parsed = updateContactBody.safeParse(raw)
-    if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
-    try {
-      const row = await updateContact(c.req.param('id'), parsed.data)
-      return c.json(row)
-    } catch {
-      return c.json({ error: 'not_found' }, 404)
-    }
-  })
+  .patch(
+    '/:id',
+    zValidator('json', updateContactBody, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_body', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const data = c.req.valid('json')
+      try {
+        const row = await updateContact(c.req.param('id'), data)
+        return c.json(row)
+      } catch {
+        return c.json({ error: 'not_found' }, 404)
+      }
+    },
+  )
 
 export default app
