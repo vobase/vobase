@@ -1,5 +1,3 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
@@ -7,13 +5,29 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 
 /**
  * Serve site.webmanifest with %VITE_*% env substitution (same syntax as index.html).
- * Source lives at the template root so it stays out of public/ (where Vite copies
- * files verbatim). Dev: middleware serves `/site.webmanifest`. Build: emits asset.
+ * Inlined here (not under public/) because public/ is copied verbatim — we need
+ * the env-substitution pass. Dev: middleware serves `/site.webmanifest`.
+ * Build: emits asset.
  */
+const WEBMANIFEST_TEMPLATE = JSON.stringify(
+  {
+    name: '%VITE_PRODUCT_NAME% - %VITE_VENDOR_NAME%',
+    short_name: '%VITE_PRODUCT_NAME%',
+    icons: [
+      { src: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+    theme_color: '#0A0A0A',
+    background_color: '#0A0A0A',
+    display: 'standalone',
+  },
+  null,
+  2,
+)
+
 function webmanifestEnv(): Plugin {
-  const source = path.resolve(import.meta.dirname, 'lib/site.webmanifest.tpl')
   let env: Record<string, string> = {}
-  const render = () => fs.readFileSync(source, 'utf8').replace(/%(VITE_[A-Z0-9_]+)%/g, (_, key) => env[key] ?? '')
+  const render = () => WEBMANIFEST_TEMPLATE.replace(/%(VITE_[A-Z0-9_]+)%/g, (_, key) => env[key] ?? '')
   return {
     name: 'webmanifest-env',
     configResolved(config) {
