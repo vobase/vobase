@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import type { ScopedDb } from '@server/common/scoped-db'
+import { bootModules, collectAgentContributions, collectJobs, createLogger, sortModules } from '@vobase/core'
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
 import { logger } from 'hono/logger'
@@ -8,10 +9,10 @@ import type { Sql } from 'postgres'
 import config from '../vobase.config'
 import { createAuth } from './auth'
 import { wireAuthIntoModules } from './auth/wire-modules'
-import { bootModulesCollector } from './common/module-def'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from './middlewares'
 import { buildPorts } from './module-ports'
 import { createSseRoute } from './routes/sse'
+import { setDb, setLogger, setRealtime } from './services'
 import { createChannelWebTransport } from './transports/web'
 import { createChannelWhatsappTransport } from './transports/whatsapp'
 import { createWakeHandler, INBOUND_TO_WAKE_JOB } from './wake-handler'
@@ -32,10 +33,16 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   const jobHandlers = new Map<string, (data: unknown) => Promise<void>>()
   const ports = await buildPorts(db, sql, config.database, jobHandlers)
 
+  // Process-wide singletons read by listeners that can't receive deps directly
+  // (e.g. memory-distill, sse, workspace-sync). Must be set before any wake fires.
+  setDb(db)
+  setRealtime(ports.realtime)
+  setLogger(createLogger({ format: 'console', prefix: '[wake]', silent: ['debug', 'info'] }))
+
   // Narrow ModuleInitCtx — each module's init(ctx) reads { db, organizationId,
   // jobs, realtime } only. `organizationId` is empty at boot; services that
   // need a real tenant guard reject the empty sentinel at first use.
-  await bootModulesCollector({
+  await bootModules({
     modules: config.modules,
     app,
     requireSession,
@@ -47,8 +54,15 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
     },
   })
 
+  // INBOUND_TO_WAKE_JOB binds separately below — bootstrap concern, not a
+  // module contribution.
+  const sortedModules = sortModules([...config.modules])
+  for (const job of collectJobs(sortedModules)) {
+    jobHandlers.set(job.name, job.handler)
+  }
+
   // Channel transports are plain infrastructure — NOT modules. They mount
-  // AFTER `bootModulesCollector` completes so that every domain service they
+  // AFTER `bootModules` completes so that every domain service they
   // depend on (messaging, contacts, drive) is already installed. Ordering is
   // enforced by the line sequence below; the old `ModuleDef.requires` edges
   // are gone.
@@ -87,15 +101,19 @@ export async function createApp(db: ScopedDb, sql: Sql): Promise<Hono> {
   // Wake dispatch for the web channel. The pi-agent-core harness reads
   // OPENAI_API_KEY (or BIFROST_API_KEY + BIFROST_URL) from env directly — the
   // handler fails loudly on the first inbound if no key is set.
+  const agentContributions = collectAgentContributions(sortedModules)
   jobHandlers.set(
     INBOUND_TO_WAKE_JOB,
-    createWakeHandler({
-      messaging: ports.messaging,
-      contacts: ports.contacts,
-      agents: ports.agents,
-      drive: ports.drive,
-      realtime: ports.realtime,
-    }),
+    createWakeHandler(
+      {
+        messaging: ports.messaging,
+        contacts: ports.contacts,
+        agents: ports.agents,
+        drive: ports.drive,
+        realtime: ports.realtime,
+      },
+      agentContributions,
+    ),
   )
 
   return app

@@ -8,29 +8,25 @@
  * The channel instance's `defaultAssignee` config is what seeds this on first
  * inbound (see `server/transports/web/handlers/inbound.ts`).
  *
- * `replyTool` and `sendCardTool` are both registered. The side-load instructs
- * the agent to prefer `send_card` whenever the reply has structure or choices,
- * falling back to `reply` only for pure acknowledgements and free-form
- * questions.
- *
- * Event listeners wired:
- *   - SSE bridge (custom `RealtimeService` notifier)
- *   - Workspace sync (dirty-tracker flush on agent_end)
- *   - Message-history persistence (via `onTurnEndSnapshot`)
- *   - Memory-distill (contact notes + anti-lessons)
+ * Contributions are threaded in from `server/app.ts` — tools/commands/listeners
+ * come through `collectAgentContributions(modules)` at boot, while dynamic-path
+ * materializers are built per-wake from module factory functions.
  */
 
 import type { AgentMessage } from '@mariozechner/pi-agent-core'
-import { createMemoryDistillListener } from '@modules/agents/observers/memory-distill'
-import { createWorkspaceSyncListener } from '@modules/agents/observers/workspace-sync'
+import * as agentsModule from '@modules/agents/agent'
 import type { AgentsPort } from '@modules/agents/service/types'
+import * as contactsModule from '@modules/contacts/agent'
 import type { ContactsService } from '@modules/contacts/service/contacts'
+import * as driveModule from '@modules/drive/agent'
 import type { FilesService } from '@modules/drive/service/files'
-import type { Conversation, Message } from '@modules/messaging/schema'
+import * as messagingModule from '@modules/messaging/agent'
+import { renderTranscriptFromMessages } from '@modules/messaging/materializers'
+import { type Conversation, channelInstances } from '@modules/messaging/schema'
 import type { MessagingPort } from '@modules/messaging/service/types'
-import { replyTool } from '@modules/messaging/tools/reply'
-import { sendCardTool } from '@modules/messaging/tools/send-card'
-import type { AgentTool, RealtimeService, ScopedDb } from '@server/common/port-types'
+import * as teamModule from '@modules/team/agent'
+import { staff as teamStaff } from '@modules/team/service'
+import type { RealtimeService, ScopedDb } from '@server/common/port-types'
 import type { WakeTrigger } from '@server/events'
 import { buildFrozenPrompt, type SessionContext } from '@server/harness/frozen-prompt-builder'
 import type { LlmEmitter } from '@server/harness/llm-call'
@@ -38,13 +34,20 @@ import { createModel, resolveApiKey } from '@server/harness/llm-provider'
 import { resolvePlatformHint } from '@server/harness/platform-hints'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 import { createWorkspace } from '@server/workspace/create-workspace'
-import { buildStaffMaterializers, type StaffProfileLookup } from '@server/workspace/staff-materializers'
-import type { SideLoadContributor, WakeRuntime, WorkspaceMaterializer } from '@vobase/core'
+import type {
+  AgentContributions,
+  AgentTool,
+  SideLoadContributor,
+  WakeRuntime,
+  WorkspaceMaterializer,
+} from '@vobase/core'
 import {
   agentMessages,
+  authUser,
   conversationEvents,
   createHarness,
   createIdleResumptionContributor,
+  createLogger,
   DirtyTracker,
   journalGetLastWakeTail,
   loadMessages,
@@ -123,7 +126,7 @@ function renderTriggerMessage(
   }
 }
 
-export function createWakeHandler(deps: WakeHandlerDeps) {
+export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentContributions) {
   return async function handleInboundToWake(rawData: unknown): Promise<void> {
     const data = rawData as InboundToWakePayload
     console.log('[wake] handling inbound→wake', { conv: data.conversationId, msg: data.messageId })
@@ -144,61 +147,14 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 
     const channelInstanceId = conv.channelInstanceId
 
-    // Render the conversation messages as a markdown transcript.
-    const renderTranscript = async (conversationId: string): Promise<string> => {
-      const msgs = await deps.messaging.listMessages(conversationId, { limit: 200 })
-      if (msgs.length === 0) return '# Conversation\n\n_No messages yet._\n'
-      const lines = ['# Conversation', '']
-      for (const m of msgs as Message[]) {
-        const role = m.role === 'customer' ? 'Customer' : m.role === 'agent' ? 'Agent' : 'System'
-        const text =
-          m.kind === 'text'
-            ? ((m.content as { text?: string }).text ?? '')
-            : m.kind === 'card'
-              ? `[card: ${JSON.stringify(m.content)}]`
-              : m.kind === 'card_reply'
-                ? `[card reply: ${JSON.stringify(m.content)}]`
-                : `[${m.kind}]`
-        lines.push(`**${role}** (${new Date(m.createdAt).toISOString()}):`)
-        lines.push(text, '')
-      }
-      return lines.join('\n')
-    }
-
-    // Render internal notes as markdown. Reads the same `listInternalNotes`
-    // MessagingPort method used by the notes UI.
-    const renderInternalNotes = async (conversationId: string): Promise<string> => {
-      const notes = await deps.messaging.listInternalNotes(conversationId).catch(() => [])
-      if (notes.length === 0) return '# Internal Notes\n\n_No notes yet._\n'
-      const lines = ['# Internal Notes', '']
-      for (const n of notes) {
-        const mentions = n.mentions.length > 0 ? ` (@${n.mentions.join(' @')})` : ''
-        lines.push(`**${n.authorType}:${n.authorId}** (${new Date(n.createdAt).toISOString()})${mentions}:`)
-        lines.push(n.body, '')
-      }
-      return lines.join('\n')
-    }
-
-    // Materializers write the transcript + internal notes into the workspace
-    // so bash `cat /contacts/<contactId>/<channelInstanceId>/messages.md` works.
-    // Side-load contributor pushes the transcript into the first user message
-    // so Claude sees the customer question without a bash call on turn 0.
-    const contactChannelFolder = `/contacts/${data.contactId}/${channelInstanceId}`
-    const messagesMaterializer: WorkspaceMaterializer = {
-      path: `${contactChannelFolder}/messages.md`,
-      phase: 'frozen',
-      materialize: (ctx) => renderTranscript(ctx.conversationId),
-    }
-    const internalNotesMaterializer: WorkspaceMaterializer = {
-      path: `${contactChannelFolder}/internal-notes.md`,
-      phase: 'frozen',
-      materialize: (ctx) => renderInternalNotes(ctx.conversationId),
-    }
+    // Composite of messaging + contacts + the agent orchestration prose; kept
+    // here rather than in a module because no single module owns it.
     const conversationSideLoad: SideLoadContributor = async (ctx) => {
-      const [transcript, contact] = await Promise.all([
-        renderTranscript(ctx.conversationId),
+      const [msgs, contact] = await Promise.all([
+        deps.messaging.listMessages(ctx.conversationId, { limit: 200 }),
         deps.contacts.get(ctx.contactId).catch(() => null),
       ])
+      const transcript = renderTranscriptFromMessages(msgs)
       const contactBlock = contact
         ? `# Contact\n\nName: ${contact.displayName ?? '(unknown)'}\nPhone: ${contact.phone ?? ''}\nEmail: ${contact.email ?? ''}\nSegments: ${(contact.segments ?? []).join(', ') || '(none)'}\nNotes:\n${contact.notes || '(empty)'}\n`
         : '# Contact\n\n(no profile)\n'
@@ -248,18 +204,11 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
     try {
       const agentDefinition = await deps.agents.getAgentDefinition(agentId)
 
-      // Which staff to materialize? Scope decision for slice 3d.1b:
-      // surface every staff profile in the organization. In dev/seed the staff
-      // count is bounded (single-digit); we can tighten to "conversation
-      // participants only" later without changing the materializer contract.
+      // Surface every staff profile in the org. Bounded in practice (helpdesks
+      // run single-digit staff). Tighten to conversation participants if
+      // materialization cost grows.
       const staffIds = await resolveStaffIdsForOrg(data.organizationId)
       const authLookup = buildAuthLookup(deps.db)
-      const staffMaterializers = buildStaffMaterializers({
-        organizationId: data.organizationId,
-        agentId,
-        staffIds,
-        authLookup,
-      })
 
       const roConfig = buildDefaultReadOnlyConfig({
         agentId,
@@ -267,6 +216,30 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         channelInstanceId,
         staffIds,
       })
+
+      // Assemble module-contributed materializers. Static bundle from
+      // `collectAgentContributions` + per-wake factories from each module's
+      // `buildMaterializers({...})`. Order matters for later dedup: module
+      // factories run first so their paths override any generic collector
+      // entries by exact-path match.
+      const allCommands = [...teamVerbs, ...conversationVerbs, ...driveVerbs]
+      const wakeMaterializers: WorkspaceMaterializer[] = [
+        ...agentsModule.buildMaterializers({ agentId, agentDefinition, commands: allCommands }),
+        ...driveModule.buildMaterializers({ drive: deps.drive }),
+        ...contactsModule.buildMaterializers({ contacts: deps.contacts, contactId: data.contactId }),
+        ...messagingModule.buildMaterializers({
+          messaging: deps.messaging,
+          contactId: data.contactId,
+          channelInstanceId,
+        }),
+        ...teamModule.buildMaterializers({
+          organizationId: data.organizationId,
+          agentId,
+          staffIds,
+          authLookup,
+        }),
+        ...contributions.materializers,
+      ]
 
       // Build workspace (was internal to bootWake).
       const workspace = await createWorkspace({
@@ -277,11 +250,10 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         channelInstanceId,
         wakeId,
         agentDefinition,
-        commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
-        materializers: [messagesMaterializer, internalNotesMaterializer, ...staffMaterializers],
+        commands: allCommands,
+        materializers: wakeMaterializers,
         drivePort: deps.drive,
         contactsPort: deps.contacts,
-        agentsPort: deps.agents,
         readOnlyConfig: roConfig,
       })
 
@@ -311,7 +283,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
       const dirtyTracker = new DirtyTracker(workspace.initialSnapshot, roConfig.writablePrefixes, [
         ...roConfig.memoryPaths,
       ])
-      const workspaceSyncListener = createWorkspaceSyncListener({
+      const workspaceSyncListener = agentsModule.createWorkspaceSyncListener({
         fs: workspace.innerFs,
         tracker: dirtyTracker,
         organizationId: data.organizationId,
@@ -322,7 +294,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 
       // Memory-distill listener — closes over the per-wake emitter handle.
       const emitEventHandle: LlmEmitter = {}
-      const memoryDistillListener = createMemoryDistillListener({
+      const memoryDistillListener = agentsModule.createMemoryDistillListener({
         target: { kind: 'contact', contactId: data.contactId },
         agentId,
         useLlm: false,
@@ -377,17 +349,20 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
         runtime: { fs: workspace.innerFs, tracker: dirtyTracker } satisfies WakeRuntime,
 
-        tools: [replyTool as unknown as AgentTool, sendCardTool as unknown as AgentTool],
+        tools: contributions.tools as readonly AgentTool[],
         hooks: {
           on_event: [
             sseListener,
             workspaceSyncListener as OnEventListener<WakeTrigger>,
             memoryDistillListener as OnEventListener<WakeTrigger>,
+            ...((contributions.listeners.on_event ?? []) as readonly OnEventListener<WakeTrigger>[]),
           ],
+          ...(contributions.listeners.on_tool_call ? { on_tool_call: contributions.listeners.on_tool_call } : {}),
+          ...(contributions.listeners.on_tool_result ? { on_tool_result: contributions.listeners.on_tool_result } : {}),
         },
-        materializers: [messagesMaterializer, internalNotesMaterializer, ...staffMaterializers],
-        sideLoadContributors: [conversationSideLoad],
-        commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
+        materializers: wakeMaterializers,
+        sideLoadContributors: [conversationSideLoad, ...contributions.sideLoad],
+        commands: allCommands,
 
         extraCustomSideLoad: deps.db
           ? [
@@ -439,12 +414,7 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
         emitEventHandle,
 
         maxTurns: 10,
-        logger: {
-          debug: () => undefined,
-          info: () => undefined,
-          warn: (obj, msg) => console.warn('[wake]', msg ?? '', obj),
-          error: (obj, msg) => console.error('[wake]', msg ?? '', obj),
-        },
+        logger: createLogger({ format: 'console', prefix: '[wake]', silent: ['debug', 'info'] }),
       })
     } catch (err) {
       console.error('[wake] createHarness failed:', err)
@@ -453,15 +423,13 @@ export function createWakeHandler(deps: WakeHandlerDeps) {
 }
 
 /**
- * Return the set of staff userIds that should be materialized under
- * `/staff/<id>/` for this wake. Scope decision for slice 3d.1b: enumerate
- * every staff_profiles row for the organization — small N in dev/seed.
- * Silent-fail to `[]` when the team service isn't available yet.
+ * Return the set of staff userIds materialized under `/staff/<id>/` for this
+ * wake — every staff_profiles row in the org. Silent-fails to `[]` when the
+ * team service isn't available yet (boot ordering for headless tests).
  */
 async function resolveStaffIdsForOrg(organizationId: string): Promise<readonly string[]> {
   try {
-    const { staff } = await import('@modules/team/service')
-    const profiles = await staff.list(organizationId)
+    const profiles = await teamStaff.list(organizationId)
     return profiles.map((p) => p.userId)
   } catch {
     return []
@@ -489,7 +457,6 @@ async function resolveSessionContext(input: {
 
   if (input.db) {
     try {
-      const { channelInstances } = await import('@modules/messaging/schema')
       const rows = await input.db
         .select({ type: channelInstances.type, displayName: channelInstances.displayName })
         .from(channelInstances)
@@ -506,7 +473,6 @@ async function resolveSessionContext(input: {
 
     if (input.conv.assignee.startsWith('user:')) {
       try {
-        const { authUser } = await import('@vobase/core')
         const userId = input.conv.assignee.slice('user:'.length)
         const rows = await input.db
           .select({ name: authUser.name, email: authUser.email })
@@ -533,7 +499,9 @@ async function resolveSessionContext(input: {
 }
 
 /** Authenticated-user display fallback for staff profile.md materialization. */
-function buildAuthLookup(db: ScopedDb | undefined): StaffProfileLookup {
+function buildAuthLookup(db: ScopedDb | undefined): {
+  getAuthDisplay(staffId: string): Promise<{ name: string | null; email: string | null } | null>
+} {
   if (!db) {
     return {
       async getAuthDisplay() {
@@ -544,7 +512,6 @@ function buildAuthLookup(db: ScopedDb | undefined): StaffProfileLookup {
   return {
     async getAuthDisplay(staffId) {
       try {
-        const { authUser } = await import('@vobase/core')
         const rows = await db
           .select({ name: authUser.name, email: authUser.email })
           .from(authUser)

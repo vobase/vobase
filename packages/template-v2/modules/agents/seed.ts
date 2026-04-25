@@ -44,7 +44,9 @@ Use \`send_card\` for pricing, plan comparisons, refund confirmations, booking s
 
 ## Tools allowlist
 
-\`reply\`, \`send_card\`, \`send_file\`, \`create_draft\`, \`book_slot\`. \`subagent\` disabled.
+\`reply\`, \`send_card\`, \`send_file\`, \`book_slot\`, \`subagent\`.
+
+\`book_slot\` is a silent side-effect — the customer sees nothing until you follow up with \`reply\` or \`send_card\` confirming the booking. Always send a confirmation in the same turn.
 
 ## Guardrails
 

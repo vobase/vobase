@@ -6,7 +6,8 @@ import { createNotificationPrefsService, installNotificationPrefsService } from 
 const settings: ModuleDef = {
   name: 'settings',
   requires: [],
-  routes: { basePath: '/api/settings', handler: handlers, requireSession: true },
+  web: { routes: { basePath: '/api/settings', handler: handlers, requireSession: true } },
+  jobs: [],
   init(ctx) {
     installNotificationPrefsService(createNotificationPrefsService({ db: ctx.db }))
   },

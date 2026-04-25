@@ -6,7 +6,8 @@ import { createSystemService, installSystemService } from './service'
 const system: ModuleDef = {
   name: 'system',
   requires: [],
-  routes: { basePath: '/api/system', handler: handlers, requireSession: true },
+  web: { routes: { basePath: '/api/system', handler: handlers, requireSession: true } },
+  jobs: [],
   init(ctx) {
     installSystemService(createSystemService({ db: ctx.db }))
   },

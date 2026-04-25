@@ -18,7 +18,8 @@ function firstError(value: unknown): string {
 
 export const bookSlotTool: AgentTool<BookSlotInput, { slotId: string; confirmed: boolean }> = {
   name: 'book_slot',
-  description: 'Book a calendar slot for the contact. Requires staff approval if agent.bookSlotApprovalRequired=true.',
+  description:
+    'Book a calendar slot for the contact. Side-effect only: the customer sees nothing until you follow up with `reply` or `send_card` to confirm. Requires staff approval if agent.bookSlotApprovalRequired=true.',
   inputSchema: BookSlotInputSchema,
   requiresApproval: true,
   parallelGroup: 'never',

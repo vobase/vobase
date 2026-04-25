@@ -1,16 +1,17 @@
 import type { ModuleDef } from '@server/common/module-def'
 
-import handlers from './handlers'
 import { createStaffAttrDefService, installStaffAttrDefService } from './service/attribute-definitions'
 import { createMentionNotifyService, installMentionNotifyService } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
 import { createStaffService, installStaffService } from './service/staff'
 import { createTeamDescriptionService, installTeamDescriptionService } from './service/team-descriptions'
+import * as web from './web'
 
 const team: ModuleDef = {
   name: 'team',
   requires: ['contacts', 'settings'],
-  routes: { basePath: '/api/team', handler: handlers, requireSession: true },
+  web: { routes: web.routes },
+  jobs: [],
   init(ctx) {
     installStaffService(createStaffService({ db: ctx.db }))
     installStaffAttrDefService(createStaffAttrDefService({ db: ctx.db }))

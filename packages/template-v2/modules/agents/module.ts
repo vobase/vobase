@@ -1,7 +1,8 @@
 import type { ModuleDef } from '@server/common/module-def'
 import { createCostService, createJournalService, installCostService, installJournalService } from '@vobase/core'
 
-import handlers from './handlers'
+import * as agent from './agent'
+import { jobs } from './jobs'
 import { createAgentDefinitionsService, installAgentDefinitionsService } from './service/agent-definitions'
 import {
   createLearningNotifier,
@@ -9,19 +10,14 @@ import {
   installLearningProposalsService,
 } from './service/learning-proposals'
 import { createStaffMemoryService, installStaffMemoryService } from './service/staff-memory'
-
-/**
- * Named exports of the agent module's tools + listeners. `server/wake-handler.ts`
- * composes these into the per-wake `registrations` bag; module init no longer
- * registers them through a `PluginContext` surface.
- */
-export { sseListener } from './observers/sse'
-export { subagentTool } from './tools/subagent'
+import * as web from './web'
 
 const agents: ModuleDef = {
   name: 'agents',
   requires: ['messaging', 'contacts', 'drive'],
-  routes: { basePath: '/api/agents', handler: handlers, requireSession: true },
+  web: { routes: web.routes },
+  agent: { tools: agent.tools },
+  jobs: [...jobs],
   init(ctx) {
     installJournalService(createJournalService({ db: ctx.db }))
     installAgentDefinitionsService(createAgentDefinitionsService({ db: ctx.db }))

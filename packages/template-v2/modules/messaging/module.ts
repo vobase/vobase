@@ -1,6 +1,7 @@
 import type { ModuleDef } from '@server/common/module-def'
 
-import handlers from './handlers'
+import * as agent from './agent'
+import { jobs } from './jobs'
 import {
   type ConversationScheduler,
   createConversationsService,
@@ -14,19 +15,16 @@ import {
   installPendingApprovalsService,
 } from './service/pending-approvals'
 import { createStaffOpsService, installStaffOpsService } from './service/staff-ops'
+import * as web from './web'
 
-/**
- * Tools are re-exported for the wake harness's direct consumption —
- * `server/wake-handler.ts` imports `messagingTools` when building the per-wake
- * `registrations.tools` bag. Module init doesn't register tools anymore.
- */
-export { messagingTools } from './tools'
 export type { ApprovalScheduler, ConversationScheduler }
 
 const messaging: ModuleDef = {
   name: 'messaging',
   requires: ['contacts'],
-  routes: { basePath: '/api/messaging', handler: handlers, requireSession: true },
+  web: { routes: web.routes },
+  agent: { tools: agent.tools },
+  jobs: [...jobs],
   init(ctx) {
     const conversationScheduler = (ctx.jobs as unknown as ConversationScheduler | undefined) ?? null
     installConversationsService(createConversationsService({ db: ctx.db, scheduler: conversationScheduler }))

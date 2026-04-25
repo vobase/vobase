@@ -7,8 +7,9 @@
  * replaces the implicit `requires: ['messaging','contacts','drive']` the old
  * `module.ts` carried.
  */
-import type { RealtimeService, ScopedScheduler } from '@server/common/port-types'
+import type { RealtimeService } from '@server/common/port-types'
 import type { ScopedDb } from '@server/common/scoped-db'
+import type { ScopedScheduler } from '@vobase/core'
 import type { Hono } from 'hono'
 
 import handlers from './handlers'

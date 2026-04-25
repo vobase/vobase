@@ -12,32 +12,14 @@
  */
 
 import type { AgentEvent, LlmTask } from '@server/events'
-import type { AgentTool, ChannelAdapter, ToolResult } from '@vobase/core'
-
-export type { JobDef, ScheduleOpts, ScopedScheduler } from '@vobase/core'
+import type { AgentTool, ChannelAdapter } from '@vobase/core'
 
 /** Opaque transaction handle passed through from Drizzle. */
 export type Tx = unknown
 
 export type { ScopedDb } from '@server/common/scoped-db'
 export type { LlmTask } from '@server/events'
-export type { AgentTool, ToolContext } from '@vobase/core'
-
-export interface CommandDef {
-  name: string
-  description: string
-  usage?: string
-  execute: (argv: readonly string[], ctx: CommandContext) => Promise<ToolResult<string>>
-}
-
-export interface CommandContext {
-  organizationId: string
-  conversationId: string
-  agentId: string
-  contactId: string
-  writeWorkspace: (path: string, content: string) => Promise<void>
-  readWorkspace: (path: string) => Promise<string>
-}
+export type { CommandContext, CommandDef } from '@vobase/core'
 
 export interface LlmRequest {
   model?: string

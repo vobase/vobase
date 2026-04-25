@@ -1,13 +1,11 @@
 /**
- * Thin re-export barrel.
+ * Project-local `ModuleDef` type alias — binds the generic core contract to
+ * this template's concrete `ScopedDb` and `RealtimeService` types so module
+ * authors can write `init(ctx) { ctx.db.select(...) }` without manual
+ * generic narrowing.
  *
- * The `ModuleDef` contract, boot loop, and dependency sorter live in
- * `@vobase/core`. Template binds the generic `Db` / `Realtime` parameters to
- * its project-local `ScopedDb` and `RealtimeService` so modules continue to
- * read `ctx.db` / `ctx.realtime` with their concrete types.
- *
- * Slice 4b migrates template imports to `@vobase/core` directly and deletes
- * this file.
+ * Boot loop, dependency sorter, and collectors live in `@vobase/core` and
+ * are imported directly from there.
  */
 
 import type { RealtimeService } from '@server/common/port-types'
@@ -16,11 +14,3 @@ import type { ModuleDef as CoreModuleDef, ModuleInitCtx as CoreModuleInitCtx } f
 
 export type ModuleInitCtx = CoreModuleInitCtx<ScopedDb, RealtimeService>
 export type ModuleDef = CoreModuleDef<ScopedDb, RealtimeService>
-
-export {
-  bootModules,
-  bootModulesCollector,
-  InvalidModuleError,
-  type ModuleRoutes,
-  sortModules,
-} from '@vobase/core'

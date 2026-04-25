@@ -1,13 +1,21 @@
 /**
- * agents module job registry — see `service/queue-jobs.ts` for names and
- * `service/wake-worker.ts` for consumers.
+ * agents module job registry.
  *
- * The `jobs` export stays a tuple because it satisfies the module-shape lint
- * (`jobs.ts` must export `jobs`); actual pg-boss work binding happens in the
- * app bootstrap via `createWakeWorker(...).start()`.
+ * `agents:agent-wake` / `agents:scheduled-followup` are placeholders pending
+ * the `createWakeWorker` audit (Slice 4b §12.1): grep shows
+ * `createWakeWorker(...).start()` is only called from tests, so the
+ * production registration path may be dead. They ship with `disabled: true`
+ * + no-op handlers so they satisfy `JobDef` but are skipped by core's
+ * `collectJobs` pass — if the audit finds a live consumer, flip `disabled`
+ * off and wire real handlers here.
  */
+
+import type { JobDef } from '@vobase/core'
 
 export type { AgentsJobName } from './service/queue-jobs'
 export { AGENT_WAKE_JOB, SCHEDULED_FOLLOWUP_JOB } from './service/queue-jobs'
 
-export const jobs = [{ name: 'agents:agent-wake' }, { name: 'agents:scheduled-followup' }] as const
+export const jobs: JobDef[] = [
+  { name: 'agents:agent-wake', handler: async () => {}, disabled: true },
+  { name: 'agents:scheduled-followup', handler: async () => {}, disabled: true },
+]

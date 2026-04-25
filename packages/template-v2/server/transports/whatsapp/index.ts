@@ -6,7 +6,8 @@
  * webhooks with `X-Hub-Signature-256`, not session cookies, so there's no
  * session middleware wiring here.
  */
-import type { RealtimeService, ScopedScheduler } from '@server/common/port-types'
+import type { RealtimeService } from '@server/common/port-types'
+import type { ScopedScheduler } from '@vobase/core'
 import type { Hono } from 'hono'
 
 import handlers from './handlers'

@@ -54,7 +54,7 @@ export function DriveFileList() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <header className="shrink-0 border-b border-border">
+      <header className="shrink-0 border-border border-b">
         <div className="flex items-center justify-between gap-3 px-6 pt-4 pb-3">
           <Breadcrumbs trail={folderTrail} onJump={jumpToCrumb} />
           <DropdownMenu>
@@ -85,8 +85,8 @@ export function DriveFileList() {
           </DropdownMenu>
         </div>
         {newMode !== 'idle' && (
-          <div className="flex items-center gap-2 border-t border-border bg-muted/30 px-6 py-2">
-            <span className="text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 border-border border-t bg-muted/30 px-6 py-2">
+            <span className="text-muted-foreground text-xs">
               {newMode === 'folder' ? 'New folder in' : 'New file in'}{' '}
               <span className="font-mono text-foreground">{currentFolderPath}</span>
             </span>
@@ -119,7 +119,7 @@ export function DriveFileList() {
             </Button>
           </div>
         )}
-        <div className="grid grid-cols-[1fr_180px_120px] gap-4 border-t border-border bg-muted/20 px-6 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="grid grid-cols-[1fr_180px_120px] gap-4 border-border border-t bg-muted/20 px-6 py-2 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
           <span>Name</span>
           <span>Last modified</span>
           <span className="text-right">Size</span>
@@ -127,8 +127,8 @@ export function DriveFileList() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {isLoading && <div className="p-6 text-sm text-muted-foreground">Loading…</div>}
-        {error && <div className="p-6 text-sm text-destructive">Failed to load folder</div>}
+        {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading…</div>}
+        {error && <div className="p-6 text-destructive text-sm">Failed to load folder</div>}
         {!isLoading && !error && sorted.length === 0 && (
           <Empty>
             <EmptyHeader>
@@ -154,7 +154,7 @@ export function DriveFileList() {
                   onDoubleClick={() => {
                     if (isFolder) enterFolder({ id: row.id, path: row.path, name: row.name })
                   }}
-                  className={`grid w-full grid-cols-[1fr_180px_120px] items-center gap-4 border-b border-border/40 px-6 py-2.5 text-left text-sm hover:bg-muted/60 ${
+                  className={`grid w-full grid-cols-[1fr_180px_120px] items-center gap-4 border-border/40 border-b px-6 py-2.5 text-left text-sm hover:bg-muted/60 ${
                     isSelected ? 'bg-primary/5' : ''
                   }`}
                 >
@@ -162,10 +162,10 @@ export function DriveFileList() {
                     <FileIcon file={row} />
                     <span className="truncate">{row.name}</span>
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    <RelativeTimeCard date={row.updatedAt} />
+                  <span className="truncate text-muted-foreground text-xs">
+                    {new Date(row.updatedAt).getTime() === 0 ? '—' : <RelativeTimeCard date={row.updatedAt} />}
                   </span>
-                  <span className="text-right text-xs text-muted-foreground">
+                  <span className="text-right text-muted-foreground text-xs">
                     {isFolder ? '—' : row.sizeBytes !== null ? formatSize(row.sizeBytes) : '—'}
                   </span>
                 </button>

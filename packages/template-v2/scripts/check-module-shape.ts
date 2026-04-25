@@ -1,25 +1,48 @@
 #!/usr/bin/env bun
 /**
- * CI lint — journal write-path guard.
+ * CI lint — module shape invariants.
  *
- * After slice 3a moved harness persistence to `@vobase/core`, the journal
- * (`conversation_events`) is written exclusively by core's `harness/journal.ts`.
- * Template code only reaches `conversationEvents` via the core barrel, and the
- * one-write-path invariant for `messaging.messages` stays enforced here: only
- * `modules/messaging/service/**` may mutate the customer message table.
- * `modules/agents/service/learning-proposals.ts` still emits learning_approved /
- * learning_rejected rows directly into `conversation_events` for the approval
- * path, so it keeps an allowlist entry.
+ * Two layers:
+ *
+ * 1. Journal write-path guard (static grep). `messages` / `conversation_events`
+ *    are write-once-path tables — only `modules/messaging/service/**` and
+ *    `modules/agents/service/learning-proposals.ts` may `.insert/update/
+ *    delete()` them. Prevents the dual-write class of bugs.
+ *
+ * 2. Module contract invariants — enforce the declarative-module-collector
+ *    contract (Slice 4b). Loaded by importing `vobase.config.ts`:
+ *      - `agent.tools[i].name` unique across modules
+ *      - `agent.commands[i].name` unique across modules
+ *      - `jobs[i].name` unique across modules (excluding `disabled: true`)
+ *      - Every `agent.listeners[slot][i]` is a function
+ *      - Every `agent.materializers[i].path` is an absolute workspace path
+ *      - Every `agent.materializers[i].phase` is one of the known enum values
+ *      - `module.ts` contains no inline `tools: [...]` / `listeners: {...}` /
+ *        `materializers: [...]` / `commands: [...]` / `sideLoad: [...]` literals
+ *        at the `ModuleDef` level
+ *      - `module.ts` contains no `ctx.register*` calls
+ *
+ * Tolerant of the partial-migration state: a module whose `agent` / `jobs`
+ * surface is undefined skips the corresponding dynamic check.
  */
 
 import { join } from 'node:path'
 
-const MODULES_DIR = join(import.meta.dir, '..', 'modules')
+import vobaseConfig from '../vobase.config'
+
+const TEMPLATE_ROOT = join(import.meta.dir, '..')
+const MODULES_DIR = join(TEMPLATE_ROOT, 'modules')
+
+interface LintError {
+  file: string
+  line?: number
+  message: string
+}
+
+const errors: LintError[] = []
 
 const JOURNAL_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(messages|conversationEvents)\b/
 const JOURNAL_WRITE_ALLOWED = ['modules/messaging/service/', 'modules/agents/service/learning-proposals.ts']
-
-const errors: Array<{ file: string; line: number; message: string }> = []
 
 async function checkJournalWriteAuthority(): Promise<void> {
   const glob = new Bun.Glob('**/*.ts')
@@ -44,14 +67,165 @@ async function checkJournalWriteAuthority(): Promise<void> {
   }
 }
 
+const MODULE_FILES = ['agents', 'contacts', 'drive', 'messaging', 'team']
+
+const INLINE_LITERAL_RE = /^\s{2,}(tools|listeners|materializers|commands|sideLoad)\s*:\s*[[{]/
+const CTX_REGISTER_RE = /ctx\.register[A-Z]\w*/
+
+async function checkModuleTsShape(): Promise<void> {
+  for (const mod of MODULE_FILES) {
+    const path = join(MODULES_DIR, mod, 'module.ts')
+    if (!(await Bun.file(path).exists())) continue
+    const lines = (await Bun.file(path).text()).split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue
+      if (INLINE_LITERAL_RE.test(line)) {
+        const m = INLINE_LITERAL_RE.exec(line)
+        errors.push({
+          file: path,
+          line: i + 1,
+          message: `module.ts must be an aggregator; move \`${m?.[1]}:\` into sibling \`agent.ts\` and re-export`,
+        })
+      }
+      if (CTX_REGISTER_RE.test(line)) {
+        errors.push({
+          file: path,
+          line: i + 1,
+          message: 'init(ctx) must not call ctx.register* — contributions belong on the ModuleDef itself',
+        })
+      }
+    }
+  }
+}
+
+interface MaterializerLike {
+  path: unknown
+  phase: unknown
+  materialize?: unknown
+}
+
+interface AgentSurface {
+  tools?: Array<{ name: unknown }>
+  listeners?: Record<string, unknown>
+  materializers?: MaterializerLike[]
+  commands?: Array<{ name: unknown }>
+  sideLoad?: unknown[]
+}
+
+interface JobLike {
+  name: unknown
+  handler?: unknown
+  disabled?: unknown
+}
+
+interface ModuleLike {
+  name: string
+  agent?: AgentSurface
+  jobs?: readonly JobLike[]
+}
+
+const VALID_PHASES = new Set(['frozen', 'side-load', 'on-read'])
+
+function trackUnique(seen: Map<string, string>, kind: string, moduleName: string, name: unknown): void {
+  if (typeof name !== 'string' || name.length === 0) {
+    errors.push({
+      file: `modules/${moduleName}`,
+      message: `${kind} in module "${moduleName}" has a non-string/empty name`,
+    })
+    return
+  }
+  const prev = seen.get(name)
+  if (prev !== undefined) {
+    errors.push({
+      file: `modules/${moduleName}`,
+      message: `duplicate ${kind} name "${name}" declared by both "${prev}" and "${moduleName}"`,
+    })
+  } else {
+    seen.set(name, moduleName)
+  }
+}
+
+function checkModuleContracts(): void {
+  const modules = vobaseConfig.modules as unknown as readonly ModuleLike[]
+
+  const toolNames = new Map<string, string>()
+  const commandNames = new Map<string, string>()
+  const jobNames = new Map<string, string>()
+
+  for (const mod of modules) {
+    const agent = mod.agent
+    if (agent?.tools) {
+      for (const tool of agent.tools) trackUnique(toolNames, 'tool', mod.name, tool?.name)
+    }
+    if (agent?.commands) {
+      for (const cmd of agent.commands) trackUnique(commandNames, 'command', mod.name, cmd?.name)
+    }
+    if (agent?.listeners) {
+      for (const [slot, list] of Object.entries(agent.listeners)) {
+        if (list === undefined) continue
+        if (!Array.isArray(list)) {
+          errors.push({
+            file: `modules/${mod.name}`,
+            message: `listener slot "${slot}" must be an array of functions`,
+          })
+          continue
+        }
+        for (let i = 0; i < list.length; i++) {
+          if (typeof list[i] !== 'function') {
+            errors.push({
+              file: `modules/${mod.name}`,
+              message: `agent.listeners.${slot}[${i}] must be a function, got ${typeof list[i]}`,
+            })
+          }
+        }
+      }
+    }
+    if (agent?.materializers) {
+      for (let i = 0; i < agent.materializers.length; i++) {
+        const m = agent.materializers[i]
+        if (typeof m.path !== 'string' || !m.path.startsWith('/')) {
+          errors.push({
+            file: `modules/${mod.name}`,
+            message: `agent.materializers[${i}].path must be an absolute workspace path starting with "/", got ${JSON.stringify(m.path)}`,
+          })
+        }
+        if (typeof m.phase !== 'string' || !VALID_PHASES.has(m.phase)) {
+          errors.push({
+            file: `modules/${mod.name}`,
+            message: `agent.materializers[${i}].phase must be one of ${[...VALID_PHASES].join('|')}, got ${JSON.stringify(m.phase)}`,
+          })
+        }
+        if (typeof m.materialize !== 'function') {
+          errors.push({
+            file: `modules/${mod.name}`,
+            message: `agent.materializers[${i}].materialize must be a function`,
+          })
+        }
+      }
+    }
+    if (mod.jobs) {
+      for (const job of mod.jobs) {
+        if (job.disabled === true) continue
+        trackUnique(jobNames, 'job', mod.name, job.name)
+      }
+    }
+  }
+}
+
 await checkJournalWriteAuthority()
+await checkModuleTsShape()
+checkModuleContracts()
 
 if (errors.length > 0) {
   console.error('\ncheck-module-shape: FAILED\n')
-  for (const err of errors) console.error(`  ${err.file}:${err.line}: ${err.message}`)
+  for (const err of errors) {
+    const loc = err.line ? `${err.file}:${err.line}` : err.file
+    console.error(`  ${loc}: ${err.message}`)
+  }
   console.error(`\n${errors.length} error(s) found.`)
   process.exit(1)
 }
 
-console.log('journal-write-path guard OK')
+console.log('check-module-shape: OK')
 process.exit(0)
