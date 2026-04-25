@@ -105,7 +105,7 @@ function DrawerSection({
           aria-expanded={!collapsed}
           onClick={onToggle}
         >
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">{label}</span>
+          <span className="font-semibold text-[var(--color-fg-muted)] text-xs uppercase tracking-wider">{label}</span>
           <ChevronDown
             className={cn('size-3.5 text-[var(--color-fg-muted)] transition-transform', collapsed && '-rotate-90')}
           />

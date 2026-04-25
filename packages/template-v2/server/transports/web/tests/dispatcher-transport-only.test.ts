@@ -40,22 +40,27 @@ const fakeMsg = (): Message =>
   }) as unknown as Message
 
 function makeMessagesServiceStub(): MessagesService {
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   const notImplemented = async () => {
     throw new Error('dispatcher-transport-only.test: messages-service method not stubbed')
   }
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     appendTextMessage: async (input) => {
       callLog.push({ method: 'appendTextMessage', input })
       return fakeMsg()
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     appendCardMessage: async (input) => {
       callLog.push({ method: 'appendCardMessage', input })
       return fakeMsg()
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     appendMediaMessage: async (input) => {
       callLog.push({ method: 'appendMediaMessage', input })
       return fakeMsg()
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     appendStaffTextMessage: async (input) => {
       callLog.push({ method: 'appendStaffTextMessage', input })
       return fakeMsg()

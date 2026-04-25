@@ -12,6 +12,7 @@ let eventStore: Row[] = []
 
 function makeDb() {
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       let insertIdx = 0
       const tx = {

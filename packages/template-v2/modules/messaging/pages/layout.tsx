@@ -8,11 +8,20 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import { ListDetailLayout } from '@/components/layout/list-detail-layout'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { messagingClient } from '@/lib/api-client'
+import { hydrateConversation } from '@/lib/rpc-utils'
 
-async function fetchMessagingGrouped() {
-  const r = await fetch('/api/messaging/conversations?grouped=1')
+async function fetchMessagingGrouped(): Promise<{
+  rows: Conversation[]
+  counts: { active: number; later: number; done: number }
+}> {
+  const r = await messagingClient.conversations.$get({ query: { grouped: '1' } })
   if (!r.ok) throw new Error('fetch failed')
-  return r.json() as Promise<{ rows: Conversation[]; counts: { active: number; later: number; done: number } }>
+  const body = await r.json()
+  // The grouped branch returns { rows, counts }; the flat branch returns Conversation[].
+  // Both are typed as a union here because the handler picks at runtime via `?grouped=1`.
+  if (!('rows' in body)) throw new Error('grouped response expected')
+  return { rows: body.rows.map(hydrateConversation), counts: body.counts }
 }
 
 export function MessagingLayout() {

@@ -92,6 +92,7 @@ export class WakeScheduler {
     this.debounceMs = deps.debounceMs ?? 1000
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async enqueue(trigger: WakeTrigger, opts: EnqueueOpts): Promise<EnqueueResult> {
     switch (trigger.trigger) {
       case 'inbound_message':

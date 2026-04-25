@@ -15,7 +15,7 @@ function ListDetailLayout({ list, detail, right, listWidth = 320 }: ListDetailLa
   return (
     <div className="flex h-full overflow-hidden">
       <div
-        className="flex shrink-0 flex-col overflow-y-auto border-r border-[var(--color-border-subtle)]"
+        className="flex shrink-0 flex-col overflow-y-auto border-[var(--color-border-subtle)] border-r"
         style={{ width: listWidth }}
       >
         {list}
@@ -24,7 +24,7 @@ function ListDetailLayout({ list, detail, right, listWidth = 320 }: ListDetailLa
       <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">{detail}</div>
 
       {right && ctx === 'open' && (
-        <div className="flex w-[380px] shrink-0 flex-col overflow-y-auto border-l border-[var(--color-border-subtle)]">
+        <div className="flex w-[380px] shrink-0 flex-col overflow-y-auto border-[var(--color-border-subtle)] border-l">
           {right}
         </div>
       )}

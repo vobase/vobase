@@ -75,9 +75,11 @@ function makeTenantFile(partial: Partial<DriveFile> & { path: string; extractedT
 function makeDriveStub(files: DriveFile[]): FilesService {
   const byId = new Map(files.map((f) => [f.id, f]))
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async get(id) {
       return byId.get(id) ?? null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async getByPath(scope: DriveScope, path: string) {
       for (const f of files) {
         if (f.scope !== scope.scope) continue
@@ -85,13 +87,16 @@ function makeDriveStub(files: DriveFile[]): FilesService {
       }
       return null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async listFolder(scope) {
       return files.filter((f) => f.scope === scope.scope)
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async readContent(id) {
       const f = byId.get(id)
       return { content: f?.extractedText ?? '' }
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async readPath(scope, path) {
       for (const f of files) {
         if (f.scope !== scope.scope) continue
@@ -99,34 +104,44 @@ function makeDriveStub(files: DriveFile[]): FilesService {
       }
       return null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async writePath(): Promise<null> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async grep(): Promise<GrepMatch[]> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async create() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async mkdir() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async move() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async remove() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async getBusinessMd() {
       const biz = files.find((f) => f.scope === 'organization' && f.path === '/BUSINESS.md')
       return biz?.extractedText ?? ''
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async ingestUpload() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async saveInboundMessageAttachment() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async deleteScope() {
       throw new Error('not-implemented-in-phase-1')
     },
@@ -135,6 +150,7 @@ function makeDriveStub(files: DriveFile[]): FilesService {
 
 function makeContactsStub(): ContactsService {
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async get(id): Promise<Contact> {
       return {
         id,
@@ -152,21 +168,27 @@ function makeContactsStub(): ContactsService {
         updatedAt: new Date(),
       }
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async getByPhone() {
       return null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async getByEmail() {
       return null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async upsertByExternal(_: UpsertByExternalInput) {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async create(): Promise<Contact> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async update(): Promise<Contact> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async readNotes() {
       return '# Memory\n'
     },
@@ -175,15 +197,19 @@ function makeContactsStub(): ContactsService {
     async removeNotesSection() {},
     async setSegments() {},
     async setMarketingOptOut() {},
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async resolveStaffByExternal(): Promise<StaffBinding | null> {
       return null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async bindStaff(): Promise<StaffBinding> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async list(): Promise<Contact[]> {
       return []
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async remove() {
       throw new Error('not-implemented-in-phase-1')
     },
@@ -195,9 +221,11 @@ function makeMessagingStub(): MessagingPort {
     throw new Error('messaging stub: method not implemented')
   }
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async listMessages() {
       return []
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async listInternalNotes() {
       return []
     },
@@ -220,6 +248,7 @@ function makeMessagingStub(): MessagingPort {
   } as MessagingPort
 }
 
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
 async function buildWorkspace(files: DriveFile[] = []) {
   const drive = makeDriveStub(files)
   const contacts = makeContactsStub()
@@ -250,6 +279,7 @@ async function buildWorkspace(files: DriveFile[] = []) {
   })
 }
 
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
 async function runShell(ws: Awaited<ReturnType<typeof buildWorkspace>>, cmd: string) {
   return ws.bash.exec(cmd)
 }

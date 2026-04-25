@@ -9,7 +9,11 @@
  * `journal.append(event, tx)` unconditionally), so it's whitelisted in
  * check:shape rule 2 alongside `modules/agents/service/journal.ts`.
  */
+
+import { messages } from '@modules/messaging/schema'
 import type { OutboundToolName } from '@server/transports/events'
+import { journalAppend as append, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
+import { and, asc, desc, eq, gt } from 'drizzle-orm'
 
 import type { Message } from '../schema'
 
@@ -82,7 +86,6 @@ async function insertMessageRow(
     parentMessageId?: string | null
   },
 ): Promise<Message> {
-  const { messages } = await import('@modules/messaging/schema')
   const rows = await txDb
     .insert(messages)
     .values({
@@ -111,7 +114,6 @@ async function journalToolEnd(
     messageId: string
   },
 ): Promise<void> {
-  const { journalAppend: append } = await import('@vobase/core')
   await append(
     {
       conversationId: input.conversationId,
@@ -140,7 +142,6 @@ async function journalChannelInbound(
   tx: unknown,
   input: { conversationId: string; organizationId: string; messageId: string; turnIndex: number },
 ): Promise<void> {
-  const { journalAppend: append } = await import('@vobase/core')
   const wakeId = `card_reply:${input.messageId}`
   await append(
     {
@@ -195,6 +196,7 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
     toolCallId: string
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function appendAgentMessage(
     ctx: AppendAgentMessageCtx,
     kind: 'text' | 'card' | 'image',
@@ -224,14 +226,17 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
     })
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function appendTextMessage(input: AppendTextMessageInput): Promise<Message> {
     return appendAgentMessage(input, 'text', { text: input.text }, 'reply', input.replyToMessageId)
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function appendCardMessage(input: AppendCardMessageInput): Promise<Message> {
     return appendAgentMessage(input, 'card', { card: input.card }, 'send_card', input.replyToMessageId)
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function appendMediaMessage(input: AppendMediaMessageInput): Promise<Message> {
     return appendAgentMessage(
       input,
@@ -241,6 +246,7 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
     )
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function appendStaffTextMessage(input: AppendStaffTextMessageInput): Promise<Message> {
     const toolCallId = `staff_reply:${Date.now()}`
     const wakeId = `staff_reply:${input.staffUserId}`
@@ -265,10 +271,9 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
     })
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function appendCardReplyMessage(input: AppendCardReplyInput): Promise<Message> {
     return db.transaction(async (tx) => {
-      const { messages } = await import('@modules/messaging/schema')
-      const { eq } = await import('drizzle-orm')
       const txDb = tx as {
         select: () => {
           from: (t: unknown) => { where: (c: unknown) => { limit: (n: number) => Promise<unknown[]> } }
@@ -290,7 +295,6 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
         },
         parentMessageId: input.parentMessageId,
       })
-      const { journalGetLatestTurnIndex: getLatestTurnIndex } = await import('@vobase/core')
       const turnIndex = await getLatestTurnIndex(parent.conversationId, tx)
       await journalChannelInbound(tx, {
         conversationId: parent.conversationId,
@@ -303,8 +307,6 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
   }
 
   async function list(conversationId: string, opts?: { limit?: number; since?: Date }): Promise<Message[]> {
-    const { messages } = await import('@modules/messaging/schema')
-    const { eq, and, gt, asc, desc } = await import('drizzle-orm')
     const listDb = db as unknown as ListableDb
 
     const whereClause = opts?.since
@@ -358,21 +360,27 @@ function currentMessages(): MessagesService {
   return _currentMessagesService
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function appendTextMessage(input: AppendTextMessageInput): Promise<Message> {
   return currentMessages().appendTextMessage(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function appendCardMessage(input: AppendCardMessageInput): Promise<Message> {
   return currentMessages().appendCardMessage(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function appendMediaMessage(input: AppendMediaMessageInput): Promise<Message> {
   return currentMessages().appendMediaMessage(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function appendStaffTextMessage(input: AppendStaffTextMessageInput): Promise<Message> {
   return currentMessages().appendStaffTextMessage(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function appendCardReplyMessage(input: AppendCardReplyInput): Promise<Message> {
   return currentMessages().appendCardReplyMessage(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function list(conversationId: string, opts?: { limit?: number; since?: Date }): Promise<Message[]> {
   return currentMessages().list(conversationId, opts)
 }

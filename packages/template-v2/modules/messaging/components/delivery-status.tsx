@@ -48,7 +48,7 @@ export function DeliveryStatus({ status, failureReason, className }: DeliverySta
           </span>
         </TooltipTrigger>
         <TooltipContent>
-          <p className="capitalize text-xs">{status}</p>
+          <p className="text-xs capitalize">{status}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

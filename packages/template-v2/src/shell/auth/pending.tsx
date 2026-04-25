@@ -41,8 +41,8 @@ export function PendingPage() {
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 px-4">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-tight">Check your email</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="font-semibold text-xl tracking-tight">Check your email</h1>
+          <p className="text-muted-foreground text-sm">
             We sent a 6-digit code to <span className="font-medium text-foreground">{email || 'your email'}</span>.
           </p>
         </div>
@@ -57,12 +57,12 @@ export function PendingPage() {
           </InputOTP>
         </div>
         {verifyOtp.error && (
-          <p className="text-center text-sm text-destructive">
+          <p className="text-center text-destructive text-sm">
             {verifyOtp.error instanceof Error ? verifyOtp.error.message : 'Invalid or expired code. Try again.'}
           </p>
         )}
-        {sendOtp.isSuccess && <p className="text-center text-sm text-muted-foreground">Code resent.</p>}
-        <p className="text-center text-sm text-muted-foreground">
+        {sendOtp.isSuccess && <p className="text-center text-muted-foreground text-sm">Code resent.</p>}
+        <p className="text-center text-muted-foreground text-sm">
           Didn&apos;t receive it?{' '}
           <button
             type="button"

@@ -83,7 +83,7 @@ export function PrincipalAvatar({
   return (
     <span
       className={cn(
-        'inline-flex items-center justify-center rounded-full shrink-0',
+        'inline-flex shrink-0 items-center justify-center rounded-full',
         AVATAR_SIZE[size],
         ring,
         className,
@@ -108,7 +108,7 @@ export function PrincipalChip({
   return (
     <span className={cn('inline-flex items-center gap-1.5', className)}>
       <PrincipalAvatar kind={principal.kind} size={size} />
-      <span className="font-medium truncate">{principal.name}</span>
+      <span className="truncate font-medium">{principal.name}</span>
     </span>
   )
 }

@@ -16,6 +16,13 @@
  * `grep`, `ingestUpload`, `saveInboundMessageAttachment`, `deleteScope` remain
  * stubbed — covered by later slices.
  */
+
+import { agentDefinitions } from '@modules/agents/schema'
+import { contacts } from '@modules/contacts/schema'
+import { driveFiles } from '@modules/drive/schema'
+import { staffProfiles } from '@modules/team/schema'
+import { and, eq, isNull } from 'drizzle-orm'
+
 import type { DriveFile } from '../schema'
 import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInput } from './types'
 
@@ -204,8 +211,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   ): Promise<string> {
     if (backingScope === 'contact') {
       if (field !== 'profile' && field !== 'notes') return ''
-      const { contacts } = await import('@modules/contacts/schema')
-      const { and, eq } = await import('drizzle-orm')
       const rows = await db
         .select({ profile: contacts.profile, notes: contacts.notes })
         .from(contacts)
@@ -217,8 +222,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     }
     if (backingScope === 'staff') {
       if (field !== 'profile' && field !== 'notes') return ''
-      const { staffProfiles } = await import('@modules/team/schema')
-      const { and, eq } = await import('drizzle-orm')
       const rows = await db
         .select({ profile: staffProfiles.profile, notes: staffProfiles.notes })
         .from(staffProfiles)
@@ -230,8 +233,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     }
     // agent
     if (field !== 'instructions' && field !== 'memory') return ''
-    const { agentDefinitions } = await import('@modules/agents/schema')
-    const { and, eq } = await import('drizzle-orm')
     const rows = await db
       .select({ instructions: agentDefinitions.instructions, workingMemory: agentDefinitions.workingMemory })
       .from(agentDefinitions)
@@ -250,8 +251,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   ): Promise<void> {
     if (backingScope === 'contact') {
       if (field !== 'profile' && field !== 'notes') return
-      const { contacts } = await import('@modules/contacts/schema')
-      const { and, eq } = await import('drizzle-orm')
       await db
         .update(contacts)
         .set({ [field]: value })
@@ -260,8 +259,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     }
     if (backingScope === 'staff') {
       if (field !== 'profile' && field !== 'notes') return
-      const { staffProfiles } = await import('@modules/team/schema')
-      const { and, eq } = await import('drizzle-orm')
       await db
         .update(staffProfiles)
         .set({ [field]: value })
@@ -270,8 +267,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     }
     // agent
     if (field !== 'instructions' && field !== 'memory') return
-    const { agentDefinitions } = await import('@modules/agents/schema')
-    const { and, eq } = await import('drizzle-orm')
     const column = field === 'instructions' ? 'instructions' : 'workingMemory'
     await db
       .update(agentDefinitions)
@@ -287,8 +282,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   }
 
   async function getByPath(scope: DriveScope, path: string): Promise<DriveFile | null> {
-    const { driveFiles } = await import('@modules/drive/schema')
-    const { eq, and } = await import('drizzle-orm')
     const { scopeName, scopeIdVal } = scopeId(scope)
 
     const rows = await db
@@ -307,8 +300,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   }
 
   async function listFolder(scope: DriveScope, parentId: string | null): Promise<DriveFile[]> {
-    const { driveFiles } = await import('@modules/drive/schema')
-    const { eq, and, isNull } = await import('drizzle-orm')
     const { scopeName, scopeIdVal } = scopeId(scope)
 
     const rows = (await db
@@ -353,8 +344,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
       const body = await readVirtualColumn(backingScope, scopeIdVal, field)
       return { content: composeVirtualContent(field, body, backingScope) }
     }
-    const { driveFiles } = await import('@modules/drive/schema')
-    const { eq } = await import('drizzle-orm')
 
     const rows = await db.select().from(driveFiles).where(eq(driveFiles.id, id)).limit(1)
     const row = rows[0] as DriveFile | undefined
@@ -396,8 +385,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     }
     // Real drive file: create-or-update at the path.
     const existing = await getByPath(scope, path)
-    const { driveFiles } = await import('@modules/drive/schema')
-    const { eq } = await import('drizzle-orm')
 
     if (existing) {
       const rows = (await db
@@ -425,8 +412,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   }
 
   async function get(id: string): Promise<DriveFile | null> {
-    const { driveFiles } = await import('@modules/drive/schema')
-    const { eq, and } = await import('drizzle-orm')
     const rows = await db
       .select()
       .from(driveFiles)
@@ -445,7 +430,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   }
 
   async function create(scope: DriveScope, input: CreateFileInput): Promise<DriveFile> {
-    const { driveFiles } = await import('@modules/drive/schema')
     const { scopeName, scopeIdVal } = scopeId(scope)
     const parentFolderId =
       input.parentFolderId === undefined ? await resolveParentFolderId(scope, input.path) : input.parentFolderId
@@ -501,8 +485,6 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
             ? { scope: 'agent', agentId: current.scopeId }
             : { scope: 'contact', contactId: current.scopeId }
     const parentFolderId = await resolveParentFolderId(scope, newPath)
-    const { driveFiles } = await import('@modules/drive/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db
       .update(driveFiles)
       .set({ path: newPath, name: basenameOf(newPath), parentFolderId })
@@ -514,23 +496,25 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   }
 
   async function remove(id: string): Promise<void> {
-    const { driveFiles } = await import('@modules/drive/schema')
-    const { eq, and } = await import('drizzle-orm')
     await db.delete(driveFiles).where(and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.id, id)))
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function grep(_scope: DriveScope, _pattern: string, _opts?: GrepOpts): Promise<GrepMatch[]> {
     throw new Error('not-implemented-in-phase-1: drive/files.grep')
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function ingestUpload(_input: IngestUploadInput): Promise<DriveFile> {
     throw new Error('not-implemented-in-phase-1: drive/files.ingestUpload')
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function saveInboundMessageAttachment(_msgId: string, _targetPath?: string): Promise<DriveFile> {
     throw new Error('not-implemented-in-phase-1: drive/files.saveInboundMessageAttachment')
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function deleteScope(_scope: 'contact' | 'staff', _scopeId: string): Promise<void> {
     throw new Error('not-implemented-in-phase-1: drive/files.deleteScope')
   }

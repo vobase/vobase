@@ -47,7 +47,7 @@ export function NavUser() {
             className="flex size-10 items-center justify-center rounded-md transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent"
           >
             <Avatar className="size-7">
-              <AvatarFallback className="text-xs font-medium">{initials}</AvatarFallback>
+              <AvatarFallback className="font-medium text-xs">{initials}</AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>
@@ -59,7 +59,7 @@ export function NavUser() {
               </Avatar>
               <div className="grid flex-1 text-start leading-tight">
                 <span className="truncate font-semibold">{displayName}</span>
-                {email && name && <span className="truncate text-xs text-muted-foreground">{email}</span>}
+                {email && name && <span className="truncate text-muted-foreground text-xs">{email}</span>}
               </div>
             </div>
           </DropdownMenuLabel>

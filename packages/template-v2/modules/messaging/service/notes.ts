@@ -7,6 +7,9 @@
  * free-function wrappers below (which preserve the existing import surface).
  */
 
+import { internalNotes } from '@modules/messaging/schema'
+import { asc, eq } from 'drizzle-orm'
+
 import type { InternalNote } from '../schema'
 import type { AddNoteInput } from './types'
 
@@ -36,7 +39,6 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
   const db = deps.db as NotesDb
 
   async function addNote(input: AddNoteInput): Promise<InternalNote> {
-    const { internalNotes } = await import('@modules/messaging/schema')
     const rows = await db
       .insert(internalNotes)
       .values({
@@ -55,8 +57,6 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
   }
 
   async function listNotes(conversationId: string): Promise<InternalNote[]> {
-    const { internalNotes } = await import('@modules/messaging/schema')
-    const { asc, eq } = await import('drizzle-orm')
     const rows = await db
       .select()
       .from(internalNotes)
@@ -85,10 +85,12 @@ function current(): NotesService {
   return _currentNotesService
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function addNote(input: AddNoteInput): Promise<InternalNote> {
   return current().addNote(input)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function listNotes(conversationId: string): Promise<InternalNote[]> {
   return current().listNotes(conversationId)
 }

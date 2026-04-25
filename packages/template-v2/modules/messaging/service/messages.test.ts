@@ -3,8 +3,11 @@
  * Stubs the DB to avoid a real Postgres connection.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
+import * as core from '@vobase/core'
 
 import type { Message } from '../schema'
+import * as mod from './messages'
+import { appendCardReplyMessage, createMessagesService, installMessagesService } from './messages'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -58,6 +61,7 @@ function makeTxInsert(returnRow: unknown) {
 function makeDb(parentRows: unknown[], replyRow: unknown): unknown {
   return {
     select: () => makeSelectDb(parentRows),
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       const fakeTx = {
         insert: makeTxInsert(replyRow),
@@ -78,18 +82,15 @@ function makeJournalDb() {
   }
 }
 
+// biome-ignore lint/suspicious/useAwait: test setup may invoke async helpers
 beforeEach(async () => {
-  const mod = await import('./messages')
   mod.installMessagesService(mod.createMessagesService({ db: makeDb([fakeParent], fakeReplyRow) }))
 
-  const core = await import('@vobase/core')
   core.setJournalDb(makeJournalDb())
 })
 
 describe('appendCardReplyMessage', () => {
   it('returns Message with kind card_reply', async () => {
-    const { appendCardReplyMessage } = await import('./messages')
-
     const result = (await appendCardReplyMessage({
       parentMessageId: 'parent-card-1',
       buttonId: 'btn-yes',
@@ -104,8 +105,6 @@ describe('appendCardReplyMessage', () => {
   })
 
   it('inserts message inside transaction with correct content shape', async () => {
-    const { appendCardReplyMessage, createMessagesService, installMessagesService } = await import('./messages')
-
     let capturedKind: unknown
     let capturedRole: unknown
     let capturedContent: unknown
@@ -115,6 +114,7 @@ describe('appendCardReplyMessage', () => {
       createMessagesService({
         db: {
           select: () => makeSelectDb([fakeParent]),
+          // biome-ignore lint/suspicious/useAwait: contract requires async signature
           transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
             const fakeTx = {
               select: () => makeSelectDb([fakeParent]),
@@ -150,8 +150,6 @@ describe('appendCardReplyMessage', () => {
   })
 
   it('throws when parent message not found', async () => {
-    const { appendCardReplyMessage, createMessagesService, installMessagesService } = await import('./messages')
-
     installMessagesService(
       createMessagesService({
         db: {

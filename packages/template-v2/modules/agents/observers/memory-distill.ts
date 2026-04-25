@@ -7,6 +7,7 @@
  * provider is wired.
  */
 
+import { agentDefinitions, learningProposals } from '@modules/agents/schema'
 import {
   readNotes as readContactNotes,
   upsertNotesSection as upsertContactNotesSection,
@@ -15,6 +16,7 @@ import { readNotes as readStaffNotes, upsertNotesSection as upsertStaffNotesSect
 import type { AgentEvent, LearningRejectedEvent } from '@server/events'
 import { llmCall as harnessLlmCall, type LlmEmitter } from '@server/harness/llm-call'
 import { getDb, getLogger } from '@server/services'
+import { eq, inArray } from 'drizzle-orm'
 
 import { callMemoryDistill, type DistilledSection } from '../llm-prompts/memory-distill'
 
@@ -66,6 +68,7 @@ function targetKey(t: DistillTarget): string {
   return t.kind === 'contact' ? `contact:${t.contactId}` : `staff:${t.userId}`
 }
 
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
 async function readTargetNotes(t: DistillTarget): Promise<string> {
   return t.kind === 'contact' ? readContactNotes(t.contactId) : readStaffNotes(t.userId)
 }
@@ -165,9 +168,6 @@ async function readMemorySafe(target: DistillTarget): Promise<string> {
 }
 
 async function writeAntiLessons(agentId: string, rejections: LearningRejectedEvent[]): Promise<void> {
-  const { agentDefinitions, learningProposals } = await import('@modules/agents/schema')
-  const { eq, inArray } = await import('drizzle-orm')
-
   const db = getDb()
   const proposalIds = rejections.map((r) => r.proposalId)
 

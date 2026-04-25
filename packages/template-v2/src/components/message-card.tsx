@@ -83,10 +83,10 @@ function CardChildNode({
     case 'text':
       return (
         <p
-          className={cn('text-foreground break-words', {
-            'text-sm font-semibold': child.style === 'bold',
+          className={cn('break-words text-foreground', {
+            'font-semibold text-sm': child.style === 'bold',
             'text-sm': child.style === 'plain' || !child.style,
-            'text-xs text-muted-foreground': child.style === 'muted',
+            'text-muted-foreground text-xs': child.style === 'muted',
           })}
         >
           {child.content}
@@ -95,10 +95,10 @@ function CardChildNode({
 
     case 'image':
       if (child.url) {
-        return <img src={child.url} alt={child.alt ?? ''} className="max-w-full h-auto rounded object-cover" />
+        return <img src={child.url} alt={child.alt ?? ''} className="h-auto max-w-full rounded object-cover" />
       }
       return (
-        <div className="h-14 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
+        <div className="flex h-14 items-center justify-center rounded bg-muted text-muted-foreground text-xs">
           {child.alt ?? 'Image'}
         </div>
       )
@@ -118,7 +118,7 @@ function CardChildNode({
           href={child.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-primary underline underline-offset-2 hover:opacity-80"
+          className="text-primary text-xs underline underline-offset-2 hover:opacity-80"
         >
           {child.label}
         </a>
@@ -131,8 +131,8 @@ function CardChildNode({
 
 function renderCard(card: CardElement, message: Message) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3 space-y-2 min-w-[220px] max-w-full">
-      {card.title && <p className="text-sm font-semibold text-foreground">{card.title}</p>}
+    <div className="min-w-[220px] max-w-full space-y-2 rounded-lg border border-border bg-card p-3">
+      {card.title && <p className="font-semibold text-foreground text-sm">{card.title}</p>}
       {card.children?.map((child, i) => (
         <CardChildNode
           // biome-ignore lint/suspicious/noArrayIndexKey: card children have no stable id
@@ -147,7 +147,7 @@ function renderCard(card: CardElement, message: Message) {
 }
 
 export function MessageCard({ message, parentMessage }: { message: Message; parentMessage?: Message }) {
-  const bubbleBase = cn('rounded-lg px-3 py-2 text-sm max-w-full break-words')
+  const bubbleBase = cn('max-w-full break-words rounded-lg px-3 py-2 text-sm')
 
   if (message.kind === 'text') {
     const content = message.content as TextContent
@@ -168,7 +168,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
     if (content.card) return renderCard(content.card, message)
     return (
       <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-        <pre className="text-mini text-muted-foreground overflow-auto max-h-32">
+        <pre className="max-h-32 overflow-auto text-mini text-muted-foreground">
           {JSON.stringify(message.content, null, 2)}
         </pre>
       </div>
@@ -180,9 +180,9 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
     const parentTitle = (parentMessage?.content as CardContent | undefined)?.card?.title
 
     return (
-      <div className={cn(bubbleBase, 'bg-muted text-foreground border border-border/50')}>
-        {parentTitle && <p className="text-2xs text-muted-foreground mb-0.5">↳ {parentTitle}</p>}
-        <p className="text-sm font-medium">{content.buttonLabel ?? content.buttonValue ?? content.buttonId ?? '—'}</p>
+      <div className={cn(bubbleBase, 'border border-border/50 bg-muted text-foreground')}>
+        {parentTitle && <p className="mb-0.5 text-2xs text-muted-foreground">↳ {parentTitle}</p>}
+        <p className="font-medium text-sm">{content.buttonLabel ?? content.buttonValue ?? content.buttonId ?? '—'}</p>
       </div>
     )
   }
@@ -190,7 +190,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
   if (message.kind === 'image') {
     const content = message.content as ImageContent
     return (
-      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
         <span className="text-xs">📎 {content.caption ?? content.driveFileId ?? 'Image'}</span>
       </div>
     )
@@ -198,7 +198,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
 
   return (
     <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-      <pre className="text-mini text-muted-foreground overflow-auto max-h-32">
+      <pre className="max-h-32 overflow-auto text-mini text-muted-foreground">
         {JSON.stringify(message.content, null, 2)}
       </pre>
     </div>

@@ -9,6 +9,7 @@ const CTX: CommandContext = {
   agentId: 'a',
   contactId: 'k',
   async writeWorkspace() {},
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async readWorkspace() {
     return ''
   },

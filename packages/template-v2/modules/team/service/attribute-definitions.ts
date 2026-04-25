@@ -7,6 +7,9 @@
  * (no polymorphic abstraction).
  */
 
+import { staffAttributeDefinitions } from '@modules/team/schema'
+import { asc, eq } from 'drizzle-orm'
+
 import type { AttributeType, StaffAttributeDefinition } from '../schema'
 
 export interface CreateStaffAttrDefInput {
@@ -42,8 +45,6 @@ export function createStaffAttrDefService(deps: Deps): StaffAttrDefService {
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
 
   async function list(organizationId: string): Promise<StaffAttributeDefinition[]> {
-    const { staffAttributeDefinitions } = await import('@modules/team/schema')
-    const { eq, asc } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(staffAttributeDefinitions)
@@ -53,7 +54,6 @@ export function createStaffAttrDefService(deps: Deps): StaffAttrDefService {
   }
 
   async function create(input: CreateStaffAttrDefInput): Promise<StaffAttributeDefinition> {
-    const { staffAttributeDefinitions } = await import('@modules/team/schema')
     const rows = (await db
       .insert(staffAttributeDefinitions)
       .values({
@@ -72,8 +72,6 @@ export function createStaffAttrDefService(deps: Deps): StaffAttrDefService {
   }
 
   async function update(id: string, patch: UpdateStaffAttrDefInput): Promise<StaffAttributeDefinition> {
-    const { staffAttributeDefinitions } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db
       .update(staffAttributeDefinitions)
       .set(patch)
@@ -85,8 +83,6 @@ export function createStaffAttrDefService(deps: Deps): StaffAttrDefService {
   }
 
   async function remove(id: string): Promise<void> {
-    const { staffAttributeDefinitions } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     await db.delete(staffAttributeDefinitions).where(eq(staffAttributeDefinitions.id, id))
   }
 

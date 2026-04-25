@@ -171,14 +171,14 @@ export function setDb(db: unknown): void {
   installJournalService(createJournalService({ db }))
 }
 
-export async function append<E extends JournalEventLike>(input: JournalAppendInput<E>, tx?: Tx): Promise<void> {
+export function append<E extends JournalEventLike>(input: JournalAppendInput<E>, tx?: Tx): Promise<void> {
   return current().append(input, tx)
 }
 
-export async function getLastWakeTail(conversationId: string): Promise<{ interrupted: boolean }> {
+export function getLastWakeTail(conversationId: string): Promise<{ interrupted: boolean }> {
   return current().getLastWakeTail(conversationId)
 }
 
-export async function getLatestTurnIndex(conversationId: string, tx?: Tx): Promise<number> {
+export function getLatestTurnIndex(conversationId: string, tx?: Tx): Promise<number> {
   return current().getLatestTurnIndex(conversationId, tx)
 }

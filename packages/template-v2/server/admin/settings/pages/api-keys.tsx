@@ -25,12 +25,12 @@ export default function ApiKeysPage() {
   return (
     <div className="max-w-lg space-y-6 p-6">
       <div>
-        <h2 className="text-lg font-semibold">API keys</h2>
-        <p className="text-sm text-muted-foreground">Manage API keys for programmatic access.</p>
+        <h2 className="font-semibold text-lg">API keys</h2>
+        <p className="text-muted-foreground text-sm">Manage API keys for programmatic access.</p>
       </div>
-      <div className="rounded-lg border p-4 text-sm text-muted-foreground">No API keys yet.</div>
+      <div className="rounded-lg border p-4 text-muted-foreground text-sm">No API keys yet.</div>
       <div>
-        <h3 className="mb-3 text-sm font-medium">Create new key</h3>
+        <h3 className="mb-3 font-medium text-sm">Create new key</h3>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField

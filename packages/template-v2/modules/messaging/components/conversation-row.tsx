@@ -58,17 +58,17 @@ function ConversationRow({
         }
       }}
       className={cn(
-        'group flex w-full cursor-default items-start gap-2 px-3 py-2 text-left transition-colors border-l-2',
+        'group flex w-full cursor-default items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors',
         'hover:bg-[var(--color-surface)]/70',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-accent)]',
-        isSelected ? 'bg-primary/10 border-primary' : 'border-transparent',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-[-2px]',
+        isSelected ? 'border-primary bg-primary/10' : 'border-transparent',
       )}
     >
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
-              'flex-1 truncate text-sm tracking-tight text-[var(--color-fg)]',
+              'flex-1 truncate text-[var(--color-fg)] text-sm tracking-tight',
               isBold ? 'font-medium' : 'font-normal',
             )}
           >
@@ -87,7 +87,7 @@ function ConversationRow({
           ) : null}
           {isSnoozed && conv.snoozedUntil ? (
             <span
-              className="flex shrink-0 items-center gap-0.5 text-mini text-[var(--color-fg-muted)] whitespace-nowrap"
+              className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[var(--color-fg-muted)] text-mini"
               data-testid="conversation-row-snoozed"
               title="Snoozed"
             >
@@ -95,13 +95,13 @@ function ConversationRow({
               <RelativeTimeCard date={new Date(conv.snoozedUntil)} length="short" />
             </span>
           ) : conv.lastMessageAt ? (
-            <span className="shrink-0 text-mini text-[var(--color-fg-muted)] whitespace-nowrap">
+            <span className="shrink-0 whitespace-nowrap text-[var(--color-fg-muted)] text-mini">
               <RelativeTimeCard date={new Date(conv.lastMessageAt)} length="short" />
             </span>
           ) : null}
         </div>
 
-        <p className="truncate text-xs text-[var(--color-fg-muted)]">
+        <p className="truncate text-[var(--color-fg-muted)] text-xs">
           {preview ? (
             <>
               {prefix && <span className="text-[var(--color-fg-muted)]/70">{prefix}</span>}

@@ -36,6 +36,7 @@ export function connectTestDb(): TestDbHandle {
  * (contacts → messaging → agents → drive) + extras (FKs, UNLOGGED, pg_trgm) stay in
  * sync with the canonical pipeline.
  */
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function resetAndSeedDb(): Promise<void> {
   const cwd = `${import.meta.dir}/../..`
   const result = Bun.spawnSync(['bun', 'run', 'db:reset'], {

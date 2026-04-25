@@ -3,6 +3,9 @@
  * All other methods throw not-implemented-in-phase-1.
  */
 
+import { contacts, staffChannelBindings } from '@modules/contacts/schema'
+import { and, eq, or } from 'drizzle-orm'
+
 import type { Contact, StaffBinding } from '../schema'
 
 export interface UpsertByExternalInput {
@@ -56,8 +59,6 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   const db = deps.db as { select: Function; insert: Function; update: Function }
 
   async function get(id: string): Promise<Contact> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1)
     const row = rows[0]
     if (!row) throw new Error(`contact not found: ${id}`)
@@ -65,15 +66,11 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   }
 
   async function list(organizationId: string): Promise<Contact[]> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db.select().from(contacts).where(eq(contacts.organizationId, organizationId))) as unknown[]
     return rows as Contact[]
   }
 
   async function getByPhone(organizationId: string, phone: string): Promise<Contact | null> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { and, eq } = await import('drizzle-orm')
     const rows = await db
       .select()
       .from(contacts)
@@ -83,8 +80,6 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   }
 
   async function getByEmail(organizationId: string, email: string): Promise<Contact | null> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { and, eq } = await import('drizzle-orm')
     const rows = await db
       .select()
       .from(contacts)
@@ -94,9 +89,6 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   }
 
   async function upsertByExternal(input: UpsertByExternalInput): Promise<Contact> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { and, eq, or } = await import('drizzle-orm')
-
     const conditions = []
     if (input.phone) conditions.push(eq(contacts.phone, input.phone))
     if (input.email) conditions.push(eq(contacts.email, input.email))
@@ -130,8 +122,6 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     channelInstanceId: string,
     externalIdentifier: string,
   ): Promise<StaffBinding | null> {
-    const { staffChannelBindings } = await import('@modules/contacts/schema')
-    const { and, eq } = await import('drizzle-orm')
     const rows = await db
       .select()
       .from(staffChannelBindings)
@@ -146,8 +136,6 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   }
 
   async function readNotes(id: string): Promise<string> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = await db.select({ notes: contacts.notes }).from(contacts).where(eq(contacts.id, id)).limit(1)
     const row = rows[0]
     if (!row) throw new Error(`contact not found: ${id}`)
@@ -155,8 +143,6 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   }
 
   async function writeNotes(id: string, value: string): Promise<void> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { eq } = await import('drizzle-orm')
     await db.update(contacts).set({ notes: value }).where(eq(contacts.id, id))
   }
 
@@ -179,7 +165,6 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   }
 
   async function create(input: CreateContactInput): Promise<Contact> {
-    const { contacts } = await import('@modules/contacts/schema')
     const rows = (await db
       .insert(contacts)
       .values({
@@ -198,8 +183,6 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   }
 
   async function update(id: string, patch: UpdateContactInput): Promise<Contact> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { eq } = await import('drizzle-orm')
     const set: Record<string, unknown> = {}
     if (patch.displayName !== undefined) set.displayName = patch.displayName
     if (patch.email !== undefined) set.email = patch.email
@@ -223,6 +206,7 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     await update(id, { marketingOptOut: value })
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function bindStaff(
     _userId: string,
     _channelInstanceId: string,
@@ -231,6 +215,7 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     throw new Error('not-implemented-in-phase-1: contacts/bindStaff')
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function remove(_id: string): Promise<void> {
     throw new Error('not-implemented-in-phase-1: contacts/remove')
   }

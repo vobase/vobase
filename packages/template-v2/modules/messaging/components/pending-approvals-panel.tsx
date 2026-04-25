@@ -28,7 +28,7 @@ export function PendingApprovalsPanel({ conversationId }: PendingApprovalsPanelP
   return (
     <div className="p-4">
       <div className="mb-3 flex items-center gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">Pending Approvals</p>
+        <p className="font-semibold text-[var(--color-fg-muted)] text-xs uppercase tracking-wider">Pending Approvals</p>
         <Status variant="awaiting_approval" label="" />
       </div>
 
@@ -43,8 +43,8 @@ export function PendingApprovalsPanel({ conversationId }: PendingApprovalsPanelP
         <ul className="space-y-3">
           {approvals.map((approval) => (
             <li key={approval.id} className="rounded-md border border-[var(--color-border-subtle)] p-3">
-              <p className="mb-1 font-mono text-xs font-semibold text-[var(--color-fg)]">{approval.toolName}</p>
-              <pre className="mb-2 max-h-20 overflow-auto whitespace-pre-wrap break-all rounded bg-[var(--color-surface)] p-1.5 text-xs text-[var(--color-fg-muted)]">
+              <p className="mb-1 font-mono font-semibold text-[var(--color-fg)] text-xs">{approval.toolName}</p>
+              <pre className="mb-2 max-h-20 overflow-auto whitespace-pre-wrap break-all rounded bg-[var(--color-surface)] p-1.5 text-[var(--color-fg-muted)] text-xs">
                 {JSON.stringify(approval.toolArgs, null, 2)}
               </pre>
               <div className="flex gap-2">

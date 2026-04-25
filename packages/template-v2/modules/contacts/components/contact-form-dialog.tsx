@@ -119,18 +119,18 @@ export function ContactFormDialog({ open, onOpenChange, contact, onSave, isPendi
               onChange={(e) => setSegments(e.target.value)}
               placeholder="pro-plan, long-term"
             />
-            <p className="text-xs text-muted-foreground">Comma separated. Used for filtering and campaigns.</p>
+            <p className="text-muted-foreground text-xs">Comma separated. Used for filtering and campaigns.</p>
           </div>
           <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
             <div className="space-y-0.5">
-              <Label htmlFor="contact-optout" className="text-sm font-normal">
+              <Label htmlFor="contact-optout" className="font-normal text-sm">
                 Marketing opt-out
               </Label>
-              <p className="text-xs text-muted-foreground">Exclude from broadcasts and campaigns.</p>
+              <p className="text-muted-foreground text-xs">Exclude from broadcasts and campaigns.</p>
             </div>
             <Switch id="contact-optout" checked={marketingOptOut} onCheckedChange={setMarketingOptOut} />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-sm">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>

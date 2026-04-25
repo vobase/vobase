@@ -15,6 +15,11 @@
  * bound API; `installAgentDefinitionsService(svc)` wires the module-scoped handle
  * used by the free-function wrappers. `setDb(db)` remains as a compatibility shim.
  */
+
+import { agentDefinitions } from '@modules/agents/schema'
+import { conversations } from '@modules/messaging/schema'
+import { asc, eq } from 'drizzle-orm'
+
 import { DEFAULT_CHAT_MODEL, MODEL_OPTIONS } from '../lib/models'
 import type { AgentDefinition } from '../schema'
 
@@ -83,8 +88,6 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
 
   async function getById(id: string): Promise<AgentDefinition> {
-    const { agentDefinitions } = await import('@modules/agents/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = await db.select().from(agentDefinitions).where(eq(agentDefinitions.id, id)).limit(1)
     const row = rows[0]
     if (!row) throw new Error(`agent definition not found: ${id}`)
@@ -92,7 +95,6 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
   }
 
   async function create(input: CreateAgentInput): Promise<AgentDefinition> {
-    const { agentDefinitions } = await import('@modules/agents/schema')
     const rows = (await db
       .insert(agentDefinitions)
       .values({
@@ -110,8 +112,6 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
   }
 
   async function update(id: string, patch: UpdateAgentInput): Promise<AgentDefinition> {
-    const { agentDefinitions } = await import('@modules/agents/schema')
-    const { eq } = await import('drizzle-orm')
     const set: Record<string, unknown> = {}
     if (patch.name !== undefined) set.name = patch.name
     if (patch.model !== undefined) set.model = patch.model
@@ -130,14 +130,10 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
   }
 
   async function remove(id: string): Promise<void> {
-    const { agentDefinitions } = await import('@modules/agents/schema')
-    const { eq } = await import('drizzle-orm')
     await db.delete(agentDefinitions).where(eq(agentDefinitions.id, id))
   }
 
   async function list(organizationId: string): Promise<AgentDefinition[]> {
-    const { agentDefinitions } = await import('@modules/agents/schema')
-    const { asc, eq } = await import('drizzle-orm')
     const rows = await db
       .select()
       .from(agentDefinitions)
@@ -150,10 +146,6 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
     conversationId: string,
     requestingOrganizationId: string,
   ): Promise<{ memory: string | null } | null> {
-    const { conversations } = await import('@modules/messaging/schema')
-    const { agentDefinitions } = await import('@modules/agents/schema')
-    const { eq } = await import('drizzle-orm')
-
     const convRows = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1)
     const conv = convRows[0] as { organizationId: string; assignee: string } | undefined
     if (!conv || conv.organizationId !== requestingOrganizationId) return null
@@ -195,26 +187,32 @@ export function setDb(db: unknown): void {
   installAgentDefinitionsService(createAgentDefinitionsService({ db }))
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function getById(id: string): Promise<AgentDefinition> {
   return current().getById(id)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function create(input: CreateAgentInput): Promise<AgentDefinition> {
   return current().create(input)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function update(id: string, input: UpdateAgentInput): Promise<AgentDefinition> {
   return current().update(id, input)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function remove(id: string): Promise<void> {
   return current().remove(id)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function list(organizationId: string): Promise<AgentDefinition[]> {
   return current().list(organizationId)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function getConversationWorkingMemory(
   conversationId: string,
   requestingOrganizationId: string,

@@ -79,7 +79,7 @@ describe('createLocalAdapter (smoke)', () => {
     await expect(adapter.download('never/uploaded.bin')).rejects.toThrow(/not found/i)
   })
 
-  it('presign() returns the baseUrl-prefixed proxy path', async () => {
+  it('presign() returns the baseUrl-prefixed proxy path', () => {
     const adapter = createLocalAdapter({ basePath: baseDir, baseUrl: '/files' })
     expect(adapter.presign('x/y.pdf', { method: 'GET' })).toBe('/files/x/y.pdf')
   })

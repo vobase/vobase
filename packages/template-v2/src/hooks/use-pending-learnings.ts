@@ -1,10 +1,15 @@
 import type { LearningProposal } from '@modules/agents/schema'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { agentsClient, driveClient } from '@/lib/api-client'
+import { hydrateLearningProposal } from '@/lib/rpc-utils'
+
 export async function fetchPendingLearnings(): Promise<LearningProposal[]> {
-  const res = await fetch('/api/agents/learnings')
+  const res = await agentsClient.learnings.$get()
   if (!res.ok) throw new Error('Failed to fetch pending learnings')
-  return res.json() as Promise<LearningProposal[]>
+  const body = await res.json()
+  if (!Array.isArray(body)) throw new Error('Failed to fetch pending learnings')
+  return body.map(hydrateLearningProposal)
 }
 
 export interface DecideLearningParams {
@@ -15,20 +20,20 @@ export interface DecideLearningParams {
 }
 
 export async function decideLearning(params: DecideLearningParams): Promise<void> {
-  // agent_skill scope → POST /api/agents/skills/:id/decide
-  // drive_doc scope → POST /api/drive/proposals/:id/decide (Phase 2 drive module)
-  const url =
-    params.scope === 'drive_doc' ? `/api/drive/proposals/${params.id}/decide` : `/api/agents/skills/${params.id}/decide`
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      decision: params.decision,
-      decidedByUserId: 'staff:current',
-      note: params.note,
-    }),
+  const body = JSON.stringify({
+    decision: params.decision,
+    decidedByUserId: 'staff:current',
+    note: params.note,
   })
+  const init = { headers: { 'Content-Type': 'application/json' }, body }
+
+  // agent_skill scope → POST /api/agents/skills/:id/decide
+  // drive_doc scope  → POST /api/drive/proposals/:id/decide
+  const res =
+    params.scope === 'drive_doc'
+      ? await driveClient.proposals[':id'].decide.$post({ param: { id: params.id } }, { init })
+      : await agentsClient.skills[':id'].decide.$post({ param: { id: params.id } }, { init })
+
   if (!res.ok) {
     const err = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error?: string }
     throw new Error(err.error ?? 'Decision failed')

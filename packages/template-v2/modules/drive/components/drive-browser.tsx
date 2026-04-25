@@ -23,7 +23,7 @@ export function DriveBrowser() {
         gridTemplateColumns: showPreview ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
       }}
     >
-      <section className="min-h-0 overflow-hidden border-r border-border">
+      <section className="min-h-0 overflow-hidden border-border border-r">
         <DriveFileList />
       </section>
       {showPreview && (

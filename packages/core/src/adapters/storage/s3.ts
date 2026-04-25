@@ -42,6 +42,7 @@ export function createS3Adapter(config: S3AdapterConfig): StorageAdapter {
       await file.delete()
     },
 
+    // biome-ignore lint/suspicious/useAwait: StorageAdapter contract requires async signature
     async exists(fullKey) {
       const file = client.file(fullKey)
       return file.exists()
@@ -54,6 +55,7 @@ export function createS3Adapter(config: S3AdapterConfig): StorageAdapter {
       })
     },
 
+    // biome-ignore lint/suspicious/useAwait: StorageAdapter contract requires async signature
     async list(prefix, opts) {
       // Bun's S3Client doesn't have a native list API — use the S3 ListObjectsV2 REST API
       const limit = opts?.limit ?? 100

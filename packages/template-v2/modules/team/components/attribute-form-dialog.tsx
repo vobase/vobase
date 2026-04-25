@@ -127,7 +127,7 @@ export function AttributeFormDialog({ open, onOpenChange, attribute, onSave, isP
               disabled={isEdit}
               className={isEdit ? 'opacity-60' : ''}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {isEdit ? 'Key cannot be changed.' : 'Auto-filled from name. Used in exports and APIs.'}
             </p>
           </div>
@@ -155,7 +155,7 @@ export function AttributeFormDialog({ open, onOpenChange, attribute, onSave, isP
                 onChange={(e) => setOptions(e.target.value)}
                 placeholder="engineering, support, billing"
               />
-              <p className="text-xs text-muted-foreground">Separate choices with commas.</p>
+              <p className="text-muted-foreground text-xs">Separate choices with commas.</p>
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -164,11 +164,11 @@ export function AttributeFormDialog({ open, onOpenChange, attribute, onSave, isP
               checked={showInTable}
               onCheckedChange={(checked) => setShowInTable(checked === true)}
             />
-            <Label htmlFor="staff-attr-show" className="cursor-pointer text-sm font-normal">
+            <Label htmlFor="staff-attr-show" className="cursor-pointer font-normal text-sm">
               Show as a column in the staff list
             </Label>
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-sm">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>

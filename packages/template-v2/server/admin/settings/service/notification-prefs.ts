@@ -3,6 +3,9 @@
  * first read so callers always get a concrete prefs object back.
  */
 
+import { userNotificationPrefs } from '@server/admin/settings/schema'
+import { eq } from 'drizzle-orm'
+
 import type { UserNotificationPrefs } from '../schema'
 
 interface PrefsDeps {
@@ -34,8 +37,6 @@ export function createNotificationPrefsService(deps: PrefsDeps): NotificationPre
   const db = deps.db as { select: Function; insert: Function }
 
   async function get(userId: string): Promise<UserNotificationPrefs> {
-    const { userNotificationPrefs } = await import('@server/admin/settings/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(userNotificationPrefs)
@@ -51,7 +52,6 @@ export function createNotificationPrefsService(deps: PrefsDeps): NotificationPre
   }
 
   async function upsert(userId: string, patch: NotificationPrefsPatch): Promise<UserNotificationPrefs> {
-    const { userNotificationPrefs } = await import('@server/admin/settings/schema')
     const values: Record<string, unknown> = { userId }
     const update: Record<string, unknown> = {}
     if (patch.mentionsEnabled !== undefined) {

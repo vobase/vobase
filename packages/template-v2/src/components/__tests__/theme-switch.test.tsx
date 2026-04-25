@@ -3,6 +3,8 @@ import { CheckIcon } from 'lucide-react'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
+import { THEME_OPTIONS, ThemeSwitch } from '../theme-switch'
+
 let mockTheme = 'system' as 'light' | 'dark' | 'system'
 let mockResolved = 'light' as 'light' | 'dark'
 const setThemeMock = mock((_t: string) => {})
@@ -11,8 +13,6 @@ mock.module('@/components/theme-provider', () => ({
   ThemeProvider: ({ children }: { children: unknown }) => children,
   useTheme: () => ({ theme: mockTheme, setTheme: setThemeMock, resolvedTheme: mockResolved }),
 }))
-
-const { ThemeSwitch, THEME_OPTIONS } = await import('../theme-switch')
 
 beforeEach(() => {
   mockTheme = 'system'

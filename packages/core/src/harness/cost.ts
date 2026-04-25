@@ -111,10 +111,10 @@ export function setCostDb(db: unknown): void {
   installCostService(createCostService({ db }))
 }
 
-export async function recordCostUsage(input: RecordCostInput, tx?: Tx): Promise<void> {
+export function recordCostUsage(input: RecordCostInput, tx?: Tx): Promise<void> {
   return current().recordCostUsage(input, tx)
 }
 
-export async function getDailySpend(organizationId: string): Promise<number> {
+export function getDailySpend(organizationId: string): Promise<number> {
   return current().getDailySpend(organizationId)
 }

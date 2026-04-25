@@ -28,6 +28,7 @@ describe('buildJobQueue', () => {
     const handlers = new Map<string, (data: unknown) => Promise<void>>([
       [
         'later',
+        // biome-ignore lint/suspicious/useAwait: contract requires async signature
         async () => {
           d.resolve()
         },

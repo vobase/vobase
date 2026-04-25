@@ -129,7 +129,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
               disabled={isEdit}
               className={isEdit ? 'opacity-60' : ''}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {isEdit ? 'User ID is immutable.' : 'Must match an existing organization member.'}
             </p>
           </div>
@@ -179,7 +179,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
               onChange={(e) => setLanguages(e.target.value)}
               placeholder="en, zh"
             />
-            <p className="text-xs text-muted-foreground">Separate with commas.</p>
+            <p className="text-muted-foreground text-xs">Separate with commas.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -218,11 +218,11 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
               onChange={(e) => setProfile(e.target.value)}
               placeholder="Narrative routing hints, language preferences, OOO schedule…"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Human-authored. Surfaced as <code>/PROFILE.md</code> in this staff member's Drive.
             </p>
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-sm">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>

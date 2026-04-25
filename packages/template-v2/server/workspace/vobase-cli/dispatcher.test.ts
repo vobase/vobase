@@ -8,6 +8,7 @@ function cmd(name: string, fn?: CommandDef['execute']): CommandDef {
   return {
     name,
     description: `${name} cmd`,
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async execute(argv, ctx) {
       if (fn) return fn(argv, ctx)
       return { ok: true, content: `${name} ${argv.join(',')}` }
@@ -21,11 +22,13 @@ const CTX: CommandContext = {
   agentId: 'a1',
   contactId: 'k1',
   async writeWorkspace() {},
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async readWorkspace() {
     return ''
   },
 }
 
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
 async function runBash(commands: readonly CommandDef[], line: string) {
   const bash = new Bash({ customCommands: [createVobaseCommand({ commands, ctx: CTX })] })
   return bash.exec(line)

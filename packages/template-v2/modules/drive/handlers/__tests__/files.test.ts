@@ -51,6 +51,7 @@ function makeDbStub(state: { files: DriveFile[] }): unknown {
     }),
     insert: () => ({
       values: (v: Record<string, unknown>) => ({
+        // biome-ignore lint/suspicious/useAwait: contract requires async signature
         returning: async () => {
           const row = makeFile({
             id: String(v.id ?? `f-${state.files.length + 1}`),
@@ -77,6 +78,7 @@ function makeDbStub(state: { files: DriveFile[] }): unknown {
       }),
     }),
     delete: () => ({
+      // biome-ignore lint/suspicious/useAwait: contract requires async signature
       where: async (_c: unknown) => {
         state.files = []
       },

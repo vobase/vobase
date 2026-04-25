@@ -13,6 +13,7 @@ import {
 import type { RealtimeService } from '@server/common/port-types'
 import type { ChannelOutboundEvent } from '@server/transports/events'
 
+import { handleOutbound } from '../handlers/outbound'
 import { createChannelWebState, installChannelWebState } from '../service/state'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -34,22 +35,27 @@ const fakeMessage: Message = {
 }
 
 function makeMessagesServiceStub(): MessagesService {
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   const notImplemented = async () => {
     throw new Error('outbound.test: messages-service method not stubbed')
   }
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     appendTextMessage: async (input) => {
       calls.push({ method: 'appendTextMessage', data: input })
       return fakeMessage
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     appendCardMessage: async (input) => {
       calls.push({ method: 'appendCardMessage', data: input })
       return fakeMessage
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     appendMediaMessage: async (input) => {
       calls.push({ method: 'appendMediaMessage', data: input })
       return fakeMessage
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     appendStaffTextMessage: async (input) => {
       calls.push({ method: 'appendStaffTextMessage', data: input })
       return fakeMessage
@@ -101,7 +107,6 @@ beforeEach(() => {
 
 describe('handleOutbound', () => {
   it('reply event — dispatches via appendTextMessage + notifies', async () => {
-    const { handleOutbound } = await import('../handlers/outbound')
     const event = makeEvent('reply', { text: 'Hello customer' })
     const ctx = makeCtx(event)
     const res = (await handleOutbound(ctx)) as unknown as { _body: Record<string, unknown>; _status: number }
@@ -113,7 +118,6 @@ describe('handleOutbound', () => {
   })
 
   it('send_card event — dispatches via appendCardMessage', async () => {
-    const { handleOutbound } = await import('../handlers/outbound')
     const event = makeEvent('send_card', { type: 'card', title: 'Invoice', children: [] })
     const ctx = makeCtx(event)
     const res = (await handleOutbound(ctx)) as unknown as { _body: Record<string, unknown> }
@@ -123,7 +127,6 @@ describe('handleOutbound', () => {
   })
 
   it('send_file event — dispatches via appendMediaMessage', async () => {
-    const { handleOutbound } = await import('../handlers/outbound')
     const event = makeEvent('send_file', { driveFileId: 'f-001', caption: 'See attached' })
     const ctx = makeCtx(event)
     const res = (await handleOutbound(ctx)) as unknown as { _body: Record<string, unknown> }
@@ -133,7 +136,6 @@ describe('handleOutbound', () => {
   })
 
   it('wrong channelType is rejected with 400', async () => {
-    const { handleOutbound } = await import('../handlers/outbound')
     const event = { ...makeEvent('reply', { text: 'hi' }), channelType: 'whatsapp' }
     const ctx = makeCtx(event)
     const res = (await handleOutbound(ctx)) as unknown as { _status: number }
@@ -142,7 +144,6 @@ describe('handleOutbound', () => {
   })
 
   it('invalid payload schema returns 422', async () => {
-    const { handleOutbound } = await import('../handlers/outbound')
     const ctx = makeCtx({ missing: 'required fields' })
     const res = (await handleOutbound(ctx)) as unknown as { _status: number }
     expect(res._status).toBe(422)

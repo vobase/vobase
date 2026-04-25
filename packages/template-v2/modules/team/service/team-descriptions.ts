@@ -6,6 +6,9 @@
  * surfaced to routing agents.
  */
 
+import { teamDescriptions } from '@modules/team/schema'
+import { eq } from 'drizzle-orm'
+
 import type { TeamDescription } from '../schema'
 
 export interface TeamDescriptionService {
@@ -23,8 +26,6 @@ export function createTeamDescriptionService(deps: Deps): TeamDescriptionService
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
 
   async function list(organizationId: string): Promise<TeamDescription[]> {
-    const { teamDescriptions } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(teamDescriptions)
@@ -33,8 +34,6 @@ export function createTeamDescriptionService(deps: Deps): TeamDescriptionService
   }
 
   async function get(teamId: string): Promise<TeamDescription | null> {
-    const { teamDescriptions } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(teamDescriptions)
@@ -48,7 +47,6 @@ export function createTeamDescriptionService(deps: Deps): TeamDescriptionService
     organizationId: string
     description: string
   }): Promise<TeamDescription> {
-    const { teamDescriptions } = await import('@modules/team/schema')
     const rows = (await db
       .insert(teamDescriptions)
       .values(input)
@@ -63,8 +61,6 @@ export function createTeamDescriptionService(deps: Deps): TeamDescriptionService
   }
 
   async function remove(teamId: string): Promise<void> {
-    const { teamDescriptions } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     await db.delete(teamDescriptions).where(eq(teamDescriptions.teamId, teamId))
   }
 

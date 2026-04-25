@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { z } from 'zod'
 
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
 const fetchMock = mock(async (_url: string, _opts?: RequestInit): Promise<Response> => {
   return new Response(JSON.stringify({ ok: true }), { status: 200 })
 })

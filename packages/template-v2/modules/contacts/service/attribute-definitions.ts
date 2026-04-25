@@ -7,6 +7,9 @@
  * match the surrounding contacts-service pattern.
  */
 
+import { contactAttributeDefinitions, contacts } from '@modules/contacts/schema'
+import { asc, eq } from 'drizzle-orm'
+
 import type { AttributeType, AttributeValue, Contact, ContactAttributeDefinition } from '../schema'
 
 export interface CreateAttrDefInput {
@@ -43,8 +46,6 @@ export function createAttrDefService(deps: Deps): AttrDefService {
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
 
   async function list(organizationId: string): Promise<ContactAttributeDefinition[]> {
-    const { contactAttributeDefinitions } = await import('@modules/contacts/schema')
-    const { eq, asc } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(contactAttributeDefinitions)
@@ -54,7 +55,6 @@ export function createAttrDefService(deps: Deps): AttrDefService {
   }
 
   async function create(input: CreateAttrDefInput): Promise<ContactAttributeDefinition> {
-    const { contactAttributeDefinitions } = await import('@modules/contacts/schema')
     const rows = (await db
       .insert(contactAttributeDefinitions)
       .values({
@@ -73,8 +73,6 @@ export function createAttrDefService(deps: Deps): AttrDefService {
   }
 
   async function update(id: string, patch: UpdateAttrDefInput): Promise<ContactAttributeDefinition> {
-    const { contactAttributeDefinitions } = await import('@modules/contacts/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db
       .update(contactAttributeDefinitions)
       .set(patch)
@@ -86,14 +84,10 @@ export function createAttrDefService(deps: Deps): AttrDefService {
   }
 
   async function remove(id: string): Promise<void> {
-    const { contactAttributeDefinitions } = await import('@modules/contacts/schema')
-    const { eq } = await import('drizzle-orm')
     await db.delete(contactAttributeDefinitions).where(eq(contactAttributeDefinitions.id, id))
   }
 
   async function setContactValues(contactId: string, patch: Record<string, AttributeValue>): Promise<Contact> {
-    const { contacts } = await import('@modules/contacts/schema')
-    const { eq } = await import('drizzle-orm')
     const existing = (await db
       .select({ attributes: contacts.attributes })
       .from(contacts)

@@ -2,12 +2,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { ApprovalRow } from '@/components/approval-row'
+import { messagingClient } from '@/lib/api-client'
+import { hydratePendingApproval } from '@/lib/rpc-utils'
 import type { PendingApproval } from '../schema'
 
 async function fetchPendingApprovals(): Promise<PendingApproval[]> {
-  const res = await fetch('/api/messaging/approvals?status=pending')
+  const res = await messagingClient.approvals.$get({ query: { status: 'pending' } })
   if (!res.ok) throw new Error('Failed to fetch approvals')
-  return res.json() as Promise<PendingApproval[]>
+  const rows = await res.json()
+  return rows.map(hydratePendingApproval)
 }
 
 export interface DecideParams {
@@ -17,15 +20,19 @@ export interface DecideParams {
 }
 
 async function decide(params: DecideParams): Promise<void> {
-  const res = await fetch(`/api/messaging/approvals/${params.id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      decision: params.decision,
-      decidedByUserId: 'staff:current',
-      note: params.note,
-    }),
-  })
+  const res = await messagingClient.approvals[':id'].$post(
+    { param: { id: params.id } },
+    {
+      init: {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision: params.decision,
+          decidedByUserId: 'staff:current',
+          note: params.note,
+        }),
+      },
+    },
+  )
   if (!res.ok) {
     const err = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error?: string }
     throw new Error(err.error ?? 'Decision failed')
@@ -52,11 +59,11 @@ export function ApprovalsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between border-b border-border px-5 py-3">
-        <h1 className="text-sm font-semibold">Pending Approvals</h1>
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-border border-b px-5 py-3">
+        <h1 className="font-semibold text-sm">Pending Approvals</h1>
         {approvals.length > 0 && (
-          <span className="inline-flex items-center rounded-full bg-info/15 px-2 py-0.5 text-mini font-medium text-info">
+          <span className="inline-flex items-center rounded-full bg-info/15 px-2 py-0.5 font-medium text-info text-mini">
             {approvals.length} pending
           </span>
         )}
@@ -64,17 +71,17 @@ export function ApprovalsPage() {
 
       <div className="flex-1 overflow-auto">
         {isLoading && (
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-xs">Loading…</div>
+          <div className="flex h-32 items-center justify-center text-muted-foreground text-xs">Loading…</div>
         )}
         {error && (
-          <div className="m-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          <div className="m-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-xs">
             Failed to load approvals
           </div>
         )}
         {!isLoading && !error && approvals.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-48 gap-2">
+          <div className="flex h-48 flex-col items-center justify-center gap-2">
             <span className="text-2xl">✓</span>
-            <p className="text-sm text-muted-foreground">All clear — nothing pending</p>
+            <p className="text-muted-foreground text-sm">All clear — nothing pending</p>
           </div>
         )}
         <ul className="divide-y divide-border">

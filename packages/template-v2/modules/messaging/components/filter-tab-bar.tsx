@@ -17,16 +17,16 @@ interface FilterTabBarProps {
 
 function FilterTabBar({ value, onChange, counts }: FilterTabBarProps) {
   return (
-    <div className="px-3 pt-2 shrink-0 border-b border-[var(--color-border-subtle)] pb-2">
+    <div className="shrink-0 border-[var(--color-border-subtle)] border-b px-3 pt-2 pb-2">
       <Tabs value={value} onValueChange={(v) => onChange(v as FilterKey)}>
         <TabsList className="w-full">
           {TABS.map(({ key, label }) => {
             const count = counts?.[key]
             return (
-              <TabsTrigger key={key} value={key} aria-selected={value === key} className="flex-1 text-sm gap-1.5">
+              <TabsTrigger key={key} value={key} aria-selected={value === key} className="flex-1 gap-1.5 text-sm">
                 {label}
                 {count ? (
-                  <Badge variant="secondary" className="h-4 min-w-4 px-1 text-xs font-bold">
+                  <Badge variant="secondary" className="h-4 min-w-4 px-1 font-bold text-xs">
                     {count > 99 ? '99+' : count}
                   </Badge>
                 ) : null}

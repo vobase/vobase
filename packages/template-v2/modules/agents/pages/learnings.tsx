@@ -12,7 +12,7 @@ export function AgentsLearningsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-center gap-3 border-border border-b px-6 py-4">
         <Button asChild size="sm" variant="ghost">
           <Link to="/agents">
             <ArrowLeft className="mr-1 size-4" />
@@ -20,8 +20,8 @@ export function AgentsLearningsPage() {
           </Link>
         </Button>
         <div className="flex-1">
-          <h1 className="text-lg font-semibold tracking-tight">Proposed Learnings</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="font-semibold text-lg tracking-tight">Proposed Learnings</h1>
+          <p className="text-muted-foreground text-sm">
             High-blast-radius changes proposed by agents — staff review required.
           </p>
         </div>
@@ -30,10 +30,10 @@ export function AgentsLearningsPage() {
 
       <div className="flex-1 overflow-auto">
         {isLoading && (
-          <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">Loading proposals…</div>
+          <div className="flex h-32 items-center justify-center text-muted-foreground text-sm">Loading proposals…</div>
         )}
         {error && (
-          <div className="m-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <div className="m-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
             Failed to load proposals
           </div>
         )}

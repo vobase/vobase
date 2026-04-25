@@ -48,19 +48,19 @@ const CodeLeaf = (props: PlateLeafProps) => (
 )
 
 const H1Element = (props: PlateElementProps) => (
-  <PlateElement {...props} as="h1" className="mt-4 mb-2 text-2xl font-semibold tracking-tight" />
+  <PlateElement {...props} as="h1" className="mt-4 mb-2 font-semibold text-2xl tracking-tight" />
 )
 const H2Element = (props: PlateElementProps) => (
-  <PlateElement {...props} as="h2" className="mt-4 mb-2 text-xl font-semibold tracking-tight" />
+  <PlateElement {...props} as="h2" className="mt-4 mb-2 font-semibold text-xl tracking-tight" />
 )
 const H3Element = (props: PlateElementProps) => (
-  <PlateElement {...props} as="h3" className="mt-3 mb-1.5 text-lg font-semibold tracking-tight" />
+  <PlateElement {...props} as="h3" className="mt-3 mb-1.5 font-semibold text-lg tracking-tight" />
 )
 const BlockquoteElement = (props: PlateElementProps) => (
   <PlateElement
     {...props}
     as="blockquote"
-    className="my-2 border-l-2 border-border pl-3 italic text-muted-foreground"
+    className="my-2 border-border border-l-2 pl-3 text-muted-foreground italic"
   />
 )
 
@@ -127,7 +127,7 @@ function BlockButton({ blockType, icon, label }: { blockType: string; icon: Reac
 
 function Toolbar({ statusLabel }: { statusLabel: string }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border px-2 py-1">
+    <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-border border-b px-2 py-1">
       <MarkButton markKey="bold" label="Bold" icon={<Bold className="size-3.5" />} />
       <MarkButton markKey="italic" label="Italic" icon={<Italic className="size-3.5" />} />
       <MarkButton markKey="underline" label="Underline" icon={<Underline className="size-3.5" />} />

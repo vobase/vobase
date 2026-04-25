@@ -38,7 +38,7 @@ export function StaffDetailPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-center gap-3 border-border border-b px-6 py-4">
         <Button asChild size="sm" variant="ghost">
           <Link to="/team">
             <ArrowLeft className="mr-1 size-4" />
@@ -48,14 +48,14 @@ export function StaffDetailPage() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <Users className="size-4 text-muted-foreground" />
-            <h1 className="text-lg font-semibold tracking-tight">{staff?.displayName ?? userId}</h1>
+            <h1 className="font-semibold text-lg tracking-tight">{staff?.displayName ?? userId}</h1>
             {staff && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {staff.availability} · capacity {staff.capacity}
               </span>
             )}
           </div>
-          {staff?.title && <p className="text-xs text-muted-foreground">{staff.title}</p>}
+          {staff?.title && <p className="text-muted-foreground text-xs">{staff.title}</p>}
         </div>
         <Button size="sm" variant="outline" onClick={() => setEditOpen(true)} disabled={!staff}>
           <Pencil className="mr-1 size-3.5" />
@@ -64,15 +64,15 @@ export function StaffDetailPage() {
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        {isLoading && <div className="p-6 text-sm text-muted-foreground">Loading…</div>}
+        {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading…</div>}
         {error && (
-          <div className="m-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <div className="m-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
             Failed to load staff profile
           </div>
         )}
         {staff && (
           <>
-            <section className="shrink-0 border-b border-border px-6 py-4">
+            <section className="shrink-0 border-border border-b px-6 py-4">
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                 <ProfileStat label="Sectors" items={staff.sectors} />
                 <ProfileStat label="Expertise" items={staff.expertise} />
@@ -80,20 +80,20 @@ export function StaffDetailPage() {
               </div>
             </section>
 
-            <section className="shrink-0 border-b border-border px-6 py-4">
+            <section className="shrink-0 border-border border-b px-6 py-4">
               <div className="mb-3 flex items-center gap-2">
                 <Settings2 className="size-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium">Attributes</h2>
-                <span className="text-xs text-muted-foreground">Typed, org-wide custom fields.</span>
+                <h2 className="font-medium text-sm">Attributes</h2>
+                <span className="text-muted-foreground text-xs">Typed, org-wide custom fields.</span>
               </div>
               <AttributeTable userId={userId} values={staff.attributes} />
             </section>
 
             <section className="flex min-h-[480px] flex-1 flex-col">
-              <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
+              <div className="flex shrink-0 items-center gap-2 border-border border-b px-6 py-3">
                 <FolderTree className="size-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium">Drive</h2>
-                <span className="text-xs text-muted-foreground">PROFILE.md, NOTES.md, and personal files.</span>
+                <h2 className="font-medium text-sm">Drive</h2>
+                <span className="text-muted-foreground text-xs">PROFILE.md, NOTES.md, and personal files.</span>
               </div>
               <div className="min-h-0 flex-1">
                 <DriveProvider
@@ -123,9 +123,9 @@ export function StaffDetailPage() {
 function ProfileStat({ label, items }: { label: string; items: string[] }) {
   return (
     <div>
-      <div className="mb-1 text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="mb-1 font-medium text-muted-foreground text-xs">{label}</div>
       <div className="flex flex-wrap gap-1">
-        {items.length === 0 && <span className="text-sm text-muted-foreground">—</span>}
+        {items.length === 0 && <span className="text-muted-foreground text-sm">—</span>}
         {items.map((x) => (
           <Badge key={x} variant="secondary" className="font-normal">
             {x}

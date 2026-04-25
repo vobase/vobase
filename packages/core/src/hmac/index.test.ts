@@ -132,9 +132,11 @@ function createMockScheduler(): Scheduler & {
   const calls: Array<{ jobName: string; data: unknown }> = []
   return {
     calls,
+    // biome-ignore lint/suspicious/useAwait: Scheduler contract requires async signature
     async add(jobName: string, data: unknown) {
       calls.push({ jobName, data })
     },
+    // biome-ignore lint/suspicious/useAwait: Scheduler contract requires async signature
     async send() {
       return null
     },

@@ -6,6 +6,7 @@
  */
 
 import { MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { driveFiles } from '@modules/drive/schema'
 
 export { MERIDIAN_ORG_ID }
 
@@ -182,8 +183,6 @@ function hashId(s: string): string {
 }
 
 export async function seed(db: unknown): Promise<void> {
-  const { driveFiles } = await import('@modules/drive/schema')
-
   const d = db as {
     insert: (t: unknown) => {
       values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }

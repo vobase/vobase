@@ -2,6 +2,8 @@ import { describe, expect, it, mock } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import type { DriveFile } from '../../schema'
+import { DriveBrowser } from '../drive-browser'
+import { DriveProvider } from '../drive-provider'
 
 const rows: DriveFile[] = [
   {
@@ -68,9 +70,8 @@ mock.module('../../api/use-drive', () => ({
 }))
 
 describe('DriveBrowser', () => {
+  // biome-ignore lint/suspicious/useAwait: test setup may invoke async helpers
   it('renders Drive-style file list with breadcrumbs', async () => {
-    const { DriveBrowser } = await import('../drive-browser')
-    const { DriveProvider } = await import('../drive-provider')
     const html = renderToStaticMarkup(
       <DriveProvider scope={{ scope: 'organization' }} rootLabel="Test root">
         <DriveBrowser />

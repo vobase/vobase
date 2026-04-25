@@ -14,6 +14,7 @@ export function useStaffHeartbeat(intervalMs: number = DEFAULT_INTERVAL_MS): voi
     const ping = () => {
       if (cancelled) return
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      // biome-ignore lint/plugin/no-raw-fetch: fire-and-forget heartbeat ping — no response inspection, no caching, intentionally bypasses the typed-RPC client
       void fetch('/api/team/heartbeat', { method: 'POST' }).catch(() => undefined)
     }
     ping()

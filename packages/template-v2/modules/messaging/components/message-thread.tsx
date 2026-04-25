@@ -104,7 +104,7 @@ function DateDivider({ at }: { at: Date }) {
   return (
     <div className="flex items-center gap-3 py-1">
       <div className="flex-1 border-t" />
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground/60">{label}</span>
+      <span className="font-medium text-muted-foreground/60 text-xs uppercase tracking-wide">{label}</span>
       <div className="flex-1 border-t" />
     </div>
   )
@@ -200,15 +200,15 @@ function NoteRow({
 
   return (
     <Bubble isMine={isMine} principal={principal} kind={kind} variant="note" timestamp={note.createdAt}>
-      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+      <div className="mb-1 flex items-center gap-1.5 font-semibold text-amber-700 text-xs uppercase tracking-wide dark:text-amber-300">
         <StickyNote className="size-3" />
         Internal note
       </div>
-      <div className="text-foreground whitespace-pre-wrap break-words text-sm">
+      <div className="whitespace-pre-wrap break-words text-foreground text-sm">
         {renderNoteBodyWithMentions(note.body, note.mentions, directory, currentUserId)}
       </div>
       {isMentioned ? (
-        <div className="mt-1 text-mini font-medium uppercase tracking-wide text-rose-600 dark:text-rose-400">
+        <div className="mt-1 font-medium text-mini text-rose-600 uppercase tracking-wide dark:text-rose-400">
           You were mentioned
         </div>
       ) : null}
@@ -315,13 +315,13 @@ function Bubble({
         )}
       </div>
       <div className={cn('flex min-w-0 max-w-[min(78%,560px)] flex-col gap-1', isMine ? 'items-end' : 'items-start')}>
-        <div className={cn('flex items-center gap-1.5 text-xs text-muted-foreground', isMine && 'flex-row-reverse')}>
+        <div className={cn('flex items-center gap-1.5 text-muted-foreground text-xs', isMine && 'flex-row-reverse')}>
           <span className="font-medium text-foreground/80">{name}</span>
           {timestamp && (
             <RelativeTimeCard
               date={timestamp}
               length="short"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground text-xs hover:text-foreground"
             />
           )}
           <DeliveryStatus status={status} failureReason={failureReason} />
@@ -419,7 +419,7 @@ function ActivityRow({ ev, directory }: { ev: ActivityEvent; directory: Principa
 function ActivityLine({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex justify-center px-2">
-      <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
         {icon}
         <span className="inline-flex items-center gap-1">{children}</span>
       </div>

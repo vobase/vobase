@@ -27,15 +27,15 @@ export default function AppearancePage() {
   return (
     <div className="max-w-lg space-y-6 p-6">
       <div>
-        <h2 className="text-lg font-semibold">Appearance</h2>
-        <p className="text-sm text-muted-foreground">Customize the look and feel of the app.</p>
+        <h2 className="font-semibold text-lg">Appearance</h2>
+        <p className="text-muted-foreground text-sm">Customize the look and feel of the app.</p>
       </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Theme</span>
+            <span className="font-medium text-sm">Theme</span>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">{currentLabel}</span>
+              <span className="text-muted-foreground text-sm">{currentLabel}</span>
               <ThemeSwitch />
             </div>
           </div>

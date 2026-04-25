@@ -80,6 +80,7 @@ describe('spillToFile', () => {
       spillPath: '/tmp/fail.txt',
       toolName: 'bash',
       ctx: makeCtx(),
+      // biome-ignore lint/suspicious/useAwait: innerWrite contract requires async signature
       innerWrite: async () => {
         throw new Error('disk full')
       },

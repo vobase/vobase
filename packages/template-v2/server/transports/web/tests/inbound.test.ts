@@ -24,6 +24,7 @@ import type { CreateInboundMessageInput, CreateInboundMessageResult } from '@mod
 import type { Auth } from '@server/auth'
 import { signHmac } from '@vobase/core'
 
+import { handleInbound } from '../handlers/inbound'
 import { createChannelWebState, installChannelWebAuth, installChannelWebState, type JobQueue } from '../service/state'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -86,6 +87,7 @@ const fakeMessage: Message = {
 let mockIsNew = true
 
 function makeContactsServiceStub(): ContactsService {
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   const notImplemented = async () => {
     throw new Error('inbound.test: contacts-service method not stubbed')
   }
@@ -96,6 +98,7 @@ function makeContactsServiceStub(): ContactsService {
     getByEmail: notImplemented as ContactsService['getByEmail'],
     create: notImplemented as ContactsService['create'],
     update: notImplemented as ContactsService['update'],
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     upsertByExternal: async (_input: UpsertByExternalInput): Promise<Contact> => {
       calls.push({ method: 'upsertByExternal', data: null })
       return fakeContact
@@ -113,10 +116,12 @@ function makeContactsServiceStub(): ContactsService {
 }
 
 function makeConversationsServiceStub(): ConversationsService {
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   const notImplemented = async () => {
     throw new Error('inbound.test: conversations-service method not stubbed')
   }
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     createInboundMessage: async (input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> => {
       calls.push({ method: 'createInboundMessage', data: input })
       return { conversation: fakeConversation, message: fakeMessage, isNew: mockIsNew }
@@ -141,6 +146,7 @@ function makeConversationsServiceStub(): ConversationsService {
 }
 
 mock.module('../service/instances', () => ({
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   getInstanceDefaultAssignee: async (id: string) => {
     calls.push({ method: 'getInstanceDefaultAssignee', data: { id } })
     return null
@@ -188,6 +194,7 @@ function makeCtx(body: string, sig: string, channelInstanceId = 'ch-web-1', extr
 function installTestState(isNewMessage = true): void {
   mockIsNew = isNewMessage
   const jobs: JobQueue = {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     send: async (name, data) => {
       calls.push({ method: 'job.send', data: { name, data } })
       return 'job-id'
@@ -208,7 +215,6 @@ beforeEach(() => {
 
 describe('handleInbound', () => {
   it('rejects invalid signature', async () => {
-    const { handleInbound } = await import('../handlers/inbound')
     const { body } = makeSigned(fakeEvent)
     const ctx = makeCtx(body, 'bad-sig')
     const res = await handleInbound(ctx)
@@ -217,7 +223,6 @@ describe('handleInbound', () => {
   })
 
   it('happy path — signed payload creates message + enqueues job', async () => {
-    const { handleInbound } = await import('../handlers/inbound')
     const { body, sig } = makeSigned(fakeEvent)
     const ctx = makeCtx(body, sig)
     const res = (await handleInbound(ctx)) as unknown as { _body: Record<string, unknown>; _status: number }
@@ -232,7 +237,6 @@ describe('handleInbound', () => {
 
   it('dedupe — same externalMessageId does not enqueue another job', async () => {
     installTestState(false)
-    const { handleInbound } = await import('../handlers/inbound')
     const { body, sig } = makeSigned(fakeEvent)
     const ctx = makeCtx(body, sig)
     const res = (await handleInbound(ctx)) as unknown as { _body: Record<string, unknown> }
@@ -241,7 +245,6 @@ describe('handleInbound', () => {
   })
 
   it('missing channel instance id returns 400', async () => {
-    const { handleInbound } = await import('../handlers/inbound')
     const { body, sig } = makeSigned(fakeEvent)
     const ctx = makeCtx(body, sig, '')
     const res = (await handleInbound(ctx)) as unknown as { _status: number }
@@ -249,7 +252,6 @@ describe('handleInbound', () => {
   })
 
   it('invalid json body returns 400', async () => {
-    const { handleInbound } = await import('../handlers/inbound')
     const badBody = '{not-json'
     const sig = signHmac(badBody, SECRET)
     const ctx = makeCtx(badBody, sig)
@@ -275,7 +277,6 @@ describe('handleInbound', () => {
       profileName: 'Anon',
     })
     const ctx = makeCtx(body, 'ignored-no-hmac')
-    const { handleInbound } = await import('../handlers/inbound')
     const res = (await handleInbound(ctx)) as unknown as { _body: Record<string, unknown>; _status: number }
     expect(res._status).toBe(200)
     expect(res._body.received).toBe(true)

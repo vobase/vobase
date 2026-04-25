@@ -13,6 +13,7 @@ export interface SubagentRunInput {
  * (second-level subagent call errors synchronously).
  */
 export function createSubagentRunner(depth = 0) {
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   return async function runSubagentScoped(input: SubagentRunInput): Promise<ToolResult<{ summary: string }>> {
     if (depth >= 1) {
       throw new Error('subagent: max depth 1 exceeded — nested subagents are not supported')

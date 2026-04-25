@@ -82,6 +82,7 @@ export function makeStaticProfileLookup(
   rows: Record<string, { name: string | null; email: string | null }>,
 ): StaffProfileLookup {
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async getAuthDisplay(staffId) {
       return rows[staffId] ?? null
     },

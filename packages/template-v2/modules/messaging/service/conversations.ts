@@ -521,6 +521,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     })
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function reset(conversationId: string, by: string): Promise<Conversation> {
     return reopen(conversationId, by, 'staff_reset')
   }
@@ -584,12 +585,15 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     })
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function sendText(_input: unknown): Promise<unknown> {
     throw new Error('not-implemented: messaging/conversations.sendText — use messages.appendTextMessage')
   }
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function sendCard(_input: unknown): Promise<unknown> {
     throw new Error('not-implemented: messaging/conversations.sendCard — use messages.appendCardMessage')
   }
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function sendImage(_input: unknown): Promise<unknown> {
     throw new Error('not-implemented: messaging/conversations.sendImage')
   }
@@ -737,9 +741,11 @@ function currentConversations(): ConversationsService {
   return _currentConversationsService
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function create(input: CreateConversationInput): Promise<Conversation> {
   return currentConversations().create(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function resumeOrCreate(
   organizationId: string,
   contactId: string,
@@ -749,24 +755,31 @@ export async function resumeOrCreate(
 ): Promise<{ conversation: Conversation; created: boolean }> {
   return currentConversations().resumeOrCreate(organizationId, contactId, channelInstanceId, threadKey, initialAssignee)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function get(id: string): Promise<Conversation> {
   return currentConversations().get(id)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function createInboundMessage(input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> {
   return currentConversations().createInboundMessage(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function snooze(input: SnoozeInput): Promise<Conversation> {
   return currentConversations().snooze(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function unsnooze(conversationId: string, by: string): Promise<Conversation> {
   return currentConversations().unsnooze(conversationId, by)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function wakeSnoozed(conversationId: string, snoozedAtIso: string): Promise<{ woken: boolean }> {
   return currentConversations().wakeSnoozed(conversationId, snoozedAtIso)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function resolve(conversationId: string, by: string, reason?: string): Promise<Conversation> {
   return currentConversations().resolve(conversationId, by, reason)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function reopen(
   conversationId: string,
   by: string,
@@ -774,9 +787,11 @@ export async function reopen(
 ): Promise<Conversation> {
   return currentConversations().reopen(conversationId, by, trigger)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function reset(conversationId: string, by: string): Promise<Conversation> {
   return currentConversations().reset(conversationId, by)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function reassign(
   conversationId: string,
   assignee: string,
@@ -785,21 +800,27 @@ export async function reassign(
 ): Promise<Conversation> {
   return currentConversations().reassign(conversationId, assignee, by, reason)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function listActivity(conversationId: string): Promise<ActivityEvent[]> {
   return currentConversations().listActivity(conversationId)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function sendText(input: unknown): Promise<unknown> {
   return currentConversations().sendText(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function sendCard(input: unknown): Promise<unknown> {
   return currentConversations().sendCard(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function sendImage(input: unknown): Promise<unknown> {
   return currentConversations().sendImage(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function list(organizationId: string, opts?: ListOpts): Promise<Conversation[]> {
   return currentConversations().list(organizationId, opts)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function listMessagingByContact(
   organizationId: string,
   opts?: Omit<ListOpts, 'tab' | 'contactId'>,

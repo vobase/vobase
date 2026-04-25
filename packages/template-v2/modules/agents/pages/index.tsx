@@ -77,8 +77,8 @@ function AgentCard({ agent }: { agent: AgentDefinitionRow }) {
         </div>
       </div>
       <div className="mt-3">
-        <p className="truncate text-sm font-medium">{agent.name}</p>
-        <p className="truncate font-mono text-xs text-muted-foreground">{agent.model}</p>
+        <p className="truncate font-medium text-sm">{agent.name}</p>
+        <p className="truncate font-mono text-muted-foreground text-xs">{agent.model}</p>
       </div>
       <div className="mt-3">
         <Badge variant={agent.enabled ? 'default' : 'secondary'} className="text-xs">
@@ -139,7 +139,7 @@ function NewAgentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
             </Select>
           </div>
           {create.isError && (
-            <p className="text-xs text-destructive">
+            <p className="text-destructive text-xs">
               {create.error instanceof Error ? create.error.message : 'Failed to create agent'}
             </p>
           )}
@@ -171,10 +171,10 @@ export function AgentsListPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-center justify-between border-border border-b px-6 py-4">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Agents</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="font-semibold text-lg tracking-tight">Agents</h1>
+          <p className="text-muted-foreground text-sm">
             Agents configured for this organization. Toggle them on or off, or open one to edit.
           </p>
         </div>
@@ -186,7 +186,7 @@ export function AgentsListPage() {
 
       <div className="flex-1 overflow-auto p-6">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-muted-foreground text-sm">Loading…</p>
         ) : agents.length === 0 ? (
           <Empty className="border">
             <EmptyHeader>

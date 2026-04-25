@@ -25,15 +25,18 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { contactsClient } from '@/lib/api-client'
+import { hydrateContact } from '@/lib/rpc-utils'
 import { useAttributeDefinitions } from '../api/use-attributes'
 import { useCreateContact, useUpdateContact } from '../api/use-contacts'
 import { ContactFormDialog, type ContactFormValues, normalizeContactForm } from '../components/contact-form-dialog'
 import type { AttributeValue, Contact, ContactAttributeDefinition } from '../schema'
 
 async function fetchContacts(): Promise<Contact[]> {
-  const r = await fetch('/api/contacts')
+  const r = await contactsClient.index.$get()
   if (!r.ok) throw new Error('Failed to load contacts')
-  return (await r.json()) as Contact[]
+  const rows = await r.json()
+  return rows.map(hydrateContact)
 }
 
 function renderAttributeValue(value: AttributeValue | undefined, type: ContactAttributeDefinition['type']) {
@@ -41,7 +44,7 @@ function renderAttributeValue(value: AttributeValue | undefined, type: ContactAt
     return <span className="text-muted-foreground/40">&mdash;</span>
   }
   if (type === 'boolean') return <span className="text-sm">{value === true ? 'Yes' : 'No'}</span>
-  return <span className="text-sm text-muted-foreground">{String(value)}</span>
+  return <span className="text-muted-foreground text-sm">{String(value)}</span>
 }
 
 function buildAttributeColumn(def: ContactAttributeDefinition): ColumnDef<Contact> {
@@ -169,7 +172,7 @@ export function ContactsListPage() {
         header: ({ column }) => <DataTableColumnHeader column={column} label="Segments" />,
         cell: ({ row }) => {
           const segments = row.original.segments
-          if (segments.length === 0) return <span className="text-xs text-muted-foreground">—</span>
+          if (segments.length === 0) return <span className="text-muted-foreground text-xs">—</span>
           return (
             <div className="flex flex-wrap gap-1">
               {segments.map((s) => (
@@ -199,7 +202,7 @@ export function ContactsListPage() {
               Opted out
             </Badge>
           ) : (
-            <span className="text-xs text-muted-foreground">—</span>
+            <span className="text-muted-foreground text-xs">—</span>
           ),
         meta: { label: 'Marketing' },
         enableSorting: true,
@@ -211,7 +214,7 @@ export function ContactsListPage() {
         id: 'id',
         accessorKey: 'id',
         header: ({ column }) => <DataTableColumnHeader column={column} label="ID" />,
-        cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{row.original.id}</span>,
+        cell: ({ row }) => <span className="font-mono text-muted-foreground text-xs">{row.original.id}</span>,
         meta: { label: 'ID' },
         enableSorting: false,
       },
@@ -278,10 +281,10 @@ export function ContactsListPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-center justify-between border-border border-b px-6 py-4">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Contacts</h1>
-          <p className="text-sm text-muted-foreground">Manage customer contacts and their working memory.</p>
+          <h1 className="font-semibold text-lg tracking-tight">Contacts</h1>
+          <p className="text-muted-foreground text-sm">Manage customer contacts and their working memory.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button asChild size="sm" variant="outline">
@@ -299,7 +302,7 @@ export function ContactsListPage() {
 
       <div className="flex-1 overflow-auto px-6 py-4">
         {error && (
-          <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
             Failed to load contacts
           </div>
         )}

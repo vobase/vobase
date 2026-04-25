@@ -100,6 +100,7 @@ function buildMessagingPort(db: DrizzleHandle): MessagingPort {
       if (!row) throw new Error(`messaging/getConversation: no conversation ${id}`)
       return row
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async listMessages(conversationId, opts) {
       return svcListMessages(conversationId, opts)
     },
@@ -112,6 +113,7 @@ function buildMessagingPort(db: DrizzleHandle): MessagingPort {
       )
       return conversation
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async sendTextMessage(input) {
       const ctx = stubToolCtx()
       return appendTextMessage({
@@ -125,6 +127,7 @@ function buildMessagingPort(db: DrizzleHandle): MessagingPort {
         replyToMessageId: input.parentMessageId,
       })
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async sendCardMessage(input) {
       const ctx = stubToolCtx()
       return appendCardMessage({
@@ -138,42 +141,55 @@ function buildMessagingPort(db: DrizzleHandle): MessagingPort {
         replyToMessageId: input.parentMessageId,
       })
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async sendCardReply(input) {
       return appendCardReplyMessage(input)
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async sendImageMessage() {
       throw new Error('ports: sendImageMessage not supported')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async sendMediaMessage() {
       throw new Error('ports: sendMediaMessage not supported')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async resolve() {
       throw new Error('ports: resolve not supported')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async reassign() {
       throw new Error('ports: reassign not supported')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async reopen() {
       throw new Error('ports: reopen not supported')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async reset() {
       throw new Error('ports: reset not supported')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async snooze() {
       throw new Error('ports: snooze not supported')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async unsnooze() {
       throw new Error('ports: unsnooze not supported')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async addInternalNote(input) {
       return svcAddNote(input)
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async listInternalNotes(conversationId) {
       return svcListNotes(conversationId)
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async insertPendingApproval() {
       throw new Error('ports: insertPendingApproval not supported outside wake')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async createInboundMessage(input) {
       return svcCreateInboundMessage(input)
     },
@@ -288,6 +304,7 @@ function buildAgentsPort(db: DrizzleHandle): AgentsPort {
         event,
       })
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async checkDailyCeiling() {
       return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
     },
@@ -327,6 +344,7 @@ function buildFilesService(db: DrizzleHandle): FilesService {
       const f = await this.get(id)
       return { content: f?.extractedText ?? '' }
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async grep() {
       return []
     },

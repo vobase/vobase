@@ -24,6 +24,7 @@ export const bookSlotTool: AgentTool<BookSlotInput, { slotId: string; confirmed:
   requiresApproval: true,
   parallelGroup: 'never',
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async execute(args, _ctx: ToolContext): Promise<ToolResult<{ slotId: string; confirmed: boolean }>> {
     if (!Value.Check(BookSlotInputSchema, args)) {
       return {

@@ -40,6 +40,7 @@ describe('createWithJournaledTx', () => {
     const withJournaledTx = createWithJournaledTx<FakeEvent>({ db, rawAppend })
 
     await expect(
+      // biome-ignore lint/suspicious/useAwait: withJournaledTx fn contract requires async signature
       withJournaledTx(async () => {
         return 'forgot'
       }),
@@ -67,6 +68,7 @@ describe('createWithJournaledTx', () => {
     const withJournaledTx = createWithJournaledTx<FakeEvent>({ db, rawAppend })
 
     await expect(
+      // biome-ignore lint/suspicious/useAwait: withJournaledTx fn contract requires async signature
       withJournaledTx(async () => {
         throw new Error('domain failure')
       }),

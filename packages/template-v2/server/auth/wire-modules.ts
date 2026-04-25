@@ -1,3 +1,6 @@
+import { installDriveAuth } from '@modules/drive/service/files'
+import { installChannelWebAuth } from '@server/transports/web/service/state'
+
 import type { Auth } from './index'
 
 /**
@@ -5,10 +8,9 @@ import type { Auth } from './index'
  * auth is available. Call after `bootModules()` so each module's `init()` has
  * already installed its state.
  */
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function wireAuthIntoModules(auth: Auth): Promise<void> {
-  const { installChannelWebAuth } = await import('@server/transports/web/service/state')
   installChannelWebAuth(auth)
 
-  const { installDriveAuth } = await import('@modules/drive/service/files')
   installDriveAuth(auth)
 }

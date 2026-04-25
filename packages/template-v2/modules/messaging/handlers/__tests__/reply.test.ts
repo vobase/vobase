@@ -57,6 +57,7 @@ function makeStaffOpsDb(conv: unknown, notifyCalls: string[]) {
         }),
       }),
     }),
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     execute: async (_q: unknown) => {
       notifyCalls.push(CONV_ID)
       return []
@@ -72,6 +73,7 @@ function makeMessagesDb(msg: unknown) {
         returning: async () => [msg],
       }),
     }),
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       const fakeTx = {
         insert: (_t: unknown) => ({

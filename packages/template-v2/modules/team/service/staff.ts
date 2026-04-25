@@ -6,6 +6,9 @@
  * dynamic-imported per call so `check-module-shape` doesn't flag the file.
  */
 
+import { staffProfiles } from '@modules/team/schema'
+import { asc, eq } from 'drizzle-orm'
+
 import type { AttributeValue, Availability, StaffProfile } from '../schema'
 
 export interface UpsertStaffInput {
@@ -59,8 +62,6 @@ export function createStaffService(deps: StaffDeps): StaffService {
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
 
   async function list(organizationId: string): Promise<StaffProfile[]> {
-    const { staffProfiles } = await import('@modules/team/schema')
-    const { eq, asc } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(staffProfiles)
@@ -70,8 +71,6 @@ export function createStaffService(deps: StaffDeps): StaffService {
   }
 
   async function find(userId: string): Promise<StaffProfile | null> {
-    const { staffProfiles } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = await db.select().from(staffProfiles).where(eq(staffProfiles.userId, userId)).limit(1)
     return (rows[0] as StaffProfile | undefined) ?? null
   }
@@ -83,7 +82,6 @@ export function createStaffService(deps: StaffDeps): StaffService {
   }
 
   async function upsert(input: UpsertStaffInput): Promise<StaffProfile> {
-    const { staffProfiles } = await import('@modules/team/schema')
     const values: Record<string, unknown> = {
       userId: input.userId,
       organizationId: input.organizationId,
@@ -114,8 +112,6 @@ export function createStaffService(deps: StaffDeps): StaffService {
   }
 
   async function update(userId: string, patch: UpdateStaffInput): Promise<StaffProfile> {
-    const { staffProfiles } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     const set: Record<string, unknown> = {}
     if (patch.displayName !== undefined) set.displayName = patch.displayName
     if (patch.title !== undefined) set.title = patch.title
@@ -137,14 +133,10 @@ export function createStaffService(deps: StaffDeps): StaffService {
   }
 
   async function remove(userId: string): Promise<void> {
-    const { staffProfiles } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     await db.delete(staffProfiles).where(eq(staffProfiles.userId, userId))
   }
 
   async function setAttributes(userId: string, patch: Record<string, AttributeValue>): Promise<StaffProfile> {
-    const { staffProfiles } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     const existing = (await db
       .select({ attributes: staffProfiles.attributes })
       .from(staffProfiles)
@@ -167,14 +159,10 @@ export function createStaffService(deps: StaffDeps): StaffService {
   }
 
   async function touchLastSeen(userId: string): Promise<void> {
-    const { staffProfiles } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     await db.update(staffProfiles).set({ lastSeenAt: new Date() }).where(eq(staffProfiles.userId, userId))
   }
 
   async function readColumn(userId: string, field: 'profile' | 'notes'): Promise<string> {
-    const { staffProfiles } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     const rows = (await db
       .select({ profile: staffProfiles.profile, notes: staffProfiles.notes })
       .from(staffProfiles)
@@ -186,14 +174,13 @@ export function createStaffService(deps: StaffDeps): StaffService {
   }
 
   async function writeColumn(userId: string, field: 'profile' | 'notes', value: string): Promise<void> {
-    const { staffProfiles } = await import('@modules/team/schema')
-    const { eq } = await import('drizzle-orm')
     await db
       .update(staffProfiles)
       .set({ [field]: value })
       .where(eq(staffProfiles.userId, userId))
   }
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function readNotes(userId: string): Promise<string> {
     return readColumn(userId, 'notes')
   }
@@ -204,6 +191,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
     const current = await readNotes(userId)
     await writeNotes(userId, setSection(current, heading, body))
   }
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function readProfile(userId: string): Promise<string> {
     return readColumn(userId, 'profile')
   }

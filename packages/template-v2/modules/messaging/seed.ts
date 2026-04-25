@@ -29,8 +29,10 @@ import {
   SOPHIA_CONTACT_ID,
   WEB_CHANNEL_INSTANCE_ID,
 } from '@modules/contacts/seed'
+import { conversations, internalNotes, messages, pendingApprovals } from '@modules/messaging/schema'
+import { conversationEvents } from '@vobase/core'
 
-export { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID }
+export type { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID }
 
 /** Stable conversation ID — imported by integration tests and Lane F test-harness. */
 export const SEEDED_CONV_ID = 'cnv0test00'
@@ -65,7 +67,6 @@ async function insertConv(
     resolvedReason?: string
   },
 ) {
-  const { conversations } = await import('@modules/messaging/schema')
   await insert(conversations)
     .values({
       id: row.id,
@@ -95,7 +96,6 @@ async function insertMsg(
     createdAt: Date
   },
 ) {
-  const { messages } = await import('@modules/messaging/schema')
   await insert(messages)
     .values({
       id: row.id,
@@ -124,7 +124,6 @@ async function insertNote(
     createdAt: Date
   },
 ) {
-  const { internalNotes } = await import('@modules/messaging/schema')
   await insert(internalNotes)
     .values({
       id: row.id,
@@ -148,7 +147,6 @@ async function insertActivity(
     ts: Date
   },
 ) {
-  const { conversationEvents } = await import('@vobase/core')
   await insert(conversationEvents)
     .values({
       conversationId: row.conversationId,
@@ -173,7 +171,6 @@ async function insertApproval(
     createdAt: Date
   },
 ) {
-  const { pendingApprovals } = await import('@modules/messaging/schema')
   await insert(pendingApprovals)
     .values({
       id: row.id,

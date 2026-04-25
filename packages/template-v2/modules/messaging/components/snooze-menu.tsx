@@ -19,6 +19,7 @@ interface SnoozeMenuProps {
   by: string
 }
 
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
 async function postSnooze(id: string, until: Date, by: string, reason?: string): Promise<Response> {
   return fetch(`/api/messaging/conversations/${id}/snooze`, {
     method: 'POST',

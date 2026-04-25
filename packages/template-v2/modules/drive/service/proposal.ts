@@ -99,10 +99,12 @@ function current(): ProposalService {
   return _currentProposalService
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function propose(input: DriveProposalInput): Promise<DriveProposalResult> {
   return current().propose(input)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function decideDriveProposal(
   proposalId: string,
   decision: 'approved' | 'rejected',

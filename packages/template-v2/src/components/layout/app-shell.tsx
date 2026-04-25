@@ -43,7 +43,7 @@ function RailItem({ icon: Icon, label, to, enabled, badgeCount }: NavItemDef) {
       <span
         role="status"
         aria-label={`${badgeCount} unread`}
-        className="absolute right-1 top-1 flex min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground"
+        className="absolute top-1 right-1 flex min-w-[16px] items-center justify-center rounded-full bg-primary px-1 font-semibold text-[10px] text-primary-foreground leading-4"
       >
         {badgeCount > 99 ? '99+' : badgeCount}
       </span>
@@ -90,11 +90,11 @@ function AppShell({ children }: AppShellProps) {
       <div className="flex h-screen overflow-hidden bg-background text-foreground">
         <aside
           aria-label="Main navigation"
-          className="flex w-14 shrink-0 flex-col items-center border-r border-border bg-sidebar py-3"
+          className="flex w-14 shrink-0 flex-col items-center border-border border-r bg-sidebar py-3"
         >
           {/* Vobase logo */}
           <div className="mb-3 flex size-10 items-center justify-center">
-            <span className="font-mono text-mini font-bold tracking-widest text-foreground">VB</span>
+            <span className="font-bold font-mono text-foreground text-mini tracking-widest">VB</span>
           </div>
 
           <nav aria-label="Module navigation" className="flex flex-col items-center gap-0.5">

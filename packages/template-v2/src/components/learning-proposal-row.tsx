@@ -62,42 +62,42 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
   const scopeColor = SCOPE_COLORS[proposal.scope] ?? 'bg-muted text-muted-foreground border-border'
 
   return (
-    <li className="px-5 py-4 space-y-3">
+    <li className="space-y-3 px-5 py-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 space-y-1.5">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
             <span
-              className={cn('inline-flex items-center rounded border px-1.5 py-0.5 text-mini font-medium', scopeColor)}
+              className={cn('inline-flex items-center rounded border px-1.5 py-0.5 font-medium text-mini', scopeColor)}
             >
               {SCOPE_LABELS[proposal.scope] ?? proposal.scope}
             </span>
-            <span className="font-mono text-mini text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
+            <span className="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-mini text-muted-foreground">
               {proposal.target}
             </span>
             <RelativeTimeCard date={proposal.createdAt} className="text-mini text-muted-foreground" />
           </div>
 
-          {proposal.body && <p className="text-xs text-foreground leading-relaxed line-clamp-3">{proposal.body}</p>}
+          {proposal.body && <p className="line-clamp-3 text-foreground text-xs leading-relaxed">{proposal.body}</p>}
 
           {proposal.rationale && <p className="text-mini text-muted-foreground italic">{proposal.rationale}</p>}
 
           {proposal.confidence !== null && (
             <div className="flex items-center gap-1.5">
               <span className="text-mini text-muted-foreground">Confidence:</span>
-              <span className="text-mini font-medium">{Math.round((proposal.confidence ?? 0) * 100)}%</span>
+              <span className="font-medium text-mini">{Math.round((proposal.confidence ?? 0) * 100)}%</span>
             </div>
           )}
         </div>
 
-        <div className="flex gap-2 shrink-0">
+        <div className="flex shrink-0 gap-2">
           <button
             type="button"
             disabled={loading !== null}
             onClick={handleApprove}
             className={cn(
-              'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              'rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
               'bg-success/10 text-success hover:bg-success/20',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
           >
             {loading === 'approved' ? '…' : 'Approve'}
@@ -107,9 +107,9 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
             disabled={loading !== null}
             onClick={handleReject}
             className={cn(
-              'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              'rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
               'bg-destructive/10 text-destructive hover:bg-destructive/20',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
           >
             {loading === 'rejected' ? '…' : showRejectForm ? 'Confirm Reject' : 'Reject'}
@@ -118,7 +118,7 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
       </div>
 
       {showRejectForm && (
-        <div className="flex gap-2 items-end">
+        <div className="flex items-end gap-2">
           <textarea
             value={rejectNote}
             onChange={(e) => setRejectNote(e.target.value)}
@@ -126,7 +126,7 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
             rows={2}
             className={cn(
               'flex-1 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-xs',
-              'placeholder:text-muted-foreground/60 resize-none focus:outline-none focus:ring-1 focus:ring-ring',
+              'resize-none placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring',
             )}
           />
           <button
@@ -135,14 +135,14 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
               setShowRejectForm(false)
               setRejectNote('')
             }}
-            className="text-mini text-muted-foreground hover:text-foreground px-2 py-1.5"
+            className="px-2 py-1.5 text-mini text-muted-foreground hover:text-foreground"
           >
             Cancel
           </button>
         </div>
       )}
 
-      {error && <p className="text-mini text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-mini">{error}</p>}
     </li>
   )
 }

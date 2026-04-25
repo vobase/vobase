@@ -100,6 +100,7 @@ export function createFakeWakeQueue(): FakeWakeQueue {
   }
 
   const queue: FakeWakeQueue = {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async send<T>(name: string, data: T, opts?: SendOpts): Promise<{ jobId: string | null; wasNew: boolean }> {
       if (opts?.singletonKey && findPending(name, opts.singletonKey)) {
         return { jobId: null, wasNew: false }
@@ -115,6 +116,7 @@ export function createFakeWakeQueue(): FakeWakeQueue {
       })
       return { jobId: id, wasNew: true }
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async sendOrMerge<T>(
       name: string,
       data: T,
@@ -137,9 +139,11 @@ export function createFakeWakeQueue(): FakeWakeQueue {
       })
       return { jobId: id, wasNew: true }
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async work<T>(name: string, handler: JobHandler<T>): Promise<void> {
       workers.set(name, handler as JobHandler)
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async stop(): Promise<void> {
       workers.clear()
     },

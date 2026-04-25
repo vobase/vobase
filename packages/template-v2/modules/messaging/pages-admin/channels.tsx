@@ -221,11 +221,11 @@ function InstanceFormDialog({
           <div className="space-y-2">
             <Label>Default assignee</Label>
             <AssigneeSelect value={assignee} onChange={setAssignee} />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               New conversations from this channel are routed to this agent or teammate.
             </p>
           </div>
-          {err && <p className="text-xs text-destructive">{err}</p>}
+          {err && <p className="text-destructive text-xs">{err}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
@@ -257,7 +257,7 @@ function CopyButton({ text }: { text: string }) {
       variant="outline"
       size="sm"
       onClick={copy}
-      className="absolute right-2 top-2 h-7 gap-1 text-xs"
+      className="absolute top-2 right-2 h-7 gap-1 text-xs"
     >
       {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
       {copied ? 'Copied' : 'Copy'}
@@ -282,7 +282,7 @@ function ChatLinkField({ instance }: { instance: WebInstance }) {
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">Direct chat link</Label>
+      <Label className="text-muted-foreground text-xs">Direct chat link</Label>
       <div className="flex items-center gap-1.5">
         <Input
           readOnly
@@ -356,13 +356,13 @@ function EmbedSnippets({ instance }: { instance: WebInstance }) {
       </TabsList>
       <TabsContent value="script">
         <SnippetBlock snippet={scriptSnippet} language="html" />
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 text-muted-foreground text-xs">
           Paste before <code className="rounded bg-muted px-1 py-0.5">&lt;/body&gt;</code> on any page.
         </p>
       </TabsContent>
       <TabsContent value="js">
         <SnippetBlock snippet={jsSnippet} language="js" />
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 text-muted-foreground text-xs">
           Use this when you inject scripts from your SPA or a tag manager.
         </p>
       </TabsContent>
@@ -374,7 +374,7 @@ function SnippetBlock({ snippet, language }: { snippet: string; language: string
   return (
     <div className="relative">
       <pre
-        className="overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-xs text-foreground"
+        className="overflow-auto rounded-md border border-border bg-muted p-3 font-mono text-foreground text-xs"
         data-language={language}
       >
         {snippet}
@@ -395,11 +395,11 @@ function BubblePreview({ instance }: { instance: WebInstance }) {
 
   return (
     <div className="relative h-[360px] w-full overflow-hidden rounded-md border border-border bg-[linear-gradient(135deg,_#f8f7f6,_#eceae8)]">
-      <div className="absolute left-4 top-4 text-[10px] uppercase tracking-widest text-muted-foreground">Preview</div>
+      <div className="absolute top-4 left-4 text-[10px] text-muted-foreground uppercase tracking-widest">Preview</div>
 
       {/* Welcome panel */}
-      <div className="absolute bottom-[74px] right-4 w-[260px] overflow-hidden rounded-xl bg-white shadow-[0_12px_48px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]">
-        <div className="flex items-center gap-3 border-b border-[#e5e5e5] bg-white px-3 py-3">
+      <div className="absolute right-4 bottom-[74px] w-[260px] overflow-hidden rounded-xl bg-white shadow-[0_12px_48px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center gap-3 border-[#e5e5e5] border-b bg-white px-3 py-3">
           <div
             className="flex size-8 items-center justify-center rounded-full text-white"
             style={{ background: color }}
@@ -408,30 +408,30 @@ function BubblePreview({ instance }: { instance: WebInstance }) {
             <Globe className="size-4" />
           </div>
           <div className="flex flex-col leading-tight">
-            <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#1a1a1a]">
+            <div className="flex items-center gap-1.5 font-semibold text-[#1a1a1a] text-[13px]">
               {botName}
               <span className="inline-block size-1.5 rounded-full bg-[#22c55e]" />
             </div>
-            <div className="text-[10px] text-[#6b7280]">Typically replies in a few minutes</div>
+            <div className="text-[#6b7280] text-[10px]">Typically replies in a few minutes</div>
           </div>
         </div>
         <div className="flex min-h-[160px] flex-col justify-end bg-[linear-gradient(180deg,_#f8f7f6,_#fff)] p-3">
           <div className="rounded-lg border border-[#e5e5e5] bg-white p-3 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-            <div className="text-[14px] font-semibold text-[#1a1a1a]">Hi there!</div>
-            <div className="mt-0.5 text-[11px] text-[#6b7280]">How can we help?</div>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] text-[#6b7280]">
+            <div className="font-semibold text-[#1a1a1a] text-[14px]">Hi there!</div>
+            <div className="mt-0.5 text-[#6b7280] text-[11px]">How can we help?</div>
+            <div className="mt-3 flex items-center gap-1.5 text-[#6b7280] text-[10px]">
               <span className="inline-block size-1.5 rounded-full bg-[#22c55e]" />
               We are Online
             </div>
-            <div className="mt-3 text-[11px] font-semibold text-[#1a1a1a]">Start Conversation →</div>
+            <div className="mt-3 font-semibold text-[#1a1a1a] text-[11px]">Start Conversation →</div>
           </div>
         </div>
-        <div className="py-1.5 text-center text-[9px] text-[#9ca3af]">⚡ Powered by Vobase</div>
+        <div className="py-1.5 text-center text-[#9ca3af] text-[9px]">⚡ Powered by Vobase</div>
       </div>
 
       {/* Bubble */}
       <div
-        className="absolute bottom-4 right-4 flex size-[52px] items-center justify-center rounded-full text-white shadow-[0_4px_16px_rgba(0,0,0,0.15),0_2px_4px_rgba(0,0,0,0.1)]"
+        className="absolute right-4 bottom-4 flex size-[52px] items-center justify-center rounded-full text-white shadow-[0_4px_16px_rgba(0,0,0,0.15),0_2px_4px_rgba(0,0,0,0.1)]"
         style={{ background: color }}
         aria-hidden
       >
@@ -462,7 +462,7 @@ function InstanceCard({
           </div>
           <div className="min-w-0">
             <CardTitle className="text-base">{instance.displayName || 'Untitled channel'}</CardTitle>
-            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="mt-1 flex items-center gap-2 text-muted-foreground text-xs">
               <span className="font-mono">{instance.id}</span>
             </div>
             <div className="mt-2 flex items-center gap-2 text-xs">
@@ -539,10 +539,10 @@ export function ChannelsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-start justify-between gap-4 border-border border-b px-6 py-4">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Channels</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="font-semibold text-lg tracking-tight">Channels</h1>
+          <p className="text-muted-foreground text-sm">
             Transport adapters connecting customers to this organization's messaging.
           </p>
         </div>
@@ -555,7 +555,7 @@ export function ChannelsPage() {
       <div className="flex-1 overflow-auto p-6">
         <div className="mx-auto flex max-w-4xl flex-col gap-4">
           <section>
-            <h2 className="mb-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">Web</h2>
+            <h2 className="mb-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Web</h2>
 
             {isLoading && (
               <div className="space-y-3">

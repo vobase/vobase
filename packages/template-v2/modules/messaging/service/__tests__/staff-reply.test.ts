@@ -8,6 +8,7 @@ import { __resetStaffServiceForTests, installStaffService, type StaffService } f
 import { setJournalDb } from '@vobase/core'
 
 import type { Message } from '../../schema'
+import { sendStaffReply } from '../staff-reply'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ function makeTransactionDb(
   onJournalInsert?: (vals: Record<string, unknown>) => void,
 ) {
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
       const fakeTx = {
         insert: (_table: unknown) => ({
@@ -74,6 +76,7 @@ function makeJournalDb() {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 function makeStaffServiceStub(overrides: Partial<StaffService> = {}): StaffService {
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   const notImplemented = async () => {
     throw new Error('not implemented in stub')
   }
@@ -104,7 +107,6 @@ describe('sendStaffReply', () => {
   })
 
   it('returns messageId matching inserted message', async () => {
-    const { sendStaffReply } = await import('../staff-reply')
     const result = await sendStaffReply({
       conversationId: CONV_ID,
       organizationId: ORG_ID,
@@ -130,7 +132,6 @@ describe('sendStaffReply', () => {
       }),
     )
 
-    const { sendStaffReply } = await import('../staff-reply')
     await sendStaffReply({ conversationId: CONV_ID, organizationId: ORG_ID, staffUserId: STAFF_USER, body: BODY })
     expect(capturedRole).toBe('staff')
     expect(capturedKind).toBe('text')
@@ -153,7 +154,6 @@ describe('sendStaffReply', () => {
       }),
     )
 
-    const { sendStaffReply } = await import('../staff-reply')
     await sendStaffReply({ conversationId: CONV_ID, organizationId: ORG_ID, staffUserId: STAFF_USER, body: BODY })
     expect(capturedText).toBe(`[Alice Nguyen] ${BODY}`)
   })
@@ -175,7 +175,6 @@ describe('sendStaffReply', () => {
     )
 
     const prefixed = '[Override] already tagged'
-    const { sendStaffReply } = await import('../staff-reply')
     await sendStaffReply({ conversationId: CONV_ID, organizationId: ORG_ID, staffUserId: STAFF_USER, body: prefixed })
     expect(capturedText).toBe(prefixed)
   })
@@ -191,7 +190,6 @@ describe('sendStaffReply', () => {
       }),
     )
 
-    const { sendStaffReply } = await import('../staff-reply')
     await sendStaffReply({ conversationId: CONV_ID, organizationId: ORG_ID, staffUserId: STAFF_USER, body: BODY })
     expect(capturedToolName).toBe('staff_reply')
   })

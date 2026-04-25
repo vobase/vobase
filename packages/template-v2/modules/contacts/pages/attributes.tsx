@@ -106,7 +106,7 @@ export function AttributeDefinitionsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-center gap-3 border-border border-b px-6 py-4">
         <Button asChild size="sm" variant="ghost">
           <Link to="/contacts">
             <ArrowLeft className="mr-1 size-4" />
@@ -114,8 +114,8 @@ export function AttributeDefinitionsPage() {
           </Link>
         </Button>
         <div className="flex-1">
-          <h1 className="text-lg font-semibold tracking-tight">Contact attributes</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="font-semibold text-lg tracking-tight">Contact attributes</h1>
+          <p className="text-muted-foreground text-xs">
             Custom fields shown on every contact. Turn on "show in list" to surface as a contacts-table column.
           </p>
         </div>
@@ -126,7 +126,7 @@ export function AttributeDefinitionsPage() {
       </header>
 
       <div className="flex-1 overflow-auto p-6">
-        {isLoading && <div className="text-sm text-muted-foreground">Loading attributes…</div>}
+        {isLoading && <div className="text-muted-foreground text-sm">Loading attributes…</div>}
         {!isLoading && defs.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <Empty>
@@ -171,7 +171,7 @@ export function AttributeDefinitionsPage() {
                         {TYPE_LABEL[def.type]}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-muted-foreground text-sm">
                       {def.type === 'enum' && def.options.length > 0 ? def.options.join(', ') : '—'}
                     </TableCell>
                     <TableCell className="text-center">

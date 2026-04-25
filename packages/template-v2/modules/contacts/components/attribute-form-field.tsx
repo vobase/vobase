@@ -22,7 +22,7 @@ interface Props {
 export function AttributeFormField({ def, value, onChange, disabled }: Props) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={`attr-${def.key}`} className="text-xs font-medium text-muted-foreground">
+      <Label htmlFor={`attr-${def.key}`} className="font-medium text-muted-foreground text-xs">
         {def.label}
       </Label>
       <FieldInput def={def} value={value} onChange={onChange} disabled={disabled} />

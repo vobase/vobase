@@ -27,31 +27,31 @@ export function ApprovalRow({ approval, onDecide }: Props) {
   }
 
   return (
-    <li className="px-5 py-4 space-y-2">
+    <li className="space-y-2 px-5 py-4">
       {/* Tool info */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded bg-info/10 px-1.5 py-0.5 font-mono text-mini text-info">
+            <span className="inline-flex items-center rounded bg-info/10 px-1.5 py-0.5 font-mono text-info text-mini">
               {approval.toolName}
             </span>
             <RelativeTimeCard date={approval.createdAt} className="text-mini text-muted-foreground" />
           </div>
-          <p className="mt-1 text-xs text-muted-foreground font-mono truncate max-w-md">
+          <p className="mt-1 max-w-md truncate font-mono text-muted-foreground text-xs">
             conv: {approval.conversationId}
           </p>
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 shrink-0">
+        <div className="flex shrink-0 gap-2">
           <button
             type="button"
             disabled={loading !== null}
             onClick={() => handleDecide('approved')}
             className={cn(
-              'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              'rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
               'bg-success/10 text-success hover:bg-success/20',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
           >
             {loading === 'approved' ? '…' : 'Approve'}
@@ -61,9 +61,9 @@ export function ApprovalRow({ approval, onDecide }: Props) {
             disabled={loading !== null}
             onClick={() => handleDecide('rejected')}
             className={cn(
-              'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              'rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
               'bg-destructive/10 text-destructive hover:bg-destructive/20',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'disabled:cursor-not-allowed disabled:opacity-50',
             )}
           >
             {loading === 'rejected' ? '…' : 'Reject'}
@@ -73,15 +73,15 @@ export function ApprovalRow({ approval, onDecide }: Props) {
 
       {/* Tool args */}
       <details className="group">
-        <summary className="cursor-pointer text-mini text-muted-foreground hover:text-foreground select-none">
+        <summary className="cursor-pointer select-none text-mini text-muted-foreground hover:text-foreground">
           Tool args
         </summary>
-        <pre className="mt-1.5 rounded bg-muted/50 px-2 py-1.5 text-mini overflow-auto max-h-32">
+        <pre className="mt-1.5 max-h-32 overflow-auto rounded bg-muted/50 px-2 py-1.5 text-mini">
           {JSON.stringify(approval.toolArgs, null, 2)}
         </pre>
       </details>
 
-      {error && <p className="text-mini text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-mini">{error}</p>}
     </li>
   )
 }

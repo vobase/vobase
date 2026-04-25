@@ -45,6 +45,7 @@ export function createLocalAdapter(config: LocalAdapterConfig): StorageAdapter {
       return new Uint8Array(await file.arrayBuffer())
     },
 
+    // biome-ignore lint/suspicious/useAwait: StorageAdapter contract requires async signature
     async delete(fullKey) {
       const safe = sanitizePath(fullKey)
       const fullPath = join(basePath, safe)
@@ -55,6 +56,7 @@ export function createLocalAdapter(config: LocalAdapterConfig): StorageAdapter {
       }
     },
 
+    // biome-ignore lint/suspicious/useAwait: StorageAdapter contract requires async signature
     async exists(fullKey) {
       const safe = sanitizePath(fullKey)
       return existsSync(join(basePath, safe))
@@ -66,6 +68,7 @@ export function createLocalAdapter(config: LocalAdapterConfig): StorageAdapter {
       return `${baseUrl}/${safe}`
     },
 
+    // biome-ignore lint/suspicious/useAwait: StorageAdapter contract requires async signature
     async list(prefix, opts) {
       const safe = sanitizePath(prefix || '')
       const dir = join(basePath, safe)

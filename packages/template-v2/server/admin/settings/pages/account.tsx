@@ -23,8 +23,8 @@ export default function AccountPage() {
   return (
     <div className="max-w-lg space-y-6 p-6">
       <div>
-        <h2 className="text-lg font-semibold">Account</h2>
-        <p className="text-sm text-muted-foreground">Manage your timezone and language preferences.</p>
+        <h2 className="font-semibold text-lg">Account</h2>
+        <p className="text-muted-foreground text-sm">Manage your timezone and language preferences.</p>
       </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

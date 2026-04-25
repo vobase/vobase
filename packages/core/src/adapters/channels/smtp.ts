@@ -109,31 +109,31 @@ export function createSmtpAdapter(config: SmtpAdapterConfig): ChannelAdapter {
         return reply
       }
 
-      const send = async (cmd: string): Promise<void> => {
+      const send = (cmd: string): void => {
         socket?.write(new TextEncoder().encode(`${cmd}\r\n`))
       }
 
       // Greeting
       await expect([220], 'greeting')
 
-      await send(`EHLO localhost`)
+      send(`EHLO localhost`)
       await expect([250], 'EHLO')
 
       if (config.auth) {
         const credentials = Buffer.from(`\0${config.auth.user}\0${config.auth.pass}`).toString('base64')
-        await send(`AUTH PLAIN ${credentials}`)
+        send(`AUTH PLAIN ${credentials}`)
         await expect([235], 'AUTH')
       }
 
-      await send(`MAIL FROM:<${from}>`)
+      send(`MAIL FROM:<${from}>`)
       await expect([250], 'MAIL FROM')
 
       for (const recipient of to) {
-        await send(`RCPT TO:<${recipient}>`)
+        send(`RCPT TO:<${recipient}>`)
         await expect([250, 251], 'RCPT TO')
       }
 
-      await send('DATA')
+      send('DATA')
       await expect([354], 'DATA')
 
       const headers = [
@@ -149,15 +149,15 @@ export function createSmtpAdapter(config: SmtpAdapterConfig): ChannelAdapter {
 
       if (message.html) {
         headers.push('Content-Type: text/html; charset=utf-8')
-        await send(`${headers.join('\r\n')}\r\n\r\n${message.html}\r\n.`)
+        send(`${headers.join('\r\n')}\r\n\r\n${message.html}\r\n.`)
       } else {
         headers.push('Content-Type: text/plain; charset=utf-8')
-        await send(`${headers.join('\r\n')}\r\n\r\n${message.text ?? ''}\r\n.`)
+        send(`${headers.join('\r\n')}\r\n\r\n${message.text ?? ''}\r\n.`)
       }
 
       await expect([250], 'DATA body')
 
-      await send('QUIT')
+      send('QUIT')
       // Best-effort; some servers drop the connection before replying.
       await readReply(2_000).catch(() => '')
 

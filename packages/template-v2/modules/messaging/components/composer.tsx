@@ -62,7 +62,7 @@ export function Composer({ conversationId }: ComposerProps) {
 
   const tabClass = (active: boolean) =>
     cn(
-      'rounded-md px-2 py-1 text-xs font-medium transition-colors',
+      'rounded-md px-2 py-1 font-medium text-xs transition-colors',
       active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
     )
 

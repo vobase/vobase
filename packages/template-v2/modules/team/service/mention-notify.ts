@@ -8,9 +8,13 @@
  * blocks the note insert. Never throws.
  */
 
+import { staffChannelBindings } from '@modules/contacts/schema'
 import type { InternalNote } from '@modules/messaging/schema'
+import { channelInstances } from '@modules/messaging/schema'
 import { find as findStaff } from '@modules/team/service/staff'
 import { getPrefs } from '@server/admin/settings/service/notification-prefs'
+import { sendOutbound } from '@server/transports/whatsapp/service/sender'
+import { and, eq } from 'drizzle-orm'
 
 const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000
 
@@ -56,8 +60,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
   const db = deps.db as { select: Function }
 
   async function findWhatsappChannel(organizationId: string): Promise<ChannelInstanceRow | null> {
-    const { channelInstances } = await import('@modules/messaging/schema')
-    const { and, eq } = await import('drizzle-orm')
     const rows = (await db
       .select({ id: channelInstances.id, config: channelInstances.config })
       .from(channelInstances)
@@ -73,8 +75,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
   }
 
   async function findBinding(userId: string, channelInstanceId: string): Promise<StaffBindingRow | null> {
-    const { staffChannelBindings } = await import('@modules/contacts/schema')
-    const { and, eq } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(staffChannelBindings)
@@ -94,7 +94,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     const phoneNumberId = cfg.phoneNumberId ?? process.env.WA_PHONE_NUMBER_ID ?? ''
     const accessToken = cfg.accessToken ?? process.env.WA_ACCESS_TOKEN ?? ''
     if (!phoneNumberId || !accessToken) return false
-    const { sendOutbound } = await import('@server/transports/whatsapp/service/sender')
     const res = await sendOutbound(
       {
         toolName: 'reply',

@@ -304,6 +304,7 @@ describe('postCardReply — fetch payload', () => {
   it('posts correct JSON body to card-reply endpoint', async () => {
     const captured: { url: string; body: unknown }[] = []
 
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     globalThis.fetch = mock(async (url: string, init?: RequestInit) => {
       captured.push({ url, body: JSON.parse((init?.body as string) ?? '{}') })
       return new Response(JSON.stringify({ ok: true }), { status: 200 })

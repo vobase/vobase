@@ -165,10 +165,10 @@ export function ConversationDetail() {
   return (
     <div className="flex h-full flex-col">
       {/* Row 1: contact header + channel tabs */}
-      <div className="w-full border-b bg-background px-4 py-1.5 flex items-center gap-6 min-h-[52px]">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <h1 className="text-base font-semibold truncate">{title}</h1>
-          {subline && <span className="text-xs text-muted-foreground shrink-0">{subline}</span>}
+      <div className="flex min-h-[52px] w-full items-center gap-6 border-b bg-background px-4 py-1.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="truncate font-semibold text-base">{title}</h1>
+          {subline && <span className="shrink-0 text-muted-foreground text-xs">{subline}</span>}
         </div>
         {tabs.length > 1 && (
           <div>
@@ -185,7 +185,7 @@ export function ConversationDetail() {
       </div>
 
       {/* Row 2: action bar */}
-      <div className="border-b bg-muted/20 px-4 py-1.5 flex items-center gap-2">
+      <div className="flex items-center gap-2 border-b bg-muted/20 px-4 py-1.5">
         <AssigneeBadge
           assignee={activeConv?.assignee ?? null}
           disabled={!activeConvId || reassign.isPending}

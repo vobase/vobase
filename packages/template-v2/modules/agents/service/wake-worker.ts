@@ -49,6 +49,7 @@ export function createInMemoryOutbound(): OutboundDispatch & {
   const sent = new Set<string>()
   const log: Array<{ conversationId: string; toolCallId: string; toolName: string }> = []
   return {
+    // biome-ignore lint/suspicious/useAwait: test setup may invoke async helpers
     async emit(input): Promise<void> {
       const key = `${input.conversationId}:${input.toolCallId}`
       if (sent.has(key)) return

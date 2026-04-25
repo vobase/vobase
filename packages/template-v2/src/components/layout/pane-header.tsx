@@ -16,13 +16,13 @@ function PaneHeader({ title, meta, actions, filters, density = 'list', className
     <div
       data-slot="pane-header"
       className={cn(
-        'flex h-10 max-h-10 shrink-0 items-center gap-2 border-b border-[var(--color-border-subtle)]',
+        'flex h-10 max-h-10 shrink-0 items-center gap-2 border-[var(--color-border-subtle)] border-b',
         density === 'list' ? 'px-3' : 'px-4',
         className,
       )}
     >
-      <span className="truncate text-sm font-semibold text-[var(--color-fg)]">{title}</span>
-      {meta && <span className="shrink-0 font-mono text-xs text-[var(--color-fg-muted)]">{meta}</span>}
+      <span className="truncate font-semibold text-[var(--color-fg)] text-sm">{title}</span>
+      {meta && <span className="shrink-0 font-mono text-[var(--color-fg-muted)] text-xs">{meta}</span>}
       {filters && <div className="flex shrink-0 items-center gap-1">{filters}</div>}
       {actions && <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>}
     </div>

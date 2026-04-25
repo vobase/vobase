@@ -7,12 +7,12 @@ import { DriveProvider } from '../components/drive-provider'
 export function DrivePage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="shrink-0 border-b border-border px-6 py-4">
+      <header className="shrink-0 border-border border-b px-6 py-4">
         <div className="flex items-center gap-3">
           <HardDrive className="size-5 text-muted-foreground" />
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Drive</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="font-semibold text-lg tracking-tight">Drive</h1>
+            <p className="text-muted-foreground text-sm">
               Organization-scope files — brand, policy, and pricing docs. Contact-scope files live on each contact.
             </p>
           </div>

@@ -56,7 +56,7 @@ export function buildPgliteAdapter(pglite: PGlite) {
   }
 }
 
-async function buildBoss(connection: PGlite | string): Promise<PgBoss> {
+function buildBoss(connection: PGlite | string): PgBoss {
   if (typeof connection !== 'string') {
     // PGlite instance (tests)
     return new PgBoss({ db: buildPgliteAdapter(connection) })
@@ -77,13 +77,16 @@ async function buildBoss(connection: PGlite | string): Promise<PgBoss> {
 function createNoopScheduler(): Scheduler {
   const warn = (method: string) => console.warn(`[pg-boss] Scheduler not available, skipping ${method}()`)
   return {
+    // biome-ignore lint/suspicious/useAwait: Scheduler contract requires async signature
     async add(name) {
       warn(`add(${name})`)
     },
+    // biome-ignore lint/suspicious/useAwait: Scheduler contract requires async signature
     async send() {
       warn('send')
       return null
     },
+    // biome-ignore lint/suspicious/useAwait: Scheduler contract requires async signature
     async schedule(name) {
       warn(`schedule(${name})`)
     },
@@ -94,7 +97,7 @@ function createNoopScheduler(): Scheduler {
 
 export async function createScheduler(options?: SchedulerOptions): Promise<Scheduler> {
   const connection = options?.connection ?? options?.dbPath ?? 'memory://'
-  const boss = await buildBoss(connection as PGlite | string)
+  const boss = buildBoss(connection as PGlite | string)
 
   boss.on('error', (err: Error) => {
     console.error('[pg-boss]', err)

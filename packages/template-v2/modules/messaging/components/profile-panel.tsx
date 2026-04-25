@@ -24,19 +24,19 @@ export function ProfilePanel({ conversationId }: ProfilePanelProps) {
 
   return (
     <div className="p-4">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-fg-muted)]">Profile</p>
+      <p className="mb-3 font-semibold text-[var(--color-fg-muted)] text-xs uppercase tracking-wider">Profile</p>
       <dl className="space-y-2">
         <div>
-          <dt className="text-xs text-[var(--color-fg-muted)]">Name</dt>
-          <dd className="text-sm text-[var(--color-fg)]">{contact?.displayName ?? '—'}</dd>
+          <dt className="text-[var(--color-fg-muted)] text-xs">Name</dt>
+          <dd className="text-[var(--color-fg)] text-sm">{contact?.displayName ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-[var(--color-fg-muted)]">Phone</dt>
-          <dd className="text-sm text-[var(--color-fg)]">{contact?.phone ?? '—'}</dd>
+          <dt className="text-[var(--color-fg-muted)] text-xs">Phone</dt>
+          <dd className="text-[var(--color-fg)] text-sm">{contact?.phone ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-[var(--color-fg-muted)]">Email</dt>
-          <dd className="text-sm text-[var(--color-fg)]">{contact?.email ?? '—'}</dd>
+          <dt className="text-[var(--color-fg-muted)] text-xs">Email</dt>
+          <dd className="text-[var(--color-fg)] text-sm">{contact?.email ?? '—'}</dd>
         </div>
       </dl>
     </div>

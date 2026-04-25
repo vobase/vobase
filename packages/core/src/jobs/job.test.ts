@@ -9,7 +9,7 @@ afterEach(() => {
 })
 
 describe('defineJob()', () => {
-  it('registers a job definition in the module registry', async () => {
+  it('registers a job definition in the module registry', () => {
     const handler = async (): Promise<void> => {
       await Bun.sleep(0)
     }
@@ -34,6 +34,7 @@ describe('createWorker()', () => {
       resolveProcessed = resolve
     })
 
+    // biome-ignore lint/suspicious/useAwait: defineJob handler signature requires async
     const job = defineJob('invoice.sync', async (data) => {
       processedData = data
       resolveProcessed()

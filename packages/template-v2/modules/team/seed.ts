@@ -10,12 +10,11 @@
  */
 
 import { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { staffAttributeDefinitions, staffProfiles } from '@modules/team/schema'
 
 export { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID }
 
 export async function seed(db: unknown): Promise<void> {
-  const { staffAttributeDefinitions, staffProfiles } = await import('@modules/team/schema')
-
   const d = db as {
     insert: (t: unknown) => {
       values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }

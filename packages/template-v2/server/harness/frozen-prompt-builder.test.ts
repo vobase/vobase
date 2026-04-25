@@ -45,6 +45,7 @@ describe('buildActiveIdsPreamble', () => {
 })
 
 describe('buildFrozenPrompt session-context + platform-hints', () => {
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function buildBash() {
     const fs = new InMemoryFs()
     return new Bash({ fs })

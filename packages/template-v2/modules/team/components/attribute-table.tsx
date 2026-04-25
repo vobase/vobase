@@ -54,7 +54,7 @@ export function AttributeTable({ userId, values }: Props) {
   }
 
   if (isLoading) {
-    return <div className="text-sm text-muted-foreground">Loading attributes…</div>
+    return <div className="text-muted-foreground text-sm">Loading attributes…</div>
   }
 
   if (defs.length === 0) {

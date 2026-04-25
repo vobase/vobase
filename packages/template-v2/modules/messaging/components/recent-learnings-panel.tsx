@@ -10,7 +10,7 @@ export function RecentLearningsPanel({ conversationId }: RecentLearningsPanelPro
   const recent = learnings.filter((l) => l.conversationId === conversationId)
 
   if (recent.length === 0) {
-    return <p className="px-4 pb-4 text-sm text-[var(--color-fg-muted)]">No recent learnings.</p>
+    return <p className="px-4 pb-4 text-[var(--color-fg-muted)] text-sm">No recent learnings.</p>
   }
 
   return (
@@ -18,10 +18,10 @@ export function RecentLearningsPanel({ conversationId }: RecentLearningsPanelPro
       {recent.map((learning) => (
         <li key={learning.id} className="px-4 py-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-[var(--color-fg)]">{learning.scope}</span>
+            <span className="font-medium text-[var(--color-fg)] text-xs">{learning.scope}</span>
             <RelativeTimeCard date={new Date(learning.createdAt)} className="text-mini text-muted-foreground" />
           </div>
-          {learning.body && <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-fg-muted)]">{learning.body}</p>}
+          {learning.body && <p className="mt-0.5 line-clamp-2 text-[var(--color-fg-muted)] text-xs">{learning.body}</p>}
           <span className="text-2xs text-[var(--color-fg-muted)]">{learning.status}</span>
         </li>
       ))}

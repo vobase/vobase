@@ -9,15 +9,19 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { contactsClient } from '@/lib/api-client'
+import { hydrateContact } from '@/lib/rpc-utils'
 import { useUpdateContact } from '../api/use-contacts'
 import { AttributeTable } from '../components/attribute-table'
 import { ContactFormDialog, type ContactFormValues, normalizeContactForm } from '../components/contact-form-dialog'
 import type { Contact } from '../schema'
 
 async function fetchContact(id: string): Promise<Contact> {
-  const r = await fetch(`/api/contacts/${id}`)
+  const r = await contactsClient[':id'].$get({ param: { id } })
   if (!r.ok) throw new Error('Failed to load contact')
-  return (await r.json()) as Contact
+  const row = await r.json()
+  if ('error' in row) throw new Error('Failed to load contact')
+  return hydrateContact(row)
 }
 
 export function ContactDetailPage() {
@@ -38,7 +42,7 @@ export function ContactDetailPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="shrink-0 border-b border-border px-6 py-4">
+      <header className="shrink-0 border-border border-b px-6 py-4">
         <div className="flex items-center gap-3">
           <Button asChild size="sm" variant="ghost">
             <Link to="/contacts">
@@ -47,9 +51,9 @@ export function ContactDetailPage() {
             </Link>
           </Button>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold tracking-tight">{contact?.displayName ?? 'Contact'}</h1>
+            <h1 className="truncate font-semibold text-lg tracking-tight">{contact?.displayName ?? 'Contact'}</h1>
             {contact && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground text-xs">
                 {contact.email && (
                   <span className="inline-flex items-center gap-1">
                     <Mail className="size-3" />
@@ -99,28 +103,28 @@ export function ContactDetailPage() {
       </header>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        {isLoading && <div className="p-6 text-sm text-muted-foreground">Loading…</div>}
+        {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading…</div>}
         {error && (
-          <div className="m-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <div className="m-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
             Failed to load contact
           </div>
         )}
         {contact && (
           <>
-            <section className="shrink-0 border-b border-border px-6 py-4">
+            <section className="shrink-0 border-border border-b px-6 py-4">
               <div className="mb-3 flex items-center gap-2">
                 <Settings2 className="size-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium">Attributes</h2>
-                <span className="text-xs text-muted-foreground">Typed, org-wide custom fields.</span>
+                <h2 className="font-medium text-sm">Attributes</h2>
+                <span className="text-muted-foreground text-xs">Typed, org-wide custom fields.</span>
               </div>
               <AttributeTable contactId={id} values={contact.attributes} />
             </section>
 
             <section className="flex min-h-0 flex-1 flex-col">
-              <div className="flex shrink-0 items-center gap-2 border-b border-border px-6 py-3">
+              <div className="flex shrink-0 items-center gap-2 border-border border-b px-6 py-3">
                 <FolderTree className="size-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium">Drive</h2>
-                <span className="text-xs text-muted-foreground">Per-contact uploads and notes.</span>
+                <h2 className="font-medium text-sm">Drive</h2>
+                <span className="text-muted-foreground text-xs">Per-contact uploads and notes.</span>
               </div>
               <div className="min-h-0 flex-1">
                 <DriveProvider

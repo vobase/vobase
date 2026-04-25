@@ -15,6 +15,7 @@ function mkTool(name: string): AgentTool {
     name,
     description: name,
     inputSchema: { type: 'object' as const },
+    // biome-ignore lint/suspicious/useAwait: AgentTool execute contract requires async signature
     async execute() {
       return { ok: true, content: name }
     },

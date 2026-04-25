@@ -86,6 +86,7 @@ describe('CaptionPort — Gemini path (env set)', () => {
 
   it('captionImage includes hint in prompt when provided', async () => {
     let capturedBody: unknown
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     const captureFetch = async (url: string, init?: RequestInit) => {
       capturedBody = JSON.parse((init?.body as string) ?? '{}')
       return okJsonFetch(url, init)
@@ -104,6 +105,7 @@ describe('CaptionPort — Gemini path (env set)', () => {
 
   it('extractText passes mime type in fileData and returns text', async () => {
     let capturedBody: unknown
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     const captureFetch = async (url: string, init?: RequestInit) => {
       capturedBody = JSON.parse((init?.body as string) ?? '{}')
       return okJsonFetch(url, init)

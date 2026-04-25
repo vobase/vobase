@@ -568,6 +568,7 @@ export async function createHarness<TTrigger = unknown>(
       messages: piMessages.length > 0 ? ([...piMessages] as AgentMessage[]) : undefined,
     },
     convertToLlm: (msgs: AgentMessage[]) => msgs as never,
+    // biome-ignore lint/suspicious/useAwait: Agent transformContext contract requires async signature
     transformContext: async (msgs: AgentMessage[]) => {
       if (!tracker.sideLoadCache) return msgs
       const lastIdx = msgs.length - 1

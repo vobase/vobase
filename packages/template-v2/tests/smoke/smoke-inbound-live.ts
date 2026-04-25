@@ -45,6 +45,7 @@ if (!res.ok) process.exit(1)
 const conversationId = (payload as { conversationId: string }).conversationId
 
 // Poll the DB directly for the agent reply (HTTP route requires session).
+// biome-ignore lint/plugin/no-dynamic-import: heavy optional dep
 const postgres = (await import('postgres')).default
 const sql = postgres(process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5433/vobase_v2')
 try {

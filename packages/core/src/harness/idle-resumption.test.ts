@@ -77,6 +77,7 @@ describe('createIdleResumptionContributor', () => {
     const m = createIdleResumptionContributor({
       conversationId: 'conv_xyz',
       thresholdMs: THRESHOLD,
+      // biome-ignore lint/suspicious/useAwait: getLastActivityTime contract requires async signature
       getLastActivityTime: async (id) => {
         captured = id
         return null

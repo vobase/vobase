@@ -4,6 +4,9 @@
  * array and no row exists in `messaging.mention_dismissals` for that (user, note).
  */
 
+import { internalNotes, mentionDismissals } from '@modules/messaging/schema'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+
 export interface UnreadMention {
   noteId: string
   conversationId: string
@@ -28,8 +31,6 @@ export function createMentionsService(deps: MentionsDeps): MentionsService {
   const db = deps.db as { select: Function; insert: Function; execute?: Function }
 
   async function listUnread(userId: string, limit = 50): Promise<UnreadMention[]> {
-    const { internalNotes, mentionDismissals } = await import('@modules/messaging/schema')
-    const { and, desc, eq, isNull, sql } = await import('drizzle-orm')
     const rows = (await db
       .select({
         noteId: internalNotes.id,
@@ -53,8 +54,6 @@ export function createMentionsService(deps: MentionsDeps): MentionsService {
   }
 
   async function unreadCount(userId: string): Promise<number> {
-    const { internalNotes, mentionDismissals } = await import('@modules/messaging/schema')
-    const { and, eq, isNull, sql } = await import('drizzle-orm')
     const rows = (await db
       .select({ count: sql<number>`count(*)::int` })
       .from(internalNotes)
@@ -69,14 +68,12 @@ export function createMentionsService(deps: MentionsDeps): MentionsService {
   }
 
   async function dismiss(userId: string, noteId: string): Promise<void> {
-    const { mentionDismissals } = await import('@modules/messaging/schema')
     await db.insert(mentionDismissals).values({ userId, noteId }).onConflictDoNothing()
   }
 
   async function dismissAll(userId: string): Promise<number> {
     const unread = await listUnread(userId, 500)
     if (unread.length === 0) return 0
-    const { mentionDismissals } = await import('@modules/messaging/schema')
     await db
       .insert(mentionDismissals)
       .values(unread.map((m) => ({ userId, noteId: m.noteId })))

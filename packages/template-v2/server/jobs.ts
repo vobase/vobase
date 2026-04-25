@@ -43,6 +43,7 @@ export function buildJobQueue(handlers: Map<string, (data: unknown) => Promise<v
   }
 
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async send(name: string, data: unknown, opts?: ScheduleOpts): Promise<string> {
       const jobId = `job-${nanoid(8)}`
 
@@ -66,6 +67,7 @@ export function buildJobQueue(handlers: Map<string, (data: unknown) => Promise<v
       }
       return jobId
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async cancel(jobId: string): Promise<void> {
       const job = pending.get(jobId)
       if (!job) return

@@ -11,6 +11,7 @@
  */
 
 import { channelInstances } from '@modules/messaging/schema'
+import { and, eq } from 'drizzle-orm'
 
 export interface WebInstance {
   id: string
@@ -98,7 +99,6 @@ export function createWebInstancesService(deps: { db: unknown }): WebInstancesSe
   const db = deps.db as DbHandle
 
   async function list(organizationId: string): Promise<WebInstance[]> {
-    const { and, eq } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(channelInstances)
@@ -107,7 +107,6 @@ export function createWebInstancesService(deps: { db: unknown }): WebInstancesSe
   }
 
   async function getPublic(id: string): Promise<PublicWebInstance | null> {
-    const { and, eq } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(channelInstances)
@@ -123,7 +122,6 @@ export function createWebInstancesService(deps: { db: unknown }): WebInstancesSe
   }
 
   async function getDefaultAssignee(id: string): Promise<string | null> {
-    const { and, eq } = await import('drizzle-orm')
     const rows = (await db
       .select()
       .from(channelInstances)
@@ -155,7 +153,6 @@ export function createWebInstancesService(deps: { db: unknown }): WebInstancesSe
   }
 
   async function update(id: string, organizationId: string, patch: UpdateWebInstanceInput): Promise<WebInstance> {
-    const { and, eq } = await import('drizzle-orm')
     const existingRows = (await db
       .select()
       .from(channelInstances)
@@ -191,7 +188,6 @@ export function createWebInstancesService(deps: { db: unknown }): WebInstancesSe
   }
 
   async function remove(id: string, organizationId: string): Promise<void> {
-    const { and, eq } = await import('drizzle-orm')
     await db
       .delete(channelInstances)
       .where(and(eq(channelInstances.id, id), eq(channelInstances.organizationId, organizationId)))
@@ -217,18 +213,23 @@ function current(): WebInstancesService {
   return _currentService
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function listInstances(organizationId: string): Promise<WebInstance[]> {
   return current().list(organizationId)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function getPublicInstance(id: string): Promise<PublicWebInstance | null> {
   return current().getPublic(id)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function getInstanceDefaultAssignee(id: string): Promise<string | null> {
   return current().getDefaultAssignee(id)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function createInstance(input: CreateWebInstanceInput): Promise<WebInstance> {
   return current().create(input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function updateInstance(
   id: string,
   organizationId: string,
@@ -236,6 +237,7 @@ export async function updateInstance(
 ): Promise<WebInstance> {
   return current().update(id, organizationId, patch)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function removeInstance(id: string, organizationId: string): Promise<void> {
   return current().remove(id, organizationId)
 }

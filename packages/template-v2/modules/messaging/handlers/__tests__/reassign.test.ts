@@ -42,6 +42,7 @@ function makeStaffOpsDb(conv: unknown, notifyCalls: string[]) {
         }),
       }),
     }),
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     execute: async (_q: unknown) => {
       notifyCalls.push(CONV_ID)
       return []

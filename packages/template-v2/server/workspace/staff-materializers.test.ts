@@ -22,6 +22,7 @@ const ORG_ID = 't1'
 
 function makeStaffStub(profile: Partial<StaffProfile> | null): StaffService {
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async find() {
       if (!profile) return null
       return {
@@ -49,9 +50,11 @@ function makeStaffStub(profile: Partial<StaffProfile> | null): StaffService {
 function makeMemoryStub(initial: Record<string, string>): StaffMemoryService {
   const store = new Map<string, string>(Object.entries(initial))
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async read(key) {
       return store.get(`${key.organizationId}/${key.agentId}/${key.staffId}`) ?? ''
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async upsert(key, content) {
       store.set(`${key.organizationId}/${key.agentId}/${key.staffId}`, content)
     },

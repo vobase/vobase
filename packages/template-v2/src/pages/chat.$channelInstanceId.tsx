@@ -74,6 +74,7 @@ function authFetchInit(token: string | null, init: RequestInit = {}): RequestIni
 }
 
 async function mintAnonymousToken(): Promise<string> {
+  // biome-ignore lint/plugin/no-raw-fetch: anonymous public endpoint with custom credentials handling; typed RPC requires session
   const res = await fetch('/api/channel-web/anonymous-session', {
     method: 'POST',
     credentials: 'omit',
@@ -145,6 +146,7 @@ export function ChatPage() {
     let cancelled = false
     ;(async () => {
       try {
+        // biome-ignore lint/plugin/no-raw-fetch: public anonymous endpoint; typed RPC requires session
         const res = await fetch(`/api/channel-web/instances/${encodeURIComponent(channelInstanceId)}/public`)
         if (!res.ok) return
         const data = (await res.json()) as PublicInstance
@@ -161,6 +163,7 @@ export function ChatPage() {
   const refresh = useCallback(
     async (id: string) => {
       try {
+        // biome-ignore lint/plugin/no-raw-fetch: anonymous chat session uses bearer token via authFetchInit; typed RPC requires session
         const res = await fetch(
           `/api/messaging/conversations/${id}/messages?limit=100`,
           authFetchInit(token, { method: 'GET' }),
@@ -244,6 +247,7 @@ export function ChatPage() {
       setNotice(null)
       try {
         const externalMessageId = `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        // biome-ignore lint/plugin/no-raw-fetch: anonymous chat session uses bearer token + custom headers via authFetchInit; typed RPC requires session
         const res = await fetch(
           '/api/channel-web/inbound',
           authFetchInit(token, {
@@ -292,7 +296,7 @@ export function ChatPage() {
 
   if (!ready) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+      <div className="flex h-screen items-center justify-center bg-background text-muted-foreground text-sm">
         Connecting…
       </div>
     )
@@ -301,7 +305,7 @@ export function ChatPage() {
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       {!isIframe && (
-        <header className="flex h-14 shrink-0 items-center border-b border-border px-4">
+        <header className="flex h-14 shrink-0 items-center border-border border-b px-4">
           <div className="mx-auto flex w-full max-w-2xl items-center gap-3">
             <div
               className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground"
@@ -310,8 +314,8 @@ export function ChatPage() {
               <Globe className="size-4" />
             </div>
             <div className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate text-sm font-semibold">{botName}</span>
-              <span className="text-xs text-muted-foreground">
+              <span className="truncate font-semibold text-sm">{botName}</span>
+              <span className="text-muted-foreground text-xs">
                 <span className="mr-1.5 inline-block size-1.5 rounded-full bg-emerald-500 align-middle" />
                 Online
               </span>
@@ -336,8 +340,8 @@ export function ChatPage() {
               >
                 <Globe className="size-5" />
               </div>
-              <div className="text-sm font-semibold">Hi, I'm {botName}</div>
-              <div className="text-xs text-muted-foreground">Ask me anything to get started.</div>
+              <div className="font-semibold text-sm">Hi, I'm {botName}</div>
+              <div className="text-muted-foreground text-xs">Ask me anything to get started.</div>
             </div>
           ) : (
             messages.map((m) => <MessageRow key={m.id} msg={m} />)
@@ -346,7 +350,7 @@ export function ChatPage() {
       </div>
 
       {showStarters && (
-        <div className="shrink-0 border-t border-border bg-background px-4 py-2">
+        <div className="shrink-0 border-border border-t bg-background px-4 py-2">
           <div className={cn('mx-auto', isIframe ? 'max-w-full' : 'max-w-2xl')}>
             <Suggestions>
               {starters.map((s) => (
@@ -358,17 +362,17 @@ export function ChatPage() {
       )}
 
       {error && (
-        <div className="border-t border-destructive bg-destructive/10 px-4 py-2 text-xs text-destructive-foreground">
+        <div className="border-destructive border-t bg-destructive/10 px-4 py-2 text-destructive-foreground text-xs">
           {error}
         </div>
       )}
       {notice && (
-        <div className="border-t border-border bg-muted px-4 py-2 text-xs text-muted-foreground">{notice}</div>
+        <div className="border-border border-t bg-muted px-4 py-2 text-muted-foreground text-xs">{notice}</div>
       )}
 
       <form
         onSubmit={onSubmit}
-        className={cn('flex shrink-0 gap-2 border-t border-border bg-card', isIframe ? 'p-3' : 'px-6 py-5')}
+        className={cn('flex shrink-0 gap-2 border-border border-t bg-card', isIframe ? 'p-3' : 'px-6 py-5')}
       >
         <div className={cn('mx-auto flex w-full gap-2', isIframe ? 'max-w-full' : 'max-w-2xl')}>
           <Textarea

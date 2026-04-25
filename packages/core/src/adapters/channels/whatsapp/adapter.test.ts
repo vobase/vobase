@@ -98,6 +98,7 @@ function mockFetch(response: object, status = 200) {
 
 function mockFetchSequence(responses: Array<{ body: object; status?: number }>) {
   let callIndex = 0
+  // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
   globalThis.fetch = (async () => {
     const r = responses[callIndex] ?? responses[responses.length - 1]
     callIndex++
@@ -773,6 +774,7 @@ describe('WhatsApp Adapter', () => {
     it('chunks long text messages', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let callCount = 0
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async () => {
         callCount++
         return new Response(
@@ -793,6 +795,7 @@ describe('WhatsApp Adapter', () => {
     it('handles exactly MAX_TEXT_LENGTH text', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let callCount = 0
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async () => {
         callCount++
         return new Response(
@@ -915,6 +918,7 @@ describe('WhatsApp Adapter', () => {
     it('includes replyToMessageId in context', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let capturedBody: Record<string, unknown> | undefined
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
         capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>
         return new Response(
@@ -939,6 +943,7 @@ describe('WhatsApp Adapter', () => {
     it('sends multiple media items', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let callCount = 0
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async () => {
         callCount++
         return new Response(
@@ -969,7 +974,7 @@ describe('WhatsApp Adapter', () => {
 
   describe('errorToSendResult', () => {
     // We test error mapping by sending a message that triggers a mocked error response
-    async function sendWithError(metaCode: number, httpStatus = 400) {
+    function sendWithError(metaCode: number, httpStatus = 400) {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       mockFetch(
         {
@@ -1239,6 +1244,7 @@ describe('WhatsApp Adapter', () => {
     it('includes preview_url: true in outbound text payload', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let capturedBody: Record<string, unknown> | undefined
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (_url: string, init?: RequestInit) => {
         if (init?.body && typeof init.body === 'string') {
           capturedBody = JSON.parse(init.body)
@@ -1262,6 +1268,7 @@ describe('WhatsApp Adapter', () => {
     it('sets preview_url: false when text has no URL', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let capturedBody: Record<string, unknown> | undefined
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (_url: string, init?: RequestInit) => {
         if (init?.body && typeof init.body === 'string') {
           capturedBody = JSON.parse(init.body)
@@ -1284,6 +1291,7 @@ describe('WhatsApp Adapter', () => {
     it('sends read status to Graph API', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let capturedBody: Record<string, unknown> | undefined
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
         capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>
         return new Response(JSON.stringify({ success: true }), {
@@ -1380,6 +1388,7 @@ describe('WhatsApp Adapter', () => {
     it('sends structured components when template.components is provided', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let capturedBody: Record<string, unknown> | undefined
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
         capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>
         return new Response(
@@ -1438,6 +1447,7 @@ describe('WhatsApp Adapter', () => {
     it('falls back to legacy parameters when components is absent', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let capturedBody: Record<string, unknown> | undefined
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (_url: string, opts: RequestInit) => {
         capturedBody = JSON.parse(opts.body as string) as Record<string, unknown>
         return new Response(
@@ -1499,6 +1509,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
     it('routes text messages through transport base URL', async () => {
       let capturedUrl = ''
       let capturedHeaders: Record<string, string> = {}
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
         capturedUrl = typeof input === 'string' ? input : input.toString()
         capturedHeaders = (init?.headers ?? {}) as Record<string, string>
@@ -1515,7 +1526,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
       expect(result.messageId).toBe('wamid.proxy1')
       expect(capturedUrl).toBe('https://proxy.example.com/graph/123456789/messages')
       // Should NOT have direct Bearer token
-      expect(capturedHeaders['Authorization']).toBeUndefined()
+      expect(capturedHeaders.Authorization).toBeUndefined()
       // Should have transport headers from signRequest
       expect(capturedHeaders['X-Platform-Signature']).toBeDefined()
       expect(capturedHeaders['X-Tenant-Id']).toBe('tenant-123')
@@ -1540,6 +1551,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
 
     it('routes template messages through transport', async () => {
       let capturedUrl = ''
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request) => {
         capturedUrl = typeof input === 'string' ? input : input.toString()
         return new Response(JSON.stringify({ messages: [{ id: 'wamid.tmpl1' }] }), {
@@ -1561,6 +1573,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
     it('routes media upload (FormData) through transport URL', async () => {
       const capturedUrls: string[] = []
       let callCount = 0
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request) => {
         const url = typeof input === 'string' ? input : input.toString()
         capturedUrls.push(url)
@@ -1603,6 +1616,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
   describe('media download', () => {
     it('fetches metadata via proxy then binary via mediaDownloadUrl', async () => {
       const capturedUrls: string[] = []
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request) => {
         const url = typeof input === 'string' ? input : input.toString()
         capturedUrls.push(url)
@@ -1726,6 +1740,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
   describe('markAsRead and syncTemplates', () => {
     it('routes markAsRead through transport', async () => {
       let capturedUrl = ''
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request) => {
         capturedUrl = typeof input === 'string' ? input : input.toString()
         return new Response(JSON.stringify({ success: true }), {
@@ -1824,6 +1839,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
       // ~1s test due to 1s retry delay
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let callCount = 0
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async () => {
         callCount++
         if (callCount === 1) throw new Error('Network timeout')
@@ -1854,6 +1870,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
     it('sets mediaDownloadFailed when all retries exhausted', async () => {
       // ~2s test due to 2 retry delays
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async () => {
         throw new Error('CDN unreachable')
       }) as unknown as typeof fetch
@@ -2031,6 +2048,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let capturedUrl = ''
       let capturedMethod = ''
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
         const url = typeof input === 'string' ? input : input.toString()
         capturedUrl = url
@@ -2043,6 +2061,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
 
       // First call: getWabaId; second call: DELETE
       let callCount = 0
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
         callCount++
         if (callCount === 1) {
@@ -2124,6 +2143,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
     it('sends cta_url interactive with correct body shape', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       let capturedBody: Record<string, unknown> | undefined
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
         if (init?.body && typeof init.body === 'string') {
           capturedBody = JSON.parse(init.body)
@@ -2155,6 +2175,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
       const adapter = createWhatsAppAdapter(CONFIG_WITH_APP)
       let capturedUrl = ''
       let capturedBody: Record<string, unknown> | undefined
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
         capturedUrl = typeof input === 'string' ? input : input.toString()
         if (init?.body && typeof init.body === 'string') {
@@ -2182,6 +2203,7 @@ describe('WhatsApp Adapter (transport mode)', () => {
       const adapter = createWhatsAppAdapter(CONFIG_WITH_APP)
       let capturedMethod = ''
       let capturedUrl = ''
+      // biome-ignore lint/suspicious/useAwait: fetch mock must return Promise<Response> to match fetch signature
       globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
         capturedUrl = typeof input === 'string' ? input : input.toString()
         capturedMethod = init?.method ?? 'GET'

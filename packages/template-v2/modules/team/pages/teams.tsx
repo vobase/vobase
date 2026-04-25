@@ -57,7 +57,7 @@ export function TeamsPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-center gap-3 border-border border-b px-6 py-4">
         <Button asChild size="sm" variant="ghost">
           <Link to="/team">
             <ArrowLeft className="mr-1 size-4" />
@@ -65,8 +65,8 @@ export function TeamsPage() {
           </Link>
         </Button>
         <div className="flex-1">
-          <h1 className="text-lg font-semibold tracking-tight">Teams</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="font-semibold text-lg tracking-tight">Teams</h1>
+          <p className="text-muted-foreground text-xs">
             Organize staff into teams for routing. Descriptions are surfaced to agents as routing context.
           </p>
         </div>
@@ -77,9 +77,9 @@ export function TeamsPage() {
       </header>
 
       <div className="grid flex-1 grid-cols-[1fr_1fr] overflow-hidden">
-        <div className="flex flex-col overflow-auto border-r border-border">
-          {isLoading && <div className="p-6 text-sm text-muted-foreground">Loading teams…</div>}
-          {error && <div className="m-6 text-sm text-destructive">Failed to load teams</div>}
+        <div className="flex flex-col overflow-auto border-border border-r">
+          {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading teams…</div>}
+          {error && <div className="m-6 text-destructive text-sm">Failed to load teams</div>}
           {!isLoading && !error && teams.length === 0 && (
             <div className="flex h-full items-center justify-center">
               <Empty>
@@ -112,7 +112,7 @@ export function TeamsPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium">{team.name}</div>
-                      <div className="truncate text-xs text-muted-foreground">
+                      <div className="truncate text-muted-foreground text-xs">
                         {descriptionByTeam.get(team.id) || 'No description'}
                       </div>
                     </div>
@@ -155,7 +155,7 @@ export function TeamsPage() {
               key={selectedTeam.id}
             />
           ) : (
-            <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center p-6 text-muted-foreground text-sm">
               Select a team to view members and edit its description.
             </div>
           )}
@@ -345,14 +345,14 @@ function TeamDetail({ team, description }: { team: TeamRow; description: string 
 
   return (
     <div className="flex h-full flex-col overflow-auto">
-      <div className="border-b border-border px-6 py-4">
-        <h2 className="text-lg font-semibold">{team.name}</h2>
-        <p className="text-xs text-muted-foreground">
+      <div className="border-border border-b px-6 py-4">
+        <h2 className="font-semibold text-lg">{team.name}</h2>
+        <p className="text-muted-foreground text-xs">
           Team id: <code className="font-mono">{team.id}</code>
         </p>
       </div>
 
-      <section className="border-b border-border px-6 py-4">
+      <section className="border-border border-b px-6 py-4">
         <div className="mb-2 flex items-center justify-between">
           <Label htmlFor="team-description">Description (for agents)</Label>
           <Button size="sm" onClick={saveDescription} disabled={upsertDescription.isPending || draft === description}>
@@ -370,7 +370,7 @@ function TeamDetail({ team, description }: { team: TeamRow; description: string 
 
       <section className="flex-1 px-6 py-4">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Members</h3>
+          <h3 className="font-semibold text-sm">Members</h3>
           <div className="flex items-center gap-2">
             <Select value={pickerUserId} onValueChange={setPickerUserId}>
               <SelectTrigger className="h-8 w-56">
@@ -378,7 +378,7 @@ function TeamDetail({ team, description }: { team: TeamRow; description: string 
               </SelectTrigger>
               <SelectContent>
                 {availableToAdd.length === 0 && (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">No more org members</div>
+                  <div className="px-2 py-1.5 text-muted-foreground text-xs">No more org members</div>
                 )}
                 {availableToAdd.map((m: OrgMemberRow) => (
                   <SelectItem key={m.userId} value={m.userId}>
@@ -393,9 +393,9 @@ function TeamDetail({ team, description }: { team: TeamRow; description: string 
             </Button>
           </div>
         </div>
-        {isLoading && <div className="text-sm text-muted-foreground">Loading members…</div>}
+        {isLoading && <div className="text-muted-foreground text-sm">Loading members…</div>}
         {!isLoading && members.length === 0 && (
-          <div className="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-md border border-border border-dashed px-4 py-6 text-center text-muted-foreground text-sm">
             No members yet.
           </div>
         )}

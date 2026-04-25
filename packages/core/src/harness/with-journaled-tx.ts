@@ -55,7 +55,7 @@ export function createWithJournaledTx<TEvent>(
   input: WithJournaledTxInput<TEvent>,
 ): <T>(fn: (tx: Tx, journal: JournalSink<TEvent>) => Promise<T>) => Promise<T> {
   const { db, rawAppend } = input
-  return async function withJournaledTx<T>(fn: (tx: Tx, journal: JournalSink<TEvent>) => Promise<T>): Promise<T> {
+  return function withJournaledTx<T>(fn: (tx: Tx, journal: JournalSink<TEvent>) => Promise<T>): Promise<T> {
     return db.transaction(async (tx: Tx) => {
       let journaled = false
       const sink: JournalSink<TEvent> = {

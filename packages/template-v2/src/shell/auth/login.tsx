@@ -48,6 +48,7 @@ export function LoginPage() {
     setDevLoginError(null)
     setDevLoginPending(true)
     try {
+      // biome-ignore lint/plugin/no-raw-fetch: dev-only OTP-bypass endpoint not in handler tree; typed RPC unavailable
       const res = await fetch('/api/auth/dev-login', {
         method: 'POST',
         credentials: 'include',
@@ -76,8 +77,8 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 px-4">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
-          <p className="text-sm text-muted-foreground">Enter your email to receive a one-time code.</p>
+          <h1 className="font-semibold text-xl tracking-tight">Sign in</h1>
+          <p className="text-muted-foreground text-sm">Enter your email to receive a one-time code.</p>
         </div>
         {showPlatformOAuth && (
           <div className="space-y-3">
@@ -123,7 +124,7 @@ export function LoginPage() {
             </Button>
             <div className="flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">or</span>
+              <span className="text-muted-foreground text-xs">or</span>
               <Separator className="flex-1" />
             </div>
           </div>
@@ -144,7 +145,7 @@ export function LoginPage() {
               )}
             />
             {sendOtp.error && (
-              <p className="text-sm text-destructive">
+              <p className="text-destructive text-sm">
                 {sendOtp.error instanceof Error ? sendOtp.error.message : 'Failed to send code. Try again.'}
               </p>
             )}
@@ -157,19 +158,19 @@ export function LoginPage() {
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">dev only</span>
+              <span className="text-muted-foreground text-xs">dev only</span>
               <Separator className="flex-1" />
             </div>
             <Button
               type="button"
               variant="outline"
-              className="w-full border-2 border-dashed border-warning bg-[repeating-linear-gradient(-45deg,transparent,transparent_8px,rgba(234,179,8,0.08)_8px,rgba(234,179,8,0.08)_16px)] text-warning hover:border-warning/80 hover:bg-warning/10 hover:text-warning/90"
+              className="w-full border-2 border-warning border-dashed bg-[repeating-linear-gradient(-45deg,transparent,transparent_8px,rgba(234,179,8,0.08)_8px,rgba(234,179,8,0.08)_16px)] text-warning hover:border-warning/80 hover:bg-warning/10 hover:text-warning/90"
               disabled={devLoginPending}
               onClick={handleDevLogin}
             >
               {devLoginPending ? 'Signing in…' : `Sign in as ${DEV_LOGIN_EMAIL} (dev)`}
             </Button>
-            {devLoginError && <p className="text-sm text-destructive">{devLoginError}</p>}
+            {devLoginError && <p className="text-destructive text-sm">{devLoginError}</p>}
           </div>
         )}
       </div>

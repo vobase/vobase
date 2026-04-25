@@ -48,7 +48,7 @@ function renderAttributeValue(value: AttributeValue | undefined, type: StaffAttr
     return <span className="text-muted-foreground/40">&mdash;</span>
   }
   if (type === 'boolean') return <span className="text-sm">{value === true ? 'Yes' : 'No'}</span>
-  return <span className="text-sm text-muted-foreground">{String(value)}</span>
+  return <span className="text-muted-foreground text-sm">{String(value)}</span>
 }
 
 function buildAttributeColumn(def: StaffAttributeDefinition): ColumnDef<StaffProfile> {
@@ -69,7 +69,7 @@ function tagFilter(value: unknown, rowValues: string[]) {
 }
 
 function tagsCell(values: string[]) {
-  if (values.length === 0) return <span className="text-xs text-muted-foreground">—</span>
+  if (values.length === 0) return <span className="text-muted-foreground text-xs">—</span>
   return (
     <div className="flex flex-wrap gap-1">
       {values.map((x) => (
@@ -173,7 +173,7 @@ export function StaffListPage() {
         id: 'userId',
         accessorKey: 'userId',
         header: ({ column }) => <DataTableColumnHeader column={column} label="User ID" />,
-        cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{row.original.userId}</span>,
+        cell: ({ row }) => <span className="font-mono text-muted-foreground text-xs">{row.original.userId}</span>,
         meta: { label: 'User ID' },
         enableSorting: false,
       },
@@ -229,7 +229,7 @@ export function StaffListPage() {
         accessorKey: 'availability',
         header: ({ column }) => <DataTableColumnHeader column={column} label="Availability" />,
         cell: ({ row }) => (
-          <span className={`text-xs font-medium ${AVAILABILITY_TONE[row.original.availability] ?? ''}`}>
+          <span className={`font-medium text-xs ${AVAILABILITY_TONE[row.original.availability] ?? ''}`}>
             {row.original.availability}
           </span>
         ),
@@ -290,10 +290,10 @@ export function StaffListPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
+      <header className="flex shrink-0 items-center justify-between border-border border-b px-6 py-4">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Team</h1>
-          <p className="text-sm text-muted-foreground">Staff profiles — routing, capacity, and operational context.</p>
+          <h1 className="font-semibold text-lg tracking-tight">Team</h1>
+          <p className="text-muted-foreground text-sm">Staff profiles — routing, capacity, and operational context.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button asChild size="sm" variant="outline">
@@ -319,7 +319,7 @@ export function StaffListPage() {
 
       <div className="flex-1 overflow-auto px-6 py-4">
         {error && (
-          <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
             Failed to load staff
           </div>
         )}

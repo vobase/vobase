@@ -7,6 +7,11 @@
  * Usage: DATABASE_URL=postgres://... bun run db:seed
  */
 
+import { seed as seedAgents } from '@modules/agents/seed'
+import { seed as seedContacts } from '@modules/contacts/seed'
+import { seed as seedDrive } from '@modules/drive/seed'
+import { seed as seedMessaging } from '@modules/messaging/seed'
+import { seed as seedTeam } from '@modules/team/seed'
 import { drizzle } from 'drizzle-orm/postgres-js'
 
 async function main() {
@@ -16,23 +21,18 @@ async function main() {
   const db = drizzle(url)
 
   console.log('Seeding contacts...')
-  const { seed: seedContacts } = await import('@modules/contacts/seed')
   await seedContacts(db)
 
   console.log('Seeding team...')
-  const { seed: seedTeam } = await import('@modules/team/seed')
   await seedTeam(db)
 
   console.log('Seeding drive...')
-  const { seed: seedDrive } = await import('@modules/drive/seed')
   await seedDrive(db)
 
   console.log('Seeding agents...')
-  const { seed: seedAgents } = await import('@modules/agents/seed')
   await seedAgents(db)
 
   console.log('Seeding messaging...')
-  const { seed: seedMessaging } = await import('@modules/messaging/seed')
   await seedMessaging(db)
 
   console.log('Seed complete.')

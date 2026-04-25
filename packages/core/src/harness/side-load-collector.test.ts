@@ -43,6 +43,7 @@ describe('collectSideLoad', () => {
   })
 
   it('swallows contributor errors — one bad module does not break others', async () => {
+    // biome-ignore lint/suspicious/useAwait: SideLoadContributor contract requires async signature
     const bad: SideLoadContributor = async () => {
       throw new Error('boom')
     }

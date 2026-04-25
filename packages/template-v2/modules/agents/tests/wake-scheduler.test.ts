@@ -48,6 +48,7 @@ function buildRig(opts: BuildDeps = {}) {
   const activeWakes = createInMemoryActiveWakes()
   const notifyLog: Array<{ channel: string; payload: Record<string, unknown> }> = []
   const notifier = {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async notify(channel: string, payload: Record<string, unknown>): Promise<void> {
       notifyLog.push({ channel, payload })
     },
@@ -265,6 +266,7 @@ describe('wake-scheduler — approval resume', () => {
       outbound,
       runHarness: makeStubRunHarness({
         toolCalls: [{ name: 'reply', args: { text: 'ok' } }],
+        // biome-ignore lint/suspicious/useAwait: contract requires async signature
         onTurn: async (input) => {
           capturedTrigger = input.trigger
         },
@@ -299,6 +301,7 @@ describe('wake-scheduler — approval resume', () => {
       activeWakes: createInMemoryActiveWakes(),
       outbound: createInMemoryOutbound(),
       runHarness: makeStubRunHarness({
+        // biome-ignore lint/suspicious/useAwait: contract requires async signature
         onTurn: async (input) => {
           capturedTrigger = input.trigger
         },
@@ -329,6 +332,7 @@ describe('wake-scheduler — scheduled followup', () => {
       activeWakes: createInMemoryActiveWakes(),
       outbound,
       runHarness: makeStubRunHarness({
+        // biome-ignore lint/suspicious/useAwait: contract requires async signature
         onTurn: async () => {
           ran = true
         },
@@ -380,6 +384,7 @@ describe('wake-worker — idempotency', () => {
           await outbound.emit({ ...input, toolCallId: stableId })
         },
       },
+      // biome-ignore lint/suspicious/useAwait: contract requires async signature
       runHarness: async (input) => {
         attempts += 1
         const wakeId = `w-${attempts}`

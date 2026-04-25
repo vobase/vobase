@@ -50,8 +50,8 @@ export default function NotificationsPage() {
   return (
     <div className="max-w-lg space-y-6 p-6">
       <div>
-        <h2 className="text-lg font-semibold">Notifications</h2>
-        <p className="text-sm text-muted-foreground">
+        <h2 className="font-semibold text-lg">Notifications</h2>
+        <p className="text-muted-foreground text-sm">
           Choose how you want to be notified. WhatsApp pings fire when you're mentioned in an internal note while
           offline (last seen &gt; 2 min ago).
         </p>
@@ -65,7 +65,7 @@ export default function NotificationsPage() {
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                 <div>
                   <FormLabel className="cursor-pointer">Mention notifications</FormLabel>
-                  <p className="text-xs text-muted-foreground">Notify me when an internal note mentions me.</p>
+                  <p className="text-muted-foreground text-xs">Notify me when an internal note mentions me.</p>
                 </div>
                 <FormControl>
                   <input

@@ -8,6 +8,7 @@ function cmd(name: string, description: string, usage?: string): CommandDef {
     name,
     description,
     usage,
+    // biome-ignore lint/suspicious/useAwait: CommandDef execute contract requires async signature
     async execute() {
       return { ok: true, content: 'noop' }
     },

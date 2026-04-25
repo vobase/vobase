@@ -9,15 +9,19 @@
  */
 
 import type { AgentDefinition } from '@modules/agents/schema'
+import { agentDefinitions } from '@modules/agents/schema'
 import type { AgentsPort } from '@modules/agents/service/types'
 import type { Contact, StaffBinding } from '@modules/contacts/schema'
+import { contacts, staffChannelBindings } from '@modules/contacts/schema'
 import type { ContactsService } from '@modules/contacts/service/contacts'
 import type { DriveFile } from '@modules/drive/schema'
+import { driveFiles } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
 import type { AgentEvent, WakeTrigger } from '@server/events'
 import { buildFrozenPrompt } from '@server/harness/frozen-prompt-builder'
 import { createModel, resolveApiKey } from '@server/harness/llm-provider'
+import { __resetServicesForTests, setDb, setLogger, setRealtime } from '@server/services'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@server/workspace'
 import { createWorkspace } from '@server/workspace/create-workspace'
 import {
@@ -57,16 +61,13 @@ export interface IntegrationBootOpts {
 }
 
 /** Build once at the top of a test — provides the service ports wired against `db`. */
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
   agents: AgentsPort
   contacts: ContactsService
   drive: FilesService
 }> {
   setAgentsDb(db.db)
-
-  const { agentDefinitions } = await import('@modules/agents/schema')
-  const { contacts, staffChannelBindings } = await import('@modules/contacts/schema')
-  const { driveFiles } = await import('@modules/drive/schema')
 
   const agents: AgentsPort = {
     async getAgentDefinition(id: string): Promise<AgentDefinition> {
@@ -84,6 +85,7 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
         event,
       })
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async checkDailyCeiling() {
       return { exceeded: false, spentUsd: 0, ceilingUsd: 0 }
     },
@@ -96,18 +98,23 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
       if (!r) throw new Error(`contacts.get: no row for ${id}`)
       return r as unknown as Contact
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async getByPhone(): Promise<Contact | null> {
       return null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async getByEmail(): Promise<Contact | null> {
       return null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async upsertByExternal(): Promise<Contact> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async create(): Promise<Contact> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async update(): Promise<Contact> {
       throw new Error('not-implemented-in-phase-1')
     },
@@ -115,18 +122,23 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
       const c = await this.get(id)
       return c.notes
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async upsertNotesSection() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async appendNotes() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async removeNotesSection() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async setSegments() {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async setMarketingOptOut() {
       throw new Error('not-implemented-in-phase-1')
     },
@@ -143,12 +155,15 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
         .limit(1)
       return (rows[0] as unknown as StaffBinding) ?? null
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async bindStaff(): Promise<StaffBinding> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async list(): Promise<Contact[]> {
       return []
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async remove() {
       throw new Error('not-implemented-in-phase-1')
     },
@@ -190,21 +205,27 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
       if (!f) return null
       return { content: f.extractedText ?? '', virtual: false, file: f }
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async writePath(): Promise<null> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async grep() {
       return []
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async create(): Promise<DriveFile> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async mkdir(): Promise<DriveFile> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async move(): Promise<DriveFile> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async remove() {
       throw new Error('not-implemented-in-phase-1')
     },
@@ -212,12 +233,15 @@ export async function buildIntegrationPorts(db: TestDbHandle): Promise<{
       const biz = await this.getByPath({ scope: 'organization' }, '/BUSINESS.md')
       return biz?.extractedText ?? ''
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async ingestUpload(): Promise<DriveFile> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async saveInboundMessageAttachment(): Promise<DriveFile> {
       throw new Error('not-implemented-in-phase-1')
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async deleteScope() {
       throw new Error('not-implemented-in-phase-1')
     },
@@ -346,7 +370,6 @@ export function wireObserverContextFor(
     calls: Array<{ table: string; id?: string; action?: string }>
   },
 ): () => void {
-  const { setDb, setRealtime, setLogger } = require('@server/services') as typeof import('@server/services')
   setDb(db.db as unknown as Parameters<typeof setDb>[0])
   setRealtime({
     notify: (payload: { table: string; id?: string; action?: string }) => {
@@ -361,7 +384,6 @@ export function wireObserverContextFor(
     error: () => undefined,
   })
   return () => {
-    const { __resetServicesForTests } = require('@server/services') as typeof import('@server/services')
     __resetServicesForTests()
   }
 }

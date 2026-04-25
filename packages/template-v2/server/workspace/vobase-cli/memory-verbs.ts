@@ -14,6 +14,7 @@ function stub(name: string, description: string, usage: string): CommandDef {
     name,
     description,
     usage,
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async execute() {
       return { ok: true, content: NOT_IMPLEMENTED }
     },

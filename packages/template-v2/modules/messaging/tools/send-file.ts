@@ -12,6 +12,7 @@ export const SendFileInputSchema = Type.Object({
 export type SendFileInput = Static<typeof SendFileInputSchema>
 
 /** Phase 2 stub — always passes. Real hermes threat-scan patterns land in Phase 2.5+. */
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
 async function runThreatScan(_driveFileId: string): Promise<{ ok: boolean }> {
   return { ok: true }
 }

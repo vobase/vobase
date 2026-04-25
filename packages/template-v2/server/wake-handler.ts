@@ -504,6 +504,7 @@ function buildAuthLookup(db: ScopedDb | undefined): {
 } {
   if (!db) {
     return {
+      // biome-ignore lint/suspicious/useAwait: contract requires async signature
       async getAuthDisplay() {
         return null
       },

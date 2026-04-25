@@ -7,6 +7,9 @@
  * `staffMemory` diffs here on `agent_end`.
  */
 
+import { agentStaffMemory } from '@modules/agents/schema'
+import { and, eq } from 'drizzle-orm'
+
 export interface StaffMemoryKey {
   organizationId: string
   agentId: string
@@ -26,8 +29,6 @@ export function createStaffMemoryService(deps: StaffMemoryDeps): StaffMemoryServ
   const db = deps.db as { select: Function; insert: Function }
 
   async function read(key: StaffMemoryKey): Promise<string> {
-    const { agentStaffMemory } = await import('@modules/agents/schema')
-    const { and, eq } = await import('drizzle-orm')
     const rows = (await db
       .select({ content: agentStaffMemory.content })
       .from(agentStaffMemory)
@@ -43,7 +44,6 @@ export function createStaffMemoryService(deps: StaffMemoryDeps): StaffMemoryServ
   }
 
   async function upsert(key: StaffMemoryKey, content: string): Promise<void> {
-    const { agentStaffMemory } = await import('@modules/agents/schema')
     await db
       .insert(agentStaffMemory)
       .values({

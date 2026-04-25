@@ -31,6 +31,7 @@ describe('createRestartRecoveryContributor', () => {
 
   it('forwards conversationId to getLastWakeTail', async () => {
     let captured = ''
+    // biome-ignore lint/suspicious/useAwait: getLastWakeTail contract requires async signature
     const m = createRestartRecoveryContributor('conv_abc', async (id) => {
       captured = id
       return { interrupted: false }

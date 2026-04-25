@@ -12,12 +12,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { conversations as convTable } from '@modules/messaging/schema'
 import {
   ConversationFailedError,
   createConversationsService,
   createInboundMessage,
   get,
   installConversationsService,
+  list,
   reopen,
   reset,
   resolve,
@@ -28,7 +30,7 @@ import {
   wakeSnoozed,
 } from '@modules/messaging/service/conversations'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
-import { setJournalDb } from '@vobase/core'
+import { conversationEvents, setJournalDb } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../../tests/helpers/test-db'
@@ -40,12 +42,14 @@ let nextJobId = 1
 
 function fakeScheduler() {
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     send: async (name: string, data: Record<string, unknown>, opts?: { startAfter?: Date }) => {
       const id = `job-${nextJobId++}`
       jobIds.set(id, Date.now())
       schedulerCalls.push({ op: 'send', args: { name, data, opts } })
       return id
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     cancel: async (jobId: string) => {
       jobIds.delete(jobId)
       schedulerCalls.push({ op: 'cancel', args: jobId })
@@ -200,7 +204,6 @@ describe('createInboundMessage lifecycle', () => {
     expect(res.conversation.status).toBe('active')
     expect(res.conversation.resolvedAt).toBeNull()
 
-    const { conversationEvents } = await import('@vobase/core')
     const events = await db.db
       .select()
       .from(conversationEvents)
@@ -215,7 +218,6 @@ describe('createInboundMessage lifecycle', () => {
 
   it('inbound on failed is rejected (no auto-wake)', async () => {
     // Manually set status to failed
-    const { conversations: convTable } = await import('@modules/messaging/schema')
     const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await db.db.update(convTable).set({ status: 'failed' }).where(eq(convTable.id, conversation.id))
 
@@ -266,7 +268,6 @@ describe('list() preview', () => {
       contentType: 'text',
     })
 
-    const { list } = await import('@modules/messaging/service/conversations')
     const rows = await list(MERIDIAN_ORG_ID)
     const row = rows.find((r) => r.id === conversation.id)
     expect(row).toBeDefined()

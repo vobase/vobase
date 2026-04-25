@@ -33,6 +33,7 @@ mock.module('@/shell/auth/use-email-otp', () => ({
   verifyOtpFn: mock(async ({ email, otp }: { email: string; otp: string }) => signInMock({ email, otp })),
 }))
 
+import { verifyOtpFn } from '@/shell/auth/use-email-otp'
 import { PendingPage } from '../pending'
 
 describe('PendingPage — render', () => {
@@ -55,7 +56,6 @@ describe('PendingPage — render', () => {
 
 describe('verifyOtpFn — unit', () => {
   it('calls authClient.emailOtp.signIn with email and otp', async () => {
-    const { verifyOtpFn } = await import('@/shell/auth/use-email-otp')
     await verifyOtpFn({ email: 'user@example.com', otp: '123456' })
     expect(signInMock).toHaveBeenCalledWith({ email: 'user@example.com', otp: '123456' })
   })

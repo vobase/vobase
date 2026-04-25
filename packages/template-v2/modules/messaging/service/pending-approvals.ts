@@ -1,7 +1,10 @@
+import { conversations, pendingApprovals } from '@modules/messaging/schema'
 import type { Tx } from '@server/common/port-types'
 import type { WakeTrigger } from '@server/events'
+import { and, desc, eq } from 'drizzle-orm'
 
 import type { PendingApproval } from '../schema'
+import { addNote } from './notes'
 import type { InsertPendingApprovalInput } from './types'
 
 export class ApprovalNotPendingError extends Error {
@@ -61,7 +64,6 @@ export function createPendingApprovalsService(deps: PendingApprovalsServiceDeps)
   const scheduler = deps.scheduler ?? null
 
   async function insert(input: InsertPendingApprovalInput, tx?: Tx): Promise<PendingApproval> {
-    const { pendingApprovals } = await import('@modules/messaging/schema')
     const runner = (tx as { insert: Function }) ?? (db as { insert: Function })
     const rows = await runner
       .insert(pendingApprovals)
@@ -80,8 +82,6 @@ export function createPendingApprovalsService(deps: PendingApprovalsServiceDeps)
   }
 
   async function get(id: string): Promise<PendingApproval> {
-    const { eq } = await import('drizzle-orm')
-    const { pendingApprovals } = await import('@modules/messaging/schema')
     const rows = (await (
       db as {
         select: () => {
@@ -99,8 +99,6 @@ export function createPendingApprovalsService(deps: PendingApprovalsServiceDeps)
   }
 
   async function list(organizationId: string, opts?: { status?: string }): Promise<PendingApproval[]> {
-    const { pendingApprovals } = await import('@modules/messaging/schema')
-    const { eq, and, desc } = await import('drizzle-orm')
     const whereClause = opts?.status
       ? and(eq(pendingApprovals.organizationId, organizationId), eq(pendingApprovals.status, opts.status))
       : eq(pendingApprovals.organizationId, organizationId)
@@ -115,8 +113,6 @@ export function createPendingApprovalsService(deps: PendingApprovalsServiceDeps)
   }
 
   async function decide(id: string, input: DecideInput): Promise<DecideResult> {
-    const { and, eq } = await import('drizzle-orm')
-    const { pendingApprovals, conversations } = await import('@modules/messaging/schema')
     const handle = db as {
       select: () => {
         from: (t: unknown) => { where: (c: unknown) => { limit: (n: number) => Promise<unknown[]> } }
@@ -167,7 +163,6 @@ export function createPendingApprovalsService(deps: PendingApprovalsServiceDeps)
   }
 
   async function persistRejectionNote(approval: PendingApproval, decidedByUserId: string, body: string): Promise<void> {
-    const { addNote } = await import('./notes')
     await addNote({
       organizationId: approval.organizationId,
       conversationId: approval.conversationId,
@@ -196,18 +191,23 @@ function current(): PendingApprovalsService {
   return _currentPendingApprovalsService
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function insert(input: InsertPendingApprovalInput, tx?: Tx): Promise<PendingApproval> {
   return current().insert(input, tx)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function get(id: string): Promise<PendingApproval> {
   return current().get(id)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function list(organizationId: string, opts?: { status?: string }): Promise<PendingApproval[]> {
   return current().list(organizationId, opts)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function decide(id: string, input: DecideInput): Promise<DecideResult> {
   return current().decide(id, input)
 }
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function persistRejectionNote(
   approval: PendingApproval,
   decidedByUserId: string,

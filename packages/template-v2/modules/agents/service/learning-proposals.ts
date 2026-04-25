@@ -13,6 +13,9 @@
  * call-sites to rebuild it from scratch.
  */
 
+import { learnedSkills, learningProposals } from '@modules/agents/schema'
+import { conversationEvents, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 /**
@@ -113,7 +116,6 @@ export function createLearningProposalsService(deps: LearningProposalsServiceDep
   let notifier: NotifyFn | null = deps.notifier ?? null
 
   async function insertProposal(input: InsertProposalInput): Promise<{ id: string }> {
-    const { learningProposals } = await import('@modules/agents/schema')
     const id = nanoid(10)
     const status: ProposalStatus = input.status ?? (needsApproval(input.scope) ? 'pending' : 'auto_written')
 
@@ -142,9 +144,6 @@ export function createLearningProposalsService(deps: LearningProposalsServiceDep
     decidedByUserId: string,
     note?: string,
   ): Promise<DecideResult> {
-    const { learningProposals } = await import('@modules/agents/schema')
-    const { eq } = await import('drizzle-orm')
-
     const rows = (await db
       .select()
       .from(learningProposals)
@@ -206,9 +205,6 @@ export function createLearningProposalsService(deps: LearningProposalsServiceDep
   }
 
   async function listRecent(organizationId: string, status?: ProposalStatus, limit = 50): Promise<ProposalRow[]> {
-    const { learningProposals } = await import('@modules/agents/schema')
-    const { and, desc, eq } = await import('drizzle-orm')
-
     const where = status
       ? and(eq(learningProposals.organizationId, organizationId), eq(learningProposals.status, status))
       : eq(learningProposals.organizationId, organizationId)
@@ -251,15 +247,13 @@ function invalidateChannelFor(scope: ProposalScope): string {
   return 'learnings:refresh'
 }
 
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
 async function runThreatScan(_body: string): Promise<{ ok: true } | { ok: false; reason: string }> {
   return { ok: true }
 }
 
 async function writeApprovedScope(db: DrizzleHandle, proposal: ProposalRow): Promise<string> {
   if (proposal.scope === 'agent_skill') {
-    const { learnedSkills } = await import('@modules/agents/schema')
-    const { conversationEvents } = await import('@vobase/core')
-    const { desc, eq, and } = await import('drizzle-orm')
     const agentRows = (await db
       .select({ payload: conversationEvents.payload, toolCalls: conversationEvents.toolCalls })
       .from(conversationEvents)
@@ -312,8 +306,6 @@ async function emitJournalEvent(
     writeId?: string
   },
 ): Promise<void> {
-  const { conversationEvents, journalGetLatestTurnIndex: getLatestTurnIndex } = await import('@vobase/core')
-
   const turnIndex = await getLatestTurnIndex(proposal.conversationId, db)
 
   const payload: Record<string, unknown> = { proposalId: event.proposalId }
@@ -348,7 +340,6 @@ export function createLearningNotifier(db: unknown): NotifyFn {
       action: channel,
       ...parsed,
     })
-    const { sql } = await import('drizzle-orm')
     await handle.execute(sql`SELECT pg_notify('vobase_events', ${ssePayload})` as never)
   }
 }
@@ -389,10 +380,12 @@ export function setNotifier(fn: NotifyFn | null): void {
   }
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function insertProposal(input: InsertProposalInput): Promise<{ id: string }> {
   return current().insertProposal(input)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function decideProposal(
   id: string,
   decision: 'approved' | 'rejected',
@@ -402,6 +395,7 @@ export async function decideProposal(
   return current().decideProposal(id, decision, decidedByUserId, note)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function listRecent(organizationId: string, status?: ProposalStatus, limit = 50): Promise<ProposalRow[]> {
   return current().listRecent(organizationId, status, limit)
 }

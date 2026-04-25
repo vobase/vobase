@@ -44,7 +44,7 @@ export function ChannelTabBar({ tabs, selectedChannelInstanceId, onSelect }: Cha
             type="button"
             onClick={() => onSelect(t.channelInstanceId)}
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              'flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-xs transition-colors',
               selected
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
                 : 'text-muted-foreground hover:text-foreground',

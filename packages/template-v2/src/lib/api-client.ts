@@ -12,6 +12,7 @@
 
 import type agentsApp from '@modules/agents/handlers/index'
 import type contactsApp from '@modules/contacts/handlers/index'
+import type driveApp from '@modules/drive/handlers/index'
 import type messagingApp from '@modules/messaging/handlers/index'
 import type settingsApp from '@server/admin/settings/handlers/index'
 import type systemApp from '@server/admin/system/handlers/index'
@@ -25,6 +26,8 @@ export const messagingClient = hc<typeof messagingApp>('/api/messaging')
 export const agentsClient = hc<typeof agentsApp>('/api/agents')
 
 export const contactsClient = hc<typeof contactsApp>('/api/contacts')
+
+export const driveClient = hc<typeof driveApp>('/api/drive')
 
 export const settingsClient = hc<typeof settingsApp>('/api/settings')
 

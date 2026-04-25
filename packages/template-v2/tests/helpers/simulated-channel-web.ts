@@ -51,6 +51,7 @@ export function createSimulatedChannelWeb(opts: SimulatedChannelWebOpts = {}): S
   installChannelWebState(
     createChannelWebState({
       jobs: {
+        // biome-ignore lint/suspicious/useAwait: contract requires async signature
         async send(name: string, data: unknown): Promise<string> {
           capturedJobs.push({ name, data })
           return `fake-job-${Date.now()}`

@@ -31,12 +31,15 @@ export function createCaptionPort(opts?: { fetch?: typeof globalThis.fetch }): C
 
   if (!provider || !apiKey) {
     return {
+      // biome-ignore lint/suspicious/useAwait: contract requires async signature
       async captionImage(_url, _hint) {
         return CAPTION_PENDING
       },
+      // biome-ignore lint/suspicious/useAwait: contract requires async signature
       async captionVideo(_url, _hint) {
         return CAPTION_PENDING
       },
+      // biome-ignore lint/suspicious/useAwait: contract requires async signature
       async extractText(_url, _mime) {
         return CAPTION_PENDING
       },
@@ -102,14 +105,17 @@ export function createCaptionPort(opts?: { fetch?: typeof globalThis.fetch }): C
   }
 
   return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async captionImage(url, hint) {
       const prompt = hint ? `${IMAGE_PROMPT} Additional context: ${hint}` : IMAGE_PROMPT
       return callGemini(url, mimeForImageUrl(url), prompt)
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async captionVideo(url, hint) {
       const prompt = hint ? `${VIDEO_PROMPT} Additional context: ${hint}` : VIDEO_PROMPT
       return callGemini(url, mimeForVideoUrl(url), prompt)
     },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async extractText(url, mime) {
       return callGemini(url, mime, TEXT_PROMPT)
     },

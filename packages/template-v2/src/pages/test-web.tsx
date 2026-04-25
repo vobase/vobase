@@ -66,6 +66,7 @@ async function postInbound(opts: {
   }
   const body = JSON.stringify(payload)
   const hex = await hmacSha256Hex(WEBHOOK_SECRET, body)
+  // biome-ignore lint/plugin/no-raw-fetch: dev-only HMAC-signed webhook simulator; typed RPC bypasses HMAC headers
   const res = await fetch('/api/channel-web/inbound', {
     method: 'POST',
     headers: {
@@ -81,6 +82,7 @@ async function postInbound(opts: {
 }
 
 async function fetchMessages(conversationId: string): Promise<Message[]> {
+  // biome-ignore lint/plugin/no-raw-fetch: dev-only HMAC simulator page; pairs with the inbound webhook above and is excluded from the production bundle
   const res = await fetch(`/api/messaging/conversations/${conversationId}/messages?limit=100`)
   if (!res.ok) throw new Error(`messages fetch failed (${res.status})`)
   return (await res.json()) as Message[]
@@ -171,17 +173,17 @@ export function TestWebPage() {
 
   return (
     <div className="flex h-screen flex-col bg-[var(--color-bg)] text-[var(--color-fg)]">
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4">
+      <header className="flex h-10 shrink-0 items-center justify-between border-[var(--color-border)] border-b px-4">
         <div className="flex items-center gap-3">
-          <span className="rounded bg-[var(--color-danger)]/20 px-1.5 py-0.5 font-mono text-2xs font-semibold uppercase tracking-wide text-[var(--color-danger)]">
+          <span className="rounded bg-[var(--color-danger)]/20 px-1.5 py-0.5 font-mono font-semibold text-2xs text-[var(--color-danger)] uppercase tracking-wide">
             dev-only
           </span>
-          <span className="text-sm font-semibold">Web channel — test client</span>
-          <span className="font-mono text-xs text-[var(--color-fg-muted)]">
+          <span className="font-semibold text-sm">Web channel — test client</span>
+          <span className="font-mono text-[var(--color-fg-muted)] text-xs">
             session <span className="text-[var(--color-fg)]">{sessionId}</span>
           </span>
           {conversationId ? (
-            <span className="font-mono text-xs text-[var(--color-fg-muted)]">
+            <span className="font-mono text-[var(--color-fg-muted)] text-xs">
               conv <span className="text-[var(--color-fg)]">{conversationId}</span>
             </span>
           ) : null}
@@ -189,7 +191,7 @@ export function TestWebPage() {
         <button
           type="button"
           onClick={resetSession}
-          className="text-xs text-[var(--color-fg-muted)] underline underline-offset-2 hover:text-[var(--color-fg)]"
+          className="text-[var(--color-fg-muted)] text-xs underline underline-offset-2 hover:text-[var(--color-fg)]"
         >
           reset session
         </button>
@@ -198,7 +200,7 @@ export function TestWebPage() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-2xl flex-col gap-3">
           {messages.length === 0 ? (
-            <div className="mx-auto max-w-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6 text-center text-sm text-[var(--color-fg-muted)]">
+            <div className="mx-auto max-w-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6 text-center text-[var(--color-fg-muted)] text-sm">
               Say hi to kick off a conversation. Try: <em>"how much does Pro cost?"</em>, <em>"I want a refund"</em>, or
               just <em>"hey"</em>.
             </div>
@@ -209,14 +211,14 @@ export function TestWebPage() {
       </div>
 
       {error ? (
-        <div className="border-t border-[var(--color-danger)] bg-[var(--color-danger)]/20 px-4 py-2 text-xs text-[var(--color-fg)]">
+        <div className="border-[var(--color-danger)] border-t bg-[var(--color-danger)]/20 px-4 py-2 text-[var(--color-fg)] text-xs">
           {error}
         </div>
       ) : null}
 
       <form
         onSubmit={onSubmit}
-        className="flex shrink-0 gap-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] p-3"
+        className="flex shrink-0 gap-2 border-[var(--color-border)] border-t bg-[var(--color-surface)] p-3"
       >
         <input
           type="text"
@@ -229,7 +231,7 @@ export function TestWebPage() {
         <button
           type="submit"
           disabled={sending || !draft.trim()}
-          className="rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-[var(--color-bg)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md bg-[var(--color-accent)] px-4 py-2 font-medium text-[var(--color-bg)] text-sm disabled:cursor-not-allowed disabled:opacity-50"
         >
           {sending ? 'Sending…' : 'Send'}
         </button>

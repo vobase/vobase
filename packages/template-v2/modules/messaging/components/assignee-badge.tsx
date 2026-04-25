@@ -38,7 +38,7 @@ export function AssigneeBadge({
       <DropdownMenuContent align="start" className="min-w-[200px]">
         {agents.length > 0 && (
           <>
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">AI Agents</div>
+            <div className="px-2 py-1.5 font-semibold text-muted-foreground text-xs">AI Agents</div>
             {agents.map((agent) => {
               const value = `agent:${agent.id}`
               return (
@@ -54,7 +54,7 @@ export function AssigneeBadge({
         {agents.length > 0 && staff.length > 0 && <DropdownMenuSeparator />}
         {staff.length > 0 && (
           <>
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Team Members</div>
+            <div className="px-2 py-1.5 font-semibold text-muted-foreground text-xs">Team Members</div>
             {staff.map((member) => {
               const value = `user:${member.id}`
               const selected = assignee === value || assignee === member.id

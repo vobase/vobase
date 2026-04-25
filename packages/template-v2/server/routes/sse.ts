@@ -18,6 +18,7 @@ import { streamSSE } from 'hono/streaming'
 export function createSseRoute(realtime: RealtimeService): Hono {
   const app = new Hono()
 
+  // biome-ignore lint/suspicious/useAwait: contract requires async signature
   app.get('/', async (c) => {
     return streamSSE(c, async (stream) => {
       const unsub = realtime.subscribe((payload) => {
