@@ -82,10 +82,10 @@ export function createManagementOperations(
 
       return { subscribed: true, callbackUrl: wabaSub.callback_url }
     } catch (err) {
-      logger.warn('[WhatsApp] Could not verify webhook subscription', {
-        appId: config.appId,
-        error: err instanceof Error ? err.message : err,
-      })
+      logger.warn(
+        { appId: config.appId, error: err instanceof Error ? err.message : err },
+        '[WhatsApp] Could not verify webhook subscription',
+      )
       return {
         subscribed: true,
         error: `Could not verify webhook subscription: ${err instanceof Error ? err.message : 'Unknown error'}`,

@@ -78,7 +78,7 @@ export interface CollectedWebRoute {
 export function collectWebRoutes<Db, Realtime>(modules: readonly ModuleDef<Db, Realtime>[]): CollectedWebRoute[] {
   const out: CollectedWebRoute[] = []
   for (const mod of sortModules([...modules])) {
-    const preferred = mod.web?.routes ?? mod.routes
+    const preferred = mod.web?.routes
     if (!preferred) continue
     out.push({
       basePath: preferred.basePath,

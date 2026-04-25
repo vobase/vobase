@@ -2,18 +2,13 @@
  * Narrow module shape shared between runtime (core) and project template.
  *
  * A module is a plain object with a name, optional `requires` for dependency
- * ordering, optional HTTP route mount, and an `init(ctx)` hook that runs
- * once at boot.
+ * ordering, declarative `web` / `agent` / `jobs` surfaces, and an `init(ctx)`
+ * hook that runs once at boot.
  *
  * `ModuleInitCtx` and `ModuleDef` are generic over `Db` and `Realtime` so the
  * concrete database handle and realtime service can stay project-shaped while
  * the boot loop, sorter, and collectors live here. Template layers bind these
  * to their local `ScopedDb` / `RealtimeService` via a thin re-export barrel.
- *
- * The optional `web` / `agent` / `jobs` surfaces are the declarative slots
- * that Slice 4b's `declarative-module-collector` will consume. They are added
- * dormant in this slice — existing modules declare only `{ name, requires,
- * routes, init }` and still satisfy the type.
  */
 
 import type { Hono, MiddlewareHandler } from 'hono'
@@ -38,7 +33,6 @@ export interface ModuleRoutes {
 export interface ModuleDef<Db = unknown, Realtime = unknown> {
   name: string
   requires?: readonly string[]
-  routes?: ModuleRoutes
   enabled?: (env: NodeJS.ProcessEnv) => boolean
   init(ctx: ModuleInitCtx<Db, Realtime>): void | Promise<void>
 
@@ -104,7 +98,7 @@ export async function bootModules<Db, Realtime>(opts: {
   const enabled = ordered.filter((m) => !m.enabled || m.enabled(process.env))
   for (const mod of enabled) {
     await mod.init(opts.ctx)
-    const mountable = mod.web?.routes ?? mod.routes
+    const mountable = mod.web?.routes
     if (mountable) {
       const { basePath, handler, requireSession } = mountable
       if (requireSession) opts.app.use(`${basePath}/*`, opts.requireSession)
@@ -112,6 +106,3 @@ export async function bootModules<Db, Realtime>(opts: {
     }
   }
 }
-
-/** @deprecated Use `bootModules`. Kept as an alias during the template migration window. */
-export const bootModulesCollector = bootModules

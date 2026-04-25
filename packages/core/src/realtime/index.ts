@@ -75,7 +75,7 @@ export async function createRealtimeService(
   try {
     return await createPostgresRealtime(databaseConfig, db, subscribers, dispatch, opts.listenDsn)
   } catch (err) {
-    logger.warn('[realtime] Failed to initialize — falling back to no-op service:', err)
+    logger.warn({ err }, '[realtime] Failed to initialize — falling back to no-op service')
     return createNoopRealtime()
   }
 }
@@ -134,7 +134,7 @@ async function createPostgresRealtime(
     () => {
       listenCount++
       if (listenCount > 1) {
-        logger.info(`[realtime] LISTEN re-established on channel ${CHANNEL} (count=${listenCount})`)
+        logger.info({ channel: CHANNEL, listenCount }, '[realtime] LISTEN re-established')
       }
     },
   )
@@ -149,7 +149,7 @@ async function createPostgresRealtime(
   if (keepaliveMs > 0) {
     keepaliveTimer = setInterval(() => {
       listenConn`SELECT 1`.catch((err: unknown) => {
-        logger.warn('[realtime] keepalive ping failed:', err)
+        logger.warn({ err }, '[realtime] keepalive ping failed')
       })
     }, keepaliveMs)
     keepaliveTimer.unref?.()

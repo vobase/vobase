@@ -96,19 +96,19 @@ describe('collectAgentContributions', () => {
 })
 
 describe('collectWebRoutes', () => {
-  it('prefers m.web.routes when present, falls back to legacy m.routes', () => {
-    const webOnly: M = {
+  it('emits routes from m.web.routes in dependency order', () => {
+    const a: M = {
       name: 'a',
       init: stubInit,
       web: { routes: { basePath: '/api/a', handler: new Hono() } },
     }
-    const legacyOnly: M = {
+    const b: M = {
       name: 'b',
       requires: ['a'],
       init: stubInit,
-      routes: { basePath: '/api/b', handler: new Hono(), requireSession: true },
+      web: { routes: { basePath: '/api/b', handler: new Hono(), requireSession: true } },
     }
-    const result = collectWebRoutes([legacyOnly, webOnly])
+    const result = collectWebRoutes([b, a])
     expect(result.map((r) => r.basePath)).toEqual(['/api/a', '/api/b'])
     expect(result[1].requireSession).toBe(true)
   })
@@ -127,7 +127,7 @@ describe('collectWebRoutes', () => {
     expect(result[0].middlewares).toEqual([mw])
   })
 
-  it('skips modules with no routes declared on either surface', () => {
+  it('skips modules with no web.routes declared', () => {
     const a: M = { name: 'a', init: stubInit }
     expect(collectWebRoutes([a])).toEqual([])
   })

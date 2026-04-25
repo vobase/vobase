@@ -263,7 +263,7 @@ export {
   type Scheduler,
 } from './jobs/queue'
 // ─── Logger ──────────────────────────────────────────────────────────
-export { logger } from './logger'
+export { type CreateLoggerOpts, createLogger, type LogLevel, logger } from './logger'
 // ─── Module contract + boot loop ─────────────────────────────────────
 export {
   type AgentContributions,
@@ -274,7 +274,6 @@ export {
 } from './module/collect'
 export {
   bootModules,
-  bootModulesCollector,
   InvalidModuleError,
   type ModuleDef,
   type ModuleInitCtx,
@@ -327,6 +326,11 @@ export {
   type GenerateAgentsMdOpts,
   generateAgentsMd,
 } from './workspace/agents-md-generator'
+export {
+  type CreateWorkspaceOpts,
+  createWorkspace,
+  type WorkspaceHandle,
+} from './workspace/create-workspace'
 export {
   type DirtyDiff,
   DirtyTracker,
