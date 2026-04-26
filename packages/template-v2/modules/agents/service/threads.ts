@@ -114,7 +114,7 @@ export function createThreadsService(deps: ThreadsServiceDeps): ThreadsService {
         if (!row) throw new Error('appendMessage: insert returned no row')
         return { messageId: row.id, seq: row.seq }
       })
-      notify({ table: 'agent_thread_messages', id: input.threadId, action: 'insert' })
+      notify({ table: 'agent_thread_messages', id: result.messageId, action: 'insert' })
       return result
     },
 

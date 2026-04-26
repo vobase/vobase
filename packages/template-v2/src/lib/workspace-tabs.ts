@@ -1,7 +1,8 @@
 /**
  * Workspace tab strip reducer. Pure state machine over a list of open tabs +
- * the active tab id. The Workspace surface layout (`src/shell/workspace-layout.tsx`,
- * §9.1) consumes this through `useReducer`; tree clicks dispatch `open`,
+ * the active tab id. The Workspace surface layout
+ * (`src/shell/workspace-layout.tsx`) consumes this through `useReducer`;
+ * tree clicks dispatch `open`,
  * close-button clicks dispatch `close`, and the chrome-style tab strip
  * dispatches `setActive` and `reorder` on drag.
  *

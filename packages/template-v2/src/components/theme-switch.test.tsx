@@ -3,7 +3,7 @@ import { CheckIcon } from 'lucide-react'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import { THEME_OPTIONS, ThemeSwitch } from '../theme-switch'
+import { THEME_OPTIONS, ThemeSwitch } from './theme-switch'
 
 let mockTheme = 'system' as 'light' | 'dark' | 'system'
 let mockResolved = 'light' as 'light' | 'dark'

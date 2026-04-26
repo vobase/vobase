@@ -42,7 +42,7 @@ mock.module('@/components/ui/alert-dialog', () => ({
   ),
 }))
 
-import { SignOutDialog } from '../sign-out-dialog'
+import { SignOutDialog } from './sign-out-dialog'
 
 describe('SignOutDialog — render', () => {
   it('renders sign out title when open', () => {

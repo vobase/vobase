@@ -2,8 +2,8 @@
  * Operator chat component — staff side of `agent_threads`. Renders the
  * thread's message list (oldest → newest), a composer, and dispatches sends
  * through `agentsClient.threads['{id}'].messages.$post`. Used in two places:
- * the Workspace right rail (§9.9) and the full-page `/workspace/chat/$threadId`
- * route (§9.10).
+ * the Workspace right rail and the full-page `/workspace/chat/$threadId`
+ * route.
  *
  * Realtime: invalidates the message-list query on `agent_thread_messages`
  * pg_notify; the existing `use-realtime-invalidation` hook handles the

@@ -4,11 +4,13 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { IndexFileBuilder } from '@vobase/core'
 
+import {
+  assertContributorRespectsBuildTarget,
+  assertContributorSwallowsErrors,
+  TEST_ORG_ID as ORG_ID,
+} from '../../tests/helpers/index-contributor'
 import { loadSchedulesIndexContributors, type SchedulesIndexReader } from './agent'
-
-const ORG_ID = 'org0test0'
 
 type EnabledRow = Awaited<ReturnType<SchedulesIndexReader['listEnabled']>>[number]
 
@@ -60,22 +62,21 @@ describe('loadSchedulesIndexContributors', () => {
   })
 
   it('swallows reader errors and yields a null section', async () => {
-    const reader: SchedulesIndexReader = {
-      listEnabled() {
-        return Promise.reject(new Error('boom'))
-      },
-    }
-    const contribs = await loadSchedulesIndexContributors({ organizationId: ORG_ID, schedules: reader })
-    expect(contribs[0].render({ file: 'INDEX.md' })).toBeNull()
+    await assertContributorSwallowsErrors<SchedulesIndexReader>(
+      (input) =>
+        loadSchedulesIndexContributors(input as unknown as Parameters<typeof loadSchedulesIndexContributors>[0]),
+      'schedules',
+      'listEnabled',
+    )
   })
 
   it('targets the INDEX.md build only', async () => {
-    const contribs = await loadSchedulesIndexContributors({
-      organizationId: ORG_ID,
-      schedules: makeReader([fakeRow({ slug: 'a' })]),
-    })
-    const builder = new IndexFileBuilder().registerAll(contribs)
-    expect(builder.build({ file: 'AGENTS.md' })).toBe('')
-    expect(builder.build({ file: 'INDEX.md' })).toContain('Schedules (1)')
+    await assertContributorRespectsBuildTarget<SchedulesIndexReader>(
+      (input) =>
+        loadSchedulesIndexContributors(input as unknown as Parameters<typeof loadSchedulesIndexContributors>[0]),
+      'schedules',
+      makeReader([fakeRow({ slug: 'a' })]),
+      'Schedules (1)',
+    )
   })
 })

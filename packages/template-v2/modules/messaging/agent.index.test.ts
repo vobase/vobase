@@ -6,11 +6,13 @@
 
 import { describe, expect, it } from 'bun:test'
 import type { Conversation } from '@modules/messaging/schema'
-import { IndexFileBuilder } from '@vobase/core'
 
+import {
+  assertContributorRespectsBuildTarget,
+  assertContributorSwallowsErrors,
+  TEST_ORG_ID as ORG_ID,
+} from '../../tests/helpers/index-contributor'
 import { loadMessagingIndexContributors, type MessagingIndexReader } from './agent'
-
-const ORG_ID = 'org0test0'
 
 function fakeConv(overrides: Partial<Conversation>): Conversation {
   return {
@@ -72,22 +74,21 @@ describe('loadMessagingIndexContributors', () => {
   })
 
   it('swallows reader errors and yields an empty section', async () => {
-    const reader: MessagingIndexReader = {
-      list() {
-        return Promise.reject(new Error('boom'))
-      },
-    }
-    const contribs = await loadMessagingIndexContributors({ organizationId: ORG_ID, conversations: reader })
-    expect(contribs[0].render({ file: 'INDEX.md' })).toBeNull()
+    await assertContributorSwallowsErrors<MessagingIndexReader>(
+      (input) =>
+        loadMessagingIndexContributors(input as unknown as Parameters<typeof loadMessagingIndexContributors>[0]),
+      'conversations',
+      'list',
+    )
   })
 
   it('contributor file matches INDEX.md so it joins the right build target', async () => {
-    const contribs = await loadMessagingIndexContributors({
-      organizationId: ORG_ID,
-      conversations: makeReader([fakeConv({ id: 'c1' })]),
-    })
-    const builder = new IndexFileBuilder().registerAll(contribs)
-    expect(builder.build({ file: 'AGENTS.md' })).toBe('') // not in this build
-    expect(builder.build({ file: 'INDEX.md' })).toContain('Open Conversations')
+    await assertContributorRespectsBuildTarget<MessagingIndexReader>(
+      (input) =>
+        loadMessagingIndexContributors(input as unknown as Parameters<typeof loadMessagingIndexContributors>[0]),
+      'conversations',
+      makeReader([fakeConv({ id: 'c1' })]),
+      'Open Conversations',
+    )
   })
 })

@@ -1,5 +1,5 @@
 /**
- * Workspace layout — three-pane shell for the Workspace surface (§9.1):
+ * Workspace layout — three-pane shell for the Workspace surface:
  *
  *   ┌──────┬──────────────────────────┬───────┐
  *   │ Tree │ Tabs strip + active body │ Right │

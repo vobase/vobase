@@ -21,7 +21,7 @@ import {
   validateFilters,
   validation,
 } from '@vobase/core'
-import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, getTableColumns, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
@@ -156,7 +156,7 @@ export function createViewsService(deps: ViewsDeps): ViewsService {
     const issues = validateFilters(viewable, filters)
     if (issues.length) throw validation({ filters: issues }, `views.query: ${issues.join('; ')}`)
 
-    const cols = viewable.table as unknown as Record<string, AnyPgColumn>
+    const cols = getTableColumns(viewable.table) as Record<string, AnyPgColumn>
     const wherePieces = filters.map((f) => buildFilter(cols, viewable, f))
     const where = wherePieces.length === 1 ? wherePieces[0] : wherePieces.length ? and(...wherePieces) : undefined
 

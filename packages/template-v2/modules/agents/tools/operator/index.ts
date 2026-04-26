@@ -1,7 +1,7 @@
 /**
- * Operator-only tools. Imported by the operator wake-config (lands in §10.6)
- * and re-exported as `operatorTools` so the agent contributions registry
- * picks them up at boot.
+ * Operator-only tools. Imported by the operator wake-config and re-exported
+ * as `operatorTools` so the agent contributions registry picks them up at
+ * boot.
  */
 
 import type { AgentTool } from '@vobase/core'

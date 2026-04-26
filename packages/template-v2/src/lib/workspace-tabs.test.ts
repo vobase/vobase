@@ -1,6 +1,6 @@
 /**
  * Unit tests for `workspaceTabsReducer`. Pure state machine — no DOM, no
- * persistence (localStorage hookup lands in §9.6 as a separate concern).
+ * persistence (localStorage lives in `usePersistedWorkspaceTabs`).
  */
 
 import { describe, expect, it } from 'bun:test'

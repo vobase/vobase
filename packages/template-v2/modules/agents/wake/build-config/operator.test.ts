@@ -2,9 +2,6 @@
  * Unit tests for the operator wake-config public surface — the parts that
  * don't require booting the harness or mounting a workspace. Synthetic
  * conversationId derivation, trigger renderer, and brief side-load body.
- *
- * Full-stack operator wake e2e (real DB, real cron-tick fire, real harness)
- * lands in §10.11.
  */
 
 import { describe, expect, it } from 'bun:test'

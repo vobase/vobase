@@ -4,7 +4,7 @@
  *
  * Symmetric to `wake/handler.ts` (the concierge inbound→wake consumer), but
  * routes through `buildOperatorWakeConfig` instead. Producer is the operator
- * chat surface (lands with §9.9): after writing the staff message via
+ * chat surface: after writing the staff message via
  * `threads.appendMessage`, the surface calls `jobs.send(OPERATOR_THREAD_TO_WAKE_JOB, ...)`.
  *
  * The handler reads the latest user-role message off the thread to populate

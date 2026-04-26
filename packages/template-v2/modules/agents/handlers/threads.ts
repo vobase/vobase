@@ -1,6 +1,6 @@
 /**
- * Operator-thread HTTP surface — feeds the right-rail chat (§9.9) and the
- * full-page chat route (§9.10).
+ * Operator-thread HTTP surface — feeds the right-rail chat and the
+ * full-page chat route.
  *
  *   GET  /api/agents/threads                    → list threads owned by the staff
  *   POST /api/agents/threads                    → create a new thread

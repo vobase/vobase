@@ -1,18 +1,13 @@
 /**
  * agents module job registry.
  *
- * `agents:agent-wake` / `agents:scheduled-followup` are placeholders pending
- * the `createWakeWorker` audit (Slice 4b §12.1): grep shows
- * `createWakeWorker(...).start()` is only called from tests, so the
- * production registration path may be dead. They ship with `disabled: true`
- * + no-op handlers so they satisfy `JobDef` but are skipped by core's
- * `collectJobs` pass — if the audit finds a live consumer, flip `disabled`
- * off and wire real handlers here.
+ * Job-name constants are co-located here. `AGENT_WAKE_JOB` and
+ * `SCHEDULED_FOLLOWUP_JOB` are the pg-boss queue names that
+ * `wake-scheduler.ts` (producer) and `wake-worker.ts` (consumer) read +
+ * write — the wake worker registers its own pg-boss handlers, so this
+ * module does not declare `JobDef` entries for them.
  *
- * Job-name constants are co-located here (used by `wake-scheduler.ts` and
- * `wake-worker.ts` to send/receive on the canonical pg-boss queues).
- *
- * `agents:expire-approvals` is the recurring 24h sweeper that flips
+ * `agents:expire-approvals` is the recurring 15-minute sweeper that flips
  * pending-approval rows to `expired` once they outlive their TTL. Scheduled
  * via `ctx.scheduler.schedule()` during module init when a cron-capable
  * scheduler is available.
@@ -27,8 +22,6 @@ export const EXPIRE_APPROVALS_CRON = '*/15 * * * *'
 export type AgentsJobName = typeof AGENT_WAKE_JOB | typeof SCHEDULED_FOLLOWUP_JOB | typeof EXPIRE_APPROVALS_JOB
 
 export const jobs: JobDef[] = [
-  { name: AGENT_WAKE_JOB, handler: async () => {}, disabled: true },
-  { name: SCHEDULED_FOLLOWUP_JOB, handler: async () => {}, disabled: true },
   {
     name: EXPIRE_APPROVALS_JOB,
     handler: async () => {

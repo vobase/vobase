@@ -1,8 +1,7 @@
 /**
  * `GET /api/agents/workspace/tree` — materializes the workspace virtual
- * filesystem path list for the Workspace surface (§9 of the dual-surface
- * change). The frontend (`<FileTree>` from `@pierre/trees`) renders this as
- * a navigable tree.
+ * filesystem path list for the Workspace surface. The frontend
+ * (`<FileTree>` from `@pierre/trees`) renders this as a navigable tree.
  *
  * `GET /api/agents/workspace/file?path=...` — reads the markdown / yaml
  * content for a single path so the workspace's middle pane can render it.

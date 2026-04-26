@@ -9,9 +9,8 @@ import { describe, expect, it } from 'bun:test'
 import type { Contact } from '@modules/contacts/schema'
 import { IndexFileBuilder } from '@vobase/core'
 
+import { assertContributorSwallowsErrors, TEST_ORG_ID as ORG_ID } from '../../tests/helpers/index-contributor'
 import { type ContactsIndexReader, loadContactsIndexContributors } from './agent'
-
-const ORG_ID = 'org0test0'
 
 function fakeContact(overrides: Partial<Contact>): Contact {
   return {
@@ -109,13 +108,11 @@ describe('loadContactsIndexContributors', () => {
   })
 
   it('swallows reader errors and yields a null section', async () => {
-    const reader: ContactsIndexReader = {
-      list() {
-        return Promise.reject(new Error('boom'))
-      },
-    }
-    const contribs = await loadContactsIndexContributors({ organizationId: ORG_ID, contacts: reader })
-    expect(contribs[0].render({ file: 'INDEX.md' })).toBeNull()
+    await assertContributorSwallowsErrors<ContactsIndexReader>(
+      (input) => loadContactsIndexContributors(input as unknown as Parameters<typeof loadContactsIndexContributors>[0]),
+      'contacts',
+      'list',
+    )
   })
 
   it('priorities order messaging (100) → schedules (200) → contacts (300) when joined', async () => {

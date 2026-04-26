@@ -93,7 +93,7 @@ export class WakeScheduler {
   }
 
   // biome-ignore lint/suspicious/useAwait: contract requires async signature
-  async enqueue(trigger: WakeTrigger, opts: EnqueueOpts): Promise<EnqueueResult> {
+  async enqueue(trigger: ConciergeWakeTrigger, opts: EnqueueOpts): Promise<EnqueueResult> {
     switch (trigger.trigger) {
       case 'inbound_message':
         return this.enqueueInbound(trigger, opts)
@@ -103,13 +103,6 @@ export class WakeScheduler {
         return this.enqueueAgentWake(trigger, opts, { startAfter: 0 })
       case 'scheduled_followup':
         return this.enqueueScheduled(trigger, opts)
-      case 'operator_thread':
-      case 'heartbeat':
-        // Operator wakes bypass the conversation-scheduler — they're driven
-        // directly through `wake/operator-thread-handler.ts` and
-        // `wake/heartbeat.ts`. Routing them here would coalesce against
-        // unrelated conversation wakes.
-        throw new Error(`wake-scheduler: ${trigger.trigger} wakes do not flow through the conversation scheduler`)
       default: {
         const exhaustive: never = trigger
         throw new Error(`wake-scheduler: unknown trigger ${String(exhaustive)}`)

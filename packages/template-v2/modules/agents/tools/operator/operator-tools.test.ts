@@ -4,8 +4,7 @@
  * Stubs the underlying services (contacts, notes, schedules, conversations,
  * pending-approvals) via the install* hooks so each tool's wrapper logic —
  * input validation, ctx-derived fields (organizationId, agentId), output
- * shape — is verified in isolation. Real-DB coverage lands in the operator
- * wake e2e (§10.11).
+ * shape — is verified in isolation.
  */
 
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'

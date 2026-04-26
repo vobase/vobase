@@ -9,8 +9,8 @@
  * The job handler itself lives here as a named function so tests can call it
  * directly without running a live worker. The exported `jobs` array wraps it
  * in a void-returning adapter that satisfies core's `JobDef.handler` signature
- * (`(data: unknown) => Promise<void>`); Slice 4b's `collectJobs` pass binds
- * each entry to pg-boss at boot.
+ * (`(data: unknown) => Promise<void>`); core's `collectJobs` binds each entry
+ * to pg-boss at boot.
  */
 
 import type { JobDef } from '@vobase/core'

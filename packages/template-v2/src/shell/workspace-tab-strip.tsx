@@ -1,8 +1,7 @@
 /**
  * Chrome-style tab strip for the Workspace surface. Pure-presentation —
- * pulls state from the `workspaceTabsReducer` (§9.5) and dispatches user
- * actions back through the `dispatch` prop. Drag-to-reorder is intentionally
- * not implemented in this slice; it's a follow-up per §9.7.
+ * pulls state from the `workspaceTabsReducer` and dispatches user actions
+ * back through the `dispatch` prop. Drag-to-reorder is a planned follow-up.
  */
 
 import { X } from 'lucide-react'
