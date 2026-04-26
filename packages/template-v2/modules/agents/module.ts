@@ -1,8 +1,14 @@
-import { createCostService, createJournalService, installCostService, installJournalService } from '@vobase/core'
+import {
+  createCostService,
+  createJournalService,
+  installCostService,
+  installJournalService,
+  setApprovalGateDb,
+} from '@vobase/core'
 
 import type { ModuleDef } from '~/runtime'
 import * as agent from './agent'
-import { jobs } from './jobs'
+import { EXPIRE_APPROVALS_CRON, EXPIRE_APPROVALS_JOB, jobs } from './jobs'
 import { createAgentDefinitionsService, installAgentDefinitionsService } from './service/agent-definitions'
 import {
   createLearningNotifier,
@@ -10,6 +16,8 @@ import {
   installLearningProposalsService,
 } from './service/learning-proposals'
 import { createStaffMemoryService, installStaffMemoryService } from './service/staff-memory'
+import { createAgentsState, installAgentsState } from './service/state'
+import { createThreadsService, installThreadsService } from './service/threads'
 import * as web from './web'
 
 const agents: ModuleDef = {
@@ -26,6 +34,12 @@ const agents: ModuleDef = {
     )
     installCostService(createCostService({ db: ctx.db }))
     installStaffMemoryService(createStaffMemoryService({ db: ctx.db }))
+    installThreadsService(createThreadsService({ db: ctx.db, notify: (payload) => ctx.realtime.notify(payload) }))
+    installAgentsState(createAgentsState({ jobs: ctx.jobs }))
+    setApprovalGateDb(ctx.db)
+    void ctx.jobs.schedule?.(EXPIRE_APPROVALS_JOB, EXPIRE_APPROVALS_CRON, undefined, {
+      singletonKey: EXPIRE_APPROVALS_JOB,
+    })
   },
 }
 

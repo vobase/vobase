@@ -9,8 +9,9 @@
  * place.
  */
 
+import type { Contact } from '@modules/contacts/schema'
 import type { ContactsService } from '@modules/contacts/service/contacts'
-import type { WorkspaceMaterializer } from '@vobase/core'
+import { defineIndexContributor, type IndexContributor, type WorkspaceMaterializer } from '@vobase/core'
 
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
 
@@ -66,3 +67,48 @@ export function buildContactsMaterializers(opts: ContactsMaterializerOpts): Work
 }
 
 export { buildContactsMaterializers as buildMaterializers }
+
+// ─── Index contributors ────────────────────────────────────────────────────
+
+export type ContactsIndexReader = Pick<ContactsService, 'list'>
+
+export interface ContactsIndexContributorOpts {
+  organizationId: string
+  contacts: ContactsIndexReader
+  /** Recency window in milliseconds. Defaults to 24h. */
+  recentMs?: number
+}
+
+const INDEX_FILE = 'INDEX.md'
+const INDEX_RECENT_CONTACTS_LIMIT = 10
+const DEFAULT_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000
+
+export async function loadContactsIndexContributors(opts: ContactsIndexContributorOpts): Promise<IndexContributor[]> {
+  const all = (await opts.contacts.list(opts.organizationId).catch(() => [])) as Contact[]
+  const recencyWindowMs = opts.recentMs ?? DEFAULT_RECENT_WINDOW_MS
+  const cutoff = Date.now() - recencyWindowMs
+  const recent = all
+    .filter((c) => c.updatedAt && new Date(c.updatedAt).getTime() >= cutoff)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  return [
+    defineIndexContributor({
+      file: INDEX_FILE,
+      priority: 300,
+      name: 'contacts.recentActivity',
+      render: () => {
+        if (recent.length === 0) return null
+        const top = recent.slice(0, INDEX_RECENT_CONTACTS_LIMIT)
+        const hours = Math.round(recencyWindowMs / (60 * 60 * 1000))
+        const lines = [`# Recent Contact Activity (last ${hours}h, ${recent.length})`, '']
+        for (const c of top) {
+          const identity = c.displayName ?? c.phone ?? c.email ?? c.id
+          lines.push(`- /contacts/${c.id}/profile.md — ${identity} (updated ${new Date(c.updatedAt).toISOString()})`)
+        }
+        if (recent.length > top.length) lines.push(`- … and ${recent.length - top.length} more`)
+        return lines.join('\n')
+      },
+    }),
+  ]
+}
+
+export { loadContactsIndexContributors as loadIndexContributors }

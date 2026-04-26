@@ -1,22 +1,20 @@
 /**
- * Per-wake `createHarness({...})` parameter assembly.
+ * Concierge wake-config assembly: the `inbound_message` / `supervisor` /
+ * `approval_resumed` path that the helpdesk has had since day one. Every
+ * concierge wake is conversation-bound — `conv.channelInstanceId` drives the
+ * `/contacts/<contactId>/<channelInstanceId>/` materializers, the side-load
+ * pulls the rolling transcript, and the trigger renderer points at messages.md
+ * for context.
  *
- * Composes the static contributions (collected at boot) with per-wake state
- * (workspace, dirty tracker, listeners, materializers, side-load) into the
- * single typed config object the harness consumes. Stays pure: no IO past
- * the read-only setup helpers it calls (session-context, message-history,
- * workspace creation, frozen-prompt building).
- *
- * Frozen-snapshot invariant: every input that lands in `systemPrompt` is
- * computed once here. Mid-wake writes (memory, drive proposals, file ops)
- * persist immediately but only surface in the NEXT turn's side-load — the
- * provider's prefix cache is byte-keyed on the prompt.
+ * Operator wakes (heartbeat, operator-thread) use `./operator.ts` instead;
+ * shared building blocks live in `./base.ts`.
  */
 
 import { buildAuthLookup } from '@auth/lookup'
 import * as agentsModule from '@modules/agents/agent'
 import type { AgentEvent, WakeTrigger } from '@modules/agents/events'
 import type { AgentDefinition } from '@modules/agents/schema'
+import { conciergeTools } from '@modules/agents/tools/concierge'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@modules/agents/workspace'
 import { createWorkspace } from '@modules/agents/workspace/create-workspace'
 import * as contactsModule from '@modules/contacts/agent'
@@ -28,8 +26,7 @@ import type { Conversation } from '@modules/messaging/schema'
 import { list as listMessages } from '@modules/messaging/service/messages'
 import { listNotes as listInternalNotes } from '@modules/messaging/service/notes'
 import * as teamModule from '@modules/team/agent'
-import { staff as teamStaff } from '@modules/team/service'
-import type { AgentContributions, AgentTool, HarnessLogger, WakeRuntime, WorkspaceMaterializer } from '@vobase/core'
+import type { AgentContributions, AgentTool, WakeRuntime, WorkspaceMaterializer } from '@vobase/core'
 import {
   conversationEvents,
   createIdleResumptionContributor,
@@ -41,21 +38,18 @@ import {
 import { desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
-import type { RealtimeService, ScopedDb } from '~/runtime'
-import { buildFrozenPrompt } from './frozen-prompt-builder'
-import type { LlmEmitter } from './llm-call'
-import { createModel, resolveApiKey } from './llm-provider'
-import { setupMessageHistory } from './message-history'
-import { resolvePlatformHint } from './platform-hints'
-import { resolveSessionContext } from './session-context'
-
-/**
- * Idle-resumption threshold: if the conversation has been quiet longer than
- * this, the side-load injects a `<conversation-idle-resume>` marker so the
- * agent acknowledges the gap instead of assuming conversational recency.
- * 24h matches typical helpdesk "stale thread" semantics.
- */
-const IDLE_RESUMPTION_THRESHOLD_MS = 24 * 60 * 60 * 1000
+import { buildFrozenPrompt } from '../frozen-prompt-builder'
+import type { LlmEmitter } from '../llm-call'
+import { createModel, resolveApiKey } from '../llm-provider'
+import { setupMessageHistory } from '../message-history'
+import { resolvePlatformHint } from '../platform-hints'
+import { resolveSessionContext } from '../session-context'
+import {
+  type BaseWakeDeps,
+  buildIndexFileMaterializer,
+  IDLE_RESUMPTION_THRESHOLD_MS,
+  resolveStaffIdsForOrg,
+} from './base'
 
 export interface BuildWakeConfigInput {
   data: {
@@ -68,7 +62,7 @@ export interface BuildWakeConfigInput {
   agentId: string
   agentDefinition: AgentDefinition
   contributions: AgentContributions
-  deps: { db: ScopedDb; realtime: RealtimeService; logger: HarnessLogger }
+  deps: BaseWakeDeps
 }
 
 export type WakeConfig = Parameters<typeof import('@vobase/core').createHarness<WakeTrigger>>[0]
@@ -110,6 +104,7 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
       staffIds,
       authLookup,
     }),
+    buildIndexFileMaterializer({ organizationId: data.organizationId }),
     ...contributions.materializers,
   ]
 
@@ -215,7 +210,7 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
     workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
     runtime: { fs: workspace.innerFs, tracker: dirtyTracker } satisfies WakeRuntime,
 
-    tools: contributions.tools as readonly AgentTool[],
+    tools: [...conciergeTools, ...(contributions.tools as readonly AgentTool[])] as readonly AgentTool[],
     hooks: {
       on_event: [
         sseListener,
@@ -298,23 +293,15 @@ function renderTriggerMessage(
       return `Scheduled follow-up: ${trigger.reason}.`
     case 'manual':
       return `Manual wake: ${trigger.reason}.`
+    case 'operator_thread':
+    case 'heartbeat':
+      // Operator wakes never flow through the concierge renderer — they have
+      // their own renderer in `build-config/operator.ts`. If we ever see one
+      // here, it indicates a wiring bug in the dispatch path.
+      return `Concierge wake misrouted: ${trigger.trigger}.`
     default: {
       const exhaustive: never = trigger
       return `Unknown trigger: ${String(exhaustive)}`
     }
-  }
-}
-
-/**
- * Return the set of staff userIds materialized under `/staff/<id>/` for this
- * wake — every staff_profiles row in the org. Silent-fails to `[]` when the
- * team service isn't available yet (boot ordering for headless tests).
- */
-async function resolveStaffIdsForOrg(organizationId: string): Promise<readonly string[]> {
-  try {
-    const profiles = await teamStaff.list(organizationId)
-    return profiles.map((p) => p.userId)
-  } catch {
-    return []
   }
 }

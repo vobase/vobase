@@ -25,6 +25,8 @@ export {
   teamVerbs,
   type VobaseDispatcherOpts,
 } from './cli'
+export type { CreateOperatorWorkspaceOpts } from './create-operator-workspace'
+export { createOperatorWorkspace } from './create-operator-workspace'
 export type { CreateWorkspaceOpts, WorkspaceHandle } from './create-workspace'
 export { createWorkspace } from './create-workspace'
 
@@ -42,6 +44,34 @@ export { createWorkspace } from './create-workspace'
  * `/staff/<id>/profile.md`) surface the standard read-only error. Everything
  * else defaults to RO per the core enforcer.
  */
+/**
+ * Build the operator-wake read-only configuration. Operators survey the
+ * whole org and write only to their own working space — direct writes to a
+ * contact's MEMORY/profile are concierge-only (operators propose changes via
+ * tools like `update_contact` instead).
+ *
+ * Writable: `/agents/<id>/MEMORY.md` (memory), `/agents/<id>/skills/`,
+ * `/tmp/`. Everything else (including `/contacts/**`, `/drive/**`,
+ * `/INDEX.md`, `/staff/**`) is RO under the default-deny enforcer.
+ *
+ * `staffIds` lets the staff-profile RO list interpolate per-staff paths so
+ * `vobase memory` hints render correctly when an operator agent reads them.
+ */
+export function buildOperatorReadOnlyConfig(ids: { agentId: string; staffIds?: readonly string[] }): ReadOnlyConfig {
+  const staffIds = ids.staffIds ?? []
+  const memoryPaths: string[] = [`/agents/${ids.agentId}/MEMORY.md`]
+  const readOnlyExact: string[] = [
+    `/agents/${ids.agentId}/AGENTS.md`,
+    '/INDEX.md',
+    ...staffIds.map((s) => `/staff/${s}/profile.md`),
+  ]
+  return buildReadOnlyConfig({
+    writablePrefixes: [`/agents/${ids.agentId}/skills/`, '/tmp/'],
+    memoryPaths,
+    readOnlyExact,
+  })
+}
+
 export function buildDefaultReadOnlyConfig(ids: {
   agentId: string
   contactId: string

@@ -1,0 +1,15 @@
+name: Active
+kind: list
+columns:
+  - contactId
+  - channelInstanceId
+  - assignee
+  - status
+  - lastMessageAt
+filters:
+  - column: status
+    op: in
+    value: [active, resolving, awaiting_approval]
+sort:
+  - column: lastMessageAt
+    direction: desc

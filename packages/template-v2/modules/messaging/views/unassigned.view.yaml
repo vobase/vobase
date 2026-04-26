@@ -1,0 +1,17 @@
+name: Unassigned
+kind: list
+columns:
+  - contactId
+  - channelInstanceId
+  - status
+  - lastMessageAt
+filters:
+  - column: assignee
+    op: eq
+    value: unassigned
+  - column: status
+    op: in
+    value: [active, resolving]
+sort:
+  - column: lastMessageAt
+    direction: desc

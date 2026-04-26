@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
+import { createSubagentRunner } from '@modules/agents/service/subagent-runner'
 import type { ToolContext } from '@vobase/core'
 
-import { createSubagentRunner } from '../service/subagent-runner'
 import { subagentTool } from './subagent'
 
 function makeCtx(): ToolContext {

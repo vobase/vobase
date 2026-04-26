@@ -1,0 +1,11 @@
+name: All Contacts
+kind: table
+columns:
+  - displayName
+  - phone
+  - email
+  - segments
+  - updatedAt
+sort:
+  - column: updatedAt
+    direction: desc

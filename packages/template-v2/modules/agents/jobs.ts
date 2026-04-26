@@ -11,15 +11,28 @@
  *
  * Job-name constants are co-located here (used by `wake-scheduler.ts` and
  * `wake-worker.ts` to send/receive on the canonical pg-boss queues).
+ *
+ * `agents:expire-approvals` is the recurring 24h sweeper that flips
+ * pending-approval rows to `expired` once they outlive their TTL. Scheduled
+ * via `ctx.scheduler.schedule()` during module init when a cron-capable
+ * scheduler is available.
  */
 
-import type { JobDef } from '@vobase/core'
+import { expireOverdueApprovals, type JobDef } from '@vobase/core'
 
 export const AGENT_WAKE_JOB = 'agents:agent-wake'
 export const SCHEDULED_FOLLOWUP_JOB = 'agents:scheduled-followup'
-export type AgentsJobName = typeof AGENT_WAKE_JOB | typeof SCHEDULED_FOLLOWUP_JOB
+export const EXPIRE_APPROVALS_JOB = 'agents:expire-approvals'
+export const EXPIRE_APPROVALS_CRON = '*/15 * * * *'
+export type AgentsJobName = typeof AGENT_WAKE_JOB | typeof SCHEDULED_FOLLOWUP_JOB | typeof EXPIRE_APPROVALS_JOB
 
 export const jobs: JobDef[] = [
   { name: AGENT_WAKE_JOB, handler: async () => {}, disabled: true },
   { name: SCHEDULED_FOLLOWUP_JOB, handler: async () => {}, disabled: true },
+  {
+    name: EXPIRE_APPROVALS_JOB,
+    handler: async () => {
+      await expireOverdueApprovals({ now: new Date(), batchSize: 200 })
+    },
+  },
 ]

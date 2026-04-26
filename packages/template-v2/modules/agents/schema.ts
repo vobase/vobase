@@ -112,30 +112,98 @@ import {
 import { agentsPgSchema } from '~/runtime'
 import { DEFAULT_CHAT_MODEL } from './wake/models'
 
-export const agentDefinitions = agentsPgSchema.table('agent_definitions', {
-  id: nanoidPrimaryKey(),
-  organizationId: text('organization_id').notNull(),
-  name: text('name').notNull(),
-  instructions: text('instructions').notNull().default(''),
-  model: text('model').notNull().default(DEFAULT_CHAT_MODEL),
-  maxSteps: integer('max_steps').default(20),
-  workingMemory: text('working_memory').notNull().default(''),
-  skillAllowlist: text('skill_allowlist').array(),
-  cardApprovalRequired: boolean('card_approval_required').notNull().default(true),
-  fileApprovalRequired: boolean('file_approval_required').notNull().default(true),
-  bookSlotApprovalRequired: boolean('book_slot_approval_required').notNull().default(true),
-  maxOutputTokens: integer('max_output_tokens').default(4096),
-  maxInputTokens: integer('max_input_tokens').default(32768),
-  maxTurnsPerWake: integer('max_turns_per_wake').default(10),
-  softCostCeilingUsd: numeric('soft_cost_ceiling_usd', { precision: 10, scale: 4 }),
-  hardCostCeilingUsd: numeric('hard_cost_ceiling_usd', { precision: 10, scale: 4 }),
-  enabled: boolean('enabled').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-})
+export type AgentRole = 'concierge' | 'operator'
+
+export const agentDefinitions = agentsPgSchema.table(
+  'agent_definitions',
+  {
+    id: nanoidPrimaryKey(),
+    organizationId: text('organization_id').notNull(),
+    name: text('name').notNull(),
+    /**
+     * `concierge` — channel-facing customer-conversation agent (default).
+     * `operator` — staff-facing internal agent driving the workspace surface.
+     * Roles partition the tool catalogue and wake-build-config branches.
+     */
+    role: text('role').notNull().default('concierge'),
+    instructions: text('instructions').notNull().default(''),
+    model: text('model').notNull().default(DEFAULT_CHAT_MODEL),
+    maxSteps: integer('max_steps').default(20),
+    workingMemory: text('working_memory').notNull().default(''),
+    skillAllowlist: text('skill_allowlist').array(),
+    cardApprovalRequired: boolean('card_approval_required').notNull().default(true),
+    fileApprovalRequired: boolean('file_approval_required').notNull().default(true),
+    bookSlotApprovalRequired: boolean('book_slot_approval_required').notNull().default(true),
+    maxOutputTokens: integer('max_output_tokens').default(4096),
+    maxInputTokens: integer('max_input_tokens').default(32768),
+    maxTurnsPerWake: integer('max_turns_per_wake').default(10),
+    softCostCeilingUsd: numeric('soft_cost_ceiling_usd', { precision: 10, scale: 4 }),
+    hardCostCeilingUsd: numeric('hard_cost_ceiling_usd', { precision: 10, scale: 4 }),
+    enabled: boolean('enabled').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (_t) => [check('agent_definitions_role_check', sql`role IN ('concierge', 'operator')`)],
+)
+
+/**
+ * Operator chat threads — persistent conversations between a staff member
+ * and an operator-role agent. Distinct from `harness.threads` (which tracks
+ * pi-agent runtime threads); these are the durable UI artefact rendered in
+ * the workspace right rail.
+ */
+export const agentThreads = agentsPgSchema.table(
+  'agent_threads',
+  {
+    id: nanoidPrimaryKey(),
+    organizationId: text('organization_id').notNull(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agentDefinitions.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by').notNull(),
+    title: text('title'),
+    status: text('status').notNull().default('open'),
+    lastTurnAt: timestamp('last_turn_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index('idx_agent_threads_creator').on(t.organizationId, t.createdBy, t.lastTurnAt),
+    index('idx_agent_threads_agent').on(t.agentId, t.lastTurnAt),
+    check('agent_threads_status_check', sql`status IN ('open', 'closed', 'archived')`),
+  ],
+)
+
+/**
+ * Append-only message log for agent_threads. `role` mirrors pi's message
+ * envelope (`user` | `assistant` | `system` | `tool`); `payload` carries the
+ * raw pi-message JSON for one-write-path replay.
+ */
+export const agentThreadMessages = agentsPgSchema.table(
+  'agent_thread_messages',
+  {
+    id: nanoidPrimaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => agentThreads.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    role: text('role').notNull(),
+    content: text('content').notNull().default(''),
+    payload: jsonb('payload').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_agent_thread_messages_seq').on(t.threadId, t.seq),
+    index('idx_agent_thread_messages_thread').on(t.threadId, t.createdAt),
+    check('agent_thread_messages_role_check', sql`role IN ('user', 'assistant', 'system', 'tool')`),
+  ],
+)
 
 /**
  * Per-agent, per-staff memory. Written via `/staff/<staffId>/MEMORY.md`

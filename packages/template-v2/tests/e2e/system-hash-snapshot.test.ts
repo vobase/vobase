@@ -8,10 +8,10 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { subagentTool } from '@modules/agents/tools/subagent'
+import { conciergeTools } from '@modules/agents/tools/concierge'
+import { subagentTool } from '@modules/agents/tools/shared/subagent'
 import { buildFrozenPrompt, type SessionContext } from '@modules/agents/wake/frozen-prompt-builder'
 import { resolvePlatformHint } from '@modules/agents/wake/platform-hints'
-import { messagingTools } from '@modules/messaging/tools'
 import { Bash, InMemoryFs } from 'just-bash'
 
 /** Pinned SHA-256 of the canonical frozen prompt below. */
@@ -98,7 +98,7 @@ describe('system-hash snapshot', () => {
 
 describe('tool surface snapshot', () => {
   it('current tool surface matches the fixture', () => {
-    const names = [...messagingTools.map((t) => t.name), subagentTool.name]
+    const names = [...conciergeTools.map((t) => t.name), subagentTool.name]
     expect(names).toEqual([...TOOL_SURFACE_FIXTURE])
   })
 })

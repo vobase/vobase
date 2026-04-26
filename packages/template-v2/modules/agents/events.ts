@@ -8,6 +8,15 @@
 
 import type { ClassifiedErrorReason } from '@vobase/core'
 
+/**
+ * Concierge triggers (always conversation-bound) plus operator triggers
+ * (thread- or schedule-bound). Operator wakes carry a synthetic
+ * `conversationId` of the form `operator-<threadId>` or `heartbeat-<scheduleId>`
+ * downstream so the journal contract (`BaseEvent.conversationId: string`)
+ * stays satisfied without a schema migration. Producers should not invent
+ * the synthetic id — `wake/operator-thread-handler.ts` and `wake/heartbeat.ts`
+ * own the mapping.
+ */
 export type WakeTrigger =
   | { trigger: 'inbound_message'; conversationId: string; messageIds: string[] }
   | {
@@ -20,8 +29,19 @@ export type WakeTrigger =
   | { trigger: 'supervisor'; conversationId: string; noteId: string; authorUserId: string }
   | { trigger: 'scheduled_followup'; conversationId: string; reason: string; scheduledAt: Date; sourceWakeId?: string }
   | { trigger: 'manual'; conversationId: string; reason: string; actorUserId: string }
+  | { trigger: 'operator_thread'; threadId: string; messageIds: string[] }
+  | { trigger: 'heartbeat'; scheduleId: string; intendedRunAt: Date; reason: string }
 
 export type WakeTriggerKind = WakeTrigger['trigger']
+
+/**
+ * Concierge-only triggers — every variant carries `conversationId`. The wake
+ * scheduler/worker pipeline is conversation-bound, so consumer payloads
+ * (`AgentWakeJobPayload`, `ScheduledFollowupPayload`) narrow to this subset.
+ * Operator wakes (`operator_thread`, `heartbeat`) bypass the scheduler and
+ * dispatch through `wake/operator-thread-handler.ts` / `wake/heartbeat.ts`.
+ */
+export type ConciergeWakeTrigger = Exclude<WakeTrigger, { trigger: 'operator_thread' | 'heartbeat' }>
 
 /** Task tag threaded through every LLM call — see `PluginContext.llmCall()`. */
 export type LlmTask =

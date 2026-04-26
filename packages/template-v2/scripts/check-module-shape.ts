@@ -46,24 +46,38 @@ const errors: LintError[] = []
 const JOURNAL_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(messages|conversationEvents)\b/
 const JOURNAL_WRITE_ALLOWED = ['modules/messaging/service/']
 
+const THREADS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(agentThreads|agentThreadMessages)\b/
+const THREADS_WRITE_ALLOWED = ['modules/agents/service/threads.ts']
+
 async function checkJournalWriteAuthority(): Promise<void> {
   const glob = new Bun.Glob('**/*.ts')
   for await (const entry of glob.scan({ cwd: MODULES_DIR })) {
     if (entry.endsWith('.test.ts') || entry.includes('__tests__/')) continue
     const fullPath = join(MODULES_DIR, entry)
     const relFromModules = `modules/${entry}`
-    if (JOURNAL_WRITE_ALLOWED.some((prefix) => relFromModules.startsWith(prefix))) continue
     const lines = (await Bun.file(fullPath).text()).split('\n')
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue
-      const m = JOURNAL_WRITE_RE.exec(line)
-      if (m) {
-        errors.push({
-          file: fullPath,
-          line: i + 1,
-          message: `writes to "${m[2]}" only allowed in messaging/service or agents/service/journal.ts (one-write-path)`,
-        })
+      if (!JOURNAL_WRITE_ALLOWED.some((prefix) => relFromModules.startsWith(prefix))) {
+        const m = JOURNAL_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "${m[2]}" only allowed in messaging/service or agents/service/journal.ts (one-write-path)`,
+          })
+        }
+      }
+      if (!THREADS_WRITE_ALLOWED.some((p) => relFromModules === p)) {
+        const m = THREADS_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "${m[2]}" only allowed in modules/agents/service/threads.ts (one-write-path)`,
+          })
+        }
       }
     }
   }
@@ -215,8 +229,71 @@ function checkModuleContracts(): void {
   }
 }
 
+/**
+ * Surface enforcement (§10.2): every top-level route in `src/routes.ts` must
+ * either mount under one of the canonical surfaces (`/inbox`, `/workspace`)
+ * or appear in the explicit allowlist below. Adding a new top-level route
+ * requires a deliberate update to this list — preventing UI drift back to a
+ * flat-everything URL space.
+ *
+ * Allowlist entries:
+ *   - `/`                    — home redirect to /inbox
+ *   - `/auth/*`              — login + pending (auth layout)
+ *   - `/inbox`, `/workspace` — the two canonical surfaces
+ *   - `/messaging`           — legacy redirect → /inbox
+ *   - `/settings`            — admin / personal settings (cross-cutting)
+ *   - `/channels`            — admin (channel instances + adapter config)
+ *   - `/test-web`, `/chat/$channelInstanceId` — public widget shell + chat
+ *
+ * Grandfathered (will move under /workspace once §10.2 finishes the migration):
+ *   - `/contacts`, `/team`, `/agents`, `/drive`
+ */
+const ALLOWED_ROUTE_PREFIXES = [
+  '/',
+  '/auth',
+  '/inbox',
+  '/workspace',
+  '/messaging',
+  '/settings',
+  '/channels',
+  '/test-web',
+  '/chat',
+  // Grandfathered:
+  '/contacts',
+  '/team',
+  '/agents',
+  '/drive',
+]
+
+const ROUTE_DECL_RE = /(?:route|physical)\s*\(\s*['"](\/[^'"]+)['"]/g
+
+async function checkRouteSurfaces(): Promise<void> {
+  const routesPath = join(TEMPLATE_ROOT, 'src', 'routes.ts')
+  if (!(await Bun.file(routesPath).exists())) return
+  const text = await Bun.file(routesPath).text()
+  const lines = text.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue
+    ROUTE_DECL_RE.lastIndex = 0
+    const matches = [...line.matchAll(ROUTE_DECL_RE)]
+    for (const match of matches) {
+      const path = match[1]
+      const allowed = ALLOWED_ROUTE_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
+      if (!allowed) {
+        errors.push({
+          file: routesPath,
+          line: i + 1,
+          message: `route "${path}" must mount under /inbox, /workspace, or one of the explicit admin/auth allowlist prefixes — update ALLOWED_ROUTE_PREFIXES in scripts/check-module-shape.ts if this is a deliberate new top-level surface`,
+        })
+      }
+    }
+  }
+}
+
 await checkJournalWriteAuthority()
 await checkModuleTsShape()
+await checkRouteSurfaces()
 checkModuleContracts()
 
 if (errors.length > 0) {

@@ -16,14 +16,21 @@
  */
 
 import { get as getContact } from '@modules/contacts/service/contacts'
-import type { Message } from '@modules/messaging/schema'
+import type { Conversation, Message } from '@modules/messaging/schema'
 import type { MessagingPort } from '@modules/messaging/service/types'
-import type { AgentTool, SideLoadContributor, WorkspaceMaterializer } from '@vobase/core'
+import {
+  defineIndexContributor,
+  type IndexContributor,
+  type SideLoadContributor,
+  type WorkspaceMaterializer,
+} from '@vobase/core'
 
 import { list as listMessages } from './service/messages'
-import { messagingTools } from './tools'
 
-export const tools: AgentTool[] = [...messagingTools]
+// Concierge-facing tools (`reply`, `send_card`, `send_file`, `book_slot`)
+// moved to `modules/agents/tools/concierge/` per the dual-surface tool
+// partition. The messaging module no longer contributes static agent tools —
+// it just owns the messaging-domain materializers and side-load below.
 
 // ─── Materializers ──────────────────────────────────────────────────────────
 
@@ -89,6 +96,51 @@ export function buildMessagingMaterializers(opts: MessagingMaterializerOpts): Wo
 }
 
 export { buildMessagingMaterializers as buildMaterializers }
+
+// ─── Index contributors ────────────────────────────────────────────────────
+
+/**
+ * Read slice of `ConversationsService` the index contributor depends on. Kept
+ * minimal so callers can either hand in the live service or a fixture/stub
+ * without dragging the full mutation surface into wake assembly.
+ */
+export interface MessagingIndexReader {
+  list(organizationId: string, opts?: { tab?: 'active' | 'later' | 'done' }): Promise<Conversation[]>
+}
+
+export interface MessagingIndexContributorOpts {
+  organizationId: string
+  conversations: MessagingIndexReader
+}
+
+const INDEX_FILE = 'INDEX.md'
+const INDEX_OPEN_CONVERSATIONS_LIMIT = 10
+
+export async function loadMessagingIndexContributors(opts: MessagingIndexContributorOpts): Promise<IndexContributor[]> {
+  const open = await opts.conversations.list(opts.organizationId, { tab: 'active' }).catch(() => [])
+  return [
+    defineIndexContributor({
+      file: INDEX_FILE,
+      priority: 100,
+      name: 'messaging.openConversations',
+      render: () => {
+        if (open.length === 0) return null
+        const top = open.slice(0, INDEX_OPEN_CONVERSATIONS_LIMIT)
+        const lines = [`# Open Conversations (${open.length})`, '']
+        for (const c of top) {
+          const last = c.lastMessageAt ? new Date(c.lastMessageAt).toISOString() : 'never'
+          lines.push(
+            `- /contacts/${c.contactId}/${c.channelInstanceId}/messages.md — assignee=${c.assignee} status=${c.status} last=${last}`,
+          )
+        }
+        if (open.length > top.length) lines.push(`- … and ${open.length - top.length} more`)
+        return lines.join('\n')
+      },
+    }),
+  ]
+}
+
+export { loadMessagingIndexContributors as loadIndexContributors }
 
 // ─── Side-load ──────────────────────────────────────────────────────────────
 

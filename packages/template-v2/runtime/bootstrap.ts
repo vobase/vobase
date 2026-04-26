@@ -15,7 +15,14 @@ import { join } from 'node:path'
 import { createAuth } from '@auth'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from '@auth/middleware'
 import { createWakeHandler, INBOUND_TO_WAKE_JOB } from '@modules/agents/wake/handler'
+import { createHeartbeatEmitter } from '@modules/agents/wake/heartbeat'
 import {
+  createOperatorThreadWakeHandler,
+  OPERATOR_THREAD_TO_WAKE_JOB,
+} from '@modules/agents/wake/operator-thread-handler'
+import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
+import {
+  bootDeclarativeResources,
   bootModules,
   collectAgentContributions,
   collectJobs,
@@ -201,6 +208,18 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
     ctx: moduleCtx,
   })
 
+  // Reconcile declarative resources (saved views, skills, agent definitions,
+  // etc.) from on-disk source into their backing tables. Idempotent — second
+  // boot with no source changes is a hash-compare tour with zero writes.
+  // `rootDir` is the template root (one above runtime/), where module
+  // source files live under `modules/*/views/*.view.yaml` etc.
+  const declLogger = createLogger({ format: 'console', prefix: '[declarative]' })
+  await bootDeclarativeResources({
+    db: db as unknown as Parameters<typeof bootDeclarativeResources>[0]['db'],
+    rootDir: join(import.meta.dir, '..'),
+    log: (msg, meta) => declLogger.info(meta ?? {}, msg),
+  })
+
   // Module-contributed jobs bind here; INBOUND_TO_WAKE_JOB binds separately
   // below as a bootstrap concern (modules don't own the wake dispatcher).
   const sortedModules = sortModules([...modules])
@@ -229,17 +248,20 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   // OPENAI_API_KEY (or BIFROST_API_KEY + BIFROST_URL) from env directly — the
   // handler fails loudly on the first inbound if no key is set.
   const agentContributions = collectAgentContributions(sortedModules)
+  const wakeLogger = createLogger({ format: 'console', prefix: '[wake]', silent: ['debug', 'info'] })
+  jobHandlers.set(INBOUND_TO_WAKE_JOB, createWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions))
+
+  // Operator-thread wakes: staff posts a message in `agent_threads`, the
+  // chat surface enqueues this job, and the consumer drives an operator
+  // wake via `buildOperatorWakeConfig`.
   jobHandlers.set(
-    INBOUND_TO_WAKE_JOB,
-    createWakeHandler(
-      {
-        realtime,
-        db,
-        logger: createLogger({ format: 'console', prefix: '[wake]', silent: ['debug', 'info'] }),
-      },
-      agentContributions,
-    ),
+    OPERATOR_THREAD_TO_WAKE_JOB,
+    createOperatorThreadWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),
   )
+
+  // Heartbeat wakes: schedules cron-tick fires `HeartbeatTrigger`s into the
+  // emitter installed below. Each tick = one operator wake.
+  setHeartbeatEmitter(createHeartbeatEmitter({ realtime, db, logger: wakeLogger }, agentContributions))
 
   return app
 }

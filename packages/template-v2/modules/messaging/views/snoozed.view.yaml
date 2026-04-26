@@ -1,0 +1,13 @@
+name: Snoozed
+kind: list
+columns:
+  - contactId
+  - channelInstanceId
+  - assignee
+  - snoozedUntil
+filters:
+  - column: snoozedUntil
+    op: is_not_null
+sort:
+  - column: snoozedUntil
+    direction: asc

@@ -20,7 +20,6 @@
  */
 
 import type { AgentDefinition } from '@modules/agents/schema'
-import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import {
   type WorkspaceHandle as CoreWorkspaceHandle,
@@ -32,6 +31,7 @@ import {
 
 import type { CommandContext, CommandDef } from '~/runtime'
 import { createVobaseCommand } from './cli/dispatcher'
+import { listAllDriveFiles } from './list-drive-files'
 
 export interface CreateWorkspaceOpts {
   organizationId: string
@@ -97,8 +97,8 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   }
 
   const [tenantFiles, contactFiles] = await Promise.all([
-    listAllFiles(opts.drivePort, { scope: 'organization' }),
-    listAllFiles(opts.drivePort, { scope: 'contact', contactId: opts.contactId }),
+    listAllDriveFiles(opts.drivePort, { scope: 'organization' }),
+    listAllDriveFiles(opts.drivePort, { scope: 'contact', contactId: opts.contactId }),
   ])
 
   await Promise.all([
@@ -117,22 +117,4 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   ])
 
   return handle
-}
-
-/** Recursively walk a drive scope and return every file (folders excluded). */
-async function listAllFiles(
-  drive: FilesService,
-  scope: Parameters<FilesService['listFolder']>[0],
-): Promise<DriveFile[]> {
-  const out: DriveFile[] = []
-  const stack: (string | null)[] = [null]
-  while (stack.length > 0) {
-    const parentId = stack.pop() ?? null
-    const entries = await drive.listFolder(scope, parentId).catch(() => [])
-    for (const entry of entries) {
-      if (entry.kind === 'folder') stack.push(entry.id)
-      else out.push(entry)
-    }
-  }
-  return out
 }

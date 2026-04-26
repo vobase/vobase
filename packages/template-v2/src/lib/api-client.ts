@@ -19,6 +19,7 @@ import type messagingApp from '@modules/messaging/handlers/index'
 import type settingsApp from '@modules/settings/handlers/index'
 import type systemApp from '@modules/system/handlers/index'
 import type teamApp from '@modules/team/handlers/index'
+import type viewsApp from '@modules/views/handlers/index'
 import { hc } from 'hono/client'
 
 // ── Per-module typed clients ──────────────────────────────────────────────────
@@ -41,3 +42,5 @@ export const channelWebClient = hc<typeof webAdapterApp>('/api/channels/adapters
 export const systemClient = hc<typeof systemApp>('/api/system')
 
 export const teamClient = hc<typeof teamApp>('/api/team')
+
+export const viewsClient = hc<typeof viewsApp>('/api/views')

@@ -11,8 +11,10 @@ import channels from '@modules/channels/module'
 import contacts from '@modules/contacts/module'
 import drive from '@modules/drive/module'
 import messaging from '@modules/messaging/module'
+import schedules from '@modules/schedules/module'
 import settings from '@modules/settings/module'
 import system from '@modules/system/module'
 import team from '@modules/team/module'
+import views from '@modules/views/module'
 
-export const modules = [settings, contacts, team, drive, messaging, agents, channels, system]
+export const modules = [settings, contacts, team, drive, messaging, views, agents, schedules, channels, system]

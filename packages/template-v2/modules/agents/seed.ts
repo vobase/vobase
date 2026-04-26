@@ -72,6 +72,7 @@ export async function seed(db: unknown): Promise<void> {
       id: MERIDIAN_AGENT_ID,
       organizationId: MERIDIAN_ORG_ID,
       name: 'Meridian',
+      role: 'concierge',
       instructions: INSTRUCTIONS,
       model: models.gpt_standard,
       maxSteps: 20,
