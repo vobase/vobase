@@ -83,7 +83,8 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 export interface PendingApproval {
   id: string
   organizationId: string
-  conversationId: string
+  /** `null` for outreach approvals (no conversation yet — see schema). */
+  conversationId: string | null
   conversationEventId: string | null
   toolName: string
   toolArgs: unknown
@@ -229,9 +230,14 @@ export const pendingApprovals = messagingPgSchema.table(
   {
     id: nanoidPrimaryKey(),
     organizationId: text('organization_id').notNull(),
-    conversationId: text('conversation_id')
-      .notNull()
-      .references(() => conversations.id, { onDelete: 'cascade' }),
+    /**
+     * `conversationId` is nullable to support outreach approvals that have no
+     * existing conversation yet — `propose_outreach` queues a draft and the
+     * review UI handles create-or-resume on approval. Non-outreach approvals
+     * (`reply`, `send_card`, `send_file`, `draft_email_to_review`) always
+     * carry a concrete conversation id.
+     */
+    conversationId: text('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }),
     conversationEventId: text('conversation_event_id'),
     toolName: text('tool_name').notNull(),
     toolArgs: jsonb('tool_args').notNull(),

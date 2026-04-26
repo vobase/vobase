@@ -146,6 +146,6 @@ describe('saved-views service (real PG)', () => {
   })
 
   it('executeQuery rejects an unknown scope at the registry boundary', async () => {
-    await expect(svc.executeQuery({ scope: 'object:does-not-exist' })).rejects.toThrow(/unknown scope/i)
+    await expect(svc.executeQuery({ scope: 'object:does-not-exist' })).rejects.toThrow(/not found/i)
   })
 })

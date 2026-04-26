@@ -19,7 +19,8 @@ import {
 
 import { createModel, resolveApiKey } from './llm-provider'
 
-export type LlmEmitter<TEvent = unknown> = CoreLlmEmitter<TEvent>
+// biome-ignore lint/suspicious/noExplicitAny: emitter is write-only; matches `@vobase/core`'s LlmEmitter default
+export type LlmEmitter<TEvent = any> = CoreLlmEmitter<TEvent>
 
 export interface LlmRequest extends CoreLlmRequest {
   model?: string

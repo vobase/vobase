@@ -135,6 +135,15 @@ export function createPendingApprovalsService(deps: PendingApprovalsServiceDeps)
     const approval = updated[0]
     if (!approval) throw new ApprovalNotPendingError(id)
 
+    // Outreach approvals (no conversation yet) take a different path —
+    // the review UI handles create-or-resume itself. The conversation-resume
+    // wake trigger only applies to conversation-bound approvals.
+    if (!approval.conversationId) {
+      throw new Error(
+        'messaging/pending-approvals.decide: outreach approvals must be resolved via the outreach review UI',
+      )
+    }
+
     const convRows = (await handle
       .select()
       .from(conversations)
@@ -163,6 +172,7 @@ export function createPendingApprovalsService(deps: PendingApprovalsServiceDeps)
   }
 
   async function persistRejectionNote(approval: PendingApproval, decidedByUserId: string, body: string): Promise<void> {
+    if (!approval.conversationId) return // outreach rejections have no conversation to annotate
     await addNote({
       organizationId: approval.organizationId,
       conversationId: approval.conversationId,

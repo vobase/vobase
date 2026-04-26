@@ -44,11 +44,11 @@ export const proposeOutreachTool: AgentTool<ProposeOutreachToolInput, { approval
     try {
       const row = await insertPendingApproval({
         organizationId: ctx.organizationId,
-        // Outreach has no current conversation — the review UI handles the
-        // create-or-resume on approval. We pass a sentinel here so the schema
-        // stays NOT NULL; downstream consumers must inspect `toolName` to
-        // route correctly.
-        conversationId: 'outreach:pending',
+        // Outreach has no conversation yet — `pending_approvals.conversationId`
+        // is nullable for this case; the review UI runs create-or-resume on
+        // approval. The `toolName = 'propose_outreach'` discriminator is the
+        // canonical "no conversation" signal.
+        conversationId: null,
         conversationEventId: null,
         toolName: 'propose_outreach',
         toolArgs: args,

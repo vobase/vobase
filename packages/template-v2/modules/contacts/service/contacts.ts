@@ -38,7 +38,7 @@ interface ContactsDeps {
 
 export interface ContactsService {
   get(id: string): Promise<Contact>
-  list(organizationId: string): Promise<Contact[]>
+  list(organizationId: string, opts?: { limit?: number }): Promise<Contact[]>
   getByPhone(organizationId: string, phone: string): Promise<Contact | null>
   getByEmail(organizationId: string, email: string): Promise<Contact | null>
   create(input: CreateContactInput): Promise<Contact>
@@ -65,8 +65,9 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     return row as Contact
   }
 
-  async function list(organizationId: string): Promise<Contact[]> {
-    const rows = (await db.select().from(contacts).where(eq(contacts.organizationId, organizationId))) as unknown[]
+  async function list(organizationId: string, opts?: { limit?: number }): Promise<Contact[]> {
+    const baseQuery = db.select().from(contacts).where(eq(contacts.organizationId, organizationId))
+    const rows = (opts?.limit ? await baseQuery.limit(opts.limit) : await baseQuery) as unknown[]
     return rows as Contact[]
   }
 
@@ -260,8 +261,8 @@ function current(): ContactsService {
 export function get(id: string): Promise<Contact> {
   return current().get(id)
 }
-export function list(organizationId: string): Promise<Contact[]> {
-  return current().list(organizationId)
+export function list(organizationId: string, opts?: { limit?: number }): Promise<Contact[]> {
+  return current().list(organizationId, opts)
 }
 export function getByPhone(organizationId: string, phone: string): Promise<Contact | null> {
   return current().getByPhone(organizationId, phone)

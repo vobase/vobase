@@ -133,7 +133,12 @@ export interface AddNoteInput {
 
 export interface InsertPendingApprovalInput {
   organizationId: string
-  conversationId: string
+  /**
+   * `null` for tools whose approval has no associated conversation yet
+   * (`propose_outreach`). Conversation-bound tools (`reply`, `send_card`,
+   * `send_file`, `draft_email_to_review`) always set this.
+   */
+  conversationId: string | null
   conversationEventId: string | null
   toolName: string
   toolArgs: unknown

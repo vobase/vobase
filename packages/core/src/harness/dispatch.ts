@@ -129,9 +129,9 @@ export function scanDispatchOrphans(input: OrphanScanInput): DispatchOrphan[] {
   return orphans
 }
 
-function isDispatchStartedEvent(
-  ev: JournalEventLike & Record<string, unknown>,
-): ev is JournalEventLike & ToolDispatchStartedEvent {
+type LooseEvent = JournalEventLike & Record<string, unknown>
+
+function isDispatchStartedEvent(ev: LooseEvent): ev is LooseEvent & ToolDispatchStartedEvent {
   if (ev.type !== 'tool_dispatch_started') return false
   return (
     typeof ev.idempotencyKey === 'string' &&
@@ -141,9 +141,7 @@ function isDispatchStartedEvent(
   )
 }
 
-function isDispatchCompletedEvent(
-  ev: JournalEventLike & Record<string, unknown>,
-): ev is JournalEventLike & ToolDispatchCompletedEvent {
+function isDispatchCompletedEvent(ev: LooseEvent): ev is LooseEvent & ToolDispatchCompletedEvent {
   return ev.type === 'tool_dispatch_completed' && typeof ev.idempotencyKey === 'string'
 }
 

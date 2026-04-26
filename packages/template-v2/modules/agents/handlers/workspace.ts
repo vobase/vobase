@@ -68,43 +68,54 @@ const app = new Hono<SessionEnv>()
     const userId = session.user.id
 
     const paths: string[] = ['/INDEX.md']
+    let truncatedFromSource = false
+    function pushPath(p: string): boolean {
+      if (paths.length >= MAX_PATHS) {
+        truncatedFromSource = true
+        return false
+      }
+      paths.push(p)
+      return true
+    }
 
+    // Each list call carries an explicit limit so a 50k-row tenant doesn't
+    // pull every contact + view + thread into memory just to truncate to 500.
+    // Contacts are by far the biggest source — push that limit through to
+    // the service. The other sources already bound naturally.
     const [agents, contacts, schedules, savedViews, chatThreads] = await Promise.all([
       listAgentDefinitions(organizationId).catch(() => []),
-      listContacts(organizationId).catch(() => []),
+      listContacts(organizationId, { limit: MAX_PATHS }).catch(() => []),
       schedulesApi.listEnabled({ organizationId }).catch(() => []),
       listSavedViews('object:contacts').catch(() => []),
       threadsApi.listForCreator({ organizationId, createdBy: userId, limit: 50 }).catch(() => []),
     ])
 
     for (const a of agents) {
-      paths.push(`/agents/${a.id}/AGENTS.md`)
-      paths.push(`/agents/${a.id}/MEMORY.md`)
+      if (!pushPath(`/agents/${a.id}/AGENTS.md`)) break
+      if (!pushPath(`/agents/${a.id}/MEMORY.md`)) break
     }
 
-    for (const c of contacts) {
-      paths.push(`/contacts/${c.id}/profile.md`)
-      paths.push(`/contacts/${c.id}/MEMORY.md`)
+    for (const co of contacts) {
+      if (!pushPath(`/contacts/${co.id}/profile.md`)) break
+      if (!pushPath(`/contacts/${co.id}/MEMORY.md`)) break
     }
 
     for (const v of savedViews) {
-      paths.push(`/views/${v.scope ?? 'object:contacts'}/${v.slug}.view.yaml`)
+      if (!pushPath(`/views/${v.scope ?? 'object:contacts'}/${v.slug}.view.yaml`)) break
     }
 
     for (const s of schedules) {
-      paths.push(`/workspace/schedules/${s.id}`)
+      if (!pushPath(`/workspace/schedules/${s.id}`)) break
     }
 
     for (const t of chatThreads) {
-      paths.push(`/workspace/chats/${t.id}`)
+      if (!pushPath(`/workspace/chats/${t.id}`)) break
     }
 
-    const total = paths.length
-    const truncated = total > MAX_PATHS
     return c.json({
-      paths: truncated ? paths.slice(0, MAX_PATHS) : paths,
-      truncated,
-      total,
+      paths,
+      truncated: truncatedFromSource,
+      total: paths.length,
     } satisfies WorkspaceTreeResponse)
   })
   .get('/workspace/file', async (c) => {

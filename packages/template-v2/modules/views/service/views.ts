@@ -13,7 +13,14 @@
 
 import { type SavedViewBody, type SavedViewRow, savedViews } from '@modules/views/schema'
 import type { Origin } from '@vobase/core'
-import { getViewable, type ViewableColumn, type ViewableConfig, validateFilters } from '@vobase/core'
+import {
+  getViewable,
+  notFound,
+  type ViewableColumn,
+  type ViewableConfig,
+  validateFilters,
+  validation,
+} from '@vobase/core'
 import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
@@ -98,7 +105,7 @@ export function createViewsService(deps: ViewsDeps): ViewsService {
     const viewable = getViewable(input.scope)
     if (viewable && input.body.filters) {
       const issues = validateFilters(viewable, input.body.filters)
-      if (issues.length) throw new Error(`saveView: filter issues — ${issues.join('; ')}`)
+      if (issues.length) throw validation({ filters: issues }, `saveView: filter issues — ${issues.join('; ')}`)
     }
 
     const existing = await get(input.slug, input.scope)
@@ -143,11 +150,11 @@ export function createViewsService(deps: ViewsDeps): ViewsService {
 
   async function executeQuery(input: QueryInput): Promise<QueryResult> {
     const viewable = getViewable(input.scope)
-    if (!viewable) throw new Error(`views.query: unknown scope "${input.scope}"`)
+    if (!viewable) throw notFound(`view scope "${input.scope}"`)
 
     const filters = input.filters ?? []
     const issues = validateFilters(viewable, filters)
-    if (issues.length) throw new Error(`views.query: ${issues.join('; ')}`)
+    if (issues.length) throw validation({ filters: issues }, `views.query: ${issues.join('; ')}`)
 
     const cols = viewable.table as unknown as Record<string, AnyPgColumn>
     const wherePieces = filters.map((f) => buildFilter(cols, viewable, f))
@@ -155,7 +162,7 @@ export function createViewsService(deps: ViewsDeps): ViewsService {
 
     const sortBy = (input.sort ?? viewable.defaultView.sort ?? []).map((s) => {
       const col = cols[s.column]
-      if (!col) throw new Error(`views.query: unknown sort column "${s.column}"`)
+      if (!col) throw validation({ column: s.column }, `views.query: unknown sort column "${s.column}"`)
       return s.direction === 'asc' ? asc(col) : desc(col)
     })
 
@@ -181,7 +188,7 @@ export function createViewsService(deps: ViewsDeps): ViewsService {
 
 function buildFilter(cols: Record<string, AnyPgColumn>, viewable: ViewableConfig, f: z.infer<typeof filterSchema>) {
   const col = cols[f.column]
-  if (!col) throw new Error(`views.query: unknown filter column "${f.column}"`)
+  if (!col) throw validation({ column: f.column }, `views.query: unknown filter column "${f.column}"`)
   const meta = viewable.columns.find((c: ViewableColumn) => c.name === f.column)
   switch (f.op) {
     case 'eq':
@@ -198,7 +205,7 @@ function buildFilter(cols: Record<string, AnyPgColumn>, viewable: ViewableConfig
       return sql`${col} <= ${f.value}`
     case 'between': {
       const arr = Array.isArray(f.value) ? f.value : []
-      if (arr.length !== 2) throw new Error(`views.query: between needs [from, to]`)
+      if (arr.length !== 2) throw validation({ column: f.column }, `views.query: between needs [from, to]`)
       return sql`${col} BETWEEN ${arr[0]} AND ${arr[1]}`
     }
     case 'in':

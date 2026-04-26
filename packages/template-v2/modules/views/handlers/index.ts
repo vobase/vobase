@@ -91,13 +91,11 @@ const app = new Hono()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      try {
-        const result = await executeQuery(data)
-        return c.json(result)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'query failed'
-        return c.json({ error: 'query_error', message }, 400)
-      }
+      // `executeQuery` throws `VobaseError` (notFound / validation) — let the
+      // global error handler classify into 404/400 instead of flattening
+      // every failure to 400 here.
+      const result = await executeQuery(data)
+      return c.json(result)
     },
   )
 

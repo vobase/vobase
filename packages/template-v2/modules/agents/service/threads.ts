@@ -12,7 +12,7 @@
 
 import { agentThreadMessages, agentThreads } from '@modules/agents/schema'
 import type { RealtimePayload } from '@vobase/core'
-import { and, asc, desc, eq, max, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
 
@@ -94,26 +94,25 @@ export function createThreadsService(deps: ThreadsServiceDeps): ThreadsService {
     },
 
     async appendMessage(input) {
+      // `INSERT … SELECT COALESCE(MAX(seq),0)+1` computes the next seq inside
+      // the same statement that writes the row. Two concurrent appendMessage
+      // calls on the same thread are now serialised by the row insert under
+      // the table's per-row lock — no MAX-then-insert race window.
       const result = await db.transaction(async (tx) => {
-        const [{ next } = { next: 0 }] = (await tx
-          .select({ next: max(agentThreadMessages.seq) })
-          .from(agentThreadMessages)
-          .where(eq(agentThreadMessages.threadId, input.threadId))) as Array<{ next: number | null }>
-        const seq = (next ?? 0) + 1
         const inserted = await tx
           .insert(agentThreadMessages)
           .values({
             threadId: input.threadId,
-            seq,
+            seq: sql<number>`(SELECT COALESCE(MAX(${agentThreadMessages.seq}), 0) + 1 FROM ${agentThreadMessages} WHERE ${agentThreadMessages.threadId} = ${input.threadId})`,
             role: input.role,
             content: input.content,
             payload: input.payload ?? {},
           })
-          .returning({ id: agentThreadMessages.id })
+          .returning({ id: agentThreadMessages.id, seq: agentThreadMessages.seq })
         await tx.update(agentThreads).set({ lastTurnAt: new Date() }).where(eq(agentThreads.id, input.threadId))
-        const messageId = inserted[0]?.id
-        if (!messageId) throw new Error('appendMessage: insert returned no row')
-        return { messageId, seq }
+        const row = inserted[0]
+        if (!row) throw new Error('appendMessage: insert returned no row')
+        return { messageId: row.id, seq: row.seq }
       })
       notify({ table: 'agent_thread_messages', id: input.threadId, action: 'insert' })
       return result

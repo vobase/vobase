@@ -318,7 +318,7 @@ describe('proposeOutreachTool', () => {
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.content.approvalId).toBe('app2')
     expect((received as { toolName: string }).toolName).toBe('propose_outreach')
-    expect((received as { conversationId: string }).conversationId).toBe('outreach:pending')
+    expect((received as { conversationId: string | null }).conversationId).toBeNull()
   })
 
   it('rejects empty body', async () => {
