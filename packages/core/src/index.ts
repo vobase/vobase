@@ -67,6 +67,59 @@ export {
   harnessPgSchema,
   infraPgSchema,
 } from './db/pg-schemas'
+// ─── Declarative resources ──────────────────────────────────────────
+export {
+  type Authored,
+  type AuthoredColumnsOpts,
+  authoredColumns,
+  authoredConstraints,
+  type BootDeclarativeResourcesOpts,
+  type BootDeclarativeResourcesResult,
+  type BuildRefGraphDeps,
+  bindDeclarativeTable,
+  bootDeclarativeResources,
+  buildRefGraph,
+  classifyDrift,
+  type DeclarativeResource,
+  type DefineDeclarativeResourceOpts,
+  type DriftOutcome,
+  defineDeclarativeResource,
+  defineViewable,
+  type ExportCliDeps,
+  ExportCliError,
+  type ExportCliOpts,
+  type ExportCliResult,
+  getDeclarativeResource,
+  getDeclarativeTable,
+  getViewable,
+  listDeclarativeResources,
+  listRefGraphContributors,
+  listViewables,
+  type Origin,
+  type ParsedFile,
+  type ParseFileContext,
+  parseExportArgv,
+  parseFileBytes,
+  type ReconcileDeps,
+  type ReconcileDiff,
+  type ReconcilerDb,
+  type RefGraphContributor,
+  type RefGraphResult,
+  type ResourceFormat,
+  type ResourceRef,
+  reconcileResource,
+  recordDriftConflict,
+  recordReconcilerAudit,
+  registerRefGraphContributor,
+  runExportCli,
+  serializeMarkdownFrontmatter,
+  serializeYaml,
+  type ViewableColumn,
+  type ViewableColumnType,
+  type ViewableConfig,
+  type ViewableDefaultView,
+  validateFilters,
+} from './declarative'
 // ─── Errors ──────────────────────────────────────────────────────────
 export {
   conflict,
@@ -84,6 +137,20 @@ export {
   createAgentsMdChainContributor,
   deriveTouchedDirsFromBashHistory,
 } from './harness/agents-md-chain'
+// ─── Harness governance ──────────────────────────────────────────────
+export {
+  __resetApprovalGateForTests,
+  type ApprovalGate,
+  type ApprovalGateDeps,
+  createApprovalGate,
+  DEFAULT_APPROVAL_TTL_MS,
+  expireApproval,
+  expireOverdueApprovals,
+  installApprovalGate,
+  requestApproval,
+  resolveApproval,
+  setApprovalGateDb,
+} from './harness/approval-gate'
 // ─── Harness primitives ──────────────────────────────────────────────────
 export {
   BASH_PREVIEW_BYTES,
@@ -105,6 +172,13 @@ export {
   setCostDb,
 } from './harness/cost'
 export {
+  __resetCostCapForTests,
+  type CostCapDecision,
+  type CostCapEvalInput,
+  type CostCapEvalResult,
+  evaluateCostCap,
+} from './harness/cost-cap'
+export {
   type AgentAbortedEvent,
   type AgentEndEvent,
   type AgentStartEvent,
@@ -114,6 +188,7 @@ export {
   type HarnessAgentDefinition,
   type HarnessBaseFields,
   type HarnessEvent,
+  type HarnessGovernance,
   type HarnessHandle,
   type HarnessHooks,
   type HarnessLogger,
@@ -137,6 +212,27 @@ export {
   type TurnStartEvent,
   type WakeScope,
 } from './harness/create-harness'
+export {
+  type ConcurrencyGate,
+  createConcurrencyGate,
+  type DispatchOrphan,
+  type JournalDispatchCompleteInput,
+  type JournalDispatchInput,
+  journalDispatchComplete,
+  journalDispatchStart,
+  mintIdempotencyKey,
+  type ResolveOrphansInput,
+  type ResolveOrphansResult,
+  resolveDispatchOrphans,
+  scanDispatchOrphans,
+} from './harness/dispatch'
+export {
+  type AssertFrozenInput,
+  assertFrozenForWake,
+  buildFrozenSnapshot,
+  type FrozenSnapshot,
+  FrozenSnapshotViolationError,
+} from './harness/frozen-snapshot'
 export {
   type CreateIdleResumptionOpts,
   createIdleResumptionContributor,
@@ -171,6 +267,10 @@ export {
 export {
   createRestartRecoveryContributor,
   type GetLastWakeTail,
+  type GetWakeEvents,
+  type RecoverDispatchesInput,
+  type RecoverDispatchesResult,
+  recoverOrphanedDispatches,
 } from './harness/restart-recovery'
 export {
   type CollectSideLoadOpts,
@@ -179,6 +279,18 @@ export {
   createBashHistoryMaterializer,
 } from './harness/side-load-collector'
 export { createSteerQueue, type SteerQueueHandle } from './harness/steer-queue'
+export {
+  __resetSubagentRegistryForTests,
+  appendChildEvent as appendSubagentChildEvent,
+  cascadeAbort as cascadeSubagentAbort,
+  DEFAULT_MAX_SUBAGENT_DEPTH,
+  getSubagentChildren,
+  getSubagentDepth,
+  registerSubagent,
+  SubagentDepthExceededError,
+  subagentJournalNamespace,
+  unregisterSubagent,
+} from './harness/subagent'
 export {
   type SpillDeps,
   type SpillOutput,
@@ -193,13 +305,17 @@ export {
 export type {
   AbortContext,
   AgentTool,
+  ApprovalRequestedEvent,
+  ApprovalResolvedEvent,
   BudgetPhase,
   BudgetState,
   ClassifiedError,
   ClassifiedErrorReason,
   CommandContext,
   CommandDef,
+  CostThresholdCrossedEvent,
   ErrResult,
+  FrozenSnapshotViolationEvent,
   HarnessPlatformHint,
   IterationBudget,
   MaterializerCtx,
@@ -210,9 +326,14 @@ export type {
   SideLoadItem,
   SideLoadKind,
   ToolContext,
+  ToolDispatchCompletedEvent,
+  ToolDispatchLostEvent,
+  ToolDispatchStartedEvent,
   ToolResult,
   ToolResultPersistedEvent,
   WakeRuntime,
+  WakeState,
+  WakeStateChangedEvent,
   WorkspaceMaterializer,
 } from './harness/types'
 export { newWakeId } from './harness/wake-id'
@@ -309,11 +430,17 @@ export {
 } from './schemas/auth'
 export { channelsLog, channelsTemplates } from './schemas/channels'
 export {
+  type ReconcilerAuditKind,
+  type ReconcilerAuditSeverity,
+  reconcilerAudit,
+} from './schemas/declarative'
+export {
   activeWakes,
   agentMessages,
   auditWakeMap,
   type ConversationEvent,
   conversationEvents,
+  pendingApprovals,
   tenantCostDaily,
   threads,
 } from './schemas/harness'
@@ -327,6 +454,15 @@ export {
   generateAgentsMd,
 } from './workspace/agents-md-generator'
 export {
+  type AgentRole,
+  createVobaseCommand,
+  DEFAULT_READ_ONLY_VERBS,
+  findCommand,
+  resolveCommandSet,
+  VobaseCliCollisionError,
+  type VobaseDispatcherOpts,
+} from './workspace/cli'
+export {
   type CreateWorkspaceOpts,
   createWorkspace,
   type WorkspaceHandle,
@@ -336,13 +472,22 @@ export {
   DirtyTracker,
   snapshotFs,
 } from './workspace/dirty-tracker'
+export {
+  type BuildIndexFileOpts,
+  defineIndexContributor,
+  type IndexContributor,
+  type IndexContributorContext,
+  IndexFileBuilder,
+} from './workspace/index-file-builder'
 export { MaterializerRegistry } from './workspace/materializer-registry'
 export {
   type BuildReadOnlyConfigOpts,
   buildReadOnlyConfig,
   checkWriteAllowed,
+  globToRegExp,
   isWritablePath,
   type ReadOnlyConfig,
   ReadOnlyFsError,
   ScopedFs,
+  type WriteContext,
 } from './workspace/ro-enforcer'

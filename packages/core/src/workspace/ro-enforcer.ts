@@ -30,6 +30,21 @@ export interface ReadOnlyConfig {
   readOnlyExact: ReadonlySet<string>
   memoryPaths: ReadonlySet<string>
   writablePrefixes: readonly string[]
+  /**
+   * Glob patterns the agent may write — `*` matches one path segment,
+   * `**` matches across segments. Wins over the default-deny tier but loses
+   * to `readOnlyExact`. See `globToRegExp` for the precise grammar.
+   */
+  writableGlobs: readonly string[]
+  /** Glob patterns explicitly RO. Wins over `writablePrefixes` and `writableGlobs`. */
+  readOnlyGlobs: readonly string[]
+  /**
+   * Paths that are RO to direct `fs.writeFile` writes but writable when the
+   * write originates inside a registered CLI verb's `onSideEffect` chain.
+   * The `ScopedFs` wrapper surfaces a `withCliContext()` scope for verbs
+   * that legitimately mutate these paths (memory, learning proposals, etc.).
+   */
+  cliWritablePaths: readonly string[]
 }
 
 /** Options required to build a `ReadOnlyConfig`. */
@@ -53,6 +68,12 @@ export interface BuildReadOnlyConfigOpts {
   memoryPaths?: readonly string[]
   /** Optional override for RO prefix list. Defaults to `['/drive/']`. */
   readOnlyPrefixes?: readonly string[]
+  /** Glob-based writable paths (`*` single segment, `**` recursive). */
+  writableGlobs?: readonly string[]
+  /** Glob-based RO paths. Wins over writablePrefixes / writableGlobs. */
+  readOnlyGlobs?: readonly string[]
+  /** Paths writable only from a registered CLI verb's onSideEffect chain. */
+  cliWritablePaths?: readonly string[]
 }
 
 /** Builds the RO/writable configuration from template-supplied inputs. */
@@ -62,34 +83,107 @@ export function buildReadOnlyConfig(opts: BuildReadOnlyConfigOpts): ReadOnlyConf
     readOnlyExact: new Set(opts.readOnlyExact ?? []),
     memoryPaths: new Set(opts.memoryPaths ?? []),
     writablePrefixes: opts.writablePrefixes,
+    writableGlobs: opts.writableGlobs ?? [],
+    readOnlyGlobs: opts.readOnlyGlobs ?? [],
+    cliWritablePaths: opts.cliWritablePaths ?? [],
   }
 }
 
-/** Returns `null` if write is allowed, otherwise the spec-exact error message. */
-export function checkWriteAllowed(path: string, config: ReadOnlyConfig): string | null {
-  // Memory files get their own message.
+/**
+ * Compile a glob pattern to a `RegExp`. Supports:
+ *   - `**` → matches across path segments (including empty), greedy
+ *   - `*`  → matches a single path segment (no `/`)
+ * Anything else is taken literally and escaped.
+ */
+export function globToRegExp(pattern: string): RegExp {
+  // Token-by-token parse to keep `**` from being mangled by a `*` pass.
+  let out = '^'
+  for (let i = 0; i < pattern.length; i += 1) {
+    const c = pattern[i]
+    if (c === '*' && pattern[i + 1] === '*') {
+      out += '.*'
+      i += 1
+    } else if (c === '*') {
+      out += '[^/]*'
+    } else if (c === '?') {
+      out += '[^/]'
+    } else if (/[.+^${}()|[\]\\]/.test(c ?? '')) {
+      out += `\\${c}`
+    } else {
+      out += c
+    }
+  }
+  out += '$'
+  return new RegExp(out)
+}
+
+function anyMatches(path: string, globs: readonly string[]): boolean {
+  for (const g of globs) if (globToRegExp(g).test(path)) return true
+  return false
+}
+
+/**
+ * Optional context describing the current write origin. Passed by `ScopedFs`
+ * when a CLI verb's `onSideEffect` chain is mutating `cliWritablePaths`.
+ */
+export interface WriteContext {
+  /** Set when the current write originates inside a `vobase` verb. */
+  cliVerb?: string | null
+}
+
+/**
+ * Returns `null` if write is allowed, otherwise the spec-exact error message.
+ *
+ * Precedence (highest → lowest):
+ *   1. Memory paths — mapped to the `vobase memory …` hint.
+ *   2. Exact RO paths.
+ *   3. Glob RO patterns.
+ *   4. Prefix RO list.
+ *   5. `cliWritablePaths` — allowed iff `ctx.cliVerb` is set.
+ *   6. Writable prefixes.
+ *   7. Writable glob patterns.
+ *   8. Default-deny.
+ */
+export function checkWriteAllowed(path: string, config: ReadOnlyConfig, ctx?: WriteContext): string | null {
+  // 1. Memory files get their own message.
   if (config.memoryPaths.has(path)) {
     return `bash: ${path}: use \`vobase memory set|append|remove\` to mutate memory safely.`
   }
 
-  // Exact-path RO matches.
+  // 2. Exact-path RO matches.
   if (config.readOnlyExact.has(path)) {
     return renderRoError(path)
   }
 
-  // Prefix RO matches.
+  // 3. Glob RO patterns.
+  if (anyMatches(path, config.readOnlyGlobs)) {
+    return renderRoError(path)
+  }
+
+  // 4. Prefix RO list.
   for (const prefix of config.readOnlyPrefixes) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) {
       return renderRoError(path)
     }
   }
 
-  // Writable prefixes take priority (even inside otherwise-unmatched parents).
+  // 5. cliWritablePaths — allowed only when a CLI verb is the active origin.
+  for (const prefix of config.cliWritablePaths) {
+    if (path === prefix.slice(0, -1) || path.startsWith(prefix)) {
+      if (ctx?.cliVerb) return null
+      return `bash: ${path}: Read-only filesystem.\n  This path is mutated only via a registered \`vobase\` verb (e.g. \`vobase memory …\`, \`vobase drive …\`); direct \`echo > ${path}\` is rejected.`
+    }
+  }
+
+  // 6. Writable prefixes take priority over the default-deny tier.
   for (const prefix of config.writablePrefixes) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) return null
   }
 
-  // Default-deny: anything not explicitly writable is read-only.
+  // 7. Writable glob patterns.
+  if (anyMatches(path, config.writableGlobs)) return null
+
+  // 8. Default-deny: anything not explicitly writable is read-only.
   return `bash: ${path}: Read-only filesystem.`
 }
 
@@ -134,6 +228,14 @@ export class ReadOnlyFsError extends Error {
  */
 export class ScopedFs implements IFileSystem {
   private readonly config: ReadOnlyConfig
+  /**
+   * Active CLI verb name when a `vobase` dispatcher is mid-execution. The
+   * enforcer reads this to decide whether `cliWritablePaths` can be written.
+   * It is intentionally a per-instance mutable field — `withCliContext()`
+   * pushes/pops it around the verb's promise.
+   */
+  private activeCliVerb: string | null = null
+
   constructor(
     private readonly inner: IFileSystem,
     config: ReadOnlyConfig,
@@ -144,6 +246,26 @@ export class ScopedFs implements IFileSystem {
   /** Allow harness-controlled code to perform privileged writes. */
   async innerWriteFile(path: string, content: FileContent): Promise<void> {
     await this.inner.writeFile(path, content)
+  }
+
+  /**
+   * Run `body` with `activeCliVerb` set to `verb` so `cliWritablePaths`
+   * become writable inside the verb. Always restores the previous value,
+   * even if `body` throws.
+   */
+  async withCliContext<T>(verb: string, body: () => Promise<T>): Promise<T> {
+    const prior = this.activeCliVerb
+    this.activeCliVerb = verb
+    try {
+      return await body()
+    } finally {
+      this.activeCliVerb = prior
+    }
+  }
+
+  /** Snapshot of the current write origin, passed to `checkWriteAllowed`. */
+  private writeCtx(): WriteContext {
+    return { cliVerb: this.activeCliVerb }
   }
 
   // ---- Read-through (identity) ----
@@ -184,22 +306,22 @@ export class ScopedFs implements IFileSystem {
 
   // ---- Write-intercepting ----
   async writeFile(path: string, content: FileContent, options?: WriteFileOptions | BufferEncoding): Promise<void> {
-    const err = checkWriteAllowed(path, this.config)
+    const err = checkWriteAllowed(path, this.config, this.writeCtx())
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.writeFile(path, content, options)
   }
   async appendFile(path: string, content: FileContent, options?: WriteFileOptions | BufferEncoding): Promise<void> {
-    const err = checkWriteAllowed(path, this.config)
+    const err = checkWriteAllowed(path, this.config, this.writeCtx())
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.appendFile(path, content, options)
   }
   async mkdir(path: string, options?: MkdirOptions): Promise<void> {
-    const err = checkWriteAllowed(path, this.config)
+    const err = checkWriteAllowed(path, this.config, this.writeCtx())
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.mkdir(path, options)
   }
   async rm(path: string, options?: RmOptions): Promise<void> {
-    const err = checkWriteAllowed(path, this.config)
+    const err = checkWriteAllowed(path, this.config, this.writeCtx())
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.rm(path, options)
   }
@@ -215,7 +337,7 @@ export class ScopedFs implements IFileSystem {
     await this.inner.mv(src, dest)
   }
   async chmod(path: string, mode: number): Promise<void> {
-    const err = checkWriteAllowed(path, this.config)
+    const err = checkWriteAllowed(path, this.config, this.writeCtx())
     if (err) throw new ReadOnlyFsError(err)
     await this.inner.chmod(path, mode)
   }

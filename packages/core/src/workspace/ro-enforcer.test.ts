@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'bun:test'
 import { InMemoryFs } from 'just-bash'
 
-import { buildReadOnlyConfig, checkWriteAllowed, isWritablePath, ReadOnlyFsError, ScopedFs } from './ro-enforcer'
+import {
+  buildReadOnlyConfig,
+  checkWriteAllowed,
+  globToRegExp,
+  isWritablePath,
+  ReadOnlyFsError,
+  ScopedFs,
+} from './ro-enforcer'
 
 const WRITABLE = ['/contacts/c_abc/drive/', '/tmp/'] as const
 const MEMORY_PATHS = ['/agents/a_xyz/MEMORY.md', '/contacts/c_abc/MEMORY.md'] as const
@@ -116,5 +123,86 @@ describe('ScopedFs', () => {
   it('config.writablePrefixes contains template-supplied prefixes', () => {
     expect(CONFIG.writablePrefixes).toContain('/contacts/c_abc/drive/')
     expect(CONFIG.writablePrefixes).toContain('/tmp/')
+  })
+})
+
+describe('globToRegExp', () => {
+  it('uses `*` for single-segment matches and `**` for cross-segment matches', () => {
+    expect(globToRegExp('/agents/*/MEMORY.md').test('/agents/a-1/MEMORY.md')).toBe(true)
+    // `*` does NOT cross `/`.
+    expect(globToRegExp('/agents/*/MEMORY.md').test('/agents/a-1/sub/MEMORY.md')).toBe(false)
+
+    expect(globToRegExp('/contacts/**/*.md').test('/contacts/c-1/notes/sub/a.md')).toBe(true)
+    expect(globToRegExp('/contacts/**/*.md').test('/contacts/c-1/notes')).toBe(false)
+  })
+
+  it('escapes regex meta characters that appear literally in path patterns', () => {
+    expect(globToRegExp('/a.b/foo').test('/a.b/foo')).toBe(true)
+    // Without escaping, `.` would match any char.
+    expect(globToRegExp('/a.b/foo').test('/aXb/foo')).toBe(false)
+  })
+})
+
+describe('checkWriteAllowed — glob + cli precedence', () => {
+  const config = buildReadOnlyConfig({
+    writablePrefixes: ['/tmp/'],
+    writableGlobs: ['/contacts/*/drive/**'],
+    readOnlyGlobs: ['/contacts/*/drive/secret-*'],
+    cliWritablePaths: ['/agents/a-1/MEMORY.md'],
+  })
+
+  it('writableGlobs grant access to nested paths', () => {
+    expect(checkWriteAllowed('/contacts/c-1/drive/uploads/a.md', config)).toBeNull()
+  })
+
+  it('readOnlyGlobs win over writableGlobs', () => {
+    const err = checkWriteAllowed('/contacts/c-1/drive/secret-budget.md', config)
+    expect(err).toContain('Read-only filesystem')
+  })
+
+  it('cliWritablePaths reject direct writes but accept writes from a CLI verb origin', () => {
+    const direct = checkWriteAllowed('/agents/a-1/MEMORY.md', config)
+    expect(direct).toContain('only via a registered `vobase` verb')
+    const fromCli = checkWriteAllowed('/agents/a-1/MEMORY.md', config, { cliVerb: 'memory set' })
+    expect(fromCli).toBeNull()
+  })
+
+  it('default-deny still applies to paths outside any explicit allowlist', () => {
+    const err = checkWriteAllowed('/random/file.md', config)
+    expect(err).toContain('Read-only filesystem')
+  })
+})
+
+describe('ScopedFs.withCliContext', () => {
+  it('only relaxes cliWritablePaths inside the verb scope', async () => {
+    const inner = new InMemoryFs()
+    const config = buildReadOnlyConfig({
+      writablePrefixes: ['/tmp/'],
+      cliWritablePaths: ['/agents/a-1/MEMORY.md'],
+    })
+    const fs = new ScopedFs(inner, config)
+    await expect(fs.writeFile('/agents/a-1/MEMORY.md', 'denied')).rejects.toBeInstanceOf(ReadOnlyFsError)
+    await fs.withCliContext('memory set', async () => {
+      await fs.writeFile('/agents/a-1/MEMORY.md', 'allowed')
+    })
+    expect(await fs.readFile('/agents/a-1/MEMORY.md')).toBe('allowed')
+    // Outside the scope, writes are rejected again.
+    await expect(fs.writeFile('/agents/a-1/MEMORY.md', 'denied-again')).rejects.toBeInstanceOf(ReadOnlyFsError)
+  })
+
+  it('restores prior cli context when the body throws', async () => {
+    const inner = new InMemoryFs()
+    const config = buildReadOnlyConfig({
+      writablePrefixes: [],
+      cliWritablePaths: ['/agents/a-1/MEMORY.md'],
+    })
+    const fs = new ScopedFs(inner, config)
+    await expect(
+      fs.withCliContext('memory set', async () => {
+        throw new Error('verb failed')
+      }),
+    ).rejects.toThrow('verb failed')
+    // No CLI context active any more — direct writes are rejected.
+    await expect(fs.writeFile('/agents/a-1/MEMORY.md', 'x')).rejects.toBeInstanceOf(ReadOnlyFsError)
   })
 })

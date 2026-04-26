@@ -161,6 +161,42 @@ export const tenantCostDaily = harnessPgSchema.table(
   (t) => [primaryKey({ columns: [t.organizationId, t.date, t.llmTask] })],
 )
 
+/**
+ * Persisted context for a wake paused on `requiresApproval`. One row per
+ * pending decision; resolved approvals stay in the table for audit until a
+ * downstream cleanup decides otherwise.
+ *
+ * Cross-schema FK to a tenant's user table is enforced post-push.
+ */
+export const pendingApprovals = harnessPgSchema.table(
+  'pending_approvals',
+  {
+    id: nanoidPrimaryKey(),
+    organizationId: text('organization_id').notNull(),
+    wakeId: text('wake_id').notNull(),
+    conversationId: text('conversation_id').notNull(),
+    agentId: text('agent_id').notNull(),
+    turnIndex: integer('turn_index').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    /** Tool input as serialized JSON; replayed verbatim on resume. */
+    toolInput: jsonb('tool_input').notNull(),
+    reason: text('reason'),
+    status: text('status').notNull().default('pending'),
+    decidedByUserId: text('decided_by_user_id'),
+    decidedNote: text('decided_note'),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /** When the timeout sweeper last considered this row. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('uq_pending_approvals_call').on(t.wakeId, t.toolCallId),
+    index('idx_pending_approvals_status').on(t.status, t.expiresAt),
+    index('idx_pending_approvals_conv').on(t.conversationId, t.requestedAt),
+  ],
+)
+
 export const auditWakeMap = harnessPgSchema.table(
   'audit_wake_map',
   {

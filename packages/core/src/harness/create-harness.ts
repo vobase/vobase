@@ -19,7 +19,11 @@ import type { Bash, InMemoryFs } from 'just-bash'
 import { nanoid } from 'nanoid'
 
 import { createAgentsMdChainContributor, deriveTouchedDirsFromBashHistory } from './agents-md-chain'
+import type { ApprovalGate } from './approval-gate'
 import { makeBashTool } from './bash-tool'
+import type { CostCapEvalInput, CostCapEvalResult } from './cost-cap'
+import { type ConcurrencyGate, journalDispatchComplete, journalDispatchStart } from './dispatch'
+import { assertFrozenForWake, type FrozenSnapshot } from './frozen-snapshot'
 import { createRestartRecoveryContributor, type GetLastWakeTail } from './restart-recovery'
 import type { CustomSideLoadMaterializer } from './side-load-collector'
 import { collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
@@ -31,6 +35,7 @@ import type {
   CommandDef,
   IterationBudget,
   SideLoadContributor,
+  ToolResult,
   ToolResultPersistedEvent,
   WakeRuntime,
   WorkspaceMaterializer,
@@ -298,6 +303,14 @@ export interface CreateHarnessOpts<TTrigger = unknown> {
    * is returned on the result so callers can keep using it across turns.
    */
   emitEventHandle?: { emit?: (ev: HarnessEvent<TTrigger>) => void }
+
+  /**
+   * Optional governance bag — wires approval-gate, cost-cap, per-tool
+   * concurrency, and frozen-snapshot enforcement into the dispatch and
+   * turn loops. When omitted the harness runs without these guards (used by
+   * existing tests that pre-date the governance surface).
+   */
+  governance?: HarnessGovernance
 }
 
 // ─── Handle ────────────────────────────────────────────────────────────────
@@ -390,6 +403,31 @@ interface TrackerRef {
   scope: WakeScope
   agentId: string
   approvalDecision?: { decision: 'approved' | 'rejected'; note?: string; decidedByUserId?: string }
+  governance?: HarnessGovernance
+}
+
+/**
+ * Optional governance hooks the harness consults during tool dispatch and
+ * between turns. Each piece is independently swappable so test harnesses can
+ * skip the bits they don't exercise.
+ */
+export interface HarnessGovernance {
+  /** Approval-gate primitive — when set, `requiresApproval` tools route through it. */
+  approvalGate?: ApprovalGate
+  /** Per-tool concurrency slots; defaults to unlimited when unset. */
+  concurrencyGate?: ConcurrencyGate
+  /**
+   * Cost-cap policy — invoked after each LLM `message_end`. When `pause_for_approval`
+   * fires the harness emits `cost_threshold_crossed`; `abort` ends the wake.
+   */
+  evaluateCostCap?: (input: CostCapEvalInput) => Promise<CostCapEvalResult>
+  /**
+   * Frozen-snapshot baseline asserted at the start of every turn after the
+   * first. Mismatch journals `frozen_snapshot_violation` and aborts.
+   */
+  frozenSnapshot?: FrozenSnapshot
+  /** Override clock for tests. */
+  now?: () => Date
 }
 
 function adaptToolForPi(tool: AgentTool, ref: TrackerRef): PiAgentTool {
@@ -406,20 +444,98 @@ function adaptToolForPi(tool: AgentTool, ref: TrackerRef): PiAgentTool {
     parameters,
     execute: async (toolCallId, params) => {
       const scope = ref.scope
-      const result = await tool.execute(params as unknown, {
+      const turnIndex = ref.current.turnIndex < 0 ? 0 : ref.current.turnIndex
+      const governance = ref.governance
+      const now = governance?.now ?? (() => new Date())
+
+      const concurrencyRelease = governance?.concurrencyGate
+        ? governance.concurrencyGate.tryAcquire(tool.name, tool.maxConcurrent ?? 1)
+        : () => {}
+      if (concurrencyRelease === null) {
+        const busy: ToolResult<never> = {
+          ok: false,
+          error: `tool "${tool.name}" is at its concurrency cap; retry on the next turn`,
+          errorCode: 'TOOL_BUSY',
+          retryable: true,
+        }
+        return {
+          content: [{ type: 'text', text: stringifyResult(busy) }],
+          details: busy,
+        } satisfies AgentToolResult<unknown>
+      }
+
+      // Approval gate — pause when the tool requires approval and the wake
+      // wasn't already resumed with a decision.
+      if (tool.requiresApproval && !ref.approvalDecision && governance?.approvalGate) {
+        await governance.approvalGate.requestApproval({
+          organizationId: scope.organizationId,
+          conversationId: scope.conversationId,
+          wakeId: scope.wakeId,
+          agentId: ref.agentId,
+          turnIndex,
+          toolCallId,
+          toolName: tool.name,
+          toolInput: params,
+          reason: tool.description,
+          now,
+        })
+        const pending: ToolResult<never> = {
+          ok: false,
+          error: `tool "${tool.name}" requires approval — wake paused`,
+          errorCode: 'APPROVAL_REQUIRED',
+          retryable: false,
+        }
+        concurrencyRelease()
+        return {
+          content: [{ type: 'text', text: stringifyResult(pending) }],
+          details: pending,
+        } satisfies AgentToolResult<unknown>
+      }
+
+      // Dispatch journal: paired started/completed events keyed by idempotencyKey.
+      const startedAt = Date.now()
+      const idempotencyKey = await journalDispatchStart({
         organizationId: scope.organizationId,
         conversationId: scope.conversationId,
         wakeId: scope.wakeId,
-        agentId: ref.agentId,
-        turnIndex: ref.current.turnIndex < 0 ? 0 : ref.current.turnIndex,
+        turnIndex,
         toolCallId,
-        approvalDecision: ref.approvalDecision,
-      })
-      const out: AgentToolResult<unknown> = {
+        toolName: tool.name,
+        now,
+      }).catch(() => `${scope.wakeId}:${toolCallId}`)
+
+      let result: ToolResult<unknown>
+      try {
+        result = await tool.execute(params as unknown, {
+          organizationId: scope.organizationId,
+          conversationId: scope.conversationId,
+          wakeId: scope.wakeId,
+          agentId: ref.agentId,
+          turnIndex,
+          toolCallId,
+          approvalDecision: ref.approvalDecision,
+        })
+      } finally {
+        concurrencyRelease()
+      }
+
+      await journalDispatchComplete({
+        organizationId: scope.organizationId,
+        conversationId: scope.conversationId,
+        wakeId: scope.wakeId,
+        turnIndex,
+        toolCallId,
+        toolName: tool.name,
+        idempotencyKey,
+        ok: result.ok,
+        durationMs: Date.now() - startedAt,
+        now,
+      }).catch(() => undefined)
+
+      return {
         content: [{ type: 'text', text: stringifyResult(result) }],
         details: result,
-      }
-      return out
+      } satisfies AgentToolResult<unknown>
     },
   }
   return piTool
@@ -544,6 +660,7 @@ export async function createHarness<TTrigger = unknown>(
     scope,
     agentId: opts.agentId,
     approvalDecision: opts.approvalDecision,
+    governance: opts.governance,
   }
 
   const piTools: PiAgentTool[] = []
@@ -555,6 +672,10 @@ export async function createHarness<TTrigger = unknown>(
   let currentMessageId: string | null = null
   let assembledContent = ''
   let firstSubTurnOfUserTurn = true
+  const costCapState: { aborted: boolean; chain: Promise<unknown> } = {
+    aborted: false,
+    chain: Promise.resolve(),
+  }
   let turnTokensIn = 0
   let turnTokensOut = 0
   let turnCostUsd = 0
@@ -710,6 +831,41 @@ export async function createHarness<TTrigger = unknown>(
           finishReason,
           tokenCount: textContent.length,
         })
+        // Cost-cap evaluation — chained off `costCapState.chain` because pi's
+        // event subscriber is sync; the user-turn loop awaits the chain
+        // before deciding whether to start a new turn.
+        if (opts.governance?.evaluateCostCap && opts.iterationBudget) {
+          const evaluator = opts.governance.evaluateCostCap
+          const budget = opts.iterationBudget
+          const turnIndex = tracker.turnIndex
+          costCapState.chain = costCapState.chain
+            .then(() =>
+              evaluator({
+                organizationId: scope.organizationId,
+                conversationId,
+                wakeId: scope.wakeId,
+                agentId: opts.agentId,
+                turnIndex,
+                budget,
+              }),
+            )
+            .then((decision) => {
+              if (decision.decision === 'abort') {
+                costCapState.aborted = true
+                try {
+                  agent.abort()
+                } catch {
+                  /* agent may already be idle */
+                }
+                if (opts.abortCtx) {
+                  opts.abortCtx.reason = `cost_threshold_crossed:${decision.spentUsd.toFixed(4)}`
+                }
+              }
+            })
+            .catch((err) => {
+              logger.warn({ err }, 'evaluateCostCap failed — continuing without cost-cap')
+            })
+        }
         break
       }
       case 'tool_execution_start': {
@@ -780,6 +936,25 @@ export async function createHarness<TTrigger = unknown>(
     turnCostUsd = 0
     const curScope: WakeScope = { ...scope, turnIndex: tracker.turnIndex }
 
+    // Frozen-snapshot assertion — every turn after the first must observe
+    // the same systemHash + materializer set the wake started with.
+    if (t > 0 && opts.governance?.frozenSnapshot) {
+      try {
+        await assertFrozenForWake({
+          organizationId: scope.organizationId,
+          conversationId,
+          wakeId: scope.wakeId,
+          turnIndex: tracker.turnIndex,
+          expected: opts.governance.frozenSnapshot,
+          actual: { systemHash: opts.systemHash, materializerSet: opts.governance.frozenSnapshot.materializerSet },
+        })
+      } catch (err) {
+        logger.error({ err }, 'frozen_snapshot_violation — aborting wake')
+        endReason = 'aborted'
+        break
+      }
+    }
+
     let userText = opts.renderTrigger(opts.trigger)
     if (pendingSteerText !== null) {
       publish({ ...baseFields(curScope), type: 'steer_injected', text: pendingSteerText })
@@ -816,6 +991,10 @@ export async function createHarness<TTrigger = unknown>(
       break
     }
 
+    // Drain pending cost-cap evaluations so abort decisions land before the
+    // wake closes its turn.
+    await costCapState.chain.catch(() => undefined)
+
     publish({
       ...baseFields(curScope),
       type: 'turn_end',
@@ -835,7 +1014,7 @@ export async function createHarness<TTrigger = unknown>(
     bashHistory.last = bashHistory.current
     bashHistory.current = []
 
-    if (abortSignal?.aborted || agent.state.errorMessage) {
+    if (abortSignal?.aborted || agent.state.errorMessage || costCapState.aborted) {
       publish({
         ...baseFields(curScope),
         type: 'agent_aborted',

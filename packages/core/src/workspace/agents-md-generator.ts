@@ -4,8 +4,16 @@
  *
  * This runs ONCE at `agent_start`; the rendered string lands in the frozen
  * system prompt. Never re-read mid-wake.
+ *
+ * Internally, the function builds an `IndexFileBuilder`, registers the four
+ * canonical contributors (title, header, commands, instructions), and asks
+ * the builder for the final document. Tenant projects that want to splice in
+ * additional sections (e.g. an org-specific policy block) can use the builder
+ * directly via `defineIndexContributor` — `generateAgentsMd` stays as the
+ * happy-path one-liner.
  */
 import type { CommandDef } from '../harness/types'
+import { defineIndexContributor, IndexFileBuilder } from './index-file-builder'
 
 export interface GenerateAgentsMdOpts {
   /** Agent display name; rendered in the title line. */
@@ -18,6 +26,8 @@ export interface GenerateAgentsMdOpts {
   instructions: string
   /** If the platform wants to override the framework preamble (e.g. per-organization). */
   headerOverride?: string
+  /** Extra contributors to splice in (e.g. policy block). Applied after the four built-ins. */
+  extraContributors?: readonly Parameters<typeof defineIndexContributor>[0][]
 }
 
 const DEFAULT_HEADER = `You operate inside a virtual workspace. Read files with \`cat\`, \`grep\`, \`head\`, \`tail\`; navigate with \`ls\`, \`find\`, \`tree\`. Take side-effecting actions through the \`vobase\` CLI (listed below). Writes are blocked outside \`/contacts/<id>/drive/\` and \`/tmp/\`.
@@ -47,32 +57,68 @@ Most of the workspace is read-only; derived files (AGENTS.md, profile.md, messag
 - **Update staff-facing memory** (\`/staff/<id>/MEMORY.md\`): \`vobase memory set <heading> "<body>" --scope=staff --staff=<staffId>\`.
 - **Propose an organization drive change** (\`/drive/**\`): \`vobase drive propose --path=/<path> --body="..."\` — staff reviews and accepts or rejects; do not write to \`/drive/\` directly.
 - **Scratch work**: \`/tmp/<anything>\` is writable and wiped between wakes — use it for intermediate files, tool pipelines, debugging output.
-- **Reply to the customer**: call the \`reply\` tool (or \`send_card\`, \`send_file\` for structured messages); \`/contacts/<id>/<channelId>/messages.md\` is derived and cannot be appended to.
-`
+- **Reply to the customer**: call the \`reply\` tool (or \`send_card\`, \`send_file\` for structured messages); \`/contacts/<id>/<channelId>/messages.md\` is derived and cannot be appended to.`
+
+const FILE = 'AGENTS.md'
+
+function renderCommandsSection(commands: readonly CommandDef[]): string {
+  const sorted = [...commands].sort((a, b) => a.name.localeCompare(b.name))
+  const lines = ['## Commands', '']
+  if (sorted.length === 0) {
+    lines.push('_No commands registered._')
+    return lines.join('\n')
+  }
+  for (const cmd of sorted) {
+    lines.push(`### \`vobase ${cmd.name}\``)
+    if (cmd.description) lines.push(cmd.description)
+    if (cmd.usage) {
+      lines.push('')
+      lines.push('```')
+      lines.push(cmd.usage)
+      lines.push('```')
+    }
+    lines.push('')
+  }
+  return lines.join('\n')
+}
 
 export function generateAgentsMd(opts: GenerateAgentsMdOpts): string {
-  const header = opts.headerOverride ?? DEFAULT_HEADER
-  const titleLine = `# ${opts.agentName} (${opts.agentId})`
-  const sorted = [...opts.commands].sort((a, b) => a.name.localeCompare(b.name))
-
-  const commandLines: string[] = ['## Commands', '']
-  if (sorted.length === 0) {
-    commandLines.push('_No commands registered._', '')
-  } else {
-    for (const cmd of sorted) {
-      commandLines.push(`### \`vobase ${cmd.name}\``)
-      if (cmd.description) commandLines.push(cmd.description)
-      if (cmd.usage) {
-        commandLines.push('')
-        commandLines.push('```')
-        commandLines.push(cmd.usage)
-        commandLines.push('```')
-      }
-      commandLines.push('')
-    }
-  }
-
-  const instructionsSection = ['## Instructions', '', opts.instructions.trim() || '_No instructions authored yet._', '']
-
-  return [titleLine, '', header, commandLines.join('\n'), instructionsSection.join('\n')].join('\n')
+  const builder = new IndexFileBuilder()
+    .register(
+      defineIndexContributor({
+        file: FILE,
+        priority: 0,
+        name: 'title',
+        render: () => `# ${opts.agentName} (${opts.agentId})`,
+      }),
+    )
+    .register(
+      defineIndexContributor({
+        file: FILE,
+        priority: 10,
+        name: 'header',
+        render: () => opts.headerOverride ?? DEFAULT_HEADER,
+      }),
+    )
+    .register(
+      defineIndexContributor({
+        file: FILE,
+        priority: 100,
+        name: 'commands',
+        render: () => renderCommandsSection(opts.commands),
+      }),
+    )
+    .register(
+      defineIndexContributor({
+        file: FILE,
+        priority: 200,
+        name: 'instructions',
+        render: () => {
+          const body = opts.instructions.trim() || '_No instructions authored yet._'
+          return `## Instructions\n\n${body}`
+        },
+      }),
+    )
+  if (opts.extraContributors) builder.registerAll(opts.extraContributors)
+  return builder.build({ file: FILE })
 }

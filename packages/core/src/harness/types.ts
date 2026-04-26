@@ -12,6 +12,25 @@ import type { IFileSystem } from 'just-bash'
 
 import type { DirtyTracker } from '../workspace/dirty-tracker'
 
+// ─── Wake state ─────────────────────────────────────────────────────────────
+
+/**
+ * Lifecycle state a wake can be in. The harness emits journal events at every
+ * transition; consumers can derive the current state by reading the latest
+ * `wake_state_changed` event for a wakeId, but most callers simply read this
+ * union when scheduling resume/abort logic.
+ *
+ * - `'running'`         : turn loop is live (or about to be).
+ * - `'pending_approval'`: paused because a tool requires `requiresApproval`
+ *                         and a user hasn't yet decided. `harness.pending_approvals`
+ *                         carries the persisted context the resumer needs.
+ * - `'completed'`       : reached a terminal `agent_end`.
+ * - `'aborted'`         : reached `agent_aborted` (steer, supervisor, error).
+ * - `'awaiting_resume'` : approval resolved, awaiting the wake-resumer job to
+ *                         re-acquire the lease and resume.
+ */
+export type WakeState = 'running' | 'pending_approval' | 'awaiting_resume' | 'completed' | 'aborted'
+
 // ─── Wake runtime ───────────────────────────────────────────────────────────
 
 /**
@@ -81,6 +100,19 @@ export interface AgentTool<TArgs = unknown, TResult = unknown> {
   outputSchema?: unknown
   requiresApproval?: boolean
   parallelGroup?: 'never' | 'safe' | { kind: 'path-scoped'; pathArg: string }
+  /**
+   * Safe to replay after a process restart? If `true`, the restart-recovery
+   * driver re-dispatches an orphaned `tool_dispatch_started` whose
+   * `tool_dispatch_completed` never arrived. If `false` (default) the wake
+   * aborts with `tool_dispatch_lost`.
+   */
+  idempotent?: boolean
+  /**
+   * Hard cap on concurrent in-flight dispatches of this tool within a single
+   * wake. Defaults to `1` (serialized). Use `Infinity` only for genuinely
+   * commutative read-only tools — most write paths should leave this at 1.
+   */
+  maxConcurrent?: number
   execute(args: TArgs, ctx: ToolContext): Promise<ToolResult<TResult>>
 }
 
@@ -98,6 +130,89 @@ export interface ToolResultPersistedEvent {
   /** Absolute path inside /tmp/ where the full result was spilled. */
   path: string
   originalByteLength: number
+}
+
+// ─── Governance events (emitted by approval-gate / cost-cap / state machine)
+
+/** Common identity carried on every governance journal event. */
+interface GovernanceEventBase {
+  ts: Date
+  wakeId: string
+  conversationId: string
+  organizationId: string
+  turnIndex: number
+}
+
+/** A tool with `requiresApproval` was about to dispatch and is now paused. */
+export interface ApprovalRequestedEvent extends GovernanceEventBase {
+  type: 'approval_requested'
+  toolCallId: string
+  toolName: string
+  requestedByAgentId: string
+  /** Frozen tool input; replayed verbatim when approval resolves. */
+  toolInput: unknown
+  /** Optional human-readable summary of why approval is needed. */
+  reason?: string
+}
+
+/** A staff member resolved a pending approval. */
+export interface ApprovalResolvedEvent extends GovernanceEventBase {
+  type: 'approval_resolved'
+  toolCallId: string
+  decision: 'approved' | 'rejected'
+  decidedByUserId: string
+  note?: string
+}
+
+/** Soft (80%) or hard (100%) cost ceiling hit — emitted before any pause. */
+export interface CostThresholdCrossedEvent extends GovernanceEventBase {
+  type: 'cost_threshold_crossed'
+  phase: BudgetPhase
+  spentUsd: number
+  ceilingUsd: number
+}
+
+/** Wake transitioned between states. The driver writes one of these per change. */
+export interface WakeStateChangedEvent extends GovernanceEventBase {
+  type: 'wake_state_changed'
+  from: WakeState
+  to: WakeState
+  reason?: string
+}
+
+/** Tool dispatch began — paired with `tool_dispatch_completed` via toolCallId / idempotencyKey. */
+export interface ToolDispatchStartedEvent extends GovernanceEventBase {
+  type: 'tool_dispatch_started'
+  toolCallId: string
+  toolName: string
+  idempotencyKey: string
+}
+
+/** Tool dispatch completed (either success or failure). */
+export interface ToolDispatchCompletedEvent extends GovernanceEventBase {
+  type: 'tool_dispatch_completed'
+  toolCallId: string
+  toolName: string
+  idempotencyKey: string
+  ok: boolean
+  durationMs: number
+}
+
+/** Tool dispatch was orphaned (process restarted mid-flight). */
+export interface ToolDispatchLostEvent extends GovernanceEventBase {
+  type: 'tool_dispatch_lost'
+  toolCallId: string
+  toolName: string
+  idempotencyKey: string
+}
+
+/** Frozen-snapshot drift — wake aborted to protect prefix-cache integrity. */
+export interface FrozenSnapshotViolationEvent extends GovernanceEventBase {
+  type: 'frozen_snapshot_violation'
+  expectedSystemHash: string
+  actualSystemHash: string
+  expectedMaterializerSet: readonly string[]
+  actualMaterializerSet: readonly string[]
 }
 
 // ─── Side-load + materializers ──────────────────────────────────────────────

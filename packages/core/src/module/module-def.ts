@@ -26,7 +26,14 @@ export interface ModuleInitCtx<Db = unknown, Realtime = unknown> {
 
 export interface ModuleRoutes {
   basePath: string
-  handler: Hono
+  /**
+   * The module's Hono router. Typed as `any` for env/schema so modules can
+   * carry their own variables (e.g. `OrganizationEnv` from the template's auth
+   * middleware). Hono's first generic is invariant, so `Hono<Env>` would
+   * reject `Hono<OrganizationEnv>` even though it's structurally a subtype.
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: Hono env is invariant — see comment above
+  handler: Hono<any, any, string>
   requireSession?: boolean
 }
 
