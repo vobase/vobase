@@ -10,6 +10,7 @@
     "includes": [
       "packages/core/**",
       "packages/create-vobase/**",
+      "packages/cli/**",
       "!**/dist",
       "!**/node_modules",
       "!**/*.gen.ts",

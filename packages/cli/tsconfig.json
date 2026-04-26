@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "types": ["bun"],
+    "lib": ["ES2023"]
+  },
+  "include": ["src", "bin"],
+  "composite": true
+}

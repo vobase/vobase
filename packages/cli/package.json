@@ -1,0 +1,48 @@
+{
+  "name": "@vobase/cli",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Standalone CLI for any vobase deployment — catalog-driven, tenant-agnostic.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vobase/vobase",
+    "directory": "packages/cli"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "bin": {
+    "vobase": "./bin/vobase.ts"
+  },
+  "files": [
+    "src",
+    "bin"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "compile": "bun build ./bin/vobase.ts --compile --outfile dist/vobase",
+    "test": "bun test src/",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cac": "^6.7.14",
+    "open": "^10.2.0"
+  },
+  "devDependencies": {
+    "@vobase/core": "workspace:*",
+    "typescript": "^6.0.3",
+    "zod": "^4.3.6"
+  }
+}
