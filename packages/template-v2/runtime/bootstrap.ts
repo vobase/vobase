@@ -13,7 +13,10 @@
 
 import { join } from 'node:path'
 import { createAuth } from '@auth'
+import { createCliGrantRoutes } from '@auth/cli-grant'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from '@auth/middleware'
+import { createRequireApiKey } from '@auth/middleware/require-api-key'
+import { createWhoamiRoute } from '@auth/whoami'
 import { createWakeHandler, INBOUND_TO_WAKE_JOB } from '@modules/agents/wake/handler'
 import { createHeartbeatEmitter } from '@modules/agents/wake/heartbeat'
 import {
@@ -23,8 +26,10 @@ import {
 import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
 import {
   bootModules,
+  CliVerbRegistry,
   collectAgentContributions,
   collectJobs,
+  createCatalogRoute,
   createLogger,
   createRealtimeService,
   type ScheduleOpts,
@@ -184,6 +189,13 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
 
   const auth = createAuth(db)
   installOrganizationContext({ db, auth })
+
+  // CLI grant + whoami routes mount BEFORE the better-auth catch-all so they
+  // take precedence over `/api/auth/*`. The catch-all hands everything else
+  // to better-auth's handler.
+  const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? process.env.BETTER_AUTH_URL ?? 'http://localhost:5173'
+  app.route('/api/auth', createCliGrantRoutes({ auth, db, publicBaseUrl }))
+  app.route('/api/auth', createWhoamiRoute(db))
   app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
 
   const requireSession = createRequireSession(auth)
@@ -194,18 +206,23 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const jobHandlers = new Map<string, (data: unknown) => Promise<void>>()
   const realtime = await buildRealtime(databaseUrl, db)
   const jobs = buildJobQueue(jobHandlers)
+  const cli = new CliVerbRegistry()
   setJournalDb(db)
 
   // Extended ctx threaded into every module's `init`. `auth` is bootstrap-tier
   // (constructed above before any module init runs) and read from `ctx.auth`
   // by drive's RBAC gate and channel-web's session flow.
-  const moduleCtx = { db, organizationId: '', jobs, realtime, auth }
+  const moduleCtx = { db, organizationId: '', jobs, realtime, auth, cli }
   await bootModules({
     modules,
     app,
     requireSession,
     ctx: moduleCtx,
   })
+
+  // CLI catalog endpoint — gated by API key, served at `/api/cli/verbs`.
+  app.use('/api/cli/*', createRequireApiKey(db))
+  app.route('/api/cli', createCatalogRoute({ registry: cli }))
 
   // Module-contributed jobs bind here; INBOUND_TO_WAKE_JOB binds separately
   // below as a bootstrap concern (modules don't own the wake dispatcher).

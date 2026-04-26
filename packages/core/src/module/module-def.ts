@@ -16,12 +16,19 @@ import type { Hono, MiddlewareHandler } from 'hono'
 import type { HarnessHooks } from '../harness/create-harness'
 import type { AgentTool, CommandDef, SideLoadContributor, WorkspaceMaterializer } from '../harness/types'
 import type { JobDef, ScopedScheduler } from '../scheduler/types'
+import type { CliVerbRegistry } from '../workspace/cli/registry'
 
 export interface ModuleInitCtx<Db = unknown, Realtime = unknown> {
   readonly db: Db
   readonly organizationId: string
   readonly jobs: ScopedScheduler
   readonly realtime: Realtime
+  /**
+   * CLI verb registry. Modules call `ctx.cli.register(defineCliVerb({ ... }))`
+   * during `init` to publish a verb. The catalog endpoint serializes this
+   * registry; HTTP-RPC and in-process transports both dispatch through it.
+   */
+  readonly cli: CliVerbRegistry
 }
 
 export interface ModuleRoutes {

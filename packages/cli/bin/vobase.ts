@@ -18,26 +18,43 @@
 import { cac } from 'cac'
 
 import { CatalogClient } from '../src/catalog'
+import { login, logout, whoami } from '../src/commands/auth'
 import { loadConfig, resolveConfigName } from '../src/config'
 import { renderGlobalHelp, renderGroupHelp } from '../src/help'
 import { resolve as resolveVerb } from '../src/resolver'
-
-const AUTH_VERBS = new Set(['login', 'whoami', 'logout'])
 
 interface CliFlags {
   config?: string
   json?: boolean
   refresh?: boolean
   help?: boolean
+  url?: string
+  token?: string
+}
+
+async function runAuth(sub: string, flags: CliFlags): Promise<number> {
+  const configName = resolveConfigName({ flag: flags.config })
+  if (sub === 'login') {
+    const r = await login({ configName, url: flags.url, token: flags.token })
+    return r.exitCode
+  }
+  if (sub === 'whoami') {
+    const r = await whoami({ configName })
+    return r.exitCode
+  }
+  if (sub === 'logout') {
+    const r = await logout({ configName })
+    return r.exitCode
+  }
+  process.stderr.write(`vobase auth: unknown subcommand "${sub}". Try login | whoami | logout.\n`)
+  return 2
 }
 
 async function run(verb: readonly string[], flags: CliFlags): Promise<number> {
   const configName = resolveConfigName({ flag: flags.config })
 
-  // Auth-verb intercept (handlers land in Slice 2b).
-  if (verb[0] === 'auth' && verb[1] && AUTH_VERBS.has(verb[1])) {
-    process.stderr.write(`vobase auth ${verb[1]}: not yet implemented (Slice 2b)\n`)
-    return 1
+  if (verb[0] === 'auth' && verb[1]) {
+    return await runAuth(verb[1], flags)
   }
 
   const config = await loadConfig({ flag: flags.config })
@@ -96,6 +113,8 @@ cli
   .option('--json', 'Output raw JSON instead of human-readable format')
   .option('--refresh', 'Force-refetch the verb catalog')
   .option('--help', 'Show catalog-driven help (verb groups + verbs)')
+  .option('--url <url>', 'Tenant base URL (auth login only)')
+  .option('--token <key>', 'API key for headless login (auth login only)')
   .action(async (verb: string[], flags: CliFlags) => {
     const exitCode = await run(verb, flags)
     process.exit(exitCode)

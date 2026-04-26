@@ -416,11 +416,13 @@ export {
 export {
   type AgentRole,
   type Catalog,
+  type CatalogRouteOpts,
   type CatalogVerb,
   type CliVerbBodyArgs,
   type CliVerbDef,
   CliVerbRegistry,
   type CliVerbResult,
+  createCatalogRoute,
   createInProcessTransport,
   createVobaseCommand,
   DEFAULT_READ_ONLY_VERBS,

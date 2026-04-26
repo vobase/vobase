@@ -1,6 +1,7 @@
 // Just-bash dispatcher (legacy, used inside the wake for bash-string verbs).
 
 // Transport-agnostic verb surface (used by HTTP-RPC, in-process, future MCP).
+export { type CatalogRouteOpts, createCatalogRoute } from './catalog-route'
 export type { CliVerbBodyArgs, CliVerbDef, CliVerbResult, DefineCliVerbOpts } from './define'
 export { defaultRouteForVerb, defineCliVerb } from './define'
 export {
