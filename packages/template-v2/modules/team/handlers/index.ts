@@ -1,3 +1,4 @@
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
   get as getStaff,
@@ -13,8 +14,6 @@ import attributeHandlers from './attributes'
 import descriptionHandlers from './descriptions'
 import heartbeatHandlers from './heartbeat'
 import mentionHandlers from './mentions'
-
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const availability = z.enum(['active', 'busy', 'off', 'inactive'])
 
@@ -43,15 +42,15 @@ const updateStaffBody = z.object({
   notes: z.string().max(8000).optional(),
 })
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/health', (c) => c.json({ module: 'team', status: 'ok' }))
   .route('/', attributeHandlers)
   .route('/', descriptionHandlers)
   .route('/', heartbeatHandlers)
   .route('/', mentionHandlers)
   .get('/staff', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const rows = await listStaff(organizationId)
+    const rows = await listStaff(c.get('organizationId'))
     return c.json(rows)
   })
   .post(
@@ -63,8 +62,7 @@ const app = new Hono()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-      const row = await upsertStaff({ organizationId, ...data })
+      const row = await upsertStaff({ organizationId: c.get('organizationId'), ...data })
       return c.json(row)
     },
   )

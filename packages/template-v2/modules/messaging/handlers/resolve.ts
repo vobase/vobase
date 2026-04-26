@@ -4,6 +4,7 @@
  * POST /api/messaging/conversations/:id/reset   — staff reset failed (failed→active)
  */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { reopen, reset, resolve } from '@modules/messaging/service/conversations'
 import { getConversation, notifyConversation } from '@modules/messaging/service/staff-ops'
@@ -11,8 +12,6 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 
 import { InvalidTransitionError } from '~/runtime'
-
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const resolveBodySchema = z.object({
   by: z.string().min(1),
@@ -30,7 +29,8 @@ async function guardTenant(c: import('hono').Context, id: string, organizationId
   return { conv }
 }
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .post(
     '/:id/resolve',
     zValidator('json', resolveBodySchema, (result, c) => {
@@ -40,9 +40,8 @@ const app = new Hono()
     }),
     async (c) => {
       const id = c.req.param('id')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
       const data = c.req.valid('json')
-      const guard = await guardTenant(c, id, organizationId)
+      const guard = await guardTenant(c, id, c.get('organizationId'))
       if (guard.err) return guard.err
       try {
         const conversation = await resolve(id, data.by, data.reason)
@@ -64,9 +63,8 @@ const app = new Hono()
     }),
     async (c) => {
       const id = c.req.param('id')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
       const data = c.req.valid('json')
-      const guard = await guardTenant(c, id, organizationId)
+      const guard = await guardTenant(c, id, c.get('organizationId'))
       if (guard.err) return guard.err
       try {
         const conversation = await reopen(id, data.by, 'staff_reopen')
@@ -88,9 +86,8 @@ const app = new Hono()
     }),
     async (c) => {
       const id = c.req.param('id')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
       const data = c.req.valid('json')
-      const guard = await guardTenant(c, id, organizationId)
+      const guard = await guardTenant(c, id, c.get('organizationId'))
       if (guard.err) return guard.err
       try {
         const conversation = await reset(id, data.by)

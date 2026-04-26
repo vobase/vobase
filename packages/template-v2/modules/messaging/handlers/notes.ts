@@ -1,13 +1,12 @@
 /** GET + POST /api/messaging/conversations/:id/notes */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { addNote, listNotes } from '@modules/messaging/service/notes'
 import { getConversation, notifyConversation } from '@modules/messaging/service/staff-ops'
 import { fanOutNoteMentions } from '@modules/team/service/mention-notify'
 import { Hono } from 'hono'
 import { z } from 'zod'
-
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const noteBodySchema = z.object({
   body: z.string().min(1),
@@ -17,10 +16,11 @@ const noteBodySchema = z.object({
   parentNoteId: z.string().optional(),
 })
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/:id/notes', async (c) => {
     const id = c.req.param('id')
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const organizationId = c.get('organizationId')
     const conv = await getConversation(id)
     if (!conv) return c.json({ error: 'not_found' }, 404)
     if (conv.organizationId !== organizationId) return c.json({ error: 'forbidden' }, 403)
@@ -36,7 +36,7 @@ const app = new Hono()
     }),
     async (c) => {
       const id = c.req.param('id')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+      const organizationId = c.get('organizationId')
       const data = c.req.valid('json')
       const conv = await getConversation(id)
       if (!conv) return c.json({ error: 'not_found' }, 404)

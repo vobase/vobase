@@ -1,19 +1,18 @@
 /** POST /api/messaging/conversations/:id/reply */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { getConversation, notifyConversation } from '@modules/messaging/service/staff-ops'
 import { sendStaffReply } from '@modules/messaging/service/staff-reply'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
-
 const replyBodySchema = z.object({
   body: z.string().min(1).max(10_000),
   staffUserId: z.string().min(1).optional(),
 })
 
-const app = new Hono().post(
+const app = new Hono<OrganizationEnv>().use('*', requireOrganization).post(
   '/:id/reply',
   zValidator('json', replyBodySchema, (result, c) => {
     if (!result.success) {
@@ -22,13 +21,12 @@ const app = new Hono().post(
   }),
   async (c) => {
     const id = c.req.param('id')
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const organizationId = c.get('organizationId')
     const data = c.req.valid('json')
     const conv = await getConversation(id)
     if (!conv) return c.json({ error: 'not_found' }, 404)
     if (conv.organizationId !== organizationId) return c.json({ error: 'not_found' }, 404)
-    const session = (c as unknown as { get: (k: string) => { user?: { id?: string } } | undefined }).get('session')
-    const sessionUserId = session?.user?.id
+    const sessionUserId = c.get('session').user?.id
     const staffUserId = data.staffUserId ?? sessionUserId ?? 'staff'
     const { messageId } = await sendStaffReply({
       conversationId: id,

@@ -11,6 +11,7 @@
  * organization-teams plugin — this handler only owns the description text.
  */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
   getDescription,
@@ -21,16 +22,14 @@ import {
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
-
 const upsertBody = z.object({
   description: z.string().max(4000),
 })
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/descriptions', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const rows = await listDescriptions(organizationId)
+    const rows = await listDescriptions(c.get('organizationId'))
     return c.json(rows)
   })
   .get('/descriptions/:teamId', async (c) => {
@@ -47,10 +46,9 @@ const app = new Hono()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
       const row = await upsertDescription({
         teamId: c.req.param('teamId'),
-        organizationId,
+        organizationId: c.get('organizationId'),
         description: data.description,
       })
       return c.json(row)

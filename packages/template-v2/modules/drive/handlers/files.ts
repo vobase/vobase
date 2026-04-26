@@ -16,13 +16,12 @@
  * are allowed (staff UI); the agent-side proposal flow lives in `./proposal.ts`.
  */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { filesServiceFor } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
 import { Hono } from 'hono'
 import { z } from 'zod'
-
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const scopeSchema = z.discriminatedUnion('scope', [
   z.object({ scope: z.literal('organization') }),
@@ -65,14 +64,14 @@ const moveBodySchema = z.object({
   newPath: z.string().startsWith('/'),
 })
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/tree', async (c) => {
     const s = scopeFromQuery(c)
     if (!s.ok) return c.json({ error: 'invalid_scope', issues: s.issues }, 400)
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
     const parentIdRaw = c.req.query('parentId')
     const parentId = parentIdRaw && parentIdRaw.length > 0 ? parentIdRaw : null
-    const rows = await filesServiceFor(organizationId).listFolder(s.scope, parentId)
+    const rows = await filesServiceFor(c.get('organizationId')).listFolder(s.scope, parentId)
     return c.json(rows)
   })
   .get('/file', async (c) => {
@@ -80,8 +79,7 @@ const app = new Hono()
     if (!s.ok) return c.json({ error: 'invalid_scope', issues: s.issues }, 400)
     const path = c.req.query('path')
     if (!path?.startsWith('/')) return c.json({ error: 'invalid_path' }, 400)
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const result = await filesServiceFor(organizationId).readPath(s.scope, path)
+    const result = await filesServiceFor(c.get('organizationId')).readPath(s.scope, path)
     if (!result) return c.json({ error: 'not_found' }, 404)
     return c.json(result)
   })
@@ -94,9 +92,8 @@ const app = new Hono()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
       const scope = toDriveScope(data)
-      const file = await filesServiceFor(organizationId).writePath(scope, data.path, data.content)
+      const file = await filesServiceFor(c.get('organizationId')).writePath(scope, data.path, data.content)
       return c.json({ file })
     },
   )
@@ -109,9 +106,8 @@ const app = new Hono()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
       const scope = toDriveScope(data)
-      const file = await filesServiceFor(organizationId).mkdir(scope, data.path)
+      const file = await filesServiceFor(c.get('organizationId')).mkdir(scope, data.path)
       return c.json({ file })
     },
   )
@@ -124,15 +120,13 @@ const app = new Hono()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-      const file = await filesServiceFor(organizationId).move(data.id, data.newPath)
+      const file = await filesServiceFor(c.get('organizationId')).move(data.id, data.newPath)
       return c.json({ file })
     },
   )
   .delete('/file/:id', async (c) => {
     const id = c.req.param('id')
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    await filesServiceFor(organizationId).remove(id)
+    await filesServiceFor(c.get('organizationId')).remove(id)
     return c.json({ ok: true, id })
   })
 

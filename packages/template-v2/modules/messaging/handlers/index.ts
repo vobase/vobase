@@ -1,3 +1,4 @@
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
   get as getConversation,
@@ -17,12 +18,11 @@ import reply from './reply'
 import resolve from './resolve'
 import snooze from './snooze'
 
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
-
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/health', (c) => c.json({ module: 'messaging', status: 'ok' }))
   .get('/conversations', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const organizationId = c.get('organizationId')
     const status = c.req.query('status')?.split(',').filter(Boolean)
     const tabRaw = c.req.query('tab')
     const tab = tabRaw === 'active' || tabRaw === 'later' || tabRaw === 'done' ? tabRaw : undefined
@@ -63,9 +63,8 @@ const app = new Hono()
     return c.json(rows)
   })
   .get('/approvals', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
     const status = c.req.query('status') ?? 'pending'
-    const rows = await listApprovals(organizationId, { status })
+    const rows = await listApprovals(c.get('organizationId'), { status })
     return c.json(rows)
   })
   .route('/approvals', approvals)

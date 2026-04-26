@@ -1,3 +1,4 @@
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
   create as createContact,
@@ -10,8 +11,6 @@ import { z } from 'zod'
 
 import attributeHandlers from './attributes'
 
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
-
 const createContactBody = z.object({
   displayName: z.string().trim().min(1).max(200).nullable().optional(),
   email: z.string().trim().email().nullable().optional(),
@@ -22,12 +21,12 @@ const createContactBody = z.object({
 
 const updateContactBody = createContactBody
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/health', (c) => c.json({ module: 'contacts', status: 'ok' }))
   .route('/', attributeHandlers)
   .get('/', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const rows = await listContacts(organizationId)
+    const rows = await listContacts(c.get('organizationId'))
     return c.json(rows)
   })
   .post(
@@ -39,8 +38,7 @@ const app = new Hono()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-      const row = await createContact({ organizationId, ...data })
+      const row = await createContact({ organizationId: c.get('organizationId'), ...data })
       return c.json(row)
     },
   )

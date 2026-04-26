@@ -7,6 +7,7 @@
  * channel name.
  */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
   createInstance,
@@ -17,8 +18,6 @@ import {
 } from '@modules/channels/service/instances'
 import { Hono } from 'hono'
 import { z } from 'zod'
-
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const createBody = z.object({
   channel: z.string().min(1).max(64),
@@ -55,11 +54,11 @@ function mergeConfig(existing: Record<string, unknown>, patch: Record<string, un
   return next
 }
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
     const channel = c.req.query('channel') ?? undefined
-    const rows = await listInstances(organizationId, channel)
+    const rows = await listInstances(c.get('organizationId'), channel)
     return c.json(rows)
   })
   .get('/:id', async (c) => {
@@ -69,10 +68,9 @@ const app = new Hono()
     return c.json(row)
   })
   .post('/', zValidator('json', createBody, invalidBody), async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
     const data = c.req.valid('json')
     const row = await createInstance({
-      organizationId,
+      organizationId: c.get('organizationId'),
       channel: data.channel,
       role: data.role,
       displayName: data.displayName,
@@ -82,7 +80,7 @@ const app = new Hono()
     return c.json(row, 201)
   })
   .patch('/:id', zValidator('json', updateBody, invalidBody), async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
+    const organizationId = c.get('organizationId')
     const id = c.req.param('id')
     const data = c.req.valid('json')
     let nextConfig = data.config
@@ -111,9 +109,8 @@ const app = new Hono()
     }
   })
   .delete('/:id', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
     const id = c.req.param('id')
-    await removeInstance(id, organizationId)
+    await removeInstance(id, c.get('organizationId'))
     return c.json({ ok: true })
   })
 

@@ -8,6 +8,7 @@
  *   DELETE /definitions/:id    — delete
  */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
   create as createAgent,
@@ -19,8 +20,6 @@ import {
 import { conversationVerbs, driveVerbs, generateAgentsMd, teamVerbs } from '@modules/agents/workspace'
 import { Hono } from 'hono'
 import { z } from 'zod'
-
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const createBody = z.object({
   name: z.string().min(1).max(120),
@@ -38,10 +37,10 @@ const updateBody = z.object({
   enabled: z.boolean().optional(),
 })
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/definitions', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const rows = await listAgents(organizationId)
+    const rows = await listAgents(c.get('organizationId'))
     return c.json(
       rows.map((r) => ({
         id: r.id,
@@ -60,9 +59,8 @@ const app = new Hono()
       }
     }),
     async (c) => {
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
       const data = c.req.valid('json')
-      const row = await createAgent({ organizationId, ...data })
+      const row = await createAgent({ organizationId: c.get('organizationId'), ...data })
       return c.json(row, 201)
     },
   )

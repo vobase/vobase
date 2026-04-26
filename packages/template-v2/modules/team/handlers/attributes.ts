@@ -9,13 +9,12 @@
  *   PATCH  /staff/:userId/attributes              merge staff attribute values
  */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { createDef, listDefs, removeDef, updateDef } from '@modules/team/service/attribute-definitions'
 import { setAttributes as setStaffAttributeValues } from '@modules/team/service/staff'
 import { Hono } from 'hono'
 import { z } from 'zod'
-
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 const typeSchema = z.enum(['text', 'number', 'boolean', 'date', 'enum'])
 
@@ -45,10 +44,10 @@ const patchStaffBody = z.object({
   values: z.record(z.string().min(1), valueSchema),
 })
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('*', requireOrganization)
   .get('/attributes', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-    const rows = await listDefs(organizationId)
+    const rows = await listDefs(c.get('organizationId'))
     return c.json(rows)
   })
   .post(
@@ -63,8 +62,7 @@ const app = new Hono()
       if (data.type === 'enum' && (!data.options || data.options.length === 0)) {
         return c.json({ error: 'enum_requires_options' }, 400)
       }
-      const organizationId = c.req.query('organizationId') ?? DEFAULT_TENANT
-      const row = await createDef({ organizationId, ...data })
+      const row = await createDef({ organizationId: c.get('organizationId'), ...data })
       return c.json(row)
     },
   )

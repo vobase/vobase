@@ -1,5 +1,6 @@
 import { verifyHmacWebhook } from '@auth/middleware'
 import { INBOUND_TO_WAKE_JOB } from '@modules/agents/wake/handler'
+import { getInstance as getChannelInstance } from '@modules/channels/service/instances'
 import { requireJobs } from '@modules/channels/service/state'
 import { upsertByExternal } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
@@ -8,8 +9,6 @@ import type { Context } from 'hono'
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '~/runtime/channel-events'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
 import { getInstanceDefaultAssignee } from '../service/instances'
-
-const DEFAULT_TENANT = process.env.DEFAULT_TENANT_ID ?? 'mer0tenant'
 
 function resolveWebhookSecret(): string {
   const configured = process.env.CHANNEL_WEB_WEBHOOK_SECRET
@@ -80,9 +79,18 @@ async function handleSessionInbound(c: Context, session: SessionLike, channelIns
     return c.json({ error: 'invalid payload', issues: parsed.error.issues }, 422)
   }
 
+  // Anonymous widget sessions don't carry an active org — the channel instance
+  // is the source of truth for which org owns this inbound message.
+  let organizationId = session.session.activeOrganizationId
+  if (!organizationId) {
+    const instance = await getChannelInstance(channelInstanceId)
+    if (!instance) return c.json({ error: 'unknown channel instance' }, 404)
+    organizationId = instance.organizationId
+  }
+
   const body = parsed.data
   return dispatchInbound(c, {
-    organizationId: session.session.activeOrganizationId ?? DEFAULT_TENANT,
+    organizationId,
     channelInstanceId,
     from: session.user.id,
     displayName: body.profileName || session.user.name || undefined,
