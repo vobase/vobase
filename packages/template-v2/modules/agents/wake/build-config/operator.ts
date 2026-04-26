@@ -222,7 +222,9 @@ export async function buildOperatorWakeConfig(input: BuildOperatorWakeConfigInpu
     loadMessageHistory: history.loadMessageHistory,
     onTurnEndSnapshot: history.onTurnEndSnapshot,
 
-    emitEventHandle,
+    onPublishReady: (publish) => {
+      emitEventHandle.emit = publish
+    },
 
     maxTurns: 10,
     logger: deps.logger,

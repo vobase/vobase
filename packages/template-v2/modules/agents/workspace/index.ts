@@ -1,5 +1,7 @@
 import { buildReadOnlyConfig, type ReadOnlyConfig } from '@vobase/core'
 
+import { helpdeskRoMessage } from './helpdesk-header'
+
 export { BUSINESS_MD_FALLBACK } from '@modules/drive/agent'
 export {
   type BuildReadOnlyConfigOpts,
@@ -29,6 +31,7 @@ export type { CreateOperatorWorkspaceOpts } from './create-operator-workspace'
 export { createOperatorWorkspace } from './create-operator-workspace'
 export type { CreateWorkspaceOpts, WorkspaceHandle } from './create-workspace'
 export { createWorkspace } from './create-workspace'
+export { HELPDESK_AGENTS_MD_HEADER, helpdeskRoMessage } from './helpdesk-header'
 
 /**
  * Build the per-wake read-only configuration for the virtual workspace.
@@ -69,6 +72,7 @@ export function buildOperatorReadOnlyConfig(ids: { agentId: string; staffIds?: r
     writablePrefixes: [`/agents/${ids.agentId}/skills/`, '/tmp/'],
     memoryPaths,
     readOnlyExact,
+    roMessageOverride: helpdeskRoMessage,
   })
 }
 
@@ -95,5 +99,6 @@ export function buildDefaultReadOnlyConfig(ids: {
     writablePrefixes: [`/contacts/${ids.contactId}/drive/`, '/tmp/'],
     memoryPaths,
     readOnlyExact,
+    roMessageOverride: helpdeskRoMessage,
   })
 }

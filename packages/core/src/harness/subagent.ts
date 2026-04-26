@@ -161,7 +161,9 @@ export interface AppendChildEventInput {
  */
 export async function appendChildEvent(input: AppendChildEventInput): Promise<void> {
   const namespace = subagentJournalNamespace(input.childWakeId)
-  const payload = (input.event.payload as Record<string, unknown> | undefined) ?? {}
+  const rawPayload = input.event.payload
+  const payload: Record<string, unknown> =
+    rawPayload !== null && typeof rawPayload === 'object' ? (rawPayload as Record<string, unknown>) : {}
   const taggedEvent: JournalEventLike & Record<string, unknown> = {
     ...input.event,
     payload: { ...payload, _subagent: namespace, parentWakeId: input.parentWakeId },

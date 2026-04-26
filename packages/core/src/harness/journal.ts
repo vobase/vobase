@@ -10,6 +10,7 @@
 
 import { desc, eq } from 'drizzle-orm'
 
+import type { DrizzleHandleShape } from '../db/types'
 import { conversationEvents } from '../schemas/harness'
 
 export type Tx = unknown
@@ -52,7 +53,7 @@ type TurnIndexChain = {
     }
   }
 }
-type DbHandle = {
+interface DbHandle extends DrizzleHandleShape {
   insert: (table: unknown) => InsertChain
   select: (fields?: unknown) => SelectChain
 }

@@ -20,36 +20,26 @@ const CONFIG = buildReadOnlyConfig({
 })
 
 describe('checkWriteAllowed', () => {
-  it('returns spec-exact EROFS for /drive/* with drive-propose hint', () => {
+  it('returns the generic RO message when no override is supplied', () => {
     const err = checkWriteAllowed('/drive/refunds/updated.md', CONFIG)
-    expect(err).toContain('bash: /drive/refunds/updated.md: Read-only filesystem.')
-    expect(err).toContain('organization-scope')
-    expect(err).toContain('vobase drive propose --scope=organization --path=/refunds/updated.md --body=...')
+    expect(err).toBe('bash: /drive/refunds/updated.md: Read-only filesystem.')
   })
 
-  it('includes scope-specific recovery hints for known RO paths', () => {
-    const agentsMd = checkWriteAllowed('/agents/a_xyz/AGENTS.md', CONFIG)
-    expect(agentsMd).toContain('auto-generated')
-    expect(agentsMd).toContain('Instructions')
-
-    const profileMd = checkWriteAllowed('/contacts/c_abc/profile.md', CONFIG)
-    expect(profileMd).toContain('Contact profile is derived')
-
-    const STAFF_CFG = buildReadOnlyConfig({
+  it('honors `roMessageOverride` for platform-specific recovery hints', () => {
+    const cfg = buildReadOnlyConfig({
       writablePrefixes: [],
-      readOnlyExact: ['/staff/s_1/profile.md'],
+      readOnlyExact: ['/agents/a_xyz/AGENTS.md'],
+      roMessageOverride: (path) => {
+        if (path.endsWith('/AGENTS.md')) return `bash: ${path}: Read-only filesystem.\n  Edit instructions instead.`
+        return null
+      },
     })
-    const staffProfile = checkWriteAllowed('/staff/s_1/profile.md', STAFF_CFG)
-    expect(staffProfile).toContain('Staff profile is derived')
+    const agentsMd = checkWriteAllowed('/agents/a_xyz/AGENTS.md', cfg)
+    expect(agentsMd).toContain('Edit instructions instead.')
 
-    const MSG_CFG = buildReadOnlyConfig({
-      writablePrefixes: [],
-      readOnlyExact: ['/contacts/c_abc/cha_1/messages.md', '/contacts/c_abc/cha_1/internal-notes.md'],
-    })
-    const messagesMd = checkWriteAllowed('/contacts/c_abc/cha_1/messages.md', MSG_CFG)
-    expect(messagesMd).toContain('`reply` tool')
-    const notesMd = checkWriteAllowed('/contacts/c_abc/cha_1/internal-notes.md', MSG_CFG)
-    expect(notesMd).toContain('Internal notes are derived')
+    // Falls back to the generic message when the override returns null.
+    const driveErr = checkWriteAllowed('/drive/foo.md', cfg)
+    expect(driveErr).toBe('bash: /drive/foo.md: Read-only filesystem.')
   })
 
   it('returns memory hint for agent MEMORY.md writes', () => {

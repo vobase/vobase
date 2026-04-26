@@ -17,7 +17,13 @@ import {
   remove as removeAgent,
   update as updateAgent,
 } from '@modules/agents/service/agent-definitions'
-import { conversationVerbs, driveVerbs, generateAgentsMd, teamVerbs } from '@modules/agents/workspace'
+import {
+  conversationVerbs,
+  driveVerbs,
+  generateAgentsMd,
+  HELPDESK_AGENTS_MD_HEADER,
+  teamVerbs,
+} from '@modules/agents/workspace'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -80,6 +86,7 @@ const app = new Hono<OrganizationEnv>()
         agentId: row.id,
         commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
         instructions: '',
+        headerOverride: HELPDESK_AGENTS_MD_HEADER,
       }).replace(/\n## Instructions\n[\s\S]*$/, '\n')
       return c.json({ preamble })
     } catch {

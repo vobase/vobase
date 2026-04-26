@@ -26,7 +26,13 @@ import type { SessionEnv } from '@auth/middleware/require-session'
 import { getById as getAgentDefinition, list as listAgentDefinitions } from '@modules/agents/service/agent-definitions'
 import { threads as threadsApi } from '@modules/agents/service/threads'
 import { buildIndexFileMaterializer } from '@modules/agents/wake/build-config/base'
-import { conversationVerbs, driveVerbs, generateAgentsMd, teamVerbs } from '@modules/agents/workspace'
+import {
+  conversationVerbs,
+  driveVerbs,
+  generateAgentsMd,
+  HELPDESK_AGENTS_MD_HEADER,
+  teamVerbs,
+} from '@modules/agents/workspace'
 import type { Contact } from '@modules/contacts/schema'
 import { get as getContact, list as listContacts } from '@modules/contacts/service/contacts'
 import { schedules as schedulesApi } from '@modules/schedules/service/schedules'
@@ -128,6 +134,7 @@ async function readWorkspaceFile(path: string, organizationId: string): Promise<
       agentId: def.id,
       commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
       instructions: def.instructions,
+      headerOverride: HELPDESK_AGENTS_MD_HEADER,
     })
   }
 

@@ -24,6 +24,14 @@ interface DirentEntry {
 /** Default RO prefixes. `/drive/` gets the special `vobase drive propose` hint. */
 const DEFAULT_READ_ONLY_PREFIXES: readonly string[] = ['/drive/']
 
+/**
+ * Optional override for RO error messages. Returning `null` falls back to the
+ * generic `bash: <path>: Read-only filesystem.` text. Platforms layer their
+ * own scope-specific recovery hints (e.g. "use \`vobase drive propose …\`")
+ * here so core stays domain-agnostic.
+ */
+export type RoMessageOverride = (path: string) => string | null
+
 /** Effective RO/writable configuration consumed by `checkWriteAllowed` and `ScopedFs`. */
 export interface ReadOnlyConfig {
   readOnlyPrefixes: readonly string[]
@@ -45,6 +53,12 @@ export interface ReadOnlyConfig {
    * that legitimately mutate these paths (memory, learning proposals, etc.).
    */
   cliWritablePaths: readonly string[]
+  /** Platform-supplied RO message hints — see `RoMessageOverride`. */
+  roMessageOverride: RoMessageOverride | null
+  /** Precompiled regexes for `writableGlobs` — hot path on every write. */
+  writableGlobRegexes: readonly RegExp[]
+  /** Precompiled regexes for `readOnlyGlobs`. */
+  readOnlyGlobRegexes: readonly RegExp[]
 }
 
 /** Options required to build a `ReadOnlyConfig`. */
@@ -74,18 +88,29 @@ export interface BuildReadOnlyConfigOpts {
   readOnlyGlobs?: readonly string[]
   /** Paths writable only from a registered CLI verb's onSideEffect chain. */
   cliWritablePaths?: readonly string[]
+  /**
+   * Platform-supplied RO message hints. The function receives the path being
+   * blocked and returns a domain-specific recovery message, or `null` to fall
+   * back to the generic RO error. See `RoMessageOverride` for the contract.
+   */
+  roMessageOverride?: RoMessageOverride
 }
 
 /** Builds the RO/writable configuration from template-supplied inputs. */
 export function buildReadOnlyConfig(opts: BuildReadOnlyConfigOpts): ReadOnlyConfig {
+  const writableGlobs = opts.writableGlobs ?? []
+  const readOnlyGlobs = opts.readOnlyGlobs ?? []
   return {
     readOnlyPrefixes: opts.readOnlyPrefixes ?? DEFAULT_READ_ONLY_PREFIXES,
     readOnlyExact: new Set(opts.readOnlyExact ?? []),
     memoryPaths: new Set(opts.memoryPaths ?? []),
     writablePrefixes: opts.writablePrefixes,
-    writableGlobs: opts.writableGlobs ?? [],
-    readOnlyGlobs: opts.readOnlyGlobs ?? [],
+    writableGlobs,
+    readOnlyGlobs,
     cliWritablePaths: opts.cliWritablePaths ?? [],
+    roMessageOverride: opts.roMessageOverride ?? null,
+    writableGlobRegexes: writableGlobs.map(globToRegExp),
+    readOnlyGlobRegexes: readOnlyGlobs.map(globToRegExp),
   }
 }
 
@@ -117,8 +142,10 @@ export function globToRegExp(pattern: string): RegExp {
   return new RegExp(out)
 }
 
-function anyMatches(path: string, globs: readonly string[]): boolean {
-  for (const g of globs) if (globToRegExp(g).test(path)) return true
+function anyRegexMatches(path: string, regexes: readonly RegExp[]): boolean {
+  for (const re of regexes) {
+    if (re.test(path)) return true
+  }
   return false
 }
 
@@ -152,18 +179,18 @@ export function checkWriteAllowed(path: string, config: ReadOnlyConfig, ctx?: Wr
 
   // 2. Exact-path RO matches.
   if (config.readOnlyExact.has(path)) {
-    return renderRoError(path)
+    return renderRoError(path, config)
   }
 
   // 3. Glob RO patterns.
-  if (anyMatches(path, config.readOnlyGlobs)) {
-    return renderRoError(path)
+  if (anyRegexMatches(path, config.readOnlyGlobRegexes)) {
+    return renderRoError(path, config)
   }
 
   // 4. Prefix RO list.
   for (const prefix of config.readOnlyPrefixes) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) {
-      return renderRoError(path)
+      return renderRoError(path, config)
     }
   }
 
@@ -181,34 +208,16 @@ export function checkWriteAllowed(path: string, config: ReadOnlyConfig, ctx?: Wr
   }
 
   // 7. Writable glob patterns.
-  if (anyMatches(path, config.writableGlobs)) return null
+  if (anyRegexMatches(path, config.writableGlobRegexes)) return null
 
   // 8. Default-deny: anything not explicitly writable is read-only.
   return `bash: ${path}: Read-only filesystem.`
 }
 
-function renderRoError(path: string): string {
-  // The error must include the `vobase drive propose …` hint for drive writes.
-  if (path.startsWith('/drive/')) {
-    const rel = path.slice('/drive'.length)
-    return `bash: ${path}: Read-only filesystem.\n  This path is organization-scope (read-only to agents). Use \`vobase drive propose --scope=organization --path=${rel} --body=...\` to suggest a change for staff review.`
-  }
-  // Known per-wake RO paths get scope-specific recovery hints so the LLM can
-  // stop retrying direct writes and reach for the right tool/domain command.
-  if (path.endsWith('/AGENTS.md')) {
-    return `bash: ${path}: Read-only filesystem.\n  AGENTS.md is auto-generated from the agent definition, registered tools, and CLI reference. Edit the Instructions section in the Agents config page (or update the \`instructions\` column directly) to change agent behavior; do not write to this file.`
-  }
-  if (path.startsWith('/staff/') && path.endsWith('/profile.md')) {
-    return `bash: ${path}: Read-only filesystem.\n  Staff profile is derived from the staff record (display name, role, expertise, timezone). Edit fields in the Team UI; do not write to this file.`
-  }
-  if (path.startsWith('/contacts/') && path.endsWith('/profile.md')) {
-    return `bash: ${path}: Read-only filesystem.\n  Contact profile is derived from the contact record. Edit fields in the Contacts UI or via the contacts service; do not write to this file.`
-  }
-  if (path.endsWith('/messages.md')) {
-    return `bash: ${path}: Read-only filesystem.\n  The conversation timeline is derived from channel events. Use the \`reply\` tool (or \`send_card\`, \`send_file\`) to send a customer-visible message; do not append to this file.`
-  }
-  if (path.endsWith('/internal-notes.md')) {
-    return `bash: ${path}: Read-only filesystem.\n  Internal notes are derived from staff-authored events in the messaging module. This file reflects, but does not accept, new notes.`
+function renderRoError(path: string, config: ReadOnlyConfig): string {
+  if (config.roMessageOverride) {
+    const override = config.roMessageOverride(path)
+    if (override !== null) return override
   }
   return `bash: ${path}: Read-only filesystem.`
 }

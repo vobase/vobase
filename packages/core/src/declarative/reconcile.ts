@@ -53,8 +53,18 @@ const DEFAULT_PARSE_PATH = (ctx: ParseFileContext): { slug: string; scope: strin
   scope: ctx.parentDir.includes(':') || ctx.parentDir === 'views' ? null : ctx.parentDir,
 })
 
+function requireBun(): typeof Bun {
+  const candidate = (globalThis as { Bun?: typeof Bun }).Bun
+  if (!candidate) {
+    throw new Error(
+      'declarative: Bun runtime is required (Bun.CryptoHasher / Bun.file / Bun.Glob). Run via `bun` rather than `node`.',
+    )
+  }
+  return candidate
+}
+
 async function hashUtf8(content: string): Promise<string> {
-  return new Bun.CryptoHasher('sha256').update(content).digest('hex')
+  return new (requireBun().CryptoHasher)('sha256').update(content).digest('hex')
 }
 
 function parseContext(filePath: string, rootDir: string): ParseFileContext {
@@ -96,7 +106,7 @@ export async function reconcileResource<TBody>(
     seenPaths.add(filePath)
     let raw: string
     try {
-      raw = await Bun.file(filePath).text()
+      raw = await requireBun().file(filePath).text()
     } catch (err) {
       deps.log?.(`reconcile: cannot read ${filePath}`, { err: String(err) })
       diff.skipped += 1
@@ -232,7 +242,7 @@ function rowKey(slug: string, scope: string | null): string {
 async function globMany(rootDir: string, patterns: readonly string[]): Promise<string[]> {
   const results = new Set<string>()
   for (const pattern of patterns) {
-    const glob = new Bun.Glob(pattern)
+    const glob = new (requireBun().Glob)(pattern)
     for await (const rel of glob.scan({ cwd: rootDir, absolute: false, onlyFiles: true })) {
       results.add(join(rootDir, rel))
     }

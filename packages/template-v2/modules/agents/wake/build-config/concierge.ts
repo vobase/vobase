@@ -261,7 +261,9 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
     loadMessageHistory: history.loadMessageHistory,
     onTurnEndSnapshot: history.onTurnEndSnapshot,
 
-    emitEventHandle,
+    onPublishReady: (publish) => {
+      emitEventHandle.emit = publish
+    },
 
     maxTurns: 10,
     logger: deps.logger,

@@ -19,6 +19,7 @@
 
 import { and, eq, lt, sql } from 'drizzle-orm'
 
+import type { DrizzleHandleShape } from '../db/types'
 import { pendingApprovals } from '../schemas/harness'
 import { append } from './journal'
 import type { ApprovalRequestedEvent, ApprovalResolvedEvent, WakeStateChangedEvent } from './types'
@@ -59,7 +60,7 @@ type SelectChain = {
   }
 }
 
-interface ApprovalDb {
+interface ApprovalDb extends DrizzleHandleShape {
   insert: (table: unknown) => InsertChain
   update: (table: unknown) => UpdateChain
   select: () => SelectChain

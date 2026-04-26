@@ -101,25 +101,24 @@ interface OrphanScanInput {
  * Pair `tool_dispatch_started` with `tool_dispatch_completed` by
  * `idempotencyKey`; any started event without a matching completion is an
  * orphan. The events list is whatever `journal.getLastWakeTail()` returns
- * (or any superset of the wake's events).
+ * (or any superset of the wake's events) — `type` narrows each event into
+ * the discriminated `ToolDispatch{Started,Completed}Event` shape so no `as`
+ * casts are needed.
  */
 export function scanDispatchOrphans(input: OrphanScanInput): DispatchOrphan[] {
   const completed = new Set<string>()
   const started = new Map<string, DispatchOrphan>()
   for (const ev of input.events) {
-    if (ev.type === 'tool_dispatch_completed') {
-      const key = ev.idempotencyKey as string | undefined
-      if (key) completed.add(key)
+    if (isDispatchCompletedEvent(ev)) {
+      completed.add(ev.idempotencyKey)
       continue
     }
-    if (ev.type === 'tool_dispatch_started') {
-      const key = ev.idempotencyKey as string | undefined
-      if (!key) continue
-      started.set(key, {
-        toolCallId: ev.toolCallId as string,
-        toolName: ev.toolName as string,
-        idempotencyKey: key,
-        turnIndex: ev.turnIndex as number,
+    if (isDispatchStartedEvent(ev)) {
+      started.set(ev.idempotencyKey, {
+        toolCallId: ev.toolCallId,
+        toolName: ev.toolName,
+        idempotencyKey: ev.idempotencyKey,
+        turnIndex: ev.turnIndex,
       })
     }
   }
@@ -128,6 +127,24 @@ export function scanDispatchOrphans(input: OrphanScanInput): DispatchOrphan[] {
     if (!completed.has(key)) orphans.push(dispatch)
   }
   return orphans
+}
+
+function isDispatchStartedEvent(
+  ev: JournalEventLike & Record<string, unknown>,
+): ev is JournalEventLike & ToolDispatchStartedEvent {
+  if (ev.type !== 'tool_dispatch_started') return false
+  return (
+    typeof ev.idempotencyKey === 'string' &&
+    typeof ev.toolCallId === 'string' &&
+    typeof ev.toolName === 'string' &&
+    typeof ev.turnIndex === 'number'
+  )
+}
+
+function isDispatchCompletedEvent(
+  ev: JournalEventLike & Record<string, unknown>,
+): ev is JournalEventLike & ToolDispatchCompletedEvent {
+  return ev.type === 'tool_dispatch_completed' && typeof ev.idempotencyKey === 'string'
 }
 
 export interface ResolveOrphansInput {

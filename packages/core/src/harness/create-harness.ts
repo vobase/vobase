@@ -297,13 +297,16 @@ export interface CreateHarnessOpts<TTrigger = unknown> {
   }
 
   /**
-   * Optional handle exposing the harness's internal `publish` so out-of-band
-   * code (e.g. a template-side `llmCall` helper) can surface synthesized
-   * `llm_call` events back into the harness's event stream. Populated with a
-   * closure that calls `publish(ev)` before the run starts; the same handle
-   * is returned on the result so callers can keep using it across turns.
+   * Optional callback invoked once before the run starts with the harness's
+   * internal `publish`. Out-of-band code (e.g. a template-side `llmCall`
+   * helper) surfaces synthesized `llm_call` events through this publisher.
+   *
+   * Replaces the previous `emitEventHandle.emit = publish` mutation pattern:
+   * callers receive the publisher directly instead of having an input object
+   * mutated, so the publish flow is visible at the call site and `on_event`
+   * isn't bypassed.
    */
-  emitEventHandle?: { emit?: (ev: HarnessEvent<TTrigger>) => void }
+  onPublishReady?: (publish: (ev: HarnessEvent<TTrigger>) => void) => void
 
   /**
    * Optional governance bag — wires approval-gate, cost-cap, per-tool
@@ -449,21 +452,47 @@ function adaptToolForPi(tool: AgentTool, ref: TrackerRef): PiAgentTool {
       const governance = ref.governance
       const now = governance?.now ?? (() => new Date())
 
-      const concurrencyRelease = governance?.concurrencyGate
+      const acquireResult = governance?.concurrencyGate
         ? governance.concurrencyGate.tryAcquire(tool.name, tool.maxConcurrent ?? 1)
         : () => {}
-      if (concurrencyRelease === null) {
+      if (acquireResult === null) {
+        // Concurrency cap hit — surface a journal start+complete pair so
+        // listeners (`afterToolCall`, `on_tool_result`) see the rejection
+        // exactly like a normal failed dispatch.
+        const startedAt = Date.now()
+        const idempotencyKey = await journalDispatchStart({
+          organizationId: scope.organizationId,
+          conversationId: scope.conversationId,
+          wakeId: scope.wakeId,
+          turnIndex,
+          toolCallId,
+          toolName: tool.name,
+          now,
+        }).catch(() => `${scope.wakeId}:${toolCallId}`)
         const busy: ToolResult<never> = {
           ok: false,
           error: `tool "${tool.name}" is at its concurrency cap; retry on the next turn`,
           errorCode: 'TOOL_BUSY',
           retryable: true,
         }
+        await journalDispatchComplete({
+          organizationId: scope.organizationId,
+          conversationId: scope.conversationId,
+          wakeId: scope.wakeId,
+          turnIndex,
+          toolCallId,
+          toolName: tool.name,
+          idempotencyKey,
+          ok: false,
+          durationMs: Date.now() - startedAt,
+          now,
+        }).catch(() => undefined)
         return {
           content: [{ type: 'text', text: stringifyResult(busy) }],
           details: busy,
         } satisfies AgentToolResult<unknown>
       }
+      const concurrencyRelease = acquireResult
 
       // Approval gate — pause when the tool requires approval and the wake
       // wasn't already resumed with a decision.
@@ -584,9 +613,7 @@ export async function createHarness<TTrigger = unknown>(
         })
     }
   }
-  if (opts.emitEventHandle) {
-    opts.emitEventHandle.emit = publish
-  }
+  opts.onPublishReady?.(publish)
 
   // Pre-load message history (optional).
   const piMessages: AgentMessage[] = []

@@ -19,6 +19,7 @@ import { generateAgentsMd } from '@vobase/core'
 
 import { subagentTool } from './tools/shared/subagent'
 import { sharedViewTools } from './tools/shared/views'
+import { HELPDESK_AGENTS_MD_HEADER } from './workspace/helpdesk-header'
 
 export { createMemoryDistillListener } from './observers/memory-distill'
 export { createSseListener } from './observers/sse'
@@ -43,6 +44,7 @@ export function buildAgentsMaterializers(opts: AgentsMaterializerOpts): Workspac
     agentId,
     commands,
     instructions: agentDefinition.instructions ?? '',
+    headerOverride: HELPDESK_AGENTS_MD_HEADER,
   })
   return [
     {

@@ -7,6 +7,7 @@
 
 import { and, eq, sql } from 'drizzle-orm'
 
+import type { DrizzleHandleShape } from '../db/types'
 import { tenantCostDaily } from '../schemas/harness'
 
 export type Tx = unknown
@@ -21,7 +22,7 @@ type SelectChain = {
     where: (cond: unknown) => Promise<Array<{ costUsd: string | null }>>
   }
 }
-type DbHandle = {
+interface DbHandle extends DrizzleHandleShape {
   insert: (table: unknown) => InsertChain
   select: (fields: unknown) => SelectChain
 }

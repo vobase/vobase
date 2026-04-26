@@ -57,7 +57,7 @@ export interface MemoryDistillOpts {
   agentId?: string
   /** When set, fires `llmCall('memory.distill', …)` instead of the deterministic stub. */
   useLlm?: boolean
-  /** Per-wake emitter handle (from `createHarness({ emitEventHandle })`) so `llm_call` events surface. */
+  /** Per-wake emitter handle wired by `createHarness({ onPublishReady })` so `llm_call` events surface. */
   emitter?: LlmEmitter
   db: ScopedDb
   logger: HarnessLogger

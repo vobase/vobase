@@ -8,8 +8,18 @@
 
 import type { ResourceFormat } from './types'
 
-const parseYaml = (s: string): unknown => Bun.YAML.parse(s)
-const stringifyYaml = (v: unknown): string => Bun.YAML.stringify(v)
+function requireBun(): typeof Bun {
+  const candidate = (globalThis as { Bun?: typeof Bun }).Bun
+  if (!candidate) {
+    throw new Error(
+      'declarative: Bun runtime is required (Bun.YAML / Bun.CryptoHasher / Bun.file). Run via `bun` rather than `node` — or split out the YAML/SHA helpers if you need a Node-friendly path.',
+    )
+  }
+  return candidate
+}
+
+const parseYaml = (s: string): unknown => requireBun().YAML.parse(s)
+const stringifyYaml = (v: unknown): string => requireBun().YAML.stringify(v)
 
 export interface RawParseResult {
   /** Untyped body, ready for `bodySchema.safeParse`. */

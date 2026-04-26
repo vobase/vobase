@@ -11,7 +11,7 @@
  * The helper is domain-free: the caller resolves `model` and `apiKey`
  * (provider/gateway selection, env keys) and passes them in. The returned
  * `llm_call` event is not published by this module — it flows to the emitter
- * handle typically wired up by `createHarness({ emitEventHandle })`.
+ * handle whose `emit` is populated inside `createHarness({ onPublishReady })`.
  */
 
 import { complete, type Message, type Model, type UserMessage } from '@mariozechner/pi-ai'
@@ -41,9 +41,10 @@ export interface LlmResult<T = string> {
 }
 
 /**
- * Handle populated by `createHarness({ emitEventHandle })`. Callers capture
- * the handle at registration time; the harness wires `emit` before the run
- * starts, so listener invocations find it live.
+ * Handle whose `emit` is set by `createHarness({ onPublishReady })`. Callers
+ * capture the handle at registration time; the harness invokes `onPublishReady`
+ * with its internal `publish` before the run starts, and the registration
+ * callback writes `emit = publish` so listener invocations find it live.
  *
  * Generic over the event type so template callers (scorer, learning-proposal,
  * moderation) can publish their domain-specific `AgentEvent` variants through

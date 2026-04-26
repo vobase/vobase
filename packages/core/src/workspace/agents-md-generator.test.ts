@@ -46,23 +46,25 @@ describe('generateAgentsMd', () => {
     expect(memory).toBeLessThan(reply)
   })
 
-  it('emits framework preamble + layout reference + empty state', () => {
+  it('emits a generic framework preamble + commands section by default', () => {
     const md = generateAgentsMd({ ...BASE, commands: [] })
-    expect(md).toContain('## Layout')
+    // Default header is generic — no helpdesk-specific layout. Platforms layer
+    // their own header text via `headerOverride`.
+    expect(md).toContain('virtual workspace')
     expect(md).toContain('## Commands')
     expect(md).toContain('_No commands registered._')
-    expect(md).toContain('AGENTS.md')
   })
 
-  it('emits write-patterns section enumerating per-scope mutation paths', () => {
-    const md = generateAgentsMd({ ...BASE, commands: [] })
-    expect(md).toContain('## Write patterns')
-    expect(md).toContain('vobase memory set')
-    expect(md).toContain('--scope=contact')
-    expect(md).toContain('--scope=staff')
-    expect(md).toContain('vobase drive propose')
-    expect(md).toContain('`reply` tool')
-    expect(md).toContain('/tmp/')
+  it('renders headerOverride verbatim instead of the generic default', () => {
+    const md = generateAgentsMd({
+      ...BASE,
+      commands: [],
+      headerOverride: '## Layout\n\n- `/agents/<id>/MEMORY.md` — your working memory',
+    })
+    expect(md).toContain('## Layout')
+    expect(md).toContain('your working memory')
+    // Generic default must not also be rendered.
+    expect(md).not.toContain('Direct writes are blocked outside the writable zones')
   })
 
   it('emits Instructions section with verbatim body', () => {
