@@ -7,10 +7,10 @@
  * which currently embeds the chat inline; this route is the "pop out" target).
  */
 
+import { OperatorChat } from '@modules/agents/components/operator-chat'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { useActiveOrganizationId } from '@/hooks/use-current-user'
-import { OperatorChat } from './operator-chat'
 
 export const Route = createFileRoute('/_app/workspace/chat/$threadId')({
   component: WorkspaceChatPage,

@@ -11,6 +11,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { InferResponseType } from 'hono/client'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -25,18 +26,13 @@ export interface OperatorChatProps {
   variant?: 'compact' | 'full'
 }
 
-interface ThreadMessage {
-  id: string
-  seq: number
-  role: string
-  content: string
-  createdAt: string
-}
+type ThreadMessagesResponse = InferResponseType<(typeof agentsClient.threads)[':id']['messages']['$get'], 200>
+type ThreadMessage = ThreadMessagesResponse['rows'][number]
 
 async function fetchMessages(threadId: string): Promise<ThreadMessage[]> {
   const r = await agentsClient.threads[':id'].messages.$get({ param: { id: threadId } })
   if (!r.ok) throw new Error('thread messages fetch failed')
-  const body = (await r.json()) as { rows: ThreadMessage[] }
+  const body = await r.json()
   return body.rows
 }
 

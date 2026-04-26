@@ -5,13 +5,15 @@
  * the I/O adapter.
  *
  * Hydration is one-shot on mount: if a saved blob is present and parses to
- * a structurally valid state, we replace the initial state with it. Subsequent
- * dispatches re-serialize on the trailing edge of each render. We tolerate
- * `JSON.parse` failures and missing/corrupt blobs by falling back to the
- * initial state — nothing in here should ever throw to the caller.
+ * a structurally valid state, we replace the initial state with it.
+ * Subsequent dispatches schedule a trailing-edge persist after a short
+ * debounce so drag-reorder (which fires every animation frame) writes the
+ * final order once, not once per frame. Persistence is best-effort —
+ * `JSON.parse` failures and missing/corrupt blobs fall back to the initial
+ * state.
  */
 
-import { useEffect, useReducer } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 
 import {
   initialWorkspaceTabsState,
@@ -21,6 +23,7 @@ import {
 } from './workspace-tabs'
 
 const STORAGE_KEY_PREFIX = 'vobase:workspace-tabs:'
+const PERSIST_DEBOUNCE_MS = 250
 
 function isValidState(value: unknown): value is WorkspaceTabsState {
   if (!value || typeof value !== 'object') return false
@@ -64,9 +67,21 @@ export function usePersistedWorkspaceTabs(
   staffId: string | null,
 ): [WorkspaceTabsState, (action: WorkspaceTabsAction) => void] {
   const [state, dispatch] = useReducer(workspaceTabsReducer, staffId, loadPersistedWorkspaceTabs)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    persistWorkspaceTabs(staffId, state)
+    if (timerRef.current !== null) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      persistWorkspaceTabs(staffId, state)
+      timerRef.current = null
+    }, PERSIST_DEBOUNCE_MS)
+    return () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current)
+        persistWorkspaceTabs(staffId, state)
+        timerRef.current = null
+      }
+    }
   }, [staffId, state])
 
   return [state, dispatch]

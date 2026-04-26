@@ -9,9 +9,8 @@
  * it back up in the UI.
  */
 
-import { Type } from '@mariozechner/pi-ai'
 import { executeQuery, save as saveView } from '@modules/views/service/views'
-import type { Static } from '@sinclair/typebox'
+import { type Static, Type } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
 

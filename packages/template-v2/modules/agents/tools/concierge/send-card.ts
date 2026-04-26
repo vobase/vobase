@@ -1,6 +1,5 @@
-import { Type } from '@mariozechner/pi-ai'
 import { appendCardMessage } from '@modules/messaging/service/messages'
-import type { Static } from '@sinclair/typebox'
+import { type Static, Type } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
 

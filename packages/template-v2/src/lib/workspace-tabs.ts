@@ -15,7 +15,11 @@
  *   - `closeAll` resets `activeTabId` to null.
  */
 
+import { parseOperatorChatPath, parseOperatorSchedulePath } from '@modules/agents/service/synthetic-ids'
 import { nanoid } from 'nanoid'
+
+/** Cap on open tabs to keep persisted state + drag-reorder bookkeeping bounded. */
+export const MAX_WORKSPACE_TABS = 30
 
 /**
  * Tab kinds map to render strategies in `workspace-layout.tsx`. Adding a new
@@ -74,7 +78,14 @@ export function workspaceTabsReducer(state: WorkspaceTabsState, action: Workspac
         label: action.tab.label,
         meta: action.tab.meta,
       }
-      return { tabs: [...state.tabs, tab], activeTabId: tab.id }
+      // Bound the tab list — drop the oldest non-active tab when full so the
+      // active tab is never evicted out from under the staff.
+      let baseTabs = state.tabs
+      if (baseTabs.length >= MAX_WORKSPACE_TABS) {
+        const evictIdx = baseTabs.findIndex((t) => t.id !== state.activeTabId)
+        if (evictIdx !== -1) baseTabs = [...baseTabs.slice(0, evictIdx), ...baseTabs.slice(evictIdx + 1)]
+      }
+      return { tabs: [...baseTabs, tab], activeTabId: tab.id }
     }
 
     case 'close': {
@@ -132,4 +143,51 @@ export function workspaceTabsReducer(state: WorkspaceTabsState, action: Workspac
       throw new Error(`workspace-tabs: unknown action ${String(exhaustive)}`)
     }
   }
+}
+
+/**
+ * Path → tab metadata. Each entry owns the kind's identity end-to-end:
+ * `match(path)` returns true when the path belongs to the kind, `label(path)`
+ * formats it for the strip. Producers (workspace tree) and consumers
+ * (workspace layout) read from this one table so the two can never drift.
+ *
+ * Order matters — the resolver runs entries top-to-bottom and returns the
+ * first match. `entry` is the catch-all and must stay last.
+ */
+interface TabKindDescriptor {
+  kind: TabKind
+  match: (path: string) => boolean
+  label: (path: string) => string
+}
+
+const lastSegment = (path: string): string => path.split('/').filter(Boolean).slice(-1)[0] ?? path
+
+const TAB_KIND_TABLE: readonly TabKindDescriptor[] = [
+  {
+    kind: 'chat',
+    match: (p) => parseOperatorChatPath(p) !== null,
+    label: (p) => `Chat: ${parseOperatorChatPath(p) ?? p}`,
+  },
+  {
+    kind: 'schedule',
+    match: (p) => parseOperatorSchedulePath(p) !== null,
+    label: (p) => `Schedule: ${parseOperatorSchedulePath(p) ?? p}`,
+  },
+  {
+    kind: 'document',
+    match: (p) => p === '/INDEX.md' || p.endsWith('.md') || p.endsWith('.view.yaml'),
+    label: lastSegment,
+  },
+  {
+    kind: 'object-list',
+    match: (p) => p === '/contacts/' || p === '/agents/' || p === '/drive/',
+    label: lastSegment,
+  },
+  { kind: 'entry', match: () => true, label: lastSegment },
+]
+
+export function resolveTabForPath(path: string): { kind: TabKind; label: string } {
+  // The trailing `entry` row matches everything, so this is total.
+  const entry = TAB_KIND_TABLE.find((d) => d.match(path)) as TabKindDescriptor
+  return { kind: entry.kind, label: entry.label(path) }
 }

@@ -12,6 +12,7 @@
  * most recent thread so the rail is never blank when threads exist.
  */
 
+import { OperatorChat } from '@modules/agents/components/operator-chat'
 import { parseOperatorChatPath } from '@modules/agents/service/synthetic-ids'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
@@ -21,7 +22,6 @@ import { useActiveOrganizationId, useCurrentUserId } from '@/hooks/use-current-u
 import { agentsClient } from '@/lib/api-client'
 import { usePersistedWorkspaceTabs } from '@/lib/use-persisted-workspace-tabs'
 import type { TabKind } from '@/lib/workspace-tabs'
-import { OperatorChat } from './operator-chat'
 import { WorkspaceDocumentPane } from './workspace-document-pane'
 import { WorkspaceTabStrip } from './workspace-tab-strip'
 import { WorkspaceTree } from './workspace-tree'
