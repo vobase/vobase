@@ -1,28 +1,12 @@
 import { ContextDrawer } from '@modules/messaging/components/context-drawer'
 import { ConversationList } from '@modules/messaging/components/conversation-list'
-import type { Conversation } from '@modules/messaging/schema'
-import { useQuery } from '@tanstack/react-query'
+import { useGroupedConversations } from '@modules/messaging/hooks/use-grouped-conversations'
 import { createFileRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useQueryState } from 'nuqs'
 import { useEffect, useMemo, useRef } from 'react'
 
 import { ListDetailLayout } from '@/components/layout/list-detail-layout'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { messagingClient } from '@/lib/api-client'
-import { hydrateConversation } from '@/lib/rpc-utils'
-
-async function fetchMessagingGrouped(): Promise<{
-  rows: Conversation[]
-  counts: { active: number; later: number; done: number }
-}> {
-  const r = await messagingClient.conversations.$get({ query: { grouped: '1' } })
-  if (!r.ok) throw new Error('fetch failed')
-  const body = await r.json()
-  // The grouped branch returns { rows, counts }; the flat branch returns Conversation[].
-  // Both are typed as a union here because the handler picks at runtime via `?grouped=1`.
-  if (!('rows' in body)) throw new Error('grouped response expected')
-  return { rows: body.rows.map(hydrateConversation), counts: body.counts }
-}
 
 export function MessagingLayout() {
   const navigate = useNavigate()
@@ -35,10 +19,7 @@ export function MessagingLayout() {
       return match?.[1] ?? null
     },
   })
-  const { data: grouped } = useQuery({
-    queryKey: ['conversations', 'grouped'],
-    queryFn: fetchMessagingGrouped,
-  })
+  const { data: grouped } = useGroupedConversations()
   const convs = grouped?.rows ?? []
   const [convParam] = useQueryState('conv')
   const autoSelected = useRef(false)

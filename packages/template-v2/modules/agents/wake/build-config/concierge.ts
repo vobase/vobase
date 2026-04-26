@@ -12,7 +12,7 @@
 
 import { buildAuthLookup } from '@auth/lookup'
 import * as agentsModule from '@modules/agents/agent'
-import type { AgentEvent, WakeTrigger } from '@modules/agents/events'
+import type { WakeTrigger } from '@modules/agents/events'
 import type { AgentDefinition } from '@modules/agents/schema'
 import { conciergeTools } from '@modules/agents/tools/concierge'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@modules/agents/workspace'
@@ -31,7 +31,6 @@ import {
   conversationEvents,
   createIdleResumptionContributor,
   DirtyTracker,
-  journalAppend,
   journalGetLastWakeTail,
   type OnEventListener,
 } from '@vobase/core'
@@ -47,6 +46,8 @@ import { resolveSessionContext } from '../session-context'
 import {
   type BaseWakeDeps,
   buildIndexFileMaterializer,
+  buildJournalAdapter,
+  buildSseListener,
   IDLE_RESUMPTION_THRESHOLD_MS,
   resolveStaffIdsForOrg,
 } from './base'
@@ -162,20 +163,11 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
 
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
 
-  const sseListener: OnEventListener<WakeTrigger> = (event) => {
-    const anyEv = event as unknown as Record<string, unknown>
-    const detail = anyEv.toolName ? ` tool=${anyEv.toolName}` : ''
-    const reason = anyEv.reason ? ` reason=${anyEv.reason}` : ''
-    const text = anyEv.textDelta ? ` text=${String(anyEv.textDelta).slice(0, 80)}` : ''
-    const args = anyEv.args ? ` args=${JSON.stringify(anyEv.args).slice(0, 200)}` : ''
-    const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
-    const isError = anyEv.isError ? ' ERROR' : ''
-    console.log(`[wake] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`)
-    if (event.type === 'tool_execution_end') {
-      deps.realtime.notify({ table: 'messages', id: data.conversationId, action: 'INSERT' })
-      deps.realtime.notify({ table: 'conversations', id: data.conversationId, action: 'UPDATE' })
-    }
-  }
+  const sseListener = buildSseListener({
+    logPrefix: 'wake',
+    realtime: deps.realtime,
+    conversationId: data.conversationId,
+  })
 
   const trigger: WakeTrigger = {
     trigger: 'inbound_message',
@@ -243,21 +235,7 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
     agentsMdChain: {},
 
     getLastWakeTail: journalGetLastWakeTail,
-    journalAppend: async (ev) => {
-      const ae = ev as unknown as AgentEvent & {
-        conversationId: string
-        organizationId: string
-        wakeId?: string
-        turnIndex?: number
-      }
-      await journalAppend({
-        conversationId: ae.conversationId,
-        organizationId: ae.organizationId,
-        wakeId: ae.wakeId ?? null,
-        turnIndex: ae.turnIndex ?? 0,
-        event: ae,
-      })
-    },
+    journalAppend: buildJournalAdapter(),
     loadMessageHistory: history.loadMessageHistory,
     onTurnEndSnapshot: history.onTurnEndSnapshot,
 

@@ -12,6 +12,7 @@
  * most recent thread so the rail is never blank when threads exist.
  */
 
+import { parseOperatorChatPath } from '@modules/agents/service/synthetic-ids'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback } from 'react'
@@ -47,10 +48,7 @@ function WorkspaceLayout() {
     [dispatch],
   )
   const activeTab = state.tabs.find((t) => t.id === state.activeTabId)
-  const activeChatThreadId =
-    activeTab?.kind === 'chat' && activeTab.path.startsWith('/workspace/chats/')
-      ? activeTab.path.slice('/workspace/chats/'.length)
-      : null
+  const activeChatThreadId = activeTab?.kind === 'chat' ? parseOperatorChatPath(activeTab.path) : null
 
   const { data: fallbackThreadId } = useQuery({
     queryKey: ['operator-threads', 'most-recent', organizationId],

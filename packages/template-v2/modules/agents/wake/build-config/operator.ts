@@ -14,8 +14,9 @@
 
 import { buildAuthLookup } from '@auth/lookup'
 import * as agentsModule from '@modules/agents/agent'
-import type { AgentEvent, WakeTrigger } from '@modules/agents/events'
+import type { WakeTrigger } from '@modules/agents/events'
 import type { AgentDefinition } from '@modules/agents/schema'
+import * as syntheticIds from '@modules/agents/service/synthetic-ids'
 import { operatorTools } from '@modules/agents/tools/operator'
 import { buildOperatorReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@modules/agents/workspace'
 import { createOperatorWorkspace } from '@modules/agents/workspace/create-operator-workspace'
@@ -29,14 +30,20 @@ import type {
   WakeRuntime,
   WorkspaceMaterializer,
 } from '@vobase/core'
-import { DirtyTracker, journalAppend, journalGetLastWakeTail, type OnEventListener } from '@vobase/core'
+import { DirtyTracker, journalGetLastWakeTail, type OnEventListener } from '@vobase/core'
 import { nanoid } from 'nanoid'
 
 import { buildFrozenPrompt } from '../frozen-prompt-builder'
 import type { LlmEmitter } from '../llm-call'
 import { createModel, resolveApiKey } from '../llm-provider'
 import { setupMessageHistory } from '../message-history'
-import { type BaseWakeDeps, buildIndexFileMaterializer, resolveStaffIdsForOrg } from './base'
+import {
+  type BaseWakeDeps,
+  buildIndexFileMaterializer,
+  buildJournalAdapter,
+  buildSseListener,
+  resolveStaffIdsForOrg,
+} from './base'
 import type { WakeConfig } from './concierge'
 
 export type OperatorTriggerKind = 'operator_thread' | 'heartbeat'
@@ -62,14 +69,18 @@ export interface BuildOperatorWakeConfigInput {
   deps: BaseWakeDeps
 }
 
-/** Synthetic conversationId derived from the wake target. */
+/**
+ * Synthetic conversationId derived from the wake target. Re-exported from the
+ * shared `synthetic-ids` module so frontend (workspace tree / layout) and
+ * backend (this build config) read from one source of truth.
+ */
 export function operatorConversationId(input: BuildOperatorWakeConfigInput['data']): string {
   if (input.triggerKind === 'operator_thread') {
     if (!input.threadId) throw new Error('operatorConversationId: threadId required for operator_thread wake')
-    return `operator-${input.threadId}`
+    return syntheticIds.operatorConversationId({ triggerKind: 'operator_thread', threadId: input.threadId })
   }
   if (!input.scheduleId) throw new Error('operatorConversationId: scheduleId required for heartbeat wake')
-  return `heartbeat-${input.scheduleId}`
+  return syntheticIds.operatorConversationId({ triggerKind: 'heartbeat', scheduleId: input.scheduleId })
 }
 
 /**
@@ -138,16 +149,7 @@ export async function buildOperatorWakeConfig(input: BuildOperatorWakeConfigInpu
 
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
 
-  const sseListener: OnEventListener<WakeTrigger> = (event) => {
-    const anyEv = event as unknown as Record<string, unknown>
-    const detail = anyEv.toolName ? ` tool=${anyEv.toolName}` : ''
-    const reason = anyEv.reason ? ` reason=${anyEv.reason}` : ''
-    const text = anyEv.textDelta ? ` text=${String(anyEv.textDelta).slice(0, 80)}` : ''
-    const args = anyEv.args ? ` args=${JSON.stringify(anyEv.args).slice(0, 200)}` : ''
-    const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
-    const isError = anyEv.isError ? ' ERROR' : ''
-    console.log(`[op-wake] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`)
-  }
+  const sseListener = buildSseListener({ logPrefix: 'op-wake', realtime: null })
 
   const trigger: WakeTrigger = buildOperatorTrigger(data)
   const tools: readonly AgentTool[] = [...operatorTools, ...(contributions.tools as readonly AgentTool[])]
@@ -204,21 +206,7 @@ export async function buildOperatorWakeConfig(input: BuildOperatorWakeConfigInpu
     agentsMdChain: {},
 
     getLastWakeTail: journalGetLastWakeTail,
-    journalAppend: async (ev) => {
-      const ae = ev as unknown as AgentEvent & {
-        conversationId: string
-        organizationId: string
-        wakeId?: string
-        turnIndex?: number
-      }
-      await journalAppend({
-        conversationId: ae.conversationId,
-        organizationId: ae.organizationId,
-        wakeId: ae.wakeId ?? null,
-        turnIndex: ae.turnIndex ?? 0,
-        event: ae,
-      })
-    },
+    journalAppend: buildJournalAdapter(),
     loadMessageHistory: history.loadMessageHistory,
     onTurnEndSnapshot: history.onTurnEndSnapshot,
 

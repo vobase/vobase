@@ -9,6 +9,7 @@
  * provider's prefix cache is byte-keyed on the prompt.
  */
 
+import type { AgentEvent, WakeTrigger } from '@modules/agents/events'
 import * as contactsModule from '@modules/contacts/agent'
 import { list as listContacts } from '@modules/contacts/service/contacts'
 import * as messagingModule from '@modules/messaging/agent'
@@ -17,8 +18,8 @@ import { list as listConversations } from '@modules/messaging/service/conversati
 import * as schedulesModule from '@modules/schedules/agent'
 import { schedules as schedulesService } from '@modules/schedules/service/schedules'
 import { staff as teamStaff } from '@modules/team/service'
-import type { HarnessLogger, WorkspaceMaterializer } from '@vobase/core'
-import { IndexFileBuilder } from '@vobase/core'
+import type { HarnessLogger, OnEventListener, WorkspaceMaterializer } from '@vobase/core'
+import { IndexFileBuilder, journalAppend } from '@vobase/core'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
 
@@ -89,5 +90,59 @@ export function buildIndexFileMaterializer(opts: { organizationId: string }): Wo
       const out = builder.build({ file: 'INDEX.md' })
       return out.length > 0 ? `${out}\n` : '# Index\n\n_No activity yet._\n'
     },
+  }
+}
+
+/**
+ * Per-wake `on_event` listener that mirrors every event to stdout in the
+ * `[wake]` / `[op-wake]` format and (for concierge wakes) emits realtime
+ * notifies on `tool_execution_end`. Operator wakes pass `realtime: null`
+ * because their synthetic conversation ids don't map to real DB rows.
+ */
+export function buildSseListener(opts: {
+  /** Log prefix — `'wake'` for concierge, `'op-wake'` for operator. */
+  logPrefix: 'wake' | 'op-wake'
+  realtime: RealtimeService | null
+  /** Real conversation id for realtime notifies. Required iff `realtime` is non-null. */
+  conversationId?: string
+}): OnEventListener<WakeTrigger> {
+  return (event) => {
+    const anyEv = event as unknown as Record<string, unknown>
+    const detail = anyEv.toolName ? ` tool=${anyEv.toolName}` : ''
+    const reason = anyEv.reason ? ` reason=${anyEv.reason}` : ''
+    const text = anyEv.textDelta ? ` text=${String(anyEv.textDelta).slice(0, 80)}` : ''
+    const args = anyEv.args ? ` args=${JSON.stringify(anyEv.args).slice(0, 200)}` : ''
+    const result = anyEv.result ? ` result=${JSON.stringify(anyEv.result).slice(0, 200)}` : ''
+    const isError = anyEv.isError ? ' ERROR' : ''
+    console.log(
+      `[${opts.logPrefix}] ${event.type} turn=${event.turnIndex}${detail}${reason}${text}${args}${isError}${result}`,
+    )
+    if (event.type === 'tool_execution_end' && opts.realtime && opts.conversationId) {
+      opts.realtime.notify({ table: 'messages', id: opts.conversationId, action: 'INSERT' })
+      opts.realtime.notify({ table: 'conversations', id: opts.conversationId, action: 'UPDATE' })
+    }
+  }
+}
+
+/**
+ * Returns the `journalAppend` adapter every flavour passes into the harness.
+ * Both flavours had byte-identical bodies that just unwrapped the AgentEvent
+ * fields and forwarded to `journalAppend()`.
+ */
+export function buildJournalAdapter(): (ev: unknown) => Promise<void> {
+  return async (ev: unknown) => {
+    const ae = ev as AgentEvent & {
+      conversationId: string
+      organizationId: string
+      wakeId?: string
+      turnIndex?: number
+    }
+    await journalAppend({
+      conversationId: ae.conversationId,
+      organizationId: ae.organizationId,
+      wakeId: ae.wakeId ?? null,
+      turnIndex: ae.turnIndex ?? 0,
+      event: ae,
+    })
   }
 }

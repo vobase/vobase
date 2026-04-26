@@ -1,5 +1,6 @@
 import type { Contact } from '@modules/contacts/schema'
 import { fetchApprovals } from '@modules/messaging/hooks/use-decide-approval'
+import { useGroupedConversations } from '@modules/messaging/hooks/use-grouped-conversations'
 import { computeTab } from '@modules/messaging/service/bucketing'
 import { useUnreadMentions } from '@modules/team/hooks/use-unread-mentions'
 import { useQuery } from '@tanstack/react-query'
@@ -10,22 +11,11 @@ import { useMemo, useState } from 'react'
 import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
-import { contactsClient, messagingClient } from '@/lib/api-client'
+import { contactsClient } from '@/lib/api-client'
 import type { Conversation } from '../schema'
 import { ConversationRow } from './conversation-row'
 import { type FilterKey, FilterTabBar } from './filter-tab-bar'
 import { OwnershipFilter, type OwnershipOption, type OwnershipValue } from './ownership-filter'
-
-interface GroupedMessaging {
-  rows: Conversation[]
-  counts: { active: number; later: number; done: number }
-}
-
-async function fetchMessagingGrouped(): Promise<GroupedMessaging> {
-  const r = await messagingClient.conversations.$get({ query: { grouped: '1' } })
-  if (!r.ok) throw new Error('fetch failed')
-  return (await r.json()) as unknown as GroupedMessaging
-}
 
 async function fetchContacts(): Promise<Contact[]> {
   const r = await contactsClient.index.$get()
@@ -62,10 +52,7 @@ function ConversationList() {
     },
   })
 
-  const { data: grouped } = useQuery<GroupedMessaging>({
-    queryKey: ['conversations', 'grouped'],
-    queryFn: fetchMessagingGrouped,
-  })
+  const { data: grouped } = useGroupedConversations()
   const conversations = grouped?.rows ?? []
   const serverCounts = grouped?.counts
 

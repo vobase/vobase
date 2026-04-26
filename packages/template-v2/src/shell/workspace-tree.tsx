@@ -14,6 +14,7 @@
  * when emitting `onOpen`.
  */
 
+import { parseOperatorChatPath, parseOperatorSchedulePath } from '@modules/agents/service/synthetic-ids'
 import { FileTree, useFileTree, useFileTreeSelection } from '@pierre/trees/react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
@@ -45,16 +46,18 @@ async function fetchWorkspaceTree(organizationId: string): Promise<WorkspaceTree
  */
 function tabKindForPath(path: string): TabKind {
   if (path === '/INDEX.md' || path.endsWith('.md') || path.endsWith('.view.yaml')) return 'document'
-  if (path.startsWith('/workspace/chats/')) return 'chat'
-  if (path.startsWith('/workspace/schedules/')) return 'schedule'
+  if (parseOperatorChatPath(path) !== null) return 'chat'
+  if (parseOperatorSchedulePath(path) !== null) return 'schedule'
   if (path === '/contacts/' || path === '/agents/' || path === '/drive/') return 'object-list'
   return 'entry'
 }
 
 /** Friendly label for a path: last segment, with a few tweaks for synthetic paths. */
 function labelForPath(path: string): string {
-  if (path.startsWith('/workspace/chats/')) return `Chat: ${path.slice('/workspace/chats/'.length)}`
-  if (path.startsWith('/workspace/schedules/')) return `Schedule: ${path.slice('/workspace/schedules/'.length)}`
+  const chatId = parseOperatorChatPath(path)
+  if (chatId !== null) return `Chat: ${chatId}`
+  const scheduleId = parseOperatorSchedulePath(path)
+  if (scheduleId !== null) return `Schedule: ${scheduleId}`
   const parts = path.split('/').filter(Boolean)
   return parts[parts.length - 1] ?? path
 }
