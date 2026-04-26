@@ -88,8 +88,24 @@ export function registerSubagent(input: RegisterSubagentInput): RegistryEntry {
 }
 
 export function unregisterSubagent(parentWakeId: string, childWakeId: string): void {
-  REGISTRY.get(parentWakeId)?.children.delete(childWakeId)
+  const parent = REGISTRY.get(parentWakeId)
+  if (parent) {
+    parent.children.delete(childWakeId)
+    if (parent.children.size === 0 && parent.depth === 0) REGISTRY.delete(parentWakeId)
+  }
   REGISTRY.delete(childWakeId)
+}
+
+/**
+ * Drop a wake's registry entry on `agent_end`. Called by the harness so the
+ * registry doesn't accumulate one entry per completed wake.
+ */
+export function releaseSubagentWake(wakeId: string): void {
+  const entry = REGISTRY.get(wakeId)
+  if (!entry) return
+  // Cascade-evict any orphaned children that didn't unregister cleanly.
+  for (const child of entry.children.values()) REGISTRY.delete(child.childWakeId)
+  REGISTRY.delete(wakeId)
 }
 
 export function getSubagentChildren(parentWakeId: string): RegistryEntry[] {

@@ -6,6 +6,10 @@
  * The actual pause/abort is owned by `create-harness.ts` — this module is
  * pure policy: given a spend, what should the wake do? Idempotent: a second
  * call with the same already-crossed phase is a no-op (no duplicate events).
+ *
+ * Per-org running spend is cached in-process and refreshed from PG only on a
+ * coarse interval (default 30s). Each evaluate adds the wake's per-turn delta
+ * so we don't round-trip the database every assistant message.
  */
 
 import { getDailySpend } from './cost'
@@ -24,6 +28,12 @@ export interface CostCapEvalInput {
   budget: IterationBudget
   /** Provide explicit spend to skip the DB read (used by tests + post-call hooks). */
   spendUsdOverride?: number
+  /**
+   * Incremental USD spent during this turn (just this assistant message).
+   * Folded into the in-process running total so subsequent evals don't refetch
+   * from the DB. Ignored when `spendUsdOverride` is supplied.
+   */
+  turnCostUsdDelta?: number
   now?: () => Date
 }
 
@@ -37,8 +47,18 @@ export interface CostCapEvalResult {
 
 interface CostCapTracker {
   evaluate(input: CostCapEvalInput): Promise<CostCapEvalResult>
+  /** Drop a finished wake's last-fired memo so the map doesn't leak. */
+  releaseWake(wakeId: string): void
   /** Test reset: forget every wake's last-fired phase. */
   reset(): void
+}
+
+/** How long a cached per-org spend is trusted before refetching from PG. */
+const REFRESH_INTERVAL_MS = 30_000
+
+interface OrgSpendCache {
+  spentUsd: number
+  refreshedAt: number
 }
 
 /**
@@ -47,11 +67,25 @@ interface CostCapTracker {
  */
 function makeTracker(): CostCapTracker {
   const lastFired = new Map<string, 'soft' | 'hard'>()
+  const orgSpend = new Map<string, OrgSpendCache>()
 
   async function evaluate(input: CostCapEvalInput): Promise<CostCapEvalResult> {
     const now = (input.now ?? (() => new Date()))()
-    const spent =
-      input.spendUsdOverride !== undefined ? input.spendUsdOverride : await getDailySpend(input.organizationId)
+    const nowMs = now.getTime()
+    let spent: number
+    if (input.spendUsdOverride !== undefined) {
+      spent = input.spendUsdOverride
+    } else {
+      const cached = orgSpend.get(input.organizationId)
+      const stale = !cached || nowMs - cached.refreshedAt >= REFRESH_INTERVAL_MS
+      if (stale) {
+        spent = await getDailySpend(input.organizationId)
+        orgSpend.set(input.organizationId, { spentUsd: spent, refreshedAt: nowMs })
+      } else {
+        spent = cached.spentUsd + (input.turnCostUsdDelta ?? 0)
+        orgSpend.set(input.organizationId, { spentUsd: spent, refreshedAt: cached.refreshedAt })
+      }
+    }
 
     const soft = input.budget.softCostCeilingUsd
     const hard = input.budget.hardCostCeilingUsd
@@ -94,15 +128,24 @@ function makeTracker(): CostCapTracker {
 
   function reset(): void {
     lastFired.clear()
+    orgSpend.clear()
   }
 
-  return { evaluate, reset }
+  function releaseWake(wakeId: string): void {
+    lastFired.delete(wakeId)
+  }
+
+  return { evaluate, releaseWake, reset }
 }
 
 const tracker = makeTracker()
 
 export function evaluateCostCap(input: CostCapEvalInput): Promise<CostCapEvalResult> {
   return tracker.evaluate(input)
+}
+
+export function releaseCostCapWake(wakeId: string): void {
+  tracker.releaseWake(wakeId)
 }
 
 export function __resetCostCapForTests(): void {

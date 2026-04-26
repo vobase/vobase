@@ -59,13 +59,24 @@ function makeStubDb() {
       pendingFilter = fn
     },
     select: () => ({
-      from: (table: unknown) => ({
-        where: (_w: unknown) => {
-          const filter = pendingFilter ?? (() => true)
-          pendingFilter = null
-          return Promise.resolve(ensure(table).filter(filter))
-        },
-      }),
+      from: (table: unknown) => {
+        // Support both `select().from(t)` (awaited directly — full table scan)
+        // and `select().from(t).where(...)` (filtered). The first form lands
+        // here as `then`/await; the second goes through `.where`.
+        const fullScan = (): Promise<StubRow[]> => Promise.resolve(ensure(table).slice())
+        return {
+          where: (_w: unknown) => {
+            const filter = pendingFilter ?? (() => true)
+            pendingFilter = null
+            return Promise.resolve(ensure(table).filter(filter))
+          },
+          // biome-ignore lint/suspicious/noThenProperty: thenable to make `await select().from(t)` work
+          then: <T1, T2>(
+            resolve: (rows: StubRow[]) => T1 | PromiseLike<T1>,
+            reject?: (reason: unknown) => T2 | PromiseLike<T2>,
+          ) => fullScan().then(resolve, reject),
+        }
+      },
     }),
     insert: (table: unknown) => ({
       values: (v: unknown) => {

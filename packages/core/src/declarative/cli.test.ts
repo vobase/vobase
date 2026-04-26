@@ -2,14 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { pgTable, uniqueIndex } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 
-import {
-  __resetDeclarativeBindingsForTests,
-  __resetDeclarativeRegistryForTests,
-  bindDeclarativeTable,
-  defineDeclarativeResource,
-} from './'
+import { bindDeclarativeTable, defineDeclarativeResource } from './'
+import { __resetDeclarativeBindingsForTests } from './boot'
 import { ExportCliError, parseExportArgv, runExportCli } from './cli'
 import { authoredColumns } from './columns'
+import { __resetDeclarativeRegistryForTests } from './define'
 import { serializeYaml } from './parse'
 import type { Authored, Origin } from './types'
 

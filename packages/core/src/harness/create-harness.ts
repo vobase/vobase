@@ -21,13 +21,14 @@ import { nanoid } from 'nanoid'
 import { createAgentsMdChainContributor, deriveTouchedDirsFromBashHistory } from './agents-md-chain'
 import type { ApprovalGate } from './approval-gate'
 import { makeBashTool } from './bash-tool'
-import type { CostCapEvalInput, CostCapEvalResult } from './cost-cap'
+import { type CostCapEvalInput, type CostCapEvalResult, releaseCostCapWake } from './cost-cap'
 import { type ConcurrencyGate, journalDispatchComplete, journalDispatchStart } from './dispatch'
 import { assertFrozenForWake, type FrozenSnapshot } from './frozen-snapshot'
 import { createRestartRecoveryContributor, type GetLastWakeTail } from './restart-recovery'
 import type { CustomSideLoadMaterializer } from './side-load-collector'
 import { collectSideLoad, createBashHistoryMaterializer } from './side-load-collector'
 import type { SteerQueueHandle } from './steer-queue'
+import { releaseSubagentWake } from './subagent'
 import { TurnBudget } from './turn-budget'
 import type {
   AbortContext,
@@ -838,6 +839,7 @@ export async function createHarness<TTrigger = unknown>(
           const evaluator = opts.governance.evaluateCostCap
           const budget = opts.iterationBudget
           const turnIndex = tracker.turnIndex
+          const turnCostUsdDelta = callCost
           costCapState.chain = costCapState.chain
             .then(() =>
               evaluator({
@@ -847,6 +849,7 @@ export async function createHarness<TTrigger = unknown>(
                 agentId: opts.agentId,
                 turnIndex,
                 budget,
+                turnCostUsdDelta,
               }),
             )
             .then((decision) => {
@@ -1036,6 +1039,11 @@ export async function createHarness<TTrigger = unknown>(
     type: 'agent_end',
     reason: endReason,
   })
+
+  // Drop in-process per-wake state (cost-cap memo + subagent registry) so a
+  // long-lived worker doesn't accumulate one entry per finished wake.
+  releaseCostCapWake(scope.wakeId)
+  releaseSubagentWake(scope.wakeId)
 
   await journalChain
 

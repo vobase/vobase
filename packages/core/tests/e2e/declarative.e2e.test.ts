@@ -17,8 +17,6 @@ import { z } from 'zod'
 
 import type { VobaseDb } from '../../src/db/client'
 import {
-  __resetDeclarativeBindingsForTests,
-  __resetDeclarativeRegistryForTests,
   bindDeclarativeTable,
   defineDeclarativeResource,
   getDeclarativeResource,
@@ -27,6 +25,7 @@ import {
 } from '../../src/declarative'
 import { authoredColumns, authoredConstraints } from '../../src/declarative/columns'
 import { reconcilerAudit } from '../../src/schemas/declarative'
+import { __resetDeclarativeBindingsForTests, __resetDeclarativeRegistryForTests } from '../../src/test-utils'
 import { freshDb } from '../helpers/pglite'
 
 interface ViewBody {

@@ -139,7 +139,6 @@ export {
 } from './harness/agents-md-chain'
 // ─── Harness governance ──────────────────────────────────────────────
 export {
-  __resetApprovalGateForTests,
   type ApprovalGate,
   type ApprovalGateDeps,
   createApprovalGate,
@@ -161,7 +160,6 @@ export {
 export { classifyError } from './harness/classify-error'
 // ─── Harness persistence services ────────────────────────────────────
 export {
-  __resetCostServiceForTests,
   type CostService,
   type CostServiceDeps,
   createCostService,
@@ -172,11 +170,11 @@ export {
   setCostDb,
 } from './harness/cost'
 export {
-  __resetCostCapForTests,
   type CostCapDecision,
   type CostCapEvalInput,
   type CostCapEvalResult,
   evaluateCostCap,
+  releaseCostCapWake,
 } from './harness/cost-cap'
 export {
   type AgentAbortedEvent,
@@ -239,7 +237,6 @@ export {
   type GetLastActivityTime,
 } from './harness/idle-resumption'
 export {
-  __resetJournalServiceForTests,
   append as journalAppend,
   createJournalService,
   getLastWakeTail as journalGetLastWakeTail,
@@ -280,13 +277,13 @@ export {
 } from './harness/side-load-collector'
 export { createSteerQueue, type SteerQueueHandle } from './harness/steer-queue'
 export {
-  __resetSubagentRegistryForTests,
   appendChildEvent as appendSubagentChildEvent,
   cascadeAbort as cascadeSubagentAbort,
   DEFAULT_MAX_SUBAGENT_DEPTH,
   getSubagentChildren,
   getSubagentDepth,
   registerSubagent,
+  releaseSubagentWake,
   SubagentDepthExceededError,
   subagentJournalNamespace,
   unregisterSubagent,

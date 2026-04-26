@@ -7,7 +7,6 @@
  */
 
 export {
-  __resetDeclarativeBindingsForTests,
   type BootDeclarativeResourcesOpts,
   type BootDeclarativeResourcesResult,
   bindDeclarativeTable,
@@ -24,7 +23,6 @@ export {
 } from './cli'
 export { type AuthoredColumnsOpts, authoredColumns, authoredConstraints } from './columns'
 export {
-  __resetDeclarativeRegistryForTests,
   type DefineDeclarativeResourceOpts,
   defineDeclarativeResource,
   getDeclarativeResource,
@@ -53,7 +51,6 @@ export {
   reconcileResource,
 } from './reconcile'
 export {
-  __resetRefGraphForTests,
   type BuildRefGraphDeps,
   buildRefGraph,
   listRefGraphContributors,
@@ -72,7 +69,6 @@ export type {
   ResourceFormat,
 } from './types'
 export {
-  __resetViewablesForTests,
   defineViewable,
   getViewable,
   listViewables,

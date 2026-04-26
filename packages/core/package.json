@@ -21,6 +21,11 @@
       "import": "./src/db/schema-exports.ts",
       "types": "./src/db/schema-exports.ts",
       "default": "./src/db/schema-exports.ts"
+    },
+    "./test-utils": {
+      "import": "./src/test-utils.ts",
+      "types": "./src/test-utils.ts",
+      "default": "./src/test-utils.ts"
     }
   },
   "files": [

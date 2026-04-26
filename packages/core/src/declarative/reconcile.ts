@@ -11,7 +11,7 @@
  */
 
 import { join, relative, sep } from 'node:path'
-import { and, eq, isNotNull, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { AnyPgColumn, AnyPgTable } from 'drizzle-orm/pg-core'
 
 import { recordDriftConflict, recordReconcilerAudit } from './drift'
@@ -85,6 +85,13 @@ export async function reconcileResource<TBody>(
   const seenPaths = new Set<string>()
   const filePaths = await globMany(deps.rootDir, resource.sourceGlobs)
 
+  // Batch-load every row once so the per-file path doesn't issue an N+1
+  // SELECT against the resource's table. We only need active+inactive rows
+  // here since reconcile may revive a tombstoned row when its file returns.
+  const existingRows = (await deps.db.select().from(table)) as Authored<unknown>[]
+  const rowByKey = new Map<string, Authored<unknown>>()
+  for (const r of existingRows) rowByKey.set(rowKey(r.slug, r.scope), r)
+
   for (const filePath of filePaths) {
     seenPaths.add(filePath)
     let raw: string
@@ -131,14 +138,7 @@ export async function reconcileResource<TBody>(
     const hash = await hashUtf8(parsed.hashableContent)
     const relFilePath = relative(deps.rootDir, filePath)
 
-    const existing = (await deps.db
-      .select()
-      .from(table)
-      .where(
-        and(eq(cols.slug, slug), scope === null ? sql`scope IS NULL` : eq(cols.scope, scope)),
-      )) as Authored<unknown>[]
-
-    const row = existing[0]
+    const row = rowByKey.get(rowKey(slug, scope))
 
     if (!row) {
       await deps.db.insert(table).values({
@@ -203,14 +203,14 @@ export async function reconcileResource<TBody>(
   }
 
   // Tombstone rows whose source vanished. Only file-origin rows; user/agent
-  // rows have no source-of-truth contract with disk.
+  // rows have no source-of-truth contract with disk. Reuses the batch-loaded
+  // row set instead of re-querying.
   const filePathsRel = new Set(Array.from(seenPaths).map((p) => relative(deps.rootDir, p)))
-  const fileRows = (await deps.db
-    .select()
-    .from(table)
-    .where(and(eq(cols.origin, 'file'), eq(cols.active, true), isNotNull(cols.fileSourcePath)))) as Authored<unknown>[]
-  for (const row of fileRows) {
-    if (row.fileSourcePath && filePathsRel.has(row.fileSourcePath)) continue
+  for (const row of existingRows) {
+    if (row.origin !== 'file') continue
+    if (!row.active) continue
+    if (!row.fileSourcePath) continue
+    if (filePathsRel.has(row.fileSourcePath)) continue
     await deps.db.update(table).set({ active: false }).where(eq(cols.id, row.id))
     await recordReconcilerAudit(deps, {
       resourceKind: resource.kind,
@@ -223,6 +223,10 @@ export async function reconcileResource<TBody>(
   }
 
   return diff
+}
+
+function rowKey(slug: string, scope: string | null): string {
+  return `${slug}:${scope ?? ''}`
 }
 
 async function globMany(rootDir: string, patterns: readonly string[]): Promise<string[]> {
