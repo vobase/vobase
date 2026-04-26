@@ -13,6 +13,7 @@
 
 import { join } from 'node:path'
 import { createAuth } from '@auth'
+import type { ApiKeyPrincipal } from '@auth/api-keys'
 import { createCliGrantRoutes } from '@auth/cli-grant'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from '@auth/middleware'
 import { createRequireApiKey } from '@auth/middleware/require-api-key'
@@ -30,6 +31,7 @@ import {
   collectAgentContributions,
   collectJobs,
   createCatalogRoute,
+  createCliDispatchRoute,
   createLogger,
   createRealtimeService,
   type ScheduleOpts,
@@ -220,9 +222,26 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
     ctx: moduleCtx,
   })
 
-  // CLI catalog endpoint — gated by API key, served at `/api/cli/verbs`.
+  // CLI catalog + verb-dispatch endpoints — gated by API key. The catalog
+  // owns `/api/cli/verbs`; the dispatcher owns POST `/api/cli/<verb-route>`.
+  // Mount the catalog first so its specific GET wins over the dispatcher's
+  // POST `/*` glob.
   app.use('/api/cli/*', createRequireApiKey(db))
   app.route('/api/cli', createCatalogRoute({ registry: cli }))
+  app.route(
+    '/api/cli',
+    createCliDispatchRoute({
+      registry: cli,
+      resolveContext: (c) => {
+        const p = c.get('apiPrincipal') as ApiKeyPrincipal
+        return {
+          organizationId: p.organizationId,
+          principal: { kind: 'apikey' as const, id: p.userId },
+          role: p.role,
+        }
+      },
+    }),
+  )
 
   // Module-contributed jobs bind here; INBOUND_TO_WAKE_JOB binds separately
   // below as a bootstrap concern (modules don't own the wake dispatcher).

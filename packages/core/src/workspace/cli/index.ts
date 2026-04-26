@@ -4,6 +4,7 @@
 export { type CatalogRouteOpts, createCatalogRoute } from './catalog-route'
 export type { CliVerbBodyArgs, CliVerbDef, CliVerbResult, DefineCliVerbOpts } from './define'
 export { defaultRouteForVerb, defineCliVerb } from './define'
+export { type CliDispatchRouteOpts, createCliDispatchRoute } from './dispatch-route'
 export {
   type AgentRole,
   createVobaseCommand,
