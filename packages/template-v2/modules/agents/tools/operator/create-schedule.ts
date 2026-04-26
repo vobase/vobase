@@ -8,8 +8,8 @@
 
 import { schedules } from '@modules/schedules/service/schedules'
 import { type Static, Type } from '@sinclair/typebox'
-import { Value } from '@sinclair/typebox/value'
-import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
+
+import { defineAgentTool } from '../shared/define-tool'
 
 export const CreateScheduleInputSchema = Type.Object({
   slug: Type.String({
@@ -31,38 +31,21 @@ export const CreateScheduleInputSchema = Type.Object({
 
 export type CreateScheduleToolInput = Static<typeof CreateScheduleInputSchema>
 
-export const createScheduleTool: AgentTool<CreateScheduleToolInput, { scheduleId: string }> = {
+export const createScheduleTool = defineAgentTool({
   name: 'create_schedule',
   description:
     'Create a recurring heartbeat schedule. Owner is the calling agent unless `agentId` is supplied. Operator-only.',
-  inputSchema: CreateScheduleInputSchema,
-  parallelGroup: 'never',
-
-  async execute(args, ctx: ToolContext): Promise<ToolResult<{ scheduleId: string }>> {
-    if (!Value.Check(CreateScheduleInputSchema, args)) {
-      const first = Value.Errors(CreateScheduleInputSchema, args).First()
-      return {
-        ok: false,
-        error: `Invalid create_schedule input — ${first ? `${first.path || 'root'}: ${first.message}` : 'unknown'}`,
-        errorCode: 'VALIDATION_ERROR',
-      }
-    }
-    try {
-      const out = await schedules.create({
-        organizationId: ctx.organizationId,
-        agentId: args.agentId ?? ctx.agentId,
-        slug: args.slug,
-        cron: args.cron,
-        timezone: args.timezone,
-        config: args.notes ? { notes: args.notes } : undefined,
-      })
-      return { ok: true, content: { scheduleId: out.scheduleId } }
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : 'create_schedule failed',
-        errorCode: 'SCHEDULE_ERROR',
-      }
-    }
+  schema: CreateScheduleInputSchema,
+  errorCode: 'SCHEDULE_ERROR',
+  async run(args, ctx) {
+    const out = await schedules.create({
+      organizationId: ctx.organizationId,
+      agentId: args.agentId ?? ctx.agentId,
+      slug: args.slug,
+      cron: args.cron,
+      timezone: args.timezone,
+      config: args.notes ? { notes: args.notes } : undefined,
+    })
+    return { scheduleId: out.scheduleId }
   },
-}
+})

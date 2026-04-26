@@ -10,8 +10,8 @@
 
 import { list as listConversations } from '@modules/messaging/service/conversations'
 import { type Static, Type } from '@sinclair/typebox'
-import { Value } from '@sinclair/typebox/value'
-import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
+
+import { defineAgentTool } from '../shared/define-tool'
 
 export const SummarizeInboxInputSchema = Type.Object({
   tab: Type.Optional(
@@ -36,44 +36,28 @@ export interface InboxRow {
   lastMessageAt: string | null
 }
 
-export const summarizeInboxTool: AgentTool<SummarizeInboxToolInput, { rows: InboxRow[]; total: number }> = {
+export const summarizeInboxTool = defineAgentTool({
   name: 'summarize_inbox',
   description:
     'Read-only scan of the org inbox. Returns conversation rows (id, contact, channel, assignee, status, last activity). Operator-only.',
-  inputSchema: SummarizeInboxInputSchema,
+  schema: SummarizeInboxInputSchema,
+  errorCode: 'INBOX_ERROR',
   parallelGroup: 'safe',
-
-  async execute(args, ctx: ToolContext): Promise<ToolResult<{ rows: InboxRow[]; total: number }>> {
-    if (!Value.Check(SummarizeInboxInputSchema, args)) {
-      const first = Value.Errors(SummarizeInboxInputSchema, args).First()
-      return {
-        ok: false,
-        error: `Invalid summarize_inbox input — ${first ? `${first.path || 'root'}: ${first.message}` : 'unknown'}`,
-        errorCode: 'VALIDATION_ERROR',
-      }
-    }
-    try {
-      const all = await listConversations(ctx.organizationId, {
-        tab: args.tab ?? 'active',
-        owner: args.owner,
-      })
-      const limit = args.limit ?? 50
-      const limited = all.slice(0, limit)
-      const rows: InboxRow[] = limited.map((c) => ({
-        conversationId: c.id,
-        contactId: c.contactId,
-        channelInstanceId: c.channelInstanceId,
-        assignee: c.assignee,
-        status: c.status,
-        lastMessageAt: c.lastMessageAt ? new Date(c.lastMessageAt).toISOString() : null,
-      }))
-      return { ok: true, content: { rows, total: all.length } }
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : 'summarize_inbox failed',
-        errorCode: 'INBOX_ERROR',
-      }
-    }
+  async run(args, ctx): Promise<{ rows: InboxRow[]; total: number }> {
+    const all = await listConversations(ctx.organizationId, {
+      tab: args.tab ?? 'active',
+      owner: args.owner,
+    })
+    const limit = args.limit ?? 50
+    const limited = all.slice(0, limit)
+    const rows: InboxRow[] = limited.map((c) => ({
+      conversationId: c.id,
+      contactId: c.contactId,
+      channelInstanceId: c.channelInstanceId,
+      assignee: c.assignee,
+      status: c.status,
+      lastMessageAt: c.lastMessageAt ? new Date(c.lastMessageAt).toISOString() : null,
+    }))
+    return { rows, total: all.length }
   },
-}
+})

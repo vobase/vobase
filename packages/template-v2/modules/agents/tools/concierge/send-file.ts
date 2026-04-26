@@ -1,8 +1,7 @@
-import { Type } from '@mariozechner/pi-ai'
 import { appendMediaMessage } from '@modules/messaging/service/messages'
-import type { Static } from '@sinclair/typebox'
-import { Value } from '@sinclair/typebox/value'
-import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
+import { type Static, Type } from '@sinclair/typebox'
+
+import { defineAgentTool } from '../shared/define-tool'
 
 export const SendFileInputSchema = Type.Object({
   driveFileId: Type.String({ minLength: 1 }),
@@ -17,32 +16,17 @@ async function runThreatScan(_driveFileId: string): Promise<{ ok: boolean }> {
   return { ok: true }
 }
 
-function firstError(value: unknown): string {
-  const first = Value.Errors(SendFileInputSchema, value).First()
-  return first ? `${first.path || 'root'}: ${first.message}` : 'invalid input'
-}
-
-export const sendFileTool: AgentTool<SendFileInput, { messageId: string }> = {
+export const sendFileTool = defineAgentTool({
   name: 'send_file',
   description: 'Send a drive file to the customer. Requires staff approval if agent.fileApprovalRequired=true.',
-  inputSchema: SendFileInputSchema,
+  schema: SendFileInputSchema,
+  errorCode: 'SEND_FILE_ERROR',
   requiresApproval: true,
-  parallelGroup: 'never',
-
-  async execute(args, ctx: ToolContext): Promise<ToolResult<{ messageId: string }>> {
-    if (!Value.Check(SendFileInputSchema, args)) {
-      return {
-        ok: false,
-        error: `Invalid send_file input — ${firstError(args)}`,
-        errorCode: 'VALIDATION_ERROR',
-      }
-    }
-
+  async run(args, ctx) {
     const scan = await runThreatScan(args.driveFileId)
     if (!scan.ok) {
-      return { ok: false, error: 'File failed threat scan', errorCode: 'THREAT_SCAN_FAILED', retryable: false }
+      throw new Error('File failed threat scan')
     }
-
     const msg = await appendMediaMessage({
       conversationId: ctx.conversationId,
       organizationId: ctx.organizationId,
@@ -53,7 +37,6 @@ export const sendFileTool: AgentTool<SendFileInput, { messageId: string }> = {
       driveFileId: args.driveFileId,
       caption: args.caption,
     })
-
-    return { ok: true, content: { messageId: msg.id } }
+    return { messageId: msg.id }
   },
-}
+})

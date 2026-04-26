@@ -11,8 +11,8 @@
 
 import { insert as insertPendingApproval } from '@modules/messaging/service/pending-approvals'
 import { type Static, Type } from '@sinclair/typebox'
-import { Value } from '@sinclair/typebox/value'
-import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
+
+import { defineAgentTool } from '../shared/define-tool'
 
 export const ProposeOutreachInputSchema = Type.Object({
   contactId: Type.String({ minLength: 1 }),
@@ -25,42 +25,25 @@ export const ProposeOutreachInputSchema = Type.Object({
 
 export type ProposeOutreachToolInput = Static<typeof ProposeOutreachInputSchema>
 
-export const proposeOutreachTool: AgentTool<ProposeOutreachToolInput, { approvalId: string }> = {
+export const proposeOutreachTool = defineAgentTool({
   name: 'propose_outreach',
   description:
     'Queue a proactive outreach message for staff approval. Lands in pending_approvals; nothing sends until approved. Operator-only.',
-  inputSchema: ProposeOutreachInputSchema,
-  parallelGroup: 'never',
-
-  async execute(args, ctx: ToolContext): Promise<ToolResult<{ approvalId: string }>> {
-    if (!Value.Check(ProposeOutreachInputSchema, args)) {
-      const first = Value.Errors(ProposeOutreachInputSchema, args).First()
-      return {
-        ok: false,
-        error: `Invalid propose_outreach input — ${first ? `${first.path || 'root'}: ${first.message}` : 'unknown'}`,
-        errorCode: 'VALIDATION_ERROR',
-      }
-    }
-    try {
-      const row = await insertPendingApproval({
-        organizationId: ctx.organizationId,
-        // Outreach has no conversation yet — `pending_approvals.conversationId`
-        // is nullable for this case; the review UI runs create-or-resume on
-        // approval. The `toolName = 'propose_outreach'` discriminator is the
-        // canonical "no conversation" signal.
-        conversationId: null,
-        conversationEventId: null,
-        toolName: 'propose_outreach',
-        toolArgs: args,
-        agentSnapshot: { agentId: ctx.agentId, wakeId: ctx.wakeId, turnIndex: ctx.turnIndex },
-      })
-      return { ok: true, content: { approvalId: row.id } }
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : 'propose_outreach failed',
-        errorCode: 'APPROVAL_ERROR',
-      }
-    }
+  schema: ProposeOutreachInputSchema,
+  errorCode: 'APPROVAL_ERROR',
+  async run(args, ctx) {
+    const row = await insertPendingApproval({
+      organizationId: ctx.organizationId,
+      // Outreach has no conversation yet — `pending_approvals.conversationId`
+      // is nullable for this case; the review UI runs create-or-resume on
+      // approval. The `toolName = 'propose_outreach'` discriminator is the
+      // canonical "no conversation" signal.
+      conversationId: null,
+      conversationEventId: null,
+      toolName: 'propose_outreach',
+      toolArgs: args,
+      agentSnapshot: { agentId: ctx.agentId, wakeId: ctx.wakeId, turnIndex: ctx.turnIndex },
+    })
+    return { approvalId: row.id }
   },
-}
+})
