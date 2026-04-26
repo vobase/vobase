@@ -18,9 +18,9 @@
       "default": "./src/index.ts"
     },
     "./schema": {
-      "import": "./src/db/helpers.ts",
-      "types": "./src/db/helpers.ts",
-      "default": "./src/db/helpers.ts"
+      "import": "./src/db/schema-exports.ts",
+      "types": "./src/db/schema-exports.ts",
+      "default": "./src/db/schema-exports.ts"
     }
   },
   "files": [
