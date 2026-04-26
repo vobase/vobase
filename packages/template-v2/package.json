@@ -41,7 +41,6 @@
     "@hookform/resolvers": "^5.2.2",
     "@mariozechner/pi-agent-core": "^0.70.2",
     "@mariozechner/pi-ai": "^0.70.2",
-    "@pierre/trees": "^1.0.0-beta.3",
     "@platejs/basic-nodes": "^53.0.0",
     "@platejs/combobox": "^53.0.0",
     "@platejs/markdown": "^53.0.0",

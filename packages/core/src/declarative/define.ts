@@ -1,17 +1,12 @@
 /**
- * `defineDeclarativeResource` — register a resource type so the boot
- * reconciler will pick up its source files and seed / update the matching
- * Drizzle table.
+ * `defineDeclarativeResource` — register a resource type so future install
+ * handlers (added in Slice 3 alongside `vobase install --defaults`) can
+ * locate its source files, body schema, and serializer.
  *
- * The factory itself is intentionally lightweight: it validates the config,
- * stores it in the module-level registry keyed by `kind`, and returns a
- * typed handle the caller can hold for service-side reads. The reconciler
- * driver (`reconcile.ts`) walks the registry; nothing else does.
- *
- * The Drizzle table object is provided by the caller (Drizzle requires
- * static table declarations for migration generation), so this factory
- * doesn't dynamically create tables — it just attaches reconciler behavior
- * to one.
+ * The factory is intentionally lightweight: it validates the config, stores
+ * it in the module-level registry keyed by `kind`, and returns a typed
+ * handle the caller can hold for service-side reads. The Drizzle table is
+ * provided by the caller via `bindDeclarativeTable` (in `boot.ts`).
  */
 
 import type { z } from 'zod'

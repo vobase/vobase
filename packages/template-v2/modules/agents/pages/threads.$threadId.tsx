@@ -1,22 +1,13 @@
-/**
- * Full-page operator chat route — `/workspace/chat/$threadId`. Reuses the
- * `<OperatorChat />` component so the right-rail and full-page surfaces share
- * one rendering path; only the layout chrome differs.
- *
- * Linked from the workspace tree (`/workspace/chats/<threadId>` opens a tab,
- * which currently embeds the chat inline; this route is the "pop out" target).
- */
-
 import { OperatorChat } from '@modules/agents/components/operator-chat'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { useActiveOrganizationId } from '@/hooks/use-current-user'
 
-export const Route = createFileRoute('/_app/workspace/chat/$threadId')({
-  component: WorkspaceChatPage,
+export const Route = createFileRoute('/_app/agents/threads/$threadId')({
+  component: AgentsThreadPage,
 })
 
-function WorkspaceChatPage() {
+function AgentsThreadPage() {
   const { threadId } = Route.useParams()
   const organizationId = useActiveOrganizationId()
   if (!organizationId) return null

@@ -230,35 +230,32 @@ function checkModuleContracts(): void {
 }
 
 /**
- * Surface enforcement (§10.2): every top-level route in `src/routes.ts` must
- * either mount under one of the canonical surfaces (`/inbox`, `/workspace`)
- * or appear in the explicit allowlist below. Adding a new top-level route
- * requires a deliberate update to this list — preventing UI drift back to a
+ * Surface enforcement: every top-level route in `src/routes.ts` must appear in
+ * the explicit allowlist below. Adding a new top-level route requires a
+ * deliberate update to this list — preventing UI drift back to a
  * flat-everything URL space.
  *
  * Allowlist entries:
  *   - `/`                    — home redirect to /inbox
  *   - `/auth/*`              — login + pending (auth layout)
- *   - `/inbox`, `/workspace` — the two canonical surfaces
+ *   - `/inbox`               — canonical messaging surface
  *   - `/messaging`           — legacy redirect → /inbox
  *   - `/settings`            — admin / personal settings (cross-cutting)
  *   - `/channels`            — admin (channel instances + adapter config)
+ *   - `/system`              — system / health surface
  *   - `/test-web`, `/chat/$channelInstanceId` — public widget shell + chat
- *
- * Grandfathered (will move under /workspace once §10.2 finishes the migration):
- *   - `/contacts`, `/team`, `/agents`, `/drive`
+ *   - `/contacts`, `/team`, `/agents`, `/drive` — module-owned surfaces
  */
 const ALLOWED_ROUTE_PREFIXES = [
   '/',
   '/auth',
   '/inbox',
-  '/workspace',
   '/messaging',
   '/settings',
   '/channels',
+  '/system',
   '/test-web',
   '/chat',
-  // Grandfathered:
   '/contacts',
   '/team',
   '/agents',

@@ -2,8 +2,7 @@
  * Format-aware file readers for declarative resources.
  *
  * Each format returns the raw `body` payload object (still untyped). The
- * caller validates the body against the resource's Zod schema and falls
- * back to a `parse_error` audit row on failure.
+ * caller validates the body against the resource's Zod schema.
  */
 
 import type { ResourceFormat } from './types'
@@ -24,7 +23,7 @@ const stringifyYaml = (v: unknown): string => requireBun().YAML.stringify(v)
 export interface RawParseResult {
   /** Untyped body, ready for `bodySchema.safeParse`. */
   body: unknown
-  /** The exact bytes that were hashed — what the reconciler stores in `fileContentHash`. */
+  /** The exact bytes the parser hashed — useful for content-addressed checks. */
   hashableContent: string
 }
 

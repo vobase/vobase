@@ -7,8 +7,6 @@
 
 export { __resetDeclarativeBindingsForTests } from './declarative/boot'
 export { __resetDeclarativeRegistryForTests } from './declarative/define'
-export { __resetRefGraphForTests } from './declarative/refgraph'
-export { __resetViewablesForTests } from './declarative/viewable'
 export { __resetApprovalGateForTests } from './harness/approval-gate'
 export { __resetCostServiceForTests } from './harness/cost'
 export { __resetCostCapForTests } from './harness/cost-cap'

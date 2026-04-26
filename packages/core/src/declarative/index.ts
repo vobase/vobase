@@ -1,26 +1,17 @@
 /**
- * Public surface for declarative-resources core primitives.
+ * Public surface for declarative-resource primitives.
  *
- * The lifecycle: file in source → boot reconcile → DB row → runtime mutation
- * → optional export back to disk. See `types.ts` for the row shape and
- * `boot.ts` for the bootstrap entry point.
+ * Slice 1 of the `external-cli-and-collapse-shell` change collapsed the boot
+ * reconciler (drift, refgraph, audit, export CLI, automatic boot scan).
+ * What remains is the thin registry + parse/serialize plumbing; concrete
+ * consumers are revisited in Slice 3 alongside `vobase install --defaults`.
  */
 
 export {
-  type BootDeclarativeResourcesOpts,
-  type BootDeclarativeResourcesResult,
+  __resetDeclarativeBindingsForTests,
   bindDeclarativeTable,
-  bootDeclarativeResources,
   getDeclarativeTable,
 } from './boot'
-export {
-  type ExportCliDeps,
-  ExportCliError,
-  type ExportCliOpts,
-  type ExportCliResult,
-  parseExportArgv,
-  runExportCli,
-} from './cli'
 export { type AuthoredColumnsOpts, authoredColumns, authoredConstraints } from './columns'
 export {
   type DefineDeclarativeResourceOpts,
@@ -29,52 +20,16 @@ export {
   listDeclarativeResources,
 } from './define'
 export {
-  type AuditDriftDeps,
-  type AuditDriftInput,
-  classifyDrift,
-  type DriftInput,
-  type DriftOutcome,
-  type RecordSimpleAuditInput,
-  recordDriftConflict,
-  recordReconcilerAudit,
-} from './drift'
-export {
   parseFileBytes,
   type RawParseResult,
   serializeMarkdownFrontmatter,
   serializeYaml,
 } from './parse'
-export {
-  type ReconcileDeps,
-  type ReconcileResourceArgs,
-  type ReconcilerDb,
-  reconcileResource,
-} from './reconcile'
-export {
-  type BuildRefGraphDeps,
-  buildRefGraph,
-  listRefGraphContributors,
-  type RefGraphContributor,
-  type RefGraphResult,
-  type ResourceRef,
-  registerRefGraphContributor,
-} from './refgraph'
 export type {
   Authored,
   DeclarativeResource,
   Origin,
   ParsedFile,
   ParseFileContext,
-  ReconcileDiff,
   ResourceFormat,
 } from './types'
-export {
-  defineViewable,
-  getViewable,
-  listViewables,
-  type ViewableColumn,
-  type ViewableColumnType,
-  type ViewableConfig,
-  type ViewableDefaultView,
-  validateFilters,
-} from './viewable'

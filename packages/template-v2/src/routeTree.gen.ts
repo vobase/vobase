@@ -14,7 +14,6 @@ import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
 import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
 import { Route as DotDotModulesChannelsPagesIndexRouteImport } from './../modules/channels/pages/index'
 import { Route as pagesChatDotchannelInstanceIdRouteImport } from './pages/chat.$channelInstanceId'
-import { Route as shellWorkspaceLayoutRouteImport } from './shell/workspace-layout'
 import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
 import { Route as shellMessagingRedirectRouteImport } from './shell/messaging-redirect'
 import { Route as DotDotModulesMessagingPagesLayoutRouteImport } from './../modules/messaging/pages/layout'
@@ -41,8 +40,8 @@ import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pa
 import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
 import { Route as AgentsLearningsRouteImport } from './../modules/agents/pages/learnings'
 import { Route as AgentsIdRouteImport } from './../modules/agents/pages/$id'
-import { Route as shellWorkspaceChatPageRouteImport } from './shell/workspace-chat-page'
 import { Route as ContactsViewsDotslugRouteImport } from './../modules/contacts/pages/views.$slug'
+import { Route as AgentsThreadsDotthreadIdRouteImport } from './../modules/agents/pages/threads.$threadId'
 
 const pagesTestWebRoute = pagesTestWebRouteImport.update({
   id: '/test-web',
@@ -69,11 +68,6 @@ const pagesChatDotchannelInstanceIdRoute =
     path: '/chat/$channelInstanceId',
     getParentRoute: () => rootRouteImport,
   } as any)
-const shellWorkspaceLayoutRoute = shellWorkspaceLayoutRouteImport.update({
-  id: '/workspace',
-  path: '/workspace',
-  getParentRoute: () => shellAppLayoutRoute,
-} as any)
 const DotDotModulesSettingsPagesLayoutRoute =
   DotDotModulesSettingsPagesLayoutRouteImport.update({
     id: '/settings',
@@ -206,16 +200,17 @@ const AgentsIdRoute = AgentsIdRouteImport.update({
   path: '/agents/$id',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
-const shellWorkspaceChatPageRoute = shellWorkspaceChatPageRouteImport.update({
-  id: '/workspace/chat/$threadId',
-  path: '/workspace/chat/$threadId',
-  getParentRoute: () => shellAppLayoutRoute,
-} as any)
 const ContactsViewsDotslugRoute = ContactsViewsDotslugRouteImport.update({
   id: '/contacts/views/$slug',
   path: '/contacts/views/$slug',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
+const AgentsThreadsDotthreadIdRoute =
+  AgentsThreadsDotthreadIdRouteImport.update({
+    id: '/agents/threads/$threadId',
+    path: '/agents/threads/$threadId',
+    getParentRoute: () => shellAppLayoutRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof shellHomeRedirectRoute
@@ -223,7 +218,6 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/messaging': typeof shellMessagingRedirectRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
-  '/workspace': typeof shellWorkspaceLayoutRoute
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/agents/$id': typeof AgentsIdRoute
@@ -248,15 +242,14 @@ export interface FileRoutesByFullPath {
   '/drive/': typeof DriveIndexRoute
   '/inbox/': typeof IndexRoute
   '/team/': typeof TeamIndexRoute
+  '/agents/threads/$threadId': typeof AgentsThreadsDotthreadIdRoute
   '/contacts/views/$slug': typeof ContactsViewsDotslugRoute
-  '/workspace/chat/$threadId': typeof shellWorkspaceChatPageRoute
 }
 export interface FileRoutesByTo {
   '/': typeof shellHomeRedirectRoute
   '/test-web': typeof pagesTestWebRoute
   '/messaging': typeof shellMessagingRedirectRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
-  '/workspace': typeof shellWorkspaceLayoutRoute
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/agents/$id': typeof AgentsIdRoute
@@ -281,8 +274,8 @@ export interface FileRoutesByTo {
   '/drive': typeof DriveIndexRoute
   '/inbox': typeof IndexRoute
   '/team': typeof TeamIndexRoute
+  '/agents/threads/$threadId': typeof AgentsThreadsDotthreadIdRoute
   '/contacts/views/$slug': typeof ContactsViewsDotslugRoute
-  '/workspace/chat/$threadId': typeof shellWorkspaceChatPageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -293,7 +286,6 @@ export interface FileRoutesById {
   '/_app/inbox': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/_app/messaging': typeof shellMessagingRedirectRoute
   '/_app/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
-  '/_app/workspace': typeof shellWorkspaceLayoutRoute
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
   '/_app/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/_app/agents/$id': typeof AgentsIdRoute
@@ -318,8 +310,8 @@ export interface FileRoutesById {
   '/_app/drive/': typeof DriveIndexRoute
   '/_app/inbox/': typeof IndexRoute
   '/_app/team/': typeof TeamIndexRoute
+  '/_app/agents/threads/$threadId': typeof AgentsThreadsDotthreadIdRoute
   '/_app/contacts/views/$slug': typeof ContactsViewsDotslugRoute
-  '/_app/workspace/chat/$threadId': typeof shellWorkspaceChatPageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -329,7 +321,6 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/messaging'
     | '/settings'
-    | '/workspace'
     | '/chat/$channelInstanceId'
     | '/channels'
     | '/agents/$id'
@@ -354,15 +345,14 @@ export interface FileRouteTypes {
     | '/drive/'
     | '/inbox/'
     | '/team/'
+    | '/agents/threads/$threadId'
     | '/contacts/views/$slug'
-    | '/workspace/chat/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/test-web'
     | '/messaging'
     | '/settings'
-    | '/workspace'
     | '/chat/$channelInstanceId'
     | '/channels'
     | '/agents/$id'
@@ -387,8 +377,8 @@ export interface FileRouteTypes {
     | '/drive'
     | '/inbox'
     | '/team'
+    | '/agents/threads/$threadId'
     | '/contacts/views/$slug'
-    | '/workspace/chat/$threadId'
   id:
     | '__root__'
     | '/_app'
@@ -398,7 +388,6 @@ export interface FileRouteTypes {
     | '/_app/inbox'
     | '/_app/messaging'
     | '/_app/settings'
-    | '/_app/workspace'
     | '/chat/$channelInstanceId'
     | '/_app/channels'
     | '/_app/agents/$id'
@@ -423,8 +412,8 @@ export interface FileRouteTypes {
     | '/_app/drive/'
     | '/_app/inbox/'
     | '/_app/team/'
+    | '/_app/agents/threads/$threadId'
     | '/_app/contacts/views/$slug'
-    | '/_app/workspace/chat/$threadId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -470,13 +459,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/chat/$channelInstanceId'
       preLoaderRoute: typeof pagesChatDotchannelInstanceIdRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_app/workspace': {
-      id: '/_app/workspace'
-      path: '/workspace'
-      fullPath: '/workspace'
-      preLoaderRoute: typeof shellWorkspaceLayoutRouteImport
-      parentRoute: typeof shellAppLayoutRoute
     }
     '/_app/settings': {
       id: '/_app/settings'
@@ -660,18 +642,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsIdRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/workspace/chat/$threadId': {
-      id: '/_app/workspace/chat/$threadId'
-      path: '/workspace/chat/$threadId'
-      fullPath: '/workspace/chat/$threadId'
-      preLoaderRoute: typeof shellWorkspaceChatPageRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
     '/_app/contacts/views/$slug': {
       id: '/_app/contacts/views/$slug'
       path: '/contacts/views/$slug'
       fullPath: '/contacts/views/$slug'
       preLoaderRoute: typeof ContactsViewsDotslugRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_app/agents/threads/$threadId': {
+      id: '/_app/agents/threads/$threadId'
+      path: '/agents/threads/$threadId'
+      fullPath: '/agents/threads/$threadId'
+      preLoaderRoute: typeof AgentsThreadsDotthreadIdRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
   }
@@ -724,7 +706,6 @@ interface shellAppLayoutRouteChildren {
   DotDotModulesMessagingPagesLayoutRoute: typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   shellMessagingRedirectRoute: typeof shellMessagingRedirectRoute
   DotDotModulesSettingsPagesLayoutRoute: typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
-  shellWorkspaceLayoutRoute: typeof shellWorkspaceLayoutRoute
   DotDotModulesChannelsPagesIndexRoute: typeof DotDotModulesChannelsPagesIndexRoute
   AgentsIdRoute: typeof AgentsIdRoute
   AgentsLearningsRoute: typeof AgentsLearningsRoute
@@ -737,8 +718,8 @@ interface shellAppLayoutRouteChildren {
   ContactsIndexRoute: typeof ContactsIndexRoute
   DriveIndexRoute: typeof DriveIndexRoute
   TeamIndexRoute: typeof TeamIndexRoute
+  AgentsThreadsDotthreadIdRoute: typeof AgentsThreadsDotthreadIdRoute
   ContactsViewsDotslugRoute: typeof ContactsViewsDotslugRoute
-  shellWorkspaceChatPageRoute: typeof shellWorkspaceChatPageRoute
 }
 
 const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
@@ -748,7 +729,6 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   shellMessagingRedirectRoute: shellMessagingRedirectRoute,
   DotDotModulesSettingsPagesLayoutRoute:
     DotDotModulesSettingsPagesLayoutRouteWithChildren,
-  shellWorkspaceLayoutRoute: shellWorkspaceLayoutRoute,
   DotDotModulesChannelsPagesIndexRoute: DotDotModulesChannelsPagesIndexRoute,
   AgentsIdRoute: AgentsIdRoute,
   AgentsLearningsRoute: AgentsLearningsRoute,
@@ -761,8 +741,8 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   ContactsIndexRoute: ContactsIndexRoute,
   DriveIndexRoute: DriveIndexRoute,
   TeamIndexRoute: TeamIndexRoute,
+  AgentsThreadsDotthreadIdRoute: AgentsThreadsDotthreadIdRoute,
   ContactsViewsDotslugRoute: ContactsViewsDotslugRoute,
-  shellWorkspaceChatPageRoute: shellWorkspaceChatPageRoute,
 }
 
 const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(

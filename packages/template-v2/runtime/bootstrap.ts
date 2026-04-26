@@ -22,7 +22,6 @@ import {
 } from '@modules/agents/wake/operator-thread-handler'
 import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
 import {
-  bootDeclarativeResources,
   bootModules,
   collectAgentContributions,
   collectJobs,
@@ -206,18 +205,6 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
     app,
     requireSession,
     ctx: moduleCtx,
-  })
-
-  // Reconcile declarative resources (saved views, skills, agent definitions,
-  // etc.) from on-disk source into their backing tables. Idempotent — second
-  // boot with no source changes is a hash-compare tour with zero writes.
-  // `rootDir` is the template root (one above runtime/), where module
-  // source files live under `modules/*/views/*.view.yaml` etc.
-  const declLogger = createLogger({ format: 'console', prefix: '[declarative]' })
-  await bootDeclarativeResources({
-    db: db as unknown as Parameters<typeof bootDeclarativeResources>[0]['db'],
-    rootDir: join(import.meta.dir, '..'),
-    log: (msg, meta) => declLogger.info(meta ?? {}, msg),
   })
 
   // Module-contributed jobs bind here; INBOUND_TO_WAKE_JOB binds separately

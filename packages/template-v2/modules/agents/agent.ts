@@ -18,16 +18,14 @@ import type { AgentTool, CommandDef, WorkspaceMaterializer } from '@vobase/core'
 import { generateAgentsMd } from '@vobase/core'
 
 import { subagentTool } from './tools/shared/subagent'
-import { sharedViewTools } from './tools/shared/views'
 import { HELPDESK_AGENTS_MD_HEADER } from './workspace/helpdesk-header'
 
 export { createMemoryDistillListener } from './observers/memory-distill'
 export { createSseListener } from './observers/sse'
 export { createWorkspaceSyncListener } from './observers/workspace-sync'
 export { subagentTool } from './tools/shared/subagent'
-export { queryViewTool, saveViewTool, sharedViewTools } from './tools/shared/views'
 
-export const tools: AgentTool[] = [subagentTool, ...sharedViewTools]
+export const tools: AgentTool[] = [subagentTool]
 
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
 
