@@ -21,7 +21,7 @@ describe('cli-grant start', () => {
     const res = await app.request('/cli-grant', { method: 'POST' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { code: string; url: string; ttlMs: number; expiresAt: string }
-    expect(body.code).toMatch(/^[a-f0-9]{36}$/u)
+    expect(body.code).toMatch(/^[a-z0-9]{24}$/u)
     expect(body.url).toBe(`https://acme.test/auth/cli-grant?code=${body.code}`)
     expect(body.ttlMs).toBe(5 * 60 * 1000)
     expect(Date.parse(body.expiresAt)).toBeGreaterThan(Date.now())

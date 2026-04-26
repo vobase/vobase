@@ -15,7 +15,7 @@ export function createWhoamiRoute(db: ScopedDb): Hono<ApiKeyEnv> {
   app.get('/whoami', (c) => {
     const p = c.get('apiPrincipal')
     return c.json({
-      principal: { kind: 'user', id: p.userId, email: p.email },
+      principal: { kind: 'apikey' as const, id: p.userId, email: p.email },
       organizationId: p.organizationId,
       role: p.role,
     })

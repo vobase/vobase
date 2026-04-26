@@ -8,7 +8,7 @@
  * `--json` mode.
  */
 
-import { type CliVerbRegistry, defineCliVerb } from '@vobase/core'
+import { defineCliVerb } from '@vobase/core'
 import { z } from 'zod'
 
 import * as contactsSvc from './service/contacts'
@@ -40,9 +40,12 @@ export const contactsShowVerb = defineCliVerb({
   name: 'contacts show',
   description: 'Show a single contact by id.',
   input: z.object({ id: z.string().min(1) }),
-  body: async ({ input }) => {
+  body: async ({ input, ctx }) => {
     try {
       const c = await contactsSvc.get(input.id)
+      if (c.organizationId !== ctx.organizationId) {
+        return { ok: false as const, error: 'contact not in this organization', errorCode: 'forbidden' }
+      }
       return { ok: true as const, data: c }
     } catch (err) {
       return {
@@ -66,9 +69,13 @@ export const contactsUpdateVerb = defineCliVerb({
     segments: z.array(z.string()).optional(),
     marketingOptOut: z.boolean().optional(),
   }),
-  body: async ({ input }) => {
+  body: async ({ input, ctx }) => {
     const { id, ...patch } = input
     try {
+      const existing = await contactsSvc.get(id)
+      if (existing.organizationId !== ctx.organizationId) {
+        return { ok: false as const, error: 'contact not in this organization', errorCode: 'forbidden' }
+      }
       const updated = await contactsSvc.update(id, patch)
       return { ok: true as const, data: updated }
     } catch (err) {
@@ -82,9 +89,4 @@ export const contactsUpdateVerb = defineCliVerb({
   formatHint: 'json',
 })
 
-/** Register all contacts verbs. Called from `modules/contacts/module.ts:init`. */
-export function registerContactsVerbs(cli: CliVerbRegistry): void {
-  cli.register(contactsListVerb)
-  cli.register(contactsShowVerb)
-  cli.register(contactsUpdateVerb)
-}
+export const contactsVerbs = [contactsListVerb, contactsShowVerb, contactsUpdateVerb] as const

@@ -1,16 +1,4 @@
-/**
- * `vobase auth {login|whoami|logout}` — auth management subcommands.
- *
- * `login` runs the device-grant flow: POST to `/api/auth/cli-grant` for a
- * code + browser URL, open the browser, poll `/api/auth/cli-grant/poll` until
- * the user confirms, then write the returned API key + base URL into the
- * config file. `--token=<key>` skips the grant flow for headless installs.
- *
- * `whoami` reads the active config and calls `/api/auth/whoami` to verify
- * the key still works against the tenant.
- *
- * `logout` removes the config file from disk.
- */
+/** `vobase auth {login|whoami|logout}` subcommands. `--token=<key>` is the headless login fallback. */
 
 import { rm } from 'node:fs/promises'
 import open from 'open'
@@ -268,11 +256,7 @@ export async function logout(opts: AuthLogoutOpts = {}): Promise<AuthCommandResu
   const stdout = opts.stdout ?? ((s) => process.stdout.write(s))
   const name = opts.configName ?? resolveConfigName()
   const path = configPath(name, opts.home)
-  const file = Bun.file(path)
-  if (!(await file.exists())) {
-    stdout(`vobase auth logout: no config at ${path} (already logged out).\n`)
-    return { ok: true, output: '', exitCode: 0 }
-  }
+  // `force: true` swallows ENOENT — no need for a TOCTOU exists() probe.
   await rm(path, { force: true })
   stdout(`Removed ${path}.\n`)
   return { ok: true, output: '', exitCode: 0 }

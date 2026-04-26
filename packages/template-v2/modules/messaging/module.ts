@@ -1,5 +1,5 @@
 import type { ModuleDef } from '~/runtime'
-import { registerMessagingVerbs } from './cli'
+import { messagingVerbs } from './cli'
 import { jobs } from './jobs'
 import {
   type ConversationScheduler,
@@ -33,7 +33,7 @@ const messaging: ModuleDef = {
     installMessagesService(createMessagesService({ db: ctx.db }))
     installNotesService(createNotesService({ db: ctx.db }))
     installStaffOpsService(createStaffOpsService({ db: ctx.db }))
-    registerMessagingVerbs(ctx.cli)
+    ctx.cli.registerAll(messagingVerbs)
   },
 }
 

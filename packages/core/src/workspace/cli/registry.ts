@@ -34,6 +34,8 @@ export interface Catalog {
 export class CliVerbRegistry {
   // biome-ignore lint/suspicious/noExplicitAny: heterogeneous verb store; per-call type is narrowed at dispatch.
   private readonly verbs = new Map<string, CliVerbDef<any, any>>()
+  // biome-ignore lint/suspicious/noExplicitAny: parallel index for O(1) HTTP-route lookup.
+  private readonly byRoute = new Map<string, CliVerbDef<any, any>>()
   private cachedCatalog: Catalog | null = null
 
   /** Register a verb. Throws on duplicate name. */
@@ -45,13 +47,26 @@ export class CliVerbRegistry {
       )
     }
     const route = verb.route ?? defaultRouteForVerb(name)
-    this.verbs.set(name, { ...verb, name, route })
+    const stored = { ...verb, name, route }
+    this.verbs.set(name, stored)
+    this.byRoute.set(route, stored)
     this.cachedCatalog = null
+  }
+
+  /** Register a heterogeneous set of verbs in one call (mirrors register's semantics). */
+  // biome-ignore lint/suspicious/noExplicitAny: heterogeneous verb tuple — TInput is contravariant in verb body, narrow type fights the assignment.
+  registerAll(verbs: readonly CliVerbDef<any, any>[]): void {
+    for (const verb of verbs) this.register(verb)
   }
 
   /** Lookup by exact name. */
   get(name: string): CliVerbDef | undefined {
     return this.verbs.get(name)
+  }
+
+  /** O(1) lookup by HTTP route — used by the dispatch endpoint. */
+  getByRoute(route: string): CliVerbDef | undefined {
+    return this.byRoute.get(route)
   }
 
   /** All verbs sorted by name, for catalog rendering and help. */

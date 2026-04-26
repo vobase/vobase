@@ -1,20 +1,14 @@
 /**
- * CLI device-grant flow.
+ * CLI device-grant flow: POST /cli-grant (start) → POST /cli-grant/confirm
+ * (session-authed browser confirm) → GET /cli-grant/poll (CLI polls).
  *
- * Three endpoints + one in-memory store:
- *
- *   POST /api/auth/cli-grant           — CLI starts a grant; gets `{ code, url, ttlMs }`
- *   POST /api/auth/cli-grant/confirm   — browser-side, session-authenticated;
- *                                         mints API key, attaches it to grant
- *   GET  /api/auth/cli-grant/poll      — CLI polls for completion
- *
- * The grant store is intentionally in-memory: codes are short-lived (5 min),
- * single-use, and the only state that needs to survive between the CLI's
- * `start` and `poll` is the issued API key. Persisting to Postgres would add
- * a table for state with a half-hour lifetime.
+ * The grant store is in-memory; codes live for 5 min and are single-use.
+ * Multi-instance deployments need a shared backing store before relying on
+ * this in production.
  */
 
 import type { Auth } from '@auth'
+import { createNanoid } from '@vobase/core'
 import { Hono } from 'hono'
 
 import type { ScopedDb } from '~/runtime'
@@ -22,7 +16,7 @@ import { createApiKey } from './api-keys'
 import { createRequireSession, type SessionEnv } from './middleware/require-session'
 
 const GRANT_TTL_MS = 5 * 60 * 1000
-const GRANT_CODE_BYTES = 18
+const generateGrantCode = createNanoid(24)
 
 interface PendingGrant {
   code: string
@@ -34,12 +28,6 @@ interface PendingGrant {
 }
 
 const grants = new Map<string, PendingGrant>()
-
-function generateGrantCode(): string {
-  const bytes = new Uint8Array(GRANT_CODE_BYTES)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
-}
 
 function reapExpired(): void {
   const now = Date.now()

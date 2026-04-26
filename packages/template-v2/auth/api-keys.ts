@@ -1,18 +1,11 @@
 /**
- * API key service — backs `Authorization: Bearer vbt_<random>` for the
- * external CLI binary and any other long-lived programmatic principal.
+ * API key service backing `Authorization: Bearer vbt_<random>`.
  *
- * Why we own this instead of better-auth's apikey plugin: better-auth 1.6.9
- * ships the `authApikey` table schema but no runtime plugin. We don't need
- * the plugin's full feature set (rate limits, refills, permissions, expiry)
- * yet — just `create + verify + list + revoke` against the existing table.
- * If we later need rate-limits or scoped permissions, swap this file for the
- * plugin without touching call sites.
+ * Why we own this instead of better-auth's apikey plugin: 1.6.9 ships the
+ * `authApikey` table but no runtime. Swap this file for the plugin without
+ * touching call sites if rate-limits / scoped permissions become needed.
  *
- * Token format: `vbt_<24-char-random>` — 32 chars total, ~144 bits entropy.
- * Storage: sha256 hash in `key`, plaintext prefix `vbt_` in `prefix`, first
- * 4 chars of the random tail in `start` for display. Plaintext token is
- * returned ONCE at creation time and never persisted.
+ * Token storage: sha256 hash in `key`; plaintext returned ONCE at creation.
  */
 
 import { authApikey, authMember, authUser } from '@vobase/core'
@@ -47,26 +40,12 @@ export interface VerifyResult {
   keyId?: string
 }
 
-/** Generate a fresh `vbt_<24>` token. URL-safe alphabet, no padding. */
+/** Generate a fresh `vbt_<24>` token (~144 bits entropy, URL-safe). */
 export function generateToken(): string {
-  // 18 bytes → 24 base64url chars. Bun.randomUUIDv7 gives us 16 bytes;
-  // we'd rather use crypto.getRandomValues directly.
   const bytes = new Uint8Array(18)
   crypto.getRandomValues(bytes)
-  let out = ''
-  for (let i = 0; i + 3 <= bytes.length; i += 3) {
-    const a = bytes[i]
-    const b = bytes[i + 1]
-    const c = bytes[i + 2]
-    out += B64URL[a >> 2]
-    out += B64URL[((a & 0b11) << 4) | (b >> 4)]
-    out += B64URL[((b & 0b1111) << 2) | (c >> 6)]
-    out += B64URL[c & 0b111111]
-  }
-  return TOKEN_PREFIX + out.slice(0, TOKEN_LENGTH)
+  return TOKEN_PREFIX + Buffer.from(bytes).toString('base64url').slice(0, TOKEN_LENGTH)
 }
-
-const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
 
 /** sha256(token) hex. Stable hash for indexing. */
 export function hashToken(token: string): string {

@@ -279,6 +279,6 @@ describe('auth logout', () => {
     const writers = captureWriters()
     const result = await logout({ configName: 'gone', home, stdout: writers.stdout })
     expect(result.ok).toBe(true)
-    expect(writers.out.join('')).toContain('already logged out')
+    expect(writers.out.join('')).toContain('Removed')
   })
 })

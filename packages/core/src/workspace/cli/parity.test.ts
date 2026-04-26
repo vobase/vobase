@@ -1,17 +1,4 @@
-/**
- * Cross-transport parity test.
- *
- * Verifies the central design claim of the verb registry: the same verb body
- * produces identical results when invoked through the in-process transport
- * (the wake's bash sandbox) and through the HTTP-RPC transport (the
- * standalone @vobase/cli binary). If this test ever fails, the dispatcher's
- * "single verb body, multiple transports" guarantee is broken.
- *
- * Tested against a tiny in-memory module (so the test stays in core and
- * doesn't need template-v2's services). The template's contacts/messaging
- * verbs ride the same dispatch primitive — if parity holds for synthetic
- * verbs here, it holds for real verbs there.
- */
+/** Cross-transport parity: in-process and HTTP-RPC must agree on every verb result. */
 
 import { describe, expect, it } from 'bun:test'
 import { Hono } from 'hono'

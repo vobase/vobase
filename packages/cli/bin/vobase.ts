@@ -1,18 +1,8 @@
 #!/usr/bin/env bun
 /**
- * `vobase` — entry point for the @vobase/cli binary.
- *
- * Global flag parsing (`--config`, `--json`, `--refresh`) goes through cac so
- * `vobase --help` ergonomics (typo suggestions, version banner, formatting)
- * come for free. Verb-level dispatch is intentionally NOT registered with
- * cac — verbs are catalog-driven, not statically known. cac's "default
- * command + variadic args" pattern lets us collect the unparsed verb tail
- * and hand it off to the resolver.
- *
- * Auth verbs (`vobase auth login|whoami|logout`) intercept *before* the
- * catalog fetch because they handle the no-config-yet case. Slice 2b
- * implements them; in 2a they print "not yet implemented" so the surface
- * is in place.
+ * `vobase` CLI entry point. cac handles global flags (--config / --json /
+ * --refresh / --help); verbs are catalog-driven and never registered with
+ * cac. Auth subcommands intercept before catalog fetch (no-config case).
  */
 
 import { cac } from 'cac'
@@ -64,7 +54,7 @@ async function run(verb: readonly string[], flags: CliFlags): Promise<number> {
       return 0
     }
     process.stderr.write(
-      `vobase: no config found at ~/.vobase/${configName}.json. Run 'vobase auth login --url <tenant>' to set one up (Slice 2b).\n`,
+      `vobase: no config found at ~/.vobase/${configName}.json. Run 'vobase auth login --url <tenant>' to set one up.\n`,
     )
     return 2
   }

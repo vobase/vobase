@@ -13,10 +13,9 @@
 
 import { join } from 'node:path'
 import { createAuth } from '@auth'
-import type { ApiKeyPrincipal } from '@auth/api-keys'
 import { createCliGrantRoutes } from '@auth/cli-grant'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from '@auth/middleware'
-import { createRequireApiKey } from '@auth/middleware/require-api-key'
+import { type ApiKeyEnv, createRequireApiKey } from '@auth/middleware/require-api-key'
 import { createWhoamiRoute } from '@auth/whoami'
 import { createWakeHandler, INBOUND_TO_WAKE_JOB } from '@modules/agents/wake/handler'
 import { createHeartbeatEmitter } from '@modules/agents/wake/heartbeat'
@@ -230,10 +229,10 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   app.route('/api/cli', createCatalogRoute({ registry: cli }))
   app.route(
     '/api/cli',
-    createCliDispatchRoute({
+    createCliDispatchRoute<ApiKeyEnv>({
       registry: cli,
       resolveContext: (c) => {
-        const p = c.get('apiPrincipal') as ApiKeyPrincipal
+        const p = c.get('apiPrincipal')
         return {
           organizationId: p.organizationId,
           principal: { kind: 'apikey' as const, id: p.userId },

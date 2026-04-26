@@ -8,7 +8,7 @@
  * "one-write-path" rule.
  */
 
-import { type CliVerbRegistry, defineCliVerb } from '@vobase/core'
+import { defineCliVerb } from '@vobase/core'
 import { z } from 'zod'
 
 import * as conversationsSvc from './service/conversations'
@@ -39,12 +39,12 @@ export const messagingListVerb = defineCliVerb({
         status: c.status,
         assignee: c.assignee,
         snoozedUntil: c.snoozedUntil,
-        lastInboundAt: c.lastInboundAt,
+        lastMessageAt: c.lastMessageAt,
         createdAt: c.createdAt,
       })),
     }
   },
-  formatHint: 'table:cols=id,contactId,status,assignee,snoozedUntil,lastInboundAt',
+  formatHint: 'table:cols=id,contactId,status,assignee,snoozedUntil,lastMessageAt',
 })
 
 export const messagingShowVerb = defineCliVerb({
@@ -53,11 +53,13 @@ export const messagingShowVerb = defineCliVerb({
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {
     try {
-      const conversation = await conversationsSvc.get(input.id)
+      const [conversation, activity] = await Promise.all([
+        conversationsSvc.get(input.id),
+        conversationsSvc.listActivity(input.id),
+      ])
       if (conversation.organizationId !== ctx.organizationId) {
         return { ok: false as const, error: 'conversation not in this organization', errorCode: 'forbidden' }
       }
-      const activity = await conversationsSvc.listActivity(input.id)
       return { ok: true as const, data: { conversation, activity } }
     } catch (err) {
       return {
@@ -130,10 +132,4 @@ export const messagingCloseVerb = defineCliVerb({
   formatHint: 'json',
 })
 
-/** Register all messaging verbs. Called from `modules/messaging/module.ts:init`. */
-export function registerMessagingVerbs(cli: CliVerbRegistry): void {
-  cli.register(messagingListVerb)
-  cli.register(messagingShowVerb)
-  cli.register(messagingReplyVerb)
-  cli.register(messagingCloseVerb)
-}
+export const messagingVerbs = [messagingListVerb, messagingShowVerb, messagingReplyVerb, messagingCloseVerb] as const
