@@ -33,22 +33,6 @@ async function fetchContacts(): Promise<Contact[]> {
   return (await r.json()) as unknown as Contact[]
 }
 
-export function filterConversations(
-  convs: Conversation[],
-  filter: FilterKey,
-  owner: OwnershipValue = 'all',
-  now: Date = new Date(),
-): Conversation[] {
-  return convs.filter((c) => {
-    const tab = computeTab(c, now)
-    if (tab !== filter) return false
-    if (owner === 'all') return true
-    if (owner === 'unassigned') return c.assignee === 'unassigned'
-    if (owner === 'mine') return c.assignee !== 'unassigned'
-    return c.assignee === owner
-  })
-}
-
 function deriveOwnershipOptions(convs: Conversation[]): OwnershipOption[] {
   const seen = new Map<string, OwnershipOption>()
   for (const c of convs) {
@@ -134,13 +118,13 @@ function ConversationList() {
     onSelectNext: () => {
       const next = filtered[selectedIndex + 1]
       if (next) {
-        navigate({ to: '/messaging/$contactId', params: { contactId: next.contactId }, search: { conv: next.id } })
+        navigate({ to: '/inbox/$contactId', params: { contactId: next.contactId }, search: { conv: next.id } })
       }
     },
     onSelectPrev: () => {
       const prev = filtered[selectedIndex - 1]
       if (prev) {
-        navigate({ to: '/messaging/$contactId', params: { contactId: prev.contactId }, search: { conv: prev.id } })
+        navigate({ to: '/inbox/$contactId', params: { contactId: prev.contactId }, search: { conv: prev.id } })
       }
     },
   })
@@ -148,7 +132,7 @@ function ConversationList() {
   return (
     <>
       <PaneHeader
-        title="Messaging"
+        title="Inbox"
         meta={`${filtered.length}/${totalContacts}`}
         actions={
           <div className="flex items-center gap-0.5">
@@ -169,7 +153,7 @@ function ConversationList() {
           hasUnreadMention={conversationsWithUnreadMention.has(conv.id)}
           onClick={() =>
             navigate({
-              to: '/messaging/$contactId',
+              to: '/inbox/$contactId',
               params: { contactId: conv.contactId },
               search: { conv: conv.id },
             })

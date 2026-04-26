@@ -3,6 +3,6 @@ import { createFileRoute } from '@tanstack/react-router'
 
 export { ConversationDetail as ConversationDetailPlaceholder } from '@modules/messaging/components/conversation-detail'
 
-export const Route = createFileRoute('/_app/messaging/$contactId')({
+export const Route = createFileRoute('/_app/inbox/$contactId')({
   component: ConversationDetail,
 })

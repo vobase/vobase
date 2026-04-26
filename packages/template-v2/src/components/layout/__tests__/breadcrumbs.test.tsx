@@ -14,7 +14,11 @@ function makeRouter(path: string, queryClient: QueryClient) {
     ),
   })
   const messagingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/messaging', component: () => null })
-  const messagingDetailRoute = createRoute({ getParentRoute: () => messagingRoute, path: '$id', component: () => null })
+  const messagingDetailRoute = createRoute({
+    getParentRoute: () => messagingRoute,
+    path: '$contactId',
+    component: () => null,
+  })
   const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: () => null })
   const profileRoute = createRoute({ getParentRoute: () => settingsRoute, path: '/profile', component: () => null })
   const router = createRouter({

@@ -227,6 +227,25 @@
   animation: slideUp 300ms ease-out;
 }
 
+/*
+ * @pierre/trees uses `light-dark()` for its default colors, which depends on
+ * the computed `color-scheme`. Vobase toggles dark mode via a `.dark` class
+ * (not the OS-level color-scheme), so we override the tree's CSS vars from
+ * our own theme tokens. Custom properties inherit into the shadow root.
+ */
+file-tree-container {
+  --trees-bg-override: var(--background);
+  --trees-fg-override: var(--foreground);
+  --trees-fg-muted-override: var(--muted-foreground);
+  --trees-bg-muted-override: var(--muted);
+  --trees-border-color-override: var(--border);
+  --trees-accent-override: var(--ring);
+  --trees-selected-bg-override: var(--accent);
+  --trees-selected-fg-override: var(--accent-foreground);
+  --trees-search-bg-override: var(--muted);
+  --trees-search-fg-override: var(--foreground);
+}
+
 @keyframes slideDown {
   from {
     height: 0;

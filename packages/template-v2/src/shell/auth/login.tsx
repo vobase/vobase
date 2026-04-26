@@ -56,7 +56,7 @@ export function LoginPage() {
         body: JSON.stringify({ email: DEV_LOGIN_EMAIL }),
       })
       if (!res.ok) throw new Error(`dev-login failed (${res.status})`)
-      navigate({ to: '/messaging' })
+      navigate({ to: '/inbox' })
     } catch (err) {
       setDevLoginError(err instanceof Error ? err.message : 'Dev login failed.')
     } finally {

@@ -27,11 +27,11 @@ async function fetchMessagingGrouped(): Promise<{
 export function MessagingLayout() {
   const navigate = useNavigate()
   const isContactSelected = useRouterState({
-    select: (s) => /^\/messaging\/.+/.test(s.location.pathname),
+    select: (s) => /^\/inbox\/.+/.test(s.location.pathname),
   })
   const contactId = useRouterState({
     select: (s) => {
-      const match = /^\/messaging\/([^/?#]+)/.exec(s.location.pathname)
+      const match = /^\/inbox\/([^/?#]+)/.exec(s.location.pathname)
       return match?.[1] ?? null
     },
   })
@@ -47,7 +47,7 @@ export function MessagingLayout() {
     if (autoSelected.current || isContactSelected || convs.length === 0) return
     if (!matchMedia('(min-width: 1024px)').matches) return
     autoSelected.current = true
-    navigate({ to: '/messaging/$contactId', params: { contactId: convs[0].contactId }, replace: true })
+    navigate({ to: '/inbox/$contactId', params: { contactId: convs[0].contactId }, replace: true })
   }, [convs, isContactSelected, navigate])
 
   useKeyboardNav({ context: 'messaging-list' })
@@ -76,6 +76,6 @@ export function MessagingLayout() {
   )
 }
 
-export const Route = createFileRoute('/_app/messaging')({
+export const Route = createFileRoute('/_app/inbox')({
   component: MessagingLayout,
 })

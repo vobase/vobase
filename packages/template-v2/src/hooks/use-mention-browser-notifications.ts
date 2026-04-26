@@ -73,7 +73,7 @@ export function useMentionBrowserNotifications(): void {
         })
         n.onclick = () => {
           window.focus()
-          navigate({ to: '/messaging', search: { conv: m.conversationId } }).catch(() => undefined)
+          navigate({ to: '/inbox', search: { conv: m.conversationId } }).catch(() => undefined)
           n.close()
         }
       } catch {

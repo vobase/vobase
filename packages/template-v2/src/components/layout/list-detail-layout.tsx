@@ -4,16 +4,24 @@ import type * as React from 'react'
 interface ListDetailLayoutProps {
   list: React.ReactNode
   detail: React.ReactNode
+  /** Optional filter rail rendered to the LEFT of the list. Width fixed at 180px. */
+  left?: React.ReactNode
   right?: React.ReactNode
   listWidth?: 320 | 360
   onMobileSelect?: () => void
 }
 
-function ListDetailLayout({ list, detail, right, listWidth = 320 }: ListDetailLayoutProps) {
+function ListDetailLayout({ list, detail, left, right, listWidth = 320 }: ListDetailLayoutProps) {
   const [ctx] = useQueryState('ctx', { defaultValue: 'closed' })
 
   return (
     <div className="flex h-full overflow-hidden">
+      {left && (
+        <div className="flex w-[180px] shrink-0 flex-col overflow-y-auto border-[var(--color-border-subtle)] border-r">
+          {left}
+        </div>
+      )}
+
       <div
         className="flex shrink-0 flex-col overflow-y-auto border-[var(--color-border-subtle)] border-r"
         style={{ width: listWidth }}

@@ -27,7 +27,7 @@ export function PendingPage() {
             verifyOtp.reset()
             throw new Error(message)
           }
-          navigate({ to: '/messaging' })
+          navigate({ to: '/inbox' })
         },
       },
     )

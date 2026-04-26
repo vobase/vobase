@@ -41,8 +41,10 @@ export function Breadcrumbs() {
       continue
     }
 
-    // messaging contact detail — look up subject from query cache
-    if ('contactId' in params && pathname.includes('/messaging/')) {
+    // inbox contact detail — look up subject from query cache (legacy
+    // `/messaging/...` URLs fall through here too via the redirect in
+    // `shell/messaging-redirect.tsx`).
+    if ('contactId' in params && (pathname.includes('/inbox/') || pathname.includes('/messaging/'))) {
       const conv = qc.getQueryData<ConvCacheEntry>(['messaging-threads', params.contactId])
       const label = conv?.subject ?? params.contactId.slice(0, 8)
       crumbs.push({ label, href: null })

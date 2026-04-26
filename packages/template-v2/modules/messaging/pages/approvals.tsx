@@ -89,6 +89,6 @@ export function ApprovalsPage() {
   )
 }
 
-export const Route = createFileRoute('/_app/messaging/approvals')({
+export const Route = createFileRoute('/_app/inbox/approvals')({
   component: ApprovalsPage,
 })

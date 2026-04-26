@@ -146,7 +146,7 @@ export function ConversationDetail() {
   const hasPrev = idx > 0
   const hasNext = idx >= 0 && idx < distinctContactIds.length - 1
   const navigateTo = (targetContactId: string) =>
-    navigate({ to: '/messaging/$contactId', params: { contactId: targetContactId } })
+    navigate({ to: '/inbox/$contactId', params: { contactId: targetContactId } })
 
   useKeyboardNav({
     context: 'messaging-detail',

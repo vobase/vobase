@@ -17,6 +17,6 @@ export function MessagingEmptyState() {
   )
 }
 
-export const Route = createFileRoute('/_app/messaging/')({
+export const Route = createFileRoute('/_app/inbox/')({
   component: MessagingEmptyState,
 })
