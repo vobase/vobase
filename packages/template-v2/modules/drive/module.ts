@@ -1,16 +1,24 @@
+import { registerChangeMaterializer } from '@modules/changes/service/proposals'
+
 import type { ModuleDef } from '~/runtime'
 import { driveVerbs } from './cli'
+import { DRIVE_DOC_RESOURCE, driveDocMaterializer } from './service/changes'
 import { setFilesDb } from './service/files'
-import { createProposalService, installProposalService } from './service/proposal'
 import * as web from './web'
 
 const drive: ModuleDef = {
   name: 'drive',
+  requires: ['changes'],
   web: { routes: web.routes },
   jobs: [],
   init(ctx) {
     setFilesDb(ctx.db, ctx.auth)
-    installProposalService(createProposalService({ organizationId: ctx.organizationId }))
+    registerChangeMaterializer({
+      resourceModule: DRIVE_DOC_RESOURCE.module,
+      resourceType: DRIVE_DOC_RESOURCE.type,
+      requiresApproval: true,
+      materialize: driveDocMaterializer,
+    })
     ctx.cli.registerAll(driveVerbs)
   },
 }

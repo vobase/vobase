@@ -7,10 +7,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils'
 import { PendingApprovalsPanel } from './pending-approvals-panel'
 import { ProfilePanel } from './profile-panel'
-import { RecentLearningsPanel } from './recent-learnings-panel'
+import { RecentChangesPanel } from './recent-changes-panel'
 import { WorkingMemoryPanel } from './working-memory-panel'
 
-const SECTION_IDS = ['profile', 'working-memory', 'recent-learnings', 'pending-approvals'] as const
+const SECTION_IDS = ['profile', 'working-memory', 'recent-changes', 'pending-approvals'] as const
 type SectionId = (typeof SECTION_IDS)[number]
 
 interface ContextDrawerProps {
@@ -64,12 +64,12 @@ export function ContextDrawer({ conversationId }: ContextDrawerProps) {
           <WorkingMemoryPanel conversationId={conversationId} />
         </DrawerSection>
         <DrawerSection
-          id="recent-learnings"
-          label="Recent Learnings"
-          collapsed={isCollapsed('recent-learnings')}
-          onToggle={() => toggle('recent-learnings')}
+          id="recent-changes"
+          label="Recent Changes"
+          collapsed={isCollapsed('recent-changes')}
+          onToggle={() => toggle('recent-changes')}
         >
-          <RecentLearningsPanel conversationId={conversationId} />
+          <RecentChangesPanel conversationId={conversationId} />
         </DrawerSection>
         <DrawerSection
           id="pending-approvals"

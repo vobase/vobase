@@ -1,5 +1,5 @@
 /**
- * `vobase drive …` CLI verbs.
+ * `vobase drive …` workspace bash commands.
  *
  * Registered by the agents module's init() via ctx.registerCommand().
  * The dispatcher (vobase-cli/dispatcher.ts) longest-prefix matches `drive propose`
@@ -9,7 +9,8 @@
  *   vobase drive propose --path=/<path> --body="..." [--rationale="..."] [--confidence=0.7]
  */
 
-import { propose } from '@modules/drive/service/proposal'
+import { insertProposal } from '@modules/changes/service/proposals'
+import { DRIVE_DOC_RESOURCE } from '@modules/drive/service/changes'
 
 import type { CommandDef } from '~/runtime'
 
@@ -51,17 +52,22 @@ export const driveVerbs: readonly CommandDef[] = [
       const confidenceRaw = flags.confidence
       const confidence = confidenceRaw !== undefined ? Number.parseFloat(confidenceRaw) : undefined
 
-      const result = await propose({
-        conversationId: ctx.conversationId,
-        path,
-        body,
-        rationale,
+      const result = await insertProposal({
+        organizationId: ctx.organizationId,
+        resourceModule: DRIVE_DOC_RESOURCE.module,
+        resourceType: DRIVE_DOC_RESOURCE.type,
+        resourceId: path,
+        payload: { kind: 'markdown_patch', mode: 'replace', field: 'content', body },
+        changedBy: `agent:${ctx.agentId}`,
+        changedByKind: 'agent',
         confidence,
+        rationale,
+        conversationId: ctx.conversationId,
       })
 
       return {
         ok: true,
-        content: `Proposal ${result.proposalId} submitted (status=pending). Staff will review at /api/drive/proposals/${result.proposalId}/decide.`,
+        content: `Proposal ${result.id} submitted (status=${result.status}). Staff will review at /api/changes/proposals/${result.id}/decide.`,
       }
     },
   },

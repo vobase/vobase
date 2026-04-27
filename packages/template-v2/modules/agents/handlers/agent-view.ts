@@ -8,7 +8,7 @@
 
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import * as agentDefs from '@modules/agents/service/agent-definitions'
-import { listSkillsForAgent } from '@modules/agents/service/learning-proposals'
+import { listSkillsForAgent } from '@modules/agents/service/changes'
 import type { AgentViewFile, AgentViewResponse } from '@modules/contacts/handlers/agent-view'
 import { Hono } from 'hono'
 

@@ -4,7 +4,6 @@ import { type Context, Hono, type MiddlewareHandler } from 'hono'
 
 import { getDriveAuth } from '../service/files'
 import filesHandlers from './files'
-import proposalHandlers from './proposal'
 
 /**
  * Per-request scope-RBAC gate. Reads the better-auth handle threaded into the
@@ -31,7 +30,6 @@ function scopeGate(write: boolean): MiddlewareHandler {
 
 const app = new Hono()
   .get('/health', (c) => c.json({ module: 'drive', status: 'ok' }))
-  .route('/proposals', proposalHandlers)
   .use('/tree', scopeGate(false))
   .use('/file', async (c, next) => scopeGate(c.req.method !== 'GET')(c, next))
   .use('/folders', scopeGate(true))

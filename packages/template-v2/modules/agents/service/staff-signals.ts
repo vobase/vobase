@@ -23,9 +23,10 @@
 import type { AgentEvent } from '@modules/agents/events'
 import type { InternalNoteAuthorType } from '@modules/messaging/schema'
 
-import type { LearningScope } from '../schema'
-
 export type StaffSignalKind = 'supervisor' | 'approval_rejected' | 'internal_note' | 'reassignment_note'
+
+/** Scope hint surfaced to the proposer prompt — kept as a string union so this file does not depend on legacy schema types. */
+export type ScopeHint = 'contact' | 'agent_memory' | 'agent_skill' | 'drive_doc'
 
 export interface StaffSignal {
   kind: StaffSignalKind
@@ -38,7 +39,7 @@ export interface StaffSignal {
   /** Short prose preview — note body, rejection reason, reassignment reason. */
   notePreview?: string
   /** Scope hint for the proposer prompt (drives `learn.propose` output routing). */
-  scopeHint?: LearningScope
+  scopeHint?: ScopeHint
 }
 
 /**

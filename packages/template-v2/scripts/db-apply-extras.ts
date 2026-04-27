@@ -72,12 +72,6 @@ async function main(): Promise<void> {
      FOREIGN KEY (notif_channel_id) REFERENCES channels.channel_instances(id) ON DELETE SET NULL`,
   )
   await safeExec(
-    'FK agents.learning_proposals.wake_event_id → harness.conversation_events(id)',
-    `ALTER TABLE agents.learning_proposals
-     ADD CONSTRAINT fk_lp_wake_event
-     FOREIGN KEY (wake_event_id) REFERENCES harness.conversation_events(id) ON DELETE SET NULL`,
-  )
-  await safeExec(
     'FK drive.files.source_message_id → messaging.messages(id)',
     `ALTER TABLE drive.files
      ADD CONSTRAINT fk_drive_source_msg

@@ -58,12 +58,6 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
-    // Learning proposal lifecycle (learning_proposed / learning_approved / learning_rejected)
-    if (payload.table === 'learning_proposals') {
-      queryClient.invalidateQueries({ queryKey: ['learnings'] })
-      return
-    }
-
     // Change-proposal lifecycle (created / auto_written / approved / rejected)
     if (payload.table === 'change_proposals') {
       queryClient.invalidateQueries({ queryKey: ['change_proposals'] })

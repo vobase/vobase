@@ -91,12 +91,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  ALTER TABLE agents.learning_proposals
-    ADD CONSTRAINT fk_lp_wake_event
-    FOREIGN KEY (wake_event_id) REFERENCES harness.conversation_events(id) ON DELETE SET NULL;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
   ALTER TABLE drive.files
     ADD CONSTRAINT fk_drive_source_msg
     FOREIGN KEY (source_message_id) REFERENCES messaging.messages(id) ON DELETE SET NULL;

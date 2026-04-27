@@ -26,7 +26,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { usePendingLearnings } from '@/hooks/use-pending-learnings'
 
 function AgentCard({ agent }: { agent: AgentDefinitionRow }) {
   const update = useUpdateAgent(agent.id)
@@ -164,9 +163,7 @@ function NewAgentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
 
 export function AgentsListPage() {
   const { data: agents = [], isLoading } = useAgentDefinitions()
-  const { data: pendingLearnings = [] } = usePendingLearnings()
   const [createOpen, setCreateOpen] = useState(false)
-  const pendingCount = pendingLearnings.length
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -179,14 +176,9 @@ export function AgentsListPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button asChild size="sm" variant="outline">
-            <Link to="/agents/learnings">
+            <Link to="/changes">
               <Sparkles className="mr-1 size-4" />
-              Learnings
-              {pendingCount > 0 && (
-                <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
-                  {pendingCount}
-                </Badge>
-              )}
+              Changes
             </Link>
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>

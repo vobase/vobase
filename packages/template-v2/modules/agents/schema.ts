@@ -1,18 +1,12 @@
 /**
  * agents module schema.
  *
- * Five tables:
- *   - `agent_definitions`
- *   - `agent_staff_memory`
- *   - `learned_skills`
- *   - `learning_proposals`
- *   - `agent_scores`
- *
- * Harness persistence tables (conversation_events, active_wakes, threads,
- * messages, tenant_cost_daily, audit_wake_map) live in `@vobase/core` under
- * pgSchema `harness`. Cross-schema FKs (learning_proposals.wake_event_id →
- * harness.conversation_events, harness.threads.agent_id → agents.agent_definitions)
- * are enforced post-push by `scripts/db-apply-extras.ts`.
+ * Tables: `agent_definitions`, `agent_staff_memory`, `learned_skills`, `agent_scores`,
+ * plus operator-thread tables. Harness persistence tables (conversation_events,
+ * active_wakes, threads, messages, tenant_cost_daily, audit_wake_map) live in
+ * `@vobase/core` under pgSchema `harness`. Cross-schema FK
+ * (`harness.threads.agent_id → agents.agent_definitions`) is enforced post-push
+ * by `scripts/db-apply-extras.ts`.
  */
 
 // ─── Domain types ───────────────────────────────────────────────────────────
@@ -39,44 +33,6 @@ export interface AgentDefinition {
   updatedAt: Date
 }
 
-export type LearningScope = 'contact' | 'agent_memory' | 'agent_skill' | 'drive_doc'
-export type LearningAction = 'upsert' | 'create' | 'patch'
-export type LearningStatus = 'pending' | 'approved' | 'rejected' | 'superseded' | 'auto_written'
-
-export interface LearningProposal {
-  id: string
-  organizationId: string
-  conversationId: string
-  wakeEventId: number | null
-  scope: LearningScope
-  action: LearningAction
-  target: string
-  body: string | null
-  rationale: string | null
-  confidence: number | null
-  status: LearningStatus
-  decidedByUserId: string | null
-  decidedAt: Date | null
-  decidedNote: string | null
-  approvedWriteId: string | null
-  createdAt: Date
-}
-
-/**
- * Markdown section materialised under `agent_memory.working_memory` whenever a
- * learning proposal is rejected. Anti-lessons live as a `## Anti-lessons` section
- * (not a column), keyed by `<proposal target>: <decidedNote>`.
- */
-export interface AgentMemoryAntiLessons {
-  readonly heading: 'Anti-lessons'
-  entries: ReadonlyArray<{
-    target: string
-    scope: LearningScope
-    note: string
-    rejectedAt: string
-  }>
-}
-
 export type ModerationCategory = 'hate' | 'harassment' | 'violence' | 'sexual' | 'prompt_injection' | 'policy_violation'
 
 export interface AgentScore {
@@ -95,19 +51,7 @@ export interface AgentScore {
 
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'
-import {
-  bigint,
-  boolean,
-  check,
-  index,
-  integer,
-  jsonb,
-  numeric,
-  real,
-  text,
-  timestamp,
-  uniqueIndex,
-} from 'drizzle-orm/pg-core'
+import { boolean, check, index, integer, jsonb, numeric, real, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { agentsPgSchema } from '~/runtime'
 import { DEFAULT_CHAT_MODEL } from './wake/models'
@@ -261,35 +205,6 @@ export const learnedSkills = agentsPgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (t) => [uniqueIndex('uq_learned_skills_name').on(t.organizationId, t.agentId, t.name)],
-)
-
-export const learningProposals = agentsPgSchema.table(
-  'learning_proposals',
-  {
-    id: nanoidPrimaryKey(),
-    organizationId: text('organization_id').notNull(),
-    conversationId: text('conversation_id').notNull(),
-    /** Self-ref to harness.conversation_events.id; enforced post-push. */
-    wakeEventId: bigint('wake_event_id', { mode: 'number' }),
-    scope: text('scope').notNull(),
-    action: text('action').notNull(),
-    target: text('target').notNull(),
-    body: text('body'),
-    rationale: text('rationale'),
-    confidence: real('confidence'),
-    status: text('status').notNull().default('pending'),
-    decidedByUserId: text('decided_by_user_id'),
-    decidedAt: timestamp('decided_at', { withTimezone: true }),
-    decidedNote: text('decided_note'),
-    approvedWriteId: text('approved_write_id'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    index('idx_proposals_status').on(t.organizationId, t.status, t.createdAt),
-    check('lp_scope_check', sql`scope IN ('contact','agent_memory','agent_skill','drive_doc')`),
-    check('lp_action_check', sql`action IN ('upsert','create','patch')`),
-    check('lp_status_check', sql`status IN ('pending','approved','rejected','superseded','auto_written')`),
-  ],
 )
 
 export const agentScores = agentsPgSchema.table(

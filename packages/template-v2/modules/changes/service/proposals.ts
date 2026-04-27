@@ -136,6 +136,14 @@ async function runThreatScan(_payload: ChangePayload): Promise<{ ok: true } | { 
   return { ok: true }
 }
 
+/** Narrow a payload to `markdown_patch` or throw — shared by markdown-only materializers. */
+export function assertMarkdownPatch(payload: ChangePayload): Extract<ChangePayload, { kind: 'markdown_patch' }> {
+  if (payload.kind !== 'markdown_patch') {
+    throw validation({ kind: payload.kind }, `expected markdown_patch payload, got '${payload.kind}'`)
+  }
+  return payload
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export interface ChangeProposalsServiceDeps {

@@ -52,6 +52,13 @@ const THREADS_WRITE_ALLOWED = ['modules/agents/service/threads.ts']
 const _CHANGES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(changeProposals|changeHistory)\b/
 const _CHANGES_WRITE_ALLOWED = ['modules/changes/service/proposals.ts']
 
+/**
+ * `learning_proposals` migration guard. After Slice C the table, schema, and
+ * service are deleted; any code-resurrection (typo, copy-paste, partial
+ * rebase) must fail the build.
+ */
+const LEARNING_RESIDUE_RE = /\b(learning_proposals|learningProposals)\b/
+
 async function checkJournalWriteAuthority(): Promise<void> {
   const glob = new Bun.Glob('**/*.ts')
   for await (const entry of glob.scan({ cwd: MODULES_DIR })) {
@@ -81,6 +88,14 @@ async function checkJournalWriteAuthority(): Promise<void> {
             message: `writes to "${m[2]}" only allowed in modules/agents/service/threads.ts (one-write-path)`,
           })
         }
+      }
+      const residue = LEARNING_RESIDUE_RE.exec(line)
+      if (residue) {
+        errors.push({
+          file: fullPath,
+          line: i + 1,
+          message: `forbidden reference to "${residue[1]}" — Slice C removed this table; use modules/changes (changeProposals / changeHistory) instead`,
+        })
       }
     }
   }

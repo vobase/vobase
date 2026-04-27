@@ -19,7 +19,6 @@
  * domain means adding one more narrow wrapper here.
  */
 
-import type { LearningProposal } from '@modules/agents/schema'
 import type { ChangeProposalRow } from '@modules/changes/schema'
 import type { Contact } from '@modules/contacts/schema'
 import type { Conversation, PendingApproval } from '@modules/messaging/schema'
@@ -32,11 +31,10 @@ import type { Conversation, PendingApproval } from '@modules/messaging/schema'
  * The input is typed loosely as `object` rather than a derived `Wire<T>` —
  * Hono's inferred RPC return type sometimes diverges from the schema's
  * domain interface in ways unrelated to dates (extra columns, nominal type
- * aliases like `ProposalScope` vs `LearningScope`). Constraining the
- * hydrator to a structural `Wire<T>` would forward those mismatches into
- * call sites. The trade-off: callers must supply the right key list, and
- * the return cast trusts the runtime shape from the API. Per-domain
- * wrappers below pin the date keys for each row type.
+ * aliases). Constraining the hydrator to a structural `Wire<T>` would forward
+ * those mismatches into call sites. The trade-off: callers must supply the
+ * right key list, and the return cast trusts the runtime shape from the API.
+ * Per-domain wrappers below pin the date keys for each row type.
  */
 export function hydrateDates<T extends object>(wire: object, keys: ReadonlyArray<keyof T>): T {
   const out: Record<string, unknown> = { ...wire }
@@ -61,7 +59,6 @@ const CONVERSATION_DATE_KEYS = [
   'lastMessageAt',
   'resolvedAt',
 ] as const satisfies ReadonlyArray<keyof Conversation>
-const LEARNING_DATE_KEYS = ['createdAt', 'decidedAt'] as const satisfies ReadonlyArray<keyof LearningProposal>
 const CHANGE_PROPOSAL_DATE_KEYS = ['createdAt', 'decidedAt'] as const satisfies ReadonlyArray<keyof ChangeProposalRow>
 
 export function hydrateContact(row: object): Contact {
@@ -74,10 +71,6 @@ export function hydratePendingApproval(row: object): PendingApproval {
 
 export function hydrateConversation(row: object): Conversation {
   return hydrateDates<Conversation>(row, CONVERSATION_DATE_KEYS)
-}
-
-export function hydrateLearningProposal(row: object): LearningProposal {
-  return hydrateDates<LearningProposal>(row, LEARNING_DATE_KEYS)
 }
 
 export function hydrateChangeProposal(row: object): ChangeProposalRow {

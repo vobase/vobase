@@ -190,25 +190,7 @@ export type WakeScheduledEvent = BaseEvent & {
   sourceWakeId?: string
 }
 
-export type LearningProposedEvent = BaseEvent & {
-  type: 'learning_proposed'
-  proposalId: string
-  scope: 'contact' | 'agent_memory' | 'agent_skill' | 'drive_doc'
-}
-export type LearningApprovedEvent = BaseEvent & {
-  type: 'learning_approved'
-  proposalId: string
-  writeId: string
-}
-export type LearningRejectedEvent = BaseEvent & {
-  type: 'learning_rejected'
-  proposalId: string
-  reason: string
-}
-
 // ─── Change-proposal events ────────────────────────────────────────────────
-// Generic counterpart to LearningProposed/Approved/Rejected. Coexist during
-// slice A/B; the Learning* literals are removed in slice C.
 
 export type ChangeProposedEvent = BaseEvent & {
   type: 'change_proposed'
@@ -316,9 +298,6 @@ export type AgentEvent =
   | ApprovalRequestedEvent
   | ApprovalDecidedEvent
   | InternalNoteAddedEvent
-  | LearningProposedEvent
-  | LearningApprovedEvent
-  | LearningRejectedEvent
   | ChangeProposedEvent
   | ChangeApprovedEvent
   | ChangeRejectedEvent

@@ -7,9 +7,10 @@
  * provider is wired.
  */
 
-import type { AgentEvent, LearningRejectedEvent } from '@modules/agents/events'
-import { agentDefinitions, learningProposals } from '@modules/agents/schema'
+import type { AgentEvent, ChangeRejectedEvent } from '@modules/agents/events'
+import { agentDefinitions } from '@modules/agents/schema'
 import { llmCall as harnessLlmCall, type LlmEmitter } from '@modules/agents/wake/llm-call'
+import { changeProposals } from '@modules/changes/schema'
 import {
   readNotes as readContactNotes,
   upsertNotesSection as upsertContactNotesSection,
@@ -86,7 +87,7 @@ async function upsertTargetNotesSection(t: DistillTarget, heading: string, body:
 
 interface WakeBuffer {
   assistantMessages: string[]
-  rejections: LearningRejectedEvent[]
+  rejections: ChangeRejectedEvent[]
 }
 
 export function createMemoryDistillListener(opts: MemoryDistillOpts): (event: AgentEvent) => Promise<void> {
@@ -105,7 +106,7 @@ export function createMemoryDistillListener(opts: MemoryDistillOpts): (event: Ag
         return
       }
 
-      if (event.type === 'learning_rejected') {
+      if (event.type === 'change_rejected') {
         buf.rejections.push(event)
         wakeBuffer.set(event.wakeId, buf)
         return
@@ -169,23 +170,31 @@ async function readMemorySafe(target: DistillTarget): Promise<string> {
   }
 }
 
-async function writeAntiLessons(db: ScopedDb, agentId: string, rejections: LearningRejectedEvent[]): Promise<void> {
+async function writeAntiLessons(db: ScopedDb, agentId: string, rejections: ChangeRejectedEvent[]): Promise<void> {
   const proposalIds = rejections.map((r) => r.proposalId)
 
   const [rows, agentRows] = (await Promise.all([
     db
       .select({
-        id: learningProposals.id,
-        target: learningProposals.target,
-        scope: learningProposals.scope,
-        decidedNote: learningProposals.decidedNote,
-        decidedAt: learningProposals.decidedAt,
+        id: changeProposals.id,
+        resourceModule: changeProposals.resourceModule,
+        resourceType: changeProposals.resourceType,
+        resourceId: changeProposals.resourceId,
+        decidedNote: changeProposals.decidedNote,
+        decidedAt: changeProposals.decidedAt,
       })
-      .from(learningProposals)
-      .where(inArray(learningProposals.id, proposalIds)),
+      .from(changeProposals)
+      .where(inArray(changeProposals.id, proposalIds)),
     db.select().from(agentDefinitions).where(eq(agentDefinitions.id, agentId)).limit(1),
   ])) as [
-    Array<{ id: string; target: string; scope: string; decidedNote: string | null; decidedAt: Date | null }>,
+    Array<{
+      id: string
+      resourceModule: string
+      resourceType: string
+      resourceId: string
+      decidedNote: string | null
+      decidedAt: Date | null
+    }>,
     Array<{ workingMemory: string }>,
   ]
 
@@ -199,7 +208,7 @@ async function writeAntiLessons(db: ScopedDb, agentId: string, rejections: Learn
     .filter((r) => !existingIds.has(r.id))
     .map(
       (r) =>
-        `- \`[${r.id}]\` **${r.scope}:${r.target}** — ${r.decidedNote ?? 'no reason given'} _(rejected ${(r.decidedAt ?? new Date()).toISOString()})_`,
+        `- \`[${r.id}]\` **${r.resourceModule}:${r.resourceType}** \`${r.resourceId}\` — ${r.decidedNote ?? 'no reason given'} _(rejected ${(r.decidedAt ?? new Date()).toISOString()})_`,
     )
   if (newEntries.length === 0) return
 

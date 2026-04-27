@@ -1,7 +1,8 @@
 /**
- * agents module seed — Meridian concierge + Sentinel operator + a realistic
- * back-catalog of learning proposals, staff memory, scores, threads, and
- * schedules so the /agents pages have something to show on a fresh `db:reset`.
+ * agents module seed — Meridian concierge + Sentinel operator + staff memory,
+ * scores, threads, and schedules so the /agents pages have something to show
+ * on a fresh `db:reset`. Pending agent-skill proposals seed via
+ * `modules/changes/seed.ts`.
  *
  * Cross-module dependencies:
  *   - contacts/seed.ts must run first (auth.user rows + ALICE/BOB/CAROL).
@@ -21,12 +22,11 @@ export const MERIDIAN_AGENT_ID = 'agt0mer0v1'
 /** Operator agent — drives the staff-facing daily brief + supervisor workflows. */
 export const SENTINEL_AGENT_ID = 'agt0sent0v1'
 
-/** Conversation IDs from messaging/seed — referenced here so learning proposals + scores anchor to real threads. */
+/** Conversation IDs from messaging/seed — referenced here so scores anchor to real threads. */
 const PRIYA_CONV_ID = 'cnv0priya0'
 const MARCUS_CONV_ID = 'cnv0marcus'
 const ELENA_CONV_ID = 'cnv0elena0'
 const DEREK_CONV_ID = 'cnv0derek0'
-const SOPHIA_CONV_ID = 'cnv0sophia'
 
 const NOW = Date.now()
 const mins = (n: number) => new Date(NOW - n * 60_000)
@@ -117,15 +117,8 @@ type Inserter = (t: unknown) => InsertOp
 export async function seed(db: unknown): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const agentsSchema = await import('@modules/agents/schema')
-  const {
-    agentDefinitions,
-    agentScores,
-    agentStaffMemory,
-    agentThreadMessages,
-    agentThreads,
-    learnedSkills,
-    learningProposals,
-  } = agentsSchema
+  const { agentDefinitions, agentScores, agentStaffMemory, agentThreadMessages, agentThreads, learnedSkills } =
+    agentsSchema
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const { agentSchedules } = await import('@modules/schedules/schema')
 
@@ -212,146 +205,7 @@ export async function seed(db: unknown): Promise<void> {
     })
     .onConflictDoNothing()
 
-  // ── 3. Learning proposals — full mix of statuses + scopes ───────────
-  await ins(learningProposals)
-    .values({
-      id: 'lpr0pen001',
-      organizationId: MERIDIAN_ORG_ID,
-      conversationId: MARCUS_CONV_ID,
-      wakeEventId: null,
-      scope: 'agent_skill',
-      action: 'create',
-      target: 'enterprise-quote-flow',
-      body: [
-        '# Enterprise quote flow',
-        '',
-        'When the customer signals 200+ seats AND asks about pricing:',
-        '1. Confirm seat count, geo, billing currency.',
-        '2. Pull last quote precedent from `/drive/quotes/`.',
-        '3. Draft a `send_card` with per-seat pricing, annual total, included features.',
-        '4. Mention `@alice` for approval before sending — never auto-send enterprise quotes.',
-      ].join('\n'),
-      rationale:
-        "Marcus's Northwind eval (400 seats) followed the same shape as the prior Acme Labs eval. Codifying it as a skill so the agent stops re-asking which staff member to mention.",
-      confidence: 0.82,
-      status: 'pending',
-      createdAt: hours(3),
-    })
-    .onConflictDoNothing()
-
-  await ins(learningProposals)
-    .values({
-      id: 'lpr0pen002',
-      organizationId: MERIDIAN_ORG_ID,
-      conversationId: ELENA_CONV_ID,
-      wakeEventId: null,
-      scope: 'contact',
-      action: 'patch',
-      target: 'ctt0elena0',
-      body: [
-        '## Elena Rossi — refund context (2026-04)',
-        '',
-        '- Reason for refund: product did not solve onboarding flow she needed.',
-        '- Inside the 14-day window; Carol approved full $12 refund.',
-        '- Alice queued comeback-discount copy — surface it if Elena returns within 90 days.',
-      ].join('\n'),
-      rationale:
-        "Capturing why Elena left so a future re-engagement attempt doesn't ask the same questions twice. Patch into existing notes, don't replace.",
-      confidence: 0.91,
-      status: 'pending',
-      createdAt: hours(1),
-    })
-    .onConflictDoNothing()
-
-  await ins(learningProposals)
-    .values({
-      id: 'lpr0pen003',
-      organizationId: MERIDIAN_ORG_ID,
-      conversationId: SOPHIA_CONV_ID,
-      wakeEventId: null,
-      scope: 'drive_doc',
-      action: 'patch',
-      target: '/drive/BUSINESS.md',
-      body: [
-        '## Audit log retention',
-        '',
-        '- Teams plan: 90 days (default).',
-        '- Enterprise plan: 12 months (default), upgradeable to 7 years on request.',
-        '- Mid-cycle upgrade Teams → Enterprise extends retention immediately for new events; backfill is best-effort within a 14-day window.',
-      ].join('\n'),
-      rationale:
-        "BUSINESS.md doesn't currently document audit-log retention by plan tier — Sophia's question went straight to Bob because the agent had no source to cite. Adding it removes one full reassignment loop.",
-      confidence: 0.74,
-      status: 'pending',
-      createdAt: mins(40),
-    })
-    .onConflictDoNothing()
-
-  await ins(learningProposals)
-    .values({
-      id: 'lpr0app001',
-      organizationId: MERIDIAN_ORG_ID,
-      conversationId: PRIYA_CONV_ID,
-      wakeEventId: null,
-      scope: 'agent_memory',
-      action: 'upsert',
-      target: 'slack-routing-link',
-      body: 'Customers asking about Slack notification filtering land here often. Direct them to Settings → Integrations → Slack → Routing without re-explaining the per-channel model.',
-      rationale: 'Approved by Alice — recurring topic identified across 4 conversations in the last 14 days.',
-      confidence: 0.94,
-      status: 'approved',
-      decidedByUserId: ALICE_USER_ID,
-      decidedAt: hours(18),
-      decidedNote: 'Good call — make sure the link 200s before promoting again.',
-      approvedWriteId: null,
-      createdAt: days(1),
-    })
-    .onConflictDoNothing()
-
-  await ins(learningProposals)
-    .values({
-      id: 'lpr0rej001',
-      organizationId: MERIDIAN_ORG_ID,
-      conversationId: DEREK_CONV_ID,
-      wakeEventId: null,
-      scope: 'agent_skill',
-      action: 'create',
-      target: 'auto-upgrade-pitch',
-      body: 'Whenever a free-plan customer asks about a Pro feature, immediately upsell with a 14-day trial card.',
-      rationale: "Pattern observed in Derek's Slack-integration question; auto-pitching could lift conversion.",
-      confidence: 0.61,
-      status: 'rejected',
-      decidedByUserId: ALICE_USER_ID,
-      decidedAt: hours(22),
-      decidedNote:
-        'No — pushy upsell on first contact is off-brand. Mention Pro features when asked, but never auto-pitch as a skill.',
-      approvedWriteId: null,
-      createdAt: days(1),
-    })
-    .onConflictDoNothing()
-
-  await ins(learningProposals)
-    .values({
-      id: 'lpr0aut001',
-      organizationId: MERIDIAN_ORG_ID,
-      conversationId: PRIYA_CONV_ID,
-      wakeEventId: null,
-      scope: 'contact',
-      action: 'patch',
-      target: 'ctt0priya0',
-      body: '## Comms preference\n\n- Concise > verbose. Slack-style replies.\n- Web > WhatsApp during work hours; WhatsApp for after-hours pings.',
-      rationale: 'Auto-promoted — high-confidence contact-scope memory inferred from the last 3 turns.',
-      confidence: 0.88,
-      status: 'auto_written',
-      decidedByUserId: null,
-      decidedAt: hours(8),
-      decidedNote: null,
-      approvedWriteId: null,
-      createdAt: hours(8),
-    })
-    .onConflictDoNothing()
-
-  // ── 4. Learned skills — ones that already shipped from approved proposals ──
+  // ── 3. Learned skills — ones that already shipped from approved proposals ──
   await ins(learnedSkills)
     .values({
       id: 'lsk0sla001',
