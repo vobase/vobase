@@ -41,6 +41,7 @@ export const MARCUS_CONTACT_ID = 'ctt0marcus'
 export const ELENA_CONTACT_ID = 'ctt0elena0'
 export const DEREK_CONTACT_ID = 'ctt0derek0'
 export const SOPHIA_CONTACT_ID = 'ctt0sophia'
+export const LIAM_CONTACT_ID = 'ctt00liam0'
 
 export async function seed(db: unknown): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
@@ -309,6 +310,31 @@ export async function seed(db: unknown): Promise<void> {
       phone: '+6591100204',
       segments: ['new-signup'],
       notes: '',
+    })
+    .onConflictDoNothing()
+
+  await d
+    .insert(contacts)
+    .values({
+      id: LIAM_CONTACT_ID,
+      organizationId: MERIDIAN_ORG_ID,
+      displayName: 'Liam Reyes',
+      email: 'liam@finsight.io',
+      phone: '+6591100206',
+      segments: ['pro-plan', 'integrator'],
+      attributes: {
+        company: 'FinSight',
+        plan_tier: 'pro',
+        lifetime_value: 7200,
+        renewal_date: '2026-09-30',
+        vip: false,
+      },
+      notes: [
+        '# Liam Reyes',
+        'Role: Solutions architect @ FinSight (PayTech, Pro plan).',
+        'Stack: webhook-driven integration with their core ledger; sensitive to retry semantics.',
+        'Comms: technical, prefers terse answers + code refs over prose.',
+      ].join('\n'),
     })
     .onConflictDoNothing()
 

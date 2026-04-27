@@ -6,6 +6,7 @@ Full-stack TypeScript framework for AI coding agents. Bun + Hono + Drizzle + Pos
 
 - `@vobase/core` — runtime engine: auth, audit, sequences, integrations, storage, channels, RBAC, jobs, MCP
 - `@vobase/template` — scaffolding source (private). See `packages/template/CLAUDE.md` for conventions.
+- `@vobase/cli` — standalone, catalog-driven CLI binary. Discovers tenant verbs at runtime via `/api/cli/verbs`; the same binary works across deployments with different module sets.
 - `create-vobase` — project scaffolder via `bun create vobase`
 
 ## Commands

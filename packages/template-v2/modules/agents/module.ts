@@ -8,7 +8,9 @@ import {
 
 import type { ModuleDef } from '~/runtime'
 import * as agent from './agent'
+import { agentsVerbs } from './cli'
 import { EXPIRE_APPROVALS_CRON, EXPIRE_APPROVALS_JOB, jobs } from './jobs'
+import { memoryVerbs } from './memory-cli'
 import { createAgentDefinitionsService, installAgentDefinitionsService } from './service/agent-definitions'
 import {
   createLearningNotifier,
@@ -40,6 +42,8 @@ const agents: ModuleDef = {
     void ctx.jobs.schedule?.(EXPIRE_APPROVALS_JOB, EXPIRE_APPROVALS_CRON, undefined, {
       singletonKey: EXPIRE_APPROVALS_JOB,
     })
+    ctx.cli.registerAll(agentsVerbs)
+    ctx.cli.registerAll(memoryVerbs)
   },
 }
 

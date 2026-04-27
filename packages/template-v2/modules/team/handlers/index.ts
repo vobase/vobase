@@ -10,6 +10,7 @@ import {
 import { Hono } from 'hono'
 import { z } from 'zod'
 
+import agentViewHandler from './agent-view'
 import attributeHandlers from './attributes'
 import descriptionHandlers from './descriptions'
 import heartbeatHandlers from './heartbeat'
@@ -49,6 +50,7 @@ const app = new Hono<OrganizationEnv>()
   .route('/', descriptionHandlers)
   .route('/', heartbeatHandlers)
   .route('/', mentionHandlers)
+  .route('/', agentViewHandler)
   .get('/staff', async (c) => {
     const rows = await listStaff(c.get('organizationId'))
     return c.json(rows)

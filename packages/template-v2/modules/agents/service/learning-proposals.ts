@@ -15,6 +15,7 @@
 
 import type { LearningApprovedEvent, LearningRejectedEvent } from '@modules/agents/events'
 import { learnedSkills, learningProposals } from '@modules/agents/schema'
+import { conversations } from '@modules/messaging/schema'
 import { appendJournalEvent } from '@modules/messaging/service/journal'
 import { conversationEvents, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
 import { and, desc, eq, sql } from 'drizzle-orm'
@@ -96,6 +97,17 @@ export interface DecideResult {
   threatScanReport?: unknown
 }
 
+export interface LearnedSkillRow {
+  id: string
+  organizationId: string
+  agentId: string | null
+  name: string
+  description: string
+  body: string
+  parentProposalId: string | null
+  updatedAt: Date
+}
+
 export interface LearningProposalsService {
   insertProposal(input: InsertProposalInput): Promise<{ id: string }>
   decideProposal(
@@ -105,6 +117,12 @@ export interface LearningProposalsService {
     note?: string,
   ): Promise<DecideResult>
   listRecent(organizationId: string, status?: ProposalStatus, limit?: number): Promise<ProposalRow[]>
+  /**
+   * Skills bound to one agent — both rows with `agent_id = <agentId>` AND
+   * org-scoped rows with `agent_id = NULL` (those float at org scope, e.g.
+   * approvals where the originating conversation had no agent_start event).
+   */
+  listSkillsForAgent(input: { organizationId: string; agentId: string }): Promise<LearnedSkillRow[]>
   setNotifier(fn: NotifyFn | null): void
 }
 
@@ -229,10 +247,34 @@ export function createLearningProposalsService(deps: LearningProposalsServiceDep
     }
   }
 
+  async function listSkillsForAgent(input: { organizationId: string; agentId: string }): Promise<LearnedSkillRow[]> {
+    const rows = (await db
+      .select({
+        id: learnedSkills.id,
+        organizationId: learnedSkills.organizationId,
+        agentId: learnedSkills.agentId,
+        name: learnedSkills.name,
+        description: learnedSkills.description,
+        body: learnedSkills.body,
+        parentProposalId: learnedSkills.parentProposalId,
+        updatedAt: learnedSkills.updatedAt,
+      })
+      .from(learnedSkills)
+      .where(
+        and(
+          eq(learnedSkills.organizationId, input.organizationId),
+          sql`(${learnedSkills.agentId} = ${input.agentId} OR ${learnedSkills.agentId} IS NULL)`,
+        ),
+      )
+      .orderBy(desc(learnedSkills.updatedAt))) as unknown as LearnedSkillRow[]
+    return rows
+  }
+
   return {
     insertProposal,
     decideProposal,
     listRecent,
+    listSkillsForAgent,
     setNotifier(fn) {
       notifier = fn
     },
@@ -264,7 +306,21 @@ async function writeApprovedScope(db: DrizzleHandle, proposal: ProposalRow): Pro
       )
       .orderBy(desc(conversationEvents.ts))
       .limit(1)) as Array<{ payload: unknown; toolCalls: unknown }>
-    const agentId = extractAgentIdFromStart(agentRows[0])
+    let agentId = extractAgentIdFromStart(agentRows[0])
+    if (!agentId) {
+      // Fallback: read the conversation's current assignee. Form is
+      // `agent:<id>` when the agent is on it, `user:<id>` if a staff member
+      // has taken over. The skill belongs to the agent that was on the
+      // conversation when the proposal was generated; if the assignee is
+      // a user we leave agentId null and let the skill float at org scope.
+      const convRows = (await db
+        .select({ assignee: conversations.assignee })
+        .from(conversations)
+        .where(eq(conversations.id, proposal.conversationId))
+        .limit(1)) as Array<{ assignee: string }>
+      const assignee = convRows[0]?.assignee ?? ''
+      if (assignee.startsWith('agent:')) agentId = assignee.slice('agent:'.length)
+    }
 
     const skillId = nanoid(10)
     await db
@@ -409,4 +465,12 @@ export async function decideProposal(
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function listRecent(organizationId: string, status?: ProposalStatus, limit = 50): Promise<ProposalRow[]> {
   return current().listRecent(organizationId, status, limit)
+}
+
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function listSkillsForAgent(input: {
+  organizationId: string
+  agentId: string
+}): Promise<LearnedSkillRow[]> {
+  return current().listSkillsForAgent(input)
 }

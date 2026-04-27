@@ -6,6 +6,7 @@ import { ArrowLeft, FolderTree, Mail, Pencil, Phone, Settings2, ShieldOff } from
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { AgentViewPane } from '@/components/agent-view-pane'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
@@ -118,6 +119,10 @@ export function ContactDetailPage() {
                 <span className="text-muted-foreground text-xs">Typed, org-wide custom fields.</span>
               </div>
               <AttributeTable contactId={id} values={contact.attributes} />
+            </section>
+
+            <section className="shrink-0 border-border border-b px-6 py-4">
+              <AgentViewPane scope={`/contacts/${id}`} />
             </section>
 
             <section className="flex min-h-0 flex-1 flex-col">

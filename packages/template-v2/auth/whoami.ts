@@ -10,8 +10,11 @@ import type { ScopedDb } from '~/runtime'
 import { type ApiKeyEnv, createRequireApiKey } from './middleware/require-api-key'
 
 export function createWhoamiRoute(db: ScopedDb): Hono<ApiKeyEnv> {
+  // Middleware is scoped to /whoami specifically — `app.use('*')` would
+  // intercept every /api/auth/* request (including dev-login + better-auth
+  // catch-all) and return 401 before they could route.
   const app = new Hono<ApiKeyEnv>()
-  app.use('*', createRequireApiKey(db))
+  app.use('/whoami', createRequireApiKey(db))
   app.get('/whoami', (c) => {
     const p = c.get('apiPrincipal')
     return c.json({

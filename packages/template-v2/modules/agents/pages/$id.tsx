@@ -7,6 +7,7 @@ import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-r
 import { ArrowLeft, Bot, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { AgentViewPane } from '@/components/agent-view-pane'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -150,6 +151,10 @@ function AgentDetailPage() {
               {update.isPending ? 'Saving…' : 'Save'}
             </Button>
           </div>
+        </section>
+
+        <section className="shrink-0 border-border border-b px-6 py-4">
+          <AgentViewPane scope={`/agents/${agent.id}`} />
         </section>
 
         <section className="flex min-h-0 flex-1 flex-col">

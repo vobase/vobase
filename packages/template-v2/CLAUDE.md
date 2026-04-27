@@ -125,6 +125,24 @@ Imported as `import { ... } from '@vobase/core'` so you never read `node_modules
 - helpers: `nanoidPrimaryKey`, `nextSequence`, `trackChanges`, `createHttpClient`, `buildReadOnlyConfig`, `signHmac`, `verifyHmacSignature`, `setPlatformRefresh`, `getPlatformRefresh`, `bootModules`, `journalAppend`, `journalGetLatestTurnIndex`, `journalGetLastWakeTail`
 - errors: `notFound`, `unauthorized`, `forbidden`, `conflict`, `validation`, `dbBusy`
 
+## CLI
+
+Tenants surface a verb catalog at `GET /api/cli/verbs`; the standalone binary at `packages/cli/bin/vobase.ts` walks the catalog and resolves verbs by longest-prefix match. Modules register verbs at `init` via `ctx.cli.register(defineCliVerb({...}))` (or `ctx.cli.registerAll([...])`). Bodies are pure with respect to transport — the same body runs in-process for the agent's bash sandbox and over HTTP-RPC for the binary.
+
+Flags like `--limit=10` are coerced to the JSON-Schema-declared types (`number`, `boolean`, comma-separated arrays) by the resolver before validation, so verb schemas can use strict `z.number()` / `z.boolean()` without `z.coerce.*`. Set `formatHint: 'table:cols=...' | 'json' | 'lines:field=path'` on each verb so the CLI's generic renderer produces useful output. `--json` always overrides the hint.
+
+Auth is API-key bearer with a browser device-grant flow for first-time login (`vobase auth login --url=https://acme.vobase.app`). Headless setups pass `--token=<key>` directly. Configs live at `~/.vobase/<config>.json` with the catalog cache next to them at `~/.vobase/<config>.cache.json`. Multiple tenants ⇒ multiple `--config` names from the same binary.
+
+## Defaults pattern
+
+Each module that ships starter content places it under `modules/<m>/defaults/`:
+
+- `*.skill.md` — markdown-frontmatter skill bodies. `vobase install --defaults` copies into `modules/<m>/skills/<name>.md` (skip if present; re-apply with `--upgrade`).
+- `*.agent.yaml` — agent-definition YAML with `{ organizationId, name, model?, instructions?, workingMemory?, enabled? }`. Inserts a row keyed on `name` (skip if a row with that name already exists in the org).
+- `*.schedule.yaml` — schedule YAML with `{ organizationId, agentId, slug, cron, timezone? }`. Inserts a row keyed on `(organizationId, agentId, slug)`.
+
+The verb is **opt-in** — boot does not auto-run defaults. `bun create vobase` runs it as the last provisioning step (with a `--no-defaults` opt-out). Dev iteration runs it on demand. The flow is **idempotent** under `--defaults`; `--upgrade` re-applies file content over file-origin rows. The full origin-aware refresh + `--prune` semantics will land alongside an `origin` column add in a follow-up slice.
+
 ## Commands
 
 - `docker compose up -d` — Postgres (pgvector/pg17, :5433)

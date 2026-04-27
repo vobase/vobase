@@ -22,6 +22,7 @@ import {
   CUSTOMER_CHANNEL_INSTANCE_ID,
   DEREK_CONTACT_ID,
   ELENA_CONTACT_ID,
+  LIAM_CONTACT_ID,
   MARCUS_CONTACT_ID,
   MERIDIAN_ORG_ID,
   PRIYA_CONTACT_ID,
@@ -44,6 +45,7 @@ export const ELENA_CONV_ID = 'cnv0elena0'
 export const ELENA_WEB_CONV_ID = 'cnv0elenweb'
 export const DEREK_CONV_ID = 'cnv0derek0'
 export const SOPHIA_CONV_ID = 'cnv0sophia'
+export const LIAM_CONV_ID = 'cnv00liam0'
 
 const AGENT_ASSIGNEE = `agent:${MERIDIAN_AGENT_ID}`
 const NOW = Date.now()
@@ -121,6 +123,7 @@ async function insertNote(
     authorId: string
     body: string
     mentions?: string[]
+    parentNoteId?: string
     createdAt: Date
   },
 ) {
@@ -133,6 +136,7 @@ async function insertNote(
       authorId: row.authorId,
       body: row.body,
       mentions: row.mentions ?? [],
+      parentNoteId: row.parentNoteId ?? null,
       createdAt: row.createdAt,
     })
     .onConflictDoNothing()
@@ -609,5 +613,222 @@ export async function seed(db: unknown): Promise<void> {
     type: 'conversation.snooze_expired',
     payload: { originalUntil: mins(20).toISOString() },
     ts: mins(20),
+  })
+
+  // ── 7. Liam — consult-human loop ──────────────────────────────────
+  // Customer asks a technical question Meridian can't answer alone. Agent
+  // mentions @bob in an internal note → notification is delivered to Bob's
+  // staff WhatsApp number → Bob replies via WA → that reply is recorded as
+  // an internal note authored by 'staff' with @meridian in mentions →
+  // supervisor wake fires → Meridian uses Bob's guidance to answer Liam.
+  // Meanwhile Meridian keeps the customer engaged with a holding reply +
+  // an information-gathering question so the wait is productive.
+  await insertConv(ins, {
+    id: LIAM_CONV_ID,
+    contactId: LIAM_CONTACT_ID,
+    channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
+    status: 'active',
+    assignee: AGENT_ASSIGNEE,
+    lastMessageAt: mins(25),
+  })
+
+  // T-65: customer's opening question
+  await insertMsg(ins, {
+    id: 'msg0liam01',
+    conversationId: LIAM_CONV_ID,
+    role: 'customer',
+    kind: 'text',
+    content: {
+      text: "Hey — we're seeing 503s on outbound webhooks to one of our partner endpoints. What's your retry policy, and is there a way to set a per-endpoint override?",
+    },
+    channelExternalId: 'web-liam-01',
+    createdAt: mins(65),
+  })
+
+  // T-64: Meridian's holding reply (acknowledge + ask for more info)
+  await insertMsg(ins, {
+    id: 'msg0liam02',
+    conversationId: LIAM_CONV_ID,
+    role: 'agent',
+    kind: 'text',
+    content: {
+      text: 'Hey Liam — looking into it. Quick q to keep things moving: which webhook IDs are failing, and are you seeing the 503 only on one partner or multiple?',
+    },
+    status: 'delivered',
+    createdAt: mins(64),
+  })
+
+  // T-63: Meridian @-mentions Bob via internal note (consult-human start)
+  await insertNote(ins, {
+    id: 'not0liam01',
+    conversationId: LIAM_CONV_ID,
+    authorType: 'agent',
+    authorId: MERIDIAN_AGENT_ID,
+    body: "@bob — Liam (FinSight, Pro) is hitting 503s on outbound webhooks. Standard exponential backoff applies, but he's asking if there's a per-endpoint override. Need your read on (a) retry policy details to share, (b) whether per-endpoint overrides are exposed today, (c) whether to honor `Retry-After`. I'll keep him engaged while we wait.",
+    mentions: [BOB_USER_ID],
+    createdAt: mins(63),
+  })
+
+  // T-63: notification dispatched to Bob's WhatsApp (system event so the
+  // activity timeline shows the staff received the ping out-of-band)
+  await insertActivity(ins, {
+    conversationId: LIAM_CONV_ID,
+    type: 'mention.notified',
+    payload: {
+      noteId: 'not0liam01',
+      userId: BOB_USER_ID,
+      channel: 'whatsapp',
+      channelInstanceId: 'chi0staff0',
+      externalIdentifier: '+6591110002',
+      // What Bob actually saw on his phone — quoted preview of the agent's note.
+      preview:
+        '🤖 Meridian mentioned you in a conversation with Liam Reyes (FinSight): "503s on outbound webhooks, asking about per-endpoint overrides…"',
+    },
+    ts: mins(63),
+  })
+
+  // T-50: customer responds with the requested debug info
+  await insertMsg(ins, {
+    id: 'msg0liam03',
+    conversationId: LIAM_CONV_ID,
+    role: 'customer',
+    kind: 'text',
+    content: {
+      text: 'Just one partner so far. Failing webhooks: wbk_p3a91f and wbk_p3a92e — both pointed at their /events endpoint. Their server returns 503 with a Retry-After header sometimes (~60s), other times no header.',
+    },
+    channelExternalId: 'web-liam-03',
+    createdAt: mins(50),
+  })
+
+  // T-49: Meridian keeps the customer engaged WHILE WAITING for Bob
+  await insertMsg(ins, {
+    id: 'msg0liam04',
+    conversationId: LIAM_CONV_ID,
+    role: 'agent',
+    kind: 'text',
+    content: {
+      text: "Got the IDs and the Retry-After detail — really helpful. I'm still consulting with our integrations lead on the override question; should have an answer shortly. While we wait: when the 503 fires without a Retry-After, are you currently retrying inline or queuing for a worker?",
+    },
+    status: 'delivered',
+    createdAt: mins(49),
+  })
+
+  // T-30: Bob replies via WhatsApp staff number — recorded as a staff
+  // internal note. The inbound webhook attaches @meridian to mentions so
+  // the supervisor wake fires off it.
+  await insertNote(ins, {
+    id: 'not0liam02',
+    conversationId: LIAM_CONV_ID,
+    authorType: 'staff',
+    authorId: BOB_USER_ID,
+    body: '@meridian — exponential backoff up to 5 attempts, base 30s, cap 5 min. We do not expose per-endpoint overrides yet (file as a feature request to @alice). For 503s WITH `Retry-After`, honor the header verbatim and skip our default schedule. WITHOUT the header, fall back to our default. If 5 attempts fail, dead-letter to the partner-webhook DLQ in Settings → Integrations → Logs.',
+    mentions: [MERIDIAN_AGENT_ID],
+    parentNoteId: 'not0liam01',
+    createdAt: mins(30),
+  })
+
+  // T-30: inbound channel event recording where the staff reply came from.
+  await insertActivity(ins, {
+    conversationId: LIAM_CONV_ID,
+    type: 'staff_reply.received',
+    payload: {
+      noteId: 'not0liam02',
+      authorUserId: BOB_USER_ID,
+      channel: 'whatsapp',
+      channelInstanceId: 'chi0staff0',
+      externalIdentifier: '+6591110002',
+      whatsappMessageId: 'wamid.HBgLNjU5MTExMDAwMjAVAgARGBI4QkE0RkVCNjQ3REM4RDM4',
+      // Echoes the format of the WA inbound payload after our adapter strips PII.
+      replyMode: 'reply_to_notification',
+    },
+    ts: mins(30),
+  })
+
+  // T-30: supervisor wake fires off Bob's note (this is what kicks Meridian
+  // back awake on the conversation; staff_signals.detectStaffSignals picks
+  // this up as a `supervisor` signal).
+  await insertActivity(ins, {
+    conversationId: LIAM_CONV_ID,
+    type: 'agent_wake.scheduled',
+    payload: {
+      trigger: 'supervisor',
+      noteId: 'not0liam02',
+      authorUserId: BOB_USER_ID,
+      reason: 'staff replied to outstanding consultation',
+    },
+    ts: mins(30),
+  })
+
+  // T-29: Meridian uses Bob's guidance to give Liam a definitive answer
+  await insertMsg(ins, {
+    id: 'msg0liam05',
+    conversationId: LIAM_CONV_ID,
+    role: 'agent',
+    kind: 'card',
+    content: {
+      card: {
+        type: 'card',
+        title: 'Webhook retry policy',
+        children: [
+          { type: 'text', style: 'body', content: 'Confirmed with our integrations lead:' },
+          {
+            type: 'fields',
+            items: [
+              { label: 'Schedule', value: 'Exponential backoff, 30s base, max 5 attempts, 5-min cap' },
+              { label: 'With Retry-After', value: 'Header honored verbatim; default schedule skipped' },
+              { label: 'Without Retry-After', value: 'Default schedule applies' },
+              { label: 'After 5 fails', value: 'Dead-letter → Settings → Integrations → Logs' },
+              { label: 'Per-endpoint overrides', value: 'Not exposed today (filed as a feature request)' },
+            ],
+          },
+          {
+            type: 'actions',
+            buttons: [
+              { id: 'liam-ack', label: 'Got it', value: 'ack' },
+              { id: 'liam-dlq', label: 'Show me the DLQ', value: 'dlq' },
+            ],
+          },
+        ],
+      },
+    },
+    status: 'delivered',
+    createdAt: mins(29),
+  })
+
+  // T-25: customer ack
+  await insertMsg(ins, {
+    id: 'msg0liam06',
+    conversationId: LIAM_CONV_ID,
+    role: 'customer',
+    kind: 'card_reply',
+    content: { buttonId: 'liam-ack', buttonValue: 'ack', buttonLabel: 'Got it' },
+    parentMessageId: 'msg0liam05',
+    channelExternalId: 'web-liam-06',
+    createdAt: mins(25),
+  })
+
+  // T-25: customer follow-up — "Retry-After tip is gold"
+  await insertMsg(ins, {
+    id: 'msg0liam07',
+    conversationId: LIAM_CONV_ID,
+    role: 'customer',
+    kind: 'text',
+    content: {
+      text: "Perfect — exactly what I needed. The Retry-After detail is gold; one of our partners does set it. I'll wire it up and ping back if anything else looks weird. Thanks for the fast turnaround!",
+    },
+    channelExternalId: 'web-liam-07',
+    createdAt: mins(25),
+  })
+
+  // Meridian's internal post-resolution note: capture the per-endpoint
+  // override as a feature request so Alice sees it on her queue.
+  await insertNote(ins, {
+    id: 'not0liam03',
+    conversationId: LIAM_CONV_ID,
+    authorType: 'agent',
+    authorId: MERIDIAN_AGENT_ID,
+    body: '@alice — per Bob, FYI: customers are starting to ask for per-endpoint webhook retry overrides. Liam (FinSight, Pro) is the second this month. Worth a /drive/BUSINESS.md mention or a roadmap line if/when planned.',
+    mentions: [ALICE_USER_ID],
+    createdAt: mins(24),
   })
 }

@@ -1,8 +1,16 @@
 /**
- * agents module seed — inserts the Meridian agent_definitions row.
+ * agents module seed — Meridian concierge + Sentinel operator + a realistic
+ * back-catalog of learning proposals, staff memory, scores, threads, and
+ * schedules so the /agents pages have something to show on a fresh `db:reset`.
+ *
+ * Cross-module dependencies:
+ *   - contacts/seed.ts must run first (auth.user rows + ALICE/BOB/CAROL).
+ *   - messaging/seed.ts must run AFTER this (it imports MERIDIAN_AGENT_ID).
+ *
+ * Idempotent — every insert is `ON CONFLICT DO NOTHING`.
  */
 
-import { MERIDIAN_ORG_ID } from '@modules/drive/seed'
+import { ALICE_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
 
 import { models } from './wake/models'
 
@@ -10,8 +18,22 @@ export { MERIDIAN_ORG_ID }
 
 /** Stable agent ID — consumed by messaging/seed and integration tests. */
 export const MERIDIAN_AGENT_ID = 'agt0mer0v1'
+/** Operator agent — drives the staff-facing daily brief + supervisor workflows. */
+export const SENTINEL_AGENT_ID = 'agt0sent0v1'
 
-const INSTRUCTIONS = `# Role
+/** Conversation IDs from messaging/seed — referenced here so learning proposals + scores anchor to real threads. */
+const PRIYA_CONV_ID = 'cnv0priya0'
+const MARCUS_CONV_ID = 'cnv0marcus'
+const ELENA_CONV_ID = 'cnv0elena0'
+const DEREK_CONV_ID = 'cnv0derek0'
+const SOPHIA_CONV_ID = 'cnv0sophia'
+
+const NOW = Date.now()
+const mins = (n: number) => new Date(NOW - n * 60_000)
+const hours = (n: number) => new Date(NOW - n * 3_600_000)
+const days = (n: number) => new Date(NOW - n * 86_400_000)
+
+const MERIDIAN_INSTRUCTIONS = `# Role
 
 You are the primary customer support agent for Meridian. \`/drive/BUSINESS.md\` carries the company you represent (brand voice, products, policies, escalation owners) — treat it as authoritative.
 
@@ -56,27 +78,71 @@ Use \`send_card\` for pricing, plan comparisons, refund confirmations, booking s
 - If unsure of a policy, \`grep -r <topic> /drive/\` before answering.
 - Learnings about this customer go in \`/contacts/<id>/MEMORY.md\` via \`vobase memory set … --scope=contact\`; learnings about yourself in \`/agents/<id>/MEMORY.md\` via \`vobase memory set …\`.`
 
+const SENTINEL_INSTRUCTIONS = `# Role
+
+You are Sentinel, an operator agent for Meridian staff. You drive the daily brief, watch for stale conversations, and surface anomalies in the support queue.
+
+## Scope
+
+- Generate the daily-brief card every morning (08:00 SGT).
+- Triage conversations idle > 24h and ask staff how to proceed.
+- Watch refund volume; flag when daily refund count exceeds the rolling 7-day average × 2.
+
+## Voice
+
+Operator-only. Direct, factual, numbers-first. Never address customers.
+
+## Tools allowlist
+
+\`messaging.list\`, \`memory.show\`, \`memory.append\`, \`subagent\`, \`vobase.*\` read-only verbs.`
+
+const MERIDIAN_WORKING_MEMORY = `# Lessons learned (Meridian, customer concierge)
+
+## Refund window
+- Always check \`/drive/BUSINESS.md#Policies\` for the active refund window before committing — it's 14 days, prorated after.
+- For refunds ≤ $100, draft a \`send_card\` and route to @carol; over $100, mention @alice as well.
+
+## Marcus / Northwind enterprise (2026-04)
+- 400-seat eval; SOC 2 Type II is on-request, not in default deck. Alice is gating the quote — never send pricing past $20/user without her approval.
+
+## Slack integration (recurring topic)
+- Filtering is per-channel under Settings → Integrations → Slack → Routing. Customers ask about this often — drop the link directly, no need to re-explain.
+`
+
+interface InsertOp {
+  values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }
+}
+type Inserter = (t: unknown) => InsertOp
+
 export async function seed(db: unknown): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
-  const { agentDefinitions } = await import('@modules/agents/schema')
+  const agentsSchema = await import('@modules/agents/schema')
+  const {
+    agentDefinitions,
+    agentScores,
+    agentStaffMemory,
+    agentThreadMessages,
+    agentThreads,
+    learnedSkills,
+    learningProposals,
+  } = agentsSchema
+  // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
+  const { agentSchedules } = await import('@modules/schedules/schema')
 
-  const d = db as {
-    insert: (t: unknown) => {
-      values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }
-    }
-  }
+  const d = db as { insert: Inserter }
+  const ins = d.insert.bind(d)
 
-  await d
-    .insert(agentDefinitions)
+  // ── 1. Agent definitions ────────────────────────────────────────────
+  await ins(agentDefinitions)
     .values({
       id: MERIDIAN_AGENT_ID,
       organizationId: MERIDIAN_ORG_ID,
       name: 'Meridian',
       role: 'concierge',
-      instructions: INSTRUCTIONS,
+      instructions: MERIDIAN_INSTRUCTIONS,
       model: models.gpt_standard,
       maxSteps: 20,
-      workingMemory: '',
+      workingMemory: MERIDIAN_WORKING_MEMORY,
       skillAllowlist: ['reply-with-card', 'de-escalate', 'cite-policy', 'escalate-to-human', 'save-customer-doc'],
       cardApprovalRequired: false,
       fileApprovalRequired: false,
@@ -84,4 +150,448 @@ export async function seed(db: unknown): Promise<void> {
       enabled: true,
     })
     .onConflictDoNothing()
+
+  await ins(agentDefinitions)
+    .values({
+      id: SENTINEL_AGENT_ID,
+      organizationId: MERIDIAN_ORG_ID,
+      name: 'Sentinel',
+      role: 'operator',
+      instructions: SENTINEL_INSTRUCTIONS,
+      model: models.gpt_standard,
+      maxSteps: 12,
+      workingMemory: '',
+      skillAllowlist: ['daily-brief', 'stale-triage'],
+      cardApprovalRequired: true,
+      fileApprovalRequired: true,
+      bookSlotApprovalRequired: true,
+      enabled: true,
+    })
+    .onConflictDoNothing()
+
+  // ── 2. Schedules — heartbeat for Sentinel + a stale-triage sweep ────
+  await ins(agentSchedules)
+    .values({
+      id: 'sch0bri0v1',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: SENTINEL_AGENT_ID,
+      slug: 'daily-brief',
+      cron: '0 8 * * 1-5',
+      timezone: 'Asia/Singapore',
+      enabled: true,
+      config: { notes: 'Operator daily brief — fires weekday mornings at 08:00 SGT.' },
+      lastTickAt: hours(20),
+    })
+    .onConflictDoNothing()
+
+  await ins(agentSchedules)
+    .values({
+      id: 'sch0tri0v1',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: SENTINEL_AGENT_ID,
+      slug: 'stale-triage',
+      cron: '*/15 * * * *',
+      timezone: 'UTC',
+      enabled: true,
+      config: { notes: 'Sweeps for conversations idle > 24h and posts a triage card to staff.' },
+      lastTickAt: mins(12),
+    })
+    .onConflictDoNothing()
+
+  await ins(agentSchedules)
+    .values({
+      id: 'sch0bkp0v1',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: SENTINEL_AGENT_ID,
+      slug: 'refund-volume-watch',
+      cron: '0 9 * * *',
+      timezone: 'Asia/Singapore',
+      enabled: false,
+      config: { notes: 'Disabled — under review pending /drive/BUSINESS.md policy update.' },
+      lastTickAt: days(3),
+    })
+    .onConflictDoNothing()
+
+  // ── 3. Learning proposals — full mix of statuses + scopes ───────────
+  await ins(learningProposals)
+    .values({
+      id: 'lpr0pen001',
+      organizationId: MERIDIAN_ORG_ID,
+      conversationId: MARCUS_CONV_ID,
+      wakeEventId: null,
+      scope: 'agent_skill',
+      action: 'create',
+      target: 'enterprise-quote-flow',
+      body: [
+        '# Enterprise quote flow',
+        '',
+        'When the customer signals 200+ seats AND asks about pricing:',
+        '1. Confirm seat count, geo, billing currency.',
+        '2. Pull last quote precedent from `/drive/quotes/`.',
+        '3. Draft a `send_card` with per-seat pricing, annual total, included features.',
+        '4. Mention `@alice` for approval before sending — never auto-send enterprise quotes.',
+      ].join('\n'),
+      rationale:
+        "Marcus's Northwind eval (400 seats) followed the same shape as the prior Acme Labs eval. Codifying it as a skill so the agent stops re-asking which staff member to mention.",
+      confidence: 0.82,
+      status: 'pending',
+      createdAt: hours(3),
+    })
+    .onConflictDoNothing()
+
+  await ins(learningProposals)
+    .values({
+      id: 'lpr0pen002',
+      organizationId: MERIDIAN_ORG_ID,
+      conversationId: ELENA_CONV_ID,
+      wakeEventId: null,
+      scope: 'contact',
+      action: 'patch',
+      target: 'ctt0elena0',
+      body: [
+        '## Elena Rossi — refund context (2026-04)',
+        '',
+        '- Reason for refund: product did not solve onboarding flow she needed.',
+        '- Inside the 14-day window; Carol approved full $12 refund.',
+        '- Alice queued comeback-discount copy — surface it if Elena returns within 90 days.',
+      ].join('\n'),
+      rationale:
+        "Capturing why Elena left so a future re-engagement attempt doesn't ask the same questions twice. Patch into existing notes, don't replace.",
+      confidence: 0.91,
+      status: 'pending',
+      createdAt: hours(1),
+    })
+    .onConflictDoNothing()
+
+  await ins(learningProposals)
+    .values({
+      id: 'lpr0pen003',
+      organizationId: MERIDIAN_ORG_ID,
+      conversationId: SOPHIA_CONV_ID,
+      wakeEventId: null,
+      scope: 'drive_doc',
+      action: 'patch',
+      target: '/drive/BUSINESS.md',
+      body: [
+        '## Audit log retention',
+        '',
+        '- Teams plan: 90 days (default).',
+        '- Enterprise plan: 12 months (default), upgradeable to 7 years on request.',
+        '- Mid-cycle upgrade Teams → Enterprise extends retention immediately for new events; backfill is best-effort within a 14-day window.',
+      ].join('\n'),
+      rationale:
+        "BUSINESS.md doesn't currently document audit-log retention by plan tier — Sophia's question went straight to Bob because the agent had no source to cite. Adding it removes one full reassignment loop.",
+      confidence: 0.74,
+      status: 'pending',
+      createdAt: mins(40),
+    })
+    .onConflictDoNothing()
+
+  await ins(learningProposals)
+    .values({
+      id: 'lpr0app001',
+      organizationId: MERIDIAN_ORG_ID,
+      conversationId: PRIYA_CONV_ID,
+      wakeEventId: null,
+      scope: 'agent_memory',
+      action: 'upsert',
+      target: 'slack-routing-link',
+      body: 'Customers asking about Slack notification filtering land here often. Direct them to Settings → Integrations → Slack → Routing without re-explaining the per-channel model.',
+      rationale: 'Approved by Alice — recurring topic identified across 4 conversations in the last 14 days.',
+      confidence: 0.94,
+      status: 'approved',
+      decidedByUserId: ALICE_USER_ID,
+      decidedAt: hours(18),
+      decidedNote: 'Good call — make sure the link 200s before promoting again.',
+      approvedWriteId: null,
+      createdAt: days(1),
+    })
+    .onConflictDoNothing()
+
+  await ins(learningProposals)
+    .values({
+      id: 'lpr0rej001',
+      organizationId: MERIDIAN_ORG_ID,
+      conversationId: DEREK_CONV_ID,
+      wakeEventId: null,
+      scope: 'agent_skill',
+      action: 'create',
+      target: 'auto-upgrade-pitch',
+      body: 'Whenever a free-plan customer asks about a Pro feature, immediately upsell with a 14-day trial card.',
+      rationale: "Pattern observed in Derek's Slack-integration question; auto-pitching could lift conversion.",
+      confidence: 0.61,
+      status: 'rejected',
+      decidedByUserId: ALICE_USER_ID,
+      decidedAt: hours(22),
+      decidedNote:
+        'No — pushy upsell on first contact is off-brand. Mention Pro features when asked, but never auto-pitch as a skill.',
+      approvedWriteId: null,
+      createdAt: days(1),
+    })
+    .onConflictDoNothing()
+
+  await ins(learningProposals)
+    .values({
+      id: 'lpr0aut001',
+      organizationId: MERIDIAN_ORG_ID,
+      conversationId: PRIYA_CONV_ID,
+      wakeEventId: null,
+      scope: 'contact',
+      action: 'patch',
+      target: 'ctt0priya0',
+      body: '## Comms preference\n\n- Concise > verbose. Slack-style replies.\n- Web > WhatsApp during work hours; WhatsApp for after-hours pings.',
+      rationale: 'Auto-promoted — high-confidence contact-scope memory inferred from the last 3 turns.',
+      confidence: 0.88,
+      status: 'auto_written',
+      decidedByUserId: null,
+      decidedAt: hours(8),
+      decidedNote: null,
+      approvedWriteId: null,
+      createdAt: hours(8),
+    })
+    .onConflictDoNothing()
+
+  // ── 4. Learned skills — ones that already shipped from approved proposals ──
+  await ins(learnedSkills)
+    .values({
+      id: 'lsk0sla001',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: MERIDIAN_AGENT_ID,
+      name: 'slack-routing-link',
+      description: 'Direct link + one-line answer for Slack notification filter questions.',
+      body: [
+        '# slack-routing-link',
+        '',
+        '**When**: customer asks about Slack notification filtering / noisy alerts / per-channel routing.',
+        '',
+        '**Reply**:',
+        '> Filters live under Settings → Integrations → Slack → Routing — pick which project events route to which Slack channel. [Direct link](https://app.meridian.com/settings/integrations/slack/routing).',
+      ].join('\n'),
+      tags: ['integrations', 'slack', 'routing'],
+      version: 1,
+      parentProposalId: 'lpr0app001',
+      createdAt: hours(17),
+    })
+    .onConflictDoNothing()
+
+  // ── 5. Agent staff memory — what Meridian knows about specific staff ──
+  await ins(agentStaffMemory)
+    .values({
+      id: 'asm0alice0',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: MERIDIAN_AGENT_ID,
+      staffId: ALICE_USER_ID,
+      content: [
+        '# Alice (Senior Customer Success)',
+        '',
+        '- Owns enterprise + escalation; route refund > $100 + procurement here.',
+        '- Prefers Slack-style replies in operator threads. Answer in 2–3 sentences.',
+        '- OOO Fridays after 1pm SGT — check her schedule before paging.',
+        '',
+        '## Recent context',
+        '- Drafting comeback-discount copy for Elena (refund flow, 2026-04).',
+        '- Gating Marcus / Northwind quote ($20/seat, 400 seats) before agent sends it.',
+      ].join('\n'),
+      createdAt: days(7),
+      updatedAt: hours(2),
+    })
+    .onConflictDoNothing()
+
+  await ins(agentStaffMemory)
+    .values({
+      id: 'asm0carol0',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: MERIDIAN_AGENT_ID,
+      staffId: CAROL_USER_ID,
+      content: [
+        '# Carol (Billing Lead)',
+        '',
+        '- Auto-approve authority on refunds ≤ SGD 500; never page for refunds inside this band.',
+        '- OOO Fridays — escalate billing items to @alice if Friday and Carol is unresponsive after 30 min.',
+        '- Prefers Stripe charge id + last-4 in the mention; she will not confirm without it.',
+      ].join('\n'),
+      createdAt: days(14),
+      updatedAt: hours(20),
+    })
+    .onConflictDoNothing()
+
+  // ── 6. Agent scores — quality signal across recent turns ────────────
+  for (const score of [
+    {
+      id: 'asc0pri001',
+      conversationId: PRIYA_CONV_ID,
+      wakeTurnIndex: 1,
+      scorer: 'card-fit',
+      score: 0.92,
+      rationale: 'Card-first reply with one-tap routing options matched the rubric.',
+      ts: mins(34),
+    },
+    {
+      id: 'asc0pri002',
+      conversationId: PRIYA_CONV_ID,
+      wakeTurnIndex: 2,
+      scorer: 'voice-match',
+      score: 0.86,
+      rationale: 'Tone matches /drive/BUSINESS.md — short, no jargon, customer name used.',
+      ts: mins(34),
+    },
+    {
+      id: 'asc0mar001',
+      conversationId: MARCUS_CONV_ID,
+      wakeTurnIndex: 1,
+      scorer: 'escalation-correctness',
+      score: 1.0,
+      rationale: 'Correctly held the quote for Alice approval rather than auto-sending.',
+      ts: mins(58),
+    },
+    {
+      id: 'asc0elen01',
+      conversationId: ELENA_CONV_ID,
+      wakeTurnIndex: 1,
+      scorer: 'policy-compliance',
+      score: 0.95,
+      rationale: 'Cited 14-day refund window from /drive/BUSINESS.md before committing.',
+      ts: mins(178),
+    },
+    {
+      id: 'asc0der001',
+      conversationId: DEREK_CONV_ID,
+      wakeTurnIndex: 1,
+      scorer: 'voice-match',
+      score: 0.78,
+      rationale: 'Reply was correct but slightly long — a card variant would have been tighter.',
+      ts: mins(1458),
+    },
+  ]) {
+    await ins(agentScores)
+      .values({
+        id: score.id,
+        organizationId: MERIDIAN_ORG_ID,
+        conversationId: score.conversationId,
+        wakeTurnIndex: score.wakeTurnIndex,
+        scorer: score.scorer,
+        score: score.score,
+        rationale: score.rationale,
+        model: models.gpt_standard,
+        createdAt: score.ts,
+      })
+      .onConflictDoNothing()
+  }
+
+  // ── 7. Operator agent threads — Alice working with Sentinel ─────────
+  await ins(agentThreads)
+    .values({
+      id: 'thd0brfgi1',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: SENTINEL_AGENT_ID,
+      createdBy: ALICE_USER_ID,
+      title: 'Daily brief 2026-04-26',
+      status: 'open',
+      lastTurnAt: hours(20),
+      createdAt: hours(20),
+      updatedAt: hours(20),
+    })
+    .onConflictDoNothing()
+
+  for (const msg of [
+    {
+      id: 'atm0brf001',
+      seq: 1,
+      role: 'system',
+      content: 'Heartbeat: daily-brief schedule fired at 08:00 SGT.',
+      payload: { trigger: 'heartbeat', scheduleId: 'sch0bri0v1' },
+      createdAt: hours(20),
+    },
+    {
+      id: 'atm0brf002',
+      seq: 2,
+      role: 'assistant',
+      content: [
+        '**Daily brief (2026-04-26)**',
+        '',
+        '- Resolved last 24h: **8** conversations.',
+        '- Open + idle > 24h: **2** — Sophia (audit-log Q, on Bob), and a stale Northwind follow-up (on Alice).',
+        '- Pending learning proposals waiting for review: **3** — `lpr0pen001` (enterprise-quote skill), `lpr0pen002` (Elena context), `lpr0pen003` (BUSINESS.md retention patch).',
+        '- Pending approvals: **2** — Marcus quote card, Elena refund card.',
+        '- Refund volume: **1** today (rolling 7d avg 0.7) — within tolerance.',
+      ].join('\n'),
+      payload: {},
+      createdAt: hours(20),
+    },
+    {
+      id: 'atm0brf003',
+      seq: 3,
+      role: 'user',
+      content: 'Thanks. Can you draft a stale-triage card for the Sophia thread? @bob is OOO until tomorrow.',
+      payload: { authorUserId: ALICE_USER_ID },
+      createdAt: hours(2),
+    },
+    {
+      id: 'atm0brf004',
+      seq: 4,
+      role: 'assistant',
+      content:
+        "Drafted. Routing the Sophia thread to you with a card asking whether to (a) hold for Bob (b) reply with a holding pattern, or (c) reassign to Carol who's covering integrations this week. The card's queued — `pnd0sop001`.",
+      payload: {},
+      createdAt: hours(2),
+    },
+  ]) {
+    await ins(agentThreadMessages)
+      .values({
+        id: msg.id,
+        threadId: 'thd0brfgi1',
+        seq: msg.seq,
+        role: msg.role,
+        content: msg.content,
+        payload: msg.payload,
+        createdAt: msg.createdAt,
+      })
+      .onConflictDoNothing()
+  }
+
+  await ins(agentThreads)
+    .values({
+      id: 'thd0refnd1',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: SENTINEL_AGENT_ID,
+      createdBy: CAROL_USER_ID,
+      title: 'Refund volume — Q2 trend',
+      status: 'closed',
+      lastTurnAt: days(3),
+      createdAt: days(3),
+      updatedAt: days(3),
+    })
+    .onConflictDoNothing()
+
+  for (const msg of [
+    {
+      id: 'atm0ref001',
+      seq: 1,
+      role: 'user',
+      content: 'How does April refund volume compare to Q1 monthly avg?',
+      payload: { authorUserId: CAROL_USER_ID },
+      createdAt: days(3),
+    },
+    {
+      id: 'atm0ref002',
+      seq: 2,
+      role: 'assistant',
+      content:
+        'Q1 monthly avg: 4.3 refunds, $61 total. April so far: 3 refunds, $42 total — pace tracks ~70% of Q1 avg, no anomaly. Two refunds were the same customer (different conversations) — flagged for dedup.',
+      payload: {},
+      createdAt: days(3),
+    },
+  ]) {
+    await ins(agentThreadMessages)
+      .values({
+        id: msg.id,
+        threadId: 'thd0refnd1',
+        seq: msg.seq,
+        role: msg.role,
+        content: msg.content,
+        payload: msg.payload,
+        createdAt: msg.createdAt,
+      })
+      .onConflictDoNothing()
+  }
 }

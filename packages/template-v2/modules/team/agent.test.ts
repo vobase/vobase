@@ -58,6 +58,7 @@ function makeMemoryStub(initial: Record<string, string>): StaffMemoryService {
     async upsert(key, content) {
       store.set(`${key.organizationId}/${key.agentId}/${key.staffId}`, content)
     },
+    listByStaff: () => Promise.resolve([]),
   }
 }
 

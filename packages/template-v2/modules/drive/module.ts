@@ -1,4 +1,5 @@
 import type { ModuleDef } from '~/runtime'
+import { driveVerbs } from './cli'
 import { setFilesDb } from './service/files'
 import { createProposalService, installProposalService } from './service/proposal'
 import * as web from './web'
@@ -10,6 +11,7 @@ const drive: ModuleDef = {
   init(ctx) {
     setFilesDb(ctx.db, ctx.auth)
     installProposalService(createProposalService({ organizationId: ctx.organizationId }))
+    ctx.cli.registerAll(driveVerbs)
   },
 }
 

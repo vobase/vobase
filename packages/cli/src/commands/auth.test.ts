@@ -82,7 +82,7 @@ describe('auth login', () => {
 
     expect(result.ok).toBe(true)
     expect(result.exitCode).toBe(0)
-    expect(opened).toBe('https://x.test/auth/cli-grant?code=g123')
+    expect(opened as string | null).toBe('https://x.test/auth/cli-grant?code=g123')
     expect(pollCalls).toBe(2)
     const cfg = await loadConfig({ flag: 'acme', home })
     expect(cfg).not.toBeNull()

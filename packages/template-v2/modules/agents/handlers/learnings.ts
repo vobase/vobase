@@ -1,6 +1,7 @@
 /** GET /api/agents/learnings — list pending learning proposals for staff review. */
 /** POST /api/agents/skills/:id/decide — staff approve / reject a learning proposal. */
 
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { decideProposal, listRecent } from '@modules/agents/service/learning-proposals'
 import { Hono } from 'hono'
@@ -12,9 +13,10 @@ const decideBodySchema = z.object({
   note: z.string().optional(),
 })
 
-const app = new Hono()
+const app = new Hono<OrganizationEnv>()
+  .use('/learnings', requireOrganization)
   .get('/learnings', async (c) => {
-    const organizationId = c.req.query('organizationId') ?? 'tenant_meridian'
+    const organizationId = c.get('organizationId')
     try {
       const proposals = await listRecent(organizationId, 'pending')
       return c.json(proposals)

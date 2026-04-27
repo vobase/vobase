@@ -1,4 +1,5 @@
 import type { ModuleDef } from '~/runtime'
+import { setResourcesDb, systemVerbs } from './cli'
 import handlers from './handlers'
 import { createSystemService, installSystemService } from './service'
 
@@ -9,6 +10,8 @@ const system: ModuleDef = {
   jobs: [],
   init(ctx) {
     installSystemService(createSystemService({ db: ctx.db }))
+    setResourcesDb(ctx.db)
+    ctx.cli.registerAll(systemVerbs)
   },
 }
 

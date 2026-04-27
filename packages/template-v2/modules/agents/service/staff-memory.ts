@@ -7,7 +7,7 @@
  * `staffMemory` diffs here on `agent_end`.
  */
 
-import { agentStaffMemory } from '@modules/agents/schema'
+import { agentDefinitions, agentStaffMemory } from '@modules/agents/schema'
 import { and, eq } from 'drizzle-orm'
 
 export interface StaffMemoryKey {
@@ -16,9 +16,17 @@ export interface StaffMemoryKey {
   staffId: string
 }
 
+export interface StaffMemoryEntry {
+  agentId: string
+  agentName: string
+  content: string
+}
+
 export interface StaffMemoryService {
   read(key: StaffMemoryKey): Promise<string>
   upsert(key: StaffMemoryKey, content: string): Promise<void>
+  /** Every (agent, staff) memory blob for one staff member, joined with the agent's display name. */
+  listByStaff(input: { organizationId: string; staffId: string }): Promise<StaffMemoryEntry[]>
 }
 
 interface StaffMemoryDeps {
@@ -58,7 +66,24 @@ export function createStaffMemoryService(deps: StaffMemoryDeps): StaffMemoryServ
       })
   }
 
-  return { read, upsert }
+  async function listByStaff(input: { organizationId: string; staffId: string }): Promise<StaffMemoryEntry[]> {
+    // biome-ignore lint/suspicious/noExplicitAny: drizzle scoped-db typing
+    const dbAny = db as any
+    const rows = (await dbAny
+      .select({
+        agentId: agentStaffMemory.agentId,
+        agentName: agentDefinitions.name,
+        content: agentStaffMemory.content,
+      })
+      .from(agentStaffMemory)
+      .innerJoin(agentDefinitions, eq(agentDefinitions.id, agentStaffMemory.agentId))
+      .where(
+        and(eq(agentStaffMemory.organizationId, input.organizationId), eq(agentStaffMemory.staffId, input.staffId)),
+      )) as StaffMemoryEntry[]
+    return rows
+  }
+
+  return { read, upsert, listByStaff }
 }
 
 let _current: StaffMemoryService | null = null
@@ -84,4 +109,11 @@ export function readStaffMemory(key: StaffMemoryKey): Promise<string> {
 
 export function upsertStaffMemory(key: StaffMemoryKey, content: string): Promise<void> {
   return current().upsert(key, content)
+}
+
+export function listStaffMemoryByStaff(input: {
+  organizationId: string
+  staffId: string
+}): Promise<StaffMemoryEntry[]> {
+  return current().listByStaff(input)
 }

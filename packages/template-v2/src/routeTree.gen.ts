@@ -40,7 +40,6 @@ import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pa
 import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
 import { Route as AgentsLearningsRouteImport } from './../modules/agents/pages/learnings'
 import { Route as AgentsIdRouteImport } from './../modules/agents/pages/$id'
-import { Route as ContactsViewsDotslugRouteImport } from './../modules/contacts/pages/views.$slug'
 import { Route as AgentsThreadsDotthreadIdRouteImport } from './../modules/agents/pages/threads.$threadId'
 
 const pagesTestWebRoute = pagesTestWebRouteImport.update({
@@ -200,11 +199,6 @@ const AgentsIdRoute = AgentsIdRouteImport.update({
   path: '/agents/$id',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
-const ContactsViewsDotslugRoute = ContactsViewsDotslugRouteImport.update({
-  id: '/contacts/views/$slug',
-  path: '/contacts/views/$slug',
-  getParentRoute: () => shellAppLayoutRoute,
-} as any)
 const AgentsThreadsDotthreadIdRoute =
   AgentsThreadsDotthreadIdRouteImport.update({
     id: '/agents/threads/$threadId',
@@ -243,7 +237,6 @@ export interface FileRoutesByFullPath {
   '/inbox/': typeof IndexRoute
   '/team/': typeof TeamIndexRoute
   '/agents/threads/$threadId': typeof AgentsThreadsDotthreadIdRoute
-  '/contacts/views/$slug': typeof ContactsViewsDotslugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof shellHomeRedirectRoute
@@ -275,7 +268,6 @@ export interface FileRoutesByTo {
   '/inbox': typeof IndexRoute
   '/team': typeof TeamIndexRoute
   '/agents/threads/$threadId': typeof AgentsThreadsDotthreadIdRoute
-  '/contacts/views/$slug': typeof ContactsViewsDotslugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -311,7 +303,6 @@ export interface FileRoutesById {
   '/_app/inbox/': typeof IndexRoute
   '/_app/team/': typeof TeamIndexRoute
   '/_app/agents/threads/$threadId': typeof AgentsThreadsDotthreadIdRoute
-  '/_app/contacts/views/$slug': typeof ContactsViewsDotslugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -346,7 +337,6 @@ export interface FileRouteTypes {
     | '/inbox/'
     | '/team/'
     | '/agents/threads/$threadId'
-    | '/contacts/views/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -378,7 +368,6 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/team'
     | '/agents/threads/$threadId'
-    | '/contacts/views/$slug'
   id:
     | '__root__'
     | '/_app'
@@ -413,7 +402,6 @@ export interface FileRouteTypes {
     | '/_app/inbox/'
     | '/_app/team/'
     | '/_app/agents/threads/$threadId'
-    | '/_app/contacts/views/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -642,13 +630,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsIdRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/contacts/views/$slug': {
-      id: '/_app/contacts/views/$slug'
-      path: '/contacts/views/$slug'
-      fullPath: '/contacts/views/$slug'
-      preLoaderRoute: typeof ContactsViewsDotslugRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
     '/_app/agents/threads/$threadId': {
       id: '/_app/agents/threads/$threadId'
       path: '/agents/threads/$threadId'
@@ -719,7 +700,6 @@ interface shellAppLayoutRouteChildren {
   DriveIndexRoute: typeof DriveIndexRoute
   TeamIndexRoute: typeof TeamIndexRoute
   AgentsThreadsDotthreadIdRoute: typeof AgentsThreadsDotthreadIdRoute
-  ContactsViewsDotslugRoute: typeof ContactsViewsDotslugRoute
 }
 
 const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
@@ -742,7 +722,6 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   DriveIndexRoute: DriveIndexRoute,
   TeamIndexRoute: TeamIndexRoute,
   AgentsThreadsDotthreadIdRoute: AgentsThreadsDotthreadIdRoute,
-  ContactsViewsDotslugRoute: ContactsViewsDotslugRoute,
 }
 
 const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(

@@ -29,6 +29,8 @@ export interface ResolveOpts {
   baseUrl: string
   apiKey: string
   format: Format
+  /** Pre-parsed flags from cac. Merged into the verb input alongside argv-derived flags. */
+  flags?: Record<string, unknown>
   /** Override fetch for tests. */
   fetcher?: typeof fetch
 }
@@ -108,6 +110,37 @@ export function parseArgs(args: readonly string[]): Record<string, unknown> {
   return out
 }
 
+/**
+ * Coerce string-typed flag values into the JSON-Schema-declared types so
+ * Zod's strict `z.number()` / `z.boolean()` schemas pass without each verb
+ * needing `z.coerce.*`. Schemas the CLI doesn't recognise pass through
+ * unchanged.
+ */
+export function coerceArgs(input: Record<string, unknown>, inputSchema: unknown): Record<string, unknown> {
+  if (!inputSchema || typeof inputSchema !== 'object') return input
+  const schema = inputSchema as { properties?: Record<string, { type?: string | string[] }> }
+  if (!schema.properties) return input
+  const out: Record<string, unknown> = { ...input }
+  for (const [key, prop] of Object.entries(schema.properties)) {
+    if (!(key in out)) continue
+    const raw = out[key]
+    if (typeof raw !== 'string') continue
+    const types = Array.isArray(prop.type) ? prop.type : prop.type ? [prop.type] : []
+    if (types.includes('number') || types.includes('integer')) {
+      const n = Number(raw)
+      if (Number.isFinite(n)) out[key] = n
+    } else if (types.includes('boolean')) {
+      if (raw === 'true') out[key] = true
+      else if (raw === 'false') out[key] = false
+    } else if (types.includes('array')) {
+      // Comma-separated list — JSON arrays could be passed as `--seg='["a","b"]'`,
+      // but the common UX is `--segments=qualified,vip`.
+      out[key] = raw.length === 0 ? [] : raw.split(',').map((s) => s.trim())
+    }
+  }
+  return out
+}
+
 /** Resolve the verb, dispatch, and format. */
 export async function resolve(opts: ResolveOpts): Promise<ResolveResult> {
   const match = matchVerb(opts.argv, opts.catalog)
@@ -119,7 +152,9 @@ export async function resolve(opts: ResolveOpts): Promise<ResolveResult> {
     }
   }
   const tail = opts.argv.slice(match.argsConsumed)
-  const input = parseArgs(tail)
+  const tailFlags = parseArgs(tail)
+  const merged = mergeFlags(tailFlags, opts.flags ?? {})
+  const input = coerceArgs(merged, match.verb.inputSchema)
 
   const result = (await httpRpc({
     baseUrl: opts.baseUrl,
@@ -158,6 +193,23 @@ export async function resolve(opts: ResolveOpts): Promise<ResolveResult> {
     output: `vobase ${match.verb.name}: ${payload.error}\n`,
     exitCode: 1,
   }
+}
+
+/**
+ * Merge cac-parsed flags into argv-derived flags. Reserved CLI flags
+ * (`--`, `-`, `--config`, `--json`, `--refresh`, `--help`, `--url`, `--token`)
+ * are stripped — they're CLI-level controls, not verb input.
+ */
+const RESERVED_FLAGS = new Set(['--', '-', 'config', 'json', 'refresh', 'help', 'url', 'token'])
+
+function mergeFlags(fromArgv: Record<string, unknown>, fromCac: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...fromArgv }
+  for (const [key, value] of Object.entries(fromCac)) {
+    if (RESERVED_FLAGS.has(key)) continue
+    if (value === undefined) continue
+    out[key] = value
+  }
+  return out
 }
 
 function unwrapVerbResult(value: unknown): { ok: true; data: unknown } | { ok: false; error: string } {

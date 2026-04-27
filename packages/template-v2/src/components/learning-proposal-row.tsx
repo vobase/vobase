@@ -64,27 +64,25 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
   return (
     <li className="space-y-3 px-5 py-4">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={cn('inline-flex items-center rounded border px-1.5 py-0.5 font-medium text-mini', scopeColor)}
-            >
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className={cn('inline-flex items-center rounded border px-1.5 py-0.5 font-medium', scopeColor)}>
               {SCOPE_LABELS[proposal.scope] ?? proposal.scope}
             </span>
-            <span className="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-mini text-muted-foreground">
-              {proposal.target}
-            </span>
-            <RelativeTimeCard date={proposal.createdAt} className="text-mini text-muted-foreground" />
+            <span className="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-muted-foreground">{proposal.target}</span>
+            <RelativeTimeCard date={proposal.createdAt} className="text-muted-foreground" />
           </div>
 
-          {proposal.body && <p className="line-clamp-3 text-foreground text-xs leading-relaxed">{proposal.body}</p>}
+          {proposal.body && <p className="line-clamp-3 text-foreground text-sm leading-relaxed">{proposal.body}</p>}
 
-          {proposal.rationale && <p className="text-mini text-muted-foreground italic">{proposal.rationale}</p>}
+          {proposal.rationale && (
+            <p className="text-muted-foreground text-xs italic leading-relaxed">{proposal.rationale}</p>
+          )}
 
           {proposal.confidence !== null && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-mini text-muted-foreground">Confidence:</span>
-              <span className="font-medium text-mini">{Math.round((proposal.confidence ?? 0) * 100)}%</span>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-muted-foreground">Confidence:</span>
+              <span className="font-medium">{Math.round(proposal.confidence * 100)}%</span>
             </div>
           )}
         </div>
@@ -135,14 +133,14 @@ export function LearningProposalRow({ proposal, onDecide }: Props) {
               setShowRejectForm(false)
               setRejectNote('')
             }}
-            className="px-2 py-1.5 text-mini text-muted-foreground hover:text-foreground"
+            className="px-2 py-1.5 text-muted-foreground text-xs hover:text-foreground"
           >
             Cancel
           </button>
         </div>
       )}
 
-      {error && <p className="text-destructive text-mini">{error}</p>}
+      {error && <p className="text-destructive text-xs">{error}</p>}
     </li>
   )
 }

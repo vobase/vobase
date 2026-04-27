@@ -158,6 +158,8 @@ describe('createScheduleTool', () => {
       setEnabled: () => Promise.resolve(),
       recordTick: () => Promise.resolve({ idempotencyKey: '', firstFire: false }),
       listEnabled: () => Promise.resolve([]),
+      listAll: () => Promise.resolve([]),
+      getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
     })
     const result = await createScheduleTool.execute({ slug: 'daily-brief', cron: '0 18 * * *' }, ctx())
@@ -176,6 +178,8 @@ describe('createScheduleTool', () => {
       setEnabled: () => Promise.resolve(),
       recordTick: () => Promise.resolve({ idempotencyKey: '', firstFire: false }),
       listEnabled: () => Promise.resolve([]),
+      listAll: () => Promise.resolve([]),
+      getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
     })
     await createScheduleTool.execute({ slug: 'other', cron: '0 8 * * *', agentId: 'agt0other' }, ctx())
@@ -196,6 +200,8 @@ describe('pauseScheduleTool', () => {
       },
       recordTick: () => Promise.resolve({ idempotencyKey: '', firstFire: false }),
       listEnabled: () => Promise.resolve([]),
+      listAll: () => Promise.resolve([]),
+      getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
     })
     const result = await pauseScheduleTool.execute({ scheduleId: 'sch1' }, ctx())
@@ -214,6 +220,8 @@ describe('pauseScheduleTool', () => {
       },
       recordTick: () => Promise.resolve({ idempotencyKey: '', firstFire: false }),
       listEnabled: () => Promise.resolve([]),
+      listAll: () => Promise.resolve([]),
+      getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
     })
     await pauseScheduleTool.execute({ scheduleId: 'sch2', enabled: true }, ctx())

@@ -85,6 +85,7 @@ async function run(verb: readonly string[], flags: CliFlags): Promise<number> {
     baseUrl: config.url,
     apiKey: config.apiKey,
     format: flags.json ? 'json' : 'human',
+    flags: flags as unknown as Record<string, unknown>,
   })
 
   if (result.ok) {
@@ -105,6 +106,9 @@ cli
   .option('--help', 'Show catalog-driven help (verb groups + verbs)')
   .option('--url <url>', 'Tenant base URL (auth login only)')
   .option('--token <key>', 'API key for headless login (auth login only)')
+  // Verb-specific flags (e.g. --limit, --scope) are catalog-driven and
+  // forwarded to the resolver via flags[name]; cac must not reject them.
+  .allowUnknownOptions()
   .action(async (verb: string[], flags: CliFlags) => {
     const exitCode = await run(verb, flags)
     process.exit(exitCode)

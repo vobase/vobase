@@ -4,12 +4,15 @@ import type { ProfileValues } from '@modules/settings/pages/schemas'
 import { profileSchema } from '@modules/settings/pages/schemas'
 import { useForm } from 'react-hook-form'
 
+import { AgentViewPane } from '@/components/agent-view-pane'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { useCurrentUserId } from '@/hooks/use-current-user'
 
 export default function ProfilePage() {
   const { mutate, isPending } = useSettingsSave('profile', profileSchema)
+  const userId = useCurrentUserId()
 
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
@@ -59,6 +62,8 @@ export default function ProfilePage() {
           </Button>
         </form>
       </Form>
+
+      {userId && <AgentViewPane scope={`/staff/${userId}`} />}
     </div>
   )
 }

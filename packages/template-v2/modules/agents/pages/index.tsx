@@ -8,7 +8,7 @@ import {
 import { MODEL_OPTIONS } from '@modules/agents/service/agent-definitions'
 import { DEFAULT_CHAT_MODEL } from '@modules/agents/wake/models'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Bot, MoreVertical, Plus } from 'lucide-react'
+import { Bot, MoreVertical, Plus, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { usePendingLearnings } from '@/hooks/use-pending-learnings'
 
 function AgentCard({ agent }: { agent: AgentDefinitionRow }) {
   const update = useUpdateAgent(agent.id)
@@ -163,7 +164,9 @@ function NewAgentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
 
 export function AgentsListPage() {
   const { data: agents = [], isLoading } = useAgentDefinitions()
+  const { data: pendingLearnings = [] } = usePendingLearnings()
   const [createOpen, setCreateOpen] = useState(false)
+  const pendingCount = pendingLearnings.length
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -174,10 +177,23 @@ export function AgentsListPage() {
             Agents configured for this organization. Toggle them on or off, or open one to edit.
           </p>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 size-4" />
-          New agent
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link to="/agents/learnings">
+              <Sparkles className="mr-1 size-4" />
+              Learnings
+              {pendingCount > 0 && (
+                <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-xs">
+                  {pendingCount}
+                </Badge>
+              )}
+            </Link>
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1 size-4" />
+            New agent
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-auto p-6">

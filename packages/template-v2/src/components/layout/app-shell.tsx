@@ -1,6 +1,6 @@
 import { useUnreadMentionCount } from '@modules/team/hooks/use-unread-mentions'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Bot, FolderTree, HardDrive, Inbox, Radio, Settings, UserCog, Users } from 'lucide-react'
+import { Bot, HardDrive, Inbox, Radio, Settings, UserCog, Users } from 'lucide-react'
 import type * as React from 'react'
 
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -26,7 +26,6 @@ interface NavItemDef {
 
 const PRIMARY_NAV: NavItemDef[] = [
   { icon: Inbox, label: 'Inbox', to: '/inbox', enabled: true },
-  { icon: FolderTree, label: 'Workspace', to: '/workspace', enabled: true },
   { icon: Users, label: 'Contacts', to: '/contacts', enabled: true },
   { icon: Bot, label: 'Agents', to: '/agents', enabled: true },
   { icon: HardDrive, label: 'Drive', to: '/drive', enabled: true },

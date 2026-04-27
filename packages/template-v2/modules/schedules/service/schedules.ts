@@ -35,6 +35,32 @@ export interface SchedulesService {
   }): Promise<
     Array<{ id: string; agentId: string; slug: string; cron: string; timezone: string; lastTickAt: Date | null }>
   >
+  /** All schedules (enabled + disabled) for an org — used by the operator-facing CLI list verb. */
+  listAll(input: { organizationId: string }): Promise<
+    Array<{
+      id: string
+      agentId: string
+      slug: string
+      cron: string
+      timezone: string
+      enabled: boolean
+      lastTickAt: Date | null
+    }>
+  >
+  /** Single-row read — returned by the CLI enable/disable verbs to confirm the new state. */
+  getById(scheduleId: string): Promise<
+    | {
+        id: string
+        organizationId: string
+        agentId: string
+        slug: string
+        cron: string
+        timezone: string
+        enabled: boolean
+        lastTickAt: Date | null
+      }
+    | undefined
+  >
   /** All enabled schedules across every org — used by the global cron-tick driver. */
   listAllEnabled(): Promise<
     Array<{
@@ -128,6 +154,39 @@ export function createSchedulesService(deps: SchedulesServiceDeps): SchedulesSer
         .from(agentSchedules)
         .where(eq(agentSchedules.enabled, true))
     },
+
+    listAll({ organizationId }) {
+      return db
+        .select({
+          id: agentSchedules.id,
+          agentId: agentSchedules.agentId,
+          slug: agentSchedules.slug,
+          cron: agentSchedules.cron,
+          timezone: agentSchedules.timezone,
+          enabled: agentSchedules.enabled,
+          lastTickAt: agentSchedules.lastTickAt,
+        })
+        .from(agentSchedules)
+        .where(eq(agentSchedules.organizationId, organizationId))
+    },
+
+    async getById(scheduleId) {
+      const rows = await db
+        .select({
+          id: agentSchedules.id,
+          organizationId: agentSchedules.organizationId,
+          agentId: agentSchedules.agentId,
+          slug: agentSchedules.slug,
+          cron: agentSchedules.cron,
+          timezone: agentSchedules.timezone,
+          enabled: agentSchedules.enabled,
+          lastTickAt: agentSchedules.lastTickAt,
+        })
+        .from(agentSchedules)
+        .where(eq(agentSchedules.id, scheduleId))
+        .limit(1)
+      return rows[0]
+    },
   }
 }
 
@@ -148,5 +207,7 @@ export const schedules = {
   setEnabled: (input: { scheduleId: string; enabled: boolean }) => current().setEnabled(input),
   recordTick: (input: RecordTickInput) => current().recordTick(input),
   listEnabled: (input: { organizationId: string }) => current().listEnabled(input),
+  listAll: (input: { organizationId: string }) => current().listAll(input),
+  getById: (scheduleId: string) => current().getById(scheduleId),
   listAllEnabled: () => current().listAllEnabled(),
 }

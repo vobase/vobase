@@ -43,7 +43,7 @@ async function dispatchInProcess(registry: CliVerbRegistry, name: string, input:
 
 async function dispatchHttp(registry: CliVerbRegistry, name: string, input: unknown) {
   const verb = registry.list().find((v) => v.name === name)
-  if (!verb) throw new Error(`no verb ${name}`)
+  if (!verb?.route) throw new Error(`no verb ${name}`)
   const app = new Hono()
   app.route('/api/cli', createCliDispatchRoute({ registry, resolveContext: () => ctx }))
   const res = await app.request(verb.route, {
