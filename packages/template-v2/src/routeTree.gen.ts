@@ -39,7 +39,6 @@ import { Route as ApprovalsRouteImport } from './../modules/messaging/pages/appr
 import { Route as ContactIdRouteImport } from './../modules/messaging/pages/$contactId'
 import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pages/attributes'
 import { Route as ContactsIdRouteImport } from './../modules/contacts/pages/$id'
-import { Route as AgentsLearningsRouteImport } from './../modules/agents/pages/learnings'
 import { Route as AgentsIdRouteImport } from './../modules/agents/pages/$id'
 import { Route as AgentsThreadsDotthreadIdRouteImport } from './../modules/agents/pages/threads.$threadId'
 
@@ -196,11 +195,6 @@ const ContactsIdRoute = ContactsIdRouteImport.update({
   path: '/contacts/$id',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
-const AgentsLearningsRoute = AgentsLearningsRouteImport.update({
-  id: '/agents/learnings',
-  path: '/agents/learnings',
-  getParentRoute: () => shellAppLayoutRoute,
-} as any)
 const AgentsIdRoute = AgentsIdRouteImport.update({
   id: '/agents/$id',
   path: '/agents/$id',
@@ -223,7 +217,6 @@ export interface FileRoutesByFullPath {
   '/changes': typeof DotDotModulesChangesPagesIndexRoute
   '/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/agents/$id': typeof AgentsIdRoute
-  '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/contacts/attributes': typeof ContactsAttributesRoute
   '/inbox/$contactId': typeof ContactIdRoute
@@ -255,7 +248,6 @@ export interface FileRoutesByTo {
   '/changes': typeof DotDotModulesChangesPagesIndexRoute
   '/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/agents/$id': typeof AgentsIdRoute
-  '/agents/learnings': typeof AgentsLearningsRoute
   '/contacts/$id': typeof ContactsIdRoute
   '/contacts/attributes': typeof ContactsAttributesRoute
   '/inbox/$contactId': typeof ContactIdRoute
@@ -291,7 +283,6 @@ export interface FileRoutesById {
   '/_app/changes': typeof DotDotModulesChangesPagesIndexRoute
   '/_app/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/_app/agents/$id': typeof AgentsIdRoute
-  '/_app/agents/learnings': typeof AgentsLearningsRoute
   '/_app/contacts/$id': typeof ContactsIdRoute
   '/_app/contacts/attributes': typeof ContactsAttributesRoute
   '/_app/inbox/$contactId': typeof ContactIdRoute
@@ -326,7 +317,6 @@ export interface FileRouteTypes {
     | '/changes'
     | '/channels'
     | '/agents/$id'
-    | '/agents/learnings'
     | '/contacts/$id'
     | '/contacts/attributes'
     | '/inbox/$contactId'
@@ -358,7 +348,6 @@ export interface FileRouteTypes {
     | '/changes'
     | '/channels'
     | '/agents/$id'
-    | '/agents/learnings'
     | '/contacts/$id'
     | '/contacts/attributes'
     | '/inbox/$contactId'
@@ -393,7 +382,6 @@ export interface FileRouteTypes {
     | '/_app/changes'
     | '/_app/channels'
     | '/_app/agents/$id'
-    | '/_app/agents/learnings'
     | '/_app/contacts/$id'
     | '/_app/contacts/attributes'
     | '/_app/inbox/$contactId'
@@ -636,13 +624,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactsIdRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/agents/learnings': {
-      id: '/_app/agents/learnings'
-      path: '/agents/learnings'
-      fullPath: '/agents/learnings'
-      preLoaderRoute: typeof AgentsLearningsRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
     '/_app/agents/$id': {
       id: '/_app/agents/$id'
       path: '/agents/$id'
@@ -710,7 +691,6 @@ interface shellAppLayoutRouteChildren {
   DotDotModulesChangesPagesIndexRoute: typeof DotDotModulesChangesPagesIndexRoute
   DotDotModulesChannelsPagesIndexRoute: typeof DotDotModulesChannelsPagesIndexRoute
   AgentsIdRoute: typeof AgentsIdRoute
-  AgentsLearningsRoute: typeof AgentsLearningsRoute
   ContactsIdRoute: typeof ContactsIdRoute
   ContactsAttributesRoute: typeof ContactsAttributesRoute
   TeamUserIdRoute: typeof TeamUserIdRoute
@@ -733,7 +713,6 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   DotDotModulesChangesPagesIndexRoute: DotDotModulesChangesPagesIndexRoute,
   DotDotModulesChannelsPagesIndexRoute: DotDotModulesChannelsPagesIndexRoute,
   AgentsIdRoute: AgentsIdRoute,
-  AgentsLearningsRoute: AgentsLearningsRoute,
   ContactsIdRoute: ContactsIdRoute,
   ContactsAttributesRoute: ContactsAttributesRoute,
   TeamUserIdRoute: TeamUserIdRoute,

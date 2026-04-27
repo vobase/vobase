@@ -1,5 +1,6 @@
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
+import { errorHandler } from '@vobase/core'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -32,5 +33,6 @@ const app = new Hono<OrganizationEnv>()
       return c.json({ ok: true, ...result })
     },
   )
+  .onError(errorHandler)
 
 export default app

@@ -4,8 +4,10 @@ import { createChangeProposalsService, installChangeProposalsService } from './s
 
 const changes: ModuleDef = {
   name: 'changes',
-  requires: ['messaging', 'agents'],
-  web: { routes: { basePath: '/api/changes', handler: handlers } },
+  // `messaging` only — `agents` is a type-only import (`AgentEvent`) and would
+  // form a cycle since `agents` requires `changes` to register its materializers.
+  requires: ['messaging'],
+  web: { routes: { basePath: '/api/changes', handler: handlers, requireSession: true } },
   jobs: [],
   init(ctx) {
     installChangeProposalsService(createChangeProposalsService({ db: ctx.db, realtime: ctx.realtime }))
