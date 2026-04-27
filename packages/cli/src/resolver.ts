@@ -154,7 +154,17 @@ export async function resolve(opts: ResolveOpts): Promise<ResolveResult> {
   const tail = opts.argv.slice(match.argsConsumed)
   const tailFlags = parseArgs(tail)
   const merged = mergeFlags(tailFlags, opts.flags ?? {})
-  const input = coerceArgs(merged, match.verb.inputSchema)
+  let withBody: Record<string, unknown>
+  try {
+    withBody = await resolveBodyFrom(merged)
+  } catch (err) {
+    return {
+      ok: false,
+      output: `vobase ${match.verb.name}: ${err instanceof Error ? err.message : String(err)}\n`,
+      exitCode: 1,
+    }
+  }
+  const input = coerceArgs(withBody, match.verb.inputSchema)
 
   const result = (await httpRpc({
     baseUrl: opts.baseUrl,
@@ -209,6 +219,30 @@ function mergeFlags(fromArgv: Record<string, unknown>, fromCac: Record<string, u
     if (value === undefined) continue
     out[key] = value
   }
+  return out
+}
+
+/**
+ * Client-side `--body-from <path>` resolution. The agent's in-process transport
+ * doesn't go through this resolver — agents inline file content with bash
+ * command substitution instead.
+ */
+async function resolveBodyFrom(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const raw = input['body-from'] ?? input.bodyFrom
+  if (raw === undefined) return input
+  if (typeof raw !== 'string' || raw.length === 0) {
+    throw new Error("--body-from requires a file path (e.g. '--body-from=/tmp/draft.md')")
+  }
+  let body: string
+  try {
+    body = await Bun.file(raw).text()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`--body-from: cannot read ${raw}: ${message}`)
+  }
+  const out: Record<string, unknown> = { ...input, body }
+  delete out['body-from']
+  delete out.bodyFrom
   return out
 }
 

@@ -196,4 +196,59 @@ describe('resolve', () => {
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.output).toContain('"id": "c1"')
   })
+
+  it('reads --body-from <path> at execution and submits the file content as `body`', async () => {
+    const path = `/tmp/vobase-cli-body-from-${Date.now()}.md`
+    const content = '# Draft\n\nThis is a draft body.\n'
+    await Bun.write(path, content)
+
+    let capturedBody = ''
+    const fetcher = ((_input: unknown, init?: RequestInit) => {
+      capturedBody = (init?.body as string) ?? ''
+      return Promise.resolve(
+        new Response(JSON.stringify({ ok: true, data: { id: 'p1' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }) as unknown as typeof fetch
+
+    const r = await resolve({
+      argv: ['contacts', 'show', '--body-from', path, '--field=notes'],
+      catalog,
+      baseUrl: 'https://x',
+      apiKey: 'k',
+      format: 'human',
+      fetcher,
+    })
+    expect(r.ok).toBe(true)
+
+    const sent = JSON.parse(capturedBody) as Record<string, unknown>
+    expect(sent.body).toBe(content)
+    expect(sent['body-from']).toBeUndefined()
+    expect(sent.bodyFrom).toBeUndefined()
+    expect(sent.field).toBe('notes')
+
+    // Best-effort cleanup; ignore failures since /tmp gets purged anyway.
+    try {
+      await Bun.file(path).delete()
+    } catch {}
+  })
+
+  it('errors when --body-from points at a missing file', async () => {
+    const r = await resolve({
+      argv: ['contacts', 'show', '--body-from', '/tmp/definitely-does-not-exist.md'],
+      catalog,
+      baseUrl: 'https://x',
+      apiKey: 'k',
+      format: 'human',
+      fetcher: fetcherReturning(200, { ok: true, data: null }),
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.output).toContain('--body-from')
+      expect(r.output).toContain('cannot read')
+      expect(r.exitCode).toBe(1)
+    }
+  })
 })

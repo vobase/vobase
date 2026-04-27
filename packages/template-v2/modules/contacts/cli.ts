@@ -1,16 +1,9 @@
-/**
- * `vobase contacts {list,show,update}` verb registrations.
- *
- * Verb bodies route through the singleton service exports — same path the
- * agent's wake harness uses, so in-process and HTTP-RPC transports converge
- * on identical behavior. The CLI binary's generic table renderer reads
- * `formatHint` from the catalog; output shape stays JSON-compatible for
- * `--json` mode.
- */
-
+import type { ChangedByKind } from '@modules/changes/schema'
+import { insertProposal } from '@modules/changes/service/proposals'
 import { defineCliVerb } from '@vobase/core'
 import { z } from 'zod'
 
+import { CONTACT_RESOURCE } from './service/changes'
 import * as contactsSvc from './service/contacts'
 
 export const contactsListVerb = defineCliVerb({
@@ -89,4 +82,93 @@ export const contactsUpdateVerb = defineCliVerb({
   formatHint: 'json',
 })
 
-export const contactsVerbs = [contactsListVerb, contactsShowVerb, contactsUpdateVerb] as const
+const proposeChangeInput = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('markdown_patch'),
+    type: z.literal('contact').default('contact'),
+    id: z.string().min(1),
+    field: z.string().min(1),
+    mode: z.enum(['append', 'replace']).default('append'),
+    body: z.string().min(1, 'markdown_patch requires --body or --body-from'),
+    confidence: z.number().min(0).max(1).optional(),
+    rationale: z.string().optional(),
+  }),
+  z.object({
+    kind: z.literal('field_set'),
+    type: z.literal('contact').default('contact'),
+    id: z.string().min(1),
+    field: z.string().min(1),
+    from: z.string().optional(),
+    to: z.string({ error: 'field_set requires --to' }),
+    confidence: z.number().min(0).max(1).optional(),
+    rationale: z.string().optional(),
+  }),
+])
+
+export const contactsProposeChangeVerb = defineCliVerb({
+  name: 'contacts propose-change',
+  description: 'Propose a change to a contact (markdown_patch on notes/profile, or field_set on scalars/attributes).',
+  input: proposeChangeInput,
+  body: async ({ input, ctx }) => {
+    try {
+      const existing = await contactsSvc.get(input.id)
+      if (existing.organizationId !== ctx.organizationId) {
+        return { ok: false as const, error: 'contact not in this organization', errorCode: 'forbidden' }
+      }
+      const payload =
+        input.kind === 'markdown_patch'
+          ? ({ kind: 'markdown_patch', mode: input.mode, field: input.field, body: input.body } as const)
+          : ({
+              kind: 'field_set',
+              fields: { [input.field]: { from: parseScalar(input.from), to: parseScalar(input.to) } },
+            } as const)
+      const result = await insertProposal({
+        organizationId: ctx.organizationId,
+        resourceModule: CONTACT_RESOURCE.module,
+        resourceType: input.type,
+        resourceId: input.id,
+        payload,
+        changedBy: ctx.principal.id,
+        changedByKind: principalToChangedByKind(ctx.principal.kind),
+        confidence: input.confidence,
+        rationale: input.rationale,
+      })
+      return { ok: true as const, data: result }
+    } catch (err) {
+      return {
+        ok: false as const,
+        error: err instanceof Error ? err.message : String(err),
+        errorCode: 'propose_failed',
+      }
+    }
+  },
+  formatHint: 'json',
+})
+
+/** apikey principals are typically held by humans/CI — record as 'user' until ChangedByKind grows. */
+function principalToChangedByKind(kind: 'user' | 'agent' | 'apikey'): ChangedByKind {
+  switch (kind) {
+    case 'agent':
+      return 'agent'
+    case 'user':
+    case 'apikey':
+      return 'user'
+  }
+}
+
+/** Lets `--to qualified` and `--to '["qualified","vip"]'` both work without a separate JSON flag. */
+function parseScalar(raw: string | undefined): unknown {
+  if (raw === undefined) return undefined
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return raw
+  }
+}
+
+export const contactsVerbs = [
+  contactsListVerb,
+  contactsShowVerb,
+  contactsUpdateVerb,
+  contactsProposeChangeVerb,
+] as const

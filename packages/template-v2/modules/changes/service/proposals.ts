@@ -152,6 +152,7 @@ export interface ChangeProposalsService {
     note?: string,
   ): Promise<DecideResult>
   listInbox(organizationId: string, limit?: number): Promise<ChangeProposalRow[]>
+  recordChange(input: RecordChangeInput): Promise<{ id: string }>
   setRealtime(handle: RealtimeService | null): void
 }
 
@@ -326,6 +327,10 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     insertProposal,
     decideChangeProposal,
     listInbox,
+    async recordChange(input: RecordChangeInput): Promise<{ id: string }> {
+      const id = await writeHistoryRow(db, input)
+      return { id }
+    },
     setRealtime(handle) {
       realtime = handle
     },
@@ -400,18 +405,6 @@ async function emitJournalIfConversation(
   )
 }
 
-/**
- * Sanctioned write path into `change_history`. The decide path calls this
- * internally; CRUD handlers in other modules call this directly (without
- * `appliedProposalId`) to record direct admin edits. The `check:shape` rule
- * blocks any other path into the table.
- */
-export async function recordChange(db: unknown, input: RecordChangeInput): Promise<{ id: string }> {
-  const handle = db as DrizzleHandle
-  const id = await writeHistoryRow(handle, input)
-  return { id }
-}
-
 // ─── Module-scoped install + port-shim free functions ────────────────────────
 
 let _service: ChangeProposalsService | null = null
@@ -446,6 +439,11 @@ export function decideChangeProposal(
 
 export function listInbox(organizationId: string, limit?: number): Promise<ChangeProposalRow[]> {
   return current().listInbox(organizationId, limit)
+}
+
+/** Sanctioned write path into `change_history`. `check:shape` blocks any other path. */
+export function recordChange(input: RecordChangeInput): Promise<{ id: string }> {
+  return current().recordChange(input)
 }
 
 export type { ChangeHistoryRow, ChangeProposalRow }
