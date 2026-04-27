@@ -13,6 +13,7 @@ import { Route as pagesTestWebRouteImport } from './pages/test-web'
 import { Route as shellAuthLayoutRouteImport } from './shell/auth/layout'
 import { Route as shellAppLayoutRouteImport } from './shell/app-layout'
 import { Route as DotDotModulesChannelsPagesIndexRouteImport } from './../modules/channels/pages/index'
+import { Route as DotDotModulesChangesPagesIndexRouteImport } from './../modules/changes/pages/index'
 import { Route as pagesChatDotchannelInstanceIdRouteImport } from './pages/chat.$channelInstanceId'
 import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
 import { Route as shellMessagingRedirectRouteImport } from './shell/messaging-redirect'
@@ -59,6 +60,12 @@ const DotDotModulesChannelsPagesIndexRoute =
   DotDotModulesChannelsPagesIndexRouteImport.update({
     id: '/channels',
     path: '/channels',
+    getParentRoute: () => shellAppLayoutRoute,
+  } as any)
+const DotDotModulesChangesPagesIndexRoute =
+  DotDotModulesChangesPagesIndexRouteImport.update({
+    id: '/changes',
+    path: '/changes',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
 const pagesChatDotchannelInstanceIdRoute =
@@ -213,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/messaging': typeof shellMessagingRedirectRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
+  '/changes': typeof DotDotModulesChangesPagesIndexRoute
   '/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
@@ -244,6 +252,7 @@ export interface FileRoutesByTo {
   '/messaging': typeof shellMessagingRedirectRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
+  '/changes': typeof DotDotModulesChangesPagesIndexRoute
   '/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/agents/$id': typeof AgentsIdRoute
   '/agents/learnings': typeof AgentsLearningsRoute
@@ -279,6 +288,7 @@ export interface FileRoutesById {
   '/_app/messaging': typeof shellMessagingRedirectRoute
   '/_app/settings': typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
+  '/_app/changes': typeof DotDotModulesChangesPagesIndexRoute
   '/_app/channels': typeof DotDotModulesChannelsPagesIndexRoute
   '/_app/agents/$id': typeof AgentsIdRoute
   '/_app/agents/learnings': typeof AgentsLearningsRoute
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/messaging'
     | '/settings'
     | '/chat/$channelInstanceId'
+    | '/changes'
     | '/channels'
     | '/agents/$id'
     | '/agents/learnings'
@@ -344,6 +355,7 @@ export interface FileRouteTypes {
     | '/messaging'
     | '/settings'
     | '/chat/$channelInstanceId'
+    | '/changes'
     | '/channels'
     | '/agents/$id'
     | '/agents/learnings'
@@ -378,6 +390,7 @@ export interface FileRouteTypes {
     | '/_app/messaging'
     | '/_app/settings'
     | '/chat/$channelInstanceId'
+    | '/_app/changes'
     | '/_app/channels'
     | '/_app/agents/$id'
     | '/_app/agents/learnings'
@@ -439,6 +452,13 @@ declare module '@tanstack/react-router' {
       path: '/channels'
       fullPath: '/channels'
       preLoaderRoute: typeof DotDotModulesChannelsPagesIndexRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_app/changes': {
+      id: '/_app/changes'
+      path: '/changes'
+      fullPath: '/changes'
+      preLoaderRoute: typeof DotDotModulesChangesPagesIndexRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
     '/chat/$channelInstanceId': {
@@ -687,6 +707,7 @@ interface shellAppLayoutRouteChildren {
   DotDotModulesMessagingPagesLayoutRoute: typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   shellMessagingRedirectRoute: typeof shellMessagingRedirectRoute
   DotDotModulesSettingsPagesLayoutRoute: typeof DotDotModulesSettingsPagesLayoutRouteWithChildren
+  DotDotModulesChangesPagesIndexRoute: typeof DotDotModulesChangesPagesIndexRoute
   DotDotModulesChannelsPagesIndexRoute: typeof DotDotModulesChannelsPagesIndexRoute
   AgentsIdRoute: typeof AgentsIdRoute
   AgentsLearningsRoute: typeof AgentsLearningsRoute
@@ -709,6 +730,7 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   shellMessagingRedirectRoute: shellMessagingRedirectRoute,
   DotDotModulesSettingsPagesLayoutRoute:
     DotDotModulesSettingsPagesLayoutRouteWithChildren,
+  DotDotModulesChangesPagesIndexRoute: DotDotModulesChangesPagesIndexRoute,
   DotDotModulesChannelsPagesIndexRoute: DotDotModulesChannelsPagesIndexRoute,
   AgentsIdRoute: AgentsIdRoute,
   AgentsLearningsRoute: AgentsLearningsRoute,

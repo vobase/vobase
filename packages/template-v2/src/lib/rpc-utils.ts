@@ -20,6 +20,7 @@
  */
 
 import type { LearningProposal } from '@modules/agents/schema'
+import type { ChangeProposalRow } from '@modules/changes/schema'
 import type { Contact } from '@modules/contacts/schema'
 import type { Conversation, PendingApproval } from '@modules/messaging/schema'
 
@@ -61,6 +62,7 @@ const CONVERSATION_DATE_KEYS = [
   'resolvedAt',
 ] as const satisfies ReadonlyArray<keyof Conversation>
 const LEARNING_DATE_KEYS = ['createdAt', 'decidedAt'] as const satisfies ReadonlyArray<keyof LearningProposal>
+const CHANGE_PROPOSAL_DATE_KEYS = ['createdAt', 'decidedAt'] as const satisfies ReadonlyArray<keyof ChangeProposalRow>
 
 export function hydrateContact(row: object): Contact {
   return hydrateDates<Contact>(row, CONTACT_DATE_KEYS)
@@ -76,4 +78,8 @@ export function hydrateConversation(row: object): Conversation {
 
 export function hydrateLearningProposal(row: object): LearningProposal {
   return hydrateDates<LearningProposal>(row, LEARNING_DATE_KEYS)
+}
+
+export function hydrateChangeProposal(row: object): ChangeProposalRow {
+  return hydrateDates<ChangeProposalRow>(row, CHANGE_PROPOSAL_DATE_KEYS)
 }

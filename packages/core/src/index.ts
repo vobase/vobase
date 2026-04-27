@@ -28,6 +28,7 @@ export type {
   RevokeApiKey,
   VerifyApiKey,
 } from './contracts/auth'
+export type { ChangePayload, ChangePayloadKind, JsonPatchOp } from './contracts/changes'
 export type {
   ChannelAdapter,
   ChannelCapabilities,

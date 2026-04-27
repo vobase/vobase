@@ -206,6 +206,27 @@ export type LearningRejectedEvent = BaseEvent & {
   reason: string
 }
 
+// ─── Change-proposal events ────────────────────────────────────────────────
+// Generic counterpart to LearningProposed/Approved/Rejected. Coexist during
+// slice A/B; the Learning* literals are removed in slice C.
+
+export type ChangeProposedEvent = BaseEvent & {
+  type: 'change_proposed'
+  proposalId: string
+  resourceModule: string
+  resourceType: string
+}
+export type ChangeApprovedEvent = BaseEvent & {
+  type: 'change_approved'
+  proposalId: string
+  writeId: string
+}
+export type ChangeRejectedEvent = BaseEvent & {
+  type: 'change_rejected'
+  proposalId: string
+  reason: string
+}
+
 // ─── Budget / abort / cache events ──────────────────────────────────────────
 
 export type BudgetWarningEvent = BaseEvent & {
@@ -298,6 +319,9 @@ export type AgentEvent =
   | LearningProposedEvent
   | LearningApprovedEvent
   | LearningRejectedEvent
+  | ChangeProposedEvent
+  | ChangeApprovedEvent
+  | ChangeRejectedEvent
   | ModerationBlockedEvent
   | ScorerRecordedEvent
   | ChannelInboundAgentEvent

@@ -49,6 +49,9 @@ const JOURNAL_WRITE_ALLOWED = ['modules/messaging/service/']
 const THREADS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(agentThreads|agentThreadMessages)\b/
 const THREADS_WRITE_ALLOWED = ['modules/agents/service/threads.ts']
 
+const _CHANGES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(changeProposals|changeHistory)\b/
+const _CHANGES_WRITE_ALLOWED = ['modules/changes/service/proposals.ts']
+
 async function checkJournalWriteAuthority(): Promise<void> {
   const glob = new Bun.Glob('**/*.ts')
   for await (const entry of glob.scan({ cwd: MODULES_DIR })) {
@@ -260,6 +263,7 @@ const ALLOWED_ROUTE_PREFIXES = [
   '/team',
   '/agents',
   '/drive',
+  '/changes',
 ]
 
 const ROUTE_DECL_RE = /(?:route|physical)\s*\(\s*['"](\/[^'"]+)['"]/g

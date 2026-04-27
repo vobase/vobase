@@ -64,6 +64,12 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
+    // Change-proposal lifecycle (created / auto_written / approved / rejected)
+    if (payload.table === 'change_proposals') {
+      queryClient.invalidateQueries({ queryKey: ['change_proposals'] })
+      return
+    }
+
     // Drive file mutations — broad invalidate; the 'drive' key covers both
     // tree listings and file reads under our DriveProvider.
     if (payload.table === 'drive_files' || payload.table === 'drive.files') {
