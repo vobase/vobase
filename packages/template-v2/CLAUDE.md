@@ -58,7 +58,9 @@ Modules that aggregate multiple pluggable implementations behind one capability 
 
 **One write path.** Every mutation happens inside that module's `service/` layer, inside a transaction that also appends to `conversation_events`. Handlers, jobs, and tools never touch tables directly. Why: the dual-write problem (mutate + emit event in two places) is the single largest source of inconsistency bugs in helpdesk systems.
 
-For the `messages` and `conversation_events` tables specifically, the rule is structurally enforced by `check:shape`: only `modules/messaging/service/**` may `.insert/update/delete()` them. Cross-module callers (e.g. `agents/service/learning-proposals.ts`) route through the typed `appendJournalEvent` wrapper exported from `@modules/messaging/service/journal` — it constrains the event to the `AgentEvent` discriminated union and auto-extracts non-reserved fields into the `payload` JSONB column.
+For the `messages` and `conversation_events` tables specifically, the rule is structurally enforced by `check:shape`: only `modules/messaging/service/**` may `.insert/update/delete()` them. Cross-module callers route through the typed `appendJournalEvent` wrapper exported from `@modules/messaging/service/journal` — it constrains the event to the `AgentEvent` discriminated union and auto-extracts non-reserved fields into the `payload` JSONB column.
+
+For mutations that staff or agents should review (or that need a tamper-evident edit history), wire the resource into the generic `modules/changes/` umbrella by registering a materializer for the `(resourceModule, resourceType)` pair. The four-file recipe — materializer, registration in `module.ts:init`, propose-change CLI verb, `recordChange` in CRUD handlers — and payload conventions per `kind` are documented in `.claude/skills/auditable-resource/SKILL.md`. Same `check:shape` enforcement: only `modules/changes/service/proposals.ts` may write `change_proposals` / `change_history`. Canonical example is `modules/contacts/`.
 
 ## Data conventions
 
