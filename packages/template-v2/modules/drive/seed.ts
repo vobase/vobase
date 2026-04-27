@@ -5,7 +5,7 @@
  * Other files contain concise placeholder content.
  */
 
-import { MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { MARCUS_CONTACT_ID, MERIDIAN_ORG_ID, PRIYA_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
 
 export { MERIDIAN_ORG_ID }
@@ -232,6 +232,51 @@ export async function seed(db: unknown): Promise<void> {
       })
       .onConflictDoNothing()
   }
+
+  // Contact-scope drive files — surface in `<AgentViewPane>` under each
+  // contact detail page so staff see what files the agent has on that contact.
+  await d
+    .insert(driveFiles)
+    .values({
+      id: 'drv0marcus1',
+      organizationId: MERIDIAN_ORG_ID,
+      scope: 'contact',
+      scopeId: MARCUS_CONTACT_ID,
+      kind: 'file',
+      name: 'contract.md',
+      path: '/contract.md',
+      parentFolderId: null,
+      mimeType: 'text/markdown',
+      extractedText:
+        '# Northwind Enterprise Contract\n\n' +
+        '- Seats: 8\n- ARR: $84,000 (8 × $10.5k)\n- Signed: 2026-04-26 via DocuSign\n- MSA reference: NWS-2026-04-26\n\n' +
+        '## Discount approvals\nPer-seat discounts > 10% require Carol; > 20% require Alice.',
+      source: 'staff_uploaded',
+      processingStatus: 'ready',
+    })
+    .onConflictDoNothing()
+
+  await d
+    .insert(driveFiles)
+    .values({
+      id: 'drv0priya01',
+      organizationId: MERIDIAN_ORG_ID,
+      scope: 'contact',
+      scopeId: PRIYA_CONTACT_ID,
+      kind: 'file',
+      name: 'preferences.md',
+      path: '/preferences.md',
+      parentFolderId: null,
+      mimeType: 'text/markdown',
+      extractedText:
+        '# Priya Raman — communication preferences\n\n' +
+        '- Prefers Mandarin replies for code-related questions\n' +
+        '- Response window expected: < 2h during SGT business hours\n' +
+        '- Loves bullet-point summaries; dislikes long prose\n',
+      source: 'staff_uploaded',
+      processingStatus: 'ready',
+    })
+    .onConflictDoNothing()
 }
 
 function parentPathOf(path: string): string | null {

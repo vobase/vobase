@@ -6,6 +6,11 @@ export interface RealtimePayload {
   table: string
   id?: string
   action?: string
+  /** Present on `change_proposals` events so the hook can fan out to the affected target's query keys. */
+  resourceModule?: string
+  resourceType?: string
+  resourceId?: string
+  conversationId?: string | null
 }
 
 /**
@@ -58,9 +63,33 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
-    // Change-proposal lifecycle (created / auto_written / approved / rejected)
+    // Change-proposal lifecycle (created / auto_written / approved / rejected).
+    // Fan out to the affected downstream cache so the page that owns the
+    // mutated resource (Drive tree, contact card, agent skills, agent memory)
+    // refreshes without a manual reload.
     if (payload.table === 'change_proposals') {
       queryClient.invalidateQueries({ queryKey: ['change_proposals'] })
+      const decided = payload.action === 'approved' || payload.action === 'auto_written'
+      if (decided) {
+        if (payload.resourceModule === 'drive') {
+          queryClient.invalidateQueries({ queryKey: ['drive'] })
+        } else if (payload.resourceModule === 'contacts') {
+          queryClient.invalidateQueries({ queryKey: ['contacts'] })
+          if (payload.resourceId) {
+            queryClient.invalidateQueries({ queryKey: ['contact', payload.resourceId] })
+            queryClient.invalidateQueries({ queryKey: ['agent-view', `/contacts/${payload.resourceId}`] })
+          }
+        } else if (payload.resourceModule === 'agents') {
+          queryClient.invalidateQueries({ queryKey: ['agents'] })
+          if (payload.resourceId) {
+            queryClient.invalidateQueries({ queryKey: ['agent', payload.resourceId] })
+            queryClient.invalidateQueries({ queryKey: ['agent-view', `/agents/${payload.resourceId}`] })
+          }
+        }
+      }
+      if (payload.conversationId) {
+        queryClient.invalidateQueries({ queryKey: ['activity', payload.conversationId] })
+      }
       return
     }
 

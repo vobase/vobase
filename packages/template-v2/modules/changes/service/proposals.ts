@@ -168,10 +168,21 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
   const db = deps.db as DrizzleHandle
   let realtime: RealtimeService | null = deps.realtime ?? null
 
-  function fireNotify(id: string, action: 'created' | 'auto_written' | 'approved' | 'rejected'): void {
+  function fireNotify(
+    p: Pick<ChangeProposalRow, 'id' | 'resourceModule' | 'resourceType' | 'resourceId' | 'conversationId'>,
+    action: 'created' | 'auto_written' | 'approved' | 'rejected',
+  ): void {
     if (!realtime) return
     try {
-      realtime.notify({ table: 'change_proposals', id, action })
+      realtime.notify({
+        table: 'change_proposals',
+        id: p.id,
+        action,
+        resourceModule: p.resourceModule,
+        resourceType: p.resourceType,
+        resourceId: p.resourceId,
+        conversationId: p.conversationId,
+      })
     } catch {
       // notify is best-effort — never fail the decide path on a NOTIFY error
     }
@@ -205,7 +216,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
 
     if (reg.requiresApproval) {
       await db.insert(changeProposals).values(proposal).returning()
-      fireNotify(id, 'created')
+      fireNotify(proposal, 'created')
       return { id, status }
     }
 
@@ -228,7 +239,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
       await tx.update(changeProposals).set({ appliedHistoryId: historyId }).where(eq(changeProposals.id, id))
     })
 
-    fireNotify(id, 'auto_written')
+    fireNotify(proposal, 'auto_written')
     return { id, status }
   }
 
@@ -252,14 +263,14 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
 
     if (decision === 'rejected') {
       await applyRejection(id, result, decidedByUserId, note ?? 'staff_rejected')
-      fireNotify(id, 'rejected')
+      fireNotify(result, 'rejected')
       return { id, status: 'rejected', appliedHistoryId: null }
     }
 
     const scan = await runThreatScan(result.payload)
     if (!scan.ok) {
       await applyRejection(id, result, decidedByUserId, 'threat_scan')
-      fireNotify(id, 'rejected')
+      fireNotify(result, 'rejected')
       return { id, status: 'rejected', appliedHistoryId: null }
     }
 
@@ -297,7 +308,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
       return hid
     })
 
-    fireNotify(id, 'approved')
+    fireNotify(result, 'approved')
     return { id, status: 'approved', appliedHistoryId: historyId }
   }
 

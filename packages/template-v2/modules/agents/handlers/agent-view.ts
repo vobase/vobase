@@ -1,15 +1,21 @@
 /**
  * GET /api/agents/:id/agent-view — returns the materialized files for an
- * agent: AGENTS.md (instructions), MEMORY.md (working memory), and one
- * `/skills/<name>.md` per learned skill (real body) or per allowlisted
- * name (placeholder). Learned skills with `agent_id = NULL` (org-floating
- * post-approval rows) are surfaced too.
+ * agent: AGENTS.md (instructions), MEMORY.md (working memory), one
+ * `/skills/<name>.md` per learned skill (real body) or per allowlisted name
+ * (placeholder), AND any real drive files persisted under
+ * `scope='agent', scope_id=:id` (drive_doc proposals approved against this
+ * agent write here).
+ *
+ * Learned skills with `agent_id = NULL` (org-floating post-approval rows)
+ * are surfaced too.
  */
 
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import * as agentDefs from '@modules/agents/service/agent-definitions'
 import { listSkillsForAgent } from '@modules/agents/service/changes'
 import type { AgentViewFile, AgentViewResponse } from '@modules/contacts/handlers/agent-view'
+import type { DriveFile } from '@modules/drive/schema'
+import { filesServiceFor } from '@modules/drive/service/files'
 import { Hono } from 'hono'
 
 const app = new Hono<OrganizationEnv>().use('*', requireOrganization).get('/:id/agent-view', async (c) => {
@@ -51,10 +57,41 @@ const app = new Hono<OrganizationEnv>().use('*', requireOrganization).get('/:id/
         content: skill.body || `Skill "${skill.name}" — empty body.`,
       })
     }
+    await collectAgentDriveFiles(organizationId, id, files)
     return c.json({ scope: `/agents/${id}`, files } satisfies AgentViewResponse)
   } catch {
     return c.json({ error: 'not_found' }, 404)
   }
 })
+
+/**
+ * Walks the agent's drive scope depth-first, appending real (non-virtual)
+ * file rows with non-empty extracted text. Folders are descended into but
+ * not surfaced as their own entries.
+ */
+async function collectAgentDriveFiles(organizationId: string, agentId: string, out: AgentViewFile[]): Promise<void> {
+  const drive = filesServiceFor(organizationId)
+  const scope = { scope: 'agent' as const, agentId }
+
+  async function walk(parentId: string | null): Promise<void> {
+    const rows = await drive.listFolder(scope, parentId)
+    for (const row of rows) {
+      if (isVirtualOverlay(row)) continue
+      if (row.kind === 'folder') {
+        await walk(row.id)
+        continue
+      }
+      const content = row.extractedText ?? ''
+      if (content.length === 0) continue
+      out.push({ path: row.path, title: row.path.replace(/^\//, ''), content })
+    }
+  }
+
+  await walk(null)
+}
+
+function isVirtualOverlay(row: DriveFile): boolean {
+  return row.id.startsWith('virtual:')
+}
 
 export default app

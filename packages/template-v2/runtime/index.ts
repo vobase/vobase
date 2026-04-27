@@ -56,8 +56,24 @@ export type Tx = unknown
 
 // ─── Realtime ───────────────────────────────────────────────────────────────
 
+/**
+ * Realtime NOTIFY payload. `table` / `id` / `action` are the canonical fields
+ * every emitter sets; resource-aware events (notably `change_proposals`)
+ * additionally carry `resourceModule` / `resourceType` / `resourceId` /
+ * `conversationId` so the client realtime hook can fan out to downstream caches.
+ */
+export interface NotifyPayload {
+  table: string
+  id?: string
+  action?: string
+  resourceModule?: string
+  resourceType?: string
+  resourceId?: string
+  conversationId?: string | null
+}
+
 export interface RealtimeService {
-  notify(payload: { table: string; id?: string; action?: string }, tx?: Tx): void
+  notify(payload: NotifyPayload, tx?: Tx): void
   subscribe(fn: (payload: string) => void): () => void
 }
 
