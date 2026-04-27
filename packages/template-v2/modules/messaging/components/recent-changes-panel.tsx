@@ -1,30 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
+import { useChangeProposalsInbox } from '@modules/changes/hooks/use-change-inbox'
 
 import { RelativeTimeCard } from '@/components/ui/relative-time'
-import { changesClient } from '@/lib/api-client'
-import { hydrateChangeProposal } from '@/lib/rpc-utils'
 
 interface RecentChangesPanelProps {
   conversationId: string
 }
 
-/**
- * Pending change proposals tied to this conversation. Filtered client-side from
- * the global inbox so the panel reuses the existing query cache without a
- * conversation-scoped endpoint.
- */
+/** Conversation-scoped slice of the global inbox — filtered client-side so we
+ *  inherit the shared query cache (rail badge / /changes page / this panel all
+ *  share one fetch). */
 export function RecentChangesPanel({ conversationId }: RecentChangesPanelProps) {
-  const { data: proposals = [] } = useQuery({
-    queryKey: ['change_proposals', 'inbox'],
-    queryFn: async () => {
-      const res = await changesClient.inbox.$get()
-      if (!res.ok) throw new Error('Failed to fetch change proposals')
-      const body = await res.json()
-      return Array.isArray(body) ? body.map(hydrateChangeProposal) : []
-    },
-    refetchInterval: 30_000,
-  })
-
+  const { data: proposals = [] } = useChangeProposalsInbox()
   const recent = proposals.filter((p) => p.conversationId === conversationId)
 
   if (recent.length === 0) {

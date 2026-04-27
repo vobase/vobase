@@ -1,6 +1,7 @@
+import { usePendingChangesCount } from '@modules/changes/hooks/use-change-inbox'
 import { useUnreadMentionCount } from '@modules/team/hooks/use-unread-mentions'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Bot, HardDrive, Inbox, Radio, Settings, UserCog, Users } from 'lucide-react'
+import { Bot, GitPullRequestArrow, HardDrive, Inbox, Radio, Settings, UserCog, Users } from 'lucide-react'
 import type * as React from 'react'
 
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -29,6 +30,7 @@ const PRIMARY_NAV: NavItemDef[] = [
   { icon: Users, label: 'Contacts', to: '/contacts', enabled: true },
   { icon: Bot, label: 'Agents', to: '/agents', enabled: true },
   { icon: HardDrive, label: 'Drive', to: '/drive', enabled: true },
+  { icon: GitPullRequestArrow, label: 'Pending changes', to: '/changes', enabled: true },
 ]
 
 const ADMIN_NAV: NavItemDef[] = [
@@ -85,6 +87,13 @@ function AppShell({ children }: AppShellProps) {
   useStaffHeartbeat()
   useMentionBrowserNotifications()
   const { data: unreadMentions } = useUnreadMentionCount()
+  const pendingChanges = usePendingChangesCount()
+
+  function badgeFor(to: string): number | undefined {
+    if (to === '/inbox') return unreadMentions ?? 0
+    if (to === '/changes') return pendingChanges
+    return undefined
+  }
 
   return (
     <TooltipProvider>
@@ -93,14 +102,13 @@ function AppShell({ children }: AppShellProps) {
           aria-label="Main navigation"
           className="flex w-14 shrink-0 flex-col items-center border-border border-r bg-sidebar py-3"
         >
-          {/* Vobase logo */}
           <div className="mb-3 flex size-10 items-center justify-center">
             <span className="font-bold font-mono text-foreground text-mini tracking-widest">VB</span>
           </div>
 
           <nav aria-label="Module navigation" className="flex flex-col items-center gap-0.5">
             {PRIMARY_NAV.map((item) => (
-              <RailItem key={item.to} {...item} badgeCount={item.to === '/inbox' ? (unreadMentions ?? 0) : undefined} />
+              <RailItem key={item.to} {...item} badgeCount={badgeFor(item.to)} />
             ))}
           </nav>
 

@@ -1,16 +1,21 @@
+import { parseDiffFromFile } from '@pierre/diffs'
+import { FileDiff } from '@pierre/diffs/react'
 import type { ChangePayload, JsonPatchOp } from '@vobase/core'
-import { createTwoFilesPatch } from 'diff'
+import { useMemo } from 'react'
 
+import { pluralize } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 interface Props {
   payload: ChangePayload
+  /** Optional resource id used as the file label inside the diff header. */
+  resourceLabel?: string
   className?: string
 }
 
-export function DiffView({ payload, className }: Props) {
+export function DiffView({ payload, resourceLabel, className }: Props) {
   if (payload.kind === 'markdown_patch') {
-    return <MarkdownPatchView payload={payload} className={className} />
+    return <MarkdownPatchView payload={payload} resourceLabel={resourceLabel} className={className} />
   }
   if (payload.kind === 'field_set') {
     return <FieldSetView payload={payload} className={className} />
@@ -18,59 +23,55 @@ export function DiffView({ payload, className }: Props) {
   return <JsonPatchView payload={payload} className={className} />
 }
 
-// ─── markdown_patch ─────────────────────────────────────────────────────────
-
 function MarkdownPatchView({
   payload,
+  resourceLabel,
   className,
 }: {
   payload: Extract<ChangePayload, { kind: 'markdown_patch' }>
+  resourceLabel?: string
   className?: string
 }) {
-  if (payload.mode === 'append') {
-    // Append-mode: show only the appended chunk, prefixed with `+`.
-    const lines = payload.body.split('\n')
-    return (
-      <pre
-        className={cn(
-          'whitespace-pre-wrap rounded border border-success/20 bg-success/5 p-2 font-mono text-xs',
-          className,
-        )}
-      >
-        <span className="text-muted-foreground">{`Append to ${payload.field}:\n`}</span>
-        {lines.map((line, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: append chunk lines are positionally stable
-          <span key={i} className="text-success">{`+ ${line}\n`}</span>
-        ))}
-      </pre>
-    )
-  }
+  const fileName = resourceLabel?.endsWith('.md') ? resourceLabel : `${payload.field}.md`
+  const lineCount = useMemo(() => payload.body.split('\n').length, [payload.body])
+  // The proposal payload doesn't carry the prior body, so we synthesize a patch
+  // against an empty before-state — both append and replace render as pure
+  // additions. parseDiffFromFile auto-derives a combined cacheKey from old/new
+  // cacheKeys, so the worker pool reuses highlighting across re-renders.
+  const fileDiff = useMemo(
+    () =>
+      parseDiffFromFile(
+        { name: fileName, contents: '', cacheKey: `${fileName}:empty` },
+        { name: fileName, contents: payload.body, cacheKey: `${fileName}:${payload.body.length}` },
+        { context: 3 },
+      ),
+    [fileName, payload.body],
+  )
 
-  // Replace-mode: render a unified-diff against an empty before-state.
-  // The proposal payload doesn't carry the prior body — UI consumers compute
-  // the patch from the live resource if they want a true before/after diff.
-  // For now, treat replace as "set field to body" with a header.
-  const patch = createTwoFilesPatch(payload.field, payload.field, '', payload.body, 'before', 'after')
   return (
-    <pre
-      className={cn('whitespace-pre-wrap rounded border border-border bg-muted/30 p-2 font-mono text-xs', className)}
-    >
-      {patch.split('\n').map((line, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: patch lines are positionally stable
-        <span key={i} className={lineClass(line)}>{`${line}\n`}</span>
-      ))}
-    </pre>
+    <div className={cn('overflow-hidden rounded-md border border-border bg-card', className)}>
+      <div className="flex items-center gap-2 border-border border-b bg-muted/30 px-3 py-1.5 text-xs">
+        <span className="rounded bg-success/15 px-1.5 py-0.5 font-medium text-[10px] text-success uppercase tracking-wide">
+          {payload.mode}
+        </span>
+        <span className="font-mono text-muted-foreground">{fileName}</span>
+        <span className="ml-auto text-muted-foreground">{pluralize(lineCount, 'line')}</span>
+      </div>
+      <div className="max-h-[480px] overflow-auto bg-background">
+        <FileDiff
+          fileDiff={fileDiff}
+          options={{
+            diffStyle: 'unified',
+            diffIndicators: 'classic',
+            disableFileHeader: true,
+            theme: { light: 'pierre-light', dark: 'pierre-dark' },
+            themeType: 'system',
+          }}
+        />
+      </div>
+    </div>
   )
 }
-
-function lineClass(line: string): string {
-  if (line.startsWith('+') && !line.startsWith('+++')) return 'text-success'
-  if (line.startsWith('-') && !line.startsWith('---')) return 'text-destructive'
-  if (line.startsWith('@@')) return 'text-info font-semibold'
-  return 'text-muted-foreground'
-}
-
-// ─── field_set ──────────────────────────────────────────────────────────────
 
 function FieldSetView({
   payload,
@@ -84,34 +85,54 @@ function FieldSetView({
     return <p className={cn('text-muted-foreground text-xs italic', className)}>No fields changed</p>
   }
   return (
-    <table className={cn('w-full text-xs', className)}>
-      <thead>
-        <tr className="border-border border-b text-left text-muted-foreground">
-          <th className="px-2 py-1 font-medium">Field</th>
-          <th className="px-2 py-1 font-medium">From</th>
-          <th className="px-2 py-1 font-medium">To</th>
-        </tr>
-      </thead>
-      <tbody>
-        {fields.map(([key, change]) => (
-          <tr key={key} className="border-border border-b last:border-0">
-            <td className="px-2 py-1.5 font-mono">{key}</td>
-            <td className="px-2 py-1.5 font-mono text-muted-foreground line-through">{renderValue(change.from)}</td>
-            <td className="px-2 py-1.5 font-mono text-success">{renderValue(change.to)}</td>
+    <div className={cn('overflow-hidden rounded-md border border-border bg-card', className)}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-border border-b bg-muted/30 text-left text-muted-foreground text-xs">
+            <th className="px-3 py-2 font-medium">Field</th>
+            <th className="px-3 py-2 font-medium">From</th>
+            <th className="px-3 py-2 font-medium">To</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {fields.map(([key, change]) => (
+            <tr key={key} className="border-border border-b last:border-0">
+              <td className="px-3 py-2 align-top font-mono text-foreground text-xs">{key}</td>
+              <td className="px-3 py-2 align-top">
+                <ValueCell value={change.from} kind="from" />
+              </td>
+              <td className="px-3 py-2 align-top">
+                <ValueCell value={change.to} kind="to" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
-function renderValue(v: unknown): string {
-  if (v === null || v === undefined) return '∅'
-  if (typeof v === 'string') return v
-  return JSON.stringify(v)
+function ValueCell({ value, kind }: { value: unknown; kind: 'from' | 'to' }) {
+  const tone = kind === 'from' ? 'text-muted-foreground line-through' : 'text-success'
+  if (value === null || value === undefined) {
+    return <span className="text-muted-foreground/60 text-xs italic">empty</span>
+  }
+  if (typeof value === 'boolean') {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[10px] uppercase',
+          value ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground',
+          kind === 'from' && 'opacity-60',
+        )}
+      >
+        {String(value)}
+      </span>
+    )
+  }
+  const display = typeof value === 'string' ? value : JSON.stringify(value)
+  return <span className={cn('break-words font-mono text-xs', tone)}>{display}</span>
 }
-
-// ─── json_patch ─────────────────────────────────────────────────────────────
 
 function JsonPatchView({
   payload,
@@ -124,12 +145,12 @@ function JsonPatchView({
     return <p className={cn('text-muted-foreground text-xs italic', className)}>No ops</p>
   }
   return (
-    <ol className={cn('space-y-1 text-xs', className)}>
+    <ol className={cn('space-y-1.5 rounded-md border border-border bg-card p-3 text-sm', className)}>
       {payload.ops.map((op, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: ops are an ordered list with no stable id
-        <li key={i} className="flex gap-2 font-mono">
-          <span className={opKindClass(op)}>{op.op}</span>
-          <span className="text-muted-foreground">{op.path}</span>
+        <li key={i} className="flex flex-wrap items-baseline gap-2 font-mono text-xs">
+          <span className={cn('rounded px-1.5 py-0.5 font-semibold uppercase', opKindClass(op))}>{op.op}</span>
+          <span className="text-foreground">{op.path}</span>
           {opValue(op)}
         </li>
       ))}
@@ -138,14 +159,14 @@ function JsonPatchView({
 }
 
 function opKindClass(op: JsonPatchOp): string {
-  if (op.op === 'add') return 'text-success font-semibold'
-  if (op.op === 'remove') return 'text-destructive font-semibold'
-  if (op.op === 'replace') return 'text-warning font-semibold'
-  return 'text-info font-semibold'
+  if (op.op === 'add') return 'bg-success/10 text-success'
+  if (op.op === 'remove') return 'bg-destructive/10 text-destructive'
+  if (op.op === 'replace') return 'bg-warning/10 text-warning'
+  return 'bg-info/10 text-info'
 }
 
 function opValue(op: JsonPatchOp): React.ReactNode {
   if (op.op === 'remove') return null
   if (op.op === 'move' || op.op === 'copy') return <span className="text-muted-foreground">{`from ${op.from}`}</span>
-  return <span className="truncate">{JSON.stringify(op.value)}</span>
+  return <span className="text-muted-foreground">{JSON.stringify(op.value)}</span>
 }
