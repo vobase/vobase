@@ -1,6 +1,6 @@
 /**
  * Heartbeat wake handler — receives `HeartbeatTrigger` events from the
- * schedules cron-tick worker and drives an operator-flavoured wake.
+ * schedules cron-tick worker and drives a standalone-lane wake.
  *
  * This file is the body of the `setHeartbeatEmitter` callback. The agents
  * module wires it at boot. Without it installed, the schedules cron-tick
@@ -14,7 +14,7 @@ import type { AgentContributions, HarnessLogger } from '@vobase/core'
 import { createHarness } from '@vobase/core'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
-import { buildOperatorWakeConfig } from './build-config/operator'
+import { buildStandaloneWakeConfig } from './build-config/standalone'
 
 export interface HeartbeatHandlerDeps {
   realtime: RealtimeService
@@ -25,7 +25,7 @@ export interface HeartbeatHandlerDeps {
 /**
  * Build the heartbeat emitter callback. Installed once at agents-module init
  * via `setHeartbeatEmitter()`. The cron-tick driver invokes it per-row with
- * the trigger payload; each invocation is one operator wake.
+ * the trigger payload; each invocation is one standalone-lane wake.
  *
  * Errors are swallowed and logged — a single failing schedule must not
  * starve siblings (the cron-tick worker iterates rows sequentially and
@@ -41,7 +41,7 @@ export function createHeartbeatEmitter(deps: HeartbeatHandlerDeps, contributions
     })
     try {
       const agentDefinition = await getAgentDefinition(trigger.agentId)
-      const config = await buildOperatorWakeConfig({
+      const config = await buildStandaloneWakeConfig({
         data: {
           organizationId: trigger.organizationId,
           triggerKind: 'heartbeat',

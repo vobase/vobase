@@ -1,6 +1,6 @@
 /**
  * `defineAgentTool` — typebox-driven helper that collapses the
- * Value.Check + try/catch boilerplate every concierge / operator tool was
+ * Value.Check + try/catch boilerplate every conversation / standalone tool was
  * repeating verbatim. Each tool now declares `{ name, description, schema,
  * errorCode, run }`; the helper handles input validation, error mapping,
  * and the `parallelGroup: 'never'` default.

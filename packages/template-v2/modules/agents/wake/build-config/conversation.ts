@@ -1,12 +1,12 @@
 /**
- * Concierge wake-config assembly: the `inbound_message` / `supervisor` /
+ * Conversation-lane wake-config assembly: the `inbound_message` / `supervisor` /
  * `approval_resumed` path that the helpdesk has had since day one. Every
- * concierge wake is conversation-bound — `conv.channelInstanceId` drives the
+ * conversation-lane wake is conversation-bound — `conv.channelInstanceId` drives the
  * `/contacts/<contactId>/<channelInstanceId>/` materializers, the side-load
  * pulls the rolling transcript, and the trigger renderer points at messages.md
  * for context.
  *
- * Operator wakes (heartbeat, operator-thread) use `./operator.ts` instead;
+ * Standalone-lane wakes (heartbeat, operator-thread) use `./standalone.ts` instead;
  * shared building blocks live in `./base.ts`.
  */
 
@@ -14,7 +14,6 @@ import { buildAuthLookup } from '@auth/lookup'
 import * as agentsModule from '@modules/agents/agent'
 import type { WakeTrigger } from '@modules/agents/events'
 import type { AgentDefinition } from '@modules/agents/schema'
-import { conciergeTools } from '@modules/agents/tools/concierge'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@modules/agents/workspace'
 import { createWorkspace } from '@modules/agents/workspace/create-workspace'
 import * as contactsModule from '@modules/contacts/agent'
@@ -26,7 +25,7 @@ import type { Conversation } from '@modules/messaging/schema'
 import { list as listMessages } from '@modules/messaging/service/messages'
 import { listNotes as listInternalNotes } from '@modules/messaging/service/notes'
 import * as teamModule from '@modules/team/agent'
-import type { AgentContributions, AgentTool, WakeRuntime, WorkspaceMaterializer } from '@vobase/core'
+import type { AgentContributions, WakeRuntime, WorkspaceMaterializer } from '@vobase/core'
 import {
   conversationEvents,
   createIdleResumptionContributor,
@@ -37,6 +36,7 @@ import {
 import { desc, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
+import { resolveCapability } from '../capability'
 import { buildFrozenPrompt } from '../frozen-prompt-builder'
 import type { LlmEmitter } from '../llm-call'
 import { createModel, resolveApiKey } from '../llm-provider'
@@ -48,6 +48,7 @@ import {
   buildIndexFileMaterializer,
   buildJournalAdapter,
   buildSseListener,
+  composeHooks,
   IDLE_RESUMPTION_THRESHOLD_MS,
   resolveStaffIdsForOrg,
 } from './base'
@@ -64,6 +65,14 @@ export interface BuildWakeConfigInput {
   agentDefinition: AgentDefinition
   contributions: AgentContributions
   deps: BaseWakeDeps
+  /**
+   * Optional explicit trigger to use in place of the default
+   * `inbound_message` shape. Supervisor wakes pass a `supervisor` trigger
+   * here so the renderer + `systemHash` reflect the staff-note variant.
+   * The override is forwarded unchanged into `trigger`, `triggerKind`, and
+   * `renderTrigger` — never re-derived downstream.
+   */
+  triggerOverride?: WakeTrigger
 }
 
 export type WakeConfig = Parameters<typeof import('@vobase/core').createHarness<WakeTrigger>>[0]
@@ -163,17 +172,31 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
 
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
 
-  const sseListener = buildSseListener({
-    logPrefix: 'wake',
-    realtime: deps.realtime,
-    conversationId: data.conversationId,
-  })
-
-  const trigger: WakeTrigger = {
+  const trigger: WakeTrigger = input.triggerOverride ?? {
     trigger: 'inbound_message',
     conversationId,
     messageIds: [data.messageId],
   }
+  const capability = resolveCapability(trigger.trigger)
+
+  // Peer-wake guard (staff-assigned conv): when an agent is @-mentioned in an
+  // internal note on a conversation assigned to a STAFF user, the staff person
+  // owns the customer-facing reply. Strip tools that touch the customer so the
+  // mentioned agent can only read context + update memory. Doesn't apply when
+  // the assignee is a different agent — in that case the prompt directive is
+  // sufficient (peer agents may collaborate via internal notes).
+  const CUSTOMER_FACING_TOOLS = new Set(['reply', 'send_card', 'send_file', 'book_slot'])
+  const isPeerWakeOnStaffAssignedConv =
+    trigger.trigger === 'supervisor' &&
+    'mentionedAgentId' in trigger &&
+    trigger.mentionedAgentId === agentId &&
+    conv.assignee.startsWith('user:')
+
+  const sseListener = buildSseListener({
+    logPrefix: capability.logPrefix,
+    realtime: deps.realtime,
+    conversationId: data.conversationId,
+  })
 
   const model = createModel(agentDefinition.model)
 
@@ -197,24 +220,30 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
     trigger,
     triggerKind: trigger.trigger,
     renderTrigger: (t: WakeTrigger | undefined) =>
-      renderTriggerMessage(t, { contactId: data.contactId, channelInstanceId }),
+      t
+        ? capability.render(t, {
+            contactId: data.contactId,
+            channelInstanceId,
+            assignee: conv.assignee,
+            currentAgentId: agentId,
+          })
+        : 'Manual wake.',
 
     workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
     runtime: { fs: workspace.innerFs, tracker: dirtyTracker } satisfies WakeRuntime,
 
-    tools: [...conciergeTools, ...(contributions.tools as readonly AgentTool[])] as readonly AgentTool[],
-    hooks: {
-      on_event: [
+    ...composeHooks({
+      capability,
+      contributions,
+      coreListeners: [
         sseListener,
         workspaceSyncListener as OnEventListener<WakeTrigger>,
         memoryDistillListener as OnEventListener<WakeTrigger>,
-        ...((contributions.listeners.on_event ?? []) as readonly OnEventListener<WakeTrigger>[]),
       ],
-      ...(contributions.listeners.on_tool_call ? { on_tool_call: contributions.listeners.on_tool_call } : {}),
-      ...(contributions.listeners.on_tool_result ? { on_tool_result: contributions.listeners.on_tool_result } : {}),
-    },
+      toolFilter: isPeerWakeOnStaffAssignedConv ? (t) => !CUSTOMER_FACING_TOOLS.has(t.name) : undefined,
+    }),
     materializers: wakeMaterializers,
-    sideLoadContributors: [messagingModule.conversationSideLoad, ...contributions.sideLoad],
+    sideLoadContributors: contributions.sideLoad,
     commands: allCommands,
 
     extraCustomSideLoad: [
@@ -245,43 +274,5 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
 
     maxTurns: 10,
     logger: deps.logger,
-  }
-}
-
-/**
- * Render the trigger message displayed to the agent as a wake-reason cue.
- *
- * `/contacts/<contactId>/<channelInstanceId>/` replaces the legacy
- * `/conversations/<convId>/` folder for messages + internal-notes references.
- */
-function renderTriggerMessage(
-  trigger: WakeTrigger | undefined,
-  refs: { contactId: string; channelInstanceId: string },
-): string {
-  if (!trigger) return 'Manual wake.'
-  const convoFolder = `/contacts/${refs.contactId}/${refs.channelInstanceId}`
-  switch (trigger.trigger) {
-    case 'inbound_message':
-      return `New customer message(s). See ${convoFolder}/messages.md for context.`
-    case 'approval_resumed':
-      return trigger.decision === 'approved'
-        ? 'Your previous action was approved. Continue.'
-        : `Your previous action was rejected: ${trigger.note ?? '(no note)'}. Choose a different approach.`
-    case 'supervisor':
-      return `Staff added an internal note. Read ${convoFolder}/internal-notes.md for context.`
-    case 'scheduled_followup':
-      return `Scheduled follow-up: ${trigger.reason}.`
-    case 'manual':
-      return `Manual wake: ${trigger.reason}.`
-    case 'operator_thread':
-    case 'heartbeat':
-      // Operator wakes never flow through the concierge renderer — they have
-      // their own renderer in `build-config/operator.ts`. If we ever see one
-      // here, it indicates a wiring bug in the dispatch path.
-      return `Concierge wake misrouted: ${trigger.trigger}.`
-    default: {
-      const exhaustive: never = trigger
-      return `Unknown trigger: ${String(exhaustive)}`
-    }
   }
 }

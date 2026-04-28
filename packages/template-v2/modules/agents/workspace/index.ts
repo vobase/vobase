@@ -27,8 +27,8 @@ export {
   teamVerbs,
   type VobaseDispatcherOpts,
 } from './cli'
-export type { CreateOperatorWorkspaceOpts } from './create-operator-workspace'
-export { createOperatorWorkspace } from './create-operator-workspace'
+export type { CreateStandaloneWorkspaceOpts } from './create-standalone-workspace'
+export { createStandaloneWorkspace } from './create-standalone-workspace'
 export type { CreateWorkspaceOpts, WorkspaceHandle } from './create-workspace'
 export { createWorkspace } from './create-workspace'
 export { HELPDESK_AGENTS_MD_HEADER, helpdeskRoMessage } from './helpdesk-header'
@@ -48,19 +48,19 @@ export { HELPDESK_AGENTS_MD_HEADER, helpdeskRoMessage } from './helpdesk-header'
  * else defaults to RO per the core enforcer.
  */
 /**
- * Build the operator-wake read-only configuration. Operators survey the
- * whole org and write only to their own working space — direct writes to a
- * contact's MEMORY/profile are concierge-only (operators propose changes via
- * tools like `update_contact` instead).
+ * Build the standalone-lane read-only configuration. Standalone wakes survey
+ * the whole org and write only to their own working space — direct writes to a
+ * contact's MEMORY/profile are conversation-lane-only (standalone wakes propose
+ * changes via tools like `update_contact` instead).
  *
  * Writable: `/agents/<id>/MEMORY.md` (memory), `/agents/<id>/skills/`,
  * `/tmp/`. Everything else (including `/contacts/**`, `/drive/**`,
  * `/INDEX.md`, `/staff/**`) is RO under the default-deny enforcer.
  *
  * `staffIds` lets the staff-profile RO list interpolate per-staff paths so
- * `vobase memory` hints render correctly when an operator agent reads them.
+ * `vobase memory` hints render correctly when a standalone agent reads them.
  */
-export function buildOperatorReadOnlyConfig(ids: { agentId: string; staffIds?: readonly string[] }): ReadOnlyConfig {
+export function buildStandaloneReadOnlyConfig(ids: { agentId: string; staffIds?: readonly string[] }): ReadOnlyConfig {
   const staffIds = ids.staffIds ?? []
   const memoryPaths: string[] = [`/agents/${ids.agentId}/MEMORY.md`]
   const readOnlyExact: string[] = [

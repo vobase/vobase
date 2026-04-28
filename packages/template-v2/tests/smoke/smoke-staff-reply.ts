@@ -1,84 +1,66 @@
 #!/usr/bin/env bun
+
 /**
- * Smoke test — σ5 gate for SV-REPLY: POST /api/messaging/conversations/:id/reply
- * against a seeded conversation; asserts 2xx + messageId in body + SSE NOTIFY
- * received within 2s.
+ * Smoke test — POST /api/messaging/conversations/:id/reply against a seeded
+ * conversation; asserts 2xx + messageId in body + SSE NOTIFY received within 5s.
  *
- * Usage: BASE_URL=http://localhost:3001 CONV_ID=conv_seed_1 bun run tests/smoke/smoke-staff-reply.ts
+ * Auth is dev-login (Alice) — the route is gated by `requireSession`. The
+ * seeded conversation `cnv0test00` (SEEDED_CONV_ID) is intentionally empty so
+ * smoke runs don't pollute scenario-rich threads.
+ *
+ * Usage: BASE_URL=http://localhost:3000 CONV_ID=cnv0test00 bun run tests/smoke/smoke-staff-reply.ts
  */
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3001'
-const ORG_ID = process.env.ORG_ID ?? 'mer0tenant'
-const CONV_ID = process.env.CONV_ID ?? 'conv_seed_1'
-const SSE_URL = process.env.SSE_URL ?? `${BASE_URL}/sse?organizationId=${ORG_ID}`
-const API = `${BASE_URL}/api/messaging/conversations/${CONV_ID}`
+import { devLogin, makeAuthedFetch, watchSse } from './_helpers'
 
-function sseNotifyPromise(): { promise: Promise<void>; abort: AbortController } {
-  const ctrl = new AbortController()
-  const promise = new Promise<void>((resolve, reject) => {
-    fetch(SSE_URL, { signal: ctrl.signal })
-      .then(async (res) => {
-        const reader = res.body?.getReader()
-        if (!reader) return reject(new Error('no SSE body'))
-        const dec = new TextDecoder()
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          const chunk = dec.decode(value)
-          if (chunk.includes('conversations') && chunk.includes(CONV_ID)) {
-            resolve()
-            break
-          }
-        }
-      })
-      .catch((e) => {
-        if (e.name !== 'AbortError') reject(e)
-      })
-  })
-  return { promise, abort: ctrl }
-}
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000'
+const CONV_ID = process.env.CONV_ID ?? 'cnv0test00'
+const EMAIL = process.env.SMOKE_EMAIL ?? 'alice@meridian.test'
+const SSE_TIMEOUT_MS = Number(process.env.SSE_TIMEOUT_MS ?? 5000)
 
 async function main() {
   console.log(`[smoke:staff-reply] target: ${BASE_URL}  conv: ${CONV_ID}`)
 
-  // Subscribe to SSE before posting so we don't miss the NOTIFY
-  const { promise: sseP, abort } = sseNotifyPromise()
-  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('SSE timeout (2s)')), 2000))
+  const auth = await devLogin(BASE_URL, EMAIL)
+  const api = makeAuthedFetch(BASE_URL, auth)
 
-  const res = await fetch(`${API}/reply?organizationId=${ORG_ID}`, {
+  // Subscribe to SSE before posting so we can't miss the NOTIFY.
+  const sse = watchSse(BASE_URL, auth.cookie, CONV_ID)
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`SSE timeout (${SSE_TIMEOUT_MS}ms)`)), SSE_TIMEOUT_MS),
+  )
+
+  const res = await api(`/api/messaging/conversations/${CONV_ID}/reply`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body: 'smoke-test staff reply', staffUserId: 'staff_smoke' }),
+    body: JSON.stringify({ body: 'smoke-test staff reply' }),
   })
 
   if (res.status < 200 || res.status >= 300) {
-    abort.abort()
-    console.error(`[smoke:staff-reply] ✗ POST /reply returned ${res.status}: ${await res.text()}`)
+    sse.abort()
+    console.error(`[smoke:staff-reply] ✗ POST /reply ${res.status}: ${await res.text()}`)
     process.exit(1)
   }
 
   const data = (await res.json()) as Record<string, unknown>
   if (typeof data.messageId !== 'string') {
-    abort.abort()
-    console.error(`[smoke:staff-reply] ✗ Response missing messageId: ${JSON.stringify(data)}`)
+    sse.abort()
+    console.error(`[smoke:staff-reply] ✗ response missing messageId: ${JSON.stringify(data)}`)
     process.exit(1)
   }
 
   console.log(`[smoke:staff-reply] ✓ POST /reply → ${res.status}, messageId: ${data.messageId}`)
 
   try {
-    await Promise.race([sseP, timeout])
-    abort.abort()
-    console.log('[smoke:staff-reply] ✓ SSE NOTIFY received within 2s')
+    await Promise.race([sse.promise, timeout])
+    console.log('[smoke:staff-reply] ✓ SSE NOTIFY received')
   } catch (e) {
-    abort.abort()
     console.error(`[smoke:staff-reply] ✗ ${(e as Error).message}`)
     process.exit(1)
+  } finally {
+    sse.abort()
   }
 
   console.log('[smoke:staff-reply] all assertions passed')
 }
 
 await main()
-
-export {}

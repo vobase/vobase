@@ -27,7 +27,7 @@ afterEach(() => {
 async function ensureAgent(): Promise<string> {
   const agentId = 'agent-test'
   await db.execute(
-    sql`INSERT INTO agents.agent_definitions (id, organization_id, name, role) VALUES (${agentId}, 'org-1', 'tester', 'operator') ON CONFLICT (id) DO UPDATE SET role = 'operator'`,
+    sql`INSERT INTO agents.agent_definitions (id, organization_id, name) VALUES (${agentId}, 'org-1', 'tester') ON CONFLICT (id) DO NOTHING`,
   )
   return agentId
 }

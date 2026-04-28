@@ -1,12 +1,6 @@
 import { registerChangeMaterializer } from '@modules/changes/service/proposals'
 import { registerDriveOverlay } from '@modules/drive/service/overlays'
-import {
-  createCostService,
-  createJournalService,
-  installCostService,
-  installJournalService,
-  setApprovalGateDb,
-} from '@vobase/core'
+import { createCostService, installCostService, setApprovalGateDb } from '@vobase/core'
 
 import type { ModuleDef } from '~/runtime'
 import * as agent from './agent'
@@ -35,7 +29,8 @@ const agents: ModuleDef = {
   agent: { tools: agent.tools },
   jobs: [...jobs],
   init(ctx) {
-    installJournalService(createJournalService({ db: ctx.db }))
+    // Journal service is bound bootstrap-tier (`runtime/bootstrap.ts::setJournalDb`)
+    // because every wake harness needs it before any module init runs.
     installAgentDefinitionsService(createAgentDefinitionsService({ db: ctx.db }))
     installAgentSkillsService(createAgentSkillsService({ db: ctx.db }))
     installCostService(createCostService({ db: ctx.db }))

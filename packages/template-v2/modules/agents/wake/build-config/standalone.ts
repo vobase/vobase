@@ -1,14 +1,14 @@
 /**
- * Operator wake-config assembly. Operator wakes are NOT conversation-bound —
+ * Standalone-lane wake-config assembly. Standalone wakes are NOT conversation-bound —
  * they fire from `agent_threads` (staff posting in the right-rail chat) or
  * from cron heartbeats (scheduled review-and-plan flows). Both produce a wake
  * over the org's full virtual filesystem with a different RO frame, a
  * different side-load (no transcript, no contact block), and different tool
  * surface (`update_contact`, `add_note`, `create_schedule`, …).
  *
- * Synthetic conversationId: BaseEvent requires a string, so operator wakes
+ * Synthetic conversationId: BaseEvent requires a string, so standalone wakes
  * use `operator-<threadId>` / `heartbeat-<scheduleId>`. The journal stays
- * queryable; consumers that need to distinguish operator events filter on
+ * queryable; consumers that need to distinguish standalone events filter on
  * the prefix.
  */
 
@@ -17,24 +17,17 @@ import * as agentsModule from '@modules/agents/agent'
 import type { WakeTrigger } from '@modules/agents/events'
 import type { AgentDefinition } from '@modules/agents/schema'
 import * as syntheticIds from '@modules/agents/service/synthetic-ids'
-import { operatorTools } from '@modules/agents/tools/operator'
-import { buildOperatorReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@modules/agents/workspace'
-import { createOperatorWorkspace } from '@modules/agents/workspace/create-operator-workspace'
+import { buildStandaloneReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@modules/agents/workspace'
+import { createStandaloneWorkspace } from '@modules/agents/workspace/create-standalone-workspace'
 import * as driveModule from '@modules/drive/agent'
 import { filesServiceFor } from '@modules/drive/service/files'
 import * as teamModule from '@modules/team/agent'
-import type {
-  AgentContributions,
-  AgentTool,
-  SideLoadContributor,
-  WakeRuntime,
-  WorkspaceMaterializer,
-} from '@vobase/core'
+import type { AgentContributions, SideLoadContributor, WakeRuntime, WorkspaceMaterializer } from '@vobase/core'
 import { DirtyTracker, journalGetLastWakeTail, type OnEventListener } from '@vobase/core'
 import { nanoid } from 'nanoid'
 
+import { resolveCapability } from '../capability'
 import { buildFrozenPrompt } from '../frozen-prompt-builder'
-import type { LlmEmitter } from '../llm-call'
 import { createModel, resolveApiKey } from '../llm-provider'
 import { setupMessageHistory } from '../message-history'
 import {
@@ -42,19 +35,20 @@ import {
   buildIndexFileMaterializer,
   buildJournalAdapter,
   buildSseListener,
+  composeHooks,
   resolveStaffIdsForOrg,
 } from './base'
-import type { WakeConfig } from './concierge'
+import type { WakeConfig } from './conversation'
 
-export type OperatorTriggerKind = 'operator_thread' | 'heartbeat'
+export type StandaloneTriggerKind = 'operator_thread' | 'heartbeat'
 
-export interface BuildOperatorWakeConfigInput {
+export interface BuildStandaloneWakeConfigInput {
   data: {
     organizationId: string
-    triggerKind: OperatorTriggerKind
+    triggerKind: StandaloneTriggerKind
     /** For 'operator_thread' wakes. Required when triggerKind === 'operator_thread'. */
     threadId?: string
-    /** Verbatim staff message that woke the operator. Surfaces in side-load. */
+    /** Verbatim staff message that woke the standalone agent. Surfaces in side-load. */
     threadMessage?: string
     /** For 'heartbeat' wakes. Required when triggerKind === 'heartbeat'. */
     scheduleId?: string
@@ -74,31 +68,31 @@ export interface BuildOperatorWakeConfigInput {
  * shared `synthetic-ids` module so frontend (workspace tree / layout) and
  * backend (this build config) read from one source of truth.
  */
-export function operatorConversationId(input: BuildOperatorWakeConfigInput['data']): string {
+export function standaloneConversationId(input: BuildStandaloneWakeConfigInput['data']): string {
   if (input.triggerKind === 'operator_thread') {
-    if (!input.threadId) throw new Error('operatorConversationId: threadId required for operator_thread wake')
+    if (!input.threadId) throw new Error('standaloneConversationId: threadId required for operator_thread wake')
     return syntheticIds.operatorConversationId({ triggerKind: 'operator_thread', threadId: input.threadId })
   }
-  if (!input.scheduleId) throw new Error('operatorConversationId: scheduleId required for heartbeat wake')
+  if (!input.scheduleId) throw new Error('standaloneConversationId: scheduleId required for heartbeat wake')
   return syntheticIds.operatorConversationId({ triggerKind: 'heartbeat', scheduleId: input.scheduleId })
 }
 
 /**
- * Build the operator-flavoured wake config. Mirrors the concierge body but
+ * Build the standalone-lane wake config. Mirrors the conversation-lane body but
  * skips every conversation-bound piece: no `resolveSessionContext`, no
  * messaging materializers, no `conversationSideLoad`, no idle-resumption
  * contributor.
  */
-export async function buildOperatorWakeConfig(input: BuildOperatorWakeConfigInput): Promise<WakeConfig> {
+export async function buildStandaloneWakeConfig(input: BuildStandaloneWakeConfigInput): Promise<WakeConfig> {
   const { data, agentId, agentDefinition, contributions, deps } = input
-  const conversationId = operatorConversationId(data)
+  const conversationId = standaloneConversationId(data)
   const wakeId = nanoid(10)
 
   const drive = filesServiceFor(data.organizationId)
   const staffIds = await resolveStaffIdsForOrg(data.organizationId)
   const authLookup = buildAuthLookup(deps.db)
 
-  const roConfig = buildOperatorReadOnlyConfig({ agentId, staffIds })
+  const roConfig = buildStandaloneReadOnlyConfig({ agentId, staffIds })
 
   const allCommands = [...teamVerbs, ...conversationVerbs, ...driveVerbs]
   const wakeMaterializers: WorkspaceMaterializer[] = [
@@ -114,7 +108,7 @@ export async function buildOperatorWakeConfig(input: BuildOperatorWakeConfigInpu
     ...contributions.materializers,
   ]
 
-  const workspace = await createOperatorWorkspace({
+  const workspace = await createStandaloneWorkspace({
     organizationId: data.organizationId,
     agentId,
     conversationId,
@@ -145,20 +139,19 @@ export async function buildOperatorWakeConfig(input: BuildOperatorWakeConfigInpu
     logger: deps.logger,
   })
 
-  const emitEventHandle: LlmEmitter = {}
-
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
 
-  const sseListener = buildSseListener({ logPrefix: 'op-wake', realtime: null })
+  const trigger: WakeTrigger = buildStandaloneTrigger(data)
+  const capability = resolveCapability(trigger.trigger)
 
-  const trigger: WakeTrigger = buildOperatorTrigger(data)
-  const tools: readonly AgentTool[] = [...operatorTools, ...(contributions.tools as readonly AgentTool[])]
-  const operatorBriefSideLoad: SideLoadContributor = (_ctx) =>
+  const sseListener = buildSseListener({ logPrefix: capability.logPrefix, realtime: null })
+
+  const standaloneBriefSideLoad: SideLoadContributor = (_ctx) =>
     Promise.resolve([
       {
         kind: 'custom',
         priority: 100,
-        render: () => renderOperatorBrief(data),
+        render: () => renderStandaloneBrief(data),
       },
     ])
 
@@ -183,23 +176,18 @@ export async function buildOperatorWakeConfig(input: BuildOperatorWakeConfigInpu
 
     trigger,
     triggerKind: trigger.trigger,
-    renderTrigger: (t: WakeTrigger | undefined) => renderOperatorTriggerMessage(t),
+    renderTrigger: (t: WakeTrigger | undefined) => (t ? capability.render(t, {}) : 'Standalone wake (no trigger).'),
 
     workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
     runtime: { fs: workspace.innerFs, tracker: dirtyTracker } satisfies WakeRuntime,
 
-    tools,
-    hooks: {
-      on_event: [
-        sseListener,
-        workspaceSyncListener as OnEventListener<WakeTrigger>,
-        ...((contributions.listeners.on_event ?? []) as readonly OnEventListener<WakeTrigger>[]),
-      ],
-      ...(contributions.listeners.on_tool_call ? { on_tool_call: contributions.listeners.on_tool_call } : {}),
-      ...(contributions.listeners.on_tool_result ? { on_tool_result: contributions.listeners.on_tool_result } : {}),
-    },
+    ...composeHooks({
+      capability,
+      contributions,
+      coreListeners: [sseListener, workspaceSyncListener as OnEventListener<WakeTrigger>],
+    }),
     materializers: wakeMaterializers,
-    sideLoadContributors: [operatorBriefSideLoad, ...contributions.sideLoad],
+    sideLoadContributors: [standaloneBriefSideLoad, ...contributions.sideLoad],
     commands: allCommands,
 
     extraCustomSideLoad: [],
@@ -210,16 +198,12 @@ export async function buildOperatorWakeConfig(input: BuildOperatorWakeConfigInpu
     loadMessageHistory: history.loadMessageHistory,
     onTurnEndSnapshot: history.onTurnEndSnapshot,
 
-    onPublishReady: (publish) => {
-      emitEventHandle.emit = publish
-    },
-
     maxTurns: 10,
     logger: deps.logger,
   }
 }
 
-function buildOperatorTrigger(data: BuildOperatorWakeConfigInput['data']): WakeTrigger {
+function buildStandaloneTrigger(data: BuildStandaloneWakeConfigInput['data']): WakeTrigger {
   if (data.triggerKind === 'operator_thread') {
     if (!data.threadId) throw new Error('operator wake: threadId required')
     return { trigger: 'operator_thread', threadId: data.threadId, messageIds: [] }
@@ -235,20 +219,7 @@ function buildOperatorTrigger(data: BuildOperatorWakeConfigInput['data']): WakeT
   }
 }
 
-function renderOperatorTriggerMessage(trigger: WakeTrigger | undefined): string {
-  if (!trigger) return 'Operator wake (no trigger).'
-  switch (trigger.trigger) {
-    case 'operator_thread':
-      return 'A staff member posted in your operator thread. Read the latest message and respond or act.'
-    case 'heartbeat':
-      return `Heartbeat (${trigger.reason}) at ${trigger.intendedRunAt.toISOString()}. Run your review-and-plan flow.`
-    default:
-      // Concierge triggers should never reach here.
-      return `Operator wake misrouted: ${trigger.trigger}.`
-  }
-}
-
-function renderOperatorBrief(data: BuildOperatorWakeConfigInput['data']): string {
+function renderStandaloneBrief(data: BuildStandaloneWakeConfigInput['data']): string {
   const lines: string[] = ['# Operator Brief', '']
   if (data.triggerKind === 'operator_thread') {
     lines.push(

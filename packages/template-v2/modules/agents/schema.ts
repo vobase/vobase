@@ -56,20 +56,12 @@ import { boolean, check, index, integer, jsonb, numeric, real, text, timestamp, 
 import { agentsPgSchema } from '~/runtime'
 import { DEFAULT_CHAT_MODEL } from './wake/models'
 
-export type AgentRole = 'concierge' | 'operator'
-
 export const agentDefinitions = agentsPgSchema.table(
   'agent_definitions',
   {
     id: nanoidPrimaryKey(),
     organizationId: text('organization_id').notNull(),
     name: text('name').notNull(),
-    /**
-     * `concierge` — channel-facing customer-conversation agent (default).
-     * `operator` — staff-facing internal agent driving the workspace surface.
-     * Roles partition the tool catalogue and wake-build-config branches.
-     */
-    role: text('role').notNull().default('concierge'),
     instructions: text('instructions').notNull().default(''),
     model: text('model').notNull().default(DEFAULT_CHAT_MODEL),
     maxSteps: integer('max_steps').default(20),
@@ -90,7 +82,12 @@ export const agentDefinitions = agentsPgSchema.table(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (_t) => [check('agent_definitions_role_check', sql`role IN ('concierge', 'operator')`)],
+  (t) => [
+    // Partial composite index: keeps the per-note `resolveAgentMentionsInBody`
+    // resolver O(log n) as org agent counts grow. Only enabled rows are
+    // candidates for wake fan-out.
+    index('agent_definitions_org_enabled_idx').on(t.organizationId).where(sql`enabled = true`),
+  ],
 )
 
 /**

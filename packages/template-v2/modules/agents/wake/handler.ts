@@ -50,28 +50,28 @@ export interface WakeHandlerDeps {
 export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentContributions) {
   return async function handleInboundToWake(rawData: unknown): Promise<void> {
     const data = rawData as InboundToWakePayload
-    console.log('[wake] handling inbound→wake', { conv: data.conversationId, msg: data.messageId })
+    console.log('[wake:conv] handling inbound→wake', { conv: data.conversationId, msg: data.messageId })
 
     let conv: Conversation
     try {
       conv = await getConversation(data.conversationId)
     } catch (err) {
-      console.error('[wake] conversation lookup failed:', err)
+      console.error('[wake:conv] conversation lookup failed:', err)
       return
     }
     if (!conv.assignee.startsWith('agent:')) {
-      console.log('[wake] skipping — assignee is not an agent', { assignee: conv.assignee })
+      console.log('[wake:conv] skipping — assignee is not an agent', { assignee: conv.assignee })
       return
     }
     const agentId = conv.assignee.slice('agent:'.length)
-    console.log('[wake] booting wake', { agentId, contactId: data.contactId })
+    console.log('[wake:conv] booting wake', { agentId, contactId: data.contactId })
 
     try {
       const agentDefinition = await getAgentDefinition(agentId)
       const config = await buildWakeConfig({ data, conv, agentId, agentDefinition, contributions, deps })
       await createHarness<WakeTrigger>(config)
     } catch (err) {
-      console.error('[wake] createHarness failed:', err)
+      console.error('[wake:conv] createHarness failed:', err)
     }
   }
 }

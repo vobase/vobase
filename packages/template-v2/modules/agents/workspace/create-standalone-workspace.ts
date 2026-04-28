@@ -1,14 +1,15 @@
 /**
- * Operator-flavoured wrapper around `@vobase/core#createWorkspace`. Operator
+ * Standalone-lane wrapper around `@vobase/core#createWorkspace`. Standalone
  * wakes are NOT conversation-bound, so unlike `createWorkspace` (which
  * mounts contact-scoped paths and pre-fetches contact drive content), this
  * builder only sets up the org-wide spine: `/tmp`, `/agents/<id>/skills`,
  * `/staff/<id>/`, and the global `/drive/**` mount.
  *
- * The synthetic `conversationId` (e.g. `operator-<threadId>`) is required by
+ * The synthetic `conversationId` (e.g. `operator-<threadId>` for operator-thread
+ * wakes, `heartbeat-<scheduleId>` for cron wakes) is required by
  * the harness contract but unused for path construction — it appears only in
  * journal events. `contactId` is empty by design; downstream code that
- * interpolates it must skip operator wakes (or accept that operator-scoped
+ * interpolates it must skip standalone wakes (or accept that standalone-scoped
  * `/contacts/<empty>/...` paths are nonsensical and not produced here).
  */
 
@@ -26,7 +27,7 @@ import type { CommandContext, CommandDef } from '~/runtime'
 import { createVobaseCommand } from './cli/dispatcher'
 import { listAllDriveFiles } from './list-drive-files'
 
-export interface CreateOperatorWorkspaceOpts {
+export interface CreateStandaloneWorkspaceOpts {
   organizationId: string
   agentId: string
   /**
@@ -48,7 +49,7 @@ export interface CreateOperatorWorkspaceOpts {
 
 export type WorkspaceHandle = CoreWorkspaceHandle
 
-export async function createOperatorWorkspace(opts: CreateOperatorWorkspaceOpts): Promise<WorkspaceHandle> {
+export async function createStandaloneWorkspace(opts: CreateStandaloneWorkspaceOpts): Promise<WorkspaceHandle> {
   const ctx: MaterializerCtx = {
     organizationId: opts.organizationId,
     agentId: opts.agentId,

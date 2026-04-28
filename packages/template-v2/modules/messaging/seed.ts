@@ -14,7 +14,7 @@
  *   6. Sophia         — active, customer question waiting on agent
  */
 
-import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
+import { MERIDIAN_AGENT_ID, SENTINEL_AGENT_ID } from '@modules/agents/seed'
 import {
   ALICE_USER_ID,
   BOB_USER_ID,
@@ -267,6 +267,19 @@ export async function seed(db: unknown): Promise<void> {
     parentMessageId: 'msg0priya03',
     channelExternalId: 'web-priya-04',
     createdAt: mins(8),
+  })
+  // Cross-lane mention: staff pings the OPERATOR agent (Sentinel) inside a
+  // CONCIERGE-assigned customer thread. Exercises the supervisor fan-out
+  // peer-wake path — Sentinel boots on its own builder lane while Meridian
+  // (the assignee) gets a self-wake on the same note.
+  await insertNote(ins, {
+    id: 'not0priya01',
+    conversationId: PRIYA_CONV_ID,
+    authorType: 'staff',
+    authorId: ALICE_USER_ID,
+    body: '@Sentinel — Priya is the third Pro-plan customer this week asking about Slack routing. Worth flagging in tomorrow’s daily-brief as a recurring topic.',
+    mentions: [`agent:${SENTINEL_AGENT_ID}`],
+    createdAt: mins(7),
   })
 
   // ── 2b. Priya — second conversation on WhatsApp (short follow-up) ──

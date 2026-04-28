@@ -1,7 +1,7 @@
 /**
  * Shared building blocks every wake-config flavour assembles. Pure helpers
- * + constants — no per-wake state. Concierge (`./concierge.ts`) and operator
- * (`./operator.ts`) flavours both consume these.
+ * + constants — no per-wake state. Conversation-lane (`./conversation.ts`) and
+ * standalone-lane (`./standalone.ts`) flavours both consume these.
  *
  * Frozen-snapshot invariant: anything that lands in `systemPrompt` is computed
  * exactly once per wake. Mid-wake writes (memory, drive proposals, file ops)
@@ -18,10 +18,18 @@ import { list as listConversations } from '@modules/messaging/service/conversati
 import * as schedulesModule from '@modules/schedules/agent'
 import { schedules as schedulesService } from '@modules/schedules/service/schedules'
 import { staff as teamStaff } from '@modules/team/service'
-import type { HarnessLogger, OnEventListener, WorkspaceMaterializer } from '@vobase/core'
+import type {
+  AgentContributions,
+  AgentTool,
+  HarnessHooks,
+  HarnessLogger,
+  OnEventListener,
+  WorkspaceMaterializer,
+} from '@vobase/core'
 import { IndexFileBuilder, journalAppend } from '@vobase/core'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
+import type { Capability } from '../capability'
 
 /**
  * Idle-resumption threshold: if the conversation has been quiet longer than
@@ -95,13 +103,13 @@ export function buildIndexFileMaterializer(opts: { organizationId: string }): Wo
 
 /**
  * Per-wake `on_event` listener that mirrors every event to stdout in the
- * `[wake]` / `[op-wake]` format and (for concierge wakes) emits realtime
- * notifies on `tool_execution_end`. Operator wakes pass `realtime: null`
+ * `[wake:conv]` / `[wake:solo]` format and (for conversation-lane wakes) emits realtime
+ * notifies on `tool_execution_end`. Standalone-lane wakes pass `realtime: null`
  * because their synthetic conversation ids don't map to real DB rows.
  */
 export function buildSseListener(opts: {
-  /** Log prefix — `'wake'` for concierge, `'op-wake'` for operator. */
-  logPrefix: 'wake' | 'op-wake'
+  /** Log prefix — `'wake:conv'` for conversation-lane, `'wake:solo'` for standalone-lane. */
+  logPrefix: 'wake:conv' | 'wake:solo'
   realtime: RealtimeService | null
   /** Real conversation id for realtime notifies. Required iff `realtime` is non-null. */
   conversationId?: string
@@ -145,4 +153,32 @@ export function buildJournalAdapter(): (ev: unknown) => Promise<void> {
       event: ae,
     })
   }
+}
+
+/**
+ * Compose the `tools` array + `hooks` object both lanes assemble identically.
+ * Capability tools merge with contributed tools (with an optional filter for
+ * the conversation-lane peer-wake guard); lane-owned listeners merge with
+ * `contributions.listeners.on_event`; the tool-call / tool-result spreads are
+ * honored when present.
+ */
+export function composeHooks(opts: {
+  capability: Capability
+  contributions: AgentContributions
+  coreListeners: readonly OnEventListener<WakeTrigger>[]
+  toolFilter?: (t: AgentTool) => boolean
+}): { tools: readonly AgentTool[]; hooks: HarnessHooks<WakeTrigger> } {
+  const merged = [...opts.capability.tools, ...(opts.contributions.tools as readonly AgentTool[])]
+  const tools = (opts.toolFilter ? merged.filter(opts.toolFilter) : merged) as readonly AgentTool[]
+  const hooks: HarnessHooks<WakeTrigger> = {
+    on_event: [
+      ...opts.coreListeners,
+      ...((opts.contributions.listeners.on_event ?? []) as readonly OnEventListener<WakeTrigger>[]),
+    ],
+    ...(opts.contributions.listeners.on_tool_call ? { on_tool_call: opts.contributions.listeners.on_tool_call } : {}),
+    ...(opts.contributions.listeners.on_tool_result
+      ? { on_tool_result: opts.contributions.listeners.on_tool_result }
+      : {}),
+  }
+  return { tools, hooks }
 }

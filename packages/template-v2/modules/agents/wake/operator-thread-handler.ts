@@ -1,14 +1,14 @@
 /**
  * Operator-thread wake handler — processes `agents:operator-thread-to-wake`
- * jobs by booting an operator wake via `createHarness` from `@vobase/core`.
+ * jobs by booting a standalone-lane wake via `createHarness` from `@vobase/core`.
  *
- * Symmetric to `wake/handler.ts` (the concierge inbound→wake consumer), but
- * routes through `buildOperatorWakeConfig` instead. Producer is the operator
+ * Symmetric to `wake/handler.ts` (the conversation-lane inbound→wake consumer), but
+ * routes through `buildStandaloneWakeConfig` instead. Producer is the operator
  * chat surface: after writing the staff message via
  * `threads.appendMessage`, the surface calls `jobs.send(OPERATOR_THREAD_TO_WAKE_JOB, ...)`.
  *
  * The handler reads the latest user-role message off the thread to populate
- * `data.threadMessage` for the operator brief side-load.
+ * `data.threadMessage` for the standalone brief side-load.
  */
 
 import type { WakeTrigger } from '@modules/agents/events'
@@ -20,7 +20,7 @@ import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
-import { buildOperatorWakeConfig } from './build-config/operator'
+import { buildStandaloneWakeConfig } from './build-config/standalone'
 
 export const OPERATOR_THREAD_TO_WAKE_JOB = 'agents:operator-thread-to-wake'
 
@@ -42,7 +42,7 @@ export interface OperatorThreadHandlerDeps {
 export function createOperatorThreadWakeHandler(deps: OperatorThreadHandlerDeps, contributions: AgentContributions) {
   return async function handleOperatorThreadToWake(rawData: unknown): Promise<void> {
     const data = rawData as OperatorThreadToWakePayload
-    console.log('[op-wake] handling operator-thread→wake', { thread: data.threadId })
+    console.log('[wake:solo] handling operator-thread→wake', { thread: data.threadId })
 
     const threadRow = await deps.db
       .select({
@@ -56,11 +56,11 @@ export function createOperatorThreadWakeHandler(deps: OperatorThreadHandlerDeps,
       .limit(1)
       .then((rows) => rows[0])
     if (!threadRow) {
-      console.error('[op-wake] thread not found', { thread: data.threadId })
+      console.error('[wake:solo] thread not found', { thread: data.threadId })
       return
     }
     if (threadRow.status !== 'open') {
-      console.log('[op-wake] skipping — thread is not open', { thread: data.threadId, status: threadRow.status })
+      console.log('[wake:solo] skipping — thread is not open', { thread: data.threadId, status: threadRow.status })
       return
     }
 
@@ -75,7 +75,7 @@ export function createOperatorThreadWakeHandler(deps: OperatorThreadHandlerDeps,
 
     try {
       const agentDefinition = await getAgentDefinition(threadRow.agentId)
-      const config = await buildOperatorWakeConfig({
+      const config = await buildStandaloneWakeConfig({
         data: {
           organizationId: threadRow.organizationId,
           triggerKind: 'operator_thread',
@@ -89,7 +89,7 @@ export function createOperatorThreadWakeHandler(deps: OperatorThreadHandlerDeps,
       })
       await createHarness<WakeTrigger>(config)
     } catch (err) {
-      console.error('[op-wake] createHarness failed:', err)
+      console.error('[wake:solo] createHarness failed:', err)
     }
   }
 }

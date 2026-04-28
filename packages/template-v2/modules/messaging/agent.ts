@@ -27,8 +27,8 @@ import {
 
 import { list as listMessages } from './service/messages'
 
-// Concierge-facing tools (`reply`, `send_card`, `send_file`, `book_slot`)
-// moved to `modules/agents/tools/concierge/` per the dual-surface tool
+// Conversation-lane tools (`reply`, `send_card`, `send_file`, `book_slot`)
+// moved to `modules/agents/tools/conversation/` per the dual-surface tool
 // partition. The messaging module no longer contributes static agent tools —
 // it just owns the messaging-domain materializers and side-load below.
 
@@ -145,6 +145,11 @@ export { loadMessagingIndexContributors as loadIndexContributors }
 // ─── Side-load ──────────────────────────────────────────────────────────────
 
 export const conversationSideLoad: SideLoadContributor = async (ctx) => {
+  // Self-gate: standalone-lane wakes (operator-thread, heartbeat) pass an
+  // empty `contactId` because they aren't conversation-bound. Skip there so
+  // this contributor can flow through `collectAgentContributions` without
+  // polluting standalone wakes.
+  if (!ctx.contactId) return []
   const [msgs, contact] = await Promise.all([
     listMessages(ctx.conversationId, { limit: 200 }),
     getContact(ctx.contactId).catch(() => null),

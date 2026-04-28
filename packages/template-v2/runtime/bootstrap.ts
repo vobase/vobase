@@ -23,6 +23,7 @@ import {
   createOperatorThreadWakeHandler,
   OPERATOR_THREAD_TO_WAKE_JOB,
 } from '@modules/agents/wake/operator-thread-handler'
+import { createSupervisorWakeHandler, MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '@modules/agents/wake/supervisor-handler'
 import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
 import {
   bootModules,
@@ -274,15 +275,23 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   jobHandlers.set(INBOUND_TO_WAKE_JOB, createWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions))
 
   // Operator-thread wakes: staff posts a message in `agent_threads`, the
-  // chat surface enqueues this job, and the consumer drives an operator
-  // wake via `buildOperatorWakeConfig`.
+  // chat surface enqueues this job, and the consumer drives a standalone-lane
+  // wake via `buildStandaloneWakeConfig`.
   jobHandlers.set(
     OPERATOR_THREAD_TO_WAKE_JOB,
     createOperatorThreadWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),
   )
 
+  // Supervisor wakes: staff posts an internal note. `addNote` post-commit
+  // fan-out enqueues one assignee self-wake plus one peer wake per agent
+  // `@-mentioned` in the body. Agent-authored notes never fan out.
+  jobHandlers.set(
+    MESSAGING_SUPERVISOR_TO_WAKE_JOB,
+    createSupervisorWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),
+  )
+
   // Heartbeat wakes: schedules cron-tick fires `HeartbeatTrigger`s into the
-  // emitter installed below. Each tick = one operator wake.
+  // emitter installed below. Each tick = one standalone-lane wake.
   setHeartbeatEmitter(createHeartbeatEmitter({ realtime, db, logger: wakeLogger }, agentContributions))
 
   return app

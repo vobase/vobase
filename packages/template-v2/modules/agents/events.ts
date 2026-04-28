@@ -26,7 +26,19 @@ export type WakeTrigger =
       decision: 'approved' | 'rejected'
       note?: string
     }
-  | { trigger: 'supervisor'; conversationId: string; noteId: string; authorUserId: string }
+  | {
+      trigger: 'supervisor'
+      conversationId: string
+      noteId: string
+      authorUserId: string
+      /**
+       * Set when staff @-mentioned a specific agent in the note. Causes the
+       * peer wake to boot that agent's own builder rather than the conversation
+       * assignee. Undefined for the assignee self-wake variant. Resolved at
+       * `addNote` post-commit fan-out time; never mutated downstream.
+       */
+      mentionedAgentId?: string
+    }
   | { trigger: 'scheduled_followup'; conversationId: string; reason: string; scheduledAt: Date; sourceWakeId?: string }
   | { trigger: 'manual'; conversationId: string; reason: string; actorUserId: string }
   | { trigger: 'operator_thread'; threadId: string; messageIds: string[] }

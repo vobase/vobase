@@ -1,12 +1,12 @@
 /**
  * Operator wake — real-Postgres integration of the §10.6/10.7/10.8 pipeline.
  *
- * Verifies that `buildOperatorWakeConfig` composes correctly against a real
+ * Verifies that `buildStandaloneWakeConfig` composes correctly against a real
  * DB + the full service install chain (agent definitions, threads, schedules,
  * contacts, conversations, pending approvals, etc.), and that the resulting
- * config carries the operator-flavoured surface — synthetic conversationId,
- * `/INDEX.md` materializer, operator brief side-load, full operator tool
- * set, operator-RO config (writes restricted to `/agents/<id>/...`).
+ * config carries the standalone-lane surface — synthetic conversationId,
+ * `/INDEX.md` materializer, standalone brief side-load, full standalone tool
+ * set, standalone-RO config (writes restricted to `/agents/<id>/...`).
  *
  * Going further (stub-stream → real harness → tool fires → pending_approval
  * row written) would need the `stub-stream` helper from CLAUDE.md to be
@@ -32,7 +32,7 @@ import {
   installThreadsService,
   threads as threadsApi,
 } from '@modules/agents/service/threads'
-import { buildOperatorWakeConfig } from '@modules/agents/wake/build-config/operator'
+import { buildStandaloneWakeConfig } from '@modules/agents/wake/build-config/standalone'
 import {
   __resetContactsServiceForTests,
   createContactsService,
@@ -110,7 +110,7 @@ afterAll(async () => {
   if (db) await db.teardown()
 })
 
-describe('buildOperatorWakeConfig (real PG)', () => {
+describe('buildStandaloneWakeConfig (real PG)', () => {
   it('operator_thread wake: synthetic conversationId, operator tools, /INDEX.md materializer, operator brief side-load', async () => {
     // Provision a thread + staff message via the public service surface so
     // the test exercises the same path as the operator chat producer will.
@@ -122,7 +122,7 @@ describe('buildOperatorWakeConfig (real PG)', () => {
       firstMessage: { role: 'user', content: 'Summarize today and propose any follow-ups.' },
     })
 
-    const config = await buildOperatorWakeConfig({
+    const config = await buildStandaloneWakeConfig({
       data: {
         organizationId: MERIDIAN_ORG_ID,
         triggerKind: 'operator_thread',
@@ -193,7 +193,7 @@ describe('buildOperatorWakeConfig (real PG)', () => {
   })
 
   it('heartbeat wake: heartbeat-<scheduleId> conversationId, heartbeat brief side-load', async () => {
-    const config = await buildOperatorWakeConfig({
+    const config = await buildStandaloneWakeConfig({
       data: {
         organizationId: MERIDIAN_ORG_ID,
         triggerKind: 'heartbeat',

@@ -1,6 +1,6 @@
 /**
  * Recursively walk a drive scope and return every file (folders excluded).
- * Used by both `createWorkspace` and `createOperatorWorkspace` to pre-fetch
+ * Used by both `createWorkspace` and `createStandaloneWorkspace` to pre-fetch
  * drive content before mounting it into the agent's virtual filesystem.
  */
 

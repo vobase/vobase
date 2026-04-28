@@ -1,7 +1,8 @@
 /**
- * Operator-only tools. Imported by the operator wake-config and re-exported
- * as `operatorTools` so the agent contributions registry picks them up at
- * boot.
+ * Standalone-lane tools. Used by wakes that are not bound to a customer
+ * conversation — operator-thread (right-rail staff↔agent chat) and heartbeat
+ * (scheduled review-and-plan). The capability registry binds these per
+ * trigger kind.
  */
 
 import type { AgentTool } from '@vobase/core'
@@ -14,7 +15,7 @@ import { proposeOutreachTool } from './propose-outreach'
 import { summarizeInboxTool } from './summarize-inbox'
 import { updateContactTool } from './update-contact'
 
-export const operatorTools: AgentTool[] = [
+export const standaloneTools: AgentTool[] = [
   updateContactTool,
   addNoteTool,
   createScheduleTool,

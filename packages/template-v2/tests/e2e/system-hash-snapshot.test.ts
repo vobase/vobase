@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { conciergeTools } from '@modules/agents/tools/concierge'
+import { conversationTools } from '@modules/agents/tools/conversation'
 import { subagentTool } from '@modules/agents/tools/shared/subagent'
 import { buildFrozenPrompt, type SessionContext } from '@modules/agents/wake/frozen-prompt-builder'
 import { resolvePlatformHint } from '@modules/agents/wake/platform-hints'
@@ -98,7 +98,7 @@ describe('system-hash snapshot', () => {
 
 describe('tool surface snapshot', () => {
   it('current tool surface matches the fixture', () => {
-    const names = [...conciergeTools.map((t) => t.name), subagentTool.name]
+    const names = [...conversationTools.map((t) => t.name), subagentTool.name]
     expect(names).toEqual([...TOOL_SURFACE_FIXTURE])
   })
 })

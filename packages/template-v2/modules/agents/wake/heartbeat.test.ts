@@ -1,9 +1,9 @@
 /**
  * Unit tests for `createHeartbeatEmitter` — the seam between the schedules
- * cron-tick driver and `buildOperatorWakeConfig`.
+ * cron-tick driver and `buildStandaloneWakeConfig`.
  *
  * We swap the agent-definitions service for a stub so the emitter doesn't
- * touch the DB; `buildOperatorWakeConfig` itself is not invoked here (the
+ * touch the DB; `buildStandaloneWakeConfig` itself is not invoked here (the
  * test would need a real workspace + drive port). Instead we verify that
  * the emitter looks up the agent definition and tolerates errors without
  * throwing — the cron-tick must keep iterating siblings even when one
@@ -63,7 +63,7 @@ describe('createHeartbeatEmitter', () => {
       getById: (id: string) => {
         lookupCount++
         expect(id).toBe('agt_op')
-        // Reject so we don't enter buildOperatorWakeConfig (no real workspace).
+        // Reject so we don't enter buildStandaloneWakeConfig (no real workspace).
         return Promise.reject(new Error('stop here'))
       },
     } as unknown as AgentDefinitionsService)
