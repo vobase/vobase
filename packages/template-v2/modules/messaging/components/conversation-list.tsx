@@ -47,7 +47,7 @@ function ConversationList() {
 
   const selectedContactId = useRouterState({
     select: (s) => {
-      const m = s.location.pathname.match(/^\/messaging\/([^/?#]+)/)
+      const m = s.location.pathname.match(/^\/inbox\/([^/?#]+)/)
       return m?.[1] ?? null
     },
   })

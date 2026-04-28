@@ -1,11 +1,14 @@
 import { useSendNote } from '@modules/messaging/hooks/use-send-note'
 import { useStaffReply } from '@modules/messaging/hooks/use-staff-reply'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { PromptInput, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input'
+import { usePrincipalDirectory } from '@/components/principal'
+import { InputGroupTextarea } from '@/components/ui/input-group'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { cn } from '@/lib/utils'
-import { NoteEditor, type NoteEditorHandle } from './note-editor'
+import { MentionPopover } from './mention-popover'
+import { findMentions } from './mentions'
 
 interface ComposerProps {
   conversationId: string
@@ -15,48 +18,61 @@ type Mode = 'reply' | 'note'
 
 export function Composer({ conversationId }: ComposerProps) {
   const [mode, setMode] = useState<Mode>('reply')
-  const [text, setText] = useState('')
-  const noteRef = useRef<NoteEditorHandle>(null)
-  const [noteEmpty, setNoteEmpty] = useState(true)
+  const [replyText, setReplyText] = useState('')
+  const [noteText, setNoteText] = useState('')
+
+  const replyRef = useRef<HTMLTextAreaElement>(null)
+  const noteRef = useRef<HTMLTextAreaElement>(null)
+  const directory = usePrincipalDirectory()
 
   const staffReply = useStaffReply(conversationId)
   const sendNote = useSendNote(conversationId)
 
-  const isEmptyReply = !text.trim()
+  useEffect(() => {
+    if (mode === 'reply') replyRef.current?.focus()
+    else noteRef.current?.focus()
+  }, [mode])
 
-  const submit = () => {
-    if (mode === 'reply') {
-      if (isEmptyReply) return
-      staffReply.mutate(text.trim(), { onSuccess: () => setText('') })
-    } else {
-      const { body, mentions } = noteRef.current?.getValue() ?? { body: '', mentions: [] }
-      if (!body) return
-      sendNote.mutate(
-        { body, mentions },
-        {
-          onSuccess: () => {
-            noteRef.current?.reset()
-            setNoteEmpty(true)
-          },
-        },
-      )
-    }
+  const handleReplySubmit = ({ text }: { text: string }) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    setReplyText('')
+    staffReply.mutate(trimmed, {
+      onSuccess: () => replyRef.current?.focus(),
+      onError: () => setReplyText(trimmed),
+    })
   }
 
-  useKeyboardNav({ context: 'messaging-detail', onSubmitComposer: submit })
+  const handleNoteSubmit = ({ text }: { text: string }) => {
+    const body = text.trim()
+    if (!body) return
+    const tokens = Array.from(
+      new Set(findMentions(body, [...directory.agents, ...directory.staff]).map((m) => m.record.token)),
+    )
+    setNoteText('')
+    sendNote.mutate(
+      { body, mentions: tokens },
+      {
+        onSuccess: () => noteRef.current?.focus(),
+        onError: () => setNoteText(body),
+      },
+    )
+  }
 
-  const isPending = mode === 'reply' ? staffReply.isPending : sendNote.isPending
-  const isEmpty = mode === 'reply' ? isEmptyReply : noteEmpty
+  useKeyboardNav({
+    context: 'messaging-detail',
+    onSubmitComposer: () => {
+      if (mode === 'reply') handleReplySubmit({ text: replyText })
+      else handleNoteSubmit({ text: noteText })
+    },
+  })
 
-  const textareaClass = cn(
-    'block h-[76px] max-h-48 w-full resize-none rounded-none border-0 bg-transparent px-3 py-2 text-sm leading-5 shadow-none',
-    'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0',
-  )
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+  // Plain Tab toggles modes. Tab is captured by the mention popover when open
+  // (it stopPropagation), so this only fires when typing in the body.
+  const onTabKey = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault()
-      submit()
+      setMode((m) => (m === 'reply' ? 'note' : 'reply'))
     }
   }
 
@@ -66,44 +82,68 @@ export function Composer({ conversationId }: ComposerProps) {
       active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
     )
 
+  const isReply = mode === 'reply'
+  const isPending = isReply ? staffReply.isPending : sendNote.isPending
+  const text = isReply ? replyText : noteText
+  const setText = isReply ? setReplyText : setNoteText
+  const activeRef = isReply ? replyRef : noteRef
+  const modKey = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
+
   return (
-    <div className="shrink-0 px-3 pb-3">
-      <div className="rounded-md border border-input bg-transparent shadow-xs focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50">
-        <div className="flex items-center gap-1 px-2 pt-2">
-          <button type="button" className={tabClass(mode === 'reply')} onClick={() => setMode('reply')}>
+    <div className="relative shrink-0 px-3 pb-3">
+      <PromptInput onSubmit={isReply ? handleReplySubmit : handleNoteSubmit}>
+        <div data-align="block-start" className="flex items-center gap-1 self-start px-2 pt-2">
+          <button type="button" className={tabClass(isReply)} onClick={() => setMode('reply')}>
             Reply
           </button>
-          <button type="button" className={tabClass(mode === 'note')} onClick={() => setMode('note')}>
+          <button type="button" className={tabClass(!isReply)} onClick={() => setMode('note')}>
             Note
           </button>
         </div>
-        {mode === 'reply' ? (
-          <textarea
-            placeholder="Reply to customer…"
-            value={text}
-            onChange={(e) => setText(e.currentTarget.value)}
-            onKeyDown={onKeyDown}
-            className={textareaClass}
-          />
-        ) : (
-          <NoteEditor
-            handleRef={noteRef}
-            placeholder="Internal note — type @ to mention staff or agents…"
-            onEmptyChange={setNoteEmpty}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                e.preventDefault()
-                submit()
-              }
-            }}
-          />
-        )}
-        <div className="flex items-center justify-end px-2 pb-2">
-          <Button size="sm" type="button" disabled={isEmpty || isPending} onClick={submit}>
-            {mode === 'reply' ? 'Send reply' : 'Send note'}
-          </Button>
-        </div>
-      </div>
+
+        <InputGroupTextarea
+          ref={activeRef}
+          name="message"
+          value={text}
+          onChange={(e) => setText(e.currentTarget.value)}
+          onKeyDown={onTabKey}
+          placeholder={isReply ? 'Reply to customer…' : 'Internal note — type @ to mention staff or agents…'}
+          className="field-sizing-content max-h-48 min-h-10 py-2"
+        />
+
+        <PromptInputFooter className="items-end">
+          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60">
+            <kbd className="rounded border bg-muted/50 px-1 font-mono">{modKey}</kbd>
+            <span>+</span>
+            <kbd className="rounded border bg-muted/50 px-1 font-mono">Enter</kbd>
+            <span>to send</span>
+          </span>
+          <PromptInputSubmit
+            status={isPending ? 'submitted' : undefined}
+            disabled={!text.trim() || isPending}
+            size="sm"
+          >
+            {isReply ? 'Send reply' : 'Send note'}
+          </PromptInputSubmit>
+        </PromptInputFooter>
+      </PromptInput>
+
+      {!isReply && (
+        <MentionPopover
+          textareaRef={noteRef}
+          value={noteText}
+          directory={directory}
+          onSelect={({ nextValue, nextCursor }) => {
+            setNoteText(nextValue)
+            requestAnimationFrame(() => {
+              const ta = noteRef.current
+              if (!ta) return
+              ta.focus()
+              ta.setSelectionRange(nextCursor, nextCursor)
+            })
+          }}
+        />
+      )}
     </div>
   )
 }

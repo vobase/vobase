@@ -2,6 +2,7 @@ import type { Contact } from '@modules/contacts/schema'
 import { deriveContactName } from '@modules/messaging/components/contact'
 import { AtSignIcon, ClockIcon } from 'lucide-react'
 
+import { Principal } from '@/components/principal'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { cn } from '@/lib/utils'
 import type { Conversation } from '../schema'
@@ -59,21 +60,22 @@ function ConversationRow({
       }}
       className={cn(
         'group flex w-full cursor-default items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors',
-        'hover:bg-[var(--color-surface)]/70',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-[-2px]',
-        isSelected ? 'border-primary bg-primary/10' : 'border-transparent',
+        isSelected ? 'border-primary bg-primary/15' : 'border-transparent hover:bg-[var(--color-surface)]/70',
       )}
     >
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex items-center gap-1.5">
-          <span
+          <Principal
+            id={`contact:${conv.contactId}`}
+            variant="simple"
+            fallbackName={displayName}
+            noHover
             className={cn(
               'flex-1 truncate text-[var(--color-fg)] text-sm tracking-tight',
               isBold ? 'font-medium' : 'font-normal',
             )}
-          >
-            {displayName}
-          </span>
+          />
           {hasUnreadMention ? (
             <span
               role="img"

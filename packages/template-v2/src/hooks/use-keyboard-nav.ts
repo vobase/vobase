@@ -27,14 +27,19 @@ function isEditableTarget(target: HTMLElement): boolean {
 export function createKeyboardNavHandler(opts: UseKeyboardNavOptions) {
   return function onKeyDown(e: KeyboardEvent): void {
     const target = e.target as HTMLElement
-    if (IGNORED_TAGS.has(target.tagName)) return
-    if (typeof document !== 'undefined' && isInsideCombobox(document.activeElement)) return
 
-    // Cmd+Enter must be checked before plain Enter
+    // Cmd+Enter is the explicit submit gesture — must work even while typing
+    // in the composer textarea (which would otherwise be filtered as editable).
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       opts.onSubmitComposer?.()
-    } else if (e.key === 'j') {
+      return
+    }
+
+    if (isEditableTarget(target)) return
+    if (typeof document !== 'undefined' && isInsideCombobox(document.activeElement)) return
+
+    if (e.key === 'j') {
       e.preventDefault()
       opts.onSelectNext?.()
     } else if (e.key === 'k') {

@@ -16,6 +16,9 @@ import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { find as findStaff } from '@modules/team/service/staff'
 import { and, eq } from 'drizzle-orm'
 
+// Must stay in sync with `PRESENCE_THRESHOLD_MS` in
+// `src/components/principal/directory.ts` — frontend renders the online dot on
+// the same window so a hovered staff card matches the fan-out decision here.
 const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000
 
 interface ChannelInstanceRow {

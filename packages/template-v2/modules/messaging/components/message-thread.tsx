@@ -17,15 +17,17 @@ import { MessageResponse } from '@/components/ai-elements/message'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
 import { MessageCard } from '@/components/message-card'
+import { Principal as PrincipalNode } from '@/components/principal'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { cn } from '@/lib/utils'
 import type { InternalNote, Message } from '../schema'
 import { DeliveryStatus } from './delivery-status'
+import { findMentions } from './mentions'
 import {
-  type Principal,
   PrincipalAvatar,
   type PrincipalDirectory,
   type PrincipalKind,
+  type PrincipalRecord,
   usePrincipalDirectory,
 } from './principal'
 
@@ -119,18 +121,12 @@ interface MessageRowProps {
   currentUserId: string | null
 }
 
-function messagePrincipal(msg: DisplayMessage, directory: PrincipalDirectory): Principal | null {
-  // Messages don't carry a sender id today; resolve by role.
-  if (msg.role === 'customer') return null
-  if (msg.role === 'agent') {
-    // Pick the first known agent, or a generic fallback.
-    const a = directory.agents[0]
-    return a ? { kind: 'agent', id: a.id, name: a.name } : { kind: 'agent', id: 'agent', name: 'Agent' }
-  }
-  if (msg.role === 'staff') {
-    const s = directory.staff[0]
-    return s ? { kind: 'staff', id: s.id, name: s.name } : { kind: 'staff', id: 'staff', name: 'Staff' }
-  }
+function messagePrincipal(msg: DisplayMessage, directory: PrincipalDirectory): PrincipalRecord | null {
+  // Messages don't carry a sender id today; resolve by role and pick the
+  // first known principal of that kind. Bubble falls back to a generic
+  // avatar + "Agent" / "Staff" label when the directory is empty.
+  if (msg.role === 'agent') return directory.agents[0] ?? null
+  if (msg.role === 'staff') return directory.staff[0] ?? null
   return null
 }
 
@@ -200,8 +196,8 @@ function NoteRow({
 
   return (
     <Bubble isMine={isMine} principal={principal} kind={kind} variant="note" timestamp={note.createdAt}>
-      <div className="mb-1 flex items-center gap-1.5 font-semibold text-amber-700 text-xs uppercase tracking-wide dark:text-amber-300">
-        <StickyNote className="size-3" />
+      <div className="mb-1 flex items-center gap-1 font-semibold text-[10px] text-amber-700 uppercase tracking-wide dark:text-amber-300">
+        <StickyNote className="size-2.5" />
         Internal note
       </div>
       <div className="whitespace-pre-wrap break-words text-foreground text-sm">
@@ -216,11 +212,6 @@ function NoteRow({
   )
 }
 
-/**
- * Render a note body with `@Name` tokens highlighted. Only tokens whose
- * display name matches an entry in `note.mentions` get styled — random `@foo`
- * tokens fall through as plain text.
- */
 function renderNoteBodyWithMentions(
   body: string,
   mentions: readonly string[],
@@ -228,42 +219,25 @@ function renderNoteBodyWithMentions(
   currentUserId: string | null,
 ): React.ReactNode[] {
   if (mentions.length === 0) return [body]
-
-  const nameToKey = new Map<string, string>()
-  for (const m of mentions) {
-    const principal = directory.resolve(m.startsWith('staff:') ? m.slice('staff:'.length) : m)
-    const name = principal?.name
-    if (name) nameToKey.set(name.toLowerCase(), m)
-  }
-  if (nameToKey.size === 0) return [body]
+  const records = mentions.map((m) => directory.resolve(m)).filter((r): r is PrincipalRecord => r !== null)
+  const matches = findMentions(body, records)
+  if (matches.length === 0) return [body]
 
   const out: React.ReactNode[] = []
-  const matches = Array.from(body.matchAll(/@([A-Za-z][A-Za-z0-9._-]*(?:\s+[A-Za-z][A-Za-z0-9._-]*)?)/g))
   let cursor = 0
-  let chipIdx = 0
   for (const m of matches) {
-    const raw = m[0]
-    const name = m[1]
-    const idx = m.index ?? -1
-    if (idx < 0) continue
-    const key = nameToKey.get(name.toLowerCase())
-    if (!key) continue
-    if (idx > cursor) out.push(body.slice(cursor, idx))
-    const isMe = currentUserId !== null && key === `staff:${currentUserId}`
+    if (m.start > cursor) out.push(body.slice(cursor, m.start))
+    const isMe = currentUserId !== null && m.record.token === `staff:${currentUserId}`
     out.push(
-      <span
-        key={`mention-${chipIdx++}`}
-        className={cn(
-          'rounded px-1 font-semibold',
-          isMe
-            ? 'bg-rose-600 text-white ring-1 ring-rose-700 dark:bg-rose-500 dark:ring-rose-300'
-            : 'bg-blue-600 text-white ring-1 ring-blue-700 dark:bg-blue-500 dark:ring-blue-300',
-        )}
-      >
-        {raw}
-      </span>,
+      <PrincipalNode
+        key={`mention-${m.start}`}
+        id={m.record.token}
+        variant="mention"
+        highlight={isMe}
+        directory={directory}
+      />,
     )
-    cursor = idx + raw.length
+    cursor = m.end
   }
   if (cursor < body.length) out.push(body.slice(cursor))
   return out
@@ -275,6 +249,7 @@ const BUBBLE_BG: Record<'customer' | PrincipalKind, string> = {
   customer: 'bg-muted/60 text-foreground',
   agent: 'bg-violet-100/70 text-foreground dark:bg-violet-950/40',
   staff: 'bg-blue-100/70 text-foreground dark:bg-blue-950/40',
+  contact: 'bg-emerald-100/70 text-foreground dark:bg-emerald-950/40',
 }
 
 function Bubble({
@@ -288,7 +263,7 @@ function Bubble({
   children,
 }: {
   isMine: boolean
-  principal: Principal | null
+  principal: PrincipalRecord | null
   kind: 'customer' | PrincipalKind
   variant?: 'message' | 'note'
   timestamp?: Date | string | number
@@ -301,7 +276,8 @@ function Bubble({
     variant === 'note'
       ? 'rounded-lg border border-amber-500/30 bg-amber-50/70 px-3 py-2 dark:bg-amber-950/25'
       : cn('rounded-lg px-3 py-2', isFailed ? 'border border-destructive/30 bg-destructive/5' : BUBBLE_BG[kind])
-  const name = principal?.name ?? (kind === 'customer' ? 'Customer' : kind === 'agent' ? 'Agent' : 'Staff')
+  const fallbackName =
+    kind === 'customer' ? 'Customer' : kind === 'agent' ? 'Agent' : kind === 'contact' ? 'Contact' : 'Staff'
 
   return (
     <div className={cn('flex gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}>
@@ -316,7 +292,11 @@ function Bubble({
       </div>
       <div className={cn('flex min-w-0 max-w-[min(78%,560px)] flex-col gap-1', isMine ? 'items-end' : 'items-start')}>
         <div className={cn('flex items-center gap-1.5 text-muted-foreground text-xs', isMine && 'flex-row-reverse')}>
-          <span className="font-medium text-foreground/80">{name}</span>
+          {principal ? (
+            <PrincipalNode id={principal.token} variant="simple" className="text-foreground/80" />
+          ) : (
+            <span className="font-medium text-foreground/80">{fallbackName}</span>
+          )}
           {timestamp && (
             <RelativeTimeCard
               date={timestamp}
@@ -362,7 +342,7 @@ function PrincipalInline({
   return (
     <span className="inline-flex items-center gap-1 align-middle">
       <PrincipalAvatar kind={p.kind} />
-      <span className="font-medium">{p.name}</span>
+      <PrincipalNode id={p.token} variant="simple" directory={directory} />
     </span>
   )
 }

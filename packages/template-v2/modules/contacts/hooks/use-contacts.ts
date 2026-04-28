@@ -3,10 +3,28 @@
  * these wrappers exist because create/update fan out to multiple query keys.
  */
 
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { contactsClient } from '@/lib/api-client'
 import type { Contact } from '../schema'
+
+export const contactsKeys = {
+  all: ['contacts'] as const,
+  list: ['contacts', 'list'] as const,
+  detail: (id: string) => ['contacts', 'detail', id] as const,
+}
+
+/** Org-scoped contacts list. Used by pages and the principal directory. */
+export function useContactsList() {
+  return useQuery({
+    queryKey: contactsKeys.list,
+    queryFn: async (): Promise<Contact[]> => {
+      const r = await contactsClient.index.$get()
+      if (!r.ok) throw new Error(`contacts list failed: ${r.status}`)
+      return (await r.json()) as unknown as Contact[]
+    },
+  })
+}
 
 export interface ContactFormPayload {
   displayName?: string | null

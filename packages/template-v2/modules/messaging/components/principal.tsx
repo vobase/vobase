@@ -1,114 +1,37 @@
 /**
- * Principal = agent or staff. Shared rendering for any place that displays an
- * agent/staff identifier: assignee trigger, note author, reassign activity row.
- *
- * Resolves `assignee` strings (`agent:<id>`, `user:<id>`, or raw staff id) to
- * a human display name and a colored icon (purple robot for agents, blue
- * person for staff). Avatars are not stored yet — the icon is the avatar.
+ * Compatibility shim — the canonical principal primitive lives at
+ * `@/components/principal`. New call sites should import from there directly.
+ * This file re-exports the same symbols so existing imports under
+ * `@modules/messaging/components/principal` keep working.
  */
 
-import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
-import { useStaffList } from '@modules/team/hooks/use-staff'
-import { BotIcon, UserIcon } from 'lucide-react'
-import { useMemo } from 'react'
+import type React from 'react'
 
+import { PrincipalAvatar, Principal as PrincipalComponent, type PrincipalRecord } from '@/components/principal'
 import { cn } from '@/lib/utils'
 
-export type PrincipalKind = 'agent' | 'staff'
+export {
+  PrincipalAvatar,
+  type PrincipalDirectory,
+  type PrincipalKind,
+  type PrincipalRecord,
+  usePrincipalDirectory,
+} from '@/components/principal'
 
-export interface Principal {
-  kind: PrincipalKind
-  id: string
-  name: string
-}
-
-export interface PrincipalDirectory {
-  resolve(value: string | null | undefined): Principal | null
-  agents: Array<{ id: string; name: string }>
-  staff: Array<{ id: string; name: string }>
-}
-
-export function usePrincipalDirectory(): PrincipalDirectory {
-  const { data: agentDefs = [] } = useAgentDefinitions()
-  const { data: staffList = [] } = useStaffList()
-
-  return useMemo(() => {
-    const agents = agentDefs.map((a) => ({ id: a.id, name: a.name }))
-    const staff = staffList.map((s) => ({ id: s.userId, name: s.displayName ?? s.userId }))
-    const agentById = new Map(agents.map((a) => [a.id, a.name]))
-    const staffById = new Map(staff.map((s) => [s.id, s.name]))
-
-    function resolve(value: string | null | undefined): Principal | null {
-      if (!value) return null
-      if (value.startsWith('agent:')) {
-        const id = value.slice(6)
-        return { kind: 'agent', id, name: agentById.get(id) ?? humanize(id) }
-      }
-      const id = value.startsWith('user:') ? value.slice(5) : value
-      return { kind: 'staff', id, name: staffById.get(id) ?? humanize(id) }
-    }
-
-    return { resolve, agents, staff }
-  }, [agentDefs, staffList])
-}
-
-function humanize(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, ' ')
-}
-
-const AVATAR_SIZE: Record<'sm' | 'md', string> = {
-  sm: 'size-5',
-  md: 'size-6',
-}
-
-const ICON_SIZE: Record<'sm' | 'md', string> = {
-  sm: 'size-3',
-  md: 'size-3.5',
-}
-
-export function PrincipalAvatar({
-  kind,
-  size = 'sm',
-  className,
-}: {
-  kind: PrincipalKind
-  size?: 'sm' | 'md'
-  className?: string
-}) {
-  const Icon = kind === 'agent' ? BotIcon : UserIcon
-  const ring =
-    kind === 'agent'
-      ? 'bg-violet-500/15 text-violet-600 dark:text-violet-300'
-      : 'bg-blue-500/15 text-blue-600 dark:text-blue-300'
-  return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full',
-        AVATAR_SIZE[size],
-        ring,
-        className,
-      )}
-      aria-hidden
-    >
-      <Icon className={ICON_SIZE[size]} />
-    </span>
-  )
-}
-
-/** Inline avatar + display name. Used anywhere we'd otherwise show a raw id. */
+/** @deprecated Use `<Principal id={record.token} variant="inbox" />`. */
 export function PrincipalChip({
   principal,
-  size = 'sm',
+  size: _size,
   className,
 }: {
-  principal: Principal
+  principal: PrincipalRecord
   size?: 'sm' | 'md'
   className?: string
-}) {
+}): React.ReactElement {
   return (
     <span className={cn('inline-flex items-center gap-1.5', className)}>
-      <PrincipalAvatar kind={principal.kind} size={size} />
-      <span className="truncate font-medium">{principal.name}</span>
+      <PrincipalAvatar kind={principal.kind} size="sm" />
+      <PrincipalComponent id={principal.token} variant="simple" noHover className="font-medium" />
     </span>
   )
 }
