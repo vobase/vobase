@@ -92,6 +92,7 @@ const proposeChangeInput = z.discriminatedUnion('kind', [
     body: z.string().min(1, 'markdown_patch requires --body or --body-from'),
     confidence: z.number().min(0).max(1).optional(),
     rationale: z.string().optional(),
+    expectedOutcome: z.string().optional(),
   }),
   z.object({
     kind: z.literal('field_set'),
@@ -102,6 +103,7 @@ const proposeChangeInput = z.discriminatedUnion('kind', [
     to: z.string({ error: 'field_set requires --to' }),
     confidence: z.number().min(0).max(1).optional(),
     rationale: z.string().optional(),
+    expectedOutcome: z.string().optional(),
   }),
 ])
 
@@ -132,6 +134,7 @@ export const contactsProposeChangeVerb = defineCliVerb({
         changedByKind: principalToChangedByKind(ctx.principal.kind),
         confidence: input.confidence,
         rationale: input.rationale,
+        expectedOutcome: input.expectedOutcome,
       })
       return { ok: true as const, data: result }
     } catch (err) {

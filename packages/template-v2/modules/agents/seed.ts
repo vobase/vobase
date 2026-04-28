@@ -11,7 +11,7 @@
  * Idempotent — every insert is `ON CONFLICT DO NOTHING`.
  */
 
-import { ALICE_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
 
 import { models } from './wake/models'
 

@@ -1,14 +1,16 @@
 import type { AgentEvent } from '@modules/agents/events'
+import { conversations } from '@modules/messaging/schema'
 import { appendJournalEvent } from '@modules/messaging/service/journal'
 import type { ChangePayload } from '@vobase/core'
 import { conflict, journalGetLatestTurnIndex as getLatestTurnIndex, notFound, validation } from '@vobase/core'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 import type { RealtimeService } from '~/runtime'
 import {
   type ChangedByKind,
   type ChangeHistoryRow,
+  type ChangeProposalInboxItem,
   type ChangeProposalRow,
   type ChangeStatus,
   changeHistory,
@@ -107,7 +109,10 @@ export interface InsertProposalInput {
   changedBy: string
   changedByKind: ChangedByKind
   confidence?: number
+  /** Free-prose problem statement written by the proposer. Rendered as the "Problem" panel on /changes. */
   rationale?: string
+  /** Free-prose "what changes after approval" written by the proposer. Rendered as the "After approval" panel on /changes. */
+  expectedOutcome?: string
   /** Non-null when the proposal originates from an agent wake — drives the journal-emission branch. */
   conversationId?: string | null
 }
@@ -136,6 +141,17 @@ async function runThreatScan(_payload: ChangePayload): Promise<{ ok: true } | { 
   return { ok: true }
 }
 
+/**
+ * Coerce a `changedBy` value to the canonical `agent:<id>` / `staff:<id>` form
+ * the frontend `<Principal>` directory expects. Drive's CLI already prefixes
+ * (`agent:${ctx.agentId}`); contacts' CLI passes a bare user id. We tolerate
+ * both and normalize here so downstream consumers (DB, UI) see one shape.
+ */
+function normalizePrincipalToken(id: string, kind: ChangedByKind): string {
+  if (id.includes(':')) return id
+  return `${kind === 'agent' ? 'agent' : 'staff'}:${id}`
+}
+
 /** Narrow a payload to `markdown_patch` or throw — shared by markdown-only materializers. */
 export function assertMarkdownPatch(payload: ChangePayload): Extract<ChangePayload, { kind: 'markdown_patch' }> {
   if (payload.kind !== 'markdown_patch') {
@@ -159,7 +175,7 @@ export interface ChangeProposalsService {
     decidedByUserId: string,
     note?: string,
   ): Promise<DecideResult>
-  listInbox(organizationId: string, limit?: number): Promise<ChangeProposalRow[]>
+  listInbox(organizationId: string, limit?: number): Promise<ChangeProposalInboxItem[]>
   recordChange(input: RecordChangeInput): Promise<{ id: string }>
   setRealtime(handle: RealtimeService | null): void
 }
@@ -199,7 +215,10 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
       status,
       confidence: input.confidence ?? null,
       rationale: input.rationale ?? null,
+      expectedOutcome: input.expectedOutcome ?? null,
       conversationId: input.conversationId ?? null,
+      proposedById: normalizePrincipalToken(input.changedBy, input.changedByKind),
+      proposedByKind: input.changedByKind,
       decidedByUserId: null,
       decidedAt: null,
       decidedNote: null,
@@ -208,8 +227,34 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     }
   }
 
+  async function findPendingDuplicate(input: InsertProposalInput): Promise<ChangeProposalRow | null> {
+    const rows = (await db
+      .select()
+      .from(changeProposals)
+      .where(
+        and(
+          eq(changeProposals.organizationId, input.organizationId),
+          eq(changeProposals.resourceModule, input.resourceModule),
+          eq(changeProposals.resourceType, input.resourceType),
+          eq(changeProposals.resourceId, input.resourceId),
+          eq(changeProposals.status, 'pending'),
+        ),
+      )
+      .limit(1)) as unknown as ChangeProposalRow[]
+    return rows[0] ?? null
+  }
+
   async function insertProposal(input: InsertProposalInput): Promise<{ id: string; status: ChangeStatus }> {
     const reg = getRegistration(input.resourceModule, input.resourceType)
+    // Friendly conflict at the service layer: agents can be told "you already have a
+    // pending proposal on this target" instead of bumping into the DB unique index.
+    const dup = await findPendingDuplicate(input)
+    if (dup) {
+      throw conflict(
+        `change-proposals: ${input.resourceModule}/${input.resourceType}/${input.resourceId} already has a pending proposal (id=${dup.id})`,
+      )
+    }
+
     const status: ChangeStatus = reg.requiresApproval ? 'pending' : 'auto_written'
     const id = nanoid(10)
     const proposal = buildProposalRow(input, id, status)
@@ -332,14 +377,34 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     })
   }
 
-  async function listInbox(organizationId: string, limit = 100): Promise<ChangeProposalRow[]> {
+  async function listInbox(organizationId: string, limit = 100): Promise<ChangeProposalInboxItem[]> {
     const rows = (await db
       .select()
       .from(changeProposals)
       .where(and(eq(changeProposals.organizationId, organizationId), eq(changeProposals.status, 'pending')))
       .orderBy(desc(changeProposals.createdAt))
       .limit(limit)) as unknown as ChangeProposalRow[]
-    return rows
+
+    // Resolve conversationId → contactId in a single follow-up read so the UI
+    // can render a clickable contact pill without a per-row round-trip.
+    // Cross-pgSchema join would be cleaner but the loose DrizzleHandle type
+    // here doesn't surface `.leftJoin()` — two reads is the cheaper escape.
+    const conversationIds = Array.from(
+      new Set(rows.map((r) => r.conversationId).filter((id): id is string => Boolean(id))),
+    )
+    const contactByConvId = new Map<string, string>()
+    if (conversationIds.length > 0) {
+      const convRows = (await db
+        .select()
+        .from(conversations)
+        .where(inArray(conversations.id, conversationIds))) as Array<{ id: string; contactId: string }>
+      for (const cv of convRows) contactByConvId.set(cv.id, cv.contactId)
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      conversationContactId: row.conversationId ? (contactByConvId.get(row.conversationId) ?? null) : null,
+    }))
   }
 
   return {
@@ -456,7 +521,7 @@ export function decideChangeProposal(
   return current().decideChangeProposal(id, decision, decidedByUserId, note)
 }
 
-export function listInbox(organizationId: string, limit?: number): Promise<ChangeProposalRow[]> {
+export function listInbox(organizationId: string, limit?: number): Promise<ChangeProposalInboxItem[]> {
   return current().listInbox(organizationId, limit)
 }
 

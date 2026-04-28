@@ -6,7 +6,7 @@
  * before the bare `drive` token, so the two-word name works without ambiguity.
  *
  * Usage:
- *   vobase drive propose --path=/<path> --body="..." [--rationale="..."] [--confidence=0.7]
+ *   vobase drive propose --path=/<path> --body="..." [--rationale="..."] [--expected-outcome="..."] [--confidence=0.7]
  */
 
 import { insertProposal } from '@modules/changes/service/proposals'
@@ -30,7 +30,8 @@ export const driveVerbs: readonly CommandDef[] = [
   {
     name: 'drive propose',
     description: 'Propose a change to a organization-drive document (requires staff approval).',
-    usage: 'vobase drive propose --path=/<path> --body="..." [--rationale="..."] [--confidence=0.7]',
+    usage:
+      'vobase drive propose --path=/<path> --body="..." [--rationale="..."] [--expected-outcome="..."] [--confidence=0.7]',
 
     async execute(argv, ctx) {
       const flags = parseFlags(argv)
@@ -49,6 +50,7 @@ export const driveVerbs: readonly CommandDef[] = [
       }
 
       const rationale = flags.rationale
+      const expectedOutcome = flags['expected-outcome']
       const confidenceRaw = flags.confidence
       const confidence = confidenceRaw !== undefined ? Number.parseFloat(confidenceRaw) : undefined
 
@@ -62,6 +64,7 @@ export const driveVerbs: readonly CommandDef[] = [
         changedByKind: 'agent',
         confidence,
         rationale,
+        expectedOutcome,
         conversationId: ctx.conversationId,
       })
 

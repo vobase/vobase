@@ -21,7 +21,7 @@ import { PrincipalAvatar } from './avatar'
 import { type PrincipalDirectory, type PrincipalKind, type PrincipalRecord, usePrincipalDirectory } from './directory'
 import { PrincipalHoverCard } from './hover-card'
 
-export type PrincipalVariant = 'simple' | 'mention' | 'inbox'
+export type PrincipalVariant = 'simple' | 'mention' | 'inline' | 'inbox'
 
 export interface PrincipalProps {
   /** Canonical `kind:id` token, e.g. `agent:abc`, `staff:usr0`, `contact:c1`. */
@@ -91,6 +91,14 @@ function renderBody({
         )}
       >
         @{display}
+      </span>
+    )
+  }
+  if (variant === 'inline') {
+    return (
+      <span className={cn('inline-flex cursor-default items-center gap-1.5 align-middle', className)}>
+        <PrincipalAvatar kind={kind} size="sm" />
+        <span className="font-medium">{display}</span>
       </span>
     )
   }

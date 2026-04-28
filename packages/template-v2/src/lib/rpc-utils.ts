@@ -19,7 +19,7 @@
  * domain means adding one more narrow wrapper here.
  */
 
-import type { ChangeProposalRow } from '@modules/changes/schema'
+import type { ChangeProposalInboxItem, ChangeProposalRow } from '@modules/changes/schema'
 import type { Contact } from '@modules/contacts/schema'
 import type { Conversation, PendingApproval } from '@modules/messaging/schema'
 
@@ -75,4 +75,8 @@ export function hydrateConversation(row: object): Conversation {
 
 export function hydrateChangeProposal(row: object): ChangeProposalRow {
   return hydrateDates<ChangeProposalRow>(row, CHANGE_PROPOSAL_DATE_KEYS)
+}
+
+export function hydrateChangeProposalInbox(row: object): ChangeProposalInboxItem {
+  return hydrateDates<ChangeProposalInboxItem>(row, CHANGE_PROPOSAL_DATE_KEYS)
 }

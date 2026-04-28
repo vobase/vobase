@@ -16,6 +16,7 @@
 
 import { MERIDIAN_AGENT_ID, SENTINEL_AGENT_ID } from '@modules/agents/seed'
 import {
+  ALICE_USER_ID,
   ELENA_CONTACT_ID,
   LIAM_CONTACT_ID,
   MARCUS_CONTACT_ID,
@@ -87,8 +88,12 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.83,
+      proposedById: `agent:${SENTINEL_AGENT_ID}`,
+      proposedByKind: 'agent',
       rationale:
         'Observed 3 VIP cases this week (Priya Raman, Liam Reyes, one un-named) where the agent looped through identical refund-window citations without escalating. Priya case escalated by Carol manually after 7 rounds.',
+      expectedOutcome:
+        "Once approved, I'll escalate to a supervisor on the second unresolved loop instead of the seventh. The handoff packs the last 5 messages plus tier/LTV/policy context so VIP customers hear back from a human in minutes, not hours — and Carol stops getting paged manually for cases the agent should already have flagged.",
       conversationId: CNV_PRIYA,
       createdAt: hoursAgo(0.2),
     })
@@ -116,8 +121,12 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.91,
+      proposedById: `agent:${SENTINEL_AGENT_ID}`,
+      proposedByKind: 'agent',
       rationale:
         'Three policy-team conversations (Carol thread 2026-04-19, 2026-04-22, 2026-04-25) confirmed the 90-day window. Current behaviour skews liberal — Elena Rossi got a full refund at day 12 which was inside policy, but the agent could not cite the rule.',
+      expectedOutcome:
+        "Once approved, I'll auto-process refund requests that fit the envelope (≤90 days, ≤$200, no chargeback history) and quote the exact rule to the customer. Anything outside the envelope still drafts a reply but routes to whoever is on policy duty — Carol stops being the bottleneck for clean cases, and edge cases stop slipping through silently.",
       conversationId: CNV_ELENA,
       createdAt: hoursAgo(0.7),
     })
@@ -140,8 +149,12 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.55,
+      proposedById: `staff:${ALICE_USER_ID}`,
+      proposedByKind: 'user',
       rationale:
         'Three different agents proposed nearly identical wording in the last review window. Consolidating into one canonical script. Confidence low because we have not A/B tested the new opener.',
+      expectedOutcome:
+        'After approval, every conversation opens with the same wording across all agents — no more drift between Sentinel, Meridian, and Atlas saying the same thing three different ways. The legacy intro is removed so we stop shipping two greetings simultaneously.',
       conversationId: null,
       createdAt: hoursAgo(2),
     })
@@ -168,8 +181,12 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.96,
+      proposedById: `agent:${MERIDIAN_AGENT_ID}`,
+      proposedByKind: 'agent',
       rationale:
         'Marcus confirmed signed Northwind enterprise-plus contract via DocuSign on 2026-04-26 (8 seats × $10.5k ARR ≈ $84k). Sync CRM segments, attributes, and LTV so the agent has correct routing on the next wake.',
+      expectedOutcome:
+        "Once applied, the next agent picking up Marcus's thread sees enterprise-plus tier and $84k ARR up front — he gets routed to a senior rep without being asked his account size again, and any refund/billing flows automatically use the enterprise SLA instead of the standard one.",
       conversationId: CNV_MARCUS,
       createdAt: hoursAgo(3),
     })
@@ -192,8 +209,12 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.74,
+      proposedById: `agent:${MERIDIAN_AGENT_ID}`,
+      proposedByKind: 'agent',
       rationale:
         'Captured during conversation cnv00liam0 — staff requested explicit follow-up notes after the API integration call. Append (not replace) so prior context stays.',
+      expectedOutcome:
+        "After applying, anyone opening Liam's contact sees the FinSight integration follow-up plus the <2h SGT priority window. The Friday handoff with API key + sandbox creds becomes a tracked action, and Bob gets paged automatically when Liam is online and unreplied past 90min.",
       conversationId: CNV_LIAM,
       createdAt: hoursAgo(5),
     })
@@ -218,8 +239,12 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.78,
+      proposedById: `agent:${SENTINEL_AGENT_ID}`,
+      proposedByKind: 'agent',
       rationale:
         'Captured cross-conversation patterns about VIP customers. agent_memory is normally requiresApproval=false, but seeding as pending for inbox visibility — staff can approve to demonstrate the auto-write path through the decide endpoint.',
+      expectedOutcome:
+        "Once applied, I'll remember the three VIP customers and their preferences across every wake — Priya gets Mandarin code replies by default, Liam gets the SGT priority window, Marcus gets the enterprise-plus context. Saves them re-explaining themselves and saves staff from re-tagging segments by hand.",
       conversationId: null,
       createdAt: hoursAgo(6),
     })
@@ -244,8 +269,12 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.88,
+      proposedById: `agent:${SENTINEL_AGENT_ID}`,
+      proposedByKind: 'agent',
       rationale:
         'Drafted by Sentinel after the policy team session 2026-04-25. Replaces the legacy refunds.md which only covered digital goods. Drive write is staged via the changes umbrella so staff can review before publish.',
+      expectedOutcome:
+        'Once published, refunds.md becomes the single policy file every agent cites for refund questions. The legacy digital-only version is replaced — VIP, multi-seat enterprise, and chargeback-history paths all live in one place, and agents stop quoting the old 14-day-everything rule for cases that should route to a human.',
       conversationId: null,
       createdAt: hoursAgo(8),
     })
