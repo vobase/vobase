@@ -1,9 +1,15 @@
 /**
  * Drive file handler tests — exercise routes against an in-memory db stub that
  * matches the shape `createFilesService` expects.
+ *
+ * The `mount()` helper wraps `app` with a fake-session middleware so
+ * `requireOrganization` can populate `c.get('organizationId')`. Tests don't
+ * exercise scope-RBAC (covered separately) — `getDriveAuth()` returns null
+ * (auth never installed in these tests), so all scope gates fall through.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import type { AppSession } from '@auth/middleware/require-session'
 import type { DriveFile } from '@modules/drive/schema'
 import { __resetFilesDbForTests, setFilesDb } from '@modules/drive/service/files'
 import { Hono } from 'hono'
@@ -11,6 +17,7 @@ import { Hono } from 'hono'
 import app from './files'
 
 const ORG_ID = 'tenant_test_0'
+const USER_ID = 'test-user'
 
 function makeFile(partial: Partial<DriveFile> & { id: string; path: string; kind: 'file' | 'folder' }): DriveFile {
   return {
@@ -96,7 +103,35 @@ afterEach(() => {
   __resetFilesDbForTests()
 })
 
-const mount = (): Hono => new Hono().route('/', app)
+const fakeSession: AppSession = {
+  user: {
+    id: USER_ID,
+    email: 'test@example.com',
+    emailVerified: true,
+    name: 'Test User',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  session: {
+    id: 'sess-1',
+    userId: USER_ID,
+    token: 'tok',
+    expiresAt: new Date(Date.now() + 3600_000),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    activeOrganizationId: ORG_ID,
+  },
+}
+
+const mount = (): Hono => {
+  const wrapper = new Hono()
+  wrapper.use('*', async (c, next) => {
+    c.set('session', fakeSession)
+    await next()
+  })
+  wrapper.route('/', app)
+  return wrapper
+}
 
 describe('drive file handlers', () => {
   it('GET /tree returns rows from listFolder', async () => {
@@ -145,6 +180,18 @@ describe('drive file handlers', () => {
     expect(body.file.extractedText).toBe('# Pricing')
   })
 
+  it('PUT /file with contact scope does not 400 on missing query-string scope (regression)', async () => {
+    state.files = [makeFile({ id: 'f-c1', path: '/notes.md', kind: 'file', scope: 'contact', scopeId: 'ctt0test00' })]
+    const res = await mount().request('/file', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ scope: 'contact', contactId: 'ctt0test00', path: '/notes.md', content: 'updated' }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as unknown as { file: DriveFile }
+    expect(body.file.path).toBe('/notes.md')
+  })
+
   it('PUT /file 400 on invalid body', async () => {
     const res = await mount().request('/file', {
       method: 'PUT',
@@ -173,5 +220,17 @@ describe('drive file handlers', () => {
     const body = (await res.json()) as unknown as { ok: boolean; id: string }
     expect(body.ok).toBe(true)
     expect(body.id).toBe('f-1')
+  })
+
+  it('DELETE /file/:id does not 400 in auth-off test mode (regression)', async () => {
+    // In auth-off test mode `rowScopeCheck` short-circuits, so DELETE proceeds
+    // even without a query-string scope param — this catches a regression of
+    // the original bug where the route-level scopeGate would 400 the request.
+    state.files = [makeFile({ id: 'f-2', path: '/y.md', kind: 'file' })]
+    const res = await mount().request('/file/f-2', { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as unknown as { ok: boolean; id: string }
+    expect(body.ok).toBe(true)
+    expect(body.id).toBe('f-2')
   })
 })

@@ -14,6 +14,11 @@
  *
  * Thin: parse → validate → call service → serialize. Writes to scope=organization
  * are allowed (staff UI); the agent-side proposal flow lives in `./proposal.ts`.
+ *
+ * Scope-RBAC: most routes are gated by `scopeGate` / `bodyScopeGate` registered
+ * in `./index.ts`. DELETE `/file/:id` and POST `/moves` carry their scope
+ * inside the row, so they run `rowScopeCheck` in-handler against the row's
+ * `(scope, scopeId)` after loading it.
  */
 
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
@@ -22,6 +27,8 @@ import { filesServiceFor } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
 import { Hono } from 'hono'
 import { z } from 'zod'
+
+import { rowScopeCheck, scopeFromRow } from './scope-check'
 
 const scopeSchema = z.discriminatedUnion('scope', [
   z.object({ scope: z.literal('organization') }),
@@ -120,13 +127,35 @@ const app = new Hono<OrganizationEnv>()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      const file = await filesServiceFor(c.get('organizationId')).move(data.id, data.newPath)
+      const svc = filesServiceFor(c.get('organizationId'))
+      const blocked = await rowScopeCheck(
+        c,
+        async () => {
+          const row = await svc.get(data.id)
+          if (!row) return null
+          return scopeFromRow(row)
+        },
+        true,
+      )
+      if (blocked) return blocked
+      const file = await svc.move(data.id, data.newPath)
       return c.json({ file })
     },
   )
   .delete('/file/:id', async (c) => {
     const id = c.req.param('id')
-    await filesServiceFor(c.get('organizationId')).remove(id)
+    const svc = filesServiceFor(c.get('organizationId'))
+    const blocked = await rowScopeCheck(
+      c,
+      async () => {
+        const row = await svc.get(id)
+        if (!row) return null
+        return scopeFromRow(row)
+      },
+      true,
+    )
+    if (blocked) return blocked
+    await svc.remove(id)
     return c.json({ ok: true, id })
   })
 

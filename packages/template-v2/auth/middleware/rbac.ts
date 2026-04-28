@@ -22,6 +22,16 @@ import type { statement } from '../ac'
 import type { OrganizationEnv } from './require-organization'
 import { createRequirePermission } from './require-permission'
 
+/**
+ * Drive scope discriminator — mirrors `DriveScope` from `@modules/drive/service/types`
+ * but lives here because the auth layer must not import the drive module.
+ */
+export type DriveScopeForRbac =
+  | { scope: 'organization' }
+  | { scope: 'contact'; contactId: string }
+  | { scope: 'staff'; userId: string }
+  | { scope: 'agent'; agentId: string }
+
 type Statement = typeof statement
 
 type PermInput = {
@@ -86,4 +96,39 @@ export function scopeRbac(auth: Auth, opts: ScopeRbacOptions): MiddlewareHandler
     }
     return (await createRequirePermission(auth, { staff: ['write:any'] })(c, next)) ?? undefined
   }
+}
+
+/**
+ * Imperative variant of `scopeRbac` — runs the same access rules but lets the
+ * caller pass the resolved scope directly (e.g. derived from a `drive_files`
+ * row). Used by handlers where the scope is not in URL/body (DELETE, /moves).
+ *
+ * Returns a `Response` to abort with, or `undefined` when access is allowed.
+ */
+export async function assertScopeAccess(
+  auth: Auth,
+  c: Context<OrganizationEnv>,
+  scope: DriveScopeForRbac,
+  write: boolean,
+): Promise<Response | undefined> {
+  // Wrap createRequirePermission's middleware shape into a single async check.
+  const checkPerm = async (perms: PermInput): Promise<Response | undefined> => {
+    let blocked: Response | undefined
+    const noopNext = (async () => {}) as never
+    const res = await createRequirePermission(auth, perms as Record<string, string[]>)(c, noopNext)
+    if (res) blocked = res
+    return blocked
+  }
+
+  if (scope.scope === 'organization') {
+    return await checkPerm({ drive: [write ? 'approve' : 'read'] })
+  }
+  if (scope.scope === 'contact' || scope.scope === 'agent') {
+    return undefined
+  }
+  // staff scope
+  const session = c.get('session')
+  const isSelf = scope.userId === session.user.id
+  if (!write || isSelf) return undefined
+  return await checkPerm({ staff: ['write:any'] })
 }

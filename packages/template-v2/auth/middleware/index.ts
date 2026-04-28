@@ -1,6 +1,13 @@
 export { type HmacWebhookOptions, type HmacWebhookResult, verifyHmacWebhook } from './hmac-webhook'
 export { parseHubSignature } from './hub-signature'
-export { type DriveScopeKind, requirePerm, type ScopeRbacOptions, scopeRbac } from './rbac'
+export {
+  assertScopeAccess,
+  type DriveScopeForRbac,
+  type DriveScopeKind,
+  requirePerm,
+  type ScopeRbacOptions,
+  scopeRbac,
+} from './rbac'
 export {
   installOrganizationContext,
   type OrganizationEnv,
