@@ -2,8 +2,14 @@ import { registerChangeMaterializer } from '@modules/changes/service/proposals'
 
 import type { ModuleDef } from '~/runtime'
 import { driveVerbs } from './cli'
+import {
+  createAgentBuiltinOverlay,
+  createContactBuiltinOverlay,
+  createStaffBuiltinOverlay,
+} from './service/builtin-overlays'
 import { DRIVE_DOC_RESOURCE, driveDocMaterializer } from './service/changes'
 import { setFilesDb } from './service/files'
+import { registerDriveOverlay } from './service/overlays'
 import * as web from './web'
 
 const drive: ModuleDef = {
@@ -19,6 +25,9 @@ const drive: ModuleDef = {
       requiresApproval: true,
       materialize: driveDocMaterializer,
     })
+    registerDriveOverlay(createContactBuiltinOverlay(ctx.db))
+    registerDriveOverlay(createStaffBuiltinOverlay(ctx.db))
+    registerDriveOverlay(createAgentBuiltinOverlay(ctx.db))
     ctx.cli.registerAll(driveVerbs)
   },
 }

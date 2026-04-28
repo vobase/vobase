@@ -13,7 +13,6 @@ import { z } from 'zod'
 
 import type { Contact } from '../schema'
 import { CONTACT_RESOURCE } from '../service/changes'
-import agentViewHandler from './agent-view'
 import attributeHandlers from './attributes'
 
 const createContactBody = z.object({
@@ -32,7 +31,6 @@ const app = new Hono<OrganizationEnv>()
   .use('*', requireOrganization)
   .get('/health', (c) => c.json({ module: 'contacts', status: 'ok' }))
   .route('/', attributeHandlers)
-  .route('/', agentViewHandler)
   .get('/', async (c) => {
     const rows = await listContacts(c.get('organizationId'))
     return c.json(rows)

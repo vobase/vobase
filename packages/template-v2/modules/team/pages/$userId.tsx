@@ -93,7 +93,7 @@ export function StaffDetailPage() {
               <div className="flex shrink-0 items-center gap-2 border-border border-b px-6 py-3">
                 <FolderTree className="size-4 text-muted-foreground" />
                 <h2 className="font-medium text-sm">Drive</h2>
-                <span className="text-muted-foreground text-xs">PROFILE.md, NOTES.md, and personal files.</span>
+                <span className="text-muted-foreground text-xs">Profile, memory, and per-agent observations.</span>
               </div>
               <div className="min-h-0 flex-1">
                 <DriveProvider

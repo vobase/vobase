@@ -6,11 +6,14 @@
  *
  * Virtual overlay (`contact` + `staff` scopes):
  *   - `/PROFILE.md` ↔ `contacts.profile` / `staff_profiles.profile`
- *   - `/NOTES.md`   ↔ `contacts.notes`   / `staff_profiles.notes`
+ *   - `/MEMORY.md`  ↔ `contacts.memory`  / `staff_profiles.memory`
+ * Virtual overlay (`agent` scope):
+ *   - `/AGENTS.md`  ↔ `agent_definitions.instructions`
+ *   - `/MEMORY.md`  ↔ `agent_definitions.working_memory`
  *
  * `readPath` / `writePath` unify real + virtual. Virtual reads prepend a
  * single-line sentinel header; virtual writes strip any sentinel lines before
- * persisting to the backing column. `listFolder` at root surfaces the two
+ * persisting to the backing column. `listFolder` at root surfaces the
  * virtual entries even when no `drive.files` rows exist.
  *
  * `grep`, `ingestUpload`, `saveInboundMessageAttachment`, `deleteScope` remain
@@ -24,15 +27,15 @@ import { staffProfiles } from '@modules/team/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 
 import type { DriveFile } from '../schema'
+import { listOverlayProviders } from './overlays'
 import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInput } from './types'
+import { parseVirtualId, type VirtualBackingScope, type VirtualField } from './virtual-ids'
 
 /** Fallback content when /BUSINESS.md is absent from the drive. */
 export const BUSINESS_MD_FALLBACK = 'No business profile configured. Ask staff to create /BUSINESS.md in the drive.'
 
 /** Sentinel line prepended to virtual-file reads; stripped on write. */
 const VIRTUAL_HEADER_PREFIX = '<!-- drive:virtual'
-type VirtualBackingScope = 'contact' | 'staff' | 'agent'
-type VirtualField = 'profile' | 'notes' | 'instructions' | 'memory'
 const virtualHeader = (scope: VirtualBackingScope, field: VirtualField): string => {
   const source =
     scope === 'contact'
@@ -103,22 +106,15 @@ export interface FilesServiceDeps {
 export function resolveVirtualField(scope: DriveScope, path: string): VirtualField | null {
   if (scope.scope === 'contact' || scope.scope === 'staff') {
     if (path === '/PROFILE.md') return 'profile'
-    if (path === '/NOTES.md') return 'notes'
+    if (path === '/MEMORY.md') return 'memory'
     return null
   }
   if (scope.scope === 'agent') {
     if (path === '/AGENTS.md') return 'instructions'
-    if (path === '/NOTES.md') return 'memory'
+    if (path === '/MEMORY.md') return 'memory'
     return null
   }
   return null
-}
-
-/** @deprecated — use `resolveVirtualField`. Retained for tests and compatibility. */
-export function resolveContactVirtualField(scope: DriveScope, path: string): 'profile' | 'notes' | null {
-  if (scope.scope !== 'contact') return null
-  const v = resolveVirtualField(scope, path)
-  return v === 'profile' || v === 'notes' ? v : null
 }
 
 /** Strip any `<!-- drive:virtual ... -->` sentinel lines from user-submitted content. */
@@ -154,17 +150,17 @@ function parentPathOf(path: string): string | null {
 function virtualFileName(field: VirtualField): string {
   if (field === 'profile') return 'PROFILE.md'
   if (field === 'instructions') return 'AGENTS.md'
-  return 'NOTES.md'
+  return 'MEMORY.md'
 }
 
-function virtualDriveFile(
+export function virtualDriveFile(
   organizationId: string,
   backingScope: VirtualBackingScope,
   scopeId: string,
   field: VirtualField,
+  updatedAt: Date = new Date(0),
 ): DriveFile {
   const name = virtualFileName(field)
-  const now = new Date(0)
   return {
     id: `virtual:${backingScope}:${scopeId}:${field}`,
     organizationId,
@@ -188,8 +184,8 @@ function virtualDriveFile(
     processingStatus: 'ready',
     processingError: null,
     threatScanReport: null,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: updatedAt,
+    updatedAt,
   }
 }
 
@@ -210,24 +206,24 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     field: VirtualField,
   ): Promise<string> {
     if (backingScope === 'contact') {
-      if (field !== 'profile' && field !== 'notes') return ''
+      if (field !== 'profile' && field !== 'memory') return ''
       const rows = await db
-        .select({ profile: contacts.profile, notes: contacts.notes })
+        .select({ profile: contacts.profile, memory: contacts.memory })
         .from(contacts)
         .where(and(eq(contacts.organizationId, organizationId), eq(contacts.id, scopeId)))
         .limit(1)
-      const row = rows[0] as { profile: string; notes: string } | undefined
+      const row = rows[0] as { profile: string; memory: string } | undefined
       if (!row) throw new Error(`contact not found: ${scopeId}`)
       return row[field] ?? ''
     }
     if (backingScope === 'staff') {
-      if (field !== 'profile' && field !== 'notes') return ''
+      if (field !== 'profile' && field !== 'memory') return ''
       const rows = await db
-        .select({ profile: staffProfiles.profile, notes: staffProfiles.notes })
+        .select({ profile: staffProfiles.profile, memory: staffProfiles.memory })
         .from(staffProfiles)
         .where(and(eq(staffProfiles.organizationId, organizationId), eq(staffProfiles.userId, scopeId)))
         .limit(1)
-      const row = rows[0] as { profile: string; notes: string } | undefined
+      const row = rows[0] as { profile: string; memory: string } | undefined
       if (!row) throw new Error(`staff-profile not found: ${scopeId}`)
       return row[field] ?? ''
     }
@@ -250,7 +246,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     value: string,
   ): Promise<void> {
     if (backingScope === 'contact') {
-      if (field !== 'profile' && field !== 'notes') return
+      if (field !== 'profile' && field !== 'memory') return
       await db
         .update(contacts)
         .set({ [field]: value })
@@ -258,7 +254,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
       return
     }
     if (backingScope === 'staff') {
-      if (field !== 'profile' && field !== 'notes') return
+      if (field !== 'profile' && field !== 'memory') return
       await db
         .update(staffProfiles)
         .set({ [field]: value })
@@ -279,6 +275,88 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     if (scope.scope === 'staff') return { backingScope: 'staff', id: scope.userId }
     if (scope.scope === 'agent') return { backingScope: 'agent', id: scope.agentId }
     return null
+  }
+
+  /**
+   * Fetch the `updatedAt` of the backing row that powers a virtual file. Used
+   * to surface a real last-modified timestamp on virtual rows in `listFolder`
+   * and `readPath`. Returns `null` when the backing row is missing — callers
+   * fall back to `new Date(0)` so the UI still renders deterministically.
+   */
+  async function readBackingUpdatedAt(backingScope: VirtualBackingScope, scopeId: string): Promise<Date | null> {
+    if (backingScope === 'contact') {
+      const rows = await db
+        .select({ updatedAt: contacts.updatedAt })
+        .from(contacts)
+        .where(and(eq(contacts.organizationId, organizationId), eq(contacts.id, scopeId)))
+        .limit(1)
+      const row = rows[0] as { updatedAt: Date } | undefined
+      return row?.updatedAt ?? null
+    }
+    if (backingScope === 'staff') {
+      const rows = await db
+        .select({ updatedAt: staffProfiles.updatedAt })
+        .from(staffProfiles)
+        .where(and(eq(staffProfiles.organizationId, organizationId), eq(staffProfiles.userId, scopeId)))
+        .limit(1)
+      const row = rows[0] as { updatedAt: Date } | undefined
+      return row?.updatedAt ?? null
+    }
+    const rows = await db
+      .select({ updatedAt: agentDefinitions.updatedAt })
+      .from(agentDefinitions)
+      .where(and(eq(agentDefinitions.organizationId, organizationId), eq(agentDefinitions.id, scopeId)))
+      .limit(1)
+    const row = rows[0] as { updatedAt: Date } | undefined
+    return row?.updatedAt ?? null
+  }
+
+  /**
+   * Synthesize a DriveFile-shaped stub for a provider-owned virtual path —
+   * used as the `file` field on `ReadPathResult` when an overlay provider
+   * answers a read. Providers that supply a real `updatedAt` thread it through
+   * here; otherwise we fall back to epoch (the UI renders that as `—`).
+   */
+  function providerVirtualStub(
+    providerId: string,
+    scope: DriveScope,
+    path: string,
+    updatedAt: Date = new Date(0),
+  ): DriveFile {
+    const { scopeIdVal } = scopeId(scope)
+    const parts = path.split('/').filter(Boolean)
+    const name = parts[parts.length - 1] ?? ''
+    // Invariant: provider rows never run in 'organization' scope today.
+    if (scope.scope === 'organization') {
+      throw new Error('drive: provider rows not supported in organization scope')
+    }
+    const scopeForRow: VirtualBackingScope = scope.scope
+    return {
+      id: `virtual:provider:${providerId}:${scopeIdVal}:${path}`,
+      organizationId,
+      scope: scopeForRow,
+      scopeId: scopeIdVal,
+      parentFolderId: null,
+      kind: 'file',
+      name,
+      path,
+      mimeType: 'text/markdown',
+      sizeBytes: null,
+      storageKey: null,
+      caption: null,
+      captionModel: null,
+      captionUpdatedAt: null,
+      extractedText: null,
+      source: null,
+      sourceMessageId: null,
+      tags: [],
+      uploadedBy: null,
+      processingStatus: 'ready',
+      processingError: null,
+      threatScanReport: null,
+      createdAt: updatedAt,
+      updatedAt,
+    }
   }
 
   async function getByPath(scope: DriveScope, path: string): Promise<DriveFile | null> {
@@ -314,35 +392,52 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
         ),
       )) as DriveFile[]
 
-    const backing = virtualBackingOf(scope)
-    if (backing && parentId === null) {
-      const realNames = new Set(rows.map((r) => r.name))
-      const overlays: DriveFile[] = []
-      if (backing.backingScope === 'agent') {
-        if (!realNames.has('AGENTS.md')) {
-          overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'instructions'))
+    const providers = listOverlayProviders(scope.scope)
+
+    // Fan out provider.list() in parallel — each may do 1-2 DB queries, so
+    // serial fan-out adds RTTs to every Drive render. Per-provider try/catch
+    // preserves failure isolation: a throwing provider must not poison the
+    // union.
+    const providerResults = await Promise.all(
+      providers.map(async (provider) => {
+        try {
+          return await provider.list({ scope, parentId, organizationId })
+        } catch (err) {
+          console.error('[drive/overlays] provider.list failed', { providerId: provider.id, err })
+          return [] as DriveFile[]
         }
-        if (!realNames.has('NOTES.md')) {
-          overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'memory'))
-        }
-      } else {
-        if (!realNames.has('PROFILE.md')) {
-          overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'profile'))
-        }
-        if (!realNames.has('NOTES.md')) {
-          overlays.push(virtualDriveFile(organizationId, backing.backingScope, backing.id, 'notes'))
-        }
-      }
-      return [...overlays, ...rows]
+      }),
+    )
+
+    const providerRows: DriveFile[] = providerResults.flat()
+
+    if (providerRows.length === 0) return rows
+
+    // Real-row precedence: any synthetic row whose `path` matches a real row
+    // is dropped. Provider-vs-provider precedence: first-registered wins —
+    // drive registers built-ins (PROFILE/MEMORY/AGENTS) first, so a rogue
+    // provider can't double-stamp a builtin path.
+    const realPaths = new Set(rows.map((r) => r.path))
+    const seenProviderPaths = new Set<string>()
+    const dedupedProviderRows: DriveFile[] = []
+    for (const r of providerRows) {
+      if (realPaths.has(r.path)) continue
+      if (seenProviderPaths.has(r.path)) continue
+      seenProviderPaths.add(r.path)
+      dedupedProviderRows.push(r)
     }
-    return rows
+
+    return [...dedupedProviderRows, ...rows]
   }
 
   async function readContent(id: string): Promise<{ content: string; spilledToPath?: string }> {
-    if (id.startsWith('virtual:')) {
-      const [, backingScope, scopeIdVal, field] = id.split(':') as [string, VirtualBackingScope, string, VirtualField]
-      const body = await readVirtualColumn(backingScope, scopeIdVal, field)
-      return { content: composeVirtualContent(field, body, backingScope) }
+    const parsed = parseVirtualId(id)
+    if (parsed) {
+      if (parsed.kind === 'builtin') {
+        const body = await readVirtualColumn(parsed.backingScope, parsed.scopeIdVal, parsed.field)
+        return { content: composeVirtualContent(parsed.field, body, parsed.backingScope) }
+      }
+      throw new Error(`drive/files: cannot read provider virtual id directly via readContent — use readPath. id=${id}`)
     }
 
     const rows = await db.select().from(driveFiles).where(eq(driveFiles.id, id)).limit(1)
@@ -363,16 +458,35 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
         return { content, virtual: false, file: real }
       }
       const body = await readVirtualColumn(backing.backingScope, backing.id, vf)
+      const backingUpdatedAt = (await readBackingUpdatedAt(backing.backingScope, backing.id)) ?? new Date(0)
       return {
         content: composeVirtualContent(vf, body, backing.backingScope),
         virtual: true,
-        file: virtualDriveFile(organizationId, backing.backingScope, backing.id, vf),
+        file: virtualDriveFile(organizationId, backing.backingScope, backing.id, vf, backingUpdatedAt),
       }
     }
     const real = await getByPath(scope, path)
-    if (!real) return null
-    const { content } = await readContent(real.id)
-    return { content, virtual: false, file: real }
+    if (real) {
+      const { content } = await readContent(real.id)
+      return { content, virtual: false, file: real }
+    }
+
+    // Walk overlay providers; first non-null read wins. Failures isolated.
+    for (const provider of listOverlayProviders(scope.scope)) {
+      try {
+        const result = await provider.read({ scope, path, organizationId })
+        if (result) {
+          return {
+            content: result.content,
+            virtual: true,
+            file: providerVirtualStub(provider.id, scope, path, result.updatedAt ?? new Date(0)),
+          }
+        }
+      } catch (err) {
+        console.error('[drive/overlays] provider.read failed', { providerId: provider.id, err })
+      }
+    }
+    return null
   }
 
   async function writePath(scope: DriveScope, path: string, content: string): Promise<DriveFile | null> {
@@ -381,7 +495,11 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     if (vf && backing) {
       const body = stripVirtualHeader(content)
       await writeVirtualColumn(backing.backingScope, backing.id, vf, body)
-      return virtualDriveFile(organizationId, backing.backingScope, backing.id, vf)
+      // Re-read backing updatedAt after the write so the returned virtual row
+      // carries the post-mutation timestamp (the underlying tables use
+      // `$onUpdate(() => new Date())`).
+      const backingUpdatedAt = (await readBackingUpdatedAt(backing.backingScope, backing.id)) ?? new Date()
+      return virtualDriveFile(organizationId, backing.backingScope, backing.id, vf, backingUpdatedAt)
     }
     // Real drive file: create-or-update at the path.
     const existing = await getByPath(scope, path)

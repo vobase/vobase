@@ -1,6 +1,6 @@
 /**
  * Unit tests for the contact-scope virtual-file overlay helpers:
- *   `resolveContactVirtualField`, `composeVirtualContent`, `stripVirtualHeader`.
+ *   `resolveVirtualField`, `composeVirtualContent`, `stripVirtualHeader`.
  *
  * DB-backed paths (`readPath` / `writePath` hitting drive_files + contacts) are
  * exercised in the e2e suite alongside `factory-isolation`.
@@ -8,31 +8,31 @@
 
 import { describe, expect, it } from 'bun:test'
 
-import { composeVirtualContent, resolveContactVirtualField, resolveVirtualField, stripVirtualHeader } from './files'
+import { composeVirtualContent, resolveVirtualField, stripVirtualHeader } from './files'
 import type { DriveScope } from './types'
 
 const CONTACT_SCOPE: DriveScope = { scope: 'contact', contactId: 'ctc-1' }
 const STAFF_SCOPE: DriveScope = { scope: 'staff', userId: 'alice' }
 const ORG_SCOPE: DriveScope = { scope: 'organization' }
 
-describe('resolveContactVirtualField', () => {
+describe('resolveVirtualField (contact scope)', () => {
   it('maps contact:/PROFILE.md to profile', () => {
-    expect(resolveContactVirtualField(CONTACT_SCOPE, '/PROFILE.md')).toBe('profile')
+    expect(resolveVirtualField(CONTACT_SCOPE, '/PROFILE.md')).toBe('profile')
   })
 
-  it('maps contact:/NOTES.md to notes', () => {
-    expect(resolveContactVirtualField(CONTACT_SCOPE, '/NOTES.md')).toBe('notes')
+  it('maps contact:/MEMORY.md to memory', () => {
+    expect(resolveVirtualField(CONTACT_SCOPE, '/MEMORY.md')).toBe('memory')
   })
 
   it('returns null for organization scope', () => {
-    expect(resolveContactVirtualField(ORG_SCOPE, '/PROFILE.md')).toBeNull()
-    expect(resolveContactVirtualField(ORG_SCOPE, '/NOTES.md')).toBeNull()
+    expect(resolveVirtualField(ORG_SCOPE, '/PROFILE.md')).toBeNull()
+    expect(resolveVirtualField(ORG_SCOPE, '/MEMORY.md')).toBeNull()
   })
 
   it('returns null for non-matching paths', () => {
-    expect(resolveContactVirtualField(CONTACT_SCOPE, '/other.md')).toBeNull()
-    expect(resolveContactVirtualField(CONTACT_SCOPE, '/profile.md')).toBeNull() // case-sensitive
-    expect(resolveContactVirtualField(CONTACT_SCOPE, '/dir/PROFILE.md')).toBeNull()
+    expect(resolveVirtualField(CONTACT_SCOPE, '/other.md')).toBeNull()
+    expect(resolveVirtualField(CONTACT_SCOPE, '/profile.md')).toBeNull() // case-sensitive
+    expect(resolveVirtualField(CONTACT_SCOPE, '/dir/PROFILE.md')).toBeNull()
   })
 })
 
@@ -41,17 +41,33 @@ describe('resolveVirtualField (contact + staff)', () => {
     expect(resolveVirtualField(STAFF_SCOPE, '/PROFILE.md')).toBe('profile')
   })
 
-  it('maps staff:/NOTES.md to notes', () => {
-    expect(resolveVirtualField(STAFF_SCOPE, '/NOTES.md')).toBe('notes')
+  it('maps staff:/MEMORY.md to memory', () => {
+    expect(resolveVirtualField(STAFF_SCOPE, '/MEMORY.md')).toBe('memory')
   })
 
   it('still maps contact-scope paths', () => {
     expect(resolveVirtualField(CONTACT_SCOPE, '/PROFILE.md')).toBe('profile')
-    expect(resolveVirtualField(CONTACT_SCOPE, '/NOTES.md')).toBe('notes')
+    expect(resolveVirtualField(CONTACT_SCOPE, '/MEMORY.md')).toBe('memory')
   })
 
   it('returns null for org scope', () => {
     expect(resolveVirtualField(ORG_SCOPE, '/PROFILE.md')).toBeNull()
+  })
+})
+
+describe('resolveVirtualField (agent)', () => {
+  const AGENT_SCOPE: DriveScope = { scope: 'agent', agentId: 'agt-1' }
+
+  it('maps agent:/AGENTS.md to instructions', () => {
+    expect(resolveVirtualField(AGENT_SCOPE, '/AGENTS.md')).toBe('instructions')
+  })
+
+  it('maps agent:/MEMORY.md to memory', () => {
+    expect(resolveVirtualField(AGENT_SCOPE, '/MEMORY.md')).toBe('memory')
+  })
+
+  it('returns null for agent:/NOTES.md (legacy path, no longer mapped in any scope)', () => {
+    expect(resolveVirtualField(AGENT_SCOPE, '/NOTES.md')).toBeNull()
   })
 })
 
@@ -63,12 +79,12 @@ describe('composeVirtualContent + stripVirtualHeader roundtrip', () => {
   })
 
   it('handles empty body', () => {
-    const out = composeVirtualContent('notes', '')
-    expect(out).toMatch(/^<!-- drive:virtual field=notes.*-->\n$/)
+    const out = composeVirtualContent('memory', '')
+    expect(out).toMatch(/^<!-- drive:virtual field=memory.*-->\n$/)
   })
 
   it('stripVirtualHeader removes a single sentinel and leading blank', () => {
-    const composed = composeVirtualContent('notes', 'hello\nworld')
+    const composed = composeVirtualContent('memory', 'hello\nworld')
     const stripped = stripVirtualHeader(composed)
     expect(stripped).toBe('hello\nworld')
   })
@@ -82,7 +98,7 @@ describe('composeVirtualContent + stripVirtualHeader roundtrip', () => {
     const input = [
       '<!-- drive:virtual field=profile source=contacts.profile -->',
       '',
-      '<!-- drive:virtual field=notes source=contacts.notes -->',
+      '<!-- drive:virtual field=memory source=contacts.memory -->',
       'real body',
     ].join('\n')
     expect(stripVirtualHeader(input)).toBe('real body')

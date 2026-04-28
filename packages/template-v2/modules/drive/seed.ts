@@ -233,8 +233,8 @@ export async function seed(db: unknown): Promise<void> {
       .onConflictDoNothing()
   }
 
-  // Contact-scope drive files — surface in `<AgentViewPane>` under each
-  // contact detail page so staff see what files the agent has on that contact.
+  // Contact-scope drive files — surface in `<DriveBrowser>` under each
+  // contact's drive root so staff see what files the agent has on that contact.
   await d
     .insert(driveFiles)
     .values({

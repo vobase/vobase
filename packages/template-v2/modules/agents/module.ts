@@ -1,4 +1,5 @@
 import { registerChangeMaterializer } from '@modules/changes/service/proposals'
+import { registerDriveOverlay } from '@modules/drive/service/overlays'
 import {
   createCostService,
   createJournalService,
@@ -21,6 +22,7 @@ import {
   createAgentSkillsService,
   installAgentSkillsService,
 } from './service/changes'
+import { agentSkillsOverlay } from './service/drive-overlay'
 import { createStaffMemoryService, installStaffMemoryService } from './service/staff-memory'
 import { createAgentsState, installAgentsState } from './service/state'
 import { createThreadsService, installThreadsService } from './service/threads'
@@ -41,6 +43,7 @@ const agents: ModuleDef = {
     installThreadsService(createThreadsService({ db: ctx.db, notify: (payload) => ctx.realtime.notify(payload) }))
     installAgentsState(createAgentsState({ jobs: ctx.jobs }))
     setApprovalGateDb(ctx.db)
+    registerDriveOverlay(agentSkillsOverlay)
     registerChangeMaterializer({
       resourceModule: AGENT_SKILL_RESOURCE.module,
       resourceType: AGENT_SKILL_RESOURCE.type,

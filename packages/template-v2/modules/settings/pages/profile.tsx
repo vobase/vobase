@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { DriveBrowser } from '@modules/drive/components/drive-browser'
+import { DriveProvider } from '@modules/drive/components/drive-provider'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { ProfileValues } from '@modules/settings/pages/schemas'
 import { profileSchema } from '@modules/settings/pages/schemas'
 import { useForm } from 'react-hook-form'
 
-import { AgentViewPane } from '@/components/agent-view-pane'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -63,7 +64,11 @@ export default function ProfilePage() {
         </form>
       </Form>
 
-      {userId && <AgentViewPane scope={`/staff/${userId}`} />}
+      {userId && (
+        <DriveProvider scope={{ scope: 'staff', userId }} rootLabel="Your files" initialPath="/PROFILE.md">
+          <DriveBrowser />
+        </DriveProvider>
+      )}
     </div>
   )
 }

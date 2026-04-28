@@ -228,6 +228,34 @@ export async function seed(db: unknown): Promise<void> {
     })
     .onConflictDoNothing()
 
+  // ── 4b. Org-floating learned skill (agentId NULL) — exercises agent-overlay union path ──
+  await ins(learnedSkills)
+    .values({
+      id: 'lsk0org001',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: null,
+      name: 'cite-policy',
+      description:
+        'Org-wide pattern: always quote the policy line + section anchor before committing to a refund/exception.',
+      body: [
+        '# cite-policy',
+        '',
+        '**When**: about to commit to a refund, exception, or warranty action.',
+        '',
+        '**Reply structure**:',
+        '1. Quote the relevant policy line from `/drive/BUSINESS.md#Policies`.',
+        "2. Confirm whether the customer's request fits the line (yes / no / edge case).",
+        '3. If yes — proceed with the action. If no — escalate. If edge case — `vobase conv ask-staff`.',
+        '',
+        'Floating across the org: any agent that picks up `/drive/BUSINESS.md` should follow this rubric.',
+      ].join('\n'),
+      tags: ['policy', 'org-wide'],
+      version: 1,
+      parentProposalId: null,
+      createdAt: days(2),
+    })
+    .onConflictDoNothing()
+
   // ── 5. Agent staff memory — what Meridian knows about specific staff ──
   await ins(agentStaffMemory)
     .values({
@@ -266,6 +294,61 @@ export async function seed(db: unknown): Promise<void> {
       ].join('\n'),
       createdAt: days(14),
       updatedAt: hours(20),
+    })
+    .onConflictDoNothing()
+
+  // Sentinel staff memory — exercises cross-agent staff overlay (multiple agents per staff).
+  await ins(agentStaffMemory)
+    .values({
+      id: 'asm0sntali',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: SENTINEL_AGENT_ID,
+      staffId: ALICE_USER_ID,
+      memory: [
+        '# Alice — operator notes',
+        '',
+        '- Owner of the daily-brief acknowledgement loop. Replies within 15 min on weekdays.',
+        '- Wants stale-triage cards routed to her first when Bob is OOO; she reassigns from there.',
+        '- Asked 2026-04-15 to fold refund-volume anomalies into the brief instead of a separate page.',
+      ].join('\n'),
+      createdAt: days(10),
+      updatedAt: hours(3),
+    })
+    .onConflictDoNothing()
+
+  await ins(agentStaffMemory)
+    .values({
+      id: 'asm0sntbob',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: SENTINEL_AGENT_ID,
+      staffId: BOB_USER_ID,
+      memory: [
+        '# Bob — operator notes',
+        '',
+        '- Integrations + bug-reports lead. Prefers a single threaded card per investigation, not per ping.',
+        '- OOO 2026-04-26 → 2026-04-29 (back Tue). Stale conversations on him should fall back to Carol.',
+        "- Has a 'mute until repro' rule for new bug threads — do not chase him for an ack inside 24h.",
+      ].join('\n'),
+      createdAt: days(8),
+      updatedAt: hours(40),
+    })
+    .onConflictDoNothing()
+
+  await ins(agentStaffMemory)
+    .values({
+      id: 'asm0sntcar',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: SENTINEL_AGENT_ID,
+      staffId: CAROL_USER_ID,
+      memory: [
+        '# Carol — operator notes',
+        '',
+        "- Picks up Bob's integrations queue when he is OOO. Already covered for 2026-04-26 → 2026-04-29.",
+        '- Wants the refund-volume number in every daily brief, even when within tolerance.',
+        '- Does not want to be paged for refunds < SGD 500 — auto-approve band.',
+      ].join('\n'),
+      createdAt: days(6),
+      updatedAt: hours(18),
     })
     .onConflictDoNothing()
 

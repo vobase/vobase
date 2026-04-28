@@ -77,19 +77,32 @@ export function useRealtimeInvalidation(): void {
           queryClient.invalidateQueries({ queryKey: ['contacts'] })
           if (payload.resourceId) {
             queryClient.invalidateQueries({ queryKey: ['contact', payload.resourceId] })
-            queryClient.invalidateQueries({ queryKey: ['agent-view', `/contacts/${payload.resourceId}`] })
+            queryClient.invalidateQueries({ queryKey: ['drive'] })
           }
         } else if (payload.resourceModule === 'agents') {
           queryClient.invalidateQueries({ queryKey: ['agents'] })
           if (payload.resourceId) {
             queryClient.invalidateQueries({ queryKey: ['agent', payload.resourceId] })
-            queryClient.invalidateQueries({ queryKey: ['agent-view', `/agents/${payload.resourceId}`] })
+            queryClient.invalidateQueries({ queryKey: ['drive'] })
           }
         }
       }
       if (payload.conversationId) {
         queryClient.invalidateQueries({ queryKey: ['activity', payload.conversationId] })
       }
+      return
+    }
+
+    // Staff memory mutations — drive overlay for team/staff scope reflects these rows.
+    if (payload.table === 'agent_staff_memory') {
+      queryClient.invalidateQueries({ queryKey: ['drive'] })
+      return
+    }
+
+    // Learned-skill direct writes (defensive; the change_proposals fan-out above
+    // covers the approval flow, but any future direct-write path also lands here).
+    if (payload.table === 'learned_skills') {
+      queryClient.invalidateQueries({ queryKey: ['drive'] })
       return
     }
 
