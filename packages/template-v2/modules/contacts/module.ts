@@ -12,7 +12,7 @@ const contacts: ModuleDef = {
   web: { routes: web.routes },
   jobs: [],
   init(ctx) {
-    installContactsService(createContactsService({ db: ctx.db }))
+    installContactsService(createContactsService({ db: ctx.db, realtime: ctx.realtime }))
     installAttrDefService(createAttrDefService({ db: ctx.db }))
     registerChangeMaterializer({
       resourceModule: CONTACT_RESOURCE.module,

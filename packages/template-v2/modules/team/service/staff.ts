@@ -23,7 +23,7 @@ export interface UpsertStaffInput {
   availability?: Availability
   attributes?: Record<string, AttributeValue>
   profile?: string
-  notes?: string
+  memory?: string
 }
 
 export interface UpdateStaffInput {
@@ -35,7 +35,7 @@ export interface UpdateStaffInput {
   capacity?: number
   availability?: Availability
   profile?: string
-  notes?: string
+  memory?: string
 }
 
 interface StaffDeps {
@@ -51,9 +51,9 @@ export interface StaffService {
   remove(userId: string): Promise<void>
   setAttributes(userId: string, patch: Record<string, AttributeValue>): Promise<StaffProfile>
   touchLastSeen(userId: string): Promise<void>
-  readNotes(userId: string): Promise<string>
-  writeNotes(userId: string, value: string): Promise<void>
-  upsertNotesSection(userId: string, heading: string, body: string): Promise<void>
+  readMemory(userId: string): Promise<string>
+  writeMemory(userId: string, value: string): Promise<void>
+  upsertMemorySection(userId: string, heading: string, body: string): Promise<void>
   readProfile(userId: string): Promise<string>
   writeProfile(userId: string, value: string): Promise<void>
 }
@@ -95,7 +95,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
     if (input.availability !== undefined) values.availability = input.availability
     if (input.attributes !== undefined) values.attributes = input.attributes
     if (input.profile !== undefined) values.profile = input.profile
-    if (input.notes !== undefined) values.notes = input.notes
+    if (input.memory !== undefined) values.memory = input.memory
 
     const update: Record<string, unknown> = { ...values }
     delete update.userId
@@ -121,7 +121,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
     if (patch.capacity !== undefined) set.capacity = patch.capacity
     if (patch.availability !== undefined) set.availability = patch.availability
     if (patch.profile !== undefined) set.profile = patch.profile
-    if (patch.notes !== undefined) set.notes = patch.notes
+    if (patch.memory !== undefined) set.memory = patch.memory
     const rows = (await db
       .update(staffProfiles)
       .set(set)
@@ -162,18 +162,18 @@ export function createStaffService(deps: StaffDeps): StaffService {
     await db.update(staffProfiles).set({ lastSeenAt: new Date() }).where(eq(staffProfiles.userId, userId))
   }
 
-  async function readColumn(userId: string, field: 'profile' | 'notes'): Promise<string> {
+  async function readColumn(userId: string, field: 'profile' | 'memory'): Promise<string> {
     const rows = (await db
-      .select({ profile: staffProfiles.profile, notes: staffProfiles.notes })
+      .select({ profile: staffProfiles.profile, memory: staffProfiles.memory })
       .from(staffProfiles)
       .where(eq(staffProfiles.userId, userId))
-      .limit(1)) as Array<{ profile: string; notes: string }>
+      .limit(1)) as Array<{ profile: string; memory: string }>
     const row = rows[0]
     if (!row) throw new Error(`staff-profile not found: ${userId}`)
     return row[field] ?? ''
   }
 
-  async function writeColumn(userId: string, field: 'profile' | 'notes', value: string): Promise<void> {
+  async function writeColumn(userId: string, field: 'profile' | 'memory', value: string): Promise<void> {
     await db
       .update(staffProfiles)
       .set({ [field]: value })
@@ -181,15 +181,15 @@ export function createStaffService(deps: StaffDeps): StaffService {
   }
 
   // biome-ignore lint/suspicious/useAwait: contract requires async signature
-  async function readNotes(userId: string): Promise<string> {
-    return readColumn(userId, 'notes')
+  async function readMemory(userId: string): Promise<string> {
+    return readColumn(userId, 'memory')
   }
-  async function writeNotes(userId: string, value: string): Promise<void> {
-    await writeColumn(userId, 'notes', value)
+  async function writeMemory(userId: string, value: string): Promise<void> {
+    await writeColumn(userId, 'memory', value)
   }
-  async function upsertNotesSection(userId: string, heading: string, body: string): Promise<void> {
-    const current = await readNotes(userId)
-    await writeNotes(userId, setSection(current, heading, body))
+  async function upsertMemorySection(userId: string, heading: string, body: string): Promise<void> {
+    const current = await readMemory(userId)
+    await writeMemory(userId, setSection(current, heading, body))
   }
   // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function readProfile(userId: string): Promise<string> {
@@ -208,9 +208,9 @@ export function createStaffService(deps: StaffDeps): StaffService {
     remove,
     setAttributes,
     touchLastSeen,
-    readNotes,
-    writeNotes,
-    upsertNotesSection,
+    readMemory,
+    writeMemory,
+    upsertMemorySection,
     readProfile,
     writeProfile,
   }
@@ -294,14 +294,14 @@ export function setAttributes(userId: string, patch: Record<string, AttributeVal
 export function touchLastSeen(userId: string): Promise<void> {
   return current().touchLastSeen(userId)
 }
-export function readNotes(userId: string): Promise<string> {
-  return current().readNotes(userId)
+export function readMemory(userId: string): Promise<string> {
+  return current().readMemory(userId)
 }
-export function writeNotes(userId: string, value: string): Promise<void> {
-  return current().writeNotes(userId, value)
+export function writeMemory(userId: string, value: string): Promise<void> {
+  return current().writeMemory(userId, value)
 }
-export function upsertNotesSection(userId: string, heading: string, body: string): Promise<void> {
-  return current().upsertNotesSection(userId, heading, body)
+export function upsertMemorySection(userId: string, heading: string, body: string): Promise<void> {
+  return current().upsertMemorySection(userId, heading, body)
 }
 export function readProfile(userId: string): Promise<string> {
   return current().readProfile(userId)

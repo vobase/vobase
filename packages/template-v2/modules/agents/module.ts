@@ -37,7 +37,7 @@ const agents: ModuleDef = {
     installAgentDefinitionsService(createAgentDefinitionsService({ db: ctx.db }))
     installAgentSkillsService(createAgentSkillsService({ db: ctx.db }))
     installCostService(createCostService({ db: ctx.db }))
-    installStaffMemoryService(createStaffMemoryService({ db: ctx.db }))
+    installStaffMemoryService(createStaffMemoryService({ db: ctx.db, realtime: ctx.realtime }))
     installThreadsService(createThreadsService({ db: ctx.db, notify: (payload) => ctx.realtime.notify(payload) }))
     installAgentsState(createAgentsState({ jobs: ctx.jobs }))
     setApprovalGateDb(ctx.db)

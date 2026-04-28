@@ -10,6 +10,8 @@
 import { agentDefinitions, agentStaffMemory } from '@modules/agents/schema'
 import { and, eq } from 'drizzle-orm'
 
+import type { RealtimeService } from '~/runtime'
+
 export interface StaffMemoryKey {
   organizationId: string
   agentId: string
@@ -19,26 +21,29 @@ export interface StaffMemoryKey {
 export interface StaffMemoryEntry {
   agentId: string
   agentName: string
-  content: string
+  memory: string
+  updatedAt: Date
 }
 
 export interface StaffMemoryService {
   read(key: StaffMemoryKey): Promise<string>
-  upsert(key: StaffMemoryKey, content: string): Promise<void>
+  upsert(key: StaffMemoryKey, memory: string): Promise<void>
   /** Every (agent, staff) memory blob for one staff member, joined with the agent's display name. */
   listByStaff(input: { organizationId: string; staffId: string }): Promise<StaffMemoryEntry[]>
 }
 
 interface StaffMemoryDeps {
   db: unknown
+  realtime: RealtimeService
 }
 
 export function createStaffMemoryService(deps: StaffMemoryDeps): StaffMemoryService {
   const db = deps.db as { select: Function; insert: Function }
+  const realtime = deps.realtime
 
   async function read(key: StaffMemoryKey): Promise<string> {
     const rows = (await db
-      .select({ content: agentStaffMemory.content })
+      .select({ memory: agentStaffMemory.memory })
       .from(agentStaffMemory)
       .where(
         and(
@@ -47,23 +52,48 @@ export function createStaffMemoryService(deps: StaffMemoryDeps): StaffMemoryServ
           eq(agentStaffMemory.staffId, key.staffId),
         ),
       )
-      .limit(1)) as Array<{ content: string }>
-    return rows[0]?.content ?? ''
+      .limit(1)) as Array<{ memory: string }>
+    return rows[0]?.memory ?? ''
   }
 
-  async function upsert(key: StaffMemoryKey, content: string): Promise<void> {
+  async function upsert(key: StaffMemoryKey, memory: string): Promise<void> {
+    const existing = (await db
+      .select({ memory: agentStaffMemory.memory })
+      .from(agentStaffMemory)
+      .where(
+        and(
+          eq(agentStaffMemory.organizationId, key.organizationId),
+          eq(agentStaffMemory.agentId, key.agentId),
+          eq(agentStaffMemory.staffId, key.staffId),
+        ),
+      )
+      .limit(1)) as Array<{ memory: string }>
+    const isNoOp = existing[0]?.memory === memory
     await db
       .insert(agentStaffMemory)
       .values({
         organizationId: key.organizationId,
         agentId: key.agentId,
         staffId: key.staffId,
-        content,
+        memory,
       })
       .onConflictDoUpdate({
         target: [agentStaffMemory.organizationId, agentStaffMemory.agentId, agentStaffMemory.staffId],
-        set: { content, updatedAt: new Date() },
+        set: { memory, updatedAt: new Date() },
       })
+    if (!isNoOp) {
+      try {
+        realtime.notify({
+          table: 'agent_staff_memory',
+          action: 'upserted',
+          resourceModule: 'agents',
+          resourceType: 'staff_memory',
+          resourceId: key.staffId,
+        })
+      } catch {
+        // notify is best-effort
+      }
+    }
   }
 
   async function listByStaff(input: { organizationId: string; staffId: string }): Promise<StaffMemoryEntry[]> {
@@ -73,7 +103,8 @@ export function createStaffMemoryService(deps: StaffMemoryDeps): StaffMemoryServ
       .select({
         agentId: agentStaffMemory.agentId,
         agentName: agentDefinitions.name,
-        content: agentStaffMemory.content,
+        memory: agentStaffMemory.memory,
+        updatedAt: agentStaffMemory.updatedAt,
       })
       .from(agentStaffMemory)
       .innerJoin(agentDefinitions, eq(agentDefinitions.id, agentStaffMemory.agentId))
@@ -107,8 +138,8 @@ export function readStaffMemory(key: StaffMemoryKey): Promise<string> {
   return current().read(key)
 }
 
-export function upsertStaffMemory(key: StaffMemoryKey, content: string): Promise<void> {
-  return current().upsert(key, content)
+export function upsertStaffMemory(key: StaffMemoryKey, memory: string): Promise<void> {
+  return current().upsert(key, memory)
 }
 
 export function listStaffMemoryByStaff(input: {

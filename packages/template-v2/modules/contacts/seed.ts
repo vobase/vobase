@@ -221,7 +221,7 @@ export async function seed(db: unknown): Promise<void> {
       organizationId: MERIDIAN_ORG_ID,
       displayName: 'Test Customer',
       phone: '+6500000000',
-      notes: '',
+      memory: '',
     })
     .onConflictDoNothing()
 
@@ -242,7 +242,7 @@ export async function seed(db: unknown): Promise<void> {
         renewal_date: '2027-02-01',
         vip: true,
       },
-      notes: [
+      memory: [
         '# Priya Raman',
         'Role: Head of Ops @ Acme Labs (Singapore).',
         'Plan: Meridian Pro, 12 seats, annual billing (renewed 2026-02).',
@@ -268,7 +268,7 @@ export async function seed(db: unknown): Promise<void> {
         lifetime_value: 0,
         vip: false,
       },
-      notes: [
+      memory: [
         '# Marcus Chen',
         'Role: VP Engineering @ Northwind (400 employees, SG HQ).',
         'Stage: Enterprise eval — asked for SOC 2 + per-user pricing on 2026-04-17.',
@@ -291,7 +291,7 @@ export async function seed(db: unknown): Promise<void> {
         plan_tier: 'pro',
         lifetime_value: 49,
       },
-      notes: [
+      memory: [
         '# Elena Rossi',
         'Plan: Meridian Pro (1 seat) — asked for refund after 12 days of use.',
         'Reason given: product did not solve onboarding flow she needed.',
@@ -309,7 +309,7 @@ export async function seed(db: unknown): Promise<void> {
       email: 'derek@okafor.dev',
       phone: '+6591100204',
       segments: ['new-signup'],
-      notes: '',
+      memory: '',
     })
     .onConflictDoNothing()
 
@@ -329,7 +329,7 @@ export async function seed(db: unknown): Promise<void> {
         renewal_date: '2026-09-30',
         vip: false,
       },
-      notes: [
+      memory: [
         '# Liam Reyes',
         'Role: Solutions architect @ FinSight (PayTech, Pro plan).',
         'Stack: webhook-driven integration with their core ledger; sensitive to retry semantics.',
@@ -354,7 +354,7 @@ export async function seed(db: unknown): Promise<void> {
         renewal_date: '2026-11-15',
         vip: true,
       },
-      notes: [
+      memory: [
         '# Sophia Nakamura',
         'Plan: Meridian Teams (8 seats). Billing in JPY via Stripe.',
         'Wants: audit log retention bumped to 12 months (Enterprise feature).',

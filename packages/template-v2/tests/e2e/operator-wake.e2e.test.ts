@@ -78,6 +78,8 @@ const NOOP_CONTRIBUTIONS: AgentContributions = {
 
 let db: TestDbHandle
 
+const NOOP_REALTIME = { notify: () => {}, subscribe: () => () => {} }
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
@@ -85,13 +87,13 @@ beforeAll(async () => {
   setFilesDb(db.db)
   installAgentDefinitionsService(createAgentDefinitionsService({ db: db.db }))
   installThreadsService(createThreadsService({ db: db.db }))
-  installContactsService(createContactsService({ db: db.db }))
+  installContactsService(createContactsService({ db: db.db, realtime: NOOP_REALTIME }))
   installSchedulesService(createSchedulesService({ db: db.db }))
   installConversationsService(createConversationsService({ db: db.db, scheduler: null }))
   installNotesService(createNotesService({ db: db.db }))
   installPendingApprovalsService(createPendingApprovalsService({ db: db.db }))
   installStaffService(createStaffService({ db: db.db }))
-  installStaffMemoryService(createStaffMemoryService({ db: db.db }))
+  installStaffMemoryService(createStaffMemoryService({ db: db.db, realtime: NOOP_REALTIME }))
 }, 60_000)
 
 afterAll(async () => {

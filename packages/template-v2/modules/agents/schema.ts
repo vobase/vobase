@@ -165,7 +165,7 @@ export const agentStaffMemory = agentsPgSchema.table(
       .notNull()
       .references(() => agentDefinitions.id, { onDelete: 'cascade' }),
     staffId: text('staff_id').notNull(),
-    content: text('content').notNull().default(''),
+    memory: text('memory').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -180,7 +180,7 @@ export interface AgentStaffMemory {
   organizationId: string
   agentId: string
   staffId: string
-  content: string
+  memory: string
   createdAt: Date
   updatedAt: Date
 }

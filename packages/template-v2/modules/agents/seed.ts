@@ -235,7 +235,7 @@ export async function seed(db: unknown): Promise<void> {
       organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       staffId: ALICE_USER_ID,
-      content: [
+      memory: [
         '# Alice (Senior Customer Success)',
         '',
         '- Owns enterprise + escalation; route refund > $100 + procurement here.',
@@ -257,7 +257,7 @@ export async function seed(db: unknown): Promise<void> {
       organizationId: MERIDIAN_ORG_ID,
       agentId: MERIDIAN_AGENT_ID,
       staffId: CAROL_USER_ID,
-      content: [
+      memory: [
         '# Carol (Billing Lead)',
         '',
         '- Auto-approve authority on refunds ≤ SGD 500; never page for refunds inside this band.',

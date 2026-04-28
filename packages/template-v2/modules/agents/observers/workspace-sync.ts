@@ -3,7 +3,7 @@
  * buffer and persists writable-zone changes to their owning module services.
  *
  * Routing rules:
- *   `/contacts/<id>/MEMORY.md`    → ContactsService.upsertNotesSection (section-ops)
+ *   `/contacts/<id>/MEMORY.md`    → ContactsService.upsertMemorySection (section-ops)
  *   `/contacts/<id>/drive/**`     → FilesService.create / delete  (scope='contact')
  *   `/staff/<staffId>/MEMORY.md`  → upsertStaffMemory(org, agent, staff)
  *
@@ -17,7 +17,7 @@
 
 import type { AgentEvent } from '@modules/agents/events'
 import { upsertStaffMemory } from '@modules/agents/service/staff-memory'
-import { upsertNotesSection } from '@modules/contacts/service/contacts'
+import { upsertMemorySection } from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
 import type { CreateFileInput, DriveScope } from '@modules/drive/service/types'
 import type { DirtyTracker, HarnessLogger } from '@vobase/core'
@@ -64,7 +64,7 @@ export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: Ag
         const raw = await fs.readFile(contactMemoryPath)
         const sections = parseMarkdownSections(raw)
         for (const [heading, body] of sections) {
-          await upsertNotesSection(contactId, heading, body)
+          await upsertMemorySection(contactId, heading, body)
         }
       } catch (err) {
         logger.warn({ err }, 'workspace-sync: failed to flush contact MEMORY.md')

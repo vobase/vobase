@@ -14,7 +14,7 @@ import { contacts as contactsTable } from '../schema'
 /** Stable (resourceModule, resourceType) pair shared by registration, CLI verb, and CRUD audit calls. */
 export const CONTACT_RESOURCE = { module: 'contacts', type: 'contact' } as const
 
-const MARKDOWN_FIELDS = new Set<keyof Contact>(['notes', 'profile'])
+const MARKDOWN_FIELDS = new Set<keyof Contact>(['memory', 'profile'])
 const SCALAR_FIELDS = new Set<keyof Contact>(['displayName', 'email', 'phone', 'segments', 'marketingOptOut'])
 
 export const contactChangeMaterializer: Materializer = async (proposal, tx) => {
@@ -41,7 +41,7 @@ async function writeContact(tx: TxLike, id: string, next: Contact): Promise<void
     email: next.email,
     phone: next.phone,
     profile: next.profile,
-    notes: next.notes,
+    memory: next.memory,
     attributes: next.attributes,
     segments: next.segments,
     marketingOptOut: next.marketingOptOut,
@@ -63,10 +63,10 @@ function applyMarkdownPatch(before: Contact, payload: Extract<ChangePayload, { k
   if (!MARKDOWN_FIELDS.has(payload.field as keyof Contact)) {
     throw validation(
       { field: payload.field },
-      `contacts/changes: markdown_patch field must be 'notes' or 'profile' (got '${payload.field}')`,
+      `contacts/changes: markdown_patch field must be 'memory' or 'profile' (got '${payload.field}')`,
     )
   }
-  const field = payload.field as 'notes' | 'profile'
+  const field = payload.field as 'memory' | 'profile'
   const current = before[field]
   const next = payload.mode === 'append' ? (current ? `${current}\n${payload.body}` : payload.body) : payload.body
   return { ...before, [field]: next }

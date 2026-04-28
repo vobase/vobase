@@ -159,7 +159,7 @@ function makeContactsStub(): ContactsService {
         phone: '+6580000000',
         email: null,
         profile: '',
-        notes: '# Memory\n',
+        memory: '# Memory\n',
         attributes: {},
         segments: [],
         marketingOptOut: false,
@@ -189,12 +189,12 @@ function makeContactsStub(): ContactsService {
       throw new Error('not-implemented-in-phase-1')
     },
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
-    async readNotes() {
+    async readMemory() {
       return '# Memory\n'
     },
-    async upsertNotesSection() {},
-    async appendNotes() {},
-    async removeNotesSection() {},
+    async upsertMemorySection() {},
+    async appendMemory() {},
+    async removeMemorySection() {},
     async setSegments() {},
     async setMarketingOptOut() {},
     // biome-ignore lint/suspicious/useAwait: contract requires async signature

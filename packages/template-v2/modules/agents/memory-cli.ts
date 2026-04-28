@@ -3,8 +3,8 @@
  *
  * Memory has three scopes:
  *  - `agent`   ↔ `agent_definitions.working_memory` (one row per agent)
- *  - `contact` ↔ `contacts.notes`                  (one row per contact)
- *  - `staff`   ↔ `agent_staff_memory.content`      (per-(agent, staff) blob)
+ *  - `contact` ↔ `contacts.memory`                  (one row per contact)
+ *  - `staff`   ↔ `agent_staff_memory.memory`        (per-(agent, staff) blob)
  *
  * `agent` + `contact` flow through the drive `filesService.readPath/writePath`
  * primitive (which strips the virtual sentinel header on write); `staff` goes
@@ -67,14 +67,12 @@ async function readMemory(input: ScopeInput, organizationId: string): Promise<st
     })
   }
   if (input.scope === 'contact') {
-    // Notes service guarantees the contact exists in the org via its own checks.
     const contact = await contactsSvc.get(input.id as string)
     if (contact.organizationId !== organizationId) throw new Error('contact not in this organization')
-    return contactsSvc.readNotes(input.id as string)
+    return contactsSvc.readMemory(input.id as string)
   }
-  // Agent memory via drive — auto-resolves the virtual /NOTES.md surface.
   const svc = filesServiceFor(organizationId)
-  const result = await svc.readPath(driveScopeOf(input), '/NOTES.md')
+  const result = await svc.readPath(driveScopeOf(input), '/MEMORY.md')
   return result?.content ?? ''
 }
 
@@ -89,13 +87,12 @@ async function writeMemory(input: ScopeInput, organizationId: string, content: s
   if (input.scope === 'contact') {
     const contact = await contactsSvc.get(input.id as string)
     if (contact.organizationId !== organizationId) throw new Error('contact not in this organization')
-    // appendNotes does the read-modify-write; for clear/replace we use the raw drive write below.
     const svc = filesServiceFor(organizationId)
-    await svc.writePath({ scope: 'contact', contactId: input.id as string }, '/NOTES.md', content)
+    await svc.writePath({ scope: 'contact', contactId: input.id as string }, '/MEMORY.md', content)
     return
   }
   const svc = filesServiceFor(organizationId)
-  await svc.writePath(driveScopeOf(input), '/NOTES.md', content)
+  await svc.writePath(driveScopeOf(input), '/MEMORY.md', content)
 }
 
 export const memoryShowVerb = defineCliVerb({

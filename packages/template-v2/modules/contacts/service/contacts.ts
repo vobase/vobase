@@ -6,6 +6,7 @@
 import { contacts, staffChannelBindings } from '@modules/contacts/schema'
 import { and, eq, or } from 'drizzle-orm'
 
+import type { RealtimeService } from '~/runtime'
 import type { Contact, StaffBinding } from '../schema'
 
 export interface UpsertByExternalInput {
@@ -34,6 +35,7 @@ export interface UpdateContactInput {
 
 interface ContactsDeps {
   db: unknown
+  realtime: RealtimeService
 }
 
 export interface ContactsService {
@@ -45,10 +47,10 @@ export interface ContactsService {
   update(id: string, patch: UpdateContactInput): Promise<Contact>
   upsertByExternal(input: UpsertByExternalInput): Promise<Contact>
   resolveStaffByExternal(channelInstanceId: string, externalIdentifier: string): Promise<StaffBinding | null>
-  readNotes(id: string): Promise<string>
-  upsertNotesSection(id: string, heading: string, body: string): Promise<void>
-  appendNotes(id: string, line: string): Promise<void>
-  removeNotesSection(id: string, heading: string): Promise<void>
+  readMemory(id: string): Promise<string>
+  upsertMemorySection(id: string, heading: string, body: string): Promise<void>
+  appendMemory(id: string, line: string): Promise<void>
+  removeMemorySection(id: string, heading: string): Promise<void>
   setSegments(id: string, segments: string[]): Promise<void>
   setMarketingOptOut(id: string, value: boolean): Promise<void>
   bindStaff(userId: string, channelInstanceId: string, externalIdentifier: string): Promise<StaffBinding>
@@ -57,6 +59,7 @@ export interface ContactsService {
 
 export function createContactsService(deps: ContactsDeps): ContactsService {
   const db = deps.db as { select: Function; insert: Function; update: Function }
+  const realtime = deps.realtime
 
   async function get(id: string): Promise<Contact> {
     const rows = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1)
@@ -136,33 +139,36 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     return (rows[0] as StaffBinding) ?? null
   }
 
-  async function readNotes(id: string): Promise<string> {
-    const rows = await db.select({ notes: contacts.notes }).from(contacts).where(eq(contacts.id, id)).limit(1)
+  async function readMemory(id: string): Promise<string> {
+    const rows = await db.select({ memory: contacts.memory }).from(contacts).where(eq(contacts.id, id)).limit(1)
     const row = rows[0]
     if (!row) throw new Error(`contact not found: ${id}`)
-    return (row as { notes: string }).notes
+    return (row as { memory: string }).memory
   }
 
-  async function writeNotes(id: string, value: string): Promise<void> {
-    await db.update(contacts).set({ notes: value }).where(eq(contacts.id, id))
+  async function writeMemoryIfChanged(id: string, current: string, next: string): Promise<void> {
+    if (current === next) return
+    await db.update(contacts).set({ memory: next }).where(eq(contacts.id, id))
+    try {
+      realtime.notify({ table: 'contacts', id, action: 'memory_updated' })
+    } catch {
+      // notify is best-effort
+    }
   }
 
-  async function upsertNotesSection(id: string, heading: string, body: string): Promise<void> {
-    const current = await readNotes(id)
-    const updated = setSection(current, heading, body)
-    await writeNotes(id, updated)
+  async function upsertMemorySection(id: string, heading: string, body: string): Promise<void> {
+    const current = await readMemory(id)
+    await writeMemoryIfChanged(id, current, setSection(current, heading, body))
   }
 
-  async function appendNotes(id: string, line: string): Promise<void> {
-    const current = await readNotes(id)
-    const updated = current ? `${current}\n${line}` : line
-    await writeNotes(id, updated)
+  async function appendMemory(id: string, line: string): Promise<void> {
+    const current = await readMemory(id)
+    await writeMemoryIfChanged(id, current, current ? `${current}\n${line}` : line)
   }
 
-  async function removeNotesSection(id: string, heading: string): Promise<void> {
-    const current = await readNotes(id)
-    const updated = removeSection(current, heading)
-    await writeNotes(id, updated)
+  async function removeMemorySection(id: string, heading: string): Promise<void> {
+    const current = await readMemory(id)
+    await writeMemoryIfChanged(id, current, removeSection(current, heading))
   }
 
   async function create(input: CreateContactInput): Promise<Contact> {
@@ -230,10 +236,10 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     update,
     upsertByExternal,
     resolveStaffByExternal,
-    readNotes,
-    upsertNotesSection,
-    appendNotes,
-    removeNotesSection,
+    readMemory,
+    upsertMemorySection,
+    appendMemory,
+    removeMemorySection,
     setSegments,
     setMarketingOptOut,
     bindStaff,
@@ -285,17 +291,17 @@ export function resolveStaffByExternal(
 ): Promise<StaffBinding | null> {
   return current().resolveStaffByExternal(channelInstanceId, externalIdentifier)
 }
-export function readNotes(id: string): Promise<string> {
-  return current().readNotes(id)
+export function readMemory(id: string): Promise<string> {
+  return current().readMemory(id)
 }
-export function upsertNotesSection(id: string, heading: string, body: string): Promise<void> {
-  return current().upsertNotesSection(id, heading, body)
+export function upsertMemorySection(id: string, heading: string, body: string): Promise<void> {
+  return current().upsertMemorySection(id, heading, body)
 }
-export function appendNotes(id: string, line: string): Promise<void> {
-  return current().appendNotes(id, line)
+export function appendMemory(id: string, line: string): Promise<void> {
+  return current().appendMemory(id, line)
 }
-export function removeNotesSection(id: string, heading: string): Promise<void> {
-  return current().removeNotesSection(id, heading)
+export function removeMemorySection(id: string, heading: string): Promise<void> {
+  return current().removeMemorySection(id, heading)
 }
 export function setSegments(id: string, segments: string[]): Promise<void> {
   return current().setSegments(id, segments)

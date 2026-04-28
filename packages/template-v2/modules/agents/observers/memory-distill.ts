@@ -12,10 +12,13 @@ import { agentDefinitions } from '@modules/agents/schema'
 import { llmCall as harnessLlmCall, type LlmEmitter } from '@modules/agents/wake/llm-call'
 import { changeProposals } from '@modules/changes/schema'
 import {
-  readNotes as readContactNotes,
-  upsertNotesSection as upsertContactNotesSection,
+  readMemory as readContactMemory,
+  upsertMemorySection as upsertContactMemorySection,
 } from '@modules/contacts/service/contacts'
-import { readNotes as readStaffNotes, upsertNotesSection as upsertStaffNotesSection } from '@modules/team/service/staff'
+import {
+  readMemory as readStaffMemoryColumn,
+  upsertMemorySection as upsertStaffMemorySection,
+} from '@modules/team/service/staff'
 import type { HarnessLogger } from '@vobase/core'
 import { eq, inArray } from 'drizzle-orm'
 
@@ -48,8 +51,8 @@ function upsertMarkdownSection(markdown: string, heading: string, body: string):
 
 /**
  * Target for distilled-memory writes. Contact target writes to
- * `contacts.notes` (aka Drive `contact:/NOTES.md`); staff target writes to
- * `staff_profiles.notes` (aka Drive `staff:/NOTES.md`).
+ * `contacts.memory` (aka Drive `contact:/MEMORY.md`); staff target writes to
+ * `staff_profiles.memory` (aka Drive `staff:/MEMORY.md`).
  */
 export type DistillTarget = { kind: 'contact'; contactId: string } | { kind: 'staff'; userId: string }
 
@@ -73,15 +76,15 @@ function targetKey(t: DistillTarget): string {
 }
 
 // biome-ignore lint/suspicious/useAwait: contract requires async signature
-async function readTargetNotes(t: DistillTarget): Promise<string> {
-  return t.kind === 'contact' ? readContactNotes(t.contactId) : readStaffNotes(t.userId)
+async function readTargetMemory(t: DistillTarget): Promise<string> {
+  return t.kind === 'contact' ? readContactMemory(t.contactId) : readStaffMemoryColumn(t.userId)
 }
 
-async function upsertTargetNotesSection(t: DistillTarget, heading: string, body: string): Promise<void> {
+async function upsertTargetMemorySection(t: DistillTarget, heading: string, body: string): Promise<void> {
   if (t.kind === 'contact') {
-    await upsertContactNotesSection(t.contactId, heading, body)
+    await upsertContactMemorySection(t.contactId, heading, body)
   } else {
-    await upsertStaffNotesSection(t.userId, heading, body)
+    await upsertStaffMemorySection(t.userId, heading, body)
   }
 }
 
@@ -151,7 +154,7 @@ export function createMemoryDistillListener(opts: MemoryDistillOpts): (event: Ag
         }
 
         for (const { heading, body } of sections) {
-          await upsertTargetNotesSection(target, heading, body)
+          await upsertTargetMemorySection(target, heading, body)
         }
 
         lastDistillTs.set(tkey, now)
@@ -164,7 +167,7 @@ export function createMemoryDistillListener(opts: MemoryDistillOpts): (event: Ag
 
 async function readMemorySafe(target: DistillTarget): Promise<string> {
   try {
-    return await readTargetNotes(target)
+    return await readTargetMemory(target)
   } catch {
     return ''
   }

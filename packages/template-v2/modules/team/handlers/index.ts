@@ -28,7 +28,7 @@ const upsertStaffBody = z.object({
   capacity: z.number().int().min(0).max(1000).optional(),
   availability: availability.optional(),
   profile: z.string().max(4000).optional(),
-  notes: z.string().max(8000).optional(),
+  memory: z.string().max(8000).optional(),
 })
 
 const updateStaffBody = z.object({
@@ -40,7 +40,7 @@ const updateStaffBody = z.object({
   capacity: z.number().int().min(0).max(1000).optional(),
   availability: availability.optional(),
   profile: z.string().max(4000).optional(),
-  notes: z.string().max(8000).optional(),
+  memory: z.string().max(8000).optional(),
 })
 
 const app = new Hono<OrganizationEnv>()

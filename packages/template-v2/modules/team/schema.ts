@@ -4,14 +4,14 @@
  * Two tables in the `team` pgSchema:
  *   - `staff_profiles` — per-user domain profile (sectors, expertise, capacity,
  *     availability, attributes, plus a `profile` narrative (human-authored,
- *     routing hints) and `notes` markdown (agent-authored, distilled memory).
+ *     routing hints) and `memory` markdown (agent-authored, distilled memory).
  *   - `staff_attribute_definitions` — org-scoped schema for the `attributes` JSONB
  *     (clone of `contact_attribute_definitions`).
  *
  * Identity / auth / team-membership live in better-auth (`auth.user`,
  * `auth.member`, `auth.team_member`). Channel identities live in
- * `contacts.staff_channel_bindings`. The `profile` / `notes` columns are
- * surfaced as virtual `/PROFILE.md` + `/NOTES.md` files under Drive
+ * `contacts.staff_channel_bindings`. The `profile` / `memory` columns are
+ * surfaced as virtual `/PROFILE.md` + `/MEMORY.md` files under Drive
  * `scope='staff'` (mirrors the contact-scope overlay).
  */
 
@@ -46,10 +46,10 @@ export interface StaffProfile {
   profile: string
   /**
    * Agent-authored distilled memory markdown. Rewritten section-by-section by
-   * the memory-distill observer. Mirrors `contacts.notes`. Surfaced as
-   * `staff:/NOTES.md` in Drive.
+   * the memory-distill observer. Mirrors `contacts.memory`. Surfaced as
+   * `staff:/MEMORY.md` in Drive.
    */
-  notes: string
+  memory: string
   /** Heartbeat for presence / offline detection (mentions notification flow). */
   lastSeenAt: Date | null
   createdAt: Date
@@ -90,7 +90,7 @@ export const staffProfiles = teamPgSchema.table(
     availability: text('availability').notNull().default('active'),
     attributes: jsonb('attributes').$type<Record<string, AttributeValue>>().notNull().default({}),
     profile: text('profile').notNull().default(''),
-    notes: text('notes').notNull().default(''),
+    memory: text('memory').notNull().default(''),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })

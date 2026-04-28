@@ -119,7 +119,7 @@ describe('contacts change-flow (approval-gated path: requiresApproval=true)', ()
       payload: {
         kind: 'markdown_patch',
         mode: 'append',
-        field: 'notes',
+        field: 'memory',
         body: 'NOTE: review on next interaction.',
       },
       changedBy: 'tst0agent00',
@@ -152,10 +152,10 @@ describe('contacts change-flow (approval-gated path: requiresApproval=true)', ()
     expect(historyRows.length).toBe(1)
 
     const contactRows = await dbh.db
-      .select({ notes: contactsTable.notes })
+      .select({ memory: contactsTable.memory })
       .from(contactsTable)
       .where(eq(contactsTable.id, SEEDED_CONTACT_ID))
-    expect(contactRows[0].notes).toContain('NOTE: review on next interaction.')
+    expect(contactRows[0].memory).toContain('NOTE: review on next interaction.')
   })
 
   it('decide("rejected") writes rejection without touching history or contact', async () => {

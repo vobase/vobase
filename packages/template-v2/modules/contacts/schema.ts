@@ -2,7 +2,7 @@
  * contacts module schema.
  *
  * Three tables:
- *   - `contacts` — organization-scoped identity + profile (human) + notes (agent) + attributes
+ *   - `contacts` — organization-scoped identity + profile (human) + memory (agent) + attributes
  *   - `contact_attribute_definitions` — org-scoped schema for the `attributes` JSONB
  *   - `staff_channel_bindings` — (user_id, channel_instance_id) → external_identifier
  *
@@ -38,10 +38,10 @@ export interface Contact {
    */
   profile: string
   /**
-   * Agent-authored memory surfaced as virtual file `contact:/NOTES.md`.
+   * Agent-authored memory surfaced as virtual file `contact:/MEMORY.md`.
    * Rewritten in place by the memory-distill observer.
    */
-  notes: string
+  memory: string
   /** Dynamic org-defined attributes. Shape declared in `contactAttributeDefinitions`. */
   attributes: Record<string, AttributeValue>
   segments: string[]
@@ -82,7 +82,7 @@ export const contacts = contactsPgSchema.table(
     phone: text('phone'),
     email: text('email'),
     profile: text('profile').notNull().default(''),
-    notes: text('notes').notNull().default(''),
+    memory: text('memory').notNull().default(''),
     attributes: jsonb('attributes').$type<Record<string, AttributeValue>>().notNull().default({}),
     segments: text('segments').array().notNull().default([]),
     marketingOptOut: boolean('marketing_opt_out').notNull().default(false),
@@ -142,7 +142,7 @@ export const staffChannelBindings = contactsPgSchema.table(
 // R1 — compile-time assertion that Drizzle's inferred row shape extends the
 // hand-written domain type. Drift surfaces here in `tsc`, not in Phase 2 bugs.
 type _ContactAssert =
-  InferSelectModel<typeof contacts> extends Omit<Contact, 'segments' | 'notes' | 'profile' | 'attributes'>
+  InferSelectModel<typeof contacts> extends Omit<Contact, 'segments' | 'memory' | 'profile' | 'attributes'>
     ? true
     : never
 type _StaffAssert = InferSelectModel<typeof staffChannelBindings> extends StaffBinding ? true : never

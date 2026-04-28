@@ -3,7 +3,7 @@
  * commands — only materializers, which are wake-time (contactId in path).
  *
  * `/contacts/<id>/profile.md` (RO identity card) and `/contacts/<id>/MEMORY.md`
- * (agent-writable notes blob, backed by `contacts.contacts.notes`).
+ * (agent-writable memory blob, backed by `contacts.contacts.memory`).
  *
  * Reads go through `ContactsService` so virtual-field semantics stay in one
  * place.
@@ -16,7 +16,7 @@ import { defineIndexContributor, type IndexContributor, type WorkspaceMaterializ
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
 
 /** Read-only slice of ContactsService the profile + memory materializers depend on. */
-export type ContactsReader = Pick<ContactsService, 'get' | 'readNotes'>
+export type ContactsReader = Pick<ContactsService, 'get' | 'readMemory'>
 
 export interface ContactsMaterializerOpts {
   contacts: ContactsReader
@@ -44,7 +44,7 @@ async function renderContactProfile(port: ContactsReader, contactId: string): Pr
 
 async function renderContactMemory(port: ContactsReader, contactId: string): Promise<string> {
   try {
-    const body = await port.readNotes(contactId)
+    const body = await port.readMemory(contactId)
     return body && body.trim().length > 0 ? body : EMPTY_MEMORY_MD
   } catch {
     return EMPTY_MEMORY_MD

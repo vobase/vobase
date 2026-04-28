@@ -18,7 +18,7 @@ import { conciergeTools } from '@modules/agents/tools/concierge'
 import { buildDefaultReadOnlyConfig, conversationVerbs, driveVerbs, teamVerbs } from '@modules/agents/workspace'
 import { createWorkspace } from '@modules/agents/workspace/create-workspace'
 import * as contactsModule from '@modules/contacts/agent'
-import { get as getContact, readNotes as readContactNotes } from '@modules/contacts/service/contacts'
+import { get as getContact, readMemory as readContactMemory } from '@modules/contacts/service/contacts'
 import * as driveModule from '@modules/drive/agent'
 import { filesServiceFor } from '@modules/drive/service/files'
 import * as messagingModule from '@modules/messaging/agent'
@@ -86,7 +86,7 @@ export async function buildWakeConfig(input: BuildWakeConfigInput): Promise<Wake
     staffIds,
   })
 
-  const contactsReader = { get: getContact, readNotes: readContactNotes }
+  const contactsReader = { get: getContact, readMemory: readContactMemory }
   const messagingReader = { listMessages, listInternalNotes }
 
   const allCommands = [...teamVerbs, ...conversationVerbs, ...driveVerbs]

@@ -151,7 +151,7 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
   ])
   const transcript = renderTranscriptFromMessages(msgs)
   const contactBlock = contact
-    ? `# Contact\n\nName: ${contact.displayName ?? '(unknown)'}\nPhone: ${contact.phone ?? ''}\nEmail: ${contact.email ?? ''}\nSegments: ${(contact.segments ?? []).join(', ') || '(none)'}\nNotes:\n${contact.notes || '(empty)'}\n`
+    ? `# Contact\n\nName: ${contact.displayName ?? '(unknown)'}\nPhone: ${contact.phone ?? ''}\nEmail: ${contact.email ?? ''}\nSegments: ${(contact.segments ?? []).join(', ') || '(none)'}\nMemory:\n${contact.memory || '(empty)'}\n`
     : '# Contact\n\n(no profile)\n'
   const instruction = [
     '# Task',
