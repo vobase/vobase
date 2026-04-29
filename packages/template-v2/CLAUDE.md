@@ -6,20 +6,21 @@ Core identity: **AI agents need a codebase they can understand.** Every conventi
 
 ## Layout
 
-Backend lives at three top-level seams; frontend at one. No nested package boundaries within the template.
+Backend lives at four top-level seams; frontend at one. No nested package boundaries within the template.
 
-- `modules/<name>/` — every business capability. Owns its backend (`module.ts`, `schema.ts`, `state.ts`, `service/`, `handlers/`, `jobs.ts`, `agent.ts`, `cli.ts`, `web.ts`, `seed.ts`) AND its frontend (`pages/`, `components/`, `hooks/`). One folder per feature is the readability rule.
+- `modules/<name>/` — every business capability. Owns its backend (`module.ts`, `schema.ts`, `state.ts`, `service/`, `handlers/`, `jobs.ts`, `agent.ts`, `cli.ts`, `web.ts`, `seed.ts`, `tools/`, `verbs/`) AND its frontend (`pages/`, `components/`, `hooks/`). One folder per feature is the readability rule.
+- `wake/` — the agent harness, lifted out of `modules/agents/` so each owning module can declare its own agent surfaces (`tools/`, `verbs/`, `agent.ts`) without circular imports. Owns trigger registry, lane builders, frozen prompt, observers, and workspace composition. See `## Agent harness` below.
 - `auth/` — better-auth setup, plugins, middleware, transactional emails. Consumed by `runtime/bootstrap.ts` and threaded into modules via `ctx.auth`.
 - `runtime/` — backend plumbing:
-    - `runtime/index.ts` — cross-module type primitives (`ScopedDb`, `RealtimeService`, `ModuleDef`, `ModuleInitCtx` with `auth: AuthHandle`, `applyTransition`, per-domain `pgSchema` instances). Imported as `~/runtime` from anywhere in the backend.
+    - `runtime/index.ts` — cross-module type primitives (`ScopedDb`, `RealtimeService`, `ModuleDef`, `ModuleInitCtx` with `auth: AuthHandle`, `applyTransition`, per-domain `pgSchema` instances). Imported as `~/runtime` from anywhere in the backend. `ModuleDef` re-narrows core's generic with `WakeContext` (from `~/wake/context`) so per-module `agent.materializers` factories receive the template's concrete wake-time bag.
     - `runtime/bootstrap.ts` — boot orchestration: builds realtime, jobs, auth, calls `bootModules` from `@vobase/core`, registers the four wake-handler jobs (inbound, supervisor, operator-thread, heartbeat-emitter), mounts the SSE route, returns the Hono app. Exported as `createApp(db, sql)`.
     - `runtime/modules.ts` — the static modules list (init order is the array order, then re-sorted by each module's `requires`).
     - `runtime/channel-events.ts` — `ChannelInbound/OutboundEvent` zod schemas + `OUTBOUND_TOOL_NAMES`. Lives at runtime because three modules (messaging, channels, agents) depend on the same wire shape.
 - `main.ts` — ~10-line entry at root: connect db, call `createApp`, `Bun.serve`. Stays at root because the Dockerfile points here.
 - `src/` — frontend shell only (shadcn / ai-elements / DiceUI primitives, app layout, generic hooks, route registry, typed RPC clients in `src/lib/api-client.ts`). Module-specific UI lives inside the owning module — never `src/features/<m>/` or `src/components/<m>/`.
-- `tests/` — e2e (real Postgres) + smoke (manual against dev server). Unit tests colocate next to source as sibling `*.test.ts` — there are no `__tests__/` directories.
+- `tests/` — e2e (real Postgres) + smoke (manual against dev server, real LLM key). Unit tests colocate next to source as sibling `*.test.ts` — there are no `__tests__/` directories.
 
-The `src/` boundary is enforced by `check:bundle` — putting pg/pg-boss/pi-agent-core under the Vite-resolved tree breaks the frontend build. The script bans `src/**` imports of `@modules/agents/wake/*`, `@modules/agents/workspace/*`, and `~/runtime`.
+The `src/` boundary is enforced by `check:bundle` — putting pg/pg-boss/pi-agent-core under the Vite-resolved tree breaks the frontend build. The script bans `src/**` imports of `~/wake/*` and `~/runtime`. Backend-only modules (drive, messaging, agents) may still import each other across the wake boundary, but never the other direction.
 
 **Module-root files are backend.** Frontend code lives only in `pages/`, `components/`, `hooks/`. Prevents collisions like a frontend zustand store named `state.ts` shadowing the backend state machine.
 
@@ -55,13 +56,21 @@ Ten modules ship in `runtime/modules.ts`, init order:
 - **`team`** — staff directory + arbitrary attribute definitions (Slack handle, on-call rota, etc.). Owns the staff-side of the principal directory.
 - **`drive`** — virtual filesystem. Real on-disk files plus virtual overlays from other modules (e.g. `/contacts/<id>/profile.md` materialised from `contacts.contacts`). Other modules register overlays via `service/overlays.ts`.
 - **`messaging`** — conversations, messages, internal notes, pending approvals, conversation state machine, supervisor fan-out producer. Owns `conversation_events` writes (enforced by `check:shape`).
-- **`agents`** — agent definitions, learned skills, staff memory, scores, threads, schedules, the wake harness (`wake/`), the workspace primitives (`workspace/`), tool catalogues (`tools/`).
+- **`agents`** — agent definitions, learned skills, staff memory, scores, threads, agent-side schedules table, the runtime CLI registry singleton, and the agent's self-state surface (`/agents/<id>/AGENTS.md` + `/MEMORY.md` materializers, header preamble). Tools and per-feature surfaces live in their owning module — `agents` never imports from `messaging`, `contacts`, etc.
 - **`schedules`** — `agent_schedules` + the cron-tick job that synthesises `HeartbeatTrigger` events for the agents pipeline.
 - **`channels`** — umbrella module aggregating channel adapters under `adapters/`. Owns `channel_instances`, the generic webhook router, and outbound dispatch.
 - **`changes`** — generic propose / decide / apply / history pipeline. Resources opt in by registering a materializer for `(resourceModule, resourceType)`. Only `changes/service/proposals.ts` may write `change_proposals` / `change_history` (enforced by `check:shape`).
 - **`system`** — ops dashboard, the system service catalogue, dev-side helpers.
 
-Each module under `modules/<name>/` contributes a `ModuleDef` from `module.ts`, an aggregator for sibling files: `agent.ts` (agentsMd contributors, materializers, listeners, etc.), `cli.ts` (verb registrations), `web.ts` (Hono routes), `jobs.ts` (pg-boss handlers + queue-name constants), plus `schema.ts`, `state.ts`, `service/`, `handlers/`, `seed.ts`. Frontend siblings are `pages/`, `components/`, `hooks/`. `module.ts` itself contains zero inline tool/listener/materializer literals — `check:shape` enforces this so the aggregator stays grep-able.
+Each module under `modules/<name>/` contributes a `ModuleDef` from `module.ts`, an aggregator for sibling files. The canonical seams are:
+
+- `agent.ts` — agent-facing contributions: `agentsMd` (AGENTS.md fragments), `materializers` (wake-time `WorkspaceMaterializerFactory<WakeContext>` — receive identity + handles, return `WorkspaceMaterializer[]`), `roHints` (per-path read-only error overrides chained by `chainRoHints`), and `tools` (the module's own `AgentTool[]` with `audience: 'customer'|'internal'` + `lane: 'conversation'|'standalone'|'both'` + per-tool `prompt` for AGENTS.md guidance).
+- `tools/<name>.ts` — agent tool definitions (`defineAgentTool` from `@vobase/core`). Colocated with the service that owns the side effect — `messaging/tools/reply.ts`, `contacts/tools/update-contact.ts`, `schedules/tools/create-schedule.ts`, etc. The wake builder reads `audience` + `lane` to filter the catalogue per wake.
+- `verbs/<name>.ts` — `defineCliVerb` registrations for the unified `CliVerbRegistry`. Both the wake's bash sandbox and the standalone CLI binary dispatch through the same registry.
+- `cli.ts` — barrel exporting `<module>Verbs` (the registered set) for `module.ts:init`'s `ctx.cli.registerAll(...)` call.
+- `web.ts`, `jobs.ts`, `schema.ts`, `state.ts`, `service/`, `handlers/`, `seed.ts` — same conventions as before.
+
+Frontend siblings are `pages/`, `components/`, `hooks/`. `module.ts` itself contains zero inline tool/listener/materializer literals — `check:shape` enforces this so the aggregator stays grep-able.
 
 `ModuleInitCtx` (from `~/runtime`) carries `{ db, realtime, jobs, scheduler, auth, cli }`. Modules read `ctx.auth` directly in `init` — the old `installXAuth` post-boot patcher is gone. Auth construction happens in `bootstrap.ts` BEFORE `bootModules`, so modules can rely on `ctx.auth` being live during `init`. Same for `ctx.cli` — the `CliVerbRegistry` is constructed before bootModules so verbs register synchronously during init.
 
@@ -90,48 +99,69 @@ For mutations that staff or agents should review (or that need a tamper-evident 
 
 ## Agent harness
 
-The agents module is the heart of the template. The wake/ subfolder is what runs an agent end-to-end.
+The wake harness lives at the top-level `wake/` directory (no longer inside `modules/agents/`). Modules contribute their agent surfaces declaratively via `ModuleDef.agent`; the wake builders aggregate those contributions, filter by lane, and assemble a per-wake config that flows into `createHarness` from `@vobase/core`.
 
 ### Two lanes, four entry points, one harness
 
 Every wake belongs to one of two lanes:
 
-- **Conversation lane** (`build-config/conversation.ts`) — bound to a specific `(contactId, channelInstanceId, conversationId)` triple. Triggers: `inbound_message`, `supervisor`, `approval_resumed`, `scheduled_followup`, `manual`. Customer-facing tools are wired in by default.
-- **Standalone lane** (`build-config/standalone.ts`) — operator threads + heartbeat-driven schedules. Triggers: `operator_thread`, `heartbeat`. No conversation context, no customer-facing tools.
+- **Conversation lane** (`wake/conversation.ts → conversationWakeConfig`) — bound to a specific `(contactId, channelInstanceId, conversationId)` triple. Triggers: `inbound_message`, `supervisor`, `approval_resumed`, `scheduled_followup`, `manual`. Customer-facing tools (`audience: 'customer'`) are wired in by default; the supervisor coaching branch strips them.
+- **Standalone lane** (`wake/standalone.ts → standaloneWakeConfig`) — operator threads + heartbeat-driven schedules. Triggers: `operator_thread`, `heartbeat`. No conversation context, no customer-facing tools — the wake builder filters `lane === 'conversation'` out of the catalogue.
 
 Four wake-handler entry points sit at `wake/`, each registering one pg-boss job consumer in `runtime/bootstrap.ts`:
 
-- `handler.ts` → `channels:inbound-to-wake` (conversation lane, inbound customer message)
-- `supervisor-handler.ts` → `messaging:supervisor-to-wake` (conversation lane, staff posted an internal note)
-- `operator-thread-handler.ts` → `agents:operator-thread-to-wake` (standalone lane, staff posted in an operator thread)
+- `inbound.ts` → `channels:inbound-to-wake` (conversation lane, inbound customer message)
+- `supervisor.ts` → `messaging:supervisor-to-wake` (conversation lane, staff posted an internal note)
+- `operator-thread.ts` → `agents:operator-thread-to-wake` (standalone lane, staff posted in an operator thread)
 - `heartbeat.ts` → emitter callback for `schedules` cron-tick (standalone lane, schedule fired)
 
-All four parse their payload, gate by agent existence, look up the agent definition, call the appropriate `buildWakeConfig` / `buildStandaloneWakeConfig`, and hand the config to `createHarness` from `@vobase/core`. The harness drives turns through `pi-agent-core`'s stateful `Agent`, translates pi's event stream into our `AgentEvent` contract, dispatches tools through the mutator chain, and fans events to the observer bus.
+All four parse their payload, gate by agent existence, look up the agent definition, call the appropriate `conversationWakeConfig` / `standaloneWakeConfig`, and hand the config to `createHarness`. The harness drives turns through `pi-agent-core`'s stateful `Agent`, translates pi's event stream into our `AgentEvent` contract, dispatches tools through the mutator chain, and fans events to the observer bus (`wake/observers/`: `memory-distill`, `sse`, `workspace-sync`).
+
+### Module → wake plumbing
+
+`bootModules` produces an `AgentContributions<WakeContext>` bag — the union of every module's `agent` slot. Each handler factory takes that bag at boot:
+
+```ts
+createWakeHandler(deps, contributions)            // inbound
+createSupervisorWakeHandler(deps, contributions)  // supervisor
+createOperatorThreadWakeHandler(deps, contributions)
+createHeartbeatEmitter(deps, contributions)       // cron-tick callback
+```
+
+At wake time the builder filters `contributions.tools` by lane (and by `audience` for the supervisor-coaching branch), calls each `materializerFactories[i](wakeContext)` to obtain `WorkspaceMaterializer[]`, threads `roHints` through `chainRoHints`, and passes `agentsMdContributors` into `agentsMaterializerFactory` (the agents-module factory that runs `generateAgentsMd` with per-module fragments + tool guidance + the helpdesk preamble).
 
 ### Trigger spec registry
 
-`wake/trigger.ts` is a pure registry: each `WakeTriggerKind` → `{ lane, tools, logPrefix, render }`. Both wake builders consult it via `resolveTriggerSpec(triggerKind)`. Every field is a deterministic function of `(triggerKind, payload, refs)` — no DB reads, no clock — so the `systemHash` derived downstream is byte-stable. Adding a new trigger is a registry entry, not parallel changes across two builders.
+`wake/trigger.ts` is a pure registry: each `WakeTriggerKind` → `{ lane, logPrefix, render }`. Both wake builders consult it via `resolveTriggerSpec(triggerKind)`. Every field is a deterministic function of `(triggerKind, payload, refs)` — no DB reads, no clock — so the `systemHash` derived downstream is byte-stable. Adding a new trigger is a registry entry, not parallel changes across two builders. **Tools no longer live in the registry** — the lane catalogue is computed by filtering `contributions.tools` on each tool's `lane` field, so adding a conversation/standalone tool is a one-line edit in its owning module's `agent.ts`.
 
 The `render` function emits the wake-reason cue prepended to the first user-turn message. **Render text is a thin "what just happened" cue, not a behavioural manual.** Persistent rules belong in `agentDefinitions.instructions` (the agent's prompt) or in skill files under `/agents/<id>/skills/`. Per-wake details live in render; reusable playbooks live in instructions.
 
-### Build-config (per-wake assembly)
+### Wake-config assembly
 
-`build-config/` is split into two flavours plus shared helpers:
+`wake/build-base.ts` carries the lane-agnostic shared helpers — idle-resumption constant, SSE listener, journal adapter, hook composer, staff-id resolver, `INDEX.md` materializer.
 
-- `base.ts` — shared `BaseWakeDeps`, idle-resumption constant, sse listener, journal adapter, materializer helpers, hook composer, staff-id resolver.
-- `conversation.ts` — conv-lane assembly: workspace creation, materializer composition (drive/contacts/messaging/team/agents), frozen prompt, dirty tracker, listener wiring, message history, idle resumption, **supervisor classifier wiring + tool filter**.
-- `standalone.ts` — standalone-lane assembly: operator-thread side-load + heartbeat side-load + the standalone tool catalogue.
-- `index.ts` — barrel.
+`wake/conversation.ts` is the conv-lane assembly: workspace creation, materializer composition (every module's `materializerFactories(wakeContext)` plus the agents factory), frozen prompt, dirty tracker, listener wiring, message history, idle resumption, **supervisor classifier wiring + tool filter**.
 
-The conversation builder is the place that calls `classifySupervisorTrigger` (from messaging) and decides whether to strip customer-facing tools. The trigger registry consumes the resulting `supervisorKind` via `RenderRefs` so render text and tool filter agree.
+`wake/standalone.ts` is the standalone-lane assembly: side-loads (operator-thread / heartbeat) + the standalone tool catalogue (lane-filtered).
 
-### Tool catalogue
+The conversation builder is the place that calls `classifySupervisorTrigger` (from `messaging/service/notes`) and decides whether to strip customer-facing tools. The trigger registry consumes the resulting `supervisorKind` via `RenderRefs` so render text and tool filter agree.
 
-`tools/conversation/` (audience: customer-visible side-effects) — `reply`, `send_card`, `send_file`, `book_slot` (all `audience: 'customer'`), plus `add_note` (no audience tag). The coaching tool filter (`t.audience !== 'customer'`) keeps `add_note` available so the agent can leave an acknowledgement breadcrumb on the conversation timeline even when customer-facing tools are stripped.
+### Tool catalogue (per-module)
 
-`tools/standalone/` — `add_note`, `create_schedule`, `pause_schedule`, `update_contact`, `propose_outreach`, `summarize_inbox`, `draft_email_to_review`. Operator-side catalogue.
+Tools colocate with the module that owns the side-effect:
 
-`tools/shared/define-tool.ts` — `defineAgentTool` helper that collapses validation/error-mapping boilerplate. `audience` defaults to undefined (internal); set `'customer'` for tools that produce customer-visible side-effects.
+- `messaging/tools/` — `reply`, `send_card`, `send_file`, `book_slot` (`audience: 'customer'`, `lane: 'conversation'`); `add_note` (`audience: 'internal'`, `lane: 'both'`); `summarize_inbox`, `draft_email_to_review` (`lane: 'standalone'`). Coaching wakes strip `audience: 'customer'` so the agent leaves an `add_note` breadcrumb instead of re-messaging the customer.
+- `contacts/tools/` — `update_contact`, `propose_outreach`.
+- `schedules/tools/` — `create_schedule`, `pause_schedule`.
+
+CLI verbs (used both inside the wake's bash sandbox and from the standalone CLI binary) colocate in `<module>/verbs/`:
+
+- `messaging/verbs/` — `conv-ask-staff`, `conv-reassign`.
+- `drive/verbs/` — `drive-propose`.
+- `team/verbs/` — `team-list`, `team-get`.
+- `agents/cli.ts` — module-local verbs (`agents list/show/inspect`, `schedules list/...`).
+
+`defineAgentTool` is exported from `@vobase/core` (no longer per-template). `audience` defaults to `'internal'`; set `'customer'` for any tool that produces customer-visible side-effects, and set `lane` to opt the tool into the conversation or standalone catalogue (or `'both'`).
 
 ### Supervisor fan-out + coaching classifier
 
@@ -153,7 +183,7 @@ The supervisor wake then asks `messaging/service/notes.ts::classifySupervisorTri
 
 ### LLM provider
 
-`wake/llm-provider.ts` is the single seam: Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set, direct OpenAI/Anthropic/Google otherwise. `wake/models.ts` carries the model alias map (`gpt_standard`, `claude_sonnet`, `gemini_pro`, etc.). Never hardcode a provider-prefixed model id at a call site.
+`wake/llm.ts` is the single seam: Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set, direct OpenAI/Anthropic/Google otherwise. Use `createModel(alias)` from `~/wake` — never hardcode a provider-prefixed model id at a call site.
 
 ## Memory model
 
@@ -195,7 +225,9 @@ const types = res.capturedEvents.map(e => e.type).filter(t => t !== 'message_upd
 expect(types).toEqual(['agent_start', 'turn_start', 'llm_call', 'message_start', 'message_end', 'turn_end', 'agent_end'])
 ```
 
-E2E tests that bypass module init must install the CLI registry themselves: `setCliRegistry(new CliVerbRegistry())` in `beforeAll`, `__resetCliRegistryForTests()` in `afterAll`. The agents module installs it during `init`; tests calling `buildWakeConfig` / `buildStandaloneWakeConfig` directly skip that path.
+E2E tests that bypass module init must install the CLI registry themselves: `setCliRegistry(new CliVerbRegistry())` in `beforeAll`, `__resetCliRegistryForTests()` in `afterAll`. The agents module installs it during `init`; tests calling `conversationWakeConfig` / `standaloneWakeConfig` directly skip that path.
+
+Live smokes for wake triggers live in `tests/smoke/smoke-{inbound,supervisor-action,operator-thread,heartbeat}-live.ts`, plus `smoke-all-triggers-live.ts` as a sequential driver. They run against the dev server with a real LLM key and verify cross-module effects (memory writes, drive proposals, internal-note replies) actually fire — the failure mode "agent silently no-ops" was historically caught only at this layer.
 
 ## Design tokens
 
@@ -204,9 +236,9 @@ OKLCH with two palettes (`:root` + `.dark`). Never write custom components for t
 ## What `@vobase/core` gives you
 
 Imported as `import { ... } from '@vobase/core'` so you never read `node_modules`:
-- types: `AgentTool`, `ToolContext`, `ToolResult`, `AgentEvent`, `HarnessEvent`, `WakeScope`, `ChannelAdapter`, `SendResult`, `SideLoadContributor`, `WorkspaceMaterializer`, `DirtyTracker`, `HarnessLogger`, `HarnessPlatformHint`, `ClassifiedErrorReason`, `MaterializerCtx`, `OnEventListener`, `ActiveWakesStore`, `ModuleDef` (re-narrowed in `~/runtime`), `ModuleInitCtx` (re-narrowed in `~/runtime`), `AgentContributions`, `WakeRuntime`
+- types: `AgentTool` (with `audience`, `lane`, `prompt`), `ToolContext`, `ToolResult`, `AgentEvent`, `HarnessEvent`, `WakeScope`, `ChannelAdapter`, `SendResult`, `SideLoadContributor`, `WorkspaceMaterializer`, `WorkspaceMaterializerFactory<TCtx>`, `DirtyTracker`, `HarnessLogger`, `HarnessPlatformHint`, `ClassifiedErrorReason`, `MaterializerCtx`, `OnEventListener`, `ActiveWakesStore`, `ModuleDef` (re-narrowed in `~/runtime`), `ModuleInitCtx` (re-narrowed in `~/runtime`), `AgentContributions<TCtx>`, `WakeRuntime`, `RoHintFn`
 - tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`, `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`, `agentMessages`, `threads`, `conversationEvents`
-- helpers: `nanoidPrimaryKey`, `nextSequence`, `trackChanges`, `createHttpClient`, `buildReadOnlyConfig`, `signHmac`, `verifyHmacSignature`, `setPlatformRefresh`, `getPlatformRefresh`, `bootModules`, `journalAppend`, `journalGetLatestTurnIndex`, `journalGetLastWakeTail`, `createIdleResumptionContributor`, `createHarness`, `defineCliVerb`, `CliVerbRegistry`
+- helpers: `nanoidPrimaryKey`, `nextSequence`, `trackChanges`, `createHttpClient`, `buildReadOnlyConfig`, `signHmac`, `verifyHmacSignature`, `setPlatformRefresh`, `getPlatformRefresh`, `bootModules`, `collectAgentContributions`, `journalAppend`, `journalGetLatestTurnIndex`, `journalGetLastWakeTail`, `createIdleResumptionContributor`, `createHarness`, `defineAgentTool`, `defineCliVerb`, `CliVerbRegistry`, `defineIndexContributor`, `generateAgentsMd`
 - errors: `notFound`, `unauthorized`, `forbidden`, `conflict`, `validation`, `dbBusy`
 
 ## CLI
@@ -221,9 +253,10 @@ Auth is API-key bearer with a browser device-grant flow for first-time login (`v
 
 Each module that ships starter content places it under `modules/<m>/defaults/`:
 
-- `*.skill.md` — markdown-frontmatter skill bodies. `vobase install --defaults` copies into `modules/<m>/skills/<name>.md` (skip if present; re-apply with `--upgrade`).
 - `*.agent.yaml` — agent-definition YAML with `{ organizationId, name, model?, instructions?, workingMemory?, enabled? }`. Inserts a row keyed on `name` (skip if a row with that name already exists in the org).
 - `*.schedule.yaml` — schedule YAML with `{ organizationId, agentId, slug, cron, timezone? }`. Inserts a row keyed on `(organizationId, agentId, slug)`.
+
+Skill bodies (`modules/<m>/skills/*.md`) ship inline; the agent reads them at wake-time via the drive overlay (`/agents/<id>/skills/`). There's no separate seeding step for skills.
 
 The verb is **opt-in** — boot does not auto-run defaults. `bun create vobase` runs it as the last provisioning step (with a `--no-defaults` opt-out). Idempotent under `--defaults`; `--upgrade` re-applies file content over file-origin rows.
 
