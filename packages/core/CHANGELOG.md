@@ -1,5 +1,46 @@
 # @vobase/core
 
+## 0.35.0
+
+### Minor Changes
+
+- Canonical module shape + registry-driven workspace CLI. Reshapes the agent-facing surface so template modules declare contributions in one slot, and collapses the CLI dispatcher into a single registry consumed by both the bash sandbox and the HTTP-RPC binary.
+
+  ## `ModuleDef.agent` slot
+
+  - `agentsMd` (`IndexContributor[]` — AGENTS.md fragments), `materializers` (`WorkspaceMaterializerFactory<TCtx>[]`), `roHints` (`RoHintFn[]`), `tools` (`AgentTool[]`). All optional, all pure declarations.
+  - `RoHintFn` lives in `module-def.ts` (its natural home) and is re-exported from `collect.ts` for API stability.
+  - `WorkspaceMaterializerFactory<TCtx>(ctx) => WorkspaceMaterializer[]` — the collector aggregates per-module factories; wake builders call each with a template-specific `WakeContext`. Core stays generic over `TCtx` so template-domain types never leak.
+
+  ## `AgentTool` metadata
+
+  - `audience: 'customer' | 'internal'` — wake builders strip customer-facing tools on supervisor coaching wakes generically (no hardcoded names).
+  - `lane: 'conversation' | 'standalone' | 'both'` — partitions the catalogue between conversation-bound and operator-thread/heartbeat wakes.
+  - `prompt?: string` — colocated AGENTS.md guidance rendered under `## Tool guidance` next to the tool name.
+  - `defineAgentTool({ ... })` ships from core (was a per-template helper).
+
+  ## AGENTS.md generator + RO hints
+
+  - `generateAgentsMd` accepts `extraContributors` (priority-sorted) so wake callers inject lane-scoped tool guidance + ad-hoc fragments.
+  - `chainRoHints(hints)` composes per-module RO error overrides into a single `RoMessageOverride` (first non-null wins).
+
+  ## Workspace CLI registry
+
+  - `CliVerbRegistry` + `defineCliVerb` are the unified verb surface. The same body runs in-process for the agent's bash sandbox and over HTTP-RPC for the standalone CLI binary.
+  - `createBashVobaseCommand` renders argv parser, help text, and result formatter from the registry — no per-tenant code. `parseBashArgv`, `coerceBashArgs`, `renderBashHelp`, `renderBashResult` exposed for custom transports.
+  - `createInProcessTransport`, `createCatalogRoute`, `createCliDispatchRoute`, `defaultRouteForVerb` round out the transport set.
+  - Verbs declare `audience: 'agent' | 'staff' | 'all'` so the bash sandbox can hide staff-only verbs.
+
+  ## Removed
+
+  - `CommandDef`, `CommandContext`, `findCommand`, `resolveCommandSet`, `createVobaseCommand`, `DEFAULT_READ_ONLY_VERBS`, `VobaseDispatcherOpts`, `AgentRole`. Use `CliVerbRegistry` + `defineCliVerb` instead.
+  - `commands?` parameter on `CreateHarnessOpts` (verbs come from the registry now).
+
+  ## Compatibility
+
+  - `Bun.SQL` and `drizzle-orm/bun-sql` are resolved lazily at `createDatabase` call time. `drizzle-kit` walks the schema graph under Node and pulls `@vobase/core` transitively; top-level `import 'bun'` and `import 'drizzle-orm/bun-sql'` (which itself requires the `'bun'` builtin) used to crash that load. The postgres branch keeps working under Bun.
+  - `Bun.S3Client` resolved the same way for `createS3Adapter`.
+
 ## 0.34.0
 
 ### Minor Changes
