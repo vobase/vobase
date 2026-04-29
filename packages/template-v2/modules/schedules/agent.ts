@@ -9,7 +9,14 @@
  */
 
 import type { SchedulesService } from '@modules/schedules/service/schedules'
-import { defineIndexContributor, type IndexContributor } from '@vobase/core'
+import { type AgentTool, defineIndexContributor, type IndexContributor } from '@vobase/core'
+
+import { createScheduleTool } from './tools/create-schedule'
+import { pauseScheduleTool } from './tools/pause-schedule'
+
+export const schedulesTools: AgentTool[] = [createScheduleTool, pauseScheduleTool]
+
+export { createScheduleTool, pauseScheduleTool }
 
 export type SchedulesIndexReader = Pick<SchedulesService, 'listEnabled'>
 

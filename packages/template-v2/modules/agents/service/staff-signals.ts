@@ -20,7 +20,7 @@
  *
  */
 
-import type { AgentEvent } from '@modules/agents/events'
+import type { AgentEvent } from '~/wake/events'
 import type { InternalNoteAuthorType } from '@modules/messaging/schema'
 
 export type StaffSignalKind = 'supervisor' | 'approval_rejected' | 'internal_note' | 'reassignment_note'

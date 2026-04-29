@@ -1,26 +1,23 @@
 /**
- * agents module seed — Meridian concierge + Sentinel operator + staff memory,
- * scores, threads, and schedules so the /agents pages have something to show
- * on a fresh `db:reset`. Pending agent-skill proposals seed via
- * `modules/changes/seed.ts`.
+ * agents module seed — single MeriGPT agent for the Meridian org plus
+ * staff memory, scores, threads, and schedules so the /agents pages have
+ * something to show on a fresh `db:reset`.
  *
  * Cross-module dependencies:
  *   - contacts/seed.ts must run first (auth.user rows + ALICE/BOB/CAROL).
- *   - messaging/seed.ts must run AFTER this (it imports MERIDIAN_AGENT_ID).
+ *   - messaging/seed.ts must run AFTER this (it imports MERIGPT_AGENT_ID).
  *
  * Idempotent — every insert is `ON CONFLICT DO NOTHING`.
  */
 
 import { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
 
-import { models } from './wake/models'
+import { models } from '~/wake/llm'
 
 export { MERIDIAN_ORG_ID }
 
-/** Stable agent ID — consumed by messaging/seed and integration tests. */
-export const MERIDIAN_AGENT_ID = 'agt0mer0v1'
-/** Operator agent — drives the staff-facing daily brief + supervisor workflows. */
-export const SENTINEL_AGENT_ID = 'agt0sent0v1'
+/** Stable agent ID — the single Meridian-org agent. */
+export const MERIGPT_AGENT_ID = 'agt0meri0v1'
 
 /** Conversation IDs from messaging/seed — referenced here so scores anchor to real threads. */
 const PRIYA_CONV_ID = 'cnv0priya0'
@@ -33,42 +30,49 @@ const mins = (n: number) => new Date(NOW - n * 60_000)
 const hours = (n: number) => new Date(NOW - n * 3_600_000)
 const days = (n: number) => new Date(NOW - n * 86_400_000)
 
-const MERIDIAN_INSTRUCTIONS = `# Role
+const MERIGPT_INSTRUCTIONS = `# Role
 
-You are the primary customer support agent for Meridian. \`/drive/BUSINESS.md\` carries the company you represent (brand voice, products, policies, escalation owners) — treat it as authoritative.
+You are MeriGPT, the AI agent for Meridian. You handle two lanes:
 
-## Scope
+- **Conversation lane** — replies to customers on a conversation. The wake renderer tells you when this is the lane; tools include \`reply\`, \`send_card\`, \`send_file\`, \`book_slot\`.
+- **Operator lane** — daily brief, stale-conversation triage, and ad-hoc questions from staff in operator threads. The renderer tells you when this is the lane; you never address customers here.
 
-Handle customer messages about:
-
-- Product features + how-to questions (cite \`/drive/\`).
-- Account + login issues.
-- Refund requests (check \`/drive/BUSINESS.md#Policies\`).
-- Plan changes (immediate + prorated).
-- Integration setup (basic troubleshooting, then escalate).
+\`/drive/BUSINESS.md\` carries the company context (brand voice, products, policies, escalation owners) — treat it as authoritative across both lanes. Operational rubrics live in \`/agents/<id>/skills/*.md\`; consult them before acting.
 
 ## Voice
 
-Inherit the brand voice from \`/drive/BUSINESS.md\`. Keep replies 2–4 short sentences. Use the customer's first name when you know it (check \`/contacts/<id>/profile.md\`).
+Inherit Meridian's brand voice from \`/drive/BUSINESS.md\`. In conversations, keep replies 2–4 short sentences and greet the customer by first name only on your very first reply of the conversation. In operator threads, be direct, factual, numbers-first.
 
-## Reply format — card-first
+## Conversation-lane rules
 
-**Default to \`send_card\` whenever your reply contains any structured or actionable content.** See \`/agents/<id>/skills/reply-with-card.md\` for the rubric. Cards give customers one-tap reply paths; prose forces them to type.
+- **Card-first.** Default to \`send_card\` whenever your reply contains structured or actionable content (pricing, plan choices, refund confirmations, booking, yes/no decisions, lists of 2+ options). Use plain \`reply\` only for acknowledgements, free-form questions back to the customer, or single-sentence factual answers.
+- **Escalate** rather than guess: refunds > $100 → draft a \`send_card\` for staff approval; SOC2/legal/security → \`vobase conv reassign --to=user:alice\`; bug reports → ask for repro steps then \`vobase conv ask-staff --mention=bob\`; enterprise procurement → \`vobase conv ask-staff --mention=alice\`.
+- **\`book_slot\`** is silent — the customer sees nothing until you follow up with \`reply\` or \`send_card\` confirming the booking. Always confirm in the same turn.
 
-Use \`send_card\` for pricing, plan comparisons, refund confirmations, booking slots, yes/no decisions, "here's what to do next" flows, or any list of 2+ options. Use plain \`reply\` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA potential. When in doubt, card.
+## When staff posts an internal note (supervisor wake)
 
-## Escalation
+A staff note is **coaching**, not a request to send another customer reply. The customer is not waiting on you — staff is giving you feedback or context. Customer-facing tools (\`reply\`, \`send_card\`, \`send_file\`, \`book_slot\`) are stripped on this wake; you cannot re-message the customer.
 
-- Refund > $100 — draft via \`send_card\` for staff approval (do not execute directly).
-- SOC2, legal, security — \`vobase conv reassign --to=user:alice\` and stop replying.
-- Bug report — ask for reproduction steps first, then \`vobase conv ask-staff --mention=bob --body="..."\` with the repro + affected plan.
-- Enterprise procurement — offer to schedule a call, then \`vobase conv ask-staff --mention=alice --body="..."\`.
+Required steps every time:
 
-## Tools allowlist
+1. **Pick the right memory file** before appending the lesson:
+   - **Customer-specific fact** (about a particular contact: plan tier, history, preferences, a recent purchase) → \`echo "- <lesson>" >> /contacts/<contactId>/MEMORY.md\`
+   - **Self/policy fact** (about your own behaviour, escalation rules, voice, when to do X) → \`echo "- <lesson>" >> /agents/<your-id>/MEMORY.md\`
+   - **Per-staff fact** (a specific teammate's preferences or context) → \`echo "- <lesson>" >> /staff/<staffId>/MEMORY.md\`
 
-\`reply\`, \`send_card\`, \`send_file\`, \`book_slot\`, \`subagent\`.
+   Heuristic: if the lesson contains a contact's name or refers to "this customer", it's almost always the contact MEMORY.md. If it starts with "always" or "never" or "from now on", it's your own MEMORY.md.
 
-\`book_slot\` is a silent side-effect — the customer sees nothing until you follow up with \`reply\` or \`send_card\` confirming the booking. Always send a confirmation in the same turn.
+2. **Acknowledge via \`add_note\`** so staff sees the loop closed. One or two sentences summarising what you captured and where, e.g. _"Noted — appended to \`/contacts/<id>/MEMORY.md\`: Priya is on Team plan as of 2026-04."_ Staff seeing the ack is how they know the coaching landed.
+
+3. **End the turn.**
+
+If the staff note is ambiguous, post an \`add_note\` asking for clarification instead of guessing.
+
+## Operator-lane rules
+
+- **Daily brief** (08:00 SGT weekdays): summarise the past 24h — resolved count, open + idle > 24h, pending learning proposals, pending approvals, refund volume vs the rolling 7-day average.
+- **Stale-triage** (every 15 min): for each conversation idle > 24h, post a card asking the assignee how to proceed.
+- **Ad-hoc operator questions**: answer directly in the thread. Numbers and links over prose.
 
 ## Guardrails
 
@@ -76,27 +80,9 @@ Use \`send_card\` for pricing, plan comparisons, refund confirmations, booking s
 - Never commit to a specific delivery date.
 - Never compare against competitors by name.
 - If unsure of a policy, \`grep -r <topic> /drive/\` before answering.
-- Learnings about this customer go in \`/contacts/<id>/MEMORY.md\` via \`vobase memory set … --scope=contact\`; learnings about yourself in \`/agents/<id>/MEMORY.md\` via \`vobase memory set …\`.`
+- Learnings live in \`MEMORY.md\` files. \`/contacts/<id>/MEMORY.md\` for per-customer; \`/agents/<your-id>/MEMORY.md\` for things about yourself.`
 
-const SENTINEL_INSTRUCTIONS = `# Role
-
-You are Sentinel, an operator agent for Meridian staff. You drive the daily brief, watch for stale conversations, and surface anomalies in the support queue.
-
-## Scope
-
-- Generate the daily-brief card every morning (08:00 SGT).
-- Triage conversations idle > 24h and ask staff how to proceed.
-- Watch refund volume; flag when daily refund count exceeds the rolling 7-day average × 2.
-
-## Voice
-
-Operator-only. Direct, factual, numbers-first. Never address customers.
-
-## Tools allowlist
-
-\`messaging.list\`, \`memory.show\`, \`memory.append\`, \`subagent\`, \`vobase.*\` read-only verbs.`
-
-const MERIDIAN_WORKING_MEMORY = `# Lessons learned (Meridian, customer concierge)
+const MERIGPT_WORKING_MEMORY = `# Lessons learned (MeriGPT)
 
 ## Refund window
 - Always check \`/drive/BUSINESS.md#Policies\` for the active refund window before committing — it's 14 days, prorated after.
@@ -125,17 +111,25 @@ export async function seed(db: unknown): Promise<void> {
   const d = db as { insert: Inserter }
   const ins = d.insert.bind(d)
 
-  // ── 1. Agent definitions ────────────────────────────────────────────
+  // ── 1. Agent definition — single MeriGPT for the Meridian org ───────
   await ins(agentDefinitions)
     .values({
-      id: MERIDIAN_AGENT_ID,
+      id: MERIGPT_AGENT_ID,
       organizationId: MERIDIAN_ORG_ID,
-      name: 'Meridian',
-      instructions: MERIDIAN_INSTRUCTIONS,
+      name: 'MeriGPT',
+      instructions: MERIGPT_INSTRUCTIONS,
       model: models.gpt_standard,
       maxSteps: 20,
-      workingMemory: MERIDIAN_WORKING_MEMORY,
-      skillAllowlist: ['reply-with-card', 'de-escalate', 'cite-policy', 'escalate-to-human', 'save-customer-doc'],
+      workingMemory: MERIGPT_WORKING_MEMORY,
+      skillAllowlist: [
+        'reply-with-card',
+        'de-escalate',
+        'cite-policy',
+        'escalate-to-human',
+        'save-customer-doc',
+        'daily-brief',
+        'stale-triage',
+      ],
       cardApprovalRequired: false,
       fileApprovalRequired: false,
       bookSlotApprovalRequired: false,
@@ -143,29 +137,12 @@ export async function seed(db: unknown): Promise<void> {
     })
     .onConflictDoNothing()
 
-  await ins(agentDefinitions)
-    .values({
-      id: SENTINEL_AGENT_ID,
-      organizationId: MERIDIAN_ORG_ID,
-      name: 'Sentinel',
-      instructions: SENTINEL_INSTRUCTIONS,
-      model: models.gpt_standard,
-      maxSteps: 12,
-      workingMemory: '',
-      skillAllowlist: ['daily-brief', 'stale-triage'],
-      cardApprovalRequired: true,
-      fileApprovalRequired: true,
-      bookSlotApprovalRequired: true,
-      enabled: true,
-    })
-    .onConflictDoNothing()
-
-  // ── 2. Schedules — heartbeat for Sentinel + a stale-triage sweep ────
+  // ── 2. Schedules — daily brief + stale-triage sweep ─────────────────
   await ins(agentSchedules)
     .values({
       id: 'sch0bri0v1',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: SENTINEL_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       slug: 'daily-brief',
       cron: '0 8 * * 1-5',
       timezone: 'Asia/Singapore',
@@ -179,7 +156,7 @@ export async function seed(db: unknown): Promise<void> {
     .values({
       id: 'sch0tri0v1',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: SENTINEL_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       slug: 'stale-triage',
       cron: '*/15 * * * *',
       timezone: 'UTC',
@@ -193,7 +170,7 @@ export async function seed(db: unknown): Promise<void> {
     .values({
       id: 'sch0bkp0v1',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: SENTINEL_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       slug: 'refund-volume-watch',
       cron: '0 9 * * *',
       timezone: 'Asia/Singapore',
@@ -208,7 +185,7 @@ export async function seed(db: unknown): Promise<void> {
     .values({
       id: 'lsk0sla001',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: MERIDIAN_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       name: 'slack-routing-link',
       description: 'Direct link + one-line answer for Slack notification filter questions.',
       body: [
@@ -226,7 +203,7 @@ export async function seed(db: unknown): Promise<void> {
     })
     .onConflictDoNothing()
 
-  // ── 4b. Org-floating learned skill (agentId NULL) — exercises agent-overlay union path ──
+  // Org-floating learned skill (agentId NULL) — exercises agent-overlay union path.
   await ins(learnedSkills)
     .values({
       id: 'lsk0org001',
@@ -254,12 +231,12 @@ export async function seed(db: unknown): Promise<void> {
     })
     .onConflictDoNothing()
 
-  // ── 5. Agent staff memory — what Meridian knows about specific staff ──
+  // ── 4. Agent staff memory — what MeriGPT knows about each staff member ──
   await ins(agentStaffMemory)
     .values({
       id: 'asm0alice0',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: MERIDIAN_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       staffId: ALICE_USER_ID,
       memory: [
         '# Alice (Senior Customer Success)',
@@ -267,6 +244,7 @@ export async function seed(db: unknown): Promise<void> {
         '- Owns enterprise + escalation; route refund > $100 + procurement here.',
         '- Prefers Slack-style replies in operator threads. Answer in 2–3 sentences.',
         '- OOO Fridays after 1pm SGT — check her schedule before paging.',
+        '- Owns the daily-brief acknowledgement loop. Replies within 15 min on weekdays.',
         '',
         '## Recent context',
         '- Drafting comeback-discount copy for Elena (refund flow, 2026-04).',
@@ -279,52 +257,15 @@ export async function seed(db: unknown): Promise<void> {
 
   await ins(agentStaffMemory)
     .values({
-      id: 'asm0carol0',
+      id: 'asm0bob000',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: MERIDIAN_AGENT_ID,
-      staffId: CAROL_USER_ID,
-      memory: [
-        '# Carol (Billing Lead)',
-        '',
-        '- Auto-approve authority on refunds ≤ SGD 500; never page for refunds inside this band.',
-        '- OOO Fridays — escalate billing items to @alice if Friday and Carol is unresponsive after 30 min.',
-        '- Prefers Stripe charge id + last-4 in the mention; she will not confirm without it.',
-      ].join('\n'),
-      createdAt: days(14),
-      updatedAt: hours(20),
-    })
-    .onConflictDoNothing()
-
-  // Sentinel staff memory — exercises cross-agent staff overlay (multiple agents per staff).
-  await ins(agentStaffMemory)
-    .values({
-      id: 'asm0sntali',
-      organizationId: MERIDIAN_ORG_ID,
-      agentId: SENTINEL_AGENT_ID,
-      staffId: ALICE_USER_ID,
-      memory: [
-        '# Alice — operator notes',
-        '',
-        '- Owner of the daily-brief acknowledgement loop. Replies within 15 min on weekdays.',
-        '- Wants stale-triage cards routed to her first when Bob is OOO; she reassigns from there.',
-        '- Asked 2026-04-15 to fold refund-volume anomalies into the brief instead of a separate page.',
-      ].join('\n'),
-      createdAt: days(10),
-      updatedAt: hours(3),
-    })
-    .onConflictDoNothing()
-
-  await ins(agentStaffMemory)
-    .values({
-      id: 'asm0sntbob',
-      organizationId: MERIDIAN_ORG_ID,
-      agentId: SENTINEL_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       staffId: BOB_USER_ID,
       memory: [
-        '# Bob — operator notes',
+        '# Bob (Integrations + Bug-reports)',
         '',
-        '- Integrations + bug-reports lead. Prefers a single threaded card per investigation, not per ping.',
-        '- OOO 2026-04-26 → 2026-04-29 (back Tue). Stale conversations on him should fall back to Carol.',
+        '- Prefers a single threaded card per investigation, not per ping.',
+        '- OOO 2026-04-26 → 2026-04-29 (back Tue). Stale conversations on him fall back to Carol.',
         "- Has a 'mute until repro' rule for new bug threads — do not chase him for an ack inside 24h.",
       ].join('\n'),
       createdAt: days(8),
@@ -334,23 +275,24 @@ export async function seed(db: unknown): Promise<void> {
 
   await ins(agentStaffMemory)
     .values({
-      id: 'asm0sntcar',
+      id: 'asm0carol0',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: SENTINEL_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       staffId: CAROL_USER_ID,
       memory: [
-        '# Carol — operator notes',
+        '# Carol (Billing Lead)',
         '',
+        '- Auto-approve authority on refunds ≤ SGD 500; never page for refunds inside this band.',
+        '- OOO Fridays — escalate billing items to @alice if Friday and Carol is unresponsive after 30 min.',
+        '- Prefers Stripe charge id + last-4 in the mention; she will not confirm without it.',
         "- Picks up Bob's integrations queue when he is OOO. Already covered for 2026-04-26 → 2026-04-29.",
-        '- Wants the refund-volume number in every daily brief, even when within tolerance.',
-        '- Does not want to be paged for refunds < SGD 500 — auto-approve band.',
       ].join('\n'),
-      createdAt: days(6),
-      updatedAt: hours(18),
+      createdAt: days(14),
+      updatedAt: hours(20),
     })
     .onConflictDoNothing()
 
-  // ── 6. Agent scores — quality signal across recent turns ────────────
+  // ── 5. Agent scores — quality signal across recent turns ────────────
   for (const score of [
     {
       id: 'asc0pri001',
@@ -413,12 +355,12 @@ export async function seed(db: unknown): Promise<void> {
       .onConflictDoNothing()
   }
 
-  // ── 7. Operator agent threads — Alice working with Sentinel ─────────
+  // ── 6. Operator threads — Alice + Carol working with MeriGPT ────────
   await ins(agentThreads)
     .values({
       id: 'thd0brfgi1',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: SENTINEL_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       createdBy: ALICE_USER_ID,
       title: 'Daily brief 2026-04-26',
       status: 'open',
@@ -488,7 +430,7 @@ export async function seed(db: unknown): Promise<void> {
     .values({
       id: 'thd0refnd1',
       organizationId: MERIDIAN_ORG_ID,
-      agentId: SENTINEL_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       createdBy: CAROL_USER_ID,
       title: 'Refund volume — Q2 trend',
       status: 'closed',
@@ -529,4 +471,19 @@ export async function seed(db: unknown): Promise<void> {
       })
       .onConflictDoNothing()
   }
+
+  // ── 7. Smoke-target thread — empty, dedicated to live-LLM smoke runs.
+  await ins(agentThreads)
+    .values({
+      id: 'thd0smoke01',
+      organizationId: MERIDIAN_ORG_ID,
+      agentId: MERIGPT_AGENT_ID,
+      createdBy: ALICE_USER_ID,
+      title: 'Smoke target',
+      status: 'open',
+      lastTurnAt: days(30),
+      createdAt: days(30),
+      updatedAt: days(30),
+    })
+    .onConflictDoNothing()
 }

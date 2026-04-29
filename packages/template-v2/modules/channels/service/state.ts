@@ -7,6 +7,8 @@
  */
 
 import type { Auth } from '@auth'
+import { createRequireSession } from '@auth/middleware'
+import type { MiddlewareHandler } from 'hono'
 
 import type { RealtimeService } from '~/runtime'
 
@@ -24,6 +26,7 @@ export interface ChannelsState {
   jobs: JobQueue | null
   realtime: RealtimeService | null
   auth: Auth | null
+  requireSession: MiddlewareHandler | null
 }
 
 export function createChannelsState(deps: ChannelsStateDeps = {}): ChannelsState {
@@ -31,6 +34,7 @@ export function createChannelsState(deps: ChannelsStateDeps = {}): ChannelsState
     jobs: deps.jobs ?? null,
     realtime: deps.realtime ?? null,
     auth: deps.auth ?? null,
+    requireSession: deps.auth ? createRequireSession(deps.auth) : null,
   }
 }
 
@@ -63,4 +67,8 @@ export function requireRealtime(): RealtimeService {
 
 export function getAuth(): Auth | null {
   return _current?.auth ?? null
+}
+
+export function getRequireSession(): MiddlewareHandler | null {
+  return _current?.requireSession ?? null
 }

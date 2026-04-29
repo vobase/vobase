@@ -17,13 +17,6 @@ import { createCliGrantRoutes } from '@auth/cli-grant'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from '@auth/middleware'
 import { type ApiKeyEnv, createRequireApiKey } from '@auth/middleware/require-api-key'
 import { createWhoamiRoute } from '@auth/whoami'
-import { createWakeHandler, INBOUND_TO_WAKE_JOB } from '@modules/agents/wake/handler'
-import { createHeartbeatEmitter } from '@modules/agents/wake/heartbeat'
-import {
-  createOperatorThreadWakeHandler,
-  OPERATOR_THREAD_TO_WAKE_JOB,
-} from '@modules/agents/wake/operator-thread-handler'
-import { createSupervisorWakeHandler, MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '@modules/agents/wake/supervisor-handler'
 import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
 import {
   bootModules,
@@ -45,6 +38,10 @@ import { streamSSE } from 'hono/streaming'
 import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
 
+import { createHeartbeatEmitter } from '~/wake/heartbeat'
+import { createWakeHandler, INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import { createOperatorThreadWakeHandler, OPERATOR_THREAD_TO_WAKE_JOB } from '~/wake/operator-thread'
+import { createSupervisorWakeHandler, MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '~/wake/supervisor'
 import type { RealtimeService, ScopedDb } from './index'
 import { modules } from './modules'
 
@@ -276,7 +273,7 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
 
   // Operator-thread wakes: staff posts a message in `agent_threads`, the
   // chat surface enqueues this job, and the consumer drives a standalone-lane
-  // wake via `buildStandaloneWakeConfig`.
+  // wake via `standaloneWakeConfig`.
   jobHandlers.set(
     OPERATOR_THREAD_TO_WAKE_JOB,
     createOperatorThreadWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),

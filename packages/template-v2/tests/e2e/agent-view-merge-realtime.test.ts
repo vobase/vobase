@@ -12,7 +12,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import {
   AGENT_SKILL_RESOURCE,
   agentSkillMaterializer,
@@ -59,7 +59,7 @@ beforeAll(async () => {
 
   __resetChangeRegistryForTests()
   __resetChangeProposalsServiceForTests()
-  installChangeProposalsService(createChangeProposalsService({ db: dbh.db }))
+  installChangeProposalsService(createChangeProposalsService({ db: dbh.db, realtime: stubRealtime }))
 
   registerChangeMaterializer({
     resourceModule: AGENT_SKILL_RESOURCE.module,
@@ -79,7 +79,7 @@ describe('agent-view merge — realtime notify payloads', () => {
   it('upsertStaffMemory emits table=agent_staff_memory', async () => {
     const before = captured.length
     await upsertStaffMemory(
-      { organizationId: MERIDIAN_ORG_ID, agentId: MERIDIAN_AGENT_ID, staffId: ALICE_USER_ID },
+      { organizationId: MERIDIAN_ORG_ID, agentId: MERIGPT_AGENT_ID, staffId: ALICE_USER_ID },
       'test memory content',
     )
     const emitted = captured.slice(before)

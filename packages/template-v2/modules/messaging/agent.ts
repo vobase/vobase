@@ -1,47 +1,106 @@
 /**
  * Agent-facing surfaces for the messaging module.
  *
- * `tools` is static (all four messaging tools — reply, send_card, send_file,
- * book_slot) and reaches the harness via `collectAgentContributions`.
- *
  * Materializers are wake-time factories — `/contacts/<contactId>/<channelInstanceId>/`
  * paths encode `channelInstanceId`, which is only known once the wake resolves
- * its conversation. Renders the rolling transcript + internal notes from
+ * its conversation. They render the rolling transcript + internal notes from
  * `messages` and `conversation_internal_notes`.
  *
  * `conversationSideLoad` is the static "respond now" task instruction + the
  * rendered transcript + the contact profile block — composed by the wake
  * handler at `agent_start`. Lives here because the transcript + contact-block
  * rendering are messaging concerns.
+ *
+ * The agent-bash verbs `conv reassign` / `conv ask-staff` now live as
+ * `defineCliVerb` definitions under `./verbs/`. Both the wake's bash sandbox
+ * and the runtime CLI binary dispatch through the same `CliVerbRegistry`.
  */
 
 import { get as getContact } from '@modules/contacts/service/contacts'
-import type { Conversation, Message } from '@modules/messaging/schema'
-import type { MessagingPort } from '@modules/messaging/service/types'
+import type { Message } from '@modules/messaging/schema'
+import type { MessagingIndexReader, MessagingReader } from '@modules/messaging/service/types'
 import {
+  type AgentTool,
   defineIndexContributor,
   type IndexContributor,
+  type RoHintFn,
   type SideLoadContributor,
-  type WorkspaceMaterializer,
 } from '@vobase/core'
 
-import { list as listMessages } from './service/messages'
+import type { WakeMaterializerFactory } from '~/wake/context'
 
-// Conversation-lane tools (`reply`, `send_card`, `send_file`, `book_slot`)
-// moved to `modules/agents/tools/conversation/` per the dual-surface tool
-// partition. The messaging module no longer contributes static agent tools —
-// it just owns the messaging-domain materializers and side-load below.
+export type { MessagingIndexReader, MessagingReader }
+
+import { addNoteTool } from './tools/add-note'
+import { bookSlotTool } from './tools/book-slot'
+import { draftEmailToReviewTool } from './tools/draft-email-to-review'
+import { replyTool } from './tools/reply'
+import { sendCardTool } from './tools/send-card'
+import { sendFileTool } from './tools/send-file'
+import { summarizeInboxTool } from './tools/summarize-inbox'
+
+/**
+ * RO-error hints for messaging-owned derived files: the conversation
+ * timeline (`messages.md`) and `internal-notes.md`. Both are rendered from
+ * `conversation_events` and accept mutations only via tool calls
+ * (`reply` / `send_card` / `send_file` for messages; staff-authored notes
+ * for internal-notes).
+ */
+export const messagingRoHints: RoHintFn[] = [
+  (path) => {
+    if (path.endsWith('/messages.md')) {
+      return `bash: ${path}: Read-only filesystem.\n  The conversation timeline is derived from channel events. Use the \`reply\` tool (or \`send_card\`, \`send_file\`) to send a customer-visible message; do not append to this file.`
+    }
+    if (path.endsWith('/internal-notes.md')) {
+      return `bash: ${path}: Read-only filesystem.\n  Internal notes are derived from staff-authored events in the messaging module. This file reflects, but does not accept, new notes.`
+    }
+    return null
+  },
+]
+
+export const messagingTools: AgentTool[] = [
+  replyTool,
+  sendCardTool,
+  sendFileTool,
+  bookSlotTool,
+  addNoteTool,
+  summarizeInboxTool,
+  draftEmailToReviewTool,
+]
+
+export { addNoteTool, bookSlotTool, draftEmailToReviewTool, replyTool, sendCardTool, sendFileTool, summarizeInboxTool }
+
+const AGENTS_MD_FILE = 'AGENTS.md'
+
+// Cross-cutting prose only — describes the conversation FILES the agent
+// reads. Per-verb guidance ("when to use `conv reassign`") and per-tool
+// guidance ("when to use `reply` vs `send_card`") now live next to the
+// verb/tool definitions and render under `## Commands` / `## Tool guidance`
+// in AGENTS.md. Add behavioural caveats here only when they span multiple
+// verbs/tools (e.g. "the timeline is derived, never echo >> into it").
+export const messagingAgentsMdContributors: readonly IndexContributor[] = [
+  defineIndexContributor({
+    file: AGENTS_MD_FILE,
+    priority: 50,
+    name: 'messaging.conversation-surface',
+    render: () =>
+      [
+        '## Conversation surface',
+        '',
+        '- `/contacts/<id>/<channelInstanceId>/messages.md` — customer-visible timeline (read-only). Reflects, but does not accept, new messages.',
+        '- `/contacts/<id>/<channelInstanceId>/internal-notes.md` — staff ↔ agent notes (read-only). Reflects, but does not accept, new notes.',
+        '',
+        'The timeline files are materialized from the database — never `echo >>` into them. Send customer-visible content via the `reply` / `send_card` / `send_file` / `book_slot` tools (see `## Tool guidance`). Mutate conversation state via `vobase conv reassign` / `vobase conv ask-staff` (see `## Commands`).',
+      ].join('\n'),
+  }),
+]
+
+import { list as listMessages } from './service/messages'
+import { listNotes as listInternalNotes } from './service/notes'
 
 // ─── Materializers ──────────────────────────────────────────────────────────
 
-/** Read-only slice of MessagingPort the transcript + notes materializers depend on. */
-export type MessagingReader = Pick<MessagingPort, 'listMessages' | 'listInternalNotes'>
-
-export interface MessagingMaterializerOpts {
-  messaging: MessagingReader
-  contactId: string
-  channelInstanceId: string
-}
+const messagingReader: MessagingReader = { listMessages, listInternalNotes }
 
 export function renderTranscriptFromMessages(msgs: readonly Message[]): string {
   if (msgs.length === 0) return '# Conversation\n\n_No messages yet._\n'
@@ -79,34 +138,24 @@ export async function renderInternalNotes(messaging: MessagingReader, conversati
   return lines.join('\n')
 }
 
-export function buildMessagingMaterializers(opts: MessagingMaterializerOpts): WorkspaceMaterializer[] {
-  const folder = `/contacts/${opts.contactId}/${opts.channelInstanceId}`
+export const messagingMaterializerFactory: WakeMaterializerFactory = (ctx) => {
+  if (!ctx.contactId || !ctx.channelInstanceId) return []
+  const folder = `/contacts/${ctx.contactId}/${ctx.channelInstanceId}`
   return [
     {
       path: `${folder}/messages.md`,
       phase: 'frozen',
-      materialize: (ctx) => renderTranscript(opts.messaging, ctx.conversationId),
+      materialize: (mctx) => renderTranscript(messagingReader, mctx.conversationId),
     },
     {
       path: `${folder}/internal-notes.md`,
       phase: 'frozen',
-      materialize: (ctx) => renderInternalNotes(opts.messaging, ctx.conversationId),
+      materialize: (mctx) => renderInternalNotes(messagingReader, mctx.conversationId),
     },
   ]
 }
 
-export { buildMessagingMaterializers as buildMaterializers }
-
 // ─── Index contributors ────────────────────────────────────────────────────
-
-/**
- * Read slice of `ConversationsService` the index contributor depends on. Kept
- * minimal so callers can either hand in the live service or a fixture/stub
- * without dragging the full mutation surface into wake assembly.
- */
-export interface MessagingIndexReader {
-  list(organizationId: string, opts?: { tab?: 'active' | 'later' | 'done' }): Promise<Conversation[]>
-}
 
 export interface MessagingIndexContributorOpts {
   organizationId: string
@@ -162,17 +211,6 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
     '# Task',
     '',
     'Respond to the customer now. PREFER `send_card` whenever the reply has any structure or actionable choices — pricing, plans, refund confirmations, yes/no with consequences, 2+ options, next-step CTAs. Use plain `reply` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA. Keep prose replies to 2–4 short sentences.',
-    '',
-    '# Escalation + staff consultation (via bash)',
-    '',
-    "- `vobase team list` — see who's on the team and their availability/expertise.",
-    '- `vobase team get --user=<userId>` — full profile for one staff member.',
-    '- `vobase conv reassign --to=user:<userId> [--reason="..."]` — hand off when the customer explicitly asks for a human, or when the request is outside your authority (legal, large refunds, formal complaints). After reassigning, STOP replying — the customer now owns the conversation with that staff member.',
-    '- `vobase conv ask-staff --mention=<userId> --body="question"` — post an internal note to ask staff a question you need answered before you can reply. Their reply will wake you again with the answer; in the meantime tell the customer briefly that you\'re checking.',
-    '',
-    'Before using `conv reassign` or `conv ask-staff`, ALWAYS run `vobase team list` first to get the real userIds. Do NOT invent userIds from names the customer used.',
-    '',
-    "If the answer depends on pricing or policy details you don't know, prefer `vobase conv ask-staff` over guessing.",
   ].join('\n')
   return [
     { kind: 'custom', priority: 100, render: () => instruction },

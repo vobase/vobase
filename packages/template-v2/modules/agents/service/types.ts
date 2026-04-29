@@ -3,7 +3,7 @@
  * the harness, dev layer, and other modules.
  */
 
-import type { AgentEvent } from '@modules/agents/events'
+import type { AgentEvent } from '~/wake/events'
 
 import type { Tx } from '~/runtime'
 import type { AgentDefinition } from '../schema'

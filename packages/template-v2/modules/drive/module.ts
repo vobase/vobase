@@ -1,6 +1,7 @@
 import { registerChangeMaterializer } from '@modules/changes/service/proposals'
 
 import type { ModuleDef } from '~/runtime'
+import { driveAgentsMdContributors, driveMaterializerFactory, driveRoHints } from './agent'
 import { driveVerbs } from './cli'
 import {
   createAgentBuiltinOverlay,
@@ -10,6 +11,7 @@ import {
 import { DRIVE_DOC_RESOURCE, driveDocMaterializer } from './service/changes'
 import { setFilesDb } from './service/files'
 import { registerDriveOverlay } from './service/overlays'
+import { drivePropose } from './verbs/drive-propose'
 import * as web from './web'
 
 const drive: ModuleDef = {
@@ -17,6 +19,11 @@ const drive: ModuleDef = {
   requires: ['changes'],
   web: { routes: web.routes },
   jobs: [],
+  agent: {
+    agentsMd: [...driveAgentsMdContributors],
+    materializers: [driveMaterializerFactory],
+    roHints: [...driveRoHints],
+  },
   init(ctx) {
     setFilesDb(ctx.db, ctx.auth)
     registerChangeMaterializer({
@@ -28,7 +35,7 @@ const drive: ModuleDef = {
     registerDriveOverlay(createContactBuiltinOverlay(ctx.db))
     registerDriveOverlay(createStaffBuiltinOverlay(ctx.db))
     registerDriveOverlay(createAgentBuiltinOverlay(ctx.db))
-    ctx.cli.registerAll(driveVerbs)
+    ctx.cli.registerAll([...driveVerbs, drivePropose])
   },
 }
 

@@ -258,31 +258,4 @@ describe('handleInbound', () => {
     const res = (await handleInbound(ctx)) as unknown as { _status: number }
     expect(res._status).toBe(400)
   })
-
-  it('session-authed browser path skips HMAC and uses user.id as from', async () => {
-    const fakeAuth = {
-      api: {
-        getSession: async () => ({
-          user: { id: 'user-anon-1', name: 'Anon' },
-          session: { activeOrganizationId: null },
-        }),
-      },
-    } as unknown as Auth
-    installTestState(true, fakeAuth)
-
-    const body = JSON.stringify({
-      content: 'Hello via session',
-      contentType: 'text',
-      externalMessageId: 'br-msg-1',
-      profileName: 'Anon',
-    })
-    const ctx = makeCtx(body, 'ignored-no-hmac')
-    const res = (await handleInbound(ctx)) as unknown as { _body: Record<string, unknown>; _status: number }
-    expect(res._status).toBe(200)
-    expect(res._body.received).toBe(true)
-    const inboundCall = calls.find((c) => c.method === 'createInboundMessage') as
-      | { method: string; data: { content: string } }
-      | undefined
-    expect(inboundCall?.data.content).toBe('Hello via session')
-  })
 })

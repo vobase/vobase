@@ -14,7 +14,7 @@
  * messaging/seed (conversation ids). Order in scripts/seed.ts: AFTER messaging.
  */
 
-import { MERIDIAN_AGENT_ID, SENTINEL_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import {
   ALICE_USER_ID,
   ELENA_CONTACT_ID,
@@ -88,7 +88,7 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.83,
-      proposedById: `agent:${SENTINEL_AGENT_ID}`,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
       proposedByKind: 'agent',
       rationale:
         'Observed 3 VIP cases this week (Priya Raman, Liam Reyes, one un-named) where the agent looped through identical refund-window citations without escalating. Priya case escalated by Carol manually after 7 rounds.',
@@ -121,7 +121,7 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.91,
-      proposedById: `agent:${SENTINEL_AGENT_ID}`,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
       proposedByKind: 'agent',
       rationale:
         'Three policy-team conversations (Carol thread 2026-04-19, 2026-04-22, 2026-04-25) confirmed the 90-day window. Current behaviour skews liberal — Elena Rossi got a full refund at day 12 which was inside policy, but the agent could not cite the rule.',
@@ -181,7 +181,7 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.96,
-      proposedById: `agent:${MERIDIAN_AGENT_ID}`,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
       proposedByKind: 'agent',
       rationale:
         'Marcus confirmed signed Northwind enterprise-plus contract via DocuSign on 2026-04-26 (8 seats × $10.5k ARR ≈ $84k). Sync CRM segments, attributes, and LTV so the agent has correct routing on the next wake.',
@@ -209,7 +209,7 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.74,
-      proposedById: `agent:${MERIDIAN_AGENT_ID}`,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
       proposedByKind: 'agent',
       rationale:
         'Captured during conversation cnv00liam0 — staff requested explicit follow-up notes after the API integration call. Append (not replace) so prior context stays.',
@@ -226,7 +226,7 @@ export async function seed(db: unknown): Promise<void> {
       organizationId: MERIDIAN_ORG_ID,
       resourceModule: 'agents',
       resourceType: 'agent_memory',
-      resourceId: MERIDIAN_AGENT_ID,
+      resourceId: MERIGPT_AGENT_ID,
       payload: {
         kind: 'markdown_patch',
         mode: 'append',
@@ -239,7 +239,7 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.78,
-      proposedById: `agent:${SENTINEL_AGENT_ID}`,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
       proposedByKind: 'agent',
       rationale:
         'Captured cross-conversation patterns about VIP customers. agent_memory is normally requiresApproval=false, but seeding as pending for inbox visibility — staff can approve to demonstrate the auto-write path through the decide endpoint.',
@@ -269,7 +269,7 @@ export async function seed(db: unknown): Promise<void> {
       },
       status: 'pending',
       confidence: 0.88,
-      proposedById: `agent:${SENTINEL_AGENT_ID}`,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
       proposedByKind: 'agent',
       rationale:
         'Drafted by Sentinel after the policy team session 2026-04-25. Replaces the legacy refunds.md which only covered digital goods. Drive write is staged via the changes umbrella so staff can review before publish.',
@@ -301,7 +301,7 @@ export async function seed(db: unknown): Promise<void> {
         segments: ['new-signup', 'self-serve-onboarded'],
         attributes: { last_login_at: '2026-04-26T09:14:00Z' },
       },
-      changedBy: MERIDIAN_AGENT_ID,
+      changedBy: MERIGPT_AGENT_ID,
       changedByKind: 'agent',
       appliedProposalId: null,
       createdAt: hoursAgo(20),
@@ -360,7 +360,7 @@ export async function seed(db: unknown): Promise<void> {
       organizationId: MERIDIAN_ORG_ID,
       resourceModule: 'agents',
       resourceType: 'agent_memory',
-      resourceId: SENTINEL_AGENT_ID,
+      resourceId: MERIGPT_AGENT_ID,
       payload: {
         kind: 'markdown_patch',
         mode: 'append',
@@ -369,7 +369,7 @@ export async function seed(db: unknown): Promise<void> {
       },
       before: '',
       after: '\n- 2026-04-25: Stale-triage swept 8 conversations; 3 escalated to staff queue.',
-      changedBy: SENTINEL_AGENT_ID,
+      changedBy: MERIGPT_AGENT_ID,
       changedByKind: 'agent',
       appliedProposalId: null,
       createdAt: hoursAgo(40),

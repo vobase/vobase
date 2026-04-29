@@ -190,3 +190,18 @@ export interface MessagingPort {
   // inbound channel write path (one-write-path discipline)
   createInboundMessage(input: CreateInboundMessageInput): Promise<CreateInboundMessageResult>
 }
+
+/**
+ * Read-only slice of `MessagingPort` the agent-facing materializers depend on.
+ * Defined here (not under `agent.ts`) so the type lives next to its
+ * service-layer source-of-truth and `agent.ts` stays purely declarative.
+ */
+export type MessagingReader = Pick<MessagingPort, 'listMessages' | 'listInternalNotes'>
+
+/**
+ * Conversation lister the messaging `/INDEX.md` contributor reads from. Kept
+ * minimal so callers can hand in either the live service or a stub.
+ */
+export interface MessagingIndexReader {
+  list(organizationId: string, opts?: { tab?: 'active' | 'later' | 'done' }): Promise<Conversation[]>
+}

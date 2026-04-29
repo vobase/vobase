@@ -115,7 +115,7 @@ export async function seed(db: unknown): Promise<void> {
       channel: 'whatsapp',
       role: 'customer',
       displayName: 'Meridian Customer WA',
-      config: { phoneNumberId: '111000111', defaultAssignee: 'agent:agt0mer0v1' },
+      config: { phoneNumberId: '111000111', defaultAssignee: 'agent:agt0meri0v1' },
     })
     .onConflictDoNothing()
 
@@ -139,7 +139,7 @@ export async function seed(db: unknown): Promise<void> {
       channel: 'web',
       role: 'customer',
       displayName: 'Meridian Web Chat',
-      config: { origin: 'https://meridian.app', defaultAssignee: 'agent:agt0mer0v1' },
+      config: { origin: 'https://meridian.app', defaultAssignee: 'agent:agt0meri0v1' },
       webhookSecret: WEB_CHANNEL_WEBHOOK_SECRET,
     })
     .onConflictDoNothing()

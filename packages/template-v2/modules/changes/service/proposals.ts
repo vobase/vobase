@@ -1,4 +1,4 @@
-import type { AgentEvent } from '@modules/agents/events'
+import type { AgentEvent } from '~/wake/events'
 import { conversations } from '@modules/messaging/schema'
 import { appendJournalEvent } from '@modules/messaging/service/journal'
 import type { ChangePayload } from '@vobase/core'

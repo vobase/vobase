@@ -5,7 +5,7 @@
  * type is derived from `typeof app` exported by the module's handlers/index.ts.
  *
  * Bundle invariant: only `import type` — no runtime value imports from
- * @server/runtime/* or @modules/agents/wake/* are allowed in src/**. The handler
+ * @server/runtime/* or ~/wake/* are allowed in src/**. The handler
  * files themselves import drizzle/server deps; we only pull in the inferred
  * Hono app type so Vite strips it at build time.
  */

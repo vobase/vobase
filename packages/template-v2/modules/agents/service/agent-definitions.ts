@@ -21,7 +21,7 @@ import { conversations } from '@modules/messaging/schema'
 import { asc, eq } from 'drizzle-orm'
 
 import type { AgentDefinition } from '../schema'
-import { DEFAULT_CHAT_MODEL, MODEL_OPTIONS } from '../wake/models'
+import { DEFAULT_CHAT_MODEL, MODEL_OPTIONS } from '~/wake/llm'
 
 export const BUILTIN_TOOL_NAMES = ['bash', 'vobase'] as const
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number]

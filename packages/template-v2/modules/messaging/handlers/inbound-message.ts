@@ -1,4 +1,4 @@
-import type { WakeRefusedEvent } from '@modules/agents/events'
+import type { WakeRefusedEvent } from '~/wake/events'
 import type { AgentsPort } from '@modules/agents/service/types'
 
 import type { MessagingPort } from '../service/types'

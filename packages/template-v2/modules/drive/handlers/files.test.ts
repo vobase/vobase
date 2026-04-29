@@ -123,8 +123,8 @@ const fakeSession: AppSession = {
   },
 }
 
-const mount = (): Hono => {
-  const wrapper = new Hono()
+const mount = () => {
+  const wrapper = new Hono<{ Variables: { session: AppSession } }>()
   wrapper.use('*', async (c, next) => {
     c.set('session', fakeSession)
     await next()

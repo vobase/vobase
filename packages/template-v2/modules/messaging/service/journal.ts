@@ -18,7 +18,7 @@
  * outside `modules/messaging/service/**`.
  */
 
-import type { AgentEvent } from '@modules/agents/events'
+import type { AgentEvent } from '~/wake/events'
 import { journalAppend } from '@vobase/core'
 
 export type Tx = unknown

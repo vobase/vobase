@@ -1,7 +1,12 @@
-import { MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '@modules/agents/wake/supervisor-handler'
-
 import type { ModuleDef } from '~/runtime'
-import { conversationSideLoad } from './agent'
+import { MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '~/wake/supervisor'
+import {
+  conversationSideLoad,
+  messagingAgentsMdContributors,
+  messagingMaterializerFactory,
+  messagingRoHints,
+  messagingTools,
+} from './agent'
 import { messagingVerbs } from './cli'
 import { jobs } from './jobs'
 import { createAgentMentionsService, installAgentMentionsService } from './service/agent-mentions'
@@ -25,6 +30,8 @@ import {
   installPendingApprovalsService,
 } from './service/pending-approvals'
 import { createStaffOpsService, installStaffOpsService } from './service/staff-ops'
+import { convAskStaffVerb } from './verbs/conv-ask-staff'
+import { convReassignVerb } from './verbs/conv-reassign'
 import * as web from './web'
 
 export type { ApprovalScheduler, ConversationScheduler }
@@ -34,7 +41,13 @@ const messaging: ModuleDef = {
   requires: ['contacts'],
   web: { routes: web.routes },
   jobs: [...jobs],
-  agent: { sideLoad: [conversationSideLoad] },
+  agent: {
+    tools: messagingTools,
+    sideLoad: [conversationSideLoad],
+    agentsMd: [...messagingAgentsMdContributors],
+    materializers: [messagingMaterializerFactory],
+    roHints: [...messagingRoHints],
+  },
   init(ctx) {
     const conversationScheduler = (ctx.jobs as unknown as ConversationScheduler | undefined) ?? null
     installConversationsService(createConversationsService({ db: ctx.db, scheduler: conversationScheduler }))
@@ -87,7 +100,7 @@ const messaging: ModuleDef = {
       }),
     )
     installStaffOpsService(createStaffOpsService({ db: ctx.db }))
-    ctx.cli.registerAll(messagingVerbs)
+    ctx.cli.registerAll([...messagingVerbs, convReassignVerb, convAskStaffVerb])
   },
 }
 

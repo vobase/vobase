@@ -3,10 +3,9 @@ import { registerDriveOverlay } from '@modules/drive/service/overlays'
 import { createCostService, installCostService, setApprovalGateDb } from '@vobase/core'
 
 import type { ModuleDef } from '~/runtime'
-import * as agent from './agent'
+import { agentsAgentsMdContributors, agentsMaterializerFactory, agentsRoHints } from './agent'
 import { agentsVerbs } from './cli'
 import { EXPIRE_APPROVALS_CRON, EXPIRE_APPROVALS_JOB, jobs } from './jobs'
-import { memoryVerbs } from './memory-cli'
 import { createAgentDefinitionsService, installAgentDefinitionsService } from './service/agent-definitions'
 import {
   AGENT_MEMORY_RESOURCE,
@@ -16,6 +15,7 @@ import {
   createAgentSkillsService,
   installAgentSkillsService,
 } from './service/changes'
+import { setCliRegistry } from './service/cli-registry'
 import { agentSkillsOverlay } from './service/drive-overlay'
 import { createStaffMemoryService, installStaffMemoryService } from './service/staff-memory'
 import { createAgentsState, installAgentsState } from './service/state'
@@ -26,11 +26,16 @@ const agents: ModuleDef = {
   name: 'agents',
   requires: ['messaging', 'contacts', 'drive', 'changes'],
   web: { routes: web.routes },
-  agent: { tools: agent.tools },
   jobs: [...jobs],
+  agent: {
+    agentsMd: [...agentsAgentsMdContributors],
+    materializers: [agentsMaterializerFactory],
+    roHints: [...agentsRoHints],
+  },
   init(ctx) {
     // Journal service is bound bootstrap-tier (`runtime/bootstrap.ts::setJournalDb`)
     // because every wake harness needs it before any module init runs.
+    setCliRegistry(ctx.cli)
     installAgentDefinitionsService(createAgentDefinitionsService({ db: ctx.db }))
     installAgentSkillsService(createAgentSkillsService({ db: ctx.db }))
     installCostService(createCostService({ db: ctx.db }))
@@ -55,7 +60,6 @@ const agents: ModuleDef = {
       singletonKey: EXPIRE_APPROVALS_JOB,
     })
     ctx.cli.registerAll(agentsVerbs)
-    ctx.cli.registerAll(memoryVerbs)
   },
 }
 

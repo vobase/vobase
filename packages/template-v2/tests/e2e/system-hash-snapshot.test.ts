@@ -8,17 +8,16 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import { conversationTools } from '@modules/agents/tools/conversation'
-import { subagentTool } from '@modules/agents/tools/shared/subagent'
-import { buildFrozenPrompt, type SessionContext } from '@modules/agents/wake/frozen-prompt-builder'
-import { resolvePlatformHint } from '@modules/agents/wake/platform-hints'
+import { buildFrozenPrompt, type SessionContext } from '~/wake/prompt'
+import { resolvePlatformHint } from '~/wake/platform-hints'
+import { messagingTools } from '@modules/messaging/agent'
 import { Bash, InMemoryFs } from 'just-bash'
 
 /** Pinned SHA-256 of the canonical frozen prompt below. */
 const SYSTEM_HASH_FIXTURE = '60ed086992a0f4adad9c6b0a7b3b0f2f0bd85f04cc7e19b4887cda2f4c96cd4b'
 
 /** Tool names surfaced through `collectAgentContributions` to the harness. */
-const TOOL_SURFACE_FIXTURE = ['reply', 'send_card', 'send_file', 'book_slot', 'subagent'] as const
+const TOOL_SURFACE_FIXTURE = ['reply', 'send_card', 'send_file', 'book_slot', 'add_note'] as const
 
 const CANONICAL_AGENTS_MD = `# Canonical Test Agent (a_canon0001)
 
@@ -97,8 +96,8 @@ describe('system-hash snapshot', () => {
 })
 
 describe('tool surface snapshot', () => {
-  it('current tool surface matches the fixture', () => {
-    const names = [...conversationTools.map((t) => t.name), subagentTool.name]
+  it('current conversation-lane tool surface matches the fixture', () => {
+    const names = messagingTools.filter((t) => t.lane === 'conversation' || t.lane === 'both').map((t) => t.name)
     expect(names).toEqual([...TOOL_SURFACE_FIXTURE])
   })
 })

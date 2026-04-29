@@ -1,5 +1,5 @@
 import { verifyHmacWebhook } from '@auth/middleware'
-import { INBOUND_TO_WAKE_JOB } from '@modules/agents/wake/handler'
+import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
 import { getInstance as getChannelInstance } from '@modules/channels/service/instances'
 import { requireJobs } from '@modules/channels/service/state'
 import { upsertByExternal } from '@modules/contacts/service/contacts'

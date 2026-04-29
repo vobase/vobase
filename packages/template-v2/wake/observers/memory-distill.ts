@@ -1,0 +1,256 @@
+/**
+ * memoryDistillObserver — post-wake summarisation + anti-lessons feedback loop.
+ * On `agent_end`: appends rejection reasons to the agent's `## Anti-lessons`
+ * section so the next turn sees them, then (when the per-contact debounce has
+ * elapsed) distills assistant messages into `ContactsService` notes sections
+ * via `llmCall('memory.distill', …)` — or the deterministic stub when no
+ * provider is wired.
+ */
+
+import { agentDefinitions } from '@modules/agents/schema'
+import { changeProposals } from '@modules/changes/schema'
+import {
+  readMemory as readContactMemory,
+  upsertMemorySection as upsertContactMemorySection,
+} from '@modules/contacts/service/contacts'
+import {
+  readMemory as readStaffMemoryColumn,
+  upsertMemorySection as upsertStaffMemorySection,
+} from '@modules/team/service/staff'
+import type { HarnessLogger } from '@vobase/core'
+import { eq, inArray } from 'drizzle-orm'
+
+import type { ScopedDb } from '~/runtime'
+import type { AgentEvent, ChangeRejectedEvent } from '../events'
+import { llmCall as harnessLlmCall, type LlmEmitter } from '../llm'
+import { callMemoryDistill, type DistilledSection } from './memory-distill-prompt'
+
+function upsertMarkdownSection(markdown: string, heading: string, body: string): string {
+  const header = `## ${heading}`
+  const lines = markdown.split('\n')
+  const startIdx = lines.findIndex((l) => l.trim() === header)
+  if (startIdx < 0) {
+    const trimmed = markdown.trimEnd()
+    return trimmed ? `${trimmed}\n\n${header}\n\n${body}\n` : `${header}\n\n${body}\n`
+  }
+  let endIdx = lines.length
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i] ?? '')) {
+      endIdx = i
+      break
+    }
+  }
+  const before = lines.slice(0, startIdx).join('\n')
+  const after = lines.slice(endIdx).join('\n')
+  const block = `${header}\n\n${body}\n`
+  return [before, block, after]
+    .filter((s) => s.length > 0)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+}
+
+/**
+ * Target for distilled-memory writes. Contact target writes to
+ * `contacts.memory` (aka Drive `contact:/MEMORY.md`); staff target writes to
+ * `staff_profiles.memory` (aka Drive `staff:/MEMORY.md`).
+ */
+export type DistillTarget = { kind: 'contact'; contactId: string } | { kind: 'staff'; userId: string }
+
+export interface MemoryDistillOpts {
+  target: DistillTarget
+  agentId?: string
+  /** When set, fires `llmCall('memory.distill', …)` instead of the deterministic stub. */
+  useLlm?: boolean
+  /** Per-wake emitter handle wired by `createHarness({ onPublishReady })` so `llm_call` events surface. */
+  emitter?: LlmEmitter
+  db: ScopedDb
+  logger: HarnessLogger
+}
+
+/** Module-level per-target debounce map. Cleared on process restart (acceptable for Phase 2). */
+const lastDistillTs = new Map<string, number>()
+const DEBOUNCE_MS = 10 * 60 * 1000
+
+function targetKey(t: DistillTarget): string {
+  return t.kind === 'contact' ? `contact:${t.contactId}` : `staff:${t.userId}`
+}
+
+// biome-ignore lint/suspicious/useAwait: contract requires async signature
+async function readTargetMemory(t: DistillTarget): Promise<string> {
+  return t.kind === 'contact' ? readContactMemory(t.contactId) : readStaffMemoryColumn(t.userId)
+}
+
+async function upsertTargetMemorySection(t: DistillTarget, heading: string, body: string): Promise<void> {
+  if (t.kind === 'contact') {
+    await upsertContactMemorySection(t.contactId, heading, body)
+  } else {
+    await upsertStaffMemorySection(t.userId, heading, body)
+  }
+}
+
+interface WakeBuffer {
+  assistantMessages: string[]
+  rejections: ChangeRejectedEvent[]
+}
+
+export function createMemoryDistillListener(opts: MemoryDistillOpts): (event: AgentEvent) => Promise<void> {
+  const { target, agentId, useLlm, emitter, db, logger } = opts
+  const tkey = targetKey(target)
+
+  const wakeBuffer = new Map<string, WakeBuffer>()
+
+  return async (event: AgentEvent): Promise<void> => {
+    {
+      const buf = wakeBuffer.get(event.wakeId) ?? { assistantMessages: [], rejections: [] }
+
+      if (event.type === 'message_end' && event.role === 'assistant' && event.content.trim()) {
+        buf.assistantMessages.push(event.content.trim())
+        wakeBuffer.set(event.wakeId, buf)
+        return
+      }
+
+      if (event.type === 'change_rejected') {
+        buf.rejections.push(event)
+        wakeBuffer.set(event.wakeId, buf)
+        return
+      }
+
+      if (event.type !== 'agent_end') return
+
+      const state = wakeBuffer.get(event.wakeId) ?? buf
+      wakeBuffer.delete(event.wakeId)
+
+      if (state.rejections.length > 0 && agentId) {
+        await writeAntiLessons(db, agentId, state.rejections).catch((err) =>
+          logger.warn({ err, agentId }, 'memory-distill: anti-lesson write failed'),
+        )
+      }
+
+      if (state.assistantMessages.length === 0) return
+
+      const lastTs = lastDistillTs.get(tkey) ?? 0
+      const now = Date.now()
+      if (now - lastTs < DEBOUNCE_MS) return
+
+      try {
+        let sections: DistilledSection[]
+        if (useLlm) {
+          const currentMemory = await readMemorySafe(target)
+          const wake = {
+            organizationId: event.organizationId,
+            conversationId: event.conversationId,
+            wakeId: event.wakeId,
+            turnIndex: event.turnIndex,
+          }
+          const bound = <T>(task: 'memory.distill', request: Parameters<typeof harnessLlmCall>[0]['request']) =>
+            harnessLlmCall<T>({ wake, task, request, emitter })
+          sections = await callMemoryDistill(bound, {
+            messages: state.assistantMessages,
+            currentMemory,
+            atIso: event.ts.toISOString(),
+          })
+        } else {
+          sections = stubDistill(state.assistantMessages, event.ts)
+        }
+
+        for (const { heading, body } of sections) {
+          await upsertTargetMemorySection(target, heading, body)
+        }
+
+        lastDistillTs.set(tkey, now)
+      } catch (err) {
+        logger.warn({ err, target }, 'memory-distill: failed to write distilled sections')
+      }
+    }
+  }
+}
+
+async function readMemorySafe(target: DistillTarget): Promise<string> {
+  try {
+    return await readTargetMemory(target)
+  } catch {
+    return ''
+  }
+}
+
+async function writeAntiLessons(db: ScopedDb, agentId: string, rejections: ChangeRejectedEvent[]): Promise<void> {
+  const proposalIds = rejections.map((r) => r.proposalId)
+
+  const [rows, agentRows] = (await Promise.all([
+    db
+      .select({
+        id: changeProposals.id,
+        resourceModule: changeProposals.resourceModule,
+        resourceType: changeProposals.resourceType,
+        resourceId: changeProposals.resourceId,
+        decidedNote: changeProposals.decidedNote,
+        decidedAt: changeProposals.decidedAt,
+      })
+      .from(changeProposals)
+      .where(inArray(changeProposals.id, proposalIds)),
+    db.select().from(agentDefinitions).where(eq(agentDefinitions.id, agentId)).limit(1),
+  ])) as [
+    Array<{
+      id: string
+      resourceModule: string
+      resourceType: string
+      resourceId: string
+      decidedNote: string | null
+      decidedAt: Date | null
+    }>,
+    Array<{ workingMemory: string }>,
+  ]
+
+  if (rows.length === 0) return
+
+  const current = agentRows[0]?.workingMemory ?? ''
+
+  const existingBody = extractAntiLessonsBody(current)
+  const existingIds = extractAntiLessonProposalIds(existingBody)
+  const newEntries = rows
+    .filter((r) => !existingIds.has(r.id))
+    .map(
+      (r) =>
+        `- \`[${r.id}]\` **${r.resourceModule}:${r.resourceType}** \`${r.resourceId}\` — ${r.decidedNote ?? 'no reason given'} _(rejected ${(r.decidedAt ?? new Date()).toISOString()})_`,
+    )
+  if (newEntries.length === 0) return
+
+  const mergedBody = existingBody ? `${existingBody}\n${newEntries.join('\n')}` : newEntries.join('\n')
+  const next = upsertMarkdownSection(current, 'Anti-lessons', mergedBody)
+  await db.update(agentDefinitions).set({ workingMemory: next }).where(eq(agentDefinitions.id, agentId))
+}
+
+/** Each rendered line embeds `` `[<proposalId>]` `` so a repeat rejection is a no-op. */
+function extractAntiLessonProposalIds(body: string): Set<string> {
+  const ids = new Set<string>()
+  const marker = /`\[([^\]]+)\]`/g
+  for (const match of body.matchAll(marker)) {
+    if (match[1]) ids.add(match[1])
+  }
+  return ids
+}
+
+function extractAntiLessonsBody(memory: string): string {
+  const lines = memory.split('\n')
+  let inside = false
+  const body: string[] = []
+  for (const line of lines) {
+    if (/^##\s+Anti-lessons\s*$/i.test(line)) {
+      inside = true
+      continue
+    }
+    if (inside) {
+      if (/^##\s+/.test(line)) break
+      body.push(line)
+    }
+  }
+  return body.join('\n').trim()
+}
+
+/** Deterministic stub: creates a single "Recent Interaction" section from the last assistant message. */
+function stubDistill(messages: string[], ts: Date): DistilledSection[] {
+  const last = messages[messages.length - 1] ?? ''
+  const preview = last.length > 200 ? `${last.slice(0, 200)}…` : last
+  const dateStr = ts.toISOString().slice(0, 10)
+  return [{ heading: 'Recent Interaction', body: `_${dateStr}_\n\n${preview}` }]
+}

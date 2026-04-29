@@ -28,7 +28,7 @@ beforeEach(async () => {
   // CASCADE is a no-op for these tables today, but keeps test ordering safe if
   // future FKs land on the row.
   await db.execute(
-    sql`INSERT INTO agents.agent_definitions (id, organization_id, name, role) VALUES (${AGENT}, ${ORG}, 'cron-tick agent', 'operator') ON CONFLICT (id) DO UPDATE SET role = 'operator'`,
+    sql`INSERT INTO agents.agent_definitions (id, organization_id, name) VALUES (${AGENT}, ${ORG}, 'cron-tick agent') ON CONFLICT (id) DO NOTHING`,
   )
   installSchedulesService(
     createSchedulesService({

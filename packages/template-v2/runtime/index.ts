@@ -13,20 +13,16 @@
  */
 
 import type { Auth } from '@auth'
-import type { LlmTask, WakeTrigger } from '@modules/agents/events'
-import type {
-  CommandContext,
-  CommandDef,
-  ModuleDef as CoreModuleDef,
-  ModuleInitCtx as CoreModuleInitCtx,
-} from '@vobase/core'
+import type { ModuleDef as CoreModuleDef, ModuleInitCtx as CoreModuleInitCtx } from '@vobase/core'
 import { pgSchema } from 'drizzle-orm/pg-core'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 
-// Re-export the workspace CLI command shape + agent event aliases that
-// modules import alongside the runtime types — saves them from a
-// per-import vendor lookup.
-export type { CommandContext, CommandDef, LlmTask, WakeTrigger }
+import type { WakeContext } from '~/wake/context'
+import type { LlmTask, WakeTrigger } from '~/wake/events'
+
+// Re-export the agent event aliases that modules import alongside the runtime
+// types — saves them from a per-import vendor lookup.
+export type { LlmTask, WakeTrigger }
 
 // ─── Database handle ────────────────────────────────────────────────────────
 
@@ -118,9 +114,13 @@ export type ModuleInitCtx = CoreModuleInitCtx<ScopedDb, RealtimeService> & {
  * Template-narrowed `ModuleDef`. Overrides `init`'s ctx type to the extended
  * `ModuleInitCtx` (with `auth`) so module authors can read `ctx.auth` directly
  * inside their `init`. Method-parameter bivariance lets this still satisfy the
- * core `ModuleDef<Db, Realtime>` signature when handed to `bootModules`.
+ * core `ModuleDef<Db, Realtime, TCtx>` signature when handed to `bootModules`.
+ *
+ * The third generic threads `WakeContext` (from `~/wake/context.ts`) into
+ * `agent.materializers`, so each module's factory receives the template's
+ * concrete wake-time bag rather than `unknown`.
  */
-export type ModuleDef = Omit<CoreModuleDef<ScopedDb, RealtimeService>, 'init'> & {
+export type ModuleDef = Omit<CoreModuleDef<ScopedDb, RealtimeService, WakeContext>, 'init'> & {
   init(ctx: ModuleInitCtx): void | Promise<void>
 }
 

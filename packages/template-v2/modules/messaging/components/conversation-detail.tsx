@@ -252,7 +252,13 @@ export function ConversationDetail() {
         )}
       </div>
 
-      <MessageThread messages={messages} notes={notes} activity={activity} currentUserId={currentUserId} />
+      <MessageThread
+        messages={messages}
+        notes={notes}
+        activity={activity}
+        currentUserId={currentUserId}
+        assignee={activeConv?.assignee ?? null}
+      />
       {activeConvId && <Composer conversationId={activeConvId} />}
     </div>
   )

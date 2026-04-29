@@ -42,7 +42,7 @@ function skillFileName(name: string): string {
 function skillContent(name: string, body: string | null | undefined, inAllowlist: boolean): string {
   if (body && body.trim().length > 0) return body
   if (inAllowlist) {
-    return `Skill "${name}" is allow-listed for this agent. Source body ships via \`vobase install --defaults\` (modules/<m>/defaults/${name}.skill.md).`
+    return `Skill "${name}" is allow-listed for this agent. Source body lives at modules/<m>/skills/${name}.md.`
   }
   return `Skill "${name}" — empty body.`
 }

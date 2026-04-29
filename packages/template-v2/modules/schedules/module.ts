@@ -13,6 +13,7 @@ import { jobs, SCHEDULES_TICK_CRON, SCHEDULES_TICK_JOB } from '@modules/schedule
 import { createSchedulesService, installSchedulesService } from '@modules/schedules/service/schedules'
 
 import type { ModuleDef } from '~/runtime'
+import { schedulesTools } from './agent'
 import { schedulesVerbs } from './cli'
 
 export {
@@ -24,6 +25,7 @@ const schedules: ModuleDef = {
   name: 'schedules',
   requires: ['agents'],
   jobs: [...jobs],
+  agent: { tools: schedulesTools },
   init(ctx) {
     installSchedulesService(createSchedulesService({ db: ctx.db }))
     void ctx.jobs.schedule?.(SCHEDULES_TICK_JOB, SCHEDULES_TICK_CRON, undefined, {

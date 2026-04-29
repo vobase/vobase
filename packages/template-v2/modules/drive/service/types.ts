@@ -49,3 +49,13 @@ export interface IngestUploadInput {
   source?: DriveFile['source']
   parentFolderId?: string | null
 }
+
+/**
+ * Read-only slice of `FilesService` the BUSINESS.md materializer depends on.
+ * Defined here (not under `agent.ts`) so the type lives next to its
+ * service-layer source-of-truth and `agent.ts` stays purely declarative.
+ */
+export interface DriveReader {
+  getByPath(scope: DriveScope, path: string): Promise<DriveFile | null>
+  readContent(id: string): Promise<{ content: string; spilledToPath?: string }>
+}

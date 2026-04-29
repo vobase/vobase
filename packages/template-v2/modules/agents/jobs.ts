@@ -2,10 +2,10 @@
  * agents module job registry.
  *
  * Job-name constants are co-located here. `AGENT_WAKE_JOB` and
- * `SCHEDULED_FOLLOWUP_JOB` are the pg-boss queue names that
- * `wake-scheduler.ts` (producer) and `wake-worker.ts` (consumer) read +
- * write — the wake worker registers its own pg-boss handlers, so this
- * module does not declare `JobDef` entries for them.
+ * `SCHEDULED_FOLLOWUP_JOB` are the pg-boss queue names consumed by the
+ * wake-handler entry points under `wake/` — those handlers register their
+ * own pg-boss handlers, so this module does not declare `JobDef` entries
+ * for them.
  *
  * `agents:expire-approvals` is the recurring 15-minute sweeper that flips
  * pending-approval rows to `expired` once they outlive their TTL. Scheduled

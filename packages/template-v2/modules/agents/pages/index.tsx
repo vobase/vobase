@@ -6,7 +6,7 @@ import {
   useUpdateAgent,
 } from '@modules/agents/hooks/use-agent-definitions'
 import { MODEL_OPTIONS } from '@modules/agents/service/agent-definitions'
-import { DEFAULT_CHAT_MODEL } from '@modules/agents/wake/models'
+import { DEFAULT_CHAT_MODEL } from '~/wake/llm'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Bot, MoreVertical, Plus, Sparkles } from 'lucide-react'
 import { useState } from 'react'

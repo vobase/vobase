@@ -1,6 +1,7 @@
 import { registerChangeMaterializer } from '@modules/changes/service/proposals'
 
 import type { ModuleDef } from '~/runtime'
+import { contactsAgentsMdContributors, contactsMaterializerFactory, contactsRoHints, contactsTools } from './agent'
 import { contactsVerbs } from './cli'
 import { createAttrDefService, installAttrDefService } from './service/attribute-definitions'
 import { CONTACT_RESOURCE, contactChangeMaterializer } from './service/changes'
@@ -11,6 +12,12 @@ const contacts: ModuleDef = {
   name: 'contacts',
   web: { routes: web.routes },
   jobs: [],
+  agent: {
+    tools: contactsTools,
+    agentsMd: [...contactsAgentsMdContributors],
+    materializers: [contactsMaterializerFactory],
+    roHints: [...contactsRoHints],
+  },
   init(ctx) {
     installContactsService(createContactsService({ db: ctx.db, realtime: ctx.realtime }))
     installAttrDefService(createAttrDefService({ db: ctx.db }))

@@ -1,7 +1,7 @@
 /**
  * Operator wake — real-Postgres integration of the §10.6/10.7/10.8 pipeline.
  *
- * Verifies that `buildStandaloneWakeConfig` composes correctly against a real
+ * Verifies that `standaloneWakeConfig` composes correctly against a real
  * DB + the full service install chain (agent definitions, threads, schedules,
  * contacts, conversations, pending approvals, etc.), and that the resulting
  * config carries the standalone-lane surface — synthetic conversationId,
@@ -14,13 +14,14 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { MERIDIAN_AGENT_ID, MERIDIAN_ORG_ID } from '@modules/agents/seed'
+import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import {
   __resetAgentDefinitionsServiceForTests,
   createAgentDefinitionsService,
   getById as getAgentDefinition,
   installAgentDefinitionsService,
 } from '@modules/agents/service/agent-definitions'
+import { __resetCliRegistryForTests, setCliRegistry } from '@modules/agents/service/cli-registry'
 import {
   __resetStaffMemoryServiceForTests,
   createStaffMemoryService,
@@ -32,13 +33,15 @@ import {
   installThreadsService,
   threads as threadsApi,
 } from '@modules/agents/service/threads'
-import { buildStandaloneWakeConfig } from '@modules/agents/wake/build-config/standalone'
+import { standaloneWakeConfig } from '~/wake/standalone'
+import { contactsTools } from '@modules/contacts/agent'
 import {
   __resetContactsServiceForTests,
   createContactsService,
   installContactsService,
 } from '@modules/contacts/service/contacts'
 import { __resetFilesDbForTests, setFilesDb } from '@modules/drive/service/files'
+import { messagingTools } from '@modules/messaging/agent'
 import {
   __resetConversationsServiceForTests,
   createConversationsService,
@@ -50,6 +53,7 @@ import {
   createPendingApprovalsService,
   installPendingApprovalsService,
 } from '@modules/messaging/service/pending-approvals'
+import { schedulesTools } from '@modules/schedules/agent'
 import {
   __resetSchedulesServiceForTests,
   createSchedulesService,
@@ -57,7 +61,7 @@ import {
 } from '@modules/schedules/service/schedules'
 import { __resetStaffServiceForTests, createStaffService, installStaffService } from '@modules/team/service/staff'
 import type { AgentContributions, HarnessLogger } from '@vobase/core'
-import { setJournalDb } from '@vobase/core'
+import { CliVerbRegistry, setJournalDb } from '@vobase/core'
 
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
@@ -68,12 +72,17 @@ const NOOP_LOGGER: HarnessLogger = {
   error: () => {},
 }
 
+// Tools live on the owning modules now (PR2 of the canonical-shape refactor).
+// The wake-handler consumer fans `collectAgentContributions(modules)` into the
+// build configs at boot; the e2e test bypasses module init, so we splice the
+// owning-module tools in here directly.
 const NOOP_CONTRIBUTIONS: AgentContributions = {
-  tools: [],
+  tools: [...messagingTools, ...contactsTools, ...schedulesTools],
   listeners: {},
   materializers: [],
   sideLoad: [],
-  commands: [],
+  agentsMd: [],
+  roHints: [],
 }
 
 let db: TestDbHandle
@@ -85,6 +94,7 @@ beforeAll(async () => {
   db = connectTestDb()
   setJournalDb(db.db as unknown as Parameters<typeof setJournalDb>[0])
   setFilesDb(db.db)
+  setCliRegistry(new CliVerbRegistry())
   installAgentDefinitionsService(createAgentDefinitionsService({ db: db.db }))
   installThreadsService(createThreadsService({ db: db.db }))
   installContactsService(createContactsService({ db: db.db, realtime: NOOP_REALTIME }))
@@ -98,6 +108,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   __resetAgentDefinitionsServiceForTests()
+  __resetCliRegistryForTests()
   __resetThreadsServiceForTests()
   __resetContactsServiceForTests()
   __resetSchedulesServiceForTests()
@@ -110,27 +121,27 @@ afterAll(async () => {
   if (db) await db.teardown()
 })
 
-describe('buildStandaloneWakeConfig (real PG)', () => {
+describe('standaloneWakeConfig (real PG)', () => {
   it('operator_thread wake: synthetic conversationId, operator tools, /INDEX.md materializer, operator brief side-load', async () => {
     // Provision a thread + staff message via the public service surface so
     // the test exercises the same path as the operator chat producer will.
     const { threadId } = await threadsApi.createThread({
       organizationId: MERIDIAN_ORG_ID,
-      agentId: MERIDIAN_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       createdBy: 'staff:test',
       title: 'Test brief',
       firstMessage: { role: 'user', content: 'Summarize today and propose any follow-ups.' },
     })
 
-    const config = await buildStandaloneWakeConfig({
+    const config = await standaloneWakeConfig({
       data: {
         organizationId: MERIDIAN_ORG_ID,
         triggerKind: 'operator_thread',
         threadId,
         threadMessage: 'Summarize today and propose any follow-ups.',
       },
-      agentId: MERIDIAN_AGENT_ID,
-      agentDefinition: await getAgentDefinition(MERIDIAN_AGENT_ID),
+      agentId: MERIGPT_AGENT_ID,
+      agentDefinition: await getAgentDefinition(MERIGPT_AGENT_ID),
       contributions: NOOP_CONTRIBUTIONS,
       deps: { db: db.db, realtime: { notify: () => {} } as never, logger: NOOP_LOGGER },
     })
@@ -140,7 +151,7 @@ describe('buildStandaloneWakeConfig (real PG)', () => {
     expect(config.conversationId).toBe(`operator-${threadId}`)
     expect(config.contactId).toBe('')
     expect(config.organizationId).toBe(MERIDIAN_ORG_ID)
-    expect(config.agentId).toBe(MERIDIAN_AGENT_ID)
+    expect(config.agentId).toBe(MERIGPT_AGENT_ID)
 
     const toolNames = (config.tools as readonly { name: string }[]).map((t) => t.name)
     expect(toolNames).toContain('update_contact')
@@ -193,7 +204,7 @@ describe('buildStandaloneWakeConfig (real PG)', () => {
   })
 
   it('heartbeat wake: heartbeat-<scheduleId> conversationId, heartbeat brief side-load', async () => {
-    const config = await buildStandaloneWakeConfig({
+    const config = await standaloneWakeConfig({
       data: {
         organizationId: MERIDIAN_ORG_ID,
         triggerKind: 'heartbeat',
@@ -201,8 +212,8 @@ describe('buildStandaloneWakeConfig (real PG)', () => {
         intendedRunAt: new Date('2026-04-26T18:00:00.000Z'),
         reason: 'cron 0 18 * * *',
       },
-      agentId: MERIDIAN_AGENT_ID,
-      agentDefinition: await getAgentDefinition(MERIDIAN_AGENT_ID),
+      agentId: MERIGPT_AGENT_ID,
+      agentDefinition: await getAgentDefinition(MERIGPT_AGENT_ID),
       contributions: NOOP_CONTRIBUTIONS,
       deps: { db: db.db, realtime: { notify: () => {} } as never, logger: NOOP_LOGGER },
     })

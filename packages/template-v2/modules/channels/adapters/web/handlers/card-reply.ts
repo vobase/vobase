@@ -1,4 +1,4 @@
-import { INBOUND_TO_WAKE_JOB } from '@modules/agents/wake/handler'
+import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
 import { requireJobs } from '@modules/channels/service/state'
 import { get as getConversation } from '@modules/messaging/service/conversations'
 import { appendCardReplyMessage } from '@modules/messaging/service/messages'

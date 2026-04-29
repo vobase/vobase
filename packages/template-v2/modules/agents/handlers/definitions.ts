@@ -17,15 +17,12 @@ import {
   remove as removeAgent,
   update as updateAgent,
 } from '@modules/agents/service/agent-definitions'
-import {
-  conversationVerbs,
-  driveVerbs,
-  generateAgentsMd,
-  HELPDESK_AGENTS_MD_HEADER,
-  teamVerbs,
-} from '@modules/agents/workspace'
+import { getCliRegistry } from '@modules/agents/service/cli-registry'
 import { Hono } from 'hono'
 import { z } from 'zod'
+
+import { generateAgentsMd } from '~/wake/workspace'
+import { HELPDESK_AGENTS_MD_HEADER } from '../agent'
 
 const createBody = z.object({
   name: z.string().min(1).max(120),
@@ -81,10 +78,15 @@ const app = new Hono<OrganizationEnv>()
   .get('/definitions/:id/agents-md', async (c) => {
     try {
       const row = await getById(c.req.param('id'))
+      // Render the same `## Commands` block the agent's frozen prompt sees.
+      // Skip staff-only verbs — those don't appear inside a wake.
+      const verbs = getCliRegistry()
+        .list()
+        .filter((v) => (v.audience ?? 'all') !== 'staff')
       const preamble = generateAgentsMd({
         agentName: row.name,
         agentId: row.id,
-        commands: [...teamVerbs, ...conversationVerbs, ...driveVerbs],
+        commands: verbs,
         instructions: '',
         headerOverride: HELPDESK_AGENTS_MD_HEADER,
       }).replace(/\n## Instructions\n[\s\S]*$/, '\n')

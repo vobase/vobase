@@ -31,4 +31,4 @@ To move to a more descriptive path:
 mv /contacts/<contactId>/drive/uploads/<filename> /contacts/<contactId>/drive/<descriptive-name>.pdf
 ```
 
-Add a note in contact memory about what was saved and why, using `vobase memory set "Documents" "..."`.
+Add a note in contact memory about what was saved and why with a direct write, e.g. `echo "- Saved <doc> on $(date +%Y-%m-%d): <reason>" >> /contacts/<contactId>/MEMORY.md`.

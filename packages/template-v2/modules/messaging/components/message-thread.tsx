@@ -50,6 +50,8 @@ interface MessageThreadProps {
   notes?: InternalNote[]
   activity?: ActivityEvent[]
   currentUserId?: string | null
+  /** Conversation assignee (`agent:<id>` or `user:<id>`) — used to resolve agent-role messages to the right agent in multi-agent orgs. */
+  assignee?: string | null
 }
 
 type TimelineItem =
@@ -57,7 +59,13 @@ type TimelineItem =
   | { kind: 'note'; at: Date; note: InternalNote }
   | { kind: 'activity'; at: Date; ev: ActivityEvent }
 
-export function MessageThread({ messages, notes = [], activity = [], currentUserId = null }: MessageThreadProps) {
+export function MessageThread({
+  messages,
+  notes = [],
+  activity = [],
+  currentUserId = null,
+  assignee = null,
+}: MessageThreadProps) {
   const directory = usePrincipalDirectory()
   const items: TimelineItem[] = [
     ...messages.map((m) => ({ kind: 'message' as const, at: new Date(m.createdAt), msg: m })),
@@ -83,7 +91,13 @@ export function MessageThread({ messages, notes = [], activity = [], currentUser
               {item.kind === 'activity' && <ActivityRow ev={item.ev} directory={directory} />}
               {item.kind === 'note' && <NoteRow note={item.note} directory={directory} currentUserId={currentUserId} />}
               {item.kind === 'message' && (
-                <MessageRow msg={item.msg} messages={messages} directory={directory} currentUserId={currentUserId} />
+                <MessageRow
+                  msg={item.msg}
+                  messages={messages}
+                  directory={directory}
+                  currentUserId={currentUserId}
+                  assignee={assignee}
+                />
               )}
             </Fragment>
           )
@@ -119,19 +133,33 @@ interface MessageRowProps {
   messages: DisplayMessage[]
   directory: PrincipalDirectory
   currentUserId: string | null
+  /** Conversation assignee snapshot — used to identify which agent owns role==='agent' messages. */
+  assignee: string | null
 }
 
-function messagePrincipal(msg: DisplayMessage, directory: PrincipalDirectory): PrincipalRecord | null {
-  // Messages don't carry a sender id today; resolve by role and pick the
-  // first known principal of that kind. Bubble falls back to a generic
-  // avatar + "Agent" / "Staff" label when the directory is empty.
-  if (msg.role === 'agent') return directory.agents[0] ?? null
+function messagePrincipal(
+  msg: DisplayMessage,
+  directory: PrincipalDirectory,
+  assignee: string | null,
+): PrincipalRecord | null {
+  // Messages don't carry a sender id today. For agent rows, prefer the
+  // conversation's `agent:<id>` assignee — multi-agent orgs would otherwise
+  // mis-attribute every reply to the alphabetically-first agent. Fall back to
+  // `directory.agents[0]` only when the assignee isn't an agent (e.g. staff
+  // ownership) or the directory is still loading.
+  if (msg.role === 'agent') {
+    if (assignee?.startsWith('agent:')) {
+      const resolved = directory.resolve(assignee)
+      if (resolved) return resolved
+    }
+    return directory.agents[0] ?? null
+  }
   if (msg.role === 'staff') return directory.staff[0] ?? null
   return null
 }
 
-function MessageRow({ msg, messages, directory, currentUserId }: MessageRowProps) {
-  const principal = messagePrincipal(msg, directory)
+function MessageRow({ msg, messages, directory, currentUserId, assignee }: MessageRowProps) {
+  const principal = messagePrincipal(msg, directory, assignee)
   // "Mine" on right: the row was written by the currently-logged-in staff.
   // Messages don't track per-row senderId yet, so we treat any `role === 'staff'`
   // row as mine when a staff user is signed in.

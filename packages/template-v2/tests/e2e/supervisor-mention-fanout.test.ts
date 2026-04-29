@@ -9,7 +9,7 @@
  *   - `connectTestDb` + `resetAndSeedDb` for a clean schema.
  *   - direct service installs — bypassing the runtime job queue keeps the
  *     test focused on the fan-out shape (the supervisor handler itself is
- *     covered separately by `buildWakeConfig` with `triggerOverride`).
+ *     covered separately by `conversationWakeConfig` with `triggerOverride`).
  *
  * Acceptance scenarios — PRD US-203 (a)–(e):
  *   (a) `@Sentinel` in Meridian-assigned conv → 2 enqueues
@@ -26,26 +26,31 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { agentDefinitions } from '@modules/agents/schema'
-import { MERIDIAN_AGENT_ID, MERIDIAN_ORG_ID, SENTINEL_AGENT_ID } from '@modules/agents/seed'
+import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+
+const MERIDIAN_AGENT_ID = MERIGPT_AGENT_ID
+const SENTINEL_AGENT_ID = 'agt-test-sent'
+const ATLAS_AGENT_ID = 'agt-test-atls'
+
 import {
   __resetAgentDefinitionsServiceForTests,
   createAgentDefinitionsService,
   getById as getAgentDefinition,
   installAgentDefinitionsService,
 } from '@modules/agents/service/agent-definitions'
+import { __resetCliRegistryForTests, setCliRegistry } from '@modules/agents/service/cli-registry'
 import {
   __resetStaffMemoryServiceForTests,
   createStaffMemoryService,
   installStaffMemoryService,
 } from '@modules/agents/service/staff-memory'
-import { conversationTools } from '@modules/agents/tools/conversation'
-import { buildWakeConfig } from '@modules/agents/wake/build-config'
 import {
   __resetContactsServiceForTests,
   createContactsService,
   installContactsService,
 } from '@modules/contacts/service/contacts'
 import { __resetFilesDbForTests, setFilesDb } from '@modules/drive/service/files'
+import { messagingTools } from '@modules/messaging/agent'
 import { conversations as conversationsTable } from '@modules/messaging/schema'
 import {
   __resetAgentMentionsServiceForTests,
@@ -86,9 +91,10 @@ import {
 } from '@modules/schedules/service/schedules'
 import { __resetStaffServiceForTests, createStaffService, installStaffService } from '@modules/team/service/staff'
 import type { AgentContributions, AgentTool, HarnessLogger } from '@vobase/core'
-import { setJournalDb } from '@vobase/core'
+import { CliVerbRegistry, setJournalDb } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
+import { conversationWakeConfig } from '~/wake/conversation'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
 const NOOP_LOGGER: HarnessLogger = {
@@ -100,7 +106,6 @@ const NOOP_LOGGER: HarnessLogger = {
 
 const NOOP_REALTIME = { notify: () => {}, subscribe: () => () => {} }
 
-const ATLAS_AGENT_ID = 'agt-test-atlas-fan'
 const STAFF_USER_ID = 'usr-staff-test'
 
 interface CapturedEnqueue {
@@ -122,17 +127,22 @@ beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
   setJournalDb(db.db as unknown as Parameters<typeof setJournalDb>[0])
+  setCliRegistry(new CliVerbRegistry())
 
-  // Seed an extra Atlas agent so the @Atlas peer-wake case (c) and the
-  // ping-pong case (e) can target a real, enabled agent definition.
-  await (db.db as unknown as { insert: (t: unknown) => { values: (v: unknown) => Promise<unknown> } })
-    .insert(agentDefinitions)
-    .values({
-      id: ATLAS_AGENT_ID,
-      organizationId: MERIDIAN_ORG_ID,
-      name: 'Atlas',
-      enabled: true,
-    })
+  // Insert throwaway Sentinel + Atlas agents for the fan-out tests.
+  const ins = db.db as unknown as { insert: (t: unknown) => { values: (v: unknown) => Promise<unknown> } }
+  await ins.insert(agentDefinitions).values({
+    id: SENTINEL_AGENT_ID,
+    organizationId: MERIDIAN_ORG_ID,
+    name: 'Sentinel',
+    enabled: true,
+  })
+  await ins.insert(agentDefinitions).values({
+    id: ATLAS_AGENT_ID,
+    organizationId: MERIDIAN_ORG_ID,
+    name: 'Atlas',
+    enabled: true,
+  })
 
   // Resolve a seed conversation we know is assigned to Meridian (Priya
   // refund thread is the canonical concierge fixture).
@@ -151,7 +161,7 @@ beforeAll(async () => {
   installMessagesService(createMessagesService({ db: db.db }))
   installConversationsService(createConversationsService({ db: db.db, scheduler: null }))
   installAgentMentionsService(createAgentMentionsService({ db: db.db }))
-  // buildWakeConfig dependencies — drive files, contacts profile reader, staff
+  // conversationWakeConfig dependencies — drive files, contacts profile reader, staff
   // memory (for the per-staff side-load). Mirrors operator-wake.e2e.test.ts.
   setFilesDb(db.db)
   installContactsService(createContactsService({ db: db.db, realtime: NOOP_REALTIME }))
@@ -197,6 +207,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   __resetAgentDefinitionsServiceForTests()
+  __resetCliRegistryForTests()
   __resetMessagesServiceForTests()
   __resetConversationsServiceForTests()
   __resetAgentMentionsServiceForTests()
@@ -209,10 +220,11 @@ afterAll(async () => {
   __resetPendingApprovalsServiceForTests()
 
   if (db) {
-    const handle = db.db as unknown as {
+    const del = db.db as unknown as {
       delete: (t: unknown) => { where: (c: unknown) => Promise<unknown> }
     }
-    await handle.delete(agentDefinitions).where(eq(agentDefinitions.id, ATLAS_AGENT_ID))
+    await del.delete(agentDefinitions).where(eq(agentDefinitions.id, SENTINEL_AGENT_ID))
+    await del.delete(agentDefinitions).where(eq(agentDefinitions.id, ATLAS_AGENT_ID))
     await db.teardown()
   }
 })
@@ -315,17 +327,17 @@ describe('supervisor mention fan-out', () => {
     ).toBe(true)
   })
 
-  it('(d) Sentinel-assigned conv with @Meridian → Meridian peer wake; conversation-lane builder yields reply + send_card', async () => {
+  it('(d) Sentinel-assigned conv with @MeriGPT → MeriGPT peer wake; conversation-lane builder yields reply + send_card', async () => {
     captured = []
 
-    // Reassign Priya conv to Sentinel, fire the peer-wake into Meridian.
+    // Reassign Priya conv to Sentinel, fire the peer-wake into MeriGPT.
     await reassign(priyaConvId, `agent:${SENTINEL_AGENT_ID}`, STAFF_USER_ID, 'test reassign')
     try {
       const note = await addNote({
         organizationId: MERIDIAN_ORG_ID,
         conversationId: priyaConvId,
         author: { kind: 'staff', id: STAFF_USER_ID },
-        body: '@Meridian thoughts on the refund?',
+        body: '@MeriGPT thoughts on the refund?',
         mentions: [`agent:${MERIDIAN_AGENT_ID}`],
       })
 
@@ -344,13 +356,14 @@ describe('supervisor mention fan-out', () => {
       const conv = await getConversation(priyaConvId)
       const meridianDef = await getAgentDefinition(MERIDIAN_AGENT_ID)
       const contributions: AgentContributions = {
-        tools: [],
+        tools: [...messagingTools],
         listeners: {},
         materializers: [],
         sideLoad: [],
-        commands: [],
+        agentsMd: [],
+        roHints: [],
       }
-      const config = await buildWakeConfig({
+      const config = await conversationWakeConfig({
         data: {
           organizationId: MERIDIAN_ORG_ID,
           conversationId: priyaConvId,
@@ -379,9 +392,11 @@ describe('supervisor mention fan-out', () => {
       const cue = config.renderTrigger?.(config.trigger)
       expect(cue).toContain('@-mentioned you in an internal note')
 
-      // Sanity: the concierge tool surface is what we expect (`reply`,
-      // `send_card`, `send_file`, `book_slot`).
-      const conciergeNames = conversationTools.map((t) => t.name)
+      // Sanity: the concierge tool surface includes every conversation-lane
+      // tool the messaging module contributes (filtered down by lane).
+      const conciergeNames = messagingTools
+        .filter((t) => t.lane === 'conversation' || t.lane === 'both')
+        .map((t) => t.name)
       for (const n of conciergeNames) expect(toolNames).toContain(n)
     } finally {
       // Restore the assignee for downstream tests.
@@ -415,11 +430,12 @@ describe('supervisor mention fan-out', () => {
     const conv = await getConversation(priyaConvId)
     const meridianDef = await getAgentDefinition(MERIDIAN_AGENT_ID)
     const contributions: AgentContributions = {
-      tools: [],
+      tools: [...messagingTools],
       listeners: {},
       materializers: [],
       sideLoad: [],
-      commands: [],
+      agentsMd: [],
+      roHints: [],
     }
     const triggerOverride = {
       trigger: 'supervisor' as const,
@@ -430,7 +446,7 @@ describe('supervisor mention fan-out', () => {
     }
 
     const buildOnce = () =>
-      buildWakeConfig({
+      conversationWakeConfig({
         data: {
           organizationId: MERIDIAN_ORG_ID,
           conversationId: priyaConvId,

@@ -1,4 +1,4 @@
-import type { WakeTrigger } from '@modules/agents/events'
+import type { WakeTrigger } from '~/wake/events'
 import { conversations, pendingApprovals } from '@modules/messaging/schema'
 import { and, desc, eq } from 'drizzle-orm'
 

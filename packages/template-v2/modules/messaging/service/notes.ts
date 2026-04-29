@@ -229,3 +229,34 @@ export async function addNote(input: AddNoteInput): Promise<InternalNote> {
 export async function listNotes(conversationId: string): Promise<InternalNote[]> {
   return current().listNotes(conversationId)
 }
+
+/**
+ * Classify a supervisor wake's triggering note relative to the current
+ * agent's recent activity on the same conversation.
+ *
+ * Returns:
+ *   - `ask_staff_answer` — the note immediately preceding the trigger was
+ *     posted by THIS agent and explicitly @-mentioned someone (i.e. it was
+ *     a `vobase conv ask-staff` post). The current note is therefore a
+ *     direct answer to the agent's question; the wake should NOT strip
+ *     customer-facing tools.
+ *   - `coaching` — anything else (no prior note, prior note by staff, prior
+ *     note by another agent, or prior note by this agent without a mention).
+ *     This is staff-initiated feedback; the wake should default to
+ *     read-and-internalise without sending another customer reply.
+ *
+ * Lives in messaging because the classification is purely a function of
+ * note authorship + mentions — no wake-builder primitive needed.
+ */
+export async function classifySupervisorTrigger(opts: {
+  conversationId: string
+  triggerNoteId: string
+  agentId: string
+}): Promise<{ kind: 'ask_staff_answer' | 'coaching' }> {
+  const notes = await listNotes(opts.conversationId)
+  const idx = notes.findIndex((n) => n.id === opts.triggerNoteId)
+  const prior = idx > 0 ? notes[idx - 1] : null
+  const isAskStaffAnswer =
+    !!prior && prior.authorType === 'agent' && prior.authorId === opts.agentId && prior.mentions.length > 0
+  return { kind: isAskStaffAnswer ? 'ask_staff_answer' : 'coaching' }
+}

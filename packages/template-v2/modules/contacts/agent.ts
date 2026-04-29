@@ -10,24 +10,43 @@
  */
 
 import type { Contact } from '@modules/contacts/schema'
-import type { ContactsService } from '@modules/contacts/service/contacts'
-import { defineIndexContributor, type IndexContributor, type WorkspaceMaterializer } from '@vobase/core'
+import { type AgentTool, defineIndexContributor, type IndexContributor, type RoHintFn } from '@vobase/core'
+
+import type { WakeMaterializerFactory } from '~/wake/context'
+import { get as getContact, readMemory as readContactMemory } from './service/contacts'
+import type { ContactsIndexReader, ContactsReader } from './service/types'
+import { proposeOutreachTool } from './tools/propose-outreach'
+import { updateContactTool } from './tools/update-contact'
+
+export type { ContactsIndexReader, ContactsReader }
+
+const contactsReader: ContactsReader = { get: getContact, readMemory: readContactMemory }
+
+/**
+ * RO-error hint for `/contacts/<id>/profile.md`. The contact profile is
+ * derived from the contacts row; agents propose changes via `update_contact`
+ * (gated by the changes pipeline) instead of overwriting the file.
+ */
+export const contactsRoHints: RoHintFn[] = [
+  (path) => {
+    if (path.startsWith('/contacts/') && path.endsWith('/profile.md')) {
+      return `bash: ${path}: Read-only filesystem.\n  Contact profile is derived from the contact record. Edit fields in the Contacts UI or via the contacts service; do not write to this file.`
+    }
+    return null
+  },
+]
+
+export const contactsTools: AgentTool[] = [updateContactTool, proposeOutreachTool]
+
+export { proposeOutreachTool, updateContactTool }
 
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
-
-/** Read-only slice of ContactsService the profile + memory materializers depend on. */
-export type ContactsReader = Pick<ContactsService, 'get' | 'readMemory'>
-
-export interface ContactsMaterializerOpts {
-  contacts: ContactsReader
-  contactId: string
-}
 
 function contactProfileFallback(contactId: string): string {
   return `# ${contactId} (${contactId})\n\n_No profile configured yet._\n`
 }
 
-async function renderContactProfile(port: ContactsReader, contactId: string): Promise<string> {
+export async function renderContactProfile(port: ContactsReader, contactId: string): Promise<string> {
   try {
     const c = await port.get(contactId)
     const identity = c.displayName ?? c.phone ?? c.email ?? c.id
@@ -42,7 +61,7 @@ async function renderContactProfile(port: ContactsReader, contactId: string): Pr
   }
 }
 
-async function renderContactMemory(port: ContactsReader, contactId: string): Promise<string> {
+export async function renderContactMemory(port: ContactsReader, contactId: string): Promise<string> {
   try {
     const body = await port.readMemory(contactId)
     return body && body.trim().length > 0 ? body : EMPTY_MEMORY_MD
@@ -51,26 +70,46 @@ async function renderContactMemory(port: ContactsReader, contactId: string): Pro
   }
 }
 
-export function buildContactsMaterializers(opts: ContactsMaterializerOpts): WorkspaceMaterializer[] {
+export const contactsMaterializerFactory: WakeMaterializerFactory = (ctx) => {
+  if (!ctx.contactId) return []
+  const contactId = ctx.contactId
   return [
     {
-      path: `/contacts/${opts.contactId}/profile.md`,
+      path: `/contacts/${contactId}/profile.md`,
       phase: 'frozen',
-      materialize: () => renderContactProfile(opts.contacts, opts.contactId),
+      materialize: () => renderContactProfile(contactsReader, contactId),
     },
     {
-      path: `/contacts/${opts.contactId}/MEMORY.md`,
+      path: `/contacts/${contactId}/MEMORY.md`,
       phase: 'frozen',
-      materialize: () => renderContactMemory(opts.contacts, opts.contactId),
+      materialize: () => renderContactMemory(contactsReader, contactId),
     },
   ]
 }
 
-export { buildContactsMaterializers as buildMaterializers }
+// ─── AGENTS.md contributor ────────────────────────────────────────────────
 
-// ─── Index contributors ────────────────────────────────────────────────────
+const AGENTS_MD_FILE = 'AGENTS.md'
 
-export type ContactsIndexReader = Pick<ContactsService, 'list'>
+export const contactsAgentsMdContributors: readonly IndexContributor[] = [
+  defineIndexContributor({
+    file: AGENTS_MD_FILE,
+    priority: 40,
+    name: 'contacts.contact-context',
+    render: () =>
+      [
+        '## Contact context',
+        '',
+        '- `/contacts/<id>/profile.md` — contact identity (read-only; first line carries the identity).',
+        '- `/contacts/<id>/MEMORY.md` — per-contact working memory. Direct-writable like any markdown file (`cat`, `echo >>`, `sed`, heredocs). Persists across wakes — use for per-customer learnings that should survive into future conversations.',
+        '- `/contacts/<id>/drive/` — per-contact upload space (writable).',
+        '',
+        '**Update contact memory:** `echo "- new note" >> /contacts/<id>/MEMORY.md`, or use a heredoc for a dated section. Same pattern as your own MEMORY.md, scoped to this contact.',
+      ].join('\n'),
+  }),
+]
+
+// ─── Index contributors (INDEX.md) ────────────────────────────────────────
 
 export interface ContactsIndexContributorOpts {
   organizationId: string

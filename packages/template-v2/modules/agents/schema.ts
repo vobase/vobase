@@ -54,7 +54,7 @@ import { sql } from 'drizzle-orm'
 import { boolean, check, index, integer, jsonb, numeric, real, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { agentsPgSchema } from '~/runtime'
-import { DEFAULT_CHAT_MODEL } from './wake/models'
+import { DEFAULT_CHAT_MODEL } from '~/wake/llm'
 
 export const agentDefinitions = agentsPgSchema.table(
   'agent_definitions',

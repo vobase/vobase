@@ -14,7 +14,7 @@
  *   6. Sophia         — active, customer question waiting on agent
  */
 
-import { MERIDIAN_AGENT_ID, SENTINEL_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import {
   ALICE_USER_ID,
   BOB_USER_ID,
@@ -47,7 +47,7 @@ export const DEREK_CONV_ID = 'cnv0derek0'
 export const SOPHIA_CONV_ID = 'cnv0sophia'
 export const LIAM_CONV_ID = 'cnv00liam0'
 
-const AGENT_ASSIGNEE = `agent:${MERIDIAN_AGENT_ID}`
+const AGENT_ASSIGNEE = `agent:${MERIGPT_AGENT_ID}`
 const NOW = Date.now()
 const mins = (n: number) => new Date(NOW - n * 60_000)
 
@@ -268,17 +268,15 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'web-priya-04',
     createdAt: mins(8),
   })
-  // Cross-lane mention: staff pings the OPERATOR agent (Sentinel) inside a
-  // CONCIERGE-assigned customer thread. Exercises the supervisor fan-out
-  // peer-wake path — Sentinel boots on its own builder lane while Meridian
-  // (the assignee) gets a self-wake on the same note.
+  // Coaching note from Alice to MeriGPT — recurring Slack-routing topic worth
+  // capturing in the next daily-brief.
   await insertNote(ins, {
     id: 'not0priya01',
     conversationId: PRIYA_CONV_ID,
     authorType: 'staff',
     authorId: ALICE_USER_ID,
-    body: '@Sentinel — Priya is the third Pro-plan customer this week asking about Slack routing. Worth flagging in tomorrow’s daily-brief as a recurring topic.',
-    mentions: [`agent:${SENTINEL_AGENT_ID}`],
+    body: 'Priya is the third Pro-plan customer this week asking about Slack routing. Worth flagging in the next daily-brief as a recurring topic.',
+    mentions: [`agent:\${MERIGPT_AGENT_ID}`],
     createdAt: mins(7),
   })
 
@@ -347,7 +345,7 @@ export async function seed(db: unknown): Promise<void> {
     id: 'not0marc001',
     conversationId: MARCUS_CONV_ID,
     authorType: 'agent',
-    authorId: MERIDIAN_AGENT_ID,
+    authorId: MERIGPT_AGENT_ID,
     body: '@alice — 400-seat Enterprise inquiry from Northwind. Drafted quote at $20/user/mo (annual) with SOC 2. Requesting approval before sending.',
     mentions: [ALICE_USER_ID],
     createdAt: mins(57),
@@ -418,7 +416,7 @@ export async function seed(db: unknown): Promise<void> {
     id: 'not0elen001',
     conversationId: ELENA_CONV_ID,
     authorType: 'agent',
-    authorId: MERIDIAN_AGENT_ID,
+    authorId: MERIGPT_AGENT_ID,
     body: '@carol — refund request from Elena (Pro, 1 seat, paid 12 days ago). Within 14-day window, no usage anomalies. Recommend full refund.',
     mentions: [CAROL_USER_ID],
     createdAt: mins(177),
@@ -426,7 +424,7 @@ export async function seed(db: unknown): Promise<void> {
   await insertActivity(ins, {
     conversationId: ELENA_CONV_ID,
     type: 'conversation.reassigned',
-    payload: { from: AGENT_ASSIGNEE, to: `user:${CAROL_USER_ID}`, reason: 'billing escalation', by: MERIDIAN_AGENT_ID },
+    payload: { from: AGENT_ASSIGNEE, to: `user:${CAROL_USER_ID}`, reason: 'billing escalation', by: MERIGPT_AGENT_ID },
     ts: mins(176),
   })
   await insertNote(ins, {
@@ -569,7 +567,7 @@ export async function seed(db: unknown): Promise<void> {
   await insertActivity(ins, {
     conversationId: DEREK_CONV_ID,
     type: 'conversation.resolved',
-    payload: { by: MERIDIAN_AGENT_ID, reason: 'answered' },
+    payload: { by: MERIGPT_AGENT_ID, reason: 'answered' },
     ts: mins(1430),
   })
 
@@ -597,7 +595,7 @@ export async function seed(db: unknown): Promise<void> {
     id: 'not0soph001',
     conversationId: SOPHIA_CONV_ID,
     authorType: 'agent',
-    authorId: MERIDIAN_AGENT_ID,
+    authorId: MERIGPT_AGENT_ID,
     body: '@bob — Sophia (Teams, 8 seats) is asking about extended audit log retention. Enterprise-only feature per BUSINESS.md. Reassigning so you can quote an upgrade.',
     mentions: [BOB_USER_ID],
     createdAt: mins(93),
@@ -609,7 +607,7 @@ export async function seed(db: unknown): Promise<void> {
       from: AGENT_ASSIGNEE,
       to: `user:${BOB_USER_ID}`,
       reason: 'enterprise upgrade quote',
-      by: MERIDIAN_AGENT_ID,
+      by: MERIGPT_AGENT_ID,
     },
     ts: mins(92),
   })
@@ -676,7 +674,7 @@ export async function seed(db: unknown): Promise<void> {
     id: 'not0liam01',
     conversationId: LIAM_CONV_ID,
     authorType: 'agent',
-    authorId: MERIDIAN_AGENT_ID,
+    authorId: MERIGPT_AGENT_ID,
     body: "@bob — Liam (FinSight, Pro) is hitting 503s on outbound webhooks. Standard exponential backoff applies, but he's asking if there's a per-endpoint override. Need your read on (a) retry policy details to share, (b) whether per-endpoint overrides are exposed today, (c) whether to honor `Retry-After`. I'll keep him engaged while we wait.",
     mentions: [BOB_USER_ID],
     createdAt: mins(63),
@@ -735,7 +733,7 @@ export async function seed(db: unknown): Promise<void> {
     authorType: 'staff',
     authorId: BOB_USER_ID,
     body: '@meridian — exponential backoff up to 5 attempts, base 30s, cap 5 min. We do not expose per-endpoint overrides yet (file as a feature request to @alice). For 503s WITH `Retry-After`, honor the header verbatim and skip our default schedule. WITHOUT the header, fall back to our default. If 5 attempts fail, dead-letter to the partner-webhook DLQ in Settings → Integrations → Logs.',
-    mentions: [MERIDIAN_AGENT_ID],
+    mentions: [MERIGPT_AGENT_ID],
     parentNoteId: 'not0liam01',
     createdAt: mins(30),
   })
@@ -839,7 +837,7 @@ export async function seed(db: unknown): Promise<void> {
     id: 'not0liam03',
     conversationId: LIAM_CONV_ID,
     authorType: 'agent',
-    authorId: MERIDIAN_AGENT_ID,
+    authorId: MERIGPT_AGENT_ID,
     body: '@alice — per Bob, FYI: customers are starting to ask for per-endpoint webhook retry overrides. Liam (FinSight, Pro) is the second this month. Worth a /drive/BUSINESS.md mention or a roadmap line if/when planned.',
     mentions: [ALICE_USER_ID],
     createdAt: mins(24),

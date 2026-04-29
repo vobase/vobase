@@ -12,7 +12,7 @@
  * wake handler is registered in `runtime/bootstrap.ts`.
  */
 
-import { INBOUND_TO_WAKE_JOB } from '@modules/agents/wake/handler'
+import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
 import type { ChannelInstance } from '@modules/channels/schema'
 import { upsertByExternal } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'

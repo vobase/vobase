@@ -17,7 +17,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
-import { MERIDIAN_AGENT_ID, MERIDIAN_ORG_ID } from '@modules/agents/seed'
+import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import type { HeartbeatTrigger } from '@modules/schedules/jobs'
 import { agentSchedules } from '@modules/schedules/schema'
 import { tickSchedules } from '@modules/schedules/service/cron-tick'
@@ -50,7 +50,7 @@ afterEach(async () => {
 })
 
 function makeSchedule(slug: string, cron = '0 * * * *'): Promise<{ scheduleId: string }> {
-  return schedules.create({ organizationId: MERIDIAN_ORG_ID, agentId: MERIDIAN_AGENT_ID, slug, cron })
+  return schedules.create({ organizationId: MERIDIAN_ORG_ID, agentId: MERIGPT_AGENT_ID, slug, cron })
 }
 
 const T0 = new Date('2026-04-26T10:00:00.000Z')
@@ -169,7 +169,7 @@ describe('schedules cron-tick (real PG)', () => {
     const otherOrg = 'org0other00'
     await db.db.insert(agentSchedules).values({
       organizationId: otherOrg,
-      agentId: MERIDIAN_AGENT_ID,
+      agentId: MERIGPT_AGENT_ID,
       slug: 'theirs',
       cron: '0 * * * *',
       timezone: 'UTC',

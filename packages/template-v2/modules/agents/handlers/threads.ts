@@ -16,7 +16,7 @@ import type { SessionEnv } from '@auth/middleware/require-session'
 import { zValidator } from '@hono/zod-validator'
 import { requireJobs } from '@modules/agents/service/state'
 import { threads as threadsApi } from '@modules/agents/service/threads'
-import { OPERATOR_THREAD_TO_WAKE_JOB } from '@modules/agents/wake/operator-thread-handler'
+import { OPERATOR_THREAD_TO_WAKE_JOB } from '~/wake/operator-thread'
 import { Hono } from 'hono'
 import { z } from 'zod'
 

@@ -10,7 +10,7 @@
  *   - inbound-rejects-failed
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { MERIDIAN_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { conversations as convTable } from '@modules/messaging/schema'
 import {
@@ -278,4 +278,4 @@ describe('list() preview', () => {
 })
 
 // silence unused
-void MERIDIAN_AGENT_ID
+void MERIGPT_AGENT_ID
