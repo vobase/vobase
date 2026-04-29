@@ -1,5 +1,52 @@
 # @vobase/core
 
+## 0.34.0
+
+### Minor Changes
+
+- Fold the agent harness, workspace, and module system into `@vobase/core` so apps stop owning their own copies. Consolidates nine changesets shipped in lockstep.
+
+  ## Module system in core
+
+  - `defineModule`, `bootModules` (alias `bootModulesCollector`), `sortModules`, `InvalidModuleError`. `ModuleDef<Db, Realtime, TCtx>` carries grouped optional surfaces — `web` (routes), `agent` (`agentsMd`, `materializers`, `roHints`, `tools`), `jobs`. Three collectors flatten the bag: `collectAgentContributions`, `collectWebRoutes`, `collectJobs`.
+  - The v1 module/app runtime is **removed**: `createApp`, `CreateAppConfig`, `VobaseCtx`, `getCtx`, `contextMiddleware`, `registerModules`, `ModuleInitContext`, `createThrowProxy`. Built-in module factories (`createAuditModule`, `createAuthModule`, `createChannelsModule`, `createIntegrationsModule`, `createSequencesModule`, `createStorageModule`) and their middleware/permission helpers (`requireRole`, `requirePermission`, `requireOrg`, `requestAuditMiddleware`, audit hooks, `getActiveSchemas`) are gone. MCP CRUD generation deleted. Schema tables (`auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`, `auth*`, `webhookDedup`) still ship from the root barrel.
+  - File reorg: `src/infra/*` → flat `src/{errors,logger,realtime,jobs,http,hmac}/`. `src/modules/*/schema.ts` → `src/schemas/*.ts`. Storage and channel adapters → `src/adapters/{storage,channels}/`.
+
+  ## Harness primitives
+
+  - `createHarness({ agentDefinition, workspace, systemPrompt, systemHash, trigger, renderTrigger, model, getApiKey, tools, hooks, materializers, sideLoadContributors, runtime, ... })` wraps `pi-agent-core` with multi-listener `HarnessHooks` (`on_tool_call`, `on_tool_result`, `on_event`) and an optional `emitEventHandle` for synthesized events.
+  - `makeBashTool` (single typed `bash` `AgentTool` with three-layer 4KB / 100KB / 200KB byte budget), `TurnBudget`, `L1_PREVIEW_BYTES`, `L2_SPILL_BYTES`, `L3_CEILING_BYTES`, `spillToFile`, `collectSideLoad`, `createBashHistoryMaterializer`, `createRestartRecoveryContributor`, `classifyError`, `createSteerQueue`, `newWakeId`.
+  - `WakeRuntime = { fs: IFileSystem; tracker: DirtyTracker }` is required by `CreateHarnessOpts`. `OnEventListener<T>` / `OnToolCallListener` / `OnToolResultListener` gain a second arg `(event, runtime)` (function-arity subtyping keeps existing one-arg listeners assignable).
+  - `llmCall`, `LlmCallArgs`, `LlmEmitter`, `LlmRequest`, `LlmResult` ship from core; `model: Model<any>` + `apiKey?: string` decouple from env-var resolution.
+  - `withJournaledTx(db, journal, fn)` enforces journal append inside every domain transaction; `JournaledTxDb` is a minimal Drizzle-free shape.
+
+  ## Workspace + virtual filesystem
+
+  - `ScopedFs`, `checkWriteAllowed`, `isWritablePath(path, writablePrefixes)`, `buildReadOnlyConfig({ writablePrefixes, readOnlyExact?, memoryPaths?, readOnlyPrefixes? })`, `ReadOnlyFsError`, `DirtyTracker(snapshot, writablePrefixes)`, `snapshotFs`, `MaterializerRegistry` (frozen / side-load / on-read phases). Apps must declare their writable zones — core no longer ships a helpdesk-specific default. `WRITABLE_PREFIXES` is gone.
+  - `createWorkspace` is domain-free; templates wrap it with their own lazy mounts.
+  - `generateAgentsMd({ agentName, agentId, commands, instructions })` emits a unified `/agents/<id>/AGENTS.md` (title line, framework preamble, CLI reference, verbatim instructions block). Replaces split SOUL.md / TOOLS.md / bookings.md files.
+  - `ScopedDiff.staffMemory: Map<staffId, DirtyDiff>` keys staff-memory writes for the workspace-sync observer.
+
+  ## Path space
+
+  - Drop the `/workspace/` prefix everywhere. Unified namespace keyed by nanoid: `/agents/<agentId>/`, `/contacts/<contactId>/`, `/contacts/<contactId>/<channelInstanceId>/`, `/drive/`, `/tmp/`, `/staff/<staffId>/`. Conversation files (`messages.md`, `internal-notes.md`) live under `/contacts/<contactId>/<channelInstanceId>/`; the `conversations` table + `conversationId` column survive only as DB keys.
+  - Bash cwd starts at `/agents/<agentId>/`. `agent_definitions.soul_md` → `instructions`; `/SOUL.md` → embedded in AGENTS.md.
+  - Active-IDs preamble opens the frozen prompt: conversational wakes emit `"You are /agents/<agentId>/, conversing with /contacts/<contactId>/ via /contacts/<contactId>/<channelInstanceId>/. Latest at .../messages.md."`; non-conversational wakes emit `"You are /agents/<agentId>/."`.
+  - `buildFrozenEagerPaths({ agentId, contactId, channelInstanceId })`, `CreateWorkspaceOpts.channelInstanceId` (required), `FrozenPromptInput.channelInstanceId` (replaces `conversationId`).
+  - `RUNTIME_OWNED_PATHS` drops `/conversations/`, adds `/staff/`. `buildDefaultReadOnlyConfig` takes `{ agentId, contactId, channelInstanceId, staffIds? }`; adds RO-exact entries for `/contacts/<id>/<channelInstanceId>/{messages,internal-notes}.md` and `/staff/<id>/profile.md`, plus memory-hint paths for `/staff/<id>/MEMORY.md`. Contact `profile.md` first line is `# <displayName-or-fallback> (<contactId>)`.
+
+  ## Persistence (`harness` pgSchema)
+
+  Six tables now ship from core: `conversation_events`, `active_wakes`, `threads`, `messages` (agent-thread payloads), `tenant_cost_daily`, `audit_wake_map`. Matching services — `journal` (sole writer of `conversation_events`), `cost` (sole writer of `tenant_cost_daily`), `message-history` (thread + pi `AgentMessage` load/save), `wake-registry` (renamed from `active-wakes`) — are imported from `@vobase/core`. Templates keep their domain tables (`agent_definitions`, `learned_skills`, `learning_proposals`, `agent_scores`); cross-schema FKs (`harness.threads.agent_id → agents.agent_definitions`, `agents.learning_proposals.wake_event_id → harness.conversation_events`) are enforced via `db-apply-extras`.
+
+  ## Removed observer/mutator infra
+
+  `ObserverContext`, the `ctx.events` EventBus, `registerObserverFactory`, `registerMutator`, `ScopedScheduler`, `ScopedStorage` are all gone. Listeners are plain `OnEventListener` functions closing over service singletons; modules consume raw adapters; queue/bucket naming is convention, not a runtime invariant.
+
+  ## Peer dependency
+
+  `just-bash ^2.14.2` — bash tool + RO enforcer build on its `IFileSystem` contract.
+
 ## 0.33.0
 
 ### Minor Changes
