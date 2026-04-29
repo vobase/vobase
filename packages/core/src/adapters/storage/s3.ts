@@ -1,9 +1,33 @@
-import { S3Client } from 'bun'
-
 import type { S3AdapterConfig, StorageAdapter, StorageObjectInfo } from '../../contracts/storage'
 import { validation } from '../../errors'
 
+/**
+ * Resolve `Bun.S3Client` lazily — `import 'bun'` at module load fails under
+ * Node (which drizzle-kit uses to walk schema graphs). The barrel re-exports
+ * `createS3Adapter` so any schema file that accidentally pulls the full
+ * `@vobase/core` barrel must not crash on a missing `'bun'` module.
+ */
+function getS3ClientCtor(): new (
+  opts: Record<string, unknown>,
+) => {
+  file(key: string): {
+    write(data: ArrayBuffer | Uint8Array | string, opts?: { type?: string }): Promise<unknown>
+    arrayBuffer(): Promise<ArrayBuffer>
+    delete(): Promise<unknown>
+    exists(): Promise<boolean> | boolean
+  }
+  presign(key: string, opts: { expiresIn: number; method: string }): string
+} {
+  const bunGlobal = (globalThis as { Bun?: { S3Client?: unknown } }).Bun
+  const Ctor = bunGlobal?.S3Client
+  if (!Ctor) {
+    throw new Error("createS3Adapter requires Bun's S3Client; this code path is only available when running under Bun.")
+  }
+  return Ctor as ReturnType<typeof getS3ClientCtor>
+}
+
 export function createS3Adapter(config: S3AdapterConfig): StorageAdapter {
+  const S3Client = getS3ClientCtor()
   const client = new S3Client({
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,
